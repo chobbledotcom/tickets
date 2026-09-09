@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "mcp__Claude_Code_Remote__send_later",
-      "Bash(devenv shell:*)",
+      "Bash(devenv shell deno task:*)",
+      "Bash(devenv shell -- deno task:*)",
+      "Bash(devenv shell pc)",
+      "Bash(devenv shell container-build)",
+      "Bash(devenv shell container-load)",
       "Bash(deno task test)",
       "Bash(deno task test:*)",
       "Bash(deno task typecheck)",

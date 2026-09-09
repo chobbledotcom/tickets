@@ -7,8 +7,8 @@ spec:
       # .github/workflows/publish-image.yml on every merge to main.
       image:
         registry_type: GHCR
-        registry: ghcr.io
-        repository: chobbledotcom/tickets
+        registry: chobbledotcom
+        repository: tickets
         tag: latest
       http_port: 3000
       instance_count: 1
