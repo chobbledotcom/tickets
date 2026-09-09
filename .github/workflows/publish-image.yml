@@ -70,10 +70,11 @@ jobs:
       # engine `container-load` falls back to.
       #
       # /health is served before any database work, so it alone cannot
-      # prove the image serves a site. The probe after it asks for the
-      # home page, which reads the settings table: on a fresh site that
-      # must answer 503 (setup incomplete). A database or FFI failure
-      # answers 500 or nothing, and fails publication.
+      # prove the image serves a site. Two more probes cover the first
+      # real surfaces: the home page reads the settings table and a
+      # fresh site must answer 503, and the setup page must render its
+      # form with 200. A database, FFI, or rendering failure answers 500
+      # or nothing, and fails publication.
       - name: Verify the image boots and serves
         env:
           # Throwaway key for the ephemeral container DB — not a real secret.
@@ -89,13 +90,14 @@ jobs:
             if [ "$(curl -fsS -m 5 http://127.0.0.1:13000/health 2>/dev/null)" = "Up :)" ]; then
               echo "Server answered /health."
               home="$(curl -sS -m 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/)"
-              if [ "$home" != "503" ]; then
-                echo "::error::The home page answered $home where 503 was expected. Logs:"
+              setup="$(curl -sS -m 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/setup)"
+              if [ "$home" != "503" ] || [ "$setup" != "200" ]; then
+                echo "::error::Expected the home page 503 (got $home) and the setup page 200 (got $setup). Logs:"
                 "$engine" logs tickets-verify || true
                 "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
                 exit 1
               fi
-              echo "Server answered the home page with 503 — the database path served."
+              echo "Server answered home 503 and setup 200 — database and first-run page served."
               "$engine" rm -f tickets-verify >/dev/null
               exit 0
             fi
