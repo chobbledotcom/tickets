@@ -36,8 +36,10 @@ defaults:
 
 jobs:
   publish:
-    # workflow_dispatch can select any branch; only main may own :latest.
-    if: github.ref == 'refs/heads/main'
+    # workflow_dispatch can select any branch, and a fork carries its own
+    # main — only this repository's own main may own :latest and the
+    # chobbledotcom ghcr.io namespace.
+    if: github.repository == 'chobbledotcom/tickets' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
