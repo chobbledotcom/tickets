@@ -79,7 +79,7 @@ export const durationsCompatible = (
 /** The operator-facing description of one listing's booking lengths: the day
  *  counts a customisable listing prices, or the one span a fixed listing
  *  sells. Pure. */
-export const describedDayCounts = (counts: readonly number[]): string => {
+const describedDayCounts = (counts: readonly number[]): string => {
   const sorted = [...counts].toSorted((a, b) => a - b);
   const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
   if (sorted.length <= 1) return sorted[0] === undefined ? "" : days(sorted[0]);

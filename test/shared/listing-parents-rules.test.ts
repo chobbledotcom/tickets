@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
   childAddOnError,
-  describedDayCounts,
   durationsCompatible,
   type EdgeListing,
   edgeFieldError,
@@ -428,19 +427,50 @@ describe("edgeFieldError", () => {
       ruleError("child_daily", "Cabin"),
     );
   });
-});
 
-describe("describedDayCounts", () => {
-  test("sorts the counts and separates the last one with 'or'", () => {
-    expect(describedDayCounts([7, 3, 1])).toBe("1, 3 or 7 days");
+  /** The child that prices only day 2 — a customisable parent's selectable
+   *  counts that miss it, a fixed daily parent whose span misses it, and an
+   *  empty customisable parent — all refuse with the same priced side. */
+  const underpricingParent: EdgeListing = listing({
+    customisable_days: true,
+    day_prices: { 2: 2000 },
+    duration_days: 2,
+    name: "Cabin",
   });
 
-  test("says 'day' once for a single-day span", () => {
-    expect(describedDayCounts([1])).toBe("1 day");
-    expect(describedDayCounts([6])).toBe("6 days");
-  });
+  const durationRefusal = (child: EdgeListing, offered: string): string =>
+    t("listings_table.children_err_child_duration", {
+      name: child.name,
+      offered,
+      priced: "2 days",
+    });
 
-  test("answers nothing for a listing that prices no counts", () => {
-    expect(describedDayCounts([])).toBe("");
-  });
+  for (const [description, parent, offered] of [
+    [
+      "names the parent's offered lengths sorted, joined by 'or'",
+      listing({
+        customisable_days: true,
+        day_prices: { 1: 1000, 3: 3000, 7: 7000 },
+        duration_days: 7,
+        name: "Parent",
+      }),
+      "1, 3 or 7 days",
+    ],
+    [
+      "a fixed daily parent offers its one resolved span",
+      listing({ duration_days: 6, listing_type: "daily", name: "Parent" }),
+      "6 days",
+    ],
+    [
+      "a customisable parent pricing no counts offers nothing",
+      listing({ customisable_days: true, day_prices: {}, name: "Parent" }),
+      "",
+    ],
+  ] as const) {
+    test(description, () => {
+      expect(edgeFieldError(parent, underpricingParent)).toBe(
+        durationRefusal(underpricingParent, offered),
+      );
+    });
+  }
 });

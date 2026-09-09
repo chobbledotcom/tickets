@@ -1,8 +1,9 @@
 /**
- * Deleting an attendee status, and the four reasons it is refused.
+ * Deleting an attendee status, and the reasons it is refused.
  *
- * A status the site depends on cannot go: the last one, either default, and
- * one an attendee is currently on.
+ * A status the site depends on cannot go: the last one, and either default.
+ * A status an attendee currently holds is retired, not deleted: the delete
+ * page moves every held attendee to the status the operator picks first.
  */
 
 import { expect } from "@std/expect";
@@ -105,7 +106,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
     )(response);
   });
 
-  test("refuses one an attendee is currently on", async () => {
+  test("a held status refuses a delete with no target, and everything stays", async () => {
     const { attendee } = await setupListingAndAttendee({ name: "On It" });
     const id = await create("In Use");
     await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [

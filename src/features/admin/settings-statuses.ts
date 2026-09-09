@@ -9,7 +9,9 @@ import { adminPattern } from "#shared/admin-surface.ts";
  *
  * Enforces the status invariants: at most one public-default and one
  * paid-default, a paid-default is never a reservation, reservation amounts are
- * valid, and the last/in-use/default statuses can't be deleted.
+ * valid, and the last one and either default can't be deleted. A status
+ * attendees hold is retired, not deleted: the delete page moves every held
+ * attendee to a status the operator picks before the row goes.
  */
 
 import {

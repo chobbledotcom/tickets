@@ -6,10 +6,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, withTransaction } from "#db/client.ts";
-import {
-  validateListingGroupMembershipsTx,
-  writePackageMembersTx,
-} from "#db/groups/membership.ts";
+import { writePackageMembersTx } from "#db/groups/membership/package-writes.ts";
+import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";

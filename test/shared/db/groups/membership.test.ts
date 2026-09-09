@@ -8,7 +8,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
-import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { setListingGroupsTx } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { TransactionValidationError } from "#db/transaction.ts";

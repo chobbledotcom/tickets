@@ -274,10 +274,7 @@ const HELD_COUNT_SQL =
 const heldOf = (rows: readonly { held: number }[]): number => rows[0]!.held;
 
 /** How many attendees sit on a status, read inside a transaction. */
-export const heldAttendeeCountTx = async (
-  tx: TxScope,
-  id: number,
-): Promise<number> =>
+const heldAttendeeCountTx = async (tx: TxScope, id: number): Promise<number> =>
   heldOf(
     await txRows<{ held: number }>(tx, { args: [id], sql: HELD_COUNT_SQL }),
   );
