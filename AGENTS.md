@@ -61,7 +61,7 @@ project is expected to run on. Local development must use that version too.
 anything else. Check the version with:
 
 ```bash
-devenv shell deno --version
+devenv shell -- deno --version
 ```
 
 The other tools (Biome, Chromium, gh) come from the main pinned `nixpkgs` input.
