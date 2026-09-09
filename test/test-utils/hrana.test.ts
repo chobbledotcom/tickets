@@ -4,6 +4,52 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
 
 describe("Hrana protocol fixture", () => {
+  test("refuses a resumed session instead of discarding its state", async () => {
+    const remote = hranaTestFetch();
+    await expect(
+      remote.fetch(
+        new Request("https://pipeline.test/v2/pipeline", {
+          body: JSON.stringify({ baton: "resumed-session", requests: [] }),
+          method: "POST",
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "ValiError" });
+    expect(remote.requests).toEqual([]);
+  });
+
+  for (const type of ["and", "or", "is_autocommit", "unknown"]) {
+    test(`rejects unsupported condition ${type} before SQL work`, async () => {
+      const selected: string[] = [];
+      const remote = hranaTestFetch((sql) => {
+        selected.push(sql);
+        return Promise.resolve(emptyResultSet());
+      });
+      await expect(
+        remote.fetch(
+          new Request("https://pipeline.test/v2/pipeline", {
+            body: JSON.stringify({
+              requests: [
+                {
+                  batch: {
+                    steps: [
+                      {
+                        condition: { conds: [], type },
+                        stmt: { sql: "SELECT 1" },
+                      },
+                    ],
+                  },
+                  type: "batch",
+                },
+              ],
+            }),
+            method: "POST",
+          }),
+        ),
+      ).rejects.toMatchObject({ name: "ValiError" });
+      expect(selected).toEqual([]);
+    });
+  }
+
   test("refuses an unknown stored SQL id", async () => {
     const remote = hranaTestFetch();
     const response = await remote.fetch(

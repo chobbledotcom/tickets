@@ -50,15 +50,21 @@ const StatementSchema = v.object({
   want_rows: v.optional(v.boolean()),
 });
 type Statement = v.InferOutput<typeof StatementSchema>;
-type Condition = { type: string; step?: number; cond?: Condition };
+type Condition =
+  | { type: "ok" | "error"; step: number }
+  | { type: "not"; cond: Condition };
+const ConditionSchema: v.GenericSchema<Condition> = v.lazy(() =>
+  v.variant("type", [
+    v.object({ step: v.number(), type: v.picklist(["ok", "error"]) }),
+    v.object({ cond: ConditionSchema, type: v.literal("not") }),
+  ]),
+);
 const OperationSchema = v.object({
   batch: v.optional(
     v.object({
       steps: v.array(
         v.object({
-          condition: v.optional(
-            v.custom<Condition>((value) => typeof value === "object"),
-          ),
+          condition: v.optional(ConditionSchema),
           stmt: StatementSchema,
         }),
       ),
@@ -70,7 +76,7 @@ const OperationSchema = v.object({
   type: v.string(),
 });
 const EnvelopeSchema = v.object({
-  baton: v.optional(v.nullable(v.string())),
+  baton: v.optional(v.null()),
   requests: v.array(OperationSchema),
 });
 type Select = (
@@ -167,10 +173,10 @@ const testBatch = async (
   const stepResults: unknown[] = steps.map(() => null);
   const stepErrors: unknown[] = steps.map(() => null);
   const matches = (condition: Condition): boolean => {
-    if (condition.type === "not") return !matches(condition.cond!);
+    if (condition.type === "not") return !matches(condition.cond);
     return condition.type === "ok"
-      ? stepResults[condition.step!] !== null
-      : stepErrors[condition.step!] !== null;
+      ? stepResults[condition.step] !== null
+      : stepErrors[condition.step] !== null;
   };
   for (const [index, step] of steps.entries()) {
     if (step.condition && !matches(step.condition)) continue;
@@ -215,6 +221,7 @@ const testOperation = async (
   }
 };
 
+/** This fixture models single-request streams, not resumed sessions. */
 export const hranaTestFetch = (
   select: Select = () => Promise.resolve(emptyResultSet()),
   fault?: Fault,
