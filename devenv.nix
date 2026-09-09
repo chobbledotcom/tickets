@@ -64,7 +64,9 @@ let
       # Platforms start the image as root or as a chosen uid. When root, drop
       # to an unprivileged uid first: Deno and SQLite must write to the module
       # cache and /data as the user that serves. A freshly mounted volume is
-      # root-owned, so prepare /data for that uid before the drop.
+      # root-owned, so prepare /data for that uid before the drop. A
+      # root-squashed mount refuses the chown but usually stays writable —
+      # the write probe below rejects the mounts that are actually broken.
       if [ "$(id -u)" -eq 0 ]; then
         mkdir -p /data
         chown -R 1000:1000 /data 2>/dev/null || true
@@ -74,6 +76,21 @@ let
       # its analysis caches into the baked module cache directly.
       export DENO_DIR=/deno-cache
       export DB_URL="''${DB_URL-file:/data/tickets.db}"
+      # SQLite must create its database and journal files in place. A
+      # read-only or unreachable data mount fails here, loudly, instead of
+      # letting the server report healthy and then break every database
+      # route.
+      case "$DB_URL" in
+        file:/*)
+          db_dir="$(dirname "''${DB_URL#file:}")"
+          write_probe="$db_dir/.write-probe"
+          if ! touch "$write_probe" 2>/dev/null; then
+            echo "The local database directory $db_dir is not writable by uid $(id -u). Check the data volume's permissions." >&2
+            exit 1
+          fi
+          rm -f "$write_probe"
+          ;;
+      esac
       cd /app
       exec deno run \
         --allow-net \
@@ -145,11 +162,12 @@ let
       Env = [ "DENO_DIR=/deno-cache" ];
       Entrypoint = [ "${serverStart}/bin/tickets-server" ];
       WorkingDir = "/app";
-      # Same HEALTHCHECK the deleted Dockerfile declared: localhost port
-      # 3000, 30s apart, 5s budget, 10s grace, three strikes. The engine
-      # execs the array without a shell, so Deno needs its absolute path;
-      # `deno eval` runs with all permissions. /health answers before
-      # setup is complete; / does not.
+      # Container health check: probe localhost port 3000 every 30
+      # seconds, with a 5 second budget, a 10 second grace period, and
+      # three strikes before the container is marked unhealthy. The
+      # engine execs the array without a shell, so Deno needs its
+      # absolute path; `deno eval` runs with all permissions. /health
+      # answers before setup is complete; / does not.
       Healthcheck = {
         Test = [
           "CMD"
