@@ -65,9 +65,10 @@ devenv shell -- deno --version
 ```
 
 The other tools (Biome, Chromium, gh) come from the main pinned `nixpkgs` input.
-Move that input to a newer revision deliberately with `devenv update`; the exact
-revision is recorded in `devenv.lock`. CI runs the same devenv environment as
-developers, through `.github/actions/setup-devenv`.
+Both `nixpkgs` and `nixpkgs-deno` are pinned to specific commits in
+`devenv.yaml`, so `devenv update` alone cannot move them — edit the commit SHA
+in `devenv.yaml`, then run `devenv update` to refresh `devenv.lock`. CI runs the
+same devenv environment as developers, through `.github/actions/setup-devenv`.
 
 Chromium dominates the environment's size. CI jobs that never launch a browser
 (the Test, backup, docs, and deploy workflows) evaluate the environment through

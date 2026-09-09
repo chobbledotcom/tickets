@@ -1,16 +1,11 @@
 name: Publish Docker image
 
-# Assembles the self-host OCI runtime image with devenv (devenv.nix,
-# outputs.tickets-image) and pushes it to the GitHub Container Registry. The
-# alternative-deployment platforms (fly.io, Render, DigitalOcean) and any
-# self-hoster pull this image instead of building from source.
-#
-# The image contains the pinned Deno and the built static assets, so it is
-# the same runtime the Bunny Edge bundle is built with. `latest` moves on
-# every merge to main; redeploy or `docker pull` to update.
-#
-# No secrets are needed: GITHUB_TOKEN with `packages: write` scopes
-# publishes to this repository's own ghcr.io package.
+# Assembles the self-host OCI image with devenv (devenv.nix,
+# outputs.tickets-image) and pushes it to the GitHub Container Registry.
+# Self-hosters and the alternative-deployment platforms pull this image
+# instead of building from source. The image carries the pinned Deno
+# runtime, built static assets, and the server's module cache. `latest`
+# moves on every merge to main; `sha-<commit>` tags are immutable.
 
 on:
   push:
@@ -63,50 +58,11 @@ jobs:
       - name: Load the image into the container engine
         run: container-load
 
-      # Build the exact image that will be pushed, then boot it and prove
-      # the server answers before it becomes anyone's :latest. The module cache
-      # is baked in, so a healthy image answers within seconds. GitHub
-      # runners ship Docker but not Podman, so every step picks the same
-      # engine `container-load` falls back to.
-      #
-      # /health is served before any database work, so it alone cannot
-      # prove the image serves a site. Two more probes cover the first
-      # real surfaces: the home page reads the settings table and a
-      # fresh site must answer 503, and the setup page must render its
-      # form with 200. A database, FFI, or rendering failure answers 500
-      # or nothing, and fails publication.
+      # `container-check` boots the loaded image and requires /health,
+      # home 503, and setup 200 to answer, then checks SIGTERM stops the
+      # container cleanly.
       - name: Verify the image boots and serves
-        env:
-          # Throwaway key for the ephemeral container DB — not a real secret.
-          DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-        run: |
-          set -euo pipefail
-          engine="$(command -v podman || command -v docker)"
-          "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
-          "$engine" run -d --name tickets-verify -p 127.0.0.1:13000:3000 \
-            -e DB_ENCRYPTION_KEY="$DB_ENCRYPTION_KEY" \
-            ghcr.io/chobbledotcom/tickets:latest
-          for _ in $(seq 1 20); do
-            if [ "$(curl -fsS -m 5 http://127.0.0.1:13000/health 2>/dev/null)" = "Up :)" ]; then
-              echo "Server answered /health."
-              home="$(curl -sS -m 10 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/)"
-              setup="$(curl -sS -m 10 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/setup)"
-              if [ "$home" != "503" ] || [ "$setup" != "200" ]; then
-                echo "::error::Expected the home page 503 (got $home) and the setup page 200 (got $setup). Logs:"
-                "$engine" logs tickets-verify || true
-                "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
-                exit 1
-              fi
-              echo "Server answered home 503 and setup 200 — database and first-run page served."
-              "$engine" rm -f tickets-verify >/dev/null
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "::error::The image did not serve /health within a minute. Logs:"
-          "$engine" logs tickets-verify || true
-          "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
-          exit 1
+        run: container-check
 
       - name: Copy the image to the registry
         env:
@@ -138,4 +94,3 @@ jobs:
             exit 0
           fi
           "$engine" push "$image:latest"
-

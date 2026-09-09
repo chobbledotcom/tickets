@@ -17,26 +17,24 @@ let
 
   denoVersion = "2.5.6";
 
-  # The pre-commit hook runs the full precommit gate on every commit,
-  # identically from any shell. The hook script puts the pinned tools
-  # first on PATH (writeShellApplication adds its runtime
-  # inputs — the same tool set the dev shell exposes), so a stray
-  # system-profile binary — for example a newer Biome, or a different
-  # OpenSSL whose CMS signing behaves differently — can never answer
-  # inside the gate. The libstdc++ path must ride along too: the
-  # database FFI loads native libraries that resolve it outside a
-  # shell, and a missing one crashes the test runner partway through
-  # the suite.
+  # Shared by the pre-commit hook and the dev shell. The hook puts these
+  # first on PATH so a system binary (a newer Biome, or an OpenSSL whose
+  # CMS signing differs) can never answer inside the gate.
+  checkTools = [
+    pkgs.biome
+    pkgs.curl
+    pkgs.git
+    pkgs.jq
+    pkgs.openssl
+  ];
+
+  # Runs the full precommit gate on every commit, identically from any
+  # shell. The libstdc++ path rides along: the database FFI loads native
+  # libraries that resolve it outside a shell, and a missing one crashes
+  # the test runner partway through the suite.
   precommitHook = pkgs.writeShellApplication {
     name = "tickets-precommit-hook";
-    runtimeInputs = [
-      deno
-      pkgs.biome
-      pkgs.curl
-      pkgs.git
-      pkgs.jq
-      pkgs.openssl
-    ];
+    runtimeInputs = [ deno ] ++ checkTools;
     text = ''
       ${lib.optionalString pkgs.stdenv.isLinux ''
         export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"
@@ -45,9 +43,8 @@ let
     '';
   };
 
-  # Server entrypoint for the OCI image. Grants the server the minimum
-  # permission set it needs, and the same fill-if-unset DB default as the
-  # shell: a caller's own value wins, even a deliberately empty one.
+  # Server entrypoint for the OCI image. Fills DB_URL only when unset, so
+  # an explicitly empty value stays and fails boot validation loudly.
   serverStart = pkgs.writeShellApplication {
     name = "tickets-server";
     runtimeInputs = [
@@ -61,12 +58,10 @@ let
         echo "This image was assembled without a Deno cache directory." >&2
         exit 1
       fi
-      # Platforms start the image as root or as a chosen uid. When root, drop
-      # to an unprivileged uid first: Deno and SQLite must write to the module
-      # cache and /data as the user that serves. A freshly mounted volume is
-      # root-owned, so prepare /data for that uid before the drop. A
-      # root-squashed mount refuses the chown but usually stays writable —
-      # the write probe below rejects the mounts that are actually broken.
+      # Platforms start the image as root or as a chosen uid. When root,
+      # drop to uid 1000 and prepare /data for it. A root-squashed mount
+      # refuses the chown but usually stays writable — the probe below
+      # rejects the mounts that are actually broken.
       if [ "$(id -u)" -eq 0 ]; then
         mkdir -p /data
         chown -R 1000:1000 /data 2>/dev/null || true
@@ -76,10 +71,9 @@ let
       # its analysis caches into the baked module cache directly.
       export DENO_DIR=/deno-cache
       export DB_URL="''${DB_URL-file:/data/tickets.db}"
-      # SQLite must create its database and journal files in place. A
-      # read-only or unreachable data mount fails here, loudly, instead of
-      # letting the server report healthy and then break every database
-      # route.
+      # SQLite needs a writable directory for its journal and a writable
+      # database file when it exists. test -w answers access(2) as this
+      # uid — touch would lie for a file's owner.
       case "$DB_URL" in
         file:/*)
           db_file="''${DB_URL#file:}"
@@ -111,12 +105,10 @@ let
     '';
   };
 
-  # The app tree, read when the image is built, so it carries the built
-  # static assets (esbuild + sass output under src/ui/static). The
-  # e2e-payments workspace member config ships too: Deno refuses to load
-  # deno.json without every declared workspace member present, and without
-  # the config the "#..." import aliases in src cannot resolve.
-  appTree = pkgs.runCommand "tickets-app" { } ''
+    # The app tree carries the built static assets. The e2e-payments
+    # workspace member config ships too: Deno refuses to load deno.json
+    # without every declared workspace member present.
+    appTree = pkgs.runCommand "tickets-app" { } ''
     mkdir -p $out/app/e2e-payments
     cp -r ${./src} $out/app/src
     cp ${./deno.json} $out/app/deno.json
@@ -125,9 +117,9 @@ let
     chmod -R ugo+rX $out
   '';
 
-  # The server's Deno module cache, produced by container-build before the
-  # image is assembled (the Nix sandbox blocks the network the cache needs).
-  # Kept as its own derivation so it layers separately from the app tree.
+  # Produced by container-build before the image is assembled (the Nix
+  # sandbox blocks the network the cache needs). Kept as its own derivation
+  # so it layers separately from the app tree.
   denoCacheRoot = pkgs.runCommand "tickets-deno-cache" { } ''
     mkdir -p $out/deno-cache
     cp -r ${./.container-work/deno-cache}/. $out/deno-cache/
@@ -144,11 +136,9 @@ let
       serverStart
       denoCacheRoot
     ];
-    # dockerTools merges `contents` with a per-file symlinkJoin: the merged
-    # directories are real, but every file inside them is a symlink into
-    # /nix/store. Deno's node-compat follows the realpaths, executes npm
-    # modules from the store paths, and dies classifying them ("require is
-    # not defined" inside libsql). Replace both trees with real files.
+    # dockerTools merges `contents` with a per-file symlinkJoin: every
+    # file becomes a symlink into /nix/store. Deno follows realpaths and
+    # dies classifying them, so replace both trees with real files.
     fakeRootCommands = ''
       deref() {
         mv "./$1" "./$1.linked"
@@ -160,19 +150,21 @@ let
       mkdir -p ./tmp ./data
       chmod 1777 ./tmp
       # Nix strips write bits when registering store paths. The module
-      # cache and the data volume must also work for a platform-selected
-      # uid (docker --user, OpenShift), not just the uid 1000 the
-      # entrypoint prefers, because Deno writes analysis entries at
-      # startup outside any shell.
+      # cache and data volume must work for a platform-selected uid too,
+      # because Deno writes analysis entries at startup.
       chmod -R u+w ./app
       chmod -R ugo+rwX ./deno-cache ./data
       chown -R 1000:1000 ./app ./deno-cache ./data
     '';
     config = {
-      # The healthcheck execs Deno without the entrypoint's shell, so the
-      # module cache location must reach it through the image environment.
       Env = [ "DENO_DIR=/deno-cache" ];
-      Entrypoint = [ "${serverStart}/bin/tickets-server" ];
+      # tini reaps zombies and forwards signals, so SIGTERM stops Deno
+      # cleanly. Without it Deno runs as PID 1 and ignores SIGTERM.
+      Entrypoint = [
+        "${pkgs.tini}/bin/tini"
+        "--"
+        "${serverStart}/bin/tickets-server"
+      ];
       WorkingDir = "/app";
       ExposedPorts = {
         "3000/tcp" = { };
@@ -182,12 +174,9 @@ let
       Volumes = {
         "/data" = { };
       };
-      # Container health check: probe localhost port 3000 every 30
-      # seconds, with a 5 second budget, a 10 second grace period, and
-      # three strikes before the container is marked unhealthy. The
-      # engine execs the array without a shell, so Deno needs its
-      # absolute path; `deno eval` runs with all permissions. /health
-      # answers before setup is complete; / does not.
+      # Probe localhost:3000 every 30s, 5s budget, 10s grace, 3 strikes.
+      # The engine execs the array without a shell, so Deno needs its
+      # absolute path. /health answers before setup is complete.
       Healthcheck = {
         Test = [
           "CMD"
@@ -223,16 +212,10 @@ in
     };
 
     packages =
-      [
-        pkgs.curl
-        pkgs.jq
-        pkgs.openssl
-      ]
+      checkTools
       ++ lib.optionals (!config.container.isBuilding) (
         [
-          pkgs.biome
           pkgs.gh
-          pkgs.git
         ]
         ++ lib.optionals (config.ticketsBrowserTools && pkgs.stdenv.isLinux)
           [ pkgs.chromium ]
@@ -242,11 +225,9 @@ in
   # steps first), `container-load` streams it into Docker/Podman.
   scripts = {
     pc.exec = ''exec deno task precommit "$@"'';
-    # Builds the static assets and the server's Deno module cache, then
-    # assembles the OCI runtime image. The two Deno steps must happen in the
-    # shell, not inside the Nix build sandbox: esbuild, sass, and the module
-    # cache all resolve through the network, which the sandbox blocks. Both
-    # artifacts are byte-deterministic from deno.lock.
+    # Builds the static assets and the module cache, then assembles the
+    # OCI image. Both Deno steps run in the shell because the Nix sandbox
+    # blocks the network they need.
     container-build.exec = ''
       set -euo pipefail
       deno install --allow-scripts
@@ -267,6 +248,46 @@ in
       stream="$(devenv build outputs.tickets-image | jq -r '."outputs.tickets-image"')"
       loader="$(command -v podman || command -v docker)"
       "$stream" | "$loader" load
+    '';
+    # Boots the loaded image and proves the server answers, then checks
+    # SIGTERM stops the container cleanly. Run after container-load.
+    container-check.exec = ''
+      set -euo pipefail
+      engine="$(command -v podman || command -v docker)"
+      container="tickets-verify"
+      key="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+      "$engine" rm -f "$container" >/dev/null 2>&1 || true
+      cleanup() { "$engine" rm -f "$container" >/dev/null 2>&1 || true; }
+      trap cleanup EXIT
+      "$engine" run -d --name "$container" -p 127.0.0.1:13000:3000 \
+        -e DB_ENCRYPTION_KEY="$key" \
+        ghcr.io/chobbledotcom/tickets:latest
+      for _ in $(seq 1 20); do
+        if [ "$(curl -fsS -m 5 http://127.0.0.1:13000/health 2>/dev/null)" = "Up :)" ]; then
+          echo "Server answered /health."
+          home="$(curl -sS -m 10 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/)"
+          setup="$(curl -sS -m 10 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/setup)"
+          if [ "$home" != "503" ] || [ "$setup" != "200" ]; then
+            echo "Expected home 503 (got $home) and setup 200 (got $setup). Logs:" >&2
+            "$engine" logs "$container" || true
+            exit 1
+          fi
+          echo "Server answered home 503 and setup 200."
+          "$engine" stop --time 5 "$container" >/dev/null
+          exit_code="$("$engine" inspect --format '{{.State.ExitCode}}' "$container")"
+          if [ "$exit_code" = "137" ]; then
+            echo "Container required SIGKILL after SIGTERM. tini may be missing or broken." >&2
+            "$engine" logs "$container" || true
+            exit 1
+          fi
+          echo "Container stopped on SIGTERM (exit $exit_code)."
+          exit 0
+        fi
+        sleep 3
+      done
+      echo "The image did not serve /health within a minute. Logs:" >&2
+      "$engine" logs "$container" || true
+      exit 1
     '';
   };
 
@@ -293,17 +314,14 @@ in
     echo "  pc                   - run precommit"
     echo "  container-build      - assemble the OCI runtime image"
     echo "  container-load       - load the image into Docker/Podman"
-    # The deno module caches under .devenv/state, inside the project. Biome
-    # discovers nested biome.json files project-wide and hard-fails on the
-    # broken extends that npm packages (for example @cucumber/gherkin) ship,
-    # so keep the module cache outside the tree, where Deno puts it by
-    # default.
+    echo "  container-check      - boot the image and verify it serves"
+    # Keep the module cache outside the tree: Biome discovers nested
+    # biome.json files project-wide and fails on the broken extends that
+    # npm packages (for example @cucumber/gherkin) ship.
     export DENO_DIR="$HOME/.cache/deno"
     # Throwaway defaults for a fresh checkout. ''${VAR-...} fills in only
     # an unset variable, so the caller's own value wins — even a
     # deliberately empty one, which must fail startup validation.
-    # The dev database is a gitignored file, so its encryption key must
-    # survive the shell too: generate once into .db-key, reuse after.
     [ -f .db-key ] || openssl rand -base64 32 > .db-key
     export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(cat .db-key)}"
     export DB_URL="''${DB_URL-file:./local.db}"

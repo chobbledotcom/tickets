@@ -310,12 +310,12 @@ describe("edit-checks formatting", () => {
 });
 
 describe("edit-checks runner", () => {
-  test("uses the pinned deno inside the nix devshell", () => {
-    expect(runnerPrefix({ IN_NIX_SHELL: "1" })).toEqual(["deno"]);
+  test("uses deno directly inside the devenv shell", () => {
+    expect(runnerPrefix({ IN_NIX_SHELL: "impure" })).toEqual(["deno"]);
   });
 
-  test("wraps deno in nix develop outside the devshell", () => {
-    expect(runnerPrefix({})).toEqual(["nix", "develop", "-c", "deno"]);
+  test("wraps deno in devenv shell outside the devshell", () => {
+    expect(runnerPrefix({})).toEqual(["devenv", "shell", "--", "deno"]);
   });
 
   // The machine's own deno binary, so the tests do not depend on Nix

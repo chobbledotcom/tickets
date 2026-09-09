@@ -31,24 +31,17 @@ runs:
     - name: Set up Nix
       uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
 
-    # Pull devenv's own prebuilt binaries from its public cache. We run no
-    # binary cache of our own; the other substituter is cache.nixos.org.
-    # The Nix store itself is deliberately not cached through the GitHub
-    # Actions cache: both a substituter directory and
-    # nix-community/cache-nix-action restored it slower than the public
-    # caches serve it, because the closure is big but the runner sits a
-    # few hops from Fastly.
+    # Pull devenv's own prebuilt binaries from its public cache. The Nix
+    # store is not cached through the GitHub Actions cache: restoring the
+    # ~1.5 GB closure costs more than the public caches serve it.
     - name: Use the devenv binary cache
       uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
       with:
         name: devenv
 
-    # The registry nixpkgs gives CI a released, hydra-built devenv CLI.
-    # devenv.lock pins the module flake that evaluates this project, but
-    # not this driver, so the registry can move it. Fail the job up
-    # front when it drifts below the line it was verified on — a
-    # flake-pinned CLI was measured crawling to 7 minutes per step on
-    # these runners, so the pin needs a better home than this action.
+    # The registry nixpkgs gives CI a released devenv CLI. devenv.lock
+    # pins the module flake that evaluates this project, but not this
+    # driver, so the registry can move it. Fail when it drifts below 2.2.
     - name: Install devenv.sh
       shell: bash
       run: |
@@ -63,9 +56,9 @@ runs:
             ;;
         esac
 
-    # Evaluating the shell here runs the enterShell Deno-version guard, so a
-    # broken pin fails the job before anything else, and yields the version
-    # for the dependency-cache key.
+    # Evaluating the shell runs enterShell's Deno-version guard, so a
+    # broken pin fails before anything else, and yields the version for
+    # the dependency-cache key.
     - name: Resolve the Deno version
       shell: bash
       id: deno-version
