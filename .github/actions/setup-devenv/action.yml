@@ -25,8 +25,11 @@ runs:
     # Every step here pins shell: bash — jobs commonly set
     # `defaults.run.shell: devenv shell bash -- -e {0}`, which must not be
     # used before the devenv CLI exists.
+    # Pinned to the commit SHAs these runs have already executed;
+    # a mutable tag can be retargeted without this repository moving,
+    # and these steps run inside secret-bearing workflows.
     - name: Set up Nix
-      uses: cachix/install-nix-action@v31
+      uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
 
     # Pull devenv's own prebuilt binaries from its public cache. We run no
     # binary cache of our own; the other substituter is cache.nixos.org.
@@ -36,7 +39,7 @@ runs:
     # caches serve it, because the closure is big but the runner sits a
     # few hops from Fastly.
     - name: Use the devenv binary cache
-      uses: cachix/cachix-action@v17
+      uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
       with:
         name: devenv
 

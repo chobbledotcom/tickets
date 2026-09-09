@@ -17,9 +17,9 @@ let
 
   denoVersion = "2.5.6";
 
-  # Same contract the flake-installed hook had: the full precommit gate on
-  # every commit, identically from any shell. The hook script puts the
-  # pinned tools first on PATH (writeShellApplication adds its runtime
+  # The pre-commit hook runs the full precommit gate on every commit,
+  # identically from any shell. The hook script puts the pinned tools
+  # first on PATH (writeShellApplication adds its runtime
   # inputs — the same tool set the dev shell exposes), so a stray
   # system-profile binary — for example a newer Biome, or a different
   # OpenSSL whose CMS signing behaves differently — can never answer
