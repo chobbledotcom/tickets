@@ -82,13 +82,21 @@ let
       # route.
       case "$DB_URL" in
         file:/*)
-          db_dir="$(dirname "''${DB_URL#file:}")"
-          write_probe="$db_dir/.write-probe"
-          if ! touch "$write_probe" 2>/dev/null; then
+          db_file="''${DB_URL#file:}"
+          db_dir="$(dirname "$db_file")"
+          # Probe what SQLite needs: a writable directory for its journal
+          # and page files, and a writable database file when it exists.
+          # test -w answers access(2) as this uid — touch would lie for
+          # a file's owner, because an owner may set timestamps on a file
+          # that no process can write.
+          if ! [ -w "$db_dir" ]; then
             echo "The local database directory $db_dir is not writable by uid $(id -u). Check the data volume's permissions." >&2
             exit 1
           fi
-          rm -f "$write_probe"
+          if [ -e "$db_file" ] && ! [ -w "$db_file" ]; then
+            echo "The local database file $db_file is not writable by uid $(id -u). Check the data volume's permissions." >&2
+            exit 1
+          fi
           ;;
       esac
       cd /app
@@ -151,9 +159,13 @@ let
       deref deno-cache
       mkdir -p ./tmp ./data
       chmod 1777 ./tmp
-      # Nix strips write bits when registering store paths; the uid the
-      # server drops to must be able to write the module cache and /data.
-      chmod -R u+w ./app ./deno-cache
+      # Nix strips write bits when registering store paths. The module
+      # cache and the data volume must also work for a platform-selected
+      # uid (docker --user, OpenShift), not just the uid 1000 the
+      # entrypoint prefers, because Deno writes analysis entries at
+      # startup outside any shell.
+      chmod -R u+w ./app
+      chmod -R ugo+rwX ./deno-cache ./data
       chown -R 1000:1000 ./app ./deno-cache ./data
     '';
     config = {
@@ -162,6 +174,9 @@ let
       Env = [ "DENO_DIR=/deno-cache" ];
       Entrypoint = [ "${serverStart}/bin/tickets-server" ];
       WorkingDir = "/app";
+      ExposedPorts = {
+        "3000/tcp" = { };
+      };
       # Container health check: probe localhost port 3000 every 30
       # seconds, with a 5 second budget, a 10 second grace period, and
       # three strikes before the container is marked unhealthy. The
