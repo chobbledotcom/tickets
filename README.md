@@ -385,6 +385,10 @@ Each platform's config in this repository (`fly.toml`, `render.yaml`,
 `.do/deploy.template.yaml`) points at the published image. You can also deploy
 with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
+DigitalOcean App Platform does not watch GHCR images. It redeploys a `latest`
+image only when you ask it to: open the app, choose Actions, then Rebuild &
+Deploy — or run `doctl apps create-deployment <your-app-id>`.
+
 ## Repository layout
 
 For the current repository layout and path conventions, see
