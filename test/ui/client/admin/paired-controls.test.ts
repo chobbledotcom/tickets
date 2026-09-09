@@ -58,6 +58,11 @@ describe("paired controls", () => {
     const why = whyHolder(paid);
     expect(why.hidden).toBe(false);
     expect(why.textContent).toBe("A paid status can't also be a reservation");
+    // Only the held side shows why; the freed side's holder stays hidden.
+    const reservationWhy = reservation
+      .closest("label")!
+      .querySelector(".exclusive-why") as unknown as { hidden: boolean };
+    expect(reservationWhy.hidden).toBe(true);
 
     paid.checked = false;
     paid.dispatchEvent(new Event("change"));
