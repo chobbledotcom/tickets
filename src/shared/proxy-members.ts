@@ -3,28 +3,33 @@
 export const proxyMembers = <T extends object>(
   target: T,
   overrides: object,
-): T =>
-  new Proxy(target, {
-    defineProperty(inner, property, attributes) {
-      return Reflect.has(overrides, property)
-        ? Reflect.defineProperty(overrides, property, attributes)
-        : Reflect.defineProperty(inner, property, attributes);
-    },
-    get(inner, property, receiver) {
+): T => {
+  const onMember =
+    <Args extends unknown[], Result>(
+      operation: (
+        object: object,
+        property: PropertyKey,
+        ...args: Args
+      ) => Result,
+    ) =>
+    (inner: T, property: PropertyKey, ...args: Args): Result =>
+      operation(
+        Reflect.has(overrides, property) ? overrides : inner,
+        property,
+        ...args,
+      );
+  return new Proxy(target, {
+    defineProperty: onMember(Reflect.defineProperty),
+    get(inner, property) {
       if (Reflect.has(overrides, property)) {
         return Reflect.get(overrides, property);
       }
-      const value = Reflect.get(inner, property, receiver);
+      const value = Reflect.get(inner, property);
       return typeof value === "function" ? value.bind(inner) : value;
     },
-    getOwnPropertyDescriptor(inner, property) {
-      return Reflect.has(overrides, property)
-        ? Reflect.getOwnPropertyDescriptor(overrides, property)
-        : Reflect.getOwnPropertyDescriptor(inner, property);
-    },
-    set(inner, property, value, receiver) {
-      return Reflect.has(overrides, property)
-        ? Reflect.set(overrides, property, value)
-        : Reflect.set(inner, property, value, receiver);
-    },
+    getOwnPropertyDescriptor: onMember(Reflect.getOwnPropertyDescriptor),
+    set: onMember((inner, property, value: unknown) =>
+      Reflect.set(inner, property, value),
+    ),
   });
+};

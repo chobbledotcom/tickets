@@ -239,7 +239,9 @@ src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1
 # value, and a label no code ever reads.
 src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
 src/shared/db/client.ts::extractUpdateColumns.stopWhenClosed~0e4p3h6 false→true   # the scan runs over the SET clause alone, cut before WHERE; a base-level closer needs an opener outside the fragment, which valid SQL cannot place there, and an invalid UPDATE never executes so its narrowed column set is never read
-src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # the captured tail has to start with INSERT, UPDATE, DELETE, REPLACE or SELECT, so the group is never the empty string
+src/shared/db/database-client.ts::errorCode~04fxp8b ??→|| # Every declared error code is non-empty. An unknown name returns undefined.
+src/shared/db/database-client.ts::readPipeline~0nxjq38 ??→|| # Column names are strings or undefined. The only false string is empty, which equals the fallback.
+src/shared/db/database-client.ts::readPipeline~1wahy8v ??→|| # Column declarations are strings or undefined. The only false string is empty, which equals the fallback.
 src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
 src/shared/db/client.ts::queryAll.args~0hs5u5i  ?? → ||   # args is an InValue[] when present, and an array is always truthy
 src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for

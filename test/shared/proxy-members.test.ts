@@ -3,6 +3,23 @@ import { describe, test } from "@std/testing/bdd";
 import { proxyMembers } from "#shared/proxy-members.ts";
 
 describe("proxyMembers", () => {
+  test("keeps the original receiver for private-field accessors", () => {
+    class Counter {
+      #value = 3;
+      get value(): number {
+        return this.#value;
+      }
+      set value(value: number) {
+        this.#value = value;
+      }
+    }
+    const target = new Counter();
+    const proxied = proxyMembers(target, {});
+    expect(proxied.value).toBe(3);
+    proxied.value = 5;
+    expect(target.value).toBe(5);
+  });
+
   test("returns replacement members", () => {
     const proxied = proxyMembers({ value: 1 }, { value: 2 });
     expect(proxied.value).toBe(2);
