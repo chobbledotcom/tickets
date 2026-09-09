@@ -78,7 +78,7 @@ runs:
 
     # One repo-wide dependency cache instead of one per workflow/job.
     - name: Cache Deno dependencies
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/.cache/deno
         key: deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-${{ hashFiles('deno.lock', 'deno.json', 'e2e-payments/deno.json') }}

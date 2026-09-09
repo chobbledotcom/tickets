@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
@@ -35,7 +35,7 @@ jobs:
         uses: ./.github/actions/setup-devenv
 
       - name: Cache stripe-mock
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .bin
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
@@ -52,7 +52,7 @@ jobs:
         run: deno task specs:evidence
 
       - name: Upload specification evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tickets-evidence
           path: reports/evidence

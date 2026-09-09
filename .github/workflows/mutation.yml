@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
@@ -55,7 +55,7 @@ jobs:
       # Only needed under --harness, but caching .bin is harmless otherwise and
       # saves re-downloading stripe-mock when the harness is used.
       - name: Cache stripe-mock
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .bin
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
