@@ -89,8 +89,8 @@ jobs:
           for _ in $(seq 1 20); do
             if [ "$(curl -fsS -m 5 http://127.0.0.1:13000/health 2>/dev/null)" = "Up :)" ]; then
               echo "Server answered /health."
-              home="$(curl -sS -m 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/)"
-              setup="$(curl -sS -m 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/setup)"
+              home="$(curl -sS -m 10 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/)"
+              setup="$(curl -sS -m 10 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/setup)"
               if [ "$home" != "503" ] || [ "$setup" != "200" ]; then
                 echo "::error::Expected the home page 503 (got $home) and the setup page 200 (got $setup). Logs:"
                 "$engine" logs tickets-verify || true

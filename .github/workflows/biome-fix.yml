@@ -47,19 +47,31 @@ jobs:
             echo "fix_branch=$fix_branch"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Checkout target branch
+      # Tooling comes from the ref this workflow ran on: it carries the
+      # setup action and the devenv definition. A stale target branch
+      # has neither, and it is about to replace the workspace.
+      - name: Checkout workflow ref
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ steps.branches.outputs.target_branch }}
-          fetch-depth: 0
-          token: ${{ github.token }}
+          persist-credentials: false
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
         with:
           profile: ci
 
+      # The target branch lives in a subdirectory so the tooling above
+      # stays available; every step below works in ./target.
+      - name: Checkout target branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.branches.outputs.target_branch }}
+          fetch-depth: 0
+          path: target
+          token: ${{ github.token }}
+
       - name: Close existing Biome pull request
+        working-directory: target
         env:
           FIX_BRANCH: ${{ steps.branches.outputs.fix_branch }}
           GH_TOKEN: ${{ github.token }}
@@ -70,6 +82,7 @@ jobs:
           fi
 
       - name: Delete existing Biome branch
+        working-directory: target
         env:
           FIX_BRANCH: ${{ steps.branches.outputs.fix_branch }}
         run: |
@@ -78,18 +91,22 @@ jobs:
           fi
 
       - name: Create fresh Biome branch
+        working-directory: target
         env:
           FIX_BRANCH: ${{ steps.branches.outputs.fix_branch }}
         run: git switch -c "$FIX_BRANCH"
 
+      # The shell evaluates the devenv definition from the workflow
+      # ref at the root; the lint task runs against the target's own
+      # deno.json and biome config checked out above.
       - name: Apply Biome fixes
         shell: devenv --profile ci shell bash -- -e {0}
-        env:
-          BIOME_NPM: "1"
-        run: deno task lint
+        run: |
+          cd target && deno task lint
 
       - name: Commit and push fixes
         id: commit
+        working-directory: target
         env:
           FIX_BRANCH: ${{ steps.branches.outputs.fix_branch }}
         run: |
@@ -108,6 +125,7 @@ jobs:
 
       - name: Create pull request
         if: steps.commit.outputs.has_changes == 'true'
+        working-directory: target
         env:
           FIX_BRANCH: ${{ steps.branches.outputs.fix_branch }}
           GH_TOKEN: ${{ github.token }}

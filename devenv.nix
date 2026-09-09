@@ -177,6 +177,11 @@ let
       ExposedPorts = {
         "3000/tcp" = { };
       };
+      # A run without an explicit volume keeps its data in Docker-managed
+      # storage instead of the replaceable container layer.
+      Volumes = {
+        "/data" = { };
+      };
       # Container health check: probe localhost port 3000 every 30
       # seconds, with a 5 second budget, a 10 second grace period, and
       # three strikes before the container is marked unhealthy. The
