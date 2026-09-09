@@ -379,7 +379,7 @@ Deploy to:
 |
 [Render](https://render.com/deploy?repo=https://github.com/chobbledotcom/tickets)
 |
-[Koyeb](https://app.koyeb.com/deploy?type=image&image_name=ghcr.io/chobbledotcom/tickets:latest&name=chobble-tickets&ports=3000;http;/)
+[Koyeb](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/chobbledotcom/tickets:latest&name=chobble-tickets&ports=3000;http;/)
 
 Each platform's config in this repository (`fly.toml`, `render.yaml`,
 `.do/deploy.template.yaml`) points at the published image. You can also deploy
