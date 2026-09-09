@@ -6,6 +6,7 @@ import { FormParams } from "#shared/form-data.ts";
 import {
   AttendeeStatusEditPanel,
   retireStatusDeletePage,
+  type StatusRetire,
   statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 import {
@@ -194,43 +195,51 @@ describe("the delete page of a status attendees hold", () => {
   };
   const OTHER_STATUS: AttendeeStatus = { ...PLAIN_STATUS, id: 8 };
 
-  const render = (held: number, error?: string): ReturnType<typeof String> =>
-    String(
-      retireStatusDeletePage(
-        BUSY_STATUS,
-        held,
-        [OTHER_STATUS],
-        OWNER_SESSION,
-        error,
-      ),
-    );
+  const render = (
+    retire: StatusRetire | null,
+    error?: string,
+  ): ReturnType<typeof String> =>
+    String(retireStatusDeletePage(BUSY_STATUS, retire, OWNER_SESSION, error));
 
   test("shows the count, a warning, and a required picker of the other statuses", () => {
-    const html = render(1);
+    const html = render({ count: 1, others: [OTHER_STATUS] });
 
     expect(html).toContain("1 attendee holds this status.");
     expect(html).toContain(t("statuses.delete_reassign_warning"));
-    expect(html).toContain('<select name="reassign_status_id" required>');
-    expect(html).toContain('<option selected value="">');
+    expect(html).toMatch(/<select[^>]*name="reassign_status_id"[^>]*required/);
+    expect(html).toContain('value="">');
     expect(html).toContain(t("statuses.delete_reassign_prompt"));
     expect(html).toContain('value="8"');
     expect(html).toContain("Checked in");
   });
 
   test("keeps the picker off a status nobody holds", () => {
-    const html = render(0);
+    const html = render(null);
 
     expect(html).not.toContain('name="reassign_status_id"');
     expect(html).not.toContain(t("statuses.delete_reassign_warning"));
   });
 
   test("renders a rejected submit's error", () => {
-    const html = render(0, "No one may hold nothing");
+    const html = render(null, "No one may hold nothing");
 
     expect(html).toContain("No one may hold nothing");
   });
 
   test("leaves the error box out when the operator just opened the page", () => {
-    expect(render(0)).not.toContain("error");
+    expect(render(null)).not.toContain("error");
+  });
+
+  test("says the save's prerequisite beside the confirmation for a default status", () => {
+    const html = render({
+      blocked: "Choose another paid default before deleting this status",
+    });
+
+    expect(html).toContain(
+      "Choose another paid default before deleting this status",
+    );
+    expect(html).not.toContain('name="reassign_status_id"');
+    expect(html).toContain('action="/admin/settings/statuses/9/delete"');
+    expect(html).toContain("Delete status");
   });
 });

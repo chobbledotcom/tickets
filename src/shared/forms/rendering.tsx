@@ -32,19 +32,17 @@ export const renderSelectOptions = (options: readonly SelectOption[]): string =>
     )
     .join("");
 
-/** The `data-*` attribute string for a field's input, or "" when none: each
- *  key renders escaped as `data-<key>="<value>"`, trusted template side. The
- *  declared either/or pair rides the generic attributes, spelled here once. */
+/** The `data-*` attributes a declared either/or pair renders onto the field's
+ *  input: the spelling the paired-controls script reads, written once. */
 const dataAttributeString = (field: Field): string =>
-  Object.entries({
-    ...(field.exclusive === undefined
+  Object.entries(
+    field.exclusive === undefined
       ? {}
       : {
           "exclusive-why": field.exclusive.why,
           "exclusive-with": field.exclusive.other,
-        }),
-    ...field.dataAttrs,
-  })
+        },
+  )
     .map(([key, value]) => ` data-${key}="${escapeHtml(value)}"`)
     .join("");
 

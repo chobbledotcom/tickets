@@ -21,13 +21,13 @@ import {
   attendeeStatusOrder,
   attendeeStatusWrites,
   getAttendeeStatus,
+  heldAttendeeCount,
+  statusDeleteBlocker,
 } from "#db/attendee-statuses.ts";
-import { execute } from "#db/client.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 /* jscpd:ignore-start */
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
@@ -38,6 +38,7 @@ import type { NamedOperations } from "#shared/rest/resource.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   retireStatusDeletePage,
+  type StatusRetire,
   statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
@@ -140,37 +141,35 @@ const statusOrder = createOrderedCollectionHandlers({
   target: ({ context }) => context.id,
 });
 
-/** How many attendees sit on this status. One count for the delete page's
- *  reassign affordance; the delete command re-counts inside its transaction. */
-const heldAttendeeCount = async (id: number): Promise<number> => {
-  const result = await execute(
-    "SELECT COUNT(*) AS held FROM attendees WHERE status_id = ?",
-    [id],
-  );
-  return Number(result.rows[0]!.held);
-};
-
 /** The delete page, with the reassign choice a status attendees hold needs:
- *  the count, the warning, and a required picker of the other statuses. The
- *  session guard (not the form policy) wraps it, because it is a GET page. */
+ *  the count, the warning, and a required picker of the other statuses — or
+ *  the prerequisite the save would refuse on instead. The session guard (not
+ *  the form policy) wraps it, because it is a GET page. */
 const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const status = await getAttendeeStatus(id);
     if (status === null) return notFoundResponse();
-    const [held, others] = await Promise.all([
-      heldAttendeeCount(id),
-      attendeeStatuses.getAll(),
-    ]);
+    const others = (await attendeeStatuses.getAll()).filter(
+      (other) => other.id !== id,
+    );
+    const blocker = statusDeleteBlocker(status, others.length > 0);
+    const retire = blocker
+      ? { blocked: DELETE_ERRORS[blocker] }
+      : await reassignChoice(id, others);
     return htmlResponse(
-      retireStatusDeletePage(
-        status,
-        held,
-        others.filter((other) => other.id !== id),
-        session,
-        getFlash().error,
-      ),
+      retireStatusDeletePage(status, retire, session, getFlash().error),
     );
   });
+
+/** The reassign choice a deletable status attendees hold needs, or null when
+ *  nothing holds and the delete can proceed as it stands. */
+const reassignChoice = async (
+  id: number,
+  others: readonly AttendeeStatus[],
+): Promise<StatusRetire | null> => {
+  const count = await heldAttendeeCount(id);
+  return count === 0 ? null : { count, others };
+};
 
 export const adminHandlers = defineRoutes({
   ...crudRoutes(adminPattern("statuses"), crud),

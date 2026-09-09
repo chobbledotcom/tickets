@@ -364,7 +364,6 @@ const requireSessionFor = async (
   return session;
 };
 
-/** Whether the refused gate admits only the owner account. */
 const isResponse = (v: unknown): v is Response => v instanceof Response;
 
 /** A response callback that receives the signed-in session. */
@@ -730,7 +729,13 @@ const authenticateFor = async <T extends BodyMode>(
   if (isResponse(auth)) return auth;
   return sessionRoleAllowed(auth.session.adminLevel, policy.role, policy.roles)
     ? auth
-    : authFailure(channel, "forbidden");
+    : authFailure(
+        channel,
+        "forbidden",
+        ownerOnlyAudience({ role: policy.role, roles: policy.roles })
+          ? "owner-only"
+          : undefined,
+      );
 };
 
 /** Authenticate an admin API request before importing its resource handlers. */

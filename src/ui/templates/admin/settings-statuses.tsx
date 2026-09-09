@@ -25,6 +25,7 @@ import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.ts
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import {
   translatedTableColumn,
   translatedTableHeader,
@@ -152,18 +153,30 @@ const DELETE_PAGE_LABELS = {
   title: t("statuses.delete_title"),
 } as const;
 
+/** What the delete page offers beneath the heading: the reassign choice for a
+ *  status attendees hold (the count and the statuses they can move to), the
+ *  prerequisite the save will refuse on for a default or last status — said
+ *  above a confirmation the save will still refuse if submitted — and null
+ *  for a delete that proceeds as it stands. The route decides through the
+ *  same predicate the delete command refuses by. */
+export type StatusRetire =
+  | { blocked: string }
+  | { count: number; others: readonly AttendeeStatus[] };
+
 /** The status delete page: the usual type-the-name confirmation, plus — when
  *  attendees hold this status — the count, a warning, and a required picker
- *  of the statuses they can move to. The picker posts `reassign_status_id`,
- *  which the delete command reads inside its transaction. */
+ *  of the statuses they can move to, or the prerequisite the save would
+ *  refuse on, above a confirmation the save still refuses if submitted. The
+ *  picker posts `reassign_status_id`, which the delete command reads inside
+ *  its transaction. */
 export const retireStatusDeletePage = (
   status: AttendeeStatus,
-  held: number,
-  others: readonly AttendeeStatus[],
+  retire: StatusRetire | null,
   session: AdminSession,
   error?: string,
 ): string => {
-  const occupied = held > 0;
+  const choice = retire !== null && "count" in retire ? retire : undefined;
+  const blocked = retire !== null && "blocked" in retire ? retire : undefined;
   return ConfirmPage({
     action: `/admin/settings/statuses/${status.id}/delete`,
     active: LIST_PATH,
@@ -176,28 +189,33 @@ export const retireStatusDeletePage = (
     ...DELETE_PAGE_LABELS,
     name: status.name,
     session,
-    ...(occupied
+    ...(choice !== undefined
       ? {
           children: (
             <label>
               {t("statuses.delete_reassign_label")}
-              <select name="reassign_status_id" required>
-                <option selected value="">
-                  {t("statuses.delete_reassign_prompt")}
-                </option>
-                {others.map((other) => (
-                  <option value={String(other.id)}>{other.name}</option>
-                ))}
-              </select>
+              <SelectField
+                name="reassign_status_id"
+                options={[
+                  { label: t("statuses.delete_reassign_prompt"), value: "" },
+                  ...choice.others.map((other) => ({
+                    label: other.name,
+                    value: String(other.id),
+                  })),
+                ]}
+                required
+                value=""
+              />
             </label>
           ),
           prompt: {
-            args: { count: held },
+            args: { count: choice.count },
             key: "statuses.delete_in_use",
           },
           warning: <p>{t("statuses.delete_reassign_warning")}</p>,
         }
       : {}),
+    ...(blocked !== undefined ? { children: <p>{blocked.blocked}</p> } : {}),
   });
 };
 

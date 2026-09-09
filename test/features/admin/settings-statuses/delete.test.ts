@@ -186,6 +186,55 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     expect(html).not.toContain('name="reassign_status_id"');
   });
 
+  test("a lone status attendees hold shows the prerequisite instead of an empty picker", async () => {
+    const { attendee } = await setupListingAndAttendee({ name: "Lonely" });
+    const only = (await attendeeStatuses.getAll())[0]!;
+    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
+      only.id,
+      attendee.id,
+    ]);
+
+    const html = await (await adminGet(`${PATH}/${only.id}/delete`)).text();
+
+    // No target exists to move them to, so the page says what the save will
+    // refuse on instead of rendering a picker with nothing to pick.
+    expect(html).toContain("You must keep at least one status");
+    expect(html).not.toContain('name="reassign_status_id"');
+  });
+
+  test("a default status's delete page names the prerequisite instead of a picker", async () => {
+    // A second status, so the default is not also the last one left.
+    await create("Elsewhere");
+    const defaulted = (await attendeeStatuses.getAll()).find(
+      (one) => one.is_public_default,
+    )!;
+
+    const html = await (
+      await adminGet(`${PATH}/${defaulted.id}/delete`)
+    ).text();
+
+    expect(html).toContain(
+      "Choose another public default before deleting this status",
+    );
+    expect(html).not.toContain('name="reassign_status_id"');
+    expect(html).toContain("Delete status");
+  });
+
+  test("a paid default's delete page names the paid prerequisite", async () => {
+    await create("Own Public Default", { is_public_default: "1" });
+    const paid = (await attendeeStatuses.getAll()).find(
+      (one) => one.is_paid_default && !one.is_public_default,
+    )!;
+
+    const html = await (await adminGet(`${PATH}/${paid.id}/delete`)).text();
+
+    expect(html).toContain(
+      "Choose another paid default before deleting this status",
+    );
+    expect(html).not.toContain('name="reassign_status_id"');
+    expect(html).toContain("Delete status");
+  });
+
   test("moves its attendees to the chosen status, then deletes the status", async () => {
     const { attendeeId, busyId, otherId } = await arrangeBusy();
 

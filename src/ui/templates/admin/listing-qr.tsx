@@ -17,6 +17,7 @@ import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import { AdminPage, adminListingLink } from "#templates/admin/admin-page.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
@@ -97,14 +98,18 @@ const DateSelect = ({
 }): JSX.Element => (
   <label>
     {t("common.date")}
-    <select name="date" required>
-      <option value="">{t("listing_qr.date_select_placeholder")}</option>
-      {dates.map((d) => (
-        <option selected={d === value} value={d}>
-          {formatDateLabel(d)}
-        </option>
-      ))}
-    </select>
+    <SelectField
+      name="date"
+      options={[
+        { label: t("listing_qr.date_select_placeholder"), value: "" },
+        ...dates.map((date) => ({
+          label: formatDateLabel(date),
+          value: date,
+        })),
+      ]}
+      required
+      value={value}
+    />
   </label>
 );
 

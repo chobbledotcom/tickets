@@ -61,6 +61,26 @@ export type AttendeeStatusDeleteError =
   | "paid_default"
   | "status_in_use";
 
+/** The prerequisite the delete command refuses on before any reassign:
+ *  the one home of the order both the save and the delete page ask. */
+export type StatusDeleteBlocker = Exclude<
+  AttendeeStatusDeleteError,
+  "status_in_use"
+>;
+
+/** The prerequisite a delete of this status would be refused on, or null when
+ *  the delete can proceed (freely, or through a reassign choice). The delete
+ *  command refuses in exactly this order; the delete page predicts it. */
+export const statusDeleteBlocker = (
+  status: Pick<AttendeeStatus, "is_paid_default" | "is_public_default">,
+  anotherStatusExists: boolean,
+): StatusDeleteBlocker | null => {
+  if (!anotherStatusExists) return "last_status";
+  if (status.is_public_default) return "public_default";
+  if (status.is_paid_default) return "paid_default";
+  return null;
+};
+
 /** Cached attendee_statuses table — only `name` is encrypted; writes
  * auto-invalidate the cache. */
 export const attendeeStatuses = defineCachedListTable<
@@ -230,14 +250,12 @@ const reassignNameRows = async (
   fromId: number,
   toId: number,
 ): Promise<{ fromName: string; toName: string } | null> => {
-  const rows = await resultRows<{ id: number; name: EnvKeyEncrypted }>(
-    await tx.execute({
-      args: [fromId, toId],
-      sql: `SELECT status.id, status.name
-              FROM attendee_statuses AS status
-             WHERE status.id IN (?, ?)`,
-    }),
-  );
+  const rows = await txRows<{ id: number; name: EnvKeyEncrypted }>(tx, {
+    args: [fromId, toId],
+    sql: `SELECT status.id, status.name
+            FROM attendee_statuses AS status
+           WHERE status.id IN (?, ?)`,
+  });
   if (rows.length !== 2) return null;
   const named = new Map(
     await Promise.all(
@@ -246,6 +264,31 @@ const reassignNameRows = async (
   );
   return { fromName: named.get(fromId)!, toName: named.get(toId)! };
 };
+
+/** The one occupancy query, read two ways: through a write transaction (the
+ *  delete command's probe) and through the plain client (the delete page's
+ *  displayed count). One query, so the two can never disagree on what holds. */
+const HELD_COUNT_SQL =
+  "SELECT COUNT(*) AS held FROM attendees AS attendee WHERE attendee.status_id = ?";
+
+const heldOf = (rows: readonly { held: number }[]): number => rows[0]!.held;
+
+/** How many attendees sit on a status, read inside a transaction. */
+export const heldAttendeeCountTx = async (
+  tx: TxScope,
+  id: number,
+): Promise<number> =>
+  heldOf(
+    await txRows<{ held: number }>(tx, { args: [id], sql: HELD_COUNT_SQL }),
+  );
+
+/** How many attendees sit on a status, read outside a transaction. */
+export const heldAttendeeCount = async (id: number): Promise<number> =>
+  heldOf(await queryAll<{ held: number }>(HELD_COUNT_SQL, [id]));
+
+/** Reads rows through an open write transaction, naming the rows. */
+const txRows = async <T>(tx: TxScope, stmt: SqlStatement): Promise<T[]> =>
+  resultRows<T>(await tx.execute(stmt));
 
 /** Moves every attendee off `id` onto the operator's chosen `reassignTo`
  *  status, inside the caller's transaction, and records the move. Returns the
@@ -256,20 +299,14 @@ const reassignHeldAttendees = async (
   id: number,
   reassignTo: number | undefined,
 ): Promise<number | null> => {
-  const heldRows = await resultRows<{ held: number }>(
-    await tx.execute({
-      args: [id],
-      sql: "SELECT COUNT(*) AS held FROM attendees WHERE status_id = ?",
-    }),
-  );
-  const held = heldRows[0]!.held;
+  const held = await heldAttendeeCountTx(tx, id);
   if (held === 0) return 0;
   if (reassignTo === undefined || reassignTo === id) return null;
   const names = await reassignNameRows(tx, id, reassignTo);
   if (names === null) return null;
   await tx.execute({
     args: [reassignTo, id],
-    sql: "UPDATE attendees SET status_id = ? WHERE status_id = ?",
+    sql: "UPDATE attendees AS attendee SET status_id = ? WHERE attendee.status_id = ?",
   });
   await logActivity(
     `${held} attendee(s) moved from status '${names.fromName}' to '${names.toName}'`,
@@ -290,18 +327,15 @@ const deleteStatus = (
   withTransaction(async (tx) => {
     const status = await getCurrentDefaults(tx, id);
 
-    const anotherStatus = await tx.execute({
+    const [anotherStatus] = await txRows<{ id: number }>(tx, {
       args: [id],
       sql: `SELECT status.id
               FROM attendee_statuses AS status
              WHERE status.id != ?
              LIMIT 1`,
     });
-    if (anotherStatus.rows.length === 0) return errorResult("last_status");
-    if (status.is_public_default) {
-      return errorResult("public_default");
-    }
-    if (status.is_paid_default) return errorResult("paid_default");
+    const blocker = statusDeleteBlocker(status, anotherStatus !== undefined);
+    if (blocker) return errorResult(blocker);
 
     if ((await reassignHeldAttendees(tx, id, reassignTo)) === null) {
       return errorResult("status_in_use");
