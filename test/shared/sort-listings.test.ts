@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { sortListings } from "#shared/sort-listings.ts";
+import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListing, testListingWithCount } from "#test-utils/factories.ts";
 import type { Holiday, ListingWithCount } from "#types";
 
@@ -330,5 +331,14 @@ describeWithEnv("sortListings", { db: true }, () => {
     });
     const sorted = sortListings([listing], []);
     expect((sorted[0] as ListingWithCount).attendee_count).toBe(42);
+  });
+});
+
+describeWithEnv("loadSortedListings", { db: true }, () => {
+  test("keeps every listing when no filter is passed", async () => {
+    const created = await createTestListing({ name: "Unfiltered listing" });
+
+    const { listings } = await loadSortedListings();
+    expect(listings.map((listing) => listing.id)).toContain(created.id);
   });
 });

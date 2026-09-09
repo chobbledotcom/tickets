@@ -1,12 +1,14 @@
+import type { Row } from "@libsql/client";
 import {
-  queryAll,
   queryBatch,
   resultRows,
   type SqlStatement,
+  type TxScope,
+  withReadSnapshot,
 } from "#db/client.ts";
 import { SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
-import { queryColumnSet } from "#db/query.ts";
-import { chunk, requiredMapValue, sumOf } from "#fp";
+import { stringColumnSet } from "#db/query.ts";
+import { chunk, sumOf } from "#fp";
 import { readLimit } from "#shared/limits.ts";
 
 /** A single table's backup: table name, the SQL to repopulate it, and row count */
@@ -19,16 +21,21 @@ export type TableBackup = {
 /** Double-quote a SQL identifier (table or column name) */
 const quoteId = (name: string): string => `"${name}"`;
 
-/** Get existing table names in one round-trip. */
-const getExistingTableNames = (): Promise<Set<string>> =>
-  queryColumnSet("SELECT name FROM sqlite_master WHERE type = 'table'", "name");
+const EXISTING_TABLES_SQL =
+  "SELECT name FROM sqlite_master WHERE type = 'table'";
 
 /**
  * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.
- * Skips tables a pending migration has not created yet.
+ * Skips tables a pending migration has not created yet. Reads through the
+ * caller's snapshot, so the table list belongs to the same state as the rows.
  */
-const existingSchemaTables = async (): Promise<string[]> => {
-  const existing = await getExistingTableNames();
+const existingSchemaTables = async (snapshot: TxScope): Promise<string[]> => {
+  const existing = stringColumnSet(
+    resultRows<Row>(
+      await snapshot.execute({ args: [], sql: EXISTING_TABLES_SQL }),
+    ),
+    "name",
+  );
   return SCHEMA_TABLE_NAMES.filter((table) => existing.has(table));
 };
 
@@ -69,12 +76,23 @@ const tablePageStatement = (
     "WHERE rowid > ? ORDER BY rowid LIMIT ?",
 });
 
+/** The snapshot-scoped page reader a dump's keyset loop reads through. */
+export type SnapshotReader = (statement: SqlStatement) => Promise<BackupRow[]>;
+
+/** Run one page statement through the dump's snapshot. */
+export const snapshotReader =
+  (snapshot: TxScope): SnapshotReader =>
+  async (statement) =>
+    resultRows<BackupRow>(await snapshot.execute(statement));
+
 /** Export a single table as multi-row INSERT statements (deterministic order).
  *  Reads are keyset-paginated by rowid so no single response exceeds libsqld's
- *  payload cap. Column names come from the row keys (minus the cursor alias),
- *  so no extra schema query is needed. */
+ *  payload cap. Every page comes from the caller's snapshot, so a dump mixes
+ *  no database states. Column names come from the row keys (minus the cursor
+ *  alias), so no extra schema query is needed. */
 export const exportTable = async (
   table: string,
+  read: SnapshotReader,
   pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
   firstPage?: BackupRow[],
 ): Promise<{ sql: string; rowCount: number }> => {
@@ -92,11 +110,7 @@ export const exportTable = async (
 
   for (;;) {
     const rows =
-      suppliedPage ??
-      (await queryAll<BackupRow>(
-        tablePageStatement(table, cursor, pageSize).sql,
-        [cursor, pageSize],
-      ));
+      suppliedPage ?? (await read(tablePageStatement(table, cursor, pageSize)));
     suppliedPage = undefined;
     if (rows.length === 0) break;
     if (rowCount === 0) {
@@ -131,38 +145,40 @@ export const countSchemaTableRows = async (): Promise<number[]> => {
   );
 };
 
-/** Database round trips a full dump makes for these row counts: one to list
- *  the tables, one batched first page for every table, then one extra read
- *  per additional page of a table that spills past its first. */
+/** Database round trips a full dump makes for these row counts: the snapshot's
+ *  begin, one batched table-list read, one batched first page for every table,
+ *  then one extra read per additional page of a table that spills past its
+ *  first. Closing the snapshot costs no round trip. */
 export const backupDumpDatabaseCalls = (
   rowCounts: number[],
   pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
 ): number =>
-  2 + sumOf((rows: number) => Math.floor(rows / pageSize))(rowCounts);
+  3 + sumOf((rows: number) => Math.floor(rows / pageSize))(rowCounts);
 
-/** Create a full backup — one TableBackup per table in SCHEMA order.
- *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
-export const createBackup = async (): Promise<TableBackup[]> => {
-  const tables = await existingSchemaTables();
-  const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
-  const firstPages = await queryBatch(
-    tables.map((table) => tablePageStatement(table, 0, pageSize)),
-  );
-  const pagesByIndex = new Map(firstPages.entries());
-  return Promise.all(
-    tables.map(async (table, index) => ({
-      table,
-      ...(await exportTable(
+/** Create a full backup — one TableBackup per table in SCHEMA order, all read
+ *  from one database snapshot, so a write mid-dump cannot mix states into the
+ *  dump. Skips tables that don't exist yet (e.g. new tables about to be
+ *  created by a migration). */
+export const createBackup = async (): Promise<TableBackup[]> =>
+  withReadSnapshot(async (snapshot) => {
+    const tables = await existingSchemaTables(snapshot);
+    const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
+    const firstPages = await snapshot.batch(
+      tables.map((table) => tablePageStatement(table, 0, pageSize)),
+    );
+    const read = snapshotReader(snapshot);
+    const backups: TableBackup[] = [];
+    // The snapshot is one stream: its statements run one at a time.
+    for (const [index, table] of tables.entries()) {
+      backups.push({
         table,
-        pageSize,
-        resultRows<BackupRow>(
-          requiredMapValue(
-            pagesByIndex,
-            index,
-            `Backup page missing for ${table}`,
-          ),
-        ),
-      )),
-    })),
-  );
-};
+        ...(await exportTable(
+          table,
+          read,
+          pageSize,
+          resultRows<BackupRow>(firstPages[index]!),
+        )),
+      });
+    }
+    return backups;
+  });

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
-import { routeMainApp } from "#routes/app/routes.ts";
+import { routeMainApp, servesBodyRequests } from "#routes/app/routes.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
@@ -69,6 +69,10 @@ describeWithEnv("main app router", { db: true }, () => {
 
   test("does not serve a public page below its exact path", async () => {
     await enablePublicSite();
+    expect((await route("/listings/extra")).status).toBe(404);
+  });
+
+  test("404s a deeper public path even while the site is disabled", async () => {
     expect((await route("/listings/extra")).status).toBe(404);
   });
 
@@ -172,5 +176,53 @@ describeWithEnv("main app router", { db: true }, () => {
     expect(await response.json()).toEqual({
       error: "This site is in read-only mode",
     });
+  });
+});
+
+describe("servesBodyRequests", () => {
+  test("denies a path no prefix route or setup owns", () => {
+    expect(servesBodyRequests("/signin")).toBe(false);
+    expect(servesBodyRequests("/wp-login.php")).toBe(false);
+  });
+
+  test("denies a GET-only static asset path, which can never take a body", () => {
+    expect(servesBodyRequests("/favicon.ico")).toBe(false);
+  });
+
+  test("denies a prefix that serves only GET pages", () => {
+    const getOnlyPaths = [
+      "/",
+      "/listings",
+      "/terms",
+      "/address-lookup",
+      "/attachment/3",
+      "/caldav/events.ics",
+      "/custom.css",
+      "/events",
+      "/feeds/listings.rss",
+      "/gwallet/a-token",
+      "/image/a-file.jpg",
+      "/news/latest",
+      "/order",
+      "/order.js",
+      "/page/about",
+      "/read-only",
+      "/t/a-token",
+      "/wallet/a-token",
+    ];
+    for (const path of getOnlyPaths) {
+      expect(servesBodyRequests(path)).toBe(false);
+    }
+  });
+
+  test("admits a prefix that serves a body-bearing method", () => {
+    expect(servesBodyRequests("/admin/login")).toBe(true);
+    expect(servesBodyRequests("/contact")).toBe(true);
+    expect(servesBodyRequests("/payment/webhook")).toBe(true);
+  });
+
+  test("admits the setup paths the setup router owns", () => {
+    expect(servesBodyRequests("/setup")).toBe(true);
+    expect(servesBodyRequests("/setup/database")).toBe(true);
   });
 });

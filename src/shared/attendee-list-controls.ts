@@ -255,3 +255,43 @@ export const inRegistrationOrder =
     sort<Row>((first, second) =>
       order === "newest" ? second.id - first.id : first.id - second.id,
     )(rows);
+
+/** Compare two optional YYYY-MM-DD dates ascending; a missing date sorts after
+ *  the dated ones. One rule for every row order that sorts by such a date. */
+export const compareOptionalDates = (
+  first: string | null | undefined,
+  second: string | null | undefined,
+): number => {
+  const firstDate = first ?? "";
+  const secondDate = second ?? "";
+  if (firstDate === secondDate) return 0;
+  if (firstDate === "") return 1;
+  if (secondDate === "") return -1;
+  return firstDate.localeCompare(secondDate);
+};
+
+/** The table's own order: booked date, then name, then registration id. This
+ *  matches what the attendee table's default sort does with one listing's rows
+ *  — every row shares the listing, so its name never breaks a tie. */
+export const inDateAndNameOrder = <
+  Row extends { date: string | null; id: number; name: string },
+>(
+  rows: Row[],
+): Row[] =>
+  sort<Row>((first, second) => {
+    const byDate = compareOptionalDates(first.date, second.date);
+    if (byDate !== 0) return byDate;
+    return first.name.localeCompare(second.name) || first.id - second.id;
+  })(rows);
+
+/** A roster's row order, one helper for every surface that shows it — the page
+ *  and the CSV export: the chosen registration order, or the table's own
+ *  date-and-name order when the address named none. */
+export const attendeeListOrder =
+  (order: AttendeeSort | null) =>
+  <Row extends { date: string | null; id: number; name: string }>(
+    rows: Row[],
+  ): Row[] =>
+    order === null
+      ? inDateAndNameOrder(rows)
+      : inRegistrationOrder(order)(rows);

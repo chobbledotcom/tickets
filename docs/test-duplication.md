@@ -34,6 +34,13 @@ The last one holds no tests, so the rest of this document leaves it out. Its
 number is high because design-token CSS repeats short declaration runs by
 design, and those runs are not duplication.
 
+The code scans ignore two kinds of file that this document does not cover
+elsewhere. `fp.ts` holds curried adapters, and those match each other by design.
+The migration files are append-only history: each one repeats the same
+`schemaMigration(...)` call scaffold, and a shipped migration must never change.
+Each migration body is unique, so the scaffold is the factory, not a missed
+merge.
+
 Two trees hold reusable helpers. `test/specs/support` holds 76 files and 11,673
 lines behind the Cucumber steps. `test/test-utils` holds 160 helper files and
 19,164 lines, plus 32 files of tests for those helpers. Both are

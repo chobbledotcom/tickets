@@ -577,8 +577,9 @@ export type BatchExecutor = (
 
 /** What makes a read batch safe to retry: a write smuggled into one is rejected
  *  loudly here, so every statement really is a side-effect-free SELECT. */
-const requireReadStatements = (statements: SqlStatement[]): void => {
-  for (const { sql } of statements) {
+const requireReadStatements = (statements: readonly InStatement[]): void => {
+  for (const stmt of statements) {
+    const sql = sqlOf(stmt);
     if (!isReadSql(sql)) {
       throw new Error(
         `Read-only batch executors accept only SELECT statements: ${sql}`,
@@ -656,17 +657,25 @@ export type TransactionStateReader<State> = (
  *  issues statements through its {@link TxScope} and resolves to a result. */
 type TransactionWork<T> = (tx: TxScope) => Promise<T>;
 
-/**
- * Run `work` in one freshly-begun interactive write transaction, committing on
- * success and rolling back on any error. Cache invalidations fire once after a
- * successful commit, and none after a rollback. A lock lost while beginning or
- * committing throws SQLITE_BUSY, which {@link withTransaction} retries; an
- * upstream error is never retried here, per
- * {@link retryOnTransientDatabaseError}.
- */
-const runWriteTransactionOnce = async <T>(
-  work: TransactionWork<T>,
-): Promise<T> => {
+/** A runner that takes a unit of transactional work and opens what the kind
+ *  needs for it — a write transaction ({@link withTransaction}) or a read
+ *  snapshot ({@link withReadSnapshot}). */
+type TransactionRunner = <T>(work: TransactionWork<T>) => Promise<T>;
+
+/** Run statements through an open transaction as one tracked batch, and one
+ *  tracked statement. Both transaction kinds share these, so their reads and
+ *  writes reach the query log alike. */
+const trackedTxBatch =
+  (tx: Transaction) =>
+  (statements: InStatement[]): Promise<ResultSet[]> =>
+    trackSql(statements.map(sqlOf), () => tx.batch(statements));
+
+const trackedTxExecute =
+  (tx: Transaction) =>
+  (stmt: InStatement): Promise<ResultSet> =>
+    trackSql(sqlOf(stmt), () => tx.execute(stmt));
+
+const runWriteTransactionOnce: TransactionRunner = async (work) => {
   const tx = await getDb().transaction("write");
   const writtenSql: string[] = [];
   let statementCount = 0;
@@ -676,7 +685,7 @@ const runWriteTransactionOnce = async <T>(
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      return trackSql(sqls, () => tx.batch(statements));
+      return trackedTxBatch(tx)(statements);
     },
     execute: (stmt) => {
       const sql = sqlOf(stmt);
@@ -685,9 +694,7 @@ const runWriteTransactionOnce = async <T>(
       // "Transaction timed-out" shape; chatty writes belong in a batch.
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sql);
-      // Tracked too, so reads inside the callback reach the debug footer and the
-      // N+1 guard.
-      return trackSql(sql, () => tx.execute(stmt));
+      return trackedTxExecute(tx)(stmt);
     },
   };
   try {
@@ -760,6 +767,44 @@ export const useTransaction = <T>(
   work: TransactionWork<T>,
 ): Promise<T> =>
   transaction === undefined ? withTransaction(work) : work(transaction);
+
+/**
+ * Run read-only work against one database snapshot.
+ *
+ * The transaction begins `READ ONLY`, so it never takes the write lock and
+ * never blocks a writer; every statement it sees is one snapshot of the data,
+ * however many round trips the work makes. Statements must be SELECTs — a
+ * write smuggled into the scope throws before it reaches the database. The
+ * snapshot never commits: it ends by closing; cache invalidation does not
+ * apply because nothing was written. An upstream failure replays the whole
+ * attempt on a fresh transaction, so `work` must be safe to run twice, as
+ * with {@link withTransaction}.
+ */
+export const withReadSnapshot: TransactionRunner = (work) =>
+  retryOnTransientDatabaseError(
+    async () => {
+      // READ ONLY never takes the write lock, and a replica-pinned transaction
+      // is one consistent database state.
+      const tx = await getDb().transaction("read");
+      // The SELECT-only runners the snapshot hands its work: each refuses a
+      // non-SELECT before it reaches `tx`.
+      const batch = (statements: InStatement[]): Promise<ResultSet[]> => {
+        requireReadStatements(statements);
+        return trackedTxBatch(tx)(statements);
+      };
+      const execute = (stmt: InStatement): Promise<ResultSet> => {
+        requireReadStatements([stmt]);
+        return trackedTxExecute(tx)(stmt);
+      };
+      try {
+        return await work({ batch, execute });
+      } finally {
+        tx.close();
+      }
+    },
+    // Every statement inside is a read, so a retried attempt cannot double-apply.
+    { retryUpstream: true },
+  );
 
 /**
  * Run a write that ends in `RETURNING` and read back the row it wrote. A

@@ -7,8 +7,8 @@ import {
   restoreFromSql,
   restoreFromZip,
 } from "#db/backup.ts";
-import { exportTable } from "#db/backup-snapshot.ts";
-import { getDb, queryAll, queryOne } from "#db/client.ts";
+import { exportTable, snapshotReader } from "#db/backup-snapshot.ts";
+import { getDb, queryAll, queryOne, withReadSnapshot } from "#db/client.ts";
 import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
 import { initDb } from "#db/migrations.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
@@ -35,6 +35,13 @@ import {
 describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
   const listingCount = async (): Promise<number> =>
     (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM listings"))!.n;
+  /** Export one table through its own snapshot, as a dump would. */
+  const exportInSnapshot = async (table: string): Promise<string> =>
+    (
+      await withReadSnapshot((snapshot) =>
+        exportTable(table, snapshotReader(snapshot)),
+      )
+    ).sql;
   const zipSql = (file: string, sql: string): Uint8Array =>
     zipSync({ [file]: new TextEncoder().encode(sql) });
   const listingTotals = (
@@ -162,7 +169,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
 
   test("rejects a partial backup without a manifest before wiping existing data", async () => {
     await createTestListing({ name: "From partial backup" });
-    const { sql } = await exportTable("listings");
+    const sql = await exportInSnapshot("listings");
     await createTestListing({ name: "Must stay" });
 
     await expect(restoreFromZip(zipSql("listings.sql", sql))).rejects.toThrow(
@@ -252,12 +259,12 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       // renamed (e.g. 2026-06-18_answer_price_modifiers); the old marker is
       // never cleaned up, so its unrecognised id must not read as "newer".
       await createTestListing({ name: "Orphan Marker Survivor" });
-      const recorded = await exportTable("schema_migrations");
+      const recorded = await exportInSnapshot("schema_migrations");
       const dump =
-        `${recorded.sql}\n` +
+        `${recorded}\n` +
         `INSERT INTO "schema_migrations" ("id", "description", "applied_at") ` +
         `VALUES ('2026-06-18_answer_price_modifiers', 'Renamed since', '2026-06-18T00:00:00.000Z');\n` +
-        `${(await exportTable("listings")).sql}\n`;
+        `${await exportInSnapshot("listings")}\n`;
 
       await restoreFromSql(dump);
 
@@ -267,9 +274,9 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     test("an unknown column with no pending migration fails instead of being re-added", async () => {
       // The dump records every known migration, so nothing pending could
       // consume a stray column — it is corruption, and the INSERT must fail.
-      const recorded = await exportTable("schema_migrations");
+      const recorded = await exportInSnapshot("schema_migrations");
       const dump =
-        `${recorded.sql}\n` +
+        `${recorded}\n` +
         `INSERT INTO "holidays" ("id", "date", "stray_col") VALUES (1, '2026-01-01', 'x');\n`;
 
       await expect(restoreFromSql(dump)).rejects.toThrow(PostResetError);

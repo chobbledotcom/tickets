@@ -528,14 +528,6 @@
     "secondStart": 136
   },
   {
-    "first": "src/shared/ledger/project.ts",
-    "firstStart": 41,
-    "hash": "bdc331c52b2bc3274b9932d5a6281d066002238233f2cbe972d6a2ab55436859",
-    "reason": "the curried tail is the ledger projection convention; both bodies already read through the one balanceOf fold, and the negation is the cost operation itself, not a liftable parameter",
-    "second": "src/shared/ledger/project.ts",
-    "secondStart": 47
-  },
-  {
     "first": "src/shared/payment-idempotency.ts",
     "firstStart": 15,
     "hash": "dda5ab07c7e1887dea8761dbe94db053dc28ab1876646f6896e57300f7b71cc2",

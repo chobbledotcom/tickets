@@ -307,12 +307,12 @@ GitHub.
   passed. Re-derive it from the current source before you fix anything, however
   confident and detailed it reads — a wrong diagnosis is more expensive than
   none, because it aims your fix at the wrong place and takes the regression
-  test with it. The stripe-mock port-steal entry in `TODO.md` is the worked
-  example: it was a careful, plausible, thoroughly argued account of a race in
-  the wrong function, and following it would have "fixed" code that was already
-  correct while leaving the real hazard in place. When you find one wrong,
-  correct the note in the same change — leaving it sends the next person down
-  the same path.
+  test with it. The stripe-mock port-steal note
+  (`docs/stripe-mock-port-steal.md`) is the worked example: it was a careful,
+  plausible, thoroughly argued account of a race in the wrong function, and
+  following it would have "fixed" code that was already correct while leaving
+  the real hazard in place. When you find one wrong, correct the note in the
+  same change — leaving it sends the next person down the same path.
 - **A finished job closes its issue**: GitHub issues hold work that is still
   open. When you complete one, close it in the same change. The commit message
   and the pull request are the record of what you did. Never leave an issue open
@@ -321,13 +321,13 @@ GitHub.
   issue you did not write. When you find one the code already answers, check it
   against the current source. Then close it with a comment that names the
   answer. An issue stays open only when part of its work is still open.
-  `TODO.md` is the predecessor of the issue tracker. It still holds entries that
-  predate the migration. An entry that names work moves to an issue, in batches.
-  An entry that records a decision or a contract moves to `docs/`. Its entries
-  keep the old rule: delete an entry when you finish it, and never leave one
-  marked "done". The one exception is an entry this file cites as a worked
-  example, the stripe-mock port-steal note. That entry is documentation, not a
-  job, and it moves to `docs/` when the file is deleted.
+  `TODO.md` was the predecessor of the issue tracker. Its entries that named
+  work moved to GitHub issues; its entries that recorded a decision or a
+  contract moved to `docs/`; the file is now deleted. Its old rule still holds
+  for issues: close an issue when you finish it, and never leave one marked
+  "done". The entry this file cites as a worked example, the stripe-mock
+  port-steal note, is documentation, not a job, and lives at
+  `docs/stripe-mock-port-steal.md`.
 - **Stage what you changed, never `git add -A`**: Name the files you meant to
   touch, and read `git status --short` before committing. A blanket add cannot
   tell your work from a stray tool run, a build artefact, or a formatter that

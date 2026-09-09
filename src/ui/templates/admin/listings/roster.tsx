@@ -1,7 +1,7 @@
 import { fieldById, map, pipe } from "#fp";
 import {
   attendeeListHref,
-  inRegistrationOrder,
+  attendeeListOrder,
 } from "#shared/attendee-list-controls.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -46,12 +46,9 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     paymentReferenceAttendeeIds,
   );
   const filteredAttendees = filterAttendees(completeAttendees, checkin);
-  // A chosen sort orders the rows here; otherwise the table applies its own
-  // date-and-name order.
-  const orderedAttendees =
-    sort === null
-      ? filteredAttendees
-      : inRegistrationOrder(sort)(filteredAttendees);
+  // The page and the CSV export share one row order: the chosen registration
+  // order, or the table's own date-and-name order.
+  const orderedAttendees = attendeeListOrder(sort)(filteredAttendees);
   const dailySuffix = attendeeCountLabelSuffix(isDaily, dateFilter);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,

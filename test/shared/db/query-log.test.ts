@@ -25,6 +25,8 @@ import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestUsage,
   runWithSubrequestBudget,
+  SubrequestBudgetError,
+  withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 
 describe("query-log", () => {
@@ -389,6 +391,19 @@ describe("query-log", () => {
           total: 1,
         });
       });
+    });
+
+    test("blocks a plain call once the subrequest allowance is spent", () => {
+      // Enforcement is the default: only a caller that names its call as
+      // cleanup (enforceBudget: false) gets past a spent allowance.
+      runWithSubrequestBudget(() =>
+        withSubrequestAllowance({ database: 1, external: 0, total: 1 }, () => {
+          countDatabaseRoundTrip("the allowed call");
+          expect(() =>
+            countDatabaseRoundTrip("the call past the allowance"),
+          ).toThrow(SubrequestBudgetError);
+        }),
+      );
     });
   });
 

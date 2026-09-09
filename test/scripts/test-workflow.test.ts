@@ -27,7 +27,7 @@ describe("Test workflow triggers", () => {
 
   test("still reports on a merge queue branch", async () => {
     // `checks` and `test` are not required checks on `main`, so the queue does
-    // not wait for them today. See TODO.md. Once they are required, a queue
+    // not wait for them today. See issue #2295. Once they are required, a queue
     // branch with no `merge_group` run reports nothing, and the queue waits for
     // a check that never arrives.
     expect(triggers(await readWorkflow())).toContain("merge_group:");

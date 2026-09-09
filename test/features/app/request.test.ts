@@ -23,6 +23,25 @@ const deleteSetting = async (key: string): Promise<void> => {
   settings.invalidateCache();
 };
 
+/** A POST whose body stream dies mid-transfer, like a client that opens the
+ * request and hangs up before the body arrives. The cast covers `duplex`:
+ * the runtime needs it for a stream body, but Deno 2.5.6's RequestInit type
+ * does not know it. */
+const brokenBodyPost = (path: string): Request =>
+  new Request(`http://localhost${path}`, {
+    body: new ReadableStream({
+      start(controller) {
+        controller.error(new Error("connection dropped mid-body"));
+      },
+    }),
+    duplex: "half",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      host: "localhost",
+    },
+    method: "POST",
+  } as RequestInit);
+
 describeWithEnv("request pipeline", { db: true }, () => {
   const errors = setupErrorSpy();
 
@@ -116,6 +135,61 @@ describeWithEnv("request pipeline", { db: true }, () => {
       });
       invalidateInitDbCache();
     }
+  });
+
+  /** A path nothing serves must die as a silent bare 404: no page, no report. */
+  const expectBareSilent404 = async (path: string): Promise<void> => {
+    const response = await handleRequest(brokenBodyPost(path));
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("");
+    expect(errors.calls.length).toBe(0);
+  };
+
+  test("answers a POST to a path nothing serves with a bare 404 and no error", async () => {
+    await expectBareSilent404("/signin");
+  });
+
+  test("fast-404s a body-bearing POST to a GET-only static asset", async () => {
+    await expectBareSilent404("/favicon.ico");
+  });
+
+  test("fast-404s a body-bearing POST to a GET-only page", async () => {
+    await expectBareSilent404("/");
+    await expectBareSilent404("/listings");
+  });
+
+  test("fast-404s a valid form POST to a GET-only page before any database work", async () => {
+    const queries: string[] = [];
+    const restore = recordQueries(queries);
+    let response: Response;
+    try {
+      response = await handleRequest(mockFormRequest("/", { any: "field" }));
+    } finally {
+      restore();
+    }
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("");
+    expect(queries).toEqual([]);
+  });
+
+  test("still reports a body that dies on a route the app serves", async () => {
+    using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
+    const response = await handleRequest(brokenBodyPost("/payment/webhook"));
+
+    expect(response.status).toBe(503);
+    expect(errors.contains("E_CDN_REQUEST")).toBe(true);
+  });
+
+  test("keeps the styled 404 page for GET and HEAD probes", async () => {
+    const get = await handleRequest(mockRequest("/signin"));
+    expect(get.status).toBe(404);
+    expect(await get.text()).toContain("Not Found");
+
+    const head = await handleRequest(
+      mockRequest("/signin", { method: "HEAD" }),
+    );
+    expect(head.status).toBe(404);
+    expect(await head.text()).toContain("Not Found");
   });
 
   test("rethrows unexpected errors in test mode", async () => {

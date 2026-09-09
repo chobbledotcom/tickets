@@ -133,16 +133,30 @@ describeWithEnv(
         },
       );
 
-      test("returns 404 for non-GET method", async () => {
-        const request = new Request(`http://localhost${PROXY_PATH}.jpg`, {
-          body: "test",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            host: "localhost",
-          },
-          method: "POST",
-        });
-        expect((await handleRequest(request)).status).toBe(404);
+      // The pipeline fast-404s a body-bearing POST to this GET-only prefix
+      // before it routes, so HEAD is the method that still reaches the
+      // handler's own method check.
+      test("returns 404 for a HEAD request (the handler is GET-only)", async () => {
+        const response = await handleRequest(
+          mockRequest(`${PROXY_PATH}.jpg`, { method: "HEAD" }),
+        );
+        expect(response.status).toBe(404);
+      });
+
+      test("answers a POST with a silent bare 404 before the body read", async () => {
+        const response = await handleRequest(
+          new Request(`http://localhost${PROXY_PATH}.jpg`, {
+            body: "test",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              host: "localhost",
+            },
+            method: "POST",
+          }),
+        );
+        expect(response.status).toBe(404);
+        expect(await response.text()).toBe("");
+        expect(errors.calls.length).toBe(0);
       });
 
       test("returns 404 for filename without extension", async () => {

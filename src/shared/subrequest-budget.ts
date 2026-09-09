@@ -50,6 +50,12 @@ const usageOf = ({ database, external }: Counts): SubrequestCounts => ({
 export const getSubrequestUsage = (): SubrequestCounts =>
   usageOf(budgetScope.current()?.counts ?? { database: 0, external: 0 });
 
+/** Whether this request carries a subrequest budget at all. A caller outside a
+ *  request (a CLI or backup run) reads defaults from
+ *  {@link getSubrequestRemaining} but has no cap to honour. */
+export const hasSubrequestBudget = (): boolean =>
+  budgetScope.current() !== undefined;
+
 export const getSubrequestRemaining = (): SubrequestCounts => {
   const state = budgetScope.current();
   if (!state) {

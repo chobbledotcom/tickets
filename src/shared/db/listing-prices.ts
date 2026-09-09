@@ -10,6 +10,7 @@
  *    admits it with no schema change, and nothing writes it yet.
  */
 
+import * as v from "valibot";
 import {
   execute,
   executeBatch,
@@ -276,6 +277,13 @@ export const dayCountPriceStatements = (
   ]);
 };
 
+/** One `listing_prices` `day_count` row: the day count it prices and its
+ * per-unit price. */
+const DayCountPriceRowSchema = v.object({
+  price_id: v.string(),
+  unit_price: v.number(),
+});
+
 /** One listing's per-day-count prices from its `day_count` rows, as a
  * {@link DayPrices} map. The bounded single-listing read used to keep an entity
  * honest when the write path can't supply the day prices (a partial update),
@@ -288,12 +296,10 @@ export const getListingDayPrices = async (
       WHERE listing_id = ? AND price_type = ?`,
     [listingId, PRICE_TYPE_DAY_COUNT],
   );
-  const rows = result.rows as unknown as {
-    price_id: string;
-    unit_price: number;
-  }[];
   const dayPrices: DayPrices = {};
-  for (const row of rows) dayPrices[Number(row.price_id)] = row.unit_price;
+  for (const row of v.parse(v.array(DayCountPriceRowSchema), result.rows)) {
+    dayPrices[Number(row.price_id)] = row.unit_price;
+  }
   return parseDayPrices(dayPrices);
 };
 
@@ -314,10 +320,12 @@ export const writeListingDayCounts = async (
 
 /** A `listings` row projected to the one column the `base` mirror derives from.
  * `unit_price` may be NULL (read as 0). */
-export type ListingPriceSourceRow = {
-  id: number;
-  unit_price: number | null;
-};
+const ListingPriceSourceRowSchema = v.object({
+  id: v.number(),
+  unit_price: v.nullable(v.number()),
+});
+
+type ListingPriceSourceRow = v.InferOutput<typeof ListingPriceSourceRowSchema>;
 
 /** The `base`-mirror statements for one raw `listings` row — shared by the
  * backfill and the per-listing {@link syncListingPrices}. A NULL `unit_price`
@@ -343,7 +351,7 @@ const readSourceRows = async (
       WHERE id IN (${inPlaceholders(ids)})`,
     [...ids],
   );
-  return rows.rows as unknown as ListingPriceSourceRow[];
+  return v.parse(v.array(ListingPriceSourceRowSchema), rows.rows);
 };
 
 /** Execute the statements in bounded batches so no single write batch grows past
@@ -387,12 +395,17 @@ export const syncListingPricesForIds = async (
  * after every listing insert/update (the form/API `afterCommit`) so the mirror
  * never drifts from the column. The source row is read on the primary
  * (write-mode batch) so it reflects the just-committed write rather than a
- * lagging replica. A missing listing is a no-op. Day-count rows are written from
- * input by the write paths, not re-derived here. */
+ * lagging replica, and parsed there — it does not go through
+ * {@link readSourceRows}, whose bulk read need not be primary-pinned. A
+ * missing listing is a no-op. Day-count rows are written from input by the
+ * write paths, not re-derived here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const row = await queryOnePrimary<ListingPriceSourceRow>(
+  const row = await queryOnePrimary<unknown>(
     "SELECT id, unit_price FROM listings WHERE id = ?",
     [listingId],
   );
-  if (row) await executeBatch(sourceRowStatements(row));
+  if (row === null) return;
+  await executeBatch(
+    sourceRowStatements(v.parse(ListingPriceSourceRowSchema, row)),
+  );
 };

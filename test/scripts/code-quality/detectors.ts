@@ -252,7 +252,7 @@ export const isUsedInSameFile = (
  * they will read as a quoted string after the thunk. (No inline lazyExport
  * example here on purpose: this scanner reads raw source text, so a matchable
  * example in this very comment would register a phantom imported symbol —
- * see TODO.md "Dead-export scanner matches raw text".)
+ * see issue #2302 for the fix that makes the scanner read code, not text.)
  */
 const IMPORT_CLAUSES =
   /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;

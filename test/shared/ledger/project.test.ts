@@ -4,11 +4,7 @@ import { account, accountKey } from "#shared/ledger/account.ts";
 import {
   allBalances,
   balanceOf,
-  costOfListing,
-  inPeriod,
-  profitOfListing,
   statementFor,
-  sumOfKind,
 } from "#shared/ledger/project.ts";
 import { makeTransfer } from "#test-utils/transfer-factory.ts";
 
@@ -61,112 +57,6 @@ describe("allBalances", () => {
     const a = makeTransfer({ amount: 100, destination: revenue, id: 1 });
     const b = makeTransfer({ amount: 30, destination: attendee, id: 2 });
     expect(allBalances([a, b])).toEqual(allBalances([b, a]));
-  });
-});
-
-describe("sumOfKind", () => {
-  it("counts only the named kind (a refund is its cash leg, not doubled)", () => {
-    const ts = [
-      makeTransfer({ amount: 5000, kind: "refund_reversal" }),
-      makeTransfer({ amount: 2000, kind: "refund_cash" }),
-      makeTransfer({ amount: 800, kind: "refund_cash" }),
-    ];
-    // Only the refund_cash legs (2000 + 800) — never the reversal's 5000, and
-    // distinct amounts so summing the *other* kinds would give a different total.
-    expect(sumOfKind("refund_cash")(ts)).toBe(2800);
-    // A kind absent from the slice sums to zero, not to the legs it excludes.
-    expect(sumOfKind("sale")(ts)).toBe(0);
-  });
-});
-
-describe("listing cost/profit projections", () => {
-  it("reports positive servicing cost and subtracts it from gross revenue", () => {
-    const listingId = 45;
-    const ts = [
-      makeTransfer({
-        amount: 20000,
-        destination: account("revenue", listingId),
-        source: attendee,
-      }),
-      makeTransfer({
-        amount: 9000,
-        destination: world,
-        source: account("cost", listingId),
-      }),
-    ];
-    expect(costOfListing(listingId)(ts)).toBe(9000);
-    expect(profitOfListing(listingId)(ts)).toBe(11000);
-  });
-});
-
-describe("inPeriod", () => {
-  it("includes the start and excludes the end (half-open window)", () => {
-    const ts = [
-      makeTransfer({ id: 1, occurredAt: "2026-01-01T00:00:00.000Z" }),
-      makeTransfer({ id: 2, occurredAt: "2026-02-01T00:00:00.000Z" }),
-      makeTransfer({ id: 3, occurredAt: "2026-03-01T00:00:00.000Z" }),
-    ];
-    const got = inPeriod(
-      "2026-02-01T00:00:00.000Z",
-      "2026-03-01T00:00:00.000Z",
-    )(ts);
-    expect(got.map((t) => t.id)).toEqual([2]);
-  });
-
-  it("includes a canonical .000Z transfer at a whole-second bound", () => {
-    const ts = [
-      makeTransfer({ id: 1, occurredAt: "2026-02-01T00:00:00.000Z" }),
-    ];
-    // Whole-second bounds (no milliseconds): a lexicographic compare would
-    // exclude the canonical .000Z value; instant comparison includes it.
-    const got = inPeriod("2026-02-01T00:00:00Z", "2026-03-01T00:00:00Z")(ts);
-    expect(got.map((t) => t.id)).toEqual([1]);
-  });
-
-  it("accepts a Temporal-only bound form without silently emptying the window", () => {
-    // A bracketed IANA annotation parses under Temporal but is NaN to Date.parse;
-    // a Date.parse-based window would skip the inverted-bound check and return
-    // nothing for what is a valid range.
-    const ts = [
-      makeTransfer({ id: 1, occurredAt: "2026-02-15T00:00:00.000Z" }),
-    ];
-    const got = inPeriod(
-      "2026-02-01T00:00:00+00:00[UTC]",
-      "2026-03-01T00:00:00+00:00[UTC]",
-    )(ts);
-    expect(got.map((t) => t.id)).toEqual([1]);
-  });
-
-  it("throws on a non-ISO period bound", () => {
-    expect(() => inPeriod("nonsense", "2026-03-01T00:00:00.000Z")([])).toThrow(
-      "invalid bound",
-    );
-  });
-
-  it("throws on an unparseable (month 13) bound", () => {
-    expect(() =>
-      inPeriod("2026-01-01T00:00:00.000Z", "2026-13-01T00:00:00Z")([]),
-    ).toThrow("invalid bound");
-  });
-
-  it("throws on an overflow date bound (Feb 30 normalises away)", () => {
-    expect(() =>
-      inPeriod("2026-02-30T00:00:00Z", "2026-03-01T00:00:00.000Z")([]),
-    ).toThrow("invalid bound");
-  });
-
-  it("throws on an inverted window (from after to)", () => {
-    // A swapped range would otherwise silently match nothing, reading as zero
-    // revenue/refunds instead of a bad request.
-    expect(() =>
-      inPeriod("2026-03-01T00:00:00.000Z", "2026-02-01T00:00:00.000Z")([]),
-    ).toThrow("inverted window");
-  });
-
-  it("allows an empty window where from equals to", () => {
-    const bound = "2026-02-01T00:00:00.000Z";
-    const ts = [makeTransfer({ occurredAt: bound })];
-    expect(inPeriod(bound, bound)(ts)).toEqual([]);
   });
 });
 

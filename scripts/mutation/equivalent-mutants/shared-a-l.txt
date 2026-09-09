@@ -36,7 +36,6 @@ src/shared/ledger/reconcile.ts::multisetDiff~06icm7q  ?? → ||   # multisetDiff
 src/shared/ledger/reconcile.ts::multisetDiff.count~06icm7q  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts::reconcileLegs.want~1kc2onf  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
 src/shared/ledger/reconcile.ts::reconcileLegs.got~15zy9vn  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/ledger/reverse.ts::reverseOf.memo~0ibvp6e  ?? → ||   # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → ||   # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
 src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → ||   # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
@@ -239,6 +238,7 @@ src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.
 src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
+src/shared/db/client.ts::extractUpdateColumns.stopWhenClosed~0e4p3h6 false→true   # the scan runs over the SET clause alone, cut before WHERE; a base-level closer needs an opener outside the fragment, which valid SQL cannot place there, and an invalid UPDATE never executes so its narrowed column set is never read
 src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # the captured tail has to start with INSERT, UPDATE, DELETE, REPLACE or SELECT, so the group is never the empty string
 src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
 src/shared/db/client.ts::queryAll.args~0hs5u5i  ?? → ||   # args is an InValue[] when present, and an array is always truthy
@@ -275,3 +275,9 @@ src/shared/bulk-email.ts::buildMailtoLink.to~1lrzg1h  = → +=   # to is still t
 # input at that boundary the slice is empty, parseInt gives NaN, and both
 # range masks fail, so NaN and null land on the same false.
 src/shared/local-host.ts::ipv6FirstGroup~16zpdpl  1 → 0   # at to === 1 the group slice is empty, NaN fails both masks like null does, and every real group sits past index 1
+
+# compareOptionalDates normalises an optional date string with `?? ""`. For
+# every input the operand can hold — a date string, "", null, undefined —
+# `?? ""` and `|| ""` return the same value, so no test can tell them apart.
+src/shared/attendee-list-controls.ts::compareOptionalDates.firstDate~0yc1a5v  ?? → ||   # "" is falsy, but both operators fall back to the same "" here; a non-empty string is returned by both
+src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?? → ||   # same proof as firstDate

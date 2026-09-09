@@ -283,3 +283,9 @@ src/features/api/payment-processing/items.ts::buyerLineName.allocations~1sr8ybw 
 src/features/api/payment-processing/items.ts::buyerLineName.groupIds~0gyzcpq  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
 src/features/api/payment-processing/items.ts::buyerLineName~0e1emou  ?? → ||   # groupIds[0] is a group id (at least 1), the literal 0, or undefined; 0 takes the same fallback under both operators
 src/features/api/payment-processing/items.ts::buyerLineName~1l6caem  ?? → ||   # the display name is a string or undefined, and an empty name falls back to the same empty string
+
+# app routes: the disabled-public-site gate is a short-circuit that saves a
+# lazy module load, not a behavior check — every handler behind it answers the
+# identical redirect itself through requirePublicSite.
+src/features/app/routes.ts::publicPagePath~05stvfg  → "mutated"   # the mutated literal is the empty-string comparison: for prefix "" the ternary falls to the template branch, which still renders "/" for the empty prefix; every other prefix compares false under both literals
+src/features/app/routes.ts::routeMainApp~04n7sdh  ?? → ||   # route.handler answers a Response or null; a Response is always truthy, so a falsy-but-defined answer cannot exist
