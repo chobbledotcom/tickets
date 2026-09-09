@@ -58,6 +58,11 @@ export type InputFieldType =
   | "datetime-local"
   | "money";
 
+/** An either/or pair with another control, declared as data: while this
+ *  field holds, the paired-controls script disables the counterpart and
+ *  shows the refusal that explains the boundary beside it. */
+export type ExclusivePair = { other: string; why: string };
+
 interface FieldBase<
   TType extends FieldType,
   TName extends string,
@@ -72,6 +77,9 @@ interface FieldBase<
    *  pair controls (e.g. disable a counterpart while this one is ticked). */
   dataAttrs?: Record<string, string> | undefined;
   defaultValue?: string;
+  /** The either/or pair this control belongs to, rendered as the
+   *  `data-exclusive-*` attributes the client script reads. */
+  exclusive?: ExclusivePair | undefined;
   hint?: string;
   hintHtml?: string;
   id?: string;

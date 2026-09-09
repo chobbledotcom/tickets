@@ -179,9 +179,9 @@ const listingFields = (view: ListingFormView = {}) =>
       },
     }),
     {
-      dataAttrs: {
-        "exclusive-why": t("error.customisable_days_with_pay_more"),
-        "exclusive-with": "can_pay_more",
+      exclusive: {
+        other: "can_pay_more",
+        why: t("error.customisable_days_with_pay_more"),
       },
       hint: t("fields.listing.customisable_days_hint"),
       label: t("fields.listing.customisable_days"),
@@ -214,9 +214,9 @@ const listingFields = (view: ListingFormView = {}) =>
       validate: validateNonNegativePrice,
     },
     {
-      dataAttrs: {
-        "exclusive-why": t("error.customisable_days_with_pay_more"),
-        "exclusive-with": "customisable_days",
+      exclusive: {
+        other: "customisable_days",
+        why: t("error.customisable_days_with_pay_more"),
       },
       hint: t("fields.listing.allow_pay_more_hint"),
       label: t("fields.listing.allow_pay_more"),

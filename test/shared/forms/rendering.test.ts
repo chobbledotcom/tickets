@@ -204,6 +204,26 @@ describe("renderField", () => {
         '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></fieldset></label>',
       );
     });
+
+    test("renders a declared either/or pair as the attributes the client reads", () => {
+      expect(
+        renderField(
+          field({
+            exclusive: {
+              other: "can_pay_more",
+              why: "One cancels the other",
+            },
+            label: "Days",
+            name: "days",
+            options: [{ label: "Monday", value: "Monday" }],
+            type: "checkbox-group",
+          }),
+          "",
+        ),
+      ).toBe(
+        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></fieldset></label>',
+      );
+    });
   });
 
   describe("datetime", () => {

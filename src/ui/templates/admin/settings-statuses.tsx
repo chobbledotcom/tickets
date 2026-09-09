@@ -12,6 +12,7 @@ import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import { t } from "#i18n";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ExclusivePair } from "#shared/forms/field.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
@@ -66,7 +67,7 @@ const checkbox = (
   name: string,
   label: string,
   checked: boolean,
-  exclusive?: { other: string; why: string },
+  exclusive?: ExclusivePair,
 ): JSX.Element => (
   <SettingsCheckbox
     checked={checked}
