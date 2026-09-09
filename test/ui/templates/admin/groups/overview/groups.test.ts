@@ -112,7 +112,9 @@ describe("group admin panels", () => {
         group: testGroup({ hidden: false, name: "Visible Group" }),
       });
       expect(html).toContain("Visible Group");
-      expect(html).not.toContain("Yes (not shown in public list)");
+      expect(html).not.toContain(
+        t("listings_table.yes_not_shown_in_public_list"),
+      );
     });
 
     test("Group Attendees row gets danger-text when at cap", () => {
@@ -269,8 +271,9 @@ describe("group admin panels", () => {
         }),
       });
       expect(html).toContain("Money in and out");
-      expect(html).toContain("Costs paid outside checkout");
-      expect(html).toContain("−£30");
+      expect(html).toContain(
+        '<th>Costs paid outside checkout</th><td class="col-amount">−£30</td>',
+      );
       expect(html).toContain('href="/admin/ledger?group=8"');
     });
 
@@ -298,6 +301,7 @@ describe("group admin panels", () => {
         questionData: sizeQuestionAnswerData(),
       });
       expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+      expect(html).toContain("<th>Tickets Checked In</th>");
       expect(html).toContain("Size?");
       expect(html).toContain("Small (2), Large (1)");
     });
