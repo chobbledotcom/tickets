@@ -120,7 +120,7 @@ describe("paired controls", () => {
     expect(payMore.disabled).toBe(true);
   });
 
-  test("a conflict the server re-rendered keeps both controls editable", () => {
+  test("a conflict the server re-rendered keeps both controls editable, and stays resolved", () => {
     const window = dom.installDom(`
       <form>
         <label><input type="checkbox" name="is_reservation" checked
@@ -150,9 +150,14 @@ describe("paired controls", () => {
     paid.checked = false;
     paid.dispatchEvent(new Event("change"));
     expect(reservation.disabled).toBe(false);
+    // Staying resolved: the cleared flag cannot re-tick while the held
+    // status grants the boundary; unticking the held status frees both.
+    expect(paid.disabled).toBe(true);
+    expect(reservation.disabled).toBe(false);
 
-    paid.checked = true;
-    paid.dispatchEvent(new Event("change"));
-    expect(reservation.disabled).toBe(true);
+    reservation.checked = false;
+    reservation.dispatchEvent(new Event("change"));
+    expect(paid.disabled).toBe(false);
+    expect(reservation.disabled).toBe(false);
   });
 });

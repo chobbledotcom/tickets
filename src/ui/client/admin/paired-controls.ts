@@ -29,17 +29,21 @@ export const initPairedControls = (): void => {
     return holder;
   };
 
+  const updatePair = (a: HTMLInputElement, b: HTMLInputElement) => {
+    // Both ticked stays editable, so the operator can resolve a conflict the
+    // server re-rendered; one ticked grants the boundary to that side.
+    const both = a.checked && b.checked;
+    a.disabled = !both && b.checked;
+    b.disabled = !both && a.checked;
+    whyHolder(a).hidden = both || !a.checked;
+    whyHolder(b).hidden = both || !b.checked;
+  };
+
   const wire = (control: HTMLInputElement) => {
     const counterpart = counterpartOf(control);
     if (!counterpart) return;
-    const update = () => {
-      counterpart.disabled = control.checked;
-      whyHolder(control).hidden = !control.checked;
-    };
-    control.addEventListener("change", update);
-    // A conflict the server re-rendered (both sides ticked) stays editable:
-    // disabling in both directions would lock the pair until a reload.
-    if (!(control.checked && counterpart.checked)) update();
+    control.addEventListener("change", () => updatePair(control, counterpart));
+    updatePair(control, counterpart);
   };
   for (const control of controls) wire(control);
 };
