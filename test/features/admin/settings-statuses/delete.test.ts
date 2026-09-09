@@ -173,7 +173,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const html = await (await adminGet(`${PATH}/${busyId}/delete`)).text();
 
     expect(html).toContain("Busy");
-    expect(html).toContain("1 attendee");
+    expect(html).toContain("1 attendee holds this status.");
     expect(html).toContain('name="reassign_status_id"');
     expect(html).toContain("Landing Status");
   });

@@ -208,7 +208,7 @@ describe("the delete page of a status attendees hold", () => {
   test("shows the count, a warning, and a required picker of the other statuses", () => {
     const html = render(1);
 
-    expect(html).toContain(t("statuses.delete_in_use", { count: 1 }));
+    expect(html).toContain("1 attendee holds this status.");
     expect(html).toContain(t("statuses.delete_reassign_warning"));
     expect(html).toContain('<select name="reassign_status_id" required>');
     expect(html).toContain('<option selected value="">');

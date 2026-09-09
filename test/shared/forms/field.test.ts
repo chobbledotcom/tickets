@@ -38,6 +38,16 @@ describe("requireCheckboxOptions", () => {
     );
   });
 
+  test("refuses a later option that fails, not only the first", () => {
+    const options = [
+      { label: "Tags", value: "vip" },
+      { label: "Tags", value: "a,b" },
+    ];
+    expect(() => requireCheckboxOptions("Tags", options)).toThrow(
+      "Tags checkbox option values must be trimmed, non-empty, and contain no commas",
+    );
+  });
+
   test("refuses an untrimmed value, so the posted value matches the authored one", () => {
     const options = [{ label: "Tags", value: " vip" }];
     expect(() => requireCheckboxOptions("Tags", options)).toThrow(

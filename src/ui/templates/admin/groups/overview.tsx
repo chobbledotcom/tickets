@@ -271,13 +271,15 @@ export const GroupOverviewPanel = ({
                 // The save's own homogeneity rules read the same blocks, so a
                 // candidate the save must refuse is greyed out here with the
                 // why, before the operator saves.
-                options: ungroupedListings.map((candidate) => {
-                  const [option] = toLinkedItemOptions([candidate], []);
-                  return {
-                    ...option!,
-                    blocked: groupCandidateBlockedError(listings, candidate),
-                  };
-                }),
+                options: toLinkedItemOptions(ungroupedListings, []).map(
+                  (option, index) => ({
+                    ...option,
+                    blocked: groupCandidateBlockedError(
+                      listings,
+                      ungroupedListings[index]!,
+                    ),
+                  }),
+                ),
               },
             ]}
             heading={({ type }) => t("linked_items.heading_add", { type })}
