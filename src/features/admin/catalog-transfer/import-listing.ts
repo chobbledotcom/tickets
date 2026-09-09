@@ -2,8 +2,8 @@
 
 import { writeRowInTransaction } from "#db/client.ts";
 import {
-  type ListingGroupMembershipValidation,
   packageGroupIdsTx,
+  requireMembershipValidation,
   validateListingGroupMembershipsTx,
 } from "#db/groups/membership.ts";
 import { addParentEdgesWithPackageCheckTx } from "#db/listing-parents.ts";
@@ -59,15 +59,6 @@ export const importTransactionFailure = (
 ): Result<ImportedEntity> => {
   if (error instanceof TransactionValidationError) return fail(error.message);
   throw error;
-};
-
-export const requireImportedMembership = (
-  membership: ListingGroupMembershipValidation,
-): void => {
-  if (membership.listingMissing) {
-    throw new TransactionValidationError(t("catalog_transfer.member_missing"));
-  }
-  if (membership.error) throw new TransactionValidationError(membership.error);
 };
 
 export const resolveNames = (
@@ -262,7 +253,7 @@ export const importListing = async (
       // Validate after the membership insert, so the imported pick count is
       // judged against its own cap as persisted, not against the fresh-join
       // default of one.
-      requireImportedMembership(
+      requireMembershipValidation(
         await validateListingGroupMembershipsTx(tx)([newId], groupResolve.ids),
       );
       await addParentEdgesWithPackageCheckTx(

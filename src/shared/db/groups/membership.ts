@@ -313,6 +313,17 @@ export const validateListingGroupMembershipsTx =
       new Map(),
     );
 
+/** Refuses on any membership revalidation outcome, so a persisted pick count
+ *  or homogeneity breach rolls the write back with its message. */
+export const requireMembershipValidation = (
+  membership: ListingGroupMembershipValidation,
+): void => {
+  if (membership.listingMissing) {
+    throw new TransactionValidationError(t("catalog_transfer.member_missing"));
+  }
+  if (membership.error) throw new TransactionValidationError(membership.error);
+};
+
 /** Rechecks one listing's selected group memberships with its intended child state. */
 export const validateListingGroupMembershipTx =
   (

@@ -20,11 +20,12 @@ import {
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   type TestFormValues,
   testFormParams,
 } from "#test-utils/form-values.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
 import type { Listing } from "#types";
 
@@ -184,6 +185,50 @@ describeWithEnv("listings form", { db: true }, () => {
 
       const fresh = await createListing({ name: "Fresh" });
       expect(await listingAttributeOptions.getIds(fresh.id)).toEqual([]);
+    });
+
+    test("duplicating a package member refuses a copied pick count above the copy's cap", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Duplicate cap pkg",
+      });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Picky source",
+      });
+      const priced = await apiRequest(`/api/admin/groups/${group.id}`, {
+        body: {
+          is_package: true,
+          package_members: [
+            { listing_id: source.id, price: null, quantity: 5 },
+          ],
+        },
+        method: "PUT",
+      });
+      expect(priced.status).toBe(200);
+
+      const form = listingForm({
+        duplicated_from: String(source.id),
+        group_ids: String(group.id),
+        max_quantity: "2",
+        name: "Undercapped copy",
+      });
+      const result = await buildCreateListingResource(form).create(form);
+      expect(result).toEqual({
+        error: t("error.package_member_cap", {
+          max_quantity: 2,
+          name: "Undercapped copy",
+          quantity: 5,
+        }),
+        ok: false,
+      });
+      const { getAllListings } = await import("#db/listings/records.ts");
+      expect(
+        (await getAllListings()).some(
+          (listing) => listing.name === "Undercapped copy",
+        ),
+      ).toBe(false);
     });
 
     test("day prices are read for days one up to the duration only", async () => {
