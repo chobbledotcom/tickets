@@ -18,6 +18,12 @@ on:
 
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
+  # Raise devenv's Nix concurrency: its default max-jobs is one quarter
+  # of the cores (one job on the 4-core checks runner), which narrows
+  # the parallel window that realizes the environment's paths. Nothing
+  # builds from source in CI, so each build needs no cores of its own.
+  DEVENV_MAX_JOBS: "8"
+  DEVENV_CORES: "1"
 
 # Both jobs only read the checkout. Caching and artifact upload use the Actions
 # runtime token, not this one.
