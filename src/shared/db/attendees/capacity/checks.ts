@@ -15,7 +15,6 @@ import {
   queryAll,
   queryBatchPrimary,
   requireOne,
-  requireOnePrimary,
   resultRows,
   type SqlStatement,
 } from "#db/client.ts";
@@ -248,8 +247,7 @@ export const checkBatchAvailabilityImpl = async (
 };
 
 /** Ask one cart demand's fit through one required-row read. The checkout
- * preflight reads on the default route; the refusal diagnosis reads on the
- * primary, because the refused write did. */
+ * preflight reads on the default route through this. */
 const fitsThrough =
   (read: <T>(sql: string, args: InValue[]) => Promise<T>) =>
   async (demand: CartDemand): Promise<boolean> => {
@@ -257,9 +255,6 @@ const fitsThrough =
     const row = await read<{ fits: number }>(sql, args);
     return row.fits === 1;
   };
-
-/** One primary round trip answering whether one cart demand fits. */
-const fitsOnPrimary = fitsThrough(requireOnePrimary);
 
 type LineListingFacts = {
   groupIds: number[];
@@ -308,10 +303,10 @@ const linesDemand = (
  * earlier ones inserted. Each prefix of the order is asked as one cumulative
  * demand over that same order, so the first line that does not fit on top of
  * its predecessors is the one named — the statement the write aborted on. A
- * shared group limit counts, whatever dates the lines sit on. Prefix fits
- * only shrink as lines are added, so a binary search finds the first unfit
- * prefix in a logarithmic number of probes. The order is trustworthy:
- * annotateOrderParents maps the caller's bookings 1:1 without sorting.
+ * shared group limit counts, whatever dates the lines sit on. Every prefix is
+ * asked inside ONE primary batch, so every answer describes the same snapshot
+ * and no probe can contradict another; prefix fits only shrink as lines are
+ * added, so the first unfit probe names its culprit.
  *
  * The reads run on the primary because the refused write did. A replica can lag
  * behind the booking that took the last place, and the isolate's caches can
@@ -319,6 +314,7 @@ const linesDemand = (
 export const refusedOrderUnfitListingIds = async (
   lines: LineBooking[],
 ): Promise<number[]> => {
+  if (lines.length === 0) return [];
   const listingIds = unique(lines.map((line) => line.listingId));
   const [listingResult, memberResult] = await queryBatchPrimary([
     {
@@ -350,24 +346,16 @@ export const refusedOrderUnfitListingIds = async (
     ).groupIds.push(row.group_id);
   }
 
-  const prefixFits = async (length: number): Promise<boolean> =>
-    fitsOnPrimary(linesDemand(lines.slice(0, length), factsById));
-  // A race that freed the room again before this read names no listing.
-  if (await prefixFits(lines.length)) return [];
-  let shortestUnfit = lines.length;
-  let longestFit = 0;
-  // Halving needs fewer steps than the order has lines, so the step bound
-  // never cuts the search short — it only keeps the loop finite.
-  for (let step = 0; step < lines.length; step++) {
-    if (longestFit + 1 >= shortestUnfit) break;
-    const middle = Math.floor((longestFit + shortestUnfit) / 2);
-    if (await prefixFits(middle)) longestFit = middle;
-    else shortestUnfit = middle;
-  }
-  // The probes are separate reads, so a booking that frees the room between
-  // them can leave every later probe fitting on top of the whole-order
-  // probe's stale refusal. Re-ask the whole order once: a full order that
-  // now fits names nothing, exactly like the race guard above.
-  if (await prefixFits(lines.length)) return [];
-  return [lines[shortestUnfit - 1]!.listingId];
+  const results = await queryBatchPrimary(
+    lines.map((_line, index) =>
+      buildCartCapacitySql(linesDemand(lines.slice(0, index + 1), factsById)),
+    ),
+  );
+  const fits = results.map(
+    (result) => resultRows<{ fits: number }>(result!)[0]!.fits === 1,
+  );
+  // The whole order is the last prefix, so a fitting whole order fits at the
+  // snapshot and no line is named.
+  if (fits[fits.length - 1]!) return [];
+  return [lines[fits.indexOf(false)]!.listingId];
 };

@@ -208,12 +208,9 @@ src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~10demh7  ?? → 
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → ||   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
 
 # attendees/capacity/checks.ts — the refusal diagnosis. The fits SELECT holds
-# only expressions, so it always returns exactly one row and the missing-row
-# throw is unreachable; a date reaching the diagnosis is a validated
-# YYYY-MM-DD string or null, never ""; and the halving search needs at most
-# the logarithm of the order's lines, under the step bound from 0 or 1 alike.
+# only expressions, so it always returns exactly one row; and a date reaching
+# the diagnosis is a validated YYYY-MM-DD string or null, never "".
 src/shared/db/attendees/capacity/checks.ts::getOrCreateBucket.bucket.throughLastUndated~0cjmyw7 0→1   # the first undated line overwrites the snapshot before any read, so the initializer's value is never observable
-src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.step~1qj9zxs 0→1   # halving needs at most log2(lines) steps, below the bound either way
 
 # attendees/create.ts — the refusal's booking-to-line mapping. A booking's
 # date is a validated YYYY-MM-DD string, null, or undefined — never "" — and

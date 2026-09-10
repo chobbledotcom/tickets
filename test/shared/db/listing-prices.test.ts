@@ -11,7 +11,6 @@ import {
   groupDayPriceStatements,
   groupFlatPriceStatements,
   removeListingGroupPricesStatement,
-  sourceRowStatements,
   syncListingPrices,
   syncListingPricesForIds,
 } from "#db/listing-prices.ts";
@@ -22,6 +21,7 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describe("basePriceStatements", () => {
   test("emits a base-scoped delete then one base insert", () => {
@@ -81,26 +81,6 @@ describe("dayCountPriceStatements", () => {
     const stmts = dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 });
     expect(stmts.length).toBe(2);
     expect(stmts[1]!.args).toEqual([9, "day_count", "4", 800]);
-  });
-});
-
-describe("sourceRowStatements", () => {
-  test("projects a raw listings row's base row from unit_price", () => {
-    expect(
-      sourceRowStatements({ id: 3, unit_price: 250 }).map((s) => s.args),
-    ).toEqual([
-      [3, "base"],
-      [3, "base", "", 250],
-    ]);
-  });
-
-  test("reads a NULL unit_price as 0", () => {
-    expect(
-      sourceRowStatements({ id: 4, unit_price: null }).map((s) => s.args),
-    ).toEqual([
-      [4, "base"],
-      [4, "base", "", 0],
-    ]);
   });
 });
 
@@ -373,6 +353,19 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     expect(await priceRows(987656)).toEqual([]);
   });
 
+  test("the bulk sync maps a NULL column to zero", async () => {
+    const listing = await createTestListing({ unitPrice: 640 });
+    await queryAll("UPDATE listings SET unit_price = NULL WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await syncListingPricesForIds([listing.id]);
+
+    expect(await priceRows(listing.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 0 },
+    ]);
+  });
+
   test("syncListingPrices is a no-op for a listing that does not exist", async () => {
     await syncListingPrices(987654);
     expect(await priceRows(987654)).toEqual([]);
@@ -384,6 +377,36 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       listing.id,
     ]);
     await expect(syncListingPrices(listing.id)).rejects.toThrow("Invalid type");
+  });
+
+  test("syncListingPrices mirrors the column in one database call", async () => {
+    // The mirror write reads its own source inside the INSERT, so the read
+    // the old sync took beforehand is gone: one write batch does it.
+    const listing = await createTestListing({ unitPrice: 640 });
+    await queryAll(
+      "UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ? AND price_type = 'base'",
+      [listing.id],
+    );
+
+    expect(
+      await countDatabaseCalls(1, () => syncListingPrices(listing.id)),
+    ).toBe(1);
+    expect(await priceRows(listing.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 640 },
+    ]);
+  });
+
+  test("syncListingPrices maps a NULL column to zero", async () => {
+    const listing = await createTestListing({ unitPrice: 640 });
+    await queryAll("UPDATE listings SET unit_price = NULL WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await syncListingPrices(listing.id);
+
+    expect(await priceRows(listing.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 0 },
+    ]);
   });
 
   test("updating a missing listing writes no price rows", async () => {

@@ -14,10 +14,11 @@ import * as v from "valibot";
 import {
   execute,
   executeBatch,
+  executeBatchWithResults,
   inPlaceholders,
   queryAll,
   queryIdColumn,
-  queryOnePrimary,
+  resultRows,
   type TxScope,
 } from "#db/client.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-parents.ts";
@@ -60,6 +61,15 @@ const insertPriceStatement = (args: PriceRow): PriceStatement => ({
   args,
   sql: "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
 });
+
+/** The delete that clears one managed dimension's rows for one listing — the
+ * head of every delete-then-insert replace this module writes. */
+const priceDimensionDelete =
+  (priceType: string) =>
+  (listingId: number): PriceStatement => ({
+    args: [listingId, priceType],
+    sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+  });
 
 /** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
  * are none. Every full-replace dimension (`day_count`, `group`, `group_day`)
@@ -245,10 +255,7 @@ export const basePriceStatements = (
   listingId: number,
   unitPrice: number,
 ): PriceStatement[] => [
-  {
-    args: [listingId, PRICE_TYPE_BASE],
-    sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-  },
+  priceDimensionDelete(PRICE_TYPE_BASE)(listingId),
   insertPriceStatement([listingId, PRICE_TYPE_BASE, "", unitPrice]),
 ];
 
@@ -269,10 +276,7 @@ export const dayCountPriceStatements = (
     ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
   );
   return compact([
-    {
-      args: [listingId, PRICE_TYPE_DAY_COUNT],
-      sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-    },
+    priceDimensionDelete(PRICE_TYPE_DAY_COUNT)(listingId),
     multiInsertPriceStatement(rows),
   ]);
 };
@@ -327,11 +331,11 @@ const ListingPriceSourceRowSchema = v.object({
 
 type ListingPriceSourceRow = v.InferOutput<typeof ListingPriceSourceRowSchema>;
 
-/** The `base`-mirror statements for one raw `listings` row — shared by the
- * backfill and the per-listing {@link syncListingPrices}. A NULL `unit_price`
- * reads as 0. Day-count rows are written from input at write time, not from a
- * column, so they are not touched here. */
-export const sourceRowStatements = (row: ListingPriceSourceRow) =>
+/** The `base`-mirror statements for one raw `listings` row — used by the
+ * backfill and the bulk id sync. A NULL `unit_price` reads as 0. Day-count
+ * rows are written from input at write time, not from a column, so they are
+ * not touched here. */
+const sourceRowStatements = (row: ListingPriceSourceRow) =>
   basePriceStatements(row.id, row.unit_price ?? 0);
 
 /** Listings read per backfill SELECT, and the ceiling on statements per write
@@ -393,19 +397,21 @@ export const syncListingPricesForIds = async (
 
 /** Re-sync one listing's `base` row from its current `unit_price` column. Called
  * after every listing insert/update (the form/API `afterCommit`) so the mirror
- * never drifts from the column. The source row is read on the primary
- * (write-mode batch) so it reflects the just-committed write rather than a
- * lagging replica, and parsed there — it does not go through
- * {@link readSourceRows}, whose bulk read need not be primary-pinned. A
- * missing listing is a no-op. Day-count rows are written from input by the
- * write paths, not re-derived here. */
+ * never drifts from the column. The INSERT reads the column it mirrors on the
+ * database side, so the write is the only round trip — and `RETURNING` hands
+ * the mirrored row back to the same parse the old separate read ran, so a
+ * drifted column still fails loudly. A missing listing inserts no row, and a
+ * NULL `unit_price` mirrors as 0, like the read did. Day-count rows are
+ * written from input by the write paths, not re-derived here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const row = await queryOnePrimary<unknown>(
-    "SELECT id, unit_price FROM listings WHERE id = ?",
-    [listingId],
-  );
-  if (row === null) return;
-  await executeBatch(
-    sourceRowStatements(v.parse(ListingPriceSourceRowSchema, row)),
-  );
+  const [, mirror] = await executeBatchWithResults([
+    priceDimensionDelete(PRICE_TYPE_BASE)(listingId),
+    {
+      args: [listingId, PRICE_TYPE_BASE, "", listingId],
+      sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
+            SELECT ?, ?, ?, COALESCE(unit_price, 0) FROM listings WHERE id = ?
+            RETURNING listing_id AS id, unit_price`,
+    },
+  ]);
+  v.parse(v.array(ListingPriceSourceRowSchema), resultRows(mirror!));
 };
