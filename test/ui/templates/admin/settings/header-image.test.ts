@@ -110,19 +110,26 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       await withStorageEnabled(async () => {
         await settings.update.headerImageUrl("existing.jpg");
         const response = await adminGet("/admin/settings");
-        await expectHtmlResponse(
+        const html = await expectHtmlResponse(
           response,
           200,
           "Remove Image",
           "/image/existing.jpg",
         );
+        expect(html).toContain('class="listing-image-preview"');
+        expect(html).toContain('action="/admin/settings/header-image/delete"');
+        expect(html).toContain('id="settings-header-image-delete"');
       });
     });
 
     test("shows upload button when no header image exists", async () => {
       await withStorageEnabled(async () => {
         const response = await adminGet("/admin/settings");
-        await expectHtmlResponse(response, 200, "Upload Image");
+        const html = await expectHtmlResponse(response, 200, "Upload Image");
+        expect(html).toContain('action="/admin/settings/header-image"');
+        expect(html).toContain('enctype="multipart/form-data"');
+        expect(html).toContain('name="header_image"');
+        expect(html).toContain('type="file"');
       });
     });
 
