@@ -5,12 +5,12 @@ import type { RunTool } from "#scripts/edit-checks/pipeline.ts";
 
 export const CHECK_TIMEOUT_MS = 120_000;
 
-// Inside the nix devshell the pinned deno is already on PATH. Outside it,
-// nix develop provides it, as AGENTS.md requires for tools.
+// Inside the devenv shell the pinned deno is already on PATH. Outside it,
+// devenv shell provides it, as AGENTS.md requires for tools.
 export const runnerPrefix = (
   env: Record<string, string | undefined>,
 ): [string, ...string[]] =>
-  env.IN_NIX_SHELL ? ["deno"] : ["nix", "develop", "-c", "deno"];
+  env.IN_NIX_SHELL ? ["deno"] : ["devenv", "shell", "--", "deno"];
 
 export const createRunner =
   ({

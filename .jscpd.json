@@ -16,6 +16,7 @@
     "**/cpd-renamed/allowed.json"
   ],
   "format": [
+    "bash",
     "javascript",
     "json",
     "typescript",

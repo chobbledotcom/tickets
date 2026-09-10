@@ -66,7 +66,7 @@ runs:
     # must send the same pair the debug IDs were written into.
     - name: Inject debug IDs
       if: ${{ inputs.command == 'inject' && inputs.auth_token != '' }}
-      shell: bash
+      shell: devenv --profile ci shell bash -- -e {0}
       run: |
         js="$(deno run --allow-read --allow-write \
           scripts/sentry-debug-ids.ts prepare "${{ inputs.file }}")"
@@ -86,7 +86,7 @@ runs:
     # IDs as the deployed bundle, which is what Sentry matches a map by.
     - name: Upload source maps
       if: ${{ inputs.command == 'upload' && inputs.auth_token != '' }}
-      shell: bash
+      shell: devenv --profile ci shell bash -- -e {0}
       env:
         SENTRY_AUTH_TOKEN: ${{ inputs.auth_token }}
         SENTRY_URL: ${{ inputs.sentry_url }}

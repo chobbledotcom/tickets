@@ -51,7 +51,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build Bunny edge script
         uses: ./.github/actions/build-bunny-script
@@ -65,6 +65,7 @@ jobs:
           bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
 
       - name: Back up and deploy each client site
+        shell: devenv --profile ci shell bash -- -e {0}
         env:
           MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
           MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}

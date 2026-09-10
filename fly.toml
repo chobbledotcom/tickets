@@ -1,8 +1,10 @@
 app = "chobble-tickets"
 primary_region = "lhr"
 
+# Prebuilt OCI image assembled by devenv (devenv.nix, outputs.tickets-image)
+# and published by .github/workflows/publish-image.yml on every merge to main.
 [build]
-  dockerfile = "Dockerfile"
+  image = "ghcr.io/chobbledotcom/tickets:latest"
 
 [http_service]
   internal_port = 3000

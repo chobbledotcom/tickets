@@ -21,10 +21,10 @@ third-party network access and is slower and flakier than mocked tests.
 
 ```bash
 # From the repo root (builds static assets, boots the app):
-nix develop -c deno task e2e free
+devenv shell deno task e2e free
 
 # A real provider sandbox (example: Stripe):
-STRIPE_SECRET_KEY=sk_test_... nix develop -c deno task e2e stripe
+STRIPE_SECRET_KEY=sk_test_... devenv shell -- deno task e2e stripe
 ```
 
 Watch it happen in a real window with `HEADLESS=false`.

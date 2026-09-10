@@ -71,13 +71,12 @@ consistently wrong and governed nothing.
    excluded from that audited total. Splitting it at a live seam would have
    required the legacy and canonical authorities to run in parallel, which this
    plan forbids.
-4. **Gates.** `nix develop -c deno task precommit` passes before review. Run
+4. **Gates.** `devenv shell deno task precommit` passes before review. Run
    targeted mutation on the payment modules the PR changed and list the runs in
-   the description. The branch-level
-   `nix develop -c deno task precommit:mutation` gate runs before merge as
-   AGENTS.md requires — no per-PR waivers. If an exceptional cutover genuinely
-   cannot run the branch gate, the owner first changes the policy in AGENTS.md;
-   this plan cannot loosen a repository rule.
+   the description. The branch-level `devenv shell deno task precommit:mutation`
+   gate runs before merge as AGENTS.md requires — no per-PR waivers. If an
+   exceptional cutover genuinely cannot run the branch gate, the owner first
+   changes the policy in AGENTS.md; this plan cannot loosen a repository rule.
 5. **Every bug fix ships a regression test** reproducing the bug.
 6. **Deployments are forward-only and fleet-wide**, on the `release` tier only.
    No old-version support, no code rollback, no mixed-version reads or writes.
@@ -1850,6 +1849,6 @@ mechanism and a regression test, or — if implementation proves the finding wro
   refuses pre-aggregate code on a forward-migrated database; old code is never
   redeployed and mixed application versions are never supported.
 - Payment secrets and buyer details redact once all required work is terminal.
-- `nix develop -c deno task precommit` passes; coverage is 100% and
-  deterministic; changed-source mutation score is 100%; Cucumber payment stories
-  pass; every fault-ledger row and open question is closed.
+- `devenv shell deno task precommit` passes; coverage is 100% and deterministic;
+  changed-source mutation score is 100%; Cucumber payment stories pass; every
+  fault-ledger row and open question is closed.

@@ -21,6 +21,9 @@ src/ui/static/style.css
 
 .bin/
 .direnv/
+.devenv/
+.container-work/
+.pre-commit-config.yaml
 cov/
 coverage*/
 cov_profile/
