@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -63,6 +65,12 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toContain(
         `/admin/groups/${group.id}`,
+      );
+      // The success flash and the activity row both name the action and the
+      // member count.
+      expectFlash(response, "Group deactivated (2 listing(s))");
+      expect(await activityMessages()).toContain(
+        "Group 'Shutdown' deactivated (2 listing(s))",
       );
       expect((await getListingWithCount(a.id))?.active).toBe(false);
       expect((await getListingWithCount(b.id))?.active).toBe(false);
