@@ -1,5 +1,6 @@
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { GroupListingCandidate } from "#db/groups/candidates.ts";
+import { groupCandidateBlockedError } from "#db/groups/homogeneity.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
@@ -7,7 +8,8 @@ import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
-  buildSharedDetailRows,
+  buildStatDetailRows,
+  getCheckedInStats,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 import {
@@ -181,15 +183,12 @@ export const GroupOverviewPanel = ({
   const totalCount = totalAttendeeCount(listings);
   const net = money.netBalance - money.servicingCosts;
   const showMoney = hasPaidListing || money.transferCount > 0;
-  const sharedRows = buildSharedDetailRows({
-    attendeeCount: totalCount,
-    attendees,
-    hasPaidListing: false,
-    maxCapacity: 0,
+  const sharedRows = buildStatDetailRows({
+    checkedInStats: getCheckedInStats(attendees),
+    labelSuffix: "",
     // The ledger includes deleted bookings and package override revenue.
     revenue: money.recognisedIncome,
     ...(questionData !== undefined ? { questionData } : {}),
-    skipAttendees: true,
   });
 
   return (
@@ -269,7 +268,18 @@ export const GroupOverviewPanel = ({
             groups={[
               {
                 label: t("terms.listings"),
-                options: toLinkedItemOptions(ungroupedListings, []),
+                // The save's own homogeneity rules read the same blocks, so a
+                // candidate the save must refuse is greyed out here with the
+                // why, before the operator saves.
+                options: toLinkedItemOptions(ungroupedListings, []).map(
+                  (option, index) => ({
+                    ...option,
+                    blocked: groupCandidateBlockedError(
+                      listings,
+                      ungroupedListings[index]!,
+                    ),
+                  }),
+                ),
               },
             ]}
             heading={({ type }) => t("linked_items.heading_add", { type })}

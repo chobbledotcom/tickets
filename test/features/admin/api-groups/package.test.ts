@@ -132,7 +132,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
   });
 
   test("PUT sets is_package, package member prices and quantities", async () => {
-    const { group, listing } = await groupWithMember("PUT Pkg");
+    const { group, listing } = await groupWithMember("PUT Pkg", 3);
 
     await assertJson(
       putGroup(group.id, {
@@ -161,8 +161,57 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
     expect(rows[0]!.quantity).toBe(1);
   });
 
+  test("PUT refuses a member quantity above the member's per-order cap", async () => {
+    const { group, listing } = await groupWithMember("CapApi");
+
+    await assertJson(
+      putGroup(group.id, {
+        is_package: true,
+        package_members: [{ listing_id: listing.id, price: 100, quantity: 2 }],
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe(
+          t("error.package_member_cap", {
+            max_quantity: 1,
+            name: listing.name,
+            quantity: 2,
+          }),
+        );
+      },
+    );
+    const rows = await getGroupPackagePrices(group.id);
+    expect(rows[0]!.quantity).toBe(1);
+  });
+
+  test("PUT drops a package_members entry naming a non-member listing", async () => {
+    const { group, listing } = await groupWithMember("ForeignMember", 5);
+    const stranger = await createTestListing({ maxQuantity: 1 });
+
+    await assertJson(
+      putGroup(group.id, {
+        is_package: true,
+        package_members: [
+          { listing_id: stranger.id, price: 0, quantity: 999 },
+          { listing_id: listing.id, price: 100, quantity: 2 },
+        ],
+      }),
+      200,
+      () => {},
+    );
+    const rows = await getGroupPackagePrices(group.id);
+    expect(rows).toEqual([
+      {
+        group_id: group.id,
+        listing_id: listing.id,
+        package_price: 100,
+        quantity: 2,
+      },
+    ]);
+  });
+
   test("GET hydrates package_members so config round-trips", async () => {
-    const { group, listing } = await groupWithMember("RoundTrip");
+    const { group, listing } = await groupWithMember("RoundTrip", 2);
     await putGroup(group.id, {
       is_package: true,
       package_members: [{ listing_id: listing.id, price: 0, quantity: 2 }],

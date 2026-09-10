@@ -16,6 +16,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { t } from "#i18n";
 import {
   expectFlashRedirect,
   testRequiresAuth,
@@ -81,7 +82,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       });
       await expectFlashRedirect(
         `${PATH}/new`,
-        "A paid status can't also be a reservation",
+        t("statuses.error_paid_default_reservation"),
         false,
       )(response);
     });
@@ -134,7 +135,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       });
       await expectFlashRedirect(
         `${PATH}/${inUse.id}/delete`,
-        "This status is in use by attendees",
+        t("statuses.delete_in_use_no_target"),
         false,
       )(response);
     });

@@ -56,6 +56,7 @@ const duplicateListingResponse = async (
   sourceId: number,
   name: string,
   groupId?: number,
+  overrides: Record<string, string> = {},
 ): Promise<{ response: Response; copy: { id: number } }> => {
   const { csrfToken, cookie } = await getTestSession();
   const { handleRequest } = await import("#routes");
@@ -67,6 +68,7 @@ const duplicateListingResponse = async (
         csrf_token: csrfToken,
         duplicated_from: String(sourceId),
         ...(groupId !== undefined ? { group_ids: String(groupId) } : {}),
+        ...overrides,
         name,
       },
       cookie,
@@ -450,6 +452,7 @@ describeWithEnv(
       const source = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
+        maxQuantity: 2,
         name: "Member",
       });
       // The duplicate form clones a standard listing (a customisable source
@@ -465,10 +468,13 @@ describeWithEnv(
         },
       ]);
 
+      // The duplicate form pre-fills the copy's settings from the source, so
+      // its cap already fits the copied pick count — as a real duplicate posts.
       const { copy } = await duplicateListingResponse(
         source.id,
         "Member copy",
         group.id,
+        { max_quantity: "2" },
       );
 
       // The copy joins at the source's override, not its base price/quantity 1.

@@ -152,14 +152,6 @@
     "secondStart": 185
   },
   {
-    "first": "src/features/admin/questions.ts",
-    "firstStart": 213,
-    "hash": "2a73d5bc9313ee135460f9e9fea5c6cf3cf49bf4ee1dddad2cadb57674634d74",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "src/features/admin/settings-statuses.ts",
-    "secondStart": 127
-  },
-  {
     "first": "src/features/admin/questions/answers.ts",
     "firstStart": 137,
     "hash": "27b8827273fc0de79e1161d6a980c38b77e50e0e7cbdb24cf1af31698a50c880",
@@ -742,14 +734,6 @@
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/components/prose-heading.tsx",
     "secondStart": 27
-  },
-  {
-    "first": "src/ui/templates/fields/listing.ts",
-    "firstStart": 208,
-    "hash": "a110eae00bb707863b6f77be44ed81363564cc91051179b0e4623d1f5a2bdc73",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "src/ui/templates/fields/listing.ts",
-    "secondStart": 233
   },
   {
     "first": "src/ui/templates/setup.tsx",

@@ -25,13 +25,15 @@ export const SelectField = ({
   id,
   value,
   options,
+  required,
 }: {
   name: string;
   id?: string | undefined;
   value: string;
   options: readonly SelectOption[];
+  required?: boolean | undefined;
 }): JSX.Element => (
-  <select id={id} name={name}>
+  <select id={id} name={name} required={required}>
     {options.map((option) => (
       <option selected={option.value === value} value={option.value}>
         {option.label}

@@ -42,11 +42,13 @@ export type UpdateResult<Row> =
 export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
 
 /** The small CRUD contract route factories need. A full Resource satisfies
- * it, while transaction-backed domains can implement it without pretending to
- * be a table-backed resource. */
+ *  it, while transaction-backed domains can implement it without pretending to
+ *  be a table-backed resource. */
 export interface NamedOperations<Row, Id = number> {
   create: (form: FormParams) => Promise<CreateResult<Row>>;
-  delete: (id: Id) => Promise<DeleteResult>;
+  /** The confirmed delete's form rides along, so an operation that offers the
+   *  operator a choice on the confirmation page can read it. */
+  delete: (id: Id, form: FormParams | undefined) => Promise<DeleteResult>;
   loadOrNull: (id: Id) => Promise<Row | null>;
   update: (id: Id, form: FormParams) => Promise<UpdateResult<Row>>;
 }

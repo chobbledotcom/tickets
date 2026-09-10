@@ -75,12 +75,15 @@ export const packagedGroup = async (
   return group;
 };
 
-/** A fresh group with one member listing, for package PUT tests. */
+/** A fresh group with one member listing, for package PUT tests. The member's
+ *  cap defaults to the column default of one; a test posting a bigger quantity
+ *  raises the cap to match the member rules. */
 export const groupWithMember = async (
   name: string,
+  maxQuantity = 1,
 ): Promise<{ group: Group; listing: ListingWithCount }> => {
   const group = await createTestGroup({ name });
-  const listing = await createTestListing({ groupId: group.id });
+  const listing = await createTestListing({ groupId: group.id, maxQuantity });
   return { group, listing };
 };
 

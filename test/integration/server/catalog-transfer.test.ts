@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import {
   getGroupPackagePrices,
   listingGroups,
@@ -11,6 +11,7 @@ import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import {
   CatalogExportError,
   exportGroup,
@@ -203,6 +204,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         dayPrices: { 1: 1000, 2: 1800 },
         durationDays: 2,
         groupId: group.id,
+        maxQuantity: 3,
         name: "Flexi Member",
       });
       await setGroupPackageMembers(group.id, [
@@ -244,7 +246,11 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
 
   describe("group round-trip", () => {
     test("re-creates a package group with its members and overrides", async () => {
-      const a = await createTestListing({ name: "Pkg A", unitPrice: 1000 });
+      const a = await createTestListing({
+        maxQuantity: 2,
+        name: "Pkg A",
+        unitPrice: 1000,
+      });
       const b = await createTestListing({ name: "Pkg B", unitPrice: 2000 });
       // A member that is explicitly FREE in the package (price 0) — distinct
       // from "no override" (null); the two must round-trip separately.
@@ -326,6 +332,30 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
       expect(result.error).toContain('No group named "Ghost Group"');
+    });
+
+    test("rejects a package join whose pick count passes the listing's cap", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Capped Pkg",
+      });
+      await createTestListing({ groupId: group.id, name: "Seated Member" });
+
+      const result = await importCatalog({
+        groups: [{ group: "Capped Pkg", quantity: 5 }],
+        kind: "listing",
+        listing: { maxAttendees: 2, maxQuantity: 2, name: "Overpicky" },
+        version: 1,
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toBe(
+        t("error.package_member_cap", {
+          max_quantity: 2,
+          name: "Overpicky",
+          quantity: 5,
+        }),
+      );
     });
 
     test("reports missing required fields with field names", async () => {

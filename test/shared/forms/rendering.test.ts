@@ -184,6 +184,29 @@ describe("renderField", () => {
         '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></fieldset></label>',
       );
     });
+
+    test("renders a declared either/or pair as the attributes the client reads, onto every checkbox of the group", () => {
+      const expected =
+        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></fieldset></label>';
+      const days = field({
+        exclusive: {
+          other: "can_pay_more",
+          why: "One cancels the other",
+        },
+        label: "Days",
+        name: "days",
+        options: [{ label: "Monday", value: "Monday" }],
+        type: "checkbox-group",
+      });
+      expect(renderField(days, "")).toBe(expected);
+      // A second render of the same declared field spells the pair the same.
+      expect(renderField(days, "Monday")).toBe(
+        expected.replace(
+          'value="Monday" data-',
+          'value="Monday" checked data-',
+        ),
+      );
+    });
   });
 
   describe("datetime", () => {

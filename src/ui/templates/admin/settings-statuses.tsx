@@ -12,9 +12,11 @@ import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import { t } from "#i18n";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ExclusivePair } from "#shared/forms/field.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   defineAdminResourcePages,
   writableNameColumn,
@@ -23,10 +25,12 @@ import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.ts
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import {
   translatedTableColumn,
   translatedTableHeader,
 } from "#templates/components/translated-table-column.ts";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -57,22 +61,29 @@ const statusColumns: TableColumn<AttendeeStatus>[] = [
   ),
 ];
 
-/** One named checkbox for a status flag. */
+/** One named checkbox for a status flag. The either/or pair declares its
+ *  counterpart and the refusal that explains the boundary, so the browser can
+ *  disable the counterpart while this one holds. */
 const checkbox = (
   name: string,
   label: string,
   checked: boolean,
+  exclusive?: ExclusivePair,
 ): JSX.Element => (
   <SettingsCheckbox
     checked={checked}
     label={label}
     labelClass="checkbox"
     name={name}
+    {...(exclusive === undefined ? {} : { exclusive })}
   />
 );
 
 /** Shared create/edit fields. Rejected edits pass their submitted values so
- * the operator can fix one field without entering the others again. */
+ * the operator can fix one field without entering the others again. The
+ * paid-default and reservation checkboxes declare their either/or pair, so
+ * the browser disables the counterpart and shows why; the save keeps the
+ * same refusal as its authority. */
 const renderStatusFields = (
   status: AttendeeStatus | undefined,
   values?: FormParams,
@@ -96,6 +107,10 @@ const renderStatusFields = (
         "is_reservation",
         t("statuses.form_reservation_checkbox"),
         values?.has("is_reservation") ?? status?.is_reservation ?? false,
+        {
+          other: "is_paid_default",
+          why: t("statuses.error_paid_default_reservation"),
+        },
       )}
       {checkbox(
         "is_public_default",
@@ -106,6 +121,10 @@ const renderStatusFields = (
         "is_paid_default",
         t("statuses.form_paid_default_checkbox"),
         values?.has("is_paid_default") ?? status?.is_paid_default ?? false,
+        {
+          other: "is_reservation",
+          why: t("statuses.error_paid_default_reservation"),
+        },
       )}
     </fieldset>
     <label>
@@ -124,6 +143,81 @@ const renderStatusFields = (
     </label>
   </>
 );
+
+/** The labels the two delete pages share — the bespoke reassign page and the
+ *  stock one the CRUD factory is built with. One vocabulary, both readers. */
+const DELETE_PAGE_LABELS = {
+  danger: false,
+  heading: t("statuses.delete_title"),
+  label: t("common.name"),
+  title: t("statuses.delete_title"),
+} as const;
+
+/** What the delete page offers beneath the heading: the reassign choice for a
+ *  status attendees hold (the count and the statuses they can move to), the
+ *  prerequisite the save will refuse on for a default or last status — said
+ *  above a confirmation the save will still refuse if submitted — and null
+ *  for a delete that proceeds as it stands. The route decides through the
+ *  same predicate the delete command refuses by. */
+export type StatusRetire =
+  | { blocked: string }
+  | { count: number; others: readonly AttendeeStatus[] };
+
+/** The status delete page: the usual type-the-name confirmation, plus — when
+ *  attendees hold this status — the count, a warning, and a required picker
+ *  of the statuses they can move to, or the prerequisite the save would
+ *  refuse on, above a confirmation the save still refuses if submitted. The
+ *  picker posts `reassign_status_id`, which the delete command reads inside
+ *  its transaction. */
+export const retireStatusDeletePage = (
+  status: AttendeeStatus,
+  retire: StatusRetire | null,
+  session: AdminSession,
+  error?: string,
+): string => {
+  const choice = retire !== null && "count" in retire ? retire : undefined;
+  const blocked = retire !== null && "blocked" in retire ? retire : undefined;
+  return ConfirmPage({
+    action: `/admin/settings/statuses/${status.id}/delete`,
+    active: LIST_PATH,
+    buttonText: t("statuses.delete_button"),
+    confirm: {
+      args: { name: status.name },
+      key: "statuses.delete_confirm",
+    },
+    error,
+    ...DELETE_PAGE_LABELS,
+    name: status.name,
+    session,
+    ...(choice !== undefined
+      ? {
+          children: (
+            <label>
+              {t("statuses.delete_reassign_label")}
+              <SelectField
+                name="reassign_status_id"
+                options={[
+                  { label: t("statuses.delete_reassign_prompt"), value: "" },
+                  ...choice.others.map((other) => ({
+                    label: other.name,
+                    value: String(other.id),
+                  })),
+                ]}
+                required
+                value=""
+              />
+            </label>
+          ),
+          prompt: {
+            args: { count: choice.count },
+            key: "statuses.delete_in_use",
+          },
+          warning: <p>{t("statuses.delete_reassign_warning")}</p>,
+        }
+      : {}),
+    ...(blocked !== undefined ? { children: <p>{blocked.blocked}</p> } : {}),
+  });
+};
 
 /** The entity page's Edit tab, including rejected submitted values. */
 export const AttendeeStatusEditPanel = ({
@@ -150,9 +244,7 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
   basePath: LIST_PATH,
   delete: {
     children: deleteChildren,
-    danger: false,
-    heading: t("statuses.delete_title"),
-    label: t("common.name"),
+    ...DELETE_PAGE_LABELS,
     name: (status) => status.name,
   },
   labels: {

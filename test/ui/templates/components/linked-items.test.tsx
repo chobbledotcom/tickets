@@ -100,6 +100,25 @@ describe("LinkedItemsCheckboxes", () => {
     );
   });
 
+  test("disables a blocked option and shows its refusal beside it", () => {
+    const html = render([
+      {
+        label: "Listings",
+        options: [
+          option("listing:1", { blocked: "Clashes with the group" }),
+          option("listing:2"),
+        ],
+      },
+    ]);
+
+    expect(html).toMatch(/<input disabled[^>]*value="listing:1"/);
+    expect(html).toContain(
+      '<small class="muted">Clashes with the group</small>',
+    );
+    expect(html).not.toMatch(/<input disabled[^>]*value="listing:2"/);
+    expect(html).not.toContain('<small class="muted">Label listing:2</small>');
+  });
+
   test("sorts already-linked options to the front, keeping the rest in order", () => {
     const html = render([
       {

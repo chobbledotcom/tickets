@@ -6,6 +6,7 @@ import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  inputNamed,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -76,12 +77,12 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       is_paid_default: "1",
       name: "Confirmed",
     });
-    await expectHtmlResponse(
+    const html = await expectHtmlResponse(
       response,
       400,
       "Choose another public default before clearing this one",
-      'checked name="is_paid_default"',
     );
+    expect(inputNamed(html, "is_paid_default")).toContain("checked");
   });
 
   test("pre-fills a reservation status's fields when editing", async () => {
@@ -92,7 +93,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
     });
     const html = await (await adminGet(`${PATH}/${reserved.id}/edit`)).text();
     expect(html).toContain('value="25%"');
-    expect(html).toContain('checked name="is_reservation"');
+    expect(inputNamed(html, "is_reservation")).toContain("checked");
   });
 
   test("returns 404 editing a missing status", async () => {
@@ -109,14 +110,14 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       name: "Submitted name",
       reservation_amount: "lots",
     });
-    await expectHtmlResponse(
+    const html = await expectHtmlResponse(
       response,
       400,
       RESERVATION_AMOUNT_HINT,
       'value="Submitted name"',
-      'checked name="is_reservation"',
       'value="lots"',
     );
+    expect(inputNamed(html, "is_reservation")).toContain("checked");
     expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
   });
 
@@ -136,11 +137,11 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       is_public_default: "1",
       name: "Confirmed",
     });
-    await expectHtmlResponse(
+    const html = await expectHtmlResponse(
       response,
       400,
       "Choose another paid default before clearing this one",
-      'checked name="is_public_default"',
     );
+    expect(inputNamed(html, "is_public_default")).toContain("checked");
   });
 });

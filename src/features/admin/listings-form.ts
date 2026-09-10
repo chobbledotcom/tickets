@@ -10,6 +10,10 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
 import {
+  requireMembershipValidation,
+  validateListingGroupMembershipsTx,
+} from "#db/groups/membership.ts";
+import {
   copyPackageMemberOverridesTx,
   setListingGroupsTx,
 } from "#db/groups.ts";
@@ -238,6 +242,11 @@ const writeCreateListingGroups =
     if (sourceId !== null) {
       await copyPackageMemberOverridesTx(tx, sourceId, id);
       await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
+      // The override copy may raise the pick count above the fresh-join
+      // default of one the membership check judged; revalidate it as persisted.
+      requireMembershipValidation(
+        await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
+      );
     }
   };
 

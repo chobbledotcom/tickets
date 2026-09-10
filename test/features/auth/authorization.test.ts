@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
+  type AuthPolicy,
   type AuthSession,
   anyUserPage,
   requireAdminApiOr,
@@ -9,6 +11,7 @@ import {
   requireOwnerOr,
   requireSessionOr,
   requireSiteOr,
+  withAuth,
   withSession,
 } from "#routes/auth.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -179,4 +182,53 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
     );
     expect(await anonymous.text()).toBe("no-session");
   });
+
+  test("an owner-only form gate gives a non-owner the owner-account body", async () => {
+    const response = await postThroughWithAuth(
+      await createTestEditorSession(),
+      { body: "form", roles: ["owner"] },
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain(t("auth.forbidden_owner_only"));
+  });
+
+  test("a multi-role form gate gives a non-owner the generic role body", async () => {
+    const response = await postThroughWithAuth(
+      await createTestEditorSession(),
+      { body: "form", roles: ["owner", "manager"] },
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe(t("auth.forbidden_role"));
+  });
+
+  test("an owner-only api gate keeps the generic json refusal body", async () => {
+    const response = await postThroughWithAuth(await createTestAgentSession(), {
+      body: "json",
+      roles: ["owner"],
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Forbidden" });
+  });
 });
+
+/** Post a bodyless form/json request through the withAuth pipeline, so the
+ *  role refusal — which fires before CSRF parsing — carries the gate's
+ *  audience into the body. */
+const postThroughWithAuth = async (
+  session: { cookie: string },
+  policy: AuthPolicy<"form" | "json">,
+): Promise<Response> => {
+  const json = policy.body === "json";
+  return withAuth(
+    new Request("http://localhost/admin/x", {
+      body: json ? "{}" : new URLSearchParams(),
+      headers: {
+        cookie: session.cookie,
+        ...(json ? { "content-type": "application/json" } : {}),
+      },
+      method: "POST",
+    }),
+    policy,
+    () => new Response("OK"),
+  );
+};

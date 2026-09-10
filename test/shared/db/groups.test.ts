@@ -12,7 +12,7 @@ import {
 } from "#db/attendees/capacity/groups.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getDb } from "#db/client.ts";
-import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,

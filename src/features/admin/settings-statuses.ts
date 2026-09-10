@@ -9,7 +9,9 @@ import { adminPattern } from "#shared/admin-surface.ts";
  *
  * Enforces the status invariants: at most one public-default and one
  * paid-default, a paid-default is never a reservation, reservation amounts are
- * valid, and the last/in-use/default statuses can't be deleted.
+ * valid, and the last one and either default can't be deleted. A status
+ * attendees hold is retired, not deleted: the delete page moves every held
+ * attendee to a status the operator picks before the row goes.
  */
 
 import {
@@ -21,19 +23,26 @@ import {
   attendeeStatusOrder,
   attendeeStatusWrites,
   getAttendeeStatus,
+  heldAttendeeCount,
+  statusDeleteBlocker,
 } from "#db/attendee-statuses.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
-/* jscpd:ignore-start */
+import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
+import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 /* jscpd:ignore-start */
-import { OWNER_FORM } from "#routes/auth.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { NamedOperations } from "#shared/rest/resource.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { statusPages } from "#templates/admin/settings-statuses.tsx";
+import {
+  retireStatusDeletePage,
+  type StatusRetire,
+  statusPages,
+} from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 
 /* jscpd:ignore-end */
@@ -56,7 +65,10 @@ const parseStatusForm = (
   };
   if (!input.name) return { error: "Please enter a name", ok: false };
   if (input.isReservation && input.isPaidDefault) {
-    return { error: "A paid status can't also be a reservation", ok: false };
+    return {
+      error: t("statuses.error_paid_default_reservation"),
+      ok: false,
+    };
   }
   const error = isReservation
     ? validateReservationAmount(input.reservationAmount)
@@ -74,7 +86,7 @@ const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
   last_status: "You must keep at least one status",
   paid_default: "Choose another paid default before deleting this status",
   public_default: "Choose another public default before deleting this status",
-  status_in_use: "This status is in use by attendees",
+  status_in_use: t("statuses.delete_in_use_no_target"),
 };
 
 const saveStatus = async (id: number | null, form: FormParams) => {
@@ -87,8 +99,11 @@ const saveStatus = async (id: number | null, form: FormParams) => {
 
 const statusOperations: NamedOperations<AttendeeStatus> = {
   create: (form) => saveStatus(null, form),
-  delete: async (id) => {
-    const result = await attendeeStatusWrites.delete(id);
+  delete: async (id, form) => {
+    const result = await attendeeStatusWrites.delete(
+      id,
+      form?.getOptionalInt("reassign_status_id") ?? undefined,
+    );
     return result.ok
       ? { ok: true }
       : { error: DELETE_ERRORS[result.error], ok: false };
@@ -128,9 +143,41 @@ const statusOrder = createOrderedCollectionHandlers({
   target: ({ context }) => context.id,
 });
 
+/** The delete page, with the reassign choice a status attendees hold needs:
+ *  the count, the warning, and a required picker of the other statuses — or
+ *  the prerequisite the save would refuse on instead. The session guard (not
+ *  the form policy) wraps it, because it is a GET page. */
+const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const status = await getAttendeeStatus(id);
+    if (status === null) return notFoundResponse();
+    const others = (await attendeeStatuses.getAll()).filter(
+      (other) => other.id !== id,
+    );
+    const blocker = statusDeleteBlocker(status, others.length > 0);
+    const retire = blocker
+      ? { blocked: DELETE_ERRORS[blocker] }
+      : await reassignChoice(id, others);
+    return htmlResponse(
+      retireStatusDeletePage(status, retire, session, getFlash().error),
+    );
+  });
+
+/** The reassign choice a deletable status attendees hold needs, or null when
+ *  nothing holds and the delete can proceed as it stands. */
+const reassignChoice = async (
+  id: number,
+  others: readonly AttendeeStatus[],
+): Promise<StatusRetire | null> => {
+  const count = await heldAttendeeCount(id);
+  return count === 0 ? null : { count, others };
+};
+
 export const adminHandlers = defineRoutes({
   ...crudRoutes(adminPattern("statuses"), crud),
   ...entityTabRoutes(adminPattern("status"), attendeeStatusPage),
+  "GET /admin/settings/statuses/:id/delete": (request, { id }) =>
+    statusDeleteGet(request, id),
   "POST /admin/settings/statuses/:id/move-down": statusOrder.down,
   "POST /admin/settings/statuses/:id/move-up": statusOrder.up,
 });

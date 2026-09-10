@@ -180,6 +180,8 @@ export interface PackageMemberInput {
   listingId: number;
   /** `null` uses the listing price; `0` makes this member free. */
   price: number | null;
+  /** The units one package grants of this member; the write statement lifts a
+   *  missing value to one unit. */
   quantity?: number;
 }
 

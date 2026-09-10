@@ -17,7 +17,7 @@ import {
   assignListingsToGroup,
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
-} from "#db/groups/membership.ts";
+} from "#db/groups/membership/package-writes.ts";
 import {
   generateUniqueGroupSlug,
   getGroupById,
