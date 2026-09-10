@@ -6,7 +6,10 @@ import {
   syncListingPrices,
   syncListingPricesForIds,
 } from "#db/listing-price-sync.ts";
-import { priceRows } from "#test/shared/db/listing-prices/fixtures.ts";
+import {
+  expectBackfillRebuildsBaseRows,
+  priceRows,
+} from "#test/shared/db/listing-prices/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -28,16 +31,7 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
   });
 
   test("backfill rebuilds the base rows from unit_price", async () => {
-    const a = await createTestListing({ unitPrice: 750 });
-    const b = await createTestListing({ unitPrice: 400 });
-    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
-    await backfillListingPrices();
-    expect(await priceRows(a.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 750 },
-    ]);
-    expect(await priceRows(b.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 400 },
-    ]);
+    await expectBackfillRebuildsBaseRows(() => backfillListingPrices());
   });
 
   test("a source row whose price is not a number fails the backfill loudly", async () => {
