@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -111,7 +112,7 @@ Then(
   "the organiser is told a paid state cannot also ask for a deposit",
   function (this: TicketsWorld): void {
     expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      "A paid status can't also be a reservation",
+      t("statuses.error_paid_default_reservation"),
     );
   },
 );

@@ -112,6 +112,13 @@ describe("adminAnswerEditPage", () => {
     expect(html).toContain('<option selected value="5">');
   });
 
+  test("says beside the selector that only answer-triggered modifiers appear here", () => {
+    // The selector omits Automatic and add-on modifiers; the hint is the
+    // affordance that stops an operator reading that as a bug. The rendered
+    // page escapes the copy's quotes, so match the quoteless sentence tail.
+    expect(html).toContain("Create one on the Modifiers page first.");
+  });
+
   test("selects the none option when no modifier is linked", () => {
     expect(html).toContain('<option selected value="">');
   });

@@ -5,7 +5,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
-import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import {
   addParentEdgesWithPackageCheckTx,
   listingChildren,

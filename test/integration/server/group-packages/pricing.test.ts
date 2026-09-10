@@ -43,7 +43,7 @@ describeWithEnv(
 
     test("edit POST saves is_package, per-listing prices and quantities", async () => {
       const group = await createTestGroup({ name: "Pkg", slug: "pkg" });
-      const a = await member(group, "A");
+      const a = await member(group, "A", { maxQuantity: 2 });
       const b = await member(group, "B");
 
       const { response } = await adminFormPost(
@@ -245,7 +245,7 @@ describeWithEnv(
 
     test("edit GET renders the package price table pre-filled from overrides", async () => {
       const group = await createTestGroup({ name: "Show", slug: "show" });
-      const a = await member(group, "Shown A");
+      const a = await member(group, "Shown A", { maxQuantity: 5 });
       // A second member with no override exercises the "blank input" branch.
       const b = await member(group, "Shown B");
       await adminFormPost(`/admin/groups/${group.id}/edit`, {

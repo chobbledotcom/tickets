@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";

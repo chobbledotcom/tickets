@@ -6,6 +6,7 @@ import {
   packageChildEdgeError,
   packageChildEdgeErrorOrNull,
   packageGroups,
+  packageMemberCapError,
   packageMemberError,
 } from "#shared/package-membership.ts";
 
@@ -97,6 +98,61 @@ describe("packageMemberError", () => {
 
   test("allows a plain fixed-price listing with no edges", () => {
     expect(packageMemberError(listing("Day Pass"), edges(), false)).toBeNull();
+  });
+});
+
+describe("packageMemberCapError", () => {
+  /** A member row with the given pick count and per-order cap. */
+  const member = (name: string, quantity: number, maxQuantity: number) => ({
+    max_quantity: maxQuantity,
+    name,
+    quantity,
+  });
+
+  test("refuses a pick count above the member's per-order cap", () => {
+    expect(packageMemberCapError(member("Boat Trip", 2, 1))).toBe(
+      t("error.package_member_cap", {
+        max_quantity: 1,
+        name: "Boat Trip",
+        quantity: 2,
+      }),
+    );
+  });
+
+  test("names the member whose cap the pick count breaks", () => {
+    const message = packageMemberCapError(member("Day Pass", 4, 3))!;
+    expect(message).toContain("Day Pass");
+    expect(message).toContain("3");
+  });
+
+  test("allows a pick count at the cap", () => {
+    expect(packageMemberCapError(member("Day Pass", 3, 3))).toBeNull();
+  });
+
+  test("treats an omitted pick count as one unit per package", () => {
+    expect(
+      packageMemberCapError({ max_quantity: 1, name: "Day Pass" }),
+    ).toBeNull();
+  });
+
+  test("refuses a member that sells nothing when the pick count is omitted", () => {
+    expect(packageMemberCapError({ max_quantity: 0, name: "Day Pass" })).toBe(
+      t("error.package_member_cap", {
+        max_quantity: 0,
+        name: "Day Pass",
+        quantity: 1,
+      }),
+    );
+  });
+
+  test("a zero pick count never breaches the cap", () => {
+    expect(
+      packageMemberCapError({ max_quantity: 0, name: "Day Pass", quantity: 0 }),
+    ).toBeNull();
+  });
+
+  test("allows a pick count below the cap", () => {
+    expect(packageMemberCapError(member("Day Pass", 1, 9))).toBeNull();
   });
 });
 

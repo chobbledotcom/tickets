@@ -20,5 +20,7 @@
   "public.not_activated.heading": "Not Activated",
   "public.not_activated.message": "This site has not been activated yet.",
   "public.read_only.title": "Read Only",
-  "public.read_only.message": "This site is in read-only mode."
+  "public.read_only.message": "This site is in read-only mode.",
+  "auth.forbidden_owner_only": "Only the owner account can open this page. Ask the site owner for help.",
+  "auth.forbidden_role": "Your account can't open this page. Ask the site owner for help."
 }

@@ -32,17 +32,32 @@ export const renderSelectOptions = (options: readonly SelectOption[]): string =>
     )
     .join("");
 
+/** The `data-*` attributes a declared either/or pair renders onto the field's
+ *  input: the spelling the paired-controls script reads, written once. */
+const dataAttributeString = (field: Field): string =>
+  Object.entries(
+    field.exclusive === undefined
+      ? {}
+      : {
+          "exclusive-why": field.exclusive.why,
+          "exclusive-with": field.exclusive.other,
+        },
+  )
+    .map(([key, value]) => ` data-${key}="${escapeHtml(value)}"`)
+    .join("");
+
 const renderCheckboxGroup = (
   name: string,
   options: readonly { value: string; label: string }[],
   selectedValues: Set<string>,
+  dataAttrs: string,
 ): string =>
   `<fieldset class="checkboxes">${options
     .map(
       (option) =>
         `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
           option.value,
-        )}"${selectedValues.has(option.value) ? " checked" : ""}> ${escapeHtml(
+        )}"${selectedValues.has(option.value) ? " checked" : ""}${dataAttrs}> ${escapeHtml(
           option.label,
         )}</label>`,
     )
@@ -106,7 +121,12 @@ const renderChoiceFieldInput = (
   }
   requireCheckboxOptions(field.label, field.options);
   return rawField(
-    renderCheckboxGroup(field.name, field.options, new Set(commaParts(value))),
+    renderCheckboxGroup(
+      field.name,
+      field.options,
+      new Set(commaParts(value)),
+      dataAttributeString(field),
+    ),
   );
 };
 

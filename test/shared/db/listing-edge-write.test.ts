@@ -39,7 +39,7 @@ describeWithEnv(
       };
 
       const { assignListingsToGroup } = await import(
-        "#db/groups/membership.ts"
+        "#db/groups/membership/package-writes.ts"
       );
       const { createHiddenPackageGroup } = await import(
         "#test-utils/db-helpers/groups.ts"
@@ -192,7 +192,7 @@ describeWithEnv(
 
     test("returns the package conflict for the children contract", async () => {
       const { assignListingsToGroup } = await import(
-        "#db/groups/membership.ts"
+        "#db/groups/membership/package-writes.ts"
       );
       const { createTestGroup } = await import(
         "#test-utils/db-helpers/groups.ts"
@@ -215,7 +215,7 @@ describeWithEnv(
 
     test("returns the package conflict when the parent sits in a hidden package", async () => {
       const { assignListingsToGroup } = await import(
-        "#db/groups/membership.ts"
+        "#db/groups/membership/package-writes.ts"
       );
       const { createHiddenPackageGroup } = await import(
         "#test-utils/db-helpers/groups.ts"
@@ -240,7 +240,7 @@ describeWithEnv(
       // Only a package that HIDES its members gates the write, so a parent
       // inside a visible package may take children normally.
       const { assignListingsToGroup } = await import(
-        "#db/groups/membership.ts"
+        "#db/groups/membership/package-writes.ts"
       );
       const { createTestGroup } = await import(
         "#test-utils/db-helpers/groups.ts"

@@ -296,21 +296,99 @@ describe("edgeFieldError", () => {
     expect(edgeFieldError(parent, child)).toBeNull();
   });
 
-  test("the duration error when the durations are incompatible", () => {
-    const parent = listing({
-      duration_days: 3,
-      listing_type: "daily",
-      name: "Parent",
+  // Each row pairs the clash (whose side varies: a fixed daily child, a fixed
+  // daily parent versus a customisable child, a customisable parent) with the
+  // two day-span descriptions the message must interpolate.
+  const durationErrorCases: [
+    string,
+    EdgeListing,
+    EdgeListing,
+    string,
+    string,
+  ][] = [
+    [
+      "a daily child's duration differs from the parent's fixed span",
+      listing({ duration_days: 3, listing_type: "daily", name: "Parent" }),
+      listing({ duration_days: 5, listing_type: "daily", name: "Cabin" }),
+      "3 days",
+      "5 days",
+    ],
+    [
+      "names the customisable parent's offered lengths",
+      listing({
+        customisable_days: true,
+        day_prices: { 2: 200, 3: 300 },
+        duration_days: 3,
+        name: "Festival",
+      }),
+      listing({
+        customisable_days: true,
+        day_prices: { 5: 500 },
+        duration_days: 5,
+        name: "Cabin",
+      }),
+      "2 or 3 days",
+      "5 days",
+    ],
+    [
+      "names the customisable child's priced lengths",
+      listing({ duration_days: 3, listing_type: "daily", name: "Week" }),
+      listing({
+        customisable_days: true,
+        day_prices: { 2: 200 },
+        duration_days: 5,
+        name: "Cabin",
+      }),
+      "3 days",
+      "2 days",
+    ],
+    [
+      "names an unpriced customisable parent's empty offer",
+      listing({
+        customisable_days: true,
+        day_prices: {},
+        duration_days: 3,
+        name: "Empty",
+      }),
+      listing({
+        customisable_days: true,
+        day_prices: { 2: 200 },
+        duration_days: 5,
+        name: "Cabin",
+      }),
+      "",
+      "2 days",
+    ],
+    [
+      "sorts and counts the parent's offered lengths, including one day",
+      listing({
+        customisable_days: true,
+        day_prices: { 1: 100, 2: 200, 3: 300 },
+        duration_days: 3,
+        name: "Mixed",
+      }),
+      listing({
+        customisable_days: true,
+        day_prices: { 5: 500 },
+        duration_days: 5,
+        name: "Cabin",
+      }),
+      "1, 2 or 3 days",
+      "5 days",
+    ],
+  ];
+
+  for (const [scenario, parent, child, offered, priced] of durationErrorCases) {
+    test(`the duration error, ${scenario}`, () => {
+      expect(edgeFieldError(parent, child)).toBe(
+        t("listings_table.children_err_child_duration", {
+          name: "Cabin",
+          offered,
+          priced,
+        }),
+      );
     });
-    const child = listing({
-      duration_days: 5,
-      listing_type: "daily",
-      name: "Cabin",
-    });
-    expect(edgeFieldError(parent, child)).toBe(
-      ruleError("child_duration", "Cabin"),
-    );
-  });
+  }
 
   test("the parent-renewal check wins over every other violation", () => {
     const parent = listing({ months_per_unit: 1, name: "Parent" });
@@ -349,4 +427,50 @@ describe("edgeFieldError", () => {
       ruleError("child_daily", "Cabin"),
     );
   });
+
+  /** The child that prices only day 2 — a customisable parent's selectable
+   *  counts that miss it, a fixed daily parent whose span misses it, and an
+   *  empty customisable parent — all refuse with the same priced side. */
+  const underpricingParent: EdgeListing = listing({
+    customisable_days: true,
+    day_prices: { 2: 2000 },
+    duration_days: 2,
+    name: "Cabin",
+  });
+
+  const durationRefusal = (child: EdgeListing, offered: string): string =>
+    t("listings_table.children_err_child_duration", {
+      name: child.name,
+      offered,
+      priced: "2 days",
+    });
+
+  for (const [description, parent, offered] of [
+    [
+      "names the parent's offered lengths sorted, joined by 'or'",
+      listing({
+        customisable_days: true,
+        day_prices: { 1: 1000, 3: 3000, 7: 7000 },
+        duration_days: 7,
+        name: "Parent",
+      }),
+      "1, 3 or 7 days",
+    ],
+    [
+      "a fixed daily parent offers its one resolved span",
+      listing({ duration_days: 6, listing_type: "daily", name: "Parent" }),
+      "6 days",
+    ],
+    [
+      "a customisable parent pricing no counts offers nothing",
+      listing({ customisable_days: true, day_prices: {}, name: "Parent" }),
+      "",
+    ],
+  ] as const) {
+    test(description, () => {
+      expect(edgeFieldError(parent, underpricingParent)).toBe(
+        durationRefusal(underpricingParent, offered),
+      );
+    });
+  }
 });

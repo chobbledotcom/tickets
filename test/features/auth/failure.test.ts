@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { authFailure } from "#routes/auth.ts";
 
 describe("authFailure", () => {
@@ -13,8 +14,19 @@ describe("authFailure", () => {
     test("forbidden returns 403 with Forbidden body", async () => {
       const res = authFailure("html", "forbidden");
       expect(res.status).toBe(403);
-      expect(await res.text()).toBe("Forbidden");
       expect(res.headers.get("content-type")).toContain("text/html");
+    });
+
+    test("an owner-only refusal says only the owner account can open the page", async () => {
+      const res = authFailure("html", "forbidden", "owner-only");
+      expect(res.status).toBe(403);
+      expect(await res.text()).toContain(t("auth.forbidden_owner_only"));
+    });
+
+    test("a role refusal names the account as the thing that cannot open the page", async () => {
+      const res = authFailure("html", "forbidden");
+      expect(res.status).toBe(403);
+      expect(await res.text()).toContain(t("auth.forbidden_role"));
     });
 
     test("invalid-csrf returns 403 with Invalid CSRF token body", async () => {
@@ -24,10 +36,10 @@ describe("authFailure", () => {
       expect(res.headers.get("content-type")).toContain("text/html");
     });
 
-    test("invalid-api-key returns 403 Forbidden for html channel", async () => {
+    test("invalid-api-key returns 403 with the role-refusal copy", async () => {
       const res = authFailure("html", "invalid-api-key");
       expect(res.status).toBe(403);
-      expect(await res.text()).toBe("Forbidden");
+      expect(await res.text()).toBe(t("auth.forbidden_role"));
     });
   });
 

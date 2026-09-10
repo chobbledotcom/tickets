@@ -8,7 +8,10 @@ import {
   type TxScope,
   writeRowInTransaction,
 } from "#db/client.ts";
-import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
+import {
+  requireMembershipValidation,
+  validateListingGroupMembershipsTx,
+} from "#db/groups/membership.ts";
 import {
   generateUniqueGroupSlug,
   groups,
@@ -43,7 +46,6 @@ import {
   membershipSpec,
   missingMemberId,
   nameTakenError,
-  requireImportedMembership,
   resolveNames,
   withNewId,
 } from "./import-listing.ts";
@@ -185,7 +187,7 @@ const importGroup = async (
         refuseTheWriteOn(dayError);
       }
       await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
-      requireImportedMembership(
+      requireMembershipValidation(
         await validateListingGroupMembershipsTx(tx)(memberResolve.ids, [newId]),
       );
     },

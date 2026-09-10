@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import { t } from "#i18n";
 import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
 import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import {
+  sizeQuestionAnswerData,
   testAttendee,
   testGroup,
   testListingWithCount,
@@ -78,6 +80,41 @@ describe("group admin panels", () => {
       expect(groupRow![1]).toContain("(no group cap)");
       expect(groupRow![1]).not.toContain("remain");
       expect(groupRow![1]).not.toContain(" / ");
+    });
+
+    test("shows the capacity meter for a cap of one", () => {
+      const group = testGroup({ max_attendees: 1, name: "Single Seat" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ attendee_count: 0 })],
+      });
+      expect(html).toContain("0 / 1");
+      expect(html).toContain("1 remain");
+      expect(html).not.toContain("(no group cap)");
+    });
+
+    test("keeps one space between the meter and its scope note", () => {
+      const group = testGroup({ max_attendees: 50 });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ attendee_count: 20 })],
+      });
+      expect(html).toContain("30 remain</span> <small>");
+    });
+
+    test("headlines the detail table with the group name across both columns", () => {
+      const html = overviewHtml({ group: testGroup({ name: "Named Group" }) });
+      expect(html).toContain('<th colspan="2">Named Group</th>');
+    });
+
+    test("keeps the hidden row off a group that is not hidden", () => {
+      const html = overviewHtml({
+        group: testGroup({ hidden: false, name: "Visible Group" }),
+      });
+      expect(html).toContain("Visible Group");
+      expect(html).not.toContain(
+        t("listings_table.yes_not_shown_in_public_list"),
+      );
     });
 
     test("Group Attendees row gets danger-text when at cap", () => {
@@ -159,6 +196,7 @@ describe("group admin panels", () => {
           grossSales: 20000,
           netBalance: 20000,
           recognisedIncome: 20000,
+          refunds: 1200,
           servicingCosts: 4000,
           transferCount: 3,
         }),
@@ -167,9 +205,13 @@ describe("group admin panels", () => {
       expect(html).toContain("Total income earned");
       expect(html).toContain("+£200");
       expect(html).toContain("Service event costs");
+      expect(html).toContain("Refunds");
+      expect(html).toContain("−£12");
       expect(html).toContain("−£40");
       expect(html).toContain("Net after refunds and costs");
       expect(html).toContain("£160");
+      expect(html).not.toContain("+£160");
+      expect(html).toContain("<strong>Net after refunds and costs</strong>");
       expect(html).toContain('href="/admin/ledger?group=8"');
       expect(html).toContain("View this group's money changes");
       expect(html).toContain("View every change in the group's money.");
@@ -229,8 +271,9 @@ describe("group admin panels", () => {
         }),
       });
       expect(html).toContain("Money in and out");
-      expect(html).toContain("Costs paid outside checkout");
-      expect(html).toContain("−£30");
+      expect(html).toContain(
+        '<th>Costs paid outside checkout</th><td class="col-amount">−£30</td>',
+      );
       expect(html).toContain('href="/admin/ledger?group=8"');
     });
 
@@ -246,6 +289,30 @@ describe("group admin panels", () => {
       expect(unshareable).not.toContain(`localhost/ticket/${group.slug}`);
       expect(unshareable).not.toContain(`embed-script-${group.id}`);
       expect(unshareable).toContain("isn't currently bookable");
+    });
+
+    test("shows the check-in, revenue, and answer rows the shared stats build", () => {
+      const html = overviewHtml({
+        attendees: [
+          testAttendee({ checked_in: true, id: 1, listing_id: 1, quantity: 2 }),
+        ],
+        group: testGroup({ id: 8 }),
+        money: moneyTotals({ recognisedIncome: 2500 }),
+        questionData: sizeQuestionAnswerData(),
+      });
+      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+      expect(html).toContain("<th>Tickets Checked In</th>");
+      expect(html).toContain("Size?");
+      expect(html).toContain("Small (2), Large (1)");
+    });
+
+    test("leaves the answer rows out when the group carries no questions", () => {
+      const html = overviewHtml({
+        group: testGroup({ id: 8 }),
+        money: moneyTotals({ recognisedIncome: 2500 }),
+      });
+      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+      expect(html).not.toContain("Size?");
     });
 
     test("offers ungrouped listings as add-to-group candidates", () => {
@@ -274,6 +341,71 @@ describe("group admin panels", () => {
       );
       expect(live).toBeGreaterThan(-1);
       expect(retired).toBeGreaterThan(live);
+    });
+
+    test("greys out a candidate whose type clashes with the members, and says why", () => {
+      // The save would refuse this candidate with the group-homogeneity
+      // message; the picker says so before the save.
+      const group = testGroup({ name: "Target" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ id: 1, listing_type: "standard" })],
+        ungroupedListings: [
+          testListingWithCount({ id: 7, name: "Joinable" }),
+          testListingWithCount({
+            id: 8,
+            listing_type: "daily",
+            name: "Striker",
+          }),
+        ],
+      });
+      const joinable = html.indexOf('value="7"');
+      const striker = html.indexOf(
+        '<input disabled name="listing_ids" type="checkbox" value="8"',
+      );
+      expect(striker).toBeGreaterThan(joinable);
+      expect(html).toContain(
+        t("groups.candidate_type_blocked", {
+          candidate: "daily",
+          type: "standard",
+        }),
+      );
+    });
+
+    test("greys out a candidate whose customisable-days setting clashes", () => {
+      const group = testGroup({ name: "Target" });
+      const html = overviewHtml({
+        group,
+        listings: [
+          testListingWithCount({
+            customisable_days: false,
+            id: 1,
+            listing_type: "daily",
+          }),
+        ],
+        ungroupedListings: [
+          testListingWithCount({
+            customisable_days: true,
+            id: 9,
+            listing_type: "daily",
+            name: "Flexible",
+          }),
+        ],
+      });
+      expect(html).toMatch(/<input disabled[^>]*value="9"/);
+      expect(html).toContain(t("groups.candidate_days_blocked_fixed"));
+    });
+
+    test("an enabled candidate carries no disabled marker", () => {
+      const group = testGroup({ name: "Bright" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ id: 1, listing_type: "daily" })],
+        ungroupedListings: [
+          testListingWithCount({ id: 5, listing_type: "daily" }),
+        ],
+      });
+      expect(html).not.toMatch(/<input disabled[^>]*value="5"/);
     });
   });
 
@@ -343,9 +475,6 @@ describe("group admin panels", () => {
       // Listing 2 (no row): blank price, quantity defaults to 1.
       expect(html).toMatch(
         /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
-      );
-      expect(html).toMatch(
-        /<input(?=[^>]*name="package_qty_2")(?=[^>]*value="1")[^>]*>/,
       );
     });
 

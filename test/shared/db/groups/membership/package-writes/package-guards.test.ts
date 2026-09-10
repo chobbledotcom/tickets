@@ -10,7 +10,7 @@ import {
   type PackageFlags,
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
-} from "#db/groups/membership.ts";
+} from "#db/groups/membership/package-writes.ts";
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
