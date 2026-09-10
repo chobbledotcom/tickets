@@ -1,47 +1,33 @@
 name: Set up devenv
 description: >-
-  Install Nix and the devenv CLI, use the public devenv binary cache,
-  evaluate the project environment once, restore the shared Deno
-  dependency cache, and optionally populate it with deno install. The
-  evaluated environment is the same one developers get from devenv
-  shell.
+  Install Nix, devenv, and the shared Deno dependency cache. The evaluated
+  environment is the same one developers get from devenv shell.
 inputs:
   install_dependencies:
     description: Populate the Deno module cache with deno install.
     required: false
     default: "true"
-  # The devenv profile to evaluate. ci leaves Chromium out — every job
-  # that never launches a browser should select it, because Chromium and
-  # its dependency tree dominate the environment's download. The
-  # browser-driven workflows (spec-evidence, payment-sandbox-e2e,
-  # mutation) pass nothing and get the full developer environment.
   profile:
-    description: devenv profile for the evaluated environment.
+    description: devenv profile (ci leaves Chromium out).
     required: false
     default: ""
 runs:
   using: composite
   steps:
-    # Every step here pins shell: bash — jobs commonly set
-    # `defaults.run.shell: devenv shell bash -- -e {0}`, which must not be
-    # used before the devenv CLI exists.
-    # Pinned to the commit SHAs these runs have already executed;
-    # a mutable tag can be retargeted without this repository moving,
-    # and these steps run inside secret-bearing workflows.
+    # shell: bash on every step — the job-level devenv shell does not exist yet.
+    # Pinned SHAs: these steps run inside secret-bearing workflows.
     - name: Set up Nix
       uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
 
-    # Pull devenv's own prebuilt binaries from its public cache. The Nix
-    # store is not cached through the GitHub Actions cache: restoring the
-    # ~1.5 GB closure costs more than the public caches serve it.
+    # The Nix store closure is ~1.5 GB; restoring it from the Actions cache
+    # costs more than the public devenv cache serves it.
     - name: Use the devenv binary cache
       uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
       with:
         name: devenv
 
-    # The registry nixpkgs gives CI a released devenv CLI. devenv.lock
-    # pins the module flake that evaluates this project, but not this
-    # driver, so the registry can move it. Fail when it drifts below 2.2.
+    # devenv.lock pins the module flake that evaluates this project, but not
+    # the CLI driver, so the registry can move it. Fail below 2.2.
     - name: Install devenv.sh
       shell: bash
       run: |
@@ -51,14 +37,13 @@ runs:
         case "$version" in
           "devenv 2."[2-9].* | "devenv 2."[1-9][0-9].* | "devenv "[3-9].* ) ;;
           * )
-            echo "::error::The devenv CLI ($version) is older than devenv 2.2, which this setup was verified on. Pin the registry or raise the floor deliberately."
+            echo "::error::devenv CLI older than 2.2 ($version). Pin the registry or raise the floor."
             exit 1
             ;;
         esac
 
-    # Evaluating the shell runs enterShell's Deno-version guard, so a
-    # broken pin fails before anything else, and yields the version for
-    # the dependency-cache key.
+    # Evaluating the shell runs enterShell's Deno-version guard, so a broken
+    # pin fails here, and yields the version for the cache key.
     - name: Resolve the Deno version
       shell: bash
       id: deno-version
@@ -69,7 +54,6 @@ runs:
         version="$(devenv $profile shell -- deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
-    # One repo-wide dependency cache instead of one per workflow/job.
     - name: Cache Deno dependencies
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:

@@ -28,6 +28,7 @@ const FORMAT_FOR_EXTENSION: Record<string, string> = {
   js: "javascript",
   json: "json",
   jsx: "jsx",
+  sh: "bash",
   ts: "typescript",
   tsx: "tsx",
 };

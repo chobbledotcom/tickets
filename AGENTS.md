@@ -40,6 +40,10 @@ Every development machine runs NixOS. Do not use a host-installed `deno`
 directly. All `deno ...` commands in this file assume you are already inside
 `devenv shell`; non-interactive agents must prefix them with `devenv shell`.
 
+`devenv.nix` declares the tools, profiles, and Git hook. Shell setup lives in
+`scripts/devenv/`. `nix/container.nix` declares the image and uses the scripts
+in `scripts/container/`.
+
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)
@@ -1291,6 +1295,10 @@ for grouping.
 | `sum(arr)`          | Sum an array of numbers                           |
 
 ## Code Duplication
+
+The main jscpd scan includes Bash (`.sh`) files under `scripts/`. Post-edit
+checks use the same scan for shell scripts. Bash retains the 0% threshold and
+the same minimum token count as the other source formats.
 
 `deno task cpd` (run as part of `deno task precommit`) runs jscpd with a **0%
 threshold — this is non-negotiable**. When it fails it prints this same
