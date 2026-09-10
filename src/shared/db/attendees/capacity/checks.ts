@@ -365,11 +365,10 @@ const askWhetherPrefixesFit = async (
  * over the order's prefixes: a typical order's whole search is one snapshot
  * batch, a longer one narrows a bracket by the stride factor per batch —
  * the bound only keeps a room oscillating between snapshots from spinning.
- * Each batch re-proves the fitting bound it carries — a booking that
- * consumed room between snapshots can leave an earlier line the first that
- * no longer fits — and the whole-order probe rides every batch, so a room
- * freed between batches still names nothing. Null means the whole order
- * fits again at a snapshot and no line is named. */
+ * Every batch probes the bracket ends it carries: a room freed between
+ * batches makes the whole order fit again and names nothing, and a room
+ * consumed outruns the fitting bound, whose failure sends the bracket back
+ * to the start. Null means the whole order fits again at a snapshot. */
 const firstUnfitLineIndex = async (
   lines: LineBooking[],
   factsById: Map<number, LineListingFacts>,
@@ -382,13 +381,10 @@ const firstUnfitLineIndex = async (
     // The whole order fitting again at this snapshot means the room was
     // freed again and no line is named.
     if (fits.get(lines.length)) return null;
-    // A carried fitting bound that no longer fits was outrun by a booking
-    // between snapshots: metre the next batch from the start instead of
-    // skipping the earlier lines that booking made unfit.
-    if (longestFit > 0 && !fits.get(longestFit)) {
-      longestFit = 0;
-      continue;
-    }
+    // The smallest probe IS the carried fitting bound when it is above
+    // zero, so a booking that outran it makes it the first unfit prefix and
+    // the bracket falls back to (0, bound] on its own — the next batch
+    // re-metres from the start.
     const firstUnfit = probes.find((prefix) => !fits.get(prefix))!;
     const fittingBefore = probes[probes.indexOf(firstUnfit) - 1] ?? 0;
     if (firstUnfit - fittingBefore <= 1) return firstUnfit - 1;

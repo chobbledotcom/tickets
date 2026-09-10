@@ -393,8 +393,8 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     });
   });
 
-  /** A twenty-place group with two roomy members, for orders long enough to
-   * need stride batches. */
+  /** A twenty-place group with two roomy members, so only the group cap
+   * binds an order, for orders long enough to need stride batches. */
   const twentyPlaceGroupMembers = async (): Promise<{
     a: { id: number };
     b: { id: number };
@@ -402,11 +402,11 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     const shared = await createTestGroup({ maxAttendees: 20 });
     const a = await createTestListing({
       groupId: shared.id,
-      maxAttendees: 10,
+      maxAttendees: 64,
     });
     const b = await createTestListing({
       groupId: shared.id,
-      maxAttendees: 10,
+      maxAttendees: 64,
     });
     return { a, b };
   };
@@ -436,32 +436,57 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // room after the first batch can leave an earlier line the first that
     // no longer fits — every batch must re-prove the carried bound before
     // trusting it, rather than meter its samples from a bound that booking
-    // outran and name a later line.
+    // outran and name a later line. Twelve of the twenty places go, so the
+    // eighth line becomes the first that does not fit, and the reset the
+    // failed re-prove triggers is one billed batch: the whole interleave
+    // costs exactly this many round trips.
     const { a, b } = await twentyPlaceGroupMembers();
     const lines = [line(a.id)] as LineBooking[];
     for (let index = 1; index < 65; index++) {
       lines.push(line(b.id));
     }
 
-    await runWithQueryLogContext(async () => {
-      enableQueryLog();
-      const diagnosis = refusedOrderUnfitListingIds(lines);
-      // The first batch's log entries appear once it lands, so waiting for
-      // the fits SQL to be observed means the carried bound the next batch
-      // samples from is already fixed — a limit expiry must fail the test,
-      // not land the consuming booking after the whole diagnosis and pass
-      // vacuously.
-      await awaitObservedProbe();
-      // Fill the group after that batch: the first line is now the first
-      // that does not fit, whatever the earlier snapshots said.
-      await execute(
-        "INSERT INTO listing_attendees " +
-          "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
-          "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
-        [a.id, 999_999, 20, ""],
-      );
-      expect(await diagnosis).toEqual([a.id]);
-    });
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(12, async () => {
+        await runWithQueryLogContext(async () => {
+          enableQueryLog();
+          const diagnosing = refusedOrderUnfitListingIds(lines);
+          // The first batch's log entries appear once it lands, so waiting
+          // for the fits SQL to be observed means the carried bound the
+          // next batch samples from is already fixed — a limit expiry must
+          // fail the test, not land the consuming booking after the whole
+          // diagnosis and pass vacuously.
+          await awaitObservedProbe();
+          // Consume twelve of the group's places after that batch: the
+          // eighth line is now the first that does not fit, whatever the
+          // earlier snapshots said.
+          await execute(
+            "INSERT INTO listing_attendees " +
+              "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
+              "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
+            [a.id, 999_999, 12, ""],
+          );
+          diagnosis = await diagnosing;
+        });
+      }),
+    ).toBe(6);
+    expect(diagnosis).toEqual([b.id]);
+  });
+
+  test("an order whose first line alone busts a zero-cap listing names it", async () => {
+    // A zero-cap listing makes every prefix that includes its line unfit,
+    // including the first probe of the first batch — the bracket must fall
+    // back to the very first line, not treat the probe before it as
+    // fitting.
+    const a = await createTestListing({ maxAttendees: 0 });
+    const b = await createTestListing({ maxAttendees: 10 });
+    const lines = [line(a.id)] as LineBooking[];
+    for (let index = 1; index < 10; index++) {
+      lines.push(line(b.id));
+    }
+
+    expect(await refusedOrderUnfitListingIds(lines)).toEqual([a.id]);
   });
 
   test("an empty order names nothing", async () => {
