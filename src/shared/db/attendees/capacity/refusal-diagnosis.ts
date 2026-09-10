@@ -8,10 +8,14 @@
  */
 
 import type { LineBooking } from "#db/attendee-types.ts";
-import { buildCartCapacitySql, type CartDemand } from "#db/capacity-batch.ts";
+import {
+  addDemandToBucket,
+  buildCartCapacitySql,
+  type CartDemand,
+  getOrCreateBucket,
+} from "#db/capacity-batch.ts";
 import { inPlaceholders, queryBatchPrimary, resultRows } from "#db/client.ts";
 import { requiredMapValue, unique } from "#fp";
-import { addDemandToBucket, getOrCreateBucket } from "./checks.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
 type LineListingFacts = {

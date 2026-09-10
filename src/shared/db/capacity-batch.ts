@@ -11,6 +11,9 @@
  * VALUES table — far under SQLite's expression-depth limit at 12 x 90 days.
  */
 
+import type { BatchAvailabilityItem } from "#db/attendee-types.ts";
+import { expandDailyRange } from "#db/attendees/capacity/range.ts";
+import type { ListingCapacityRow } from "#db/attendees/capacity/types.ts";
 import {
   buildGroupCountSql,
   buildListingCountSql,
@@ -23,6 +26,7 @@ import {
   type SqlParameter,
   type SqlParameterToken,
 } from "#db/numbered-statement.ts";
+import { countsPerDate } from "#shared/capacity-rules.ts";
 
 /** One listing's or one group's cart demand. `perDay` holds the dated demand
  * on per-date counting listings, keyed by day. `everyDay` holds demand that
@@ -47,6 +51,56 @@ export type CapacityBucket = {
 export type CartDemand = {
   groupDemand: Map<number, CapacityBucket>;
   listingDemand: Map<number, CapacityBucket>;
+};
+
+/** Find one bucket in the map, creating an empty one on first touch. */
+export const getOrCreateBucket = <K>(
+  buckets: Map<K, CapacityBucket>,
+  key: K,
+): CapacityBucket => {
+  let bucket = buckets.get(key);
+  if (!bucket) {
+    bucket = {
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 0,
+      throughLastUndated: 0,
+      undatedOnly: 0,
+    };
+    buckets.set(key, bucket);
+  }
+  return bucket;
+};
+
+/** Add one cart line's demand to its listing's or group's bucket. A
+ * zero-quantity line demands nothing and adds nothing. Dated lines on
+ * per-date counting listings occupy their days; every other line only
+ * bumps the running total the write's statements count — a date-less line
+ * on a per-date listing is visible to that total alone. A date-less line
+ * also pins the running total its write statement reads: no undated
+ * statement of the write runs after it, so a dated line booked later never
+ * raises that state. */
+export const addDemandToBucket = (
+  bucket: CapacityBucket,
+  listing: Pick<ListingCapacityRow, "listing_type">,
+  item: BatchAvailabilityItem,
+  date: string | null | undefined,
+): void => {
+  if (item.quantity <= 0) return;
+  bucket.runningTotal += item.quantity;
+  if (!countsPerDate(listing.listing_type)) {
+    bucket.everyDay += item.quantity;
+    bucket.throughLastUndated = bucket.runningTotal;
+    return;
+  }
+  if (!date) {
+    bucket.undatedOnly += item.quantity;
+    bucket.throughLastUndated = bucket.runningTotal;
+    return;
+  }
+  for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
+    bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
+  }
 };
 
 const hasUndatedDemand = (bucket: CapacityBucket): boolean =>

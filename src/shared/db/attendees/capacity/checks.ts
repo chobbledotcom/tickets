@@ -6,9 +6,11 @@ import type {
 } from "#db/attendee-types.ts";
 import { buildCapacityCondition, capacityConditionFor } from "#db/capacity.ts";
 import {
+  addDemandToBucket,
   buildCartCapacitySql,
   type CapacityBucket,
   type CartDemand,
+  getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import {
   inPlaceholders,
@@ -20,8 +22,8 @@ import { listingGroups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { identity, map, mapById, unique } from "#fp";
-import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
-import { dateToStartEnd, expandDailyRange } from "./range.ts";
+import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
@@ -137,55 +139,6 @@ export const checkListingAvailability = async (
       { date: checkDate, durationDays, listingId, quantity },
     ])
   )[0]!;
-};
-
-export const getOrCreateBucket = <K>(
-  buckets: Map<K, CapacityBucket>,
-  key: K,
-): CapacityBucket => {
-  let bucket = buckets.get(key);
-  if (!bucket) {
-    bucket = {
-      everyDay: 0,
-      perDay: new Map(),
-      runningTotal: 0,
-      throughLastUndated: 0,
-      undatedOnly: 0,
-    };
-    buckets.set(key, bucket);
-  }
-  return bucket;
-};
-
-/** Add one cart line's demand to its listing's or group's bucket. A
- * zero-quantity line demands nothing and adds nothing. Dated lines on
- * per-date counting listings occupy their days; every other line only
- * bumps the running total the write's statements count — a date-less line
- * on a per-date listing is visible to that total alone. A date-less line
- * also pins the running total its write statement reads: no undated
- * statement of the write runs after it, so a dated line booked later never
- * raises that state. */
-export const addDemandToBucket = (
-  bucket: CapacityBucket,
-  listing: Pick<ListingCapacityRow, "listing_type">,
-  item: BatchAvailabilityItem,
-  date: string | null | undefined,
-): void => {
-  if (item.quantity <= 0) return;
-  bucket.runningTotal += item.quantity;
-  if (!countsPerDate(listing.listing_type)) {
-    bucket.everyDay += item.quantity;
-    bucket.throughLastUndated = bucket.runningTotal;
-    return;
-  }
-  if (!date) {
-    bucket.undatedOnly += item.quantity;
-    bucket.throughLastUndated = bucket.runningTotal;
-    return;
-  }
-  for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
-    bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
-  }
 };
 
 interface BatchAvailabilityContext {

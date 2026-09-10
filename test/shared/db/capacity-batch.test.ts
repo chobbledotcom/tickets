@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateToRange } from "#db/capacity.ts";
 import {
+  addDemandToBucket,
   buildCartCapacitySql,
   type CapacityBucket,
   type CartDemand,
+  getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
@@ -225,5 +227,77 @@ describe("buildCartCapacitySql", () => {
     expect(sql).toContain("AS fits");
     expect(sql).toContain("+ 2 <=");
     expect(args).toEqual([LISTING]);
+  });
+});
+
+/** One cart line as the demand fold feeds it. */
+const item = (quantity: number, durationDays?: number) => ({
+  ...(durationDays === undefined ? {} : { durationDays }),
+  listingId: LISTING,
+  quantity,
+});
+
+describe("addDemandToBucket", () => {
+  const freshBucket = (): CapacityBucket =>
+    getOrCreateBucket(new Map<number, CapacityBucket>(), 5);
+
+  test("the bucket's last date-less line replaces, not adds to, the snapshot it pins", () => {
+    // Two date-less lines on a total-counted listing: the snapshot the write's
+    // last undated statement reads is the running total AT that line (3),
+    // never an accumulator of earlier snapshots (0 + 1 + 3).
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "standard" }, item(1), undefined);
+    addDemandToBucket(bucket, { listing_type: "standard" }, item(2), undefined);
+    expect(bucket).toEqual({
+      everyDay: 3,
+      perDay: new Map(),
+      runningTotal: 3,
+      throughLastUndated: 3,
+      undatedOnly: 0,
+    });
+  });
+
+  test("a date-less line on a per-date listing pins the same snapshot on its own side", () => {
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), null);
+    expect(bucket).toEqual({
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 2,
+      throughLastUndated: 2,
+      undatedOnly: 2,
+    });
+  });
+
+  test("a dated line booked after the last date-less line never raises the pinned snapshot", () => {
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(1), null);
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), DAY);
+    expect(bucket.runningTotal).toBe(3);
+    expect(bucket.throughLastUndated).toBe(1);
+    expect([...bucket.perDay]).toEqual([[DAY, 2]]);
+  });
+
+  test("a zero-quantity line demands nothing", () => {
+    // getOrCreateBucket's fields stay untouched by the zero line — the
+    // initializer's zeros are visible to the demand fold's caller.
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "standard" }, item(0), undefined);
+    expect(bucket).toEqual({
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 0,
+      throughLastUndated: 0,
+      undatedOnly: 0,
+    });
+  });
+
+  test("a multi-day line occupies each of its days once", () => {
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(1, 2), DAY);
+    expect([...bucket.perDay]).toEqual([
+      [DAY, 1],
+      ["2026-05-02", 1],
+    ]);
   });
 });

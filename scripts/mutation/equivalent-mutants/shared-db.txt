@@ -59,9 +59,9 @@ src/shared/db/capacity.ts::buildCapacityCondition.excludeAttendeeIdSql~06ef8hm  
 # finite totals, and a missing total has the same zero value as a stored zero.
 src/shared/db/attendees/capacity/checks.ts::buildCapacityCheckedInsert.durationDays.durationDays~18guaiu  1 → 0   # dateToStartEnd clamps both duration values to one day
 src/shared/db/attendees/capacity/checks.ts::checkListingAvailability.durationDays~18guaiu  1 → 0   # buildCapacityCondition applies the same duration clamp
-src/shared/db/attendees/capacity/checks.ts::addDemandToBucket~0k2ebng  ?? → ||   # a supplied duration is a finite integer; zero and the fallback both expand to one clamped day
-src/shared/db/attendees/capacity/checks.ts::addDemandToBucket~0k2ebng  1 → 0   # expandDailyRange clamps both fallback values to one day
-src/shared/db/attendees/capacity/checks.ts::addDemandToBucket~1bo0bmf  ?? → ||   # a per-day total is finite; zero and a missing value both use zero before the addition
+src/shared/db/capacity-batch.ts::addDemandToBucket~0k2ebng  ?? → ||   # a supplied duration is a finite integer; zero and the fallback both expand to one clamped day
+src/shared/db/capacity-batch.ts::addDemandToBucket~0k2ebng  1 → 0   # expandDailyRange clamps both fallback values to one day
+src/shared/db/capacity-batch.ts::addDemandToBucket~1bo0bmf  ?? → ||   # a per-day total is finite; zero and a missing value both use zero before the addition
 
 # Atomic line values use non-empty timestamps and numeric package ids. The
 # delete pin reads the same stored timestamp domain as the line key.
@@ -210,7 +210,6 @@ src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → 
 # attendees/capacity — the refusal diagnosis. The fits SELECT holds only
 # expressions, so it always returns exactly one row; and every probe prefix
 # length is a positive whole number.
-src/shared/db/attendees/capacity/checks.ts::getOrCreateBucket.bucket.throughLastUndated~0cjmyw7 0→1   # the first undated line overwrites the snapshot before any read, so the initializer's value is never observable
 src/shared/db/attendees/capacity/refusal-diagnosis.ts::batchProbePrefixes~05jxu72 0→1   # when the carried bound is 1, skipping its probe only widens the next bracket back to (0, 1 + step], which re-metres from below — same names, one different batch mix
 src/shared/db/attendees/capacity/refusal-diagnosis.ts::firstUnfitLineIndex.fittingBefore~1qn35dn ??→||   # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
 
