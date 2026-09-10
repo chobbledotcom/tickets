@@ -25,12 +25,12 @@ import {
   groups,
   setGroupListingsActive,
 } from "#db/groups.ts";
+import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import {
   dayCountPriceStatements,
   getGroupDayPrices,
   groupDayPriceStatements,
   groupFlatPriceStatements,
-  syncListingPricesForIds,
 } from "#db/listing-prices.ts";
 import {
   getStoredListingsWithCountsByIds,

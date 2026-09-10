@@ -1,9 +1,10 @@
 // jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import type { LineBooking } from "#db/attendee-types.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
-import { execute } from "#db/client.ts";
+import { execute, getDb } from "#db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -13,7 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { awaitObservedProbe, line } from "./helpers.ts";
+import { line } from "./helpers.ts";
 
 // jscpd:ignore-end
 
@@ -105,29 +106,39 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       lines.push(line(b.id));
     }
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(12, async () => {
-        await runWithQueryLogContext(async () => {
-          enableQueryLog();
-          const diagnosing = refusedOrderUnfitListingIds(lines);
-          // The first batch's log entries appear once it lands, so waiting
-          // for the fits SQL to be observed means the carried bound the
-          // next batch samples from is already fixed — a limit expiry must
-          // fail the test, not land the consuming booking after the whole
-          // diagnosis and pass vacuously.
-          await awaitObservedProbe();
-          // Consume twelve of the group's places after that batch: the
-          // ninth line is now the first that does not fit, whatever the
-          // earlier snapshots said.
+    // Gate on the guarded client's own batch calls, so the consumption lands
+    // between the diagnosis's first probe batch and the batch after it —
+    // deterministic whatever the event loop's timings are. Call 1 is the
+    // facts batch; call 2 is the first probe batch; the twelve places go
+    // once call 2 resolves and before the diagnosis sees its result.
+    const client = getDb();
+    const realBatch = client.batch.bind(client);
+    let batchCalls = 0;
+    using _batchGate = stub(
+      client,
+      "batch",
+      async (
+        statements: Parameters<typeof realBatch>[0],
+        mode?: Parameters<typeof realBatch>[1],
+      ) => {
+        const results = await realBatch(statements, mode);
+        batchCalls++;
+        if (batchCalls === 2) {
           await execute(
             "INSERT INTO listing_attendees " +
               "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
               "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
             [a.id, 999_999, 12, ""],
           );
-          diagnosis = await diagnosing;
-        });
+        }
+        return results;
+      },
+    );
+
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(8, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
       }),
     ).toBe(6);
     expect(diagnosis).toEqual([b.id]);

@@ -13,7 +13,7 @@ import {
   type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
-import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/listing-prices.ts";
+import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override

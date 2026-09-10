@@ -1,4 +1,4 @@
-import { backfillListingPrices } from "#db/listing-prices.ts";
+import { backfillListingPrices } from "#db/listing-price-sync.ts";
 import { schemaMigration } from "./define.ts";
 
 /**

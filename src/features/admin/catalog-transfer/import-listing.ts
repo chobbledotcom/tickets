@@ -7,10 +7,8 @@ import {
   validateListingGroupMembershipsTx,
 } from "#db/groups/membership.ts";
 import { addParentEdgesWithPackageCheckTx } from "#db/listing-parents.ts";
-import {
-  syncListingPrices,
-  writeListingDayCounts,
-} from "#db/listing-prices.ts";
+import { syncListingPrices } from "#db/listing-price-sync.ts";
+import { writeListingDayCounts } from "#db/listing-prices.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import {
   isNameTakenAnywhere,
