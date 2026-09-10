@@ -134,6 +134,14 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         expect(html).not.toContain("GIF");
       });
     });
+
+    test("renders the iframe hint as inline code, not escaped markup", async () => {
+      await withStorageEnabled(async () => {
+        const html = await assertAdminHtml("/admin/settings");
+        expect(html).toContain("<code>?iframe=true</code>");
+        expect(html).not.toContain("&lt;code&gt;");
+      });
+    });
   });
 
   describe("POST /admin/settings/header-image", () => {
