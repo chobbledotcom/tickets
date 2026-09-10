@@ -9,12 +9,13 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 /** POST a duplicate that must be rejected on name uniqueness: assert it
- * redirects back to the form, creates no new group, and creates no new
- * listing rows (a regression that wrote an orphan before rejecting would
- * pass a group-count-only check). */
+ * redirects back to the form with the cause-specific refusal, and creates no
+ * new group or listing rows (a regression that wrote an orphan before
+ * rejecting would pass a group-count-only check). */
 const expectDuplicateRejected = async (
   groupId: number,
   body: Record<string, string>,
+  refusal: string,
 ): Promise<void> => {
   const groupsBefore = (await groups.cache.getAll()).length;
   const listingsBefore = (await getAllListings()).length;
@@ -26,6 +27,7 @@ const expectDuplicateRejected = async (
   expect(response.headers.get("location")).toContain(
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
   );
+  expectErrorFlash(response, refusal);
   expect((await groups.cache.getAll()).length).toBe(groupsBefore);
   expect((await getAllListings()).length).toBe(listingsBefore);
 };
@@ -63,6 +65,7 @@ describeWithEnv(
           name_replace: "A Clone",
           new_name: "Taken Name",
         }),
+        'named "Taken Name" already exists',
       );
     });
 
@@ -83,6 +86,7 @@ describeWithEnv(
           name_replace: "Shared Name",
           new_name: "Shared Name",
         }),
+        'would be named "Shared Name"',
       );
     });
 
@@ -100,6 +104,7 @@ describeWithEnv(
       await expectDuplicateRejected(
         group.id,
         duplicateForm({ new_name: "Clashy Copy" }),
+        'named "Only Member" already exists',
       );
     });
 

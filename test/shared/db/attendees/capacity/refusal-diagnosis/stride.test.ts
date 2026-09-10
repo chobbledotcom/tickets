@@ -11,7 +11,10 @@ import {
   runWithQueryLogContext,
 } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestGroup,
+  createTwoListingsSharingOnePlace,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { line } from "./helpers.ts";
@@ -164,6 +167,76 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
         diagnosis = await refusedOrderUnfitListingIds(lines);
       }),
     ).toBe(17);
+    expect(diagnosis).toEqual([]);
+  });
+
+  test("a member that joins a new full group mid-diagnosis still names the first unfit line", async () => {
+    // The probes' demands carry each line's group memberships, so a
+    // membership change between batches can turn the whole answer stale —
+    // without the per-batch facts re-read, the search would metre from a
+    // model that misses the new cap and name a far later line. A spare
+    // one-place group joins the order's two listings once the first probe
+    // batch resolves; the next batch re-validates its facts inside its own
+    // snapshot, voids the stale-sided one, and names the second line.
+    const { a, b, lines } = await longOrderOnGroup(65);
+    const spare = await createTestGroup({
+      maxAttendees: 1,
+      name: "Spare full group",
+    });
+    // The group-create helper returns the last cached row, which is
+    // ambiguous once two groups exist; take the spare by its own name.
+    const { groups } = await import("#db/groups.ts");
+    const fullGroup = (await groups.cache.getAll()).find(
+      (group) => group.id === spare.id,
+    )!;
+
+    using _batchGate = gateDiagnosisBatches(async (call) => {
+      // The membership lands after the facts batch and before the first
+      // probe batch, so that batch's own fact re-read sees it and voids the
+      // stale-sided fits.
+      if (call === 1) {
+        await execute(
+          "INSERT INTO group_listings (group_id, listing_id) " +
+            "VALUES (?, ?), (?, ?)",
+          [fullGroup.id, a.id, fullGroup.id, b.id],
+        );
+      }
+    });
+
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(6, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(6);
+    expect(diagnosis).toEqual([b.id]);
+  });
+
+  test("a listing that vanishes mid-diagnosis names nothing", async () => {
+    // The re-read fact rows beside each batch also answer for an order
+    // listing another isolate deleted while the diagnosis ran: the probes
+    // cannot demand from a listing without facts, so the answer is no
+    // culprit rather than a partial guess.
+    const { first, second } = await createTwoListingsSharingOnePlace();
+
+    using _batchGate = gateDiagnosisBatches(async (call) => {
+      // The delete lands after the facts batch and before the first probe
+      // batch, so that batch's own fact re-read answers for the vanished
+      // listing.
+      if (call === 1) {
+        await execute("DELETE FROM listings WHERE id = ?", [second.id]);
+      }
+    });
+
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(3, async () => {
+        diagnosis = await refusedOrderUnfitListingIds([
+          line(first.id),
+          line(second.id),
+        ]);
+      }),
+    ).toBe(3);
     expect(diagnosis).toEqual([]);
   });
 

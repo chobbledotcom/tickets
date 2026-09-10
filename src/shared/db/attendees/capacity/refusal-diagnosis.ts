@@ -7,6 +7,7 @@
  * write-time capacity predicates and the shared demand buckets.)
  */
 
+import type { ResultSet } from "@libsql/client";
 import type { LineBooking } from "#db/attendee-types.ts";
 import {
   addDemandToBucket,
@@ -14,7 +15,12 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
-import { inPlaceholders, queryBatchPrimary, resultRows } from "#db/client.ts";
+import {
+  inPlaceholders,
+  queryBatchPrimary,
+  resultRows,
+  type SqlStatement,
+} from "#db/client.ts";
 import { requiredMapValue, unique } from "#fp";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -101,23 +107,109 @@ const batchProbePrefixes = (
   ]).sort((left, right) => left - right);
 };
 
-/** Ask one batch of prefixes through one primary snapshot. */
+/** The two facts SELECTs one batch re-reads: the order's listing rows and
+ * their group memberships. The pre-search batch and every probe batch share
+ * them. */
+const buildFactsStatements = (
+  listingIds: readonly number[],
+): SqlStatement[] => [
+  {
+    args: [...listingIds],
+    sql: `SELECT listing.id, listing.listing_type
+            FROM listings AS listing
+           WHERE listing.id IN (${inPlaceholders(listingIds)})`,
+  },
+  {
+    args: [...listingIds],
+    sql: `SELECT groupListing.listing_id, groupListing.group_id
+            FROM group_listings AS groupListing
+           WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})`,
+  },
+];
+
+/** Fold two facts result sets into the model the probes build their demands
+ * from, and report an order listing the snapshot no longer knows — either a
+ * listing row is gone, or a membership row outlives its listing. */
+const readFacts = (
+  listingIds: readonly number[],
+  listingResult: ResultSet,
+  memberResult: ResultSet,
+): { facts: Map<number, LineListingFacts>; vanished: boolean } => {
+  const facts = new Map<number, LineListingFacts>(
+    resultRows<Pick<ListingCapacityRow, "id" | "listing_type">>(
+      listingResult,
+    ).map((row) => [row.id, { groupIds: [], listing_type: row.listing_type }]),
+  );
+  const vanished = listingIds.some((id) => !facts.has(id));
+  for (const row of resultRows<{ group_id: number; listing_id: number }>(
+    memberResult,
+  )) {
+    const listing = facts.get(row.listing_id);
+    if (listing === undefined) continue;
+    listing.groupIds.push(row.group_id);
+  }
+  return { facts, vanished };
+};
+
+/** The model read from one snapshot, as a comparable structure: a signature
+ * only differs when a group membership or a listing type moved on. */
+const factsSignature = (facts: Map<number, LineListingFacts>): string =>
+  JSON.stringify(
+    [...facts.entries()]
+      .sort((left, right) => left[0] - right[0])
+      .map(([id, listing]) => [
+        id,
+        listing.listing_type,
+        [...listing.groupIds].sort((left, right) => left - right),
+      ]),
+  );
+
+/** One batch's verdict: the fits, the facts to build the next batch from, and
+ * whether the facts moved under this batch (or a listing vanished), which
+ * voids the fits. */
+type ProbeBatch = {
+  factsById: Map<number, LineListingFacts>;
+  fits: Map<number, boolean> | null;
+  vanished: boolean;
+};
+
+/** Ask one batch of prefixes through one primary snapshot. The batch also
+ * re-reads the order's listing facts beside its probes, so a batch's fits
+ * count only when the facts its demands were built from still held at the
+ * batch's own snapshot: a membership or type change can only void the batch,
+ * never steer its answer. */
 const askWhetherPrefixesFit = async (
   lines: LineBooking[],
   factsById: Map<number, LineListingFacts>,
   probes: readonly number[],
-): Promise<Map<number, boolean>> => {
-  const results = await queryBatchPrimary(
-    probes.map((prefix) =>
+  listingIds: readonly number[],
+): Promise<ProbeBatch> => {
+  const results = await queryBatchPrimary([
+    ...probes.map((prefix) =>
       buildCartCapacitySql(linesDemand(lines.slice(0, prefix), factsById)),
     ),
+    ...buildFactsStatements(listingIds),
+  ]);
+  const fresh = readFacts(
+    listingIds,
+    results[probes.length]!,
+    results[probes.length + 1]!,
   );
-  return new Map(
-    probes.map((prefix, index) => [
-      prefix,
-      resultRows<{ fits: number }>(results[index]!)[0]!.fits === 1,
-    ]),
-  );
+  const signature = factsSignature(factsById);
+  const fits =
+    fresh.vanished || factsSignature(fresh.facts) !== signature
+      ? null
+      : new Map(
+          probes.map((prefix, index) => [
+            prefix,
+            resultRows<{ fits: number }>(results[index]!)[0]!.fits === 1,
+          ]),
+        );
+  return {
+    factsById: fresh.vanished ? factsById : fresh.facts,
+    fits,
+    vanished: fresh.vanished,
+  };
 };
 
 /** The index of the first line that does not fit, found by stride batches
@@ -132,12 +224,28 @@ const askWhetherPrefixesFit = async (
 const firstUnfitLineIndex = async (
   lines: LineBooking[],
   factsById: Map<number, LineListingFacts>,
+  listingIds: readonly number[],
 ): Promise<number | null> => {
   let longestFit = 0;
   let shortestUnfit = lines.length;
   for (let batch = 0; batch < MAX_PROBE_BATCHES; batch++) {
     const probes = batchProbePrefixes(longestFit, shortestUnfit, lines.length);
-    const fits = await askWhetherPrefixesFit(lines, factsById, probes);
+    const asked = await askWhetherPrefixesFit(
+      lines,
+      factsById,
+      probes,
+      listingIds,
+    );
+    // An order listing vanished: the refusal cause cannot be proven on a
+    // listing that no longer exists, so no line is named.
+    if (asked.vanished) return null;
+    if (asked.fits === null) {
+      // The facts moved under this batch — a membership or type change.
+      // The batch proves nothing; the next one re-metres on the fresh facts.
+      factsById = asked.factsById;
+      continue;
+    }
+    const fits = asked.fits;
     // The whole order fitting again at this snapshot means the room was
     // freed again and no line is named.
     if (fits.get(lines.length)) return null;
@@ -169,36 +277,18 @@ export const refusedOrderUnfitListingIds = async (
 ): Promise<number[]> => {
   if (lines.length === 0) return [];
   const listingIds = unique(lines.map((line) => line.listingId));
-  const [listingResult, memberResult] = await queryBatchPrimary([
-    {
-      args: listingIds,
-      sql: `SELECT listing.id, listing.listing_type
-              FROM listings AS listing
-             WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-    },
-    {
-      args: listingIds,
-      sql: `SELECT groupListing.listing_id, groupListing.group_id
-              FROM group_listings AS groupListing
-             WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})`,
-    },
-  ]);
-  const factsById = new Map<number, LineListingFacts>(
-    resultRows<Pick<ListingCapacityRow, "id" | "listing_type">>(
-      listingResult!,
-    ).map((row) => [row.id, { groupIds: [], listing_type: row.listing_type }]),
+  const [listingResult, memberResult] = await queryBatchPrimary(
+    buildFactsStatements(listingIds),
   );
-  if (listingIds.some((id) => !factsById.has(id))) return [];
-  for (const row of resultRows<{ group_id: number; listing_id: number }>(
+  const { facts: factsById, vanished } = readFacts(
+    listingIds,
+    listingResult!,
     memberResult!,
-  )) {
-    requiredMapValue(
-      factsById,
-      row.listing_id,
-      `Group membership row for an unrequested listing ${row.listing_id}`,
-    ).groupIds.push(row.group_id);
-  }
+  );
+  // A vanished listing cannot carry the refusal cause, and a request that
+  // names a listing without facts would guess at its demand.
+  if (vanished) return [];
 
-  const firstUnfit = await firstUnfitLineIndex(lines, factsById);
+  const firstUnfit = await firstUnfitLineIndex(lines, factsById, listingIds);
   return firstUnfit === null ? [] : [lines[firstUnfit]!.listingId];
 };
