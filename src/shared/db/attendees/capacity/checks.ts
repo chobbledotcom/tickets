@@ -363,18 +363,21 @@ const askWhetherPrefixesFit = async (
 
 /** The index of the first line that does not fit, found by stride batches
  * over the order's prefixes: a typical order's whole search is one snapshot
- * batch, a longer one narrows a bracket by the stride factor per batch —
- * the bound only keeps a room oscillating between snapshots from spinning.
+ * batch, a longer one narrows a bracket by the stride factor per batch.
  * Every batch probes the bracket ends it carries: a room freed between
  * batches makes the whole order fit again and names nothing, and a room
  * consumed outruns the fitting bound, whose failure sends the bracket back
- * to the start. Null means the whole order fits again at a snapshot. */
+ * to the start. A line is named only when one batch proves an adjacent
+ * prefix pair — fitting below, unfit above. Null means nothing is proven
+ * at a snapshot, and no line is named. */
 const firstUnfitLineIndex = async (
   lines: LineBooking[],
   factsById: Map<number, LineListingFacts>,
 ): Promise<number | null> => {
   let longestFit = 0;
   let shortestUnfit = lines.length;
+  // The budget keeps a room that changes between every batch from spinning
+  // the search forever; running it out names nothing below.
   for (let batch = 0; batch < lines.length; batch++) {
     const probes = batchProbePrefixes(longestFit, shortestUnfit, lines.length);
     const fits = await askWhetherPrefixesFit(lines, factsById, probes);
@@ -391,7 +394,10 @@ const firstUnfitLineIndex = async (
     longestFit = fittingBefore;
     shortestUnfit = firstUnfit;
   }
-  return shortestUnfit - 1;
+  // The budget ran out with no adjacent probed pair, so the room kept
+  // changing between snapshots and no line is proven the culprit: an
+  // unproven guess would name a line that may fit right now.
+  return null;
 };
 
 export const refusedOrderUnfitListingIds = async (

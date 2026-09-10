@@ -411,10 +411,9 @@ const numericUnitPrice = "typeof(unit_price) IN ('integer', 'real', 'null')";
  * here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
   const [source] = await executeBatchWithResults([
-    // The validation row: the same parse the old separate read ran, folded
-    // into the write's single round trip. It only reports — the two writes
-    // below are guarded, so a drifted column fails loudly with nothing
-    // written and the valid mirror standing.
+    // The row the parse below validates, kept inside the write's single
+    // round trip: a drifted column fails it loudly while the two guarded
+    // writes below it never land, so the valid mirror stands.
     {
       args: [listingId],
       sql: "SELECT id, unit_price FROM listings WHERE id = ?",

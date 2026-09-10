@@ -214,8 +214,6 @@ src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → 
 src/shared/db/attendees/capacity/checks.ts::getOrCreateBucket.bucket.throughLastUndated~0cjmyw7 0→1   # the first undated line overwrites the snapshot before any read, so the initializer's value is never observable
 src/shared/db/attendees/capacity/checks.ts::batchProbePrefixes~05jxu72 0→1   # when the carried bound is 1, skipping its probe only widens the next bracket back to (0, 1 + step], which re-metres from below — same names, one different batch mix
 src/shared/db/attendees/capacity/checks.ts::firstUnfitLineIndex.fittingBefore~1qn35dn ??→||   # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
-src/shared/db/attendees/capacity/checks.ts::firstUnfitLineIndex~15h6vh7 -→/   # the loop-end return fires only after capacity oscillated between snapshots for every one of lines.length batches, which no deterministic interleave can hold; unreachable in any test, and x/1 returns the prefix already named
-src/shared/db/attendees/capacity/checks.ts::firstUnfitLineIndex~15h6vh7 1→0   # same unreachable loop-end return: firing it requires the room to oscillate between snapshots for the whole run
 
 # attendees/create.ts — the refusal's booking-to-line mapping. A booking's
 # date is a validated YYYY-MM-DD string, null, or undefined — never "" — and
