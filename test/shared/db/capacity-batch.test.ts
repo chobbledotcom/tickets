@@ -157,7 +157,32 @@ describe("buildCartCapacitySql", () => {
     expect(occurrences(flatSql(sql), "dayDemand.column3")).toBe(1);
     expect(occurrences(flatSql(sql), "VALUES")).toBe(1);
     expect(occurrences(flatSql(sql), ") AND (")).toBe(0);
+    // The rows of one day-demand table are comma-separated tuples of
+    // (start_at, end_at, qty), each column read by its own reference.
+    expect(sql).toContain("), (");
+    expect(occurrences(flatSql(sql), "dayDemand.column2")).toBe(1);
     expect(sql).toContain("max_attendees");
+  });
+
+  test("two demanding buckets join their clauses with AND", () => {
+    const demand: CartDemand = {
+      groupDemand: new Map([[9, bucket([], 3)]]),
+      listingDemand: new Map([[LISTING, bucket([], 2)]]),
+    };
+    const { sql } = buildCartCapacitySql(demand);
+    // One AND joins the two buckets' clauses; the other sits inside the
+    // violation expression itself.
+    expect(occurrences(flatSql(sql), " AND ")).toBe(2);
+    expect(occurrences(flatSql(sql), "dayDemand.column1")).toBe(0);
+  });
+
+  test("a dated clause reads its day range from the day-demand columns", () => {
+    const { sql } = buildCartCapacitySql(
+      demandWith(new Map([[LISTING, bucket([[DAY, 2]], 0)]])),
+    );
+    // The count subquery's window is the VALUES row's own columns.
+    expect(occurrences(flatSql(sql), "dayDemand.column1")).toBe(1);
+    expect(occurrences(flatSql(sql), "dayDemand.column2")).toBe(1);
   });
 
   test("group demand folds the cart's date-less units into every day and keeps the running-total clause", () => {
@@ -299,5 +324,27 @@ describe("addDemandToBucket", () => {
       [DAY, 1],
       ["2026-05-02", 1],
     ]);
+  });
+
+  test("two date-less lines on a per-date listing replace the pinned snapshot", () => {
+    // The undated snapshot on a per-date listing is the same replace-not-add
+    // rule: the write's last undated statement reads the running total AT
+    // that line (3), not an accumulator of the earlier snapshot (1 + 3).
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(1), null);
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), null);
+    expect(bucket.throughLastUndated).toBe(3);
+    expect(bucket.undatedOnly).toBe(3);
+  });
+
+  test("a bucket created for one key is stored and handed back on the next visit", () => {
+    const buckets = new Map<number, CapacityBucket>();
+    const first = getOrCreateBucket(buckets, 5);
+    first.everyDay = 9;
+    expect(getOrCreateBucket(buckets, 5)).toBe(first);
+    expect(getOrCreateBucket(buckets, 5).everyDay).toBe(9);
+    // Another key gets its own bucket, leaving the first untouched.
+    expect(getOrCreateBucket(buckets, 6).everyDay).toBe(0);
+    expect(getOrCreateBucket(buckets, 5).everyDay).toBe(9);
   });
 });
