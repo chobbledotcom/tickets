@@ -100,40 +100,20 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // ninth line becomes the first that does not fit, and the reset the
     // failed re-prove triggers is one billed batch: the whole interleave
     // costs exactly this many round trips.
-    const { a, b } = await twentyPlaceGroupMembers();
-    const lines = [line(a.id)] as LineBooking[];
-    for (let index = 1; index < 65; index++) {
-      lines.push(line(b.id));
-    }
+    const { a, b, lines } = await longOrderOnGroup(65);
 
-    // Gate on the guarded client's own batch calls, so the consumption lands
-    // between the diagnosis's first probe batch and the batch after it —
-    // deterministic whatever the event loop's timings are. Call 1 is the
-    // facts batch; call 2 is the first probe batch; the twelve places go
-    // once call 2 resolves and before the diagnosis sees its result.
-    const client = getDb();
-    const realBatch = client.batch.bind(client);
-    let batchCalls = 0;
-    using _batchGate = stub(
-      client,
-      "batch",
-      async (
-        statements: Parameters<typeof realBatch>[0],
-        mode?: Parameters<typeof realBatch>[1],
-      ) => {
-        const results = await realBatch(statements, mode);
-        batchCalls++;
-        if (batchCalls === 2) {
-          await execute(
-            "INSERT INTO listing_attendees " +
-              "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
-              "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
-            [a.id, 999_999, 12, ""],
-          );
-        }
-        return results;
-      },
-    );
+    // The twelve places go once the first probe batch resolves and before
+    // the diagnosis sees its result.
+    using _batchGate = gateDiagnosisBatches(async (call) => {
+      if (call === 2) {
+        await execute(
+          "INSERT INTO listing_attendees " +
+            "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
+            "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
+          [a.id, 999_999, 12, ""],
+        );
+      }
+    });
 
     let diagnosis: number[] | undefined;
     expect(
@@ -142,6 +122,49 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }),
     ).toBe(6);
     expect(diagnosis).toEqual([b.id]);
+  });
+
+  test("a room that moves under every batch names nothing once its batch budget spends", async () => {
+    // Twelve places held on odd probe batches, nineteen on even ones: each
+    // batch meets a room the batch before it misdescribed, so no batch can
+    // prove an adjacent prefix pair and the whole order never fits either.
+    // The fixed batch budget runs out and names no line, and the whole ask
+    // stays bounded — the facts batch, the probe batches, and one occupancy
+    // flip between batches. The budget itself is eight batches (the form
+    // cap of 1,000 lines narrowed by the stride of 8, plus headroom).
+    const { a, lines } = await longOrderOnGroup(65);
+
+    let churnPlaces = 0;
+    const holdPlaces = async (places: number): Promise<void> => {
+      if (churnPlaces === 0) {
+        await execute(
+          "INSERT INTO listing_attendees " +
+            "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
+            "VALUES (?, ?, NULL, NULL, ?, '', 0, 0)",
+          [a.id, 999_998, places],
+        );
+      } else {
+        await execute(
+          "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ?",
+          [places, 999_998],
+        );
+      }
+      churnPlaces = places;
+    };
+
+    using _batchGate = gateDiagnosisBatches(async (call) => {
+      if (call <= 8) {
+        await holdPlaces(call % 2 ? 12 : 19);
+      }
+    });
+
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(17, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(17);
+    expect(diagnosis).toEqual([]);
   });
 
   test("an order whose first line alone busts a zero-cap listing names it", async () => {
@@ -161,7 +184,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
 });
 
 /** A twenty-place group with two roomy members, so only the group cap
- * binds an order, for orders long enough to need stride batches. */
+ * binds an order. */
 const twentyPlaceGroupMembers = async (): Promise<{
   a: { id: number };
   b: { id: number };
@@ -176,4 +199,45 @@ const twentyPlaceGroupMembers = async (): Promise<{
     maxAttendees: 64,
   });
   return { a, b };
+};
+
+/** A long order on the twenty-place group — one a-line, then b-lines — long
+ * enough that only the group cap binds and the probe batches explore it. */
+const longOrderOnGroup = async (
+  lineCount: number,
+): Promise<{
+  a: { id: number };
+  b: { id: number };
+  lines: LineBooking[];
+}> => {
+  const { a, b } = await twentyPlaceGroupMembers();
+  const lines = [line(a.id)] as LineBooking[];
+  for (let index = 1; index < lineCount; index++) {
+    lines.push(line(b.id));
+  }
+  return { a, b, lines };
+};
+
+/** Stub the guarded client's batch calls and run `betweenBatches` after each
+ * one, so a mid-diagnosis room change lands between batches deterministically.
+ * Call 1 is the facts batch; every later call is one probe batch. */
+const gateDiagnosisBatches = (
+  betweenBatches: (call: number) => Promise<void>,
+) => {
+  const client = getDb();
+  const realBatch = client.batch.bind(client);
+  let calls = 0;
+  return stub(
+    client,
+    "batch",
+    async (
+      statements: Parameters<typeof realBatch>[0],
+      mode?: Parameters<typeof realBatch>[1],
+    ) => {
+      const results = await realBatch(statements, mode);
+      calls++;
+      await betweenBatches(calls);
+      return results;
+    },
+  );
 };

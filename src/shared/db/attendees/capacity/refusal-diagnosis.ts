@@ -16,6 +16,7 @@ import {
 } from "#db/capacity-batch.ts";
 import { inPlaceholders, queryBatchPrimary, resultRows } from "#db/client.ts";
 import { requiredMapValue, unique } from "#fp";
+import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
 type LineListingFacts = {
@@ -68,6 +69,15 @@ const linesDemand = (
  * with the square of the length. The whole-order probe rides every batch, so
  * a room freed between batches still names no listing. */
 const PROBE_STRIDE = 8;
+
+/** Probing batches one diagnosis may spend: enough for the longest order
+ * the form cap allows to narrow its bracket to the tipping line, with
+ * headroom for a mid-search booking to reset the search a few times. Past
+ * the bound a room that moved under every batch names nothing instead of
+ * paying for more probes, and the answer stays inside one request's
+ * database-call budget however long the order is. */
+const MAX_PROBE_BATCHES =
+  Math.ceil(Math.log(MAX_FORM_LINES) / Math.log(PROBE_STRIDE)) + 4;
 
 /** The prefixes one batch asks: evenly by stride from the fitting end of
  * the bracket, plus the bracket ends and the whole order. */
@@ -125,9 +135,7 @@ const firstUnfitLineIndex = async (
 ): Promise<number | null> => {
   let longestFit = 0;
   let shortestUnfit = lines.length;
-  // The budget keeps a room that changes between every batch from spinning
-  // the search forever; running it out names nothing below.
-  for (let batch = 0; batch < lines.length; batch++) {
+  for (let batch = 0; batch < MAX_PROBE_BATCHES; batch++) {
     const probes = batchProbePrefixes(longestFit, shortestUnfit, lines.length);
     const fits = await askWhetherPrefixesFit(lines, factsById, probes);
     // The whole order fitting again at this snapshot means the room was
