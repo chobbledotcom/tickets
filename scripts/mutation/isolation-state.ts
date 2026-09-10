@@ -31,6 +31,7 @@ const SKIPPED_TOP_LEVEL_NAMES = new Set([
   ".deno-cache",
   ".deno_cache",
   ".devenv",
+  ".direnv",
   ".do",
   ".git",
   ".i18n-work",

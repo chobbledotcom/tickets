@@ -20,6 +20,7 @@ src/ui/static/style.css
 .test-junit.xml
 
 .bin/
+.direnv/
 .devenv/
 .container-work/
 .pre-commit-config.yaml
