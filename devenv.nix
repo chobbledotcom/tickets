@@ -16,6 +16,7 @@ let
     git
     jq
     openssl
+    util-linux
   ];
 
   runtimeSetup = pkgs.replaceVars ./scripts/devenv/library-path.sh {
