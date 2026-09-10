@@ -208,8 +208,10 @@ src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~10demh7  ?? → 
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → ||   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
 
 # attendees/capacity/checks.ts — the refusal diagnosis. The fits SELECT holds
-# only expressions, so it always returns exactly one row; and a date reaching
-# the diagnosis is a validated YYYY-MM-DD string or null, never "".
+# only expressions, so it always returns exactly one row; a date reaching
+# the diagnosis is a validated YYYY-MM-DD string or null, never ""; and every
+# probe prefix length is a positive whole number.
+src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.longestFit~11nfjlw ??→||   # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
 src/shared/db/attendees/capacity/checks.ts::getOrCreateBucket.bucket.throughLastUndated~0cjmyw7 0→1   # the first undated line overwrites the snapshot before any read, so the initializer's value is never observable
 
 # attendees/create.ts — the refusal's booking-to-line mapping. A booking's
