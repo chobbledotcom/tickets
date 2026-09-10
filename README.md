@@ -349,15 +349,27 @@ access control, monitoring) are equally important.
 
 ## Alternative Deployment
 
-The production platform is Bunny Edge Scripting (see above). For self-hosting,
-one prebuilt OCI image serves every other target. `devenv.nix` defines it
-(`outputs.tickets-image`), and `.github/workflows/publish-image.yml` publishes
-it as `ghcr.io/chobbledotcom/tickets:latest` on every merge to `main`. The image
-carries the pinned Deno runtime, the built static assets, and the server's
-module cache, and it runs as an unprivileged user. The image is built for x86-64
-hosts. GitHub creates the registry package as private on the first publish, so a
-repository admin must make it public once: GitHub, the `chobbledotcom`
-organisation, the `tickets` package, Package settings, Change visibility.
+The production platform is Bunny Edge Scripting (see above). One prebuilt OCI
+image serves every other target. `devenv.nix` defines it as
+`outputs.tickets-image`. The image carries the pinned Deno runtime, built static
+assets, and server module cache. It runs as an unprivileged user on x86-64
+hosts.
+
+The `Create Release` workflow calls `.github/workflows/publish-image.yml` after
+the GitHub release succeeds. Image publication requires `main` in
+`chobbledotcom/tickets`. Each image uses the release run's exact commit and has
+a `sha-<commit>` tag. Only GitHub's latest release can replace
+`ghcr.io/chobbledotcom/tickets:latest`. Ordinary merges to `main` do not publish
+images.
+
+If image publication fails, the GitHub release remains available. Retry the
+failed image job from the release workflow run. A superseded release can publish
+its commit image, but it cannot replace `latest`.
+
+GitHub creates the registry package as private on the first publish. A
+repository admin must make it public once. Open the `tickets` package in the
+`chobbledotcom` organisation on GitHub. Select Package settings, then Change
+visibility.
 
 ### Docker
 

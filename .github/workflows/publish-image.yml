@@ -1,25 +1,20 @@
 name: Publish Docker image
 
-# Assembles the self-host OCI image with devenv (devenv.nix,
-# outputs.tickets-image) and pushes it to the GitHub Container Registry.
-# Self-hosters and the alternative-deployment platforms pull this image
-# instead of building from source. The image carries the pinned Deno
-# runtime, built static assets, and the server's module cache. `latest`
-# moves on every merge to main; `sha-<commit>` tags are immutable.
+# Create Release calls this workflow after the GitHub release succeeds.
+# Only GitHub's latest release can replace the registry's latest image.
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
 
-# Two merges to main close together must not race the :latest tag.
-# Concurrency-group ordering is not guaranteed, so keep only one run at
-# a time and make the pushes order-safe below: every run publishes an
-# immutable per-commit tag, and moves :latest only after confirming its
-# commit is still main's tip.
+# Serialise image pushes. The release lookup also excludes superseded retries.
 concurrency:
   group: publish-image
   cancel-in-progress: false
+  queue: max
 
 permissions:
   contents: read
@@ -31,9 +26,7 @@ defaults:
 
 jobs:
   publish:
-    # workflow_dispatch can select any branch, and a fork carries its own
-    # main — only this repository's own main may own :latest and the
-    # chobbledotcom ghcr.io namespace.
+    # Release dispatches on other refs and forks cannot publish this image.
     if: github.repository == 'chobbledotcom/tickets' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -42,6 +35,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Set up devenv
@@ -68,6 +62,7 @@ jobs:
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           # GHCR creates the package private on the first push. Make it public
@@ -77,20 +72,16 @@ jobs:
           engine="$(command -v podman || command -v docker)"
           echo "$GHCR_TOKEN" | "$engine" login ghcr.io -u "$GHCR_USER" --password-stdin
           image="ghcr.io/chobbledotcom/tickets"
-          # The immutable per-commit tag first, so every run publishes
-          # its own commit regardless of run ordering.
+          # Keep the commit image even when a newer release supersedes this run.
           "$engine" tag "$image:latest" "$image:sha-${GITHUB_SHA}"
           "$engine" push "$image:sha-${GITHUB_SHA}"
-          # Move :latest only when this run's commit is still main's tip;
-          # an overtaken run leaves :latest to the newer one, and cannot
-          # roll consumers back.
-          tip="$(curl -fsS \
+          latest_tag="$(curl -fsS \
             -H "Authorization: Bearer $GHCR_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" \
-            | jq -r .sha)"
-          if [ "$tip" != "$GITHUB_SHA" ]; then
-            echo "::warning::$GITHUB_SHA is no longer main's tip ($tip). Published the commit tag, left :latest to the newer run."
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
+            | jq -er '.tag_name | select(type == "string" and length > 0)')"
+          if [ "$latest_tag" != "$RELEASE_TAG" ]; then
+            echo "::warning::Release $RELEASE_TAG is not the latest release ($latest_tag). Published the commit tag. Left :latest unchanged."
             exit 0
           fi
           "$engine" push "$image:latest"
