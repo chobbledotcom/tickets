@@ -191,7 +191,7 @@ const fitExpression = (demand: CartDemand, bind: SqlParameter): string => {
 
 /** One SELECT returning `fits` (1/0): does this cart demand fit right now?
  * The checkout preflight asks once for the whole cart; a refusal diagnosis
- * asks every write-order prefix this way, all inside one batch, so every
- * answer describes the same snapshot. */
+ * asks write-order prefixes this way, one statement per sampled prefix in
+ * one snapshot batch. */
 export const buildCartCapacitySql = (demand: CartDemand): SqlStatement =>
   numberedStatement((bind) => `SELECT ${fitExpression(demand, bind)} AS fits`);

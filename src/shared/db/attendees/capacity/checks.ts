@@ -303,14 +303,23 @@ const linesDemand = (
  * earlier ones inserted. Each prefix of the order is asked as one cumulative
  * demand over that same order, so the first line that does not fit on top of
  * its predecessors is the one named — the statement the write aborted on. A
- * shared group limit counts, whatever dates the lines sit on. Every prefix is
- * asked inside ONE primary batch, so every answer describes the same snapshot
- * and no probe can contradict another; prefix fits only shrink as lines are
- * added, so the first unfit probe names its culprit.
+ * shared group limit counts, whatever dates the lines sit on. Prefix fits
+ * only shrink as lines are added, so first unfit prefix is the culprit, and
+ * every prefix a batch asks runs inside ONE primary statement batch — the
+ * answers of a batch share one snapshot and cannot contradict each other.
  *
  * The reads run on the primary because the refused write did. A replica can lag
  * behind the booking that took the last place, and the isolate's caches can
  * hold a listing another isolate deleted. */
+
+/** Prefixes one probe batch samples. Eight keeps a whole typical order's
+ * diagnosis inside ONE snapshot batch; a longer order narrows its bracket by
+ * this factor per batch, so the statements per request stay bounded however
+ * many lines the order has — one statement per prefix would grow the request
+ * with the square of the length. The whole-order probe rides every batch, so
+ * a room freed between batches still names no listing. */
+const PROBE_STRIDE = 8;
+
 export const refusedOrderUnfitListingIds = async (
   lines: LineBooking[],
 ): Promise<number[]> => {
@@ -346,16 +355,44 @@ export const refusedOrderUnfitListingIds = async (
     ).groupIds.push(row.group_id);
   }
 
-  const results = await queryBatchPrimary(
-    lines.map((_line, index) =>
-      buildCartCapacitySql(linesDemand(lines.slice(0, index + 1), factsById)),
-    ),
-  );
-  const fits = results.map(
-    (result) => resultRows<{ fits: number }>(result!)[0]!.fits === 1,
-  );
-  // The whole order is the last prefix, so a fitting whole order fits at the
-  // snapshot and no line is named.
-  if (fits[fits.length - 1]!) return [];
-  return [lines[fits.indexOf(false)]!.listingId];
+  // Bracket the first unfit prefix: every prefix through `longestFit` fits,
+  // `shortestUnfit` does not — both judged at the snapshot of the batch that
+  // last probed them.
+  let longestFit = 0;
+  let shortestUnfit = lines.length;
+  // The bound only keeps a room oscillating between snapshots from spinning:
+  // each batch narrows the bracket by the stride, far under this bound.
+  for (let batch = 0; batch < lines.length; batch++) {
+    const width = shortestUnfit - longestFit;
+    const step = Math.max(1, Math.ceil(width / PROBE_STRIDE));
+    const sampled: number[] = [];
+    for (
+      let prefix = longestFit + step;
+      prefix < shortestUnfit;
+      prefix += step
+    ) {
+      sampled.push(prefix);
+    }
+    const probes = unique([...sampled, shortestUnfit, lines.length]);
+    const results = await queryBatchPrimary(
+      probes.map((prefix) =>
+        buildCartCapacitySql(linesDemand(lines.slice(0, prefix), factsById)),
+      ),
+    );
+    const fits = new Map(
+      probes.map((prefix, index) => [
+        prefix,
+        resultRows<{ fits: number }>(results[index]!)[0]!.fits === 1,
+      ]),
+    );
+    // The whole order refitting at this snapshot means the room was freed
+    // again and no line is named.
+    if (fits.get(lines.length)) return [];
+    const firstUnfit = probes.find((prefix) => !fits.get(prefix))!;
+    const fittingBefore = probes[probes.indexOf(firstUnfit) - 1];
+    longestFit = fittingBefore ?? longestFit;
+    shortestUnfit = firstUnfit;
+    if (shortestUnfit - longestFit <= 1) break;
+  }
+  return [lines[shortestUnfit - 1]!.listingId];
 };

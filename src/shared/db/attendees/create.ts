@@ -223,9 +223,11 @@ const createWith =
   };
 
 /** The refusal a failed write answers with. The guarded batch cannot say
- * which statement it aborted on, so the order is asked again as one primary
- * snapshot of every prefix and the first line that does not fit at that
- * snapshot is named. A room freed again before the snapshot names none. */
+ * which statement it aborted on, so the order is asked again on the primary
+ * — every prefix of a typical order in one snapshot batch, a longer one
+ * narrowing a bracket over a few stride batches — and the first line that
+ * does not fit at the last batch's snapshot is named. A room freed before
+ * that batch names none. */
 const capacityFailure = async (
   bookings: AttendeeInput["bookings"],
 ): Promise<CreateAttendeeResult> => ({

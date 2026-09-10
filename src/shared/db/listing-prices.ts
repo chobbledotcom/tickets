@@ -336,9 +336,10 @@ type ListingPriceSourceRow = v.InferOutput<typeof ListingPriceSourceRowSchema>;
  * rows are written from input at write time, not from a column, so they are
  * not touched here. */
 const sourceRowStatements = (row: ListingPriceSourceRow) =>
-  basePriceStatements(row.id, row.unit_price ?? 0);
-
-/** Listings read per backfill SELECT, and the ceiling on statements per write
+  basePriceStatements(
+    row.id,
+    row.unit_price ?? 0,
+  ); /** Listings read per backfill SELECT, and the ceiling on statements per write
  * batch — both bounded so a large site's backfill never materialises the whole
  * table into one libsql batch, which can exceed the edge migrator's payload
  * limits. A single listing contributes at most one delete plus one row per
@@ -395,23 +396,42 @@ export const syncListingPricesForIds = async (
   await executePaged(rows.flatMap(sourceRowStatements));
 };
 
+/** The source check both guarded writes of a base-mirror sync share: only a
+ * numeric or NULL `unit_price` can write a mirror, so a drifted text value
+ * leaves the existing rows standing instead of deleting them for a write
+ * that never lands. */
+const numericUnitPrice = "typeof(unit_price) IN ('integer', 'real', 'null')";
+
 /** Re-sync one listing's `base` row from its current `unit_price` column. Called
  * after every listing insert/update (the form/API `afterCommit`) so the mirror
  * never drifts from the column. The INSERT reads the column it mirrors on the
- * database side, so the write is the only round trip — and `RETURNING` hands
- * the mirrored row back to the same parse the old separate read ran, so a
- * drifted column still fails loudly. A missing listing inserts no row, and a
- * NULL `unit_price` mirrors as 0, like the read did. Day-count rows are
- * written from input by the write paths, not re-derived here. */
+ * database side, so the write is the only round trip. A missing listing
+ * inserts no row, and a NULL `unit_price` mirrors as 0, like the read did.
+ * Day-count rows are written from input by the write paths, not re-derived
+ * here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const [, mirror] = await executeBatchWithResults([
-    priceDimensionDelete(PRICE_TYPE_BASE)(listingId),
+  const [source] = await executeBatchWithResults([
+    // The validation row: the same parse the old separate read ran, folded
+    // into the write's single round trip. It only reports — the two writes
+    // below are guarded, so a drifted column fails loudly with nothing
+    // written and the valid mirror standing.
+    {
+      args: [listingId],
+      sql: "SELECT id, unit_price FROM listings WHERE id = ?",
+    },
+    {
+      args: [listingId, PRICE_TYPE_BASE, listingId],
+      sql: `DELETE FROM listing_prices
+             WHERE listing_id = ? AND price_type = ?
+               AND EXISTS (SELECT 1 FROM listings
+                            WHERE id = ? AND ${numericUnitPrice})`,
+    },
     {
       args: [listingId, PRICE_TYPE_BASE, "", listingId],
       sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
-            SELECT ?, ?, ?, COALESCE(unit_price, 0) FROM listings WHERE id = ?
-            RETURNING listing_id AS id, unit_price`,
+            SELECT ?, ?, ?, COALESCE(unit_price, 0)
+              FROM listings WHERE id = ? AND ${numericUnitPrice}`,
     },
   ]);
-  v.parse(v.array(ListingPriceSourceRowSchema), resultRows(mirror!));
+  v.parse(v.array(ListingPriceSourceRowSchema), resultRows(source!));
 };

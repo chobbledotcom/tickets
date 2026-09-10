@@ -1,7 +1,8 @@
 /**
- * refusedOrderUnfitListingIds names a refused order's culprit in two primary
- * round trips: one facts batch, then every order prefix asked as one snapshot
- * batch whose shared answers cannot contradict each other.
+ * refusedOrderUnfitListingIds names a refused order's culprit in a bounded
+ * number of primary round trips: one facts batch, then the order's prefixes
+ * asked as one snapshot batch — a longer order narrows a bracket over a few
+ * stride batches instead of one query per prefix.
  */
 
 import { expect } from "@std/expect";
@@ -327,12 +328,62 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
 
   test("a long refused order is named in one facts batch and one snapshot batch", async () => {
     // The prefix probes share one snapshot, so the whole order's answer and
-    // every prefix's answer come back together: two round trips however long
-    // the order, where the halving search needed one request per probe.
+    // every prefix's answer come back together: two round trips for an order
+    // small enough to sample every line, where the halving search needed
+    // one request per probe.
     const lines = await eightLinesSharingOnePlace();
     expect(
       await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
     ).toBe(2);
+  });
+
+  /** Seventeen roomy lines whose shared group has one place: only the first
+   * fits, so the bracket must narrow to the second line. */
+  const seventeenLinesSharingOnePlace = async (): Promise<LineBooking[]> => {
+    const shared = await createTestGroup({ maxAttendees: 1 });
+    const lines: LineBooking[] = [];
+    for (let index = 0; index < 17; index++) {
+      const listing = await createTestListing({
+        groupId: shared.id,
+        maxAttendees: 10,
+      });
+      lines.push(line(listing.id));
+    }
+    return lines;
+  };
+
+  test("a longer refused order narrows a bracket instead of one query per line", async () => {
+    // Seventeen lines share one place. The first stride batch samples every
+    // third prefix plus the bracket end, the second asks the bracket's own
+    // lines: three round trips total, not one probe statement per prefix.
+    const lines = await seventeenLinesSharingOnePlace();
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(4, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(3);
+    expect(diagnosis).toEqual([lines[1]!.listingId]);
+  });
+
+  test("every probe batch holds at most the stride sample plus its bracket ends", async () => {
+    // One query per prefix makes the diagnostic request grow with the square
+    // of the order's length, past the platform's payload limits. Every batch
+    // must stay bounded at the stride sample however many lines there are —
+    // the facts batch, then batches sharing one round-trip window each.
+    const lines = await seventeenLinesSharingOnePlace();
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await refusedOrderUnfitListingIds(lines);
+      const probeBatches = Map.groupBy(
+        getQueryLog().filter((entry) => entry.sql.includes("AS fits")),
+        (entry) => entry.startedAtMs,
+      );
+      expect(probeBatches.size).toBeGreaterThanOrEqual(2);
+      for (const probes of probeBatches.values()) {
+        expect(probes.length).toBeLessThanOrEqual(10);
+      }
+    });
   });
 
   test("an empty order names nothing", async () => {

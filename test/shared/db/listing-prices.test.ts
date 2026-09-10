@@ -377,6 +377,12 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       listing.id,
     ]);
     await expect(syncListingPrices(listing.id)).rejects.toThrow("Invalid type");
+    // The loud failure must leave the valid mirror standing. The writes are
+    // guarded by the same numeric check the parse enforces, so a drifted
+    // column fails loudly without committing the drifted value first.
+    expect(await priceRows(listing.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 750 },
+    ]);
   });
 
   test("syncListingPrices mirrors the column in one database call", async () => {
