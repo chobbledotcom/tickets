@@ -36,6 +36,25 @@ A command with its own flags needs `--` before it:
 devenv shell -- deno task test --filter "formats date"
 ```
 
+### Automatic activation
+
+The devenv shell hook can start this environment when you enter this directory.
+Add one line to your shell configuration first:
+
+```fish
+# fish
+eval "$(devenv hook fish)"
+```
+
+The bash, zsh, and nushell commands use the shell name in place of fish.
+
+Run `devenv allow` in this repository to trust it. The hook starts the shell at
+the next prompt. The hook leaves the shell when you `cd` out. The hook starts it
+again when you return.
+
+Do not add a direnv `.envrc` to this repository. The shell hook is the only
+automatic activation.
+
 Every development machine runs NixOS. Do not use a host-installed `deno`
 directly. All `deno ...` commands in this file assume you are already inside
 `devenv shell`; non-interactive agents must prefix them with `devenv shell`.

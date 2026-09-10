@@ -17,7 +17,6 @@ const SKIPPED_FOLDERS = [
   ".deno",
   ".deno-cache",
   ".deno_cache",
-  ".direnv",
   ".do",
   ".git",
   ".i18n-work",
