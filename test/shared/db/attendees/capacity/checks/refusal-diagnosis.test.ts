@@ -386,6 +386,33 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     });
   });
 
+  test("a long order names the tipping line from stride samples alone", async () => {
+    // Sixty-five alternating lines is too many for one probe batch: the
+    // samples bracket the first unfit prefix (21), then narrow it over two
+    // more batches — four round trips, and the twenty-first line (an `a`
+    // line) is named without any batch asking one probe per line.
+    const shared = await createTestGroup({ maxAttendees: 20 });
+    const a = await createTestListing({
+      groupId: shared.id,
+      maxAttendees: 10,
+    });
+    const b = await createTestListing({
+      groupId: shared.id,
+      maxAttendees: 10,
+    });
+    const lines = Array.from({ length: 65 }, (_unused, index) =>
+      line(index % 2 ? b.id : a.id),
+    );
+
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(4, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(4);
+    expect(diagnosis).toEqual([a.id]);
+  });
+
   test("an empty order names nothing", async () => {
     expect(await refusedOrderUnfitListingIds([])).toEqual([]);
   });

@@ -363,8 +363,9 @@ export const refusedOrderUnfitListingIds = async (
   // The bound only keeps a room oscillating between snapshots from spinning:
   // each batch narrows the bracket by the stride, far under this bound.
   for (let batch = 0; batch < lines.length; batch++) {
+    // The bracket keeps width at one or more, so the stride is too.
     const width = shortestUnfit - longestFit;
-    const step = Math.max(1, Math.ceil(width / PROBE_STRIDE));
+    const step = Math.ceil(width / PROBE_STRIDE);
     const sampled: number[] = [];
     for (
       let prefix = longestFit + step;
