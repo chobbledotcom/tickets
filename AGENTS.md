@@ -39,14 +39,32 @@ devenv shell -- deno task test --filter "formats date"
 ### Automatic activation
 
 The devenv shell hook can start this environment when you enter this directory.
-Add one line to your shell configuration first:
+Add the hook to your shell configuration first:
+
+```bash
+# bash
+eval "$(devenv hook bash)"
+```
+
+```bash
+# zsh
+eval "$(devenv hook zsh)"
+```
 
 ```fish
 # fish
-eval "$(devenv hook fish)"
+devenv hook fish | source
 ```
 
-The bash, zsh, and nushell commands use the shell name in place of fish.
+Fish and nushell usually need no setup. devenv installed through Nix loads their
+hooks by itself.
+
+For nushell without automatic setup, run this once inside nushell:
+
+```nu
+mkdir ($nu.default-config-dir | path join autoload)
+devenv hook nu | save --force ($nu.default-config-dir | path join autoload/devenv-hook.nu)
+```
 
 Run `devenv allow` in this repository to trust it. The hook starts the shell at
 the next prompt. The hook leaves the shell when you `cd` out. The hook starts it
