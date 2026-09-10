@@ -43,16 +43,13 @@ runs:
         esac
 
     # Evaluating the shell runs enterShell's Deno-version guard, so a broken
-    # pin fails here, and yields the version for the cache key.
+    # pin fails here, and yields the version for the cache key. The script
+    # retries a torn cold eval; its tests live at
+    # test/scripts/ci/resolve-deno-version.test.ts.
     - name: Resolve the Deno version
       shell: bash
       id: deno-version
-      run: |
-        set -euo pipefail
-        profile=""
-        [ -n "${{ inputs.profile }}" ] && profile="--profile ${{ inputs.profile }}"
-        version="$(devenv $profile shell -- deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
-        echo "version=$version" >> "$GITHUB_OUTPUT"
+      run: bash scripts/ci/resolve-deno-version.sh "${{ inputs.profile }}"
 
     - name: Cache Deno dependencies
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
