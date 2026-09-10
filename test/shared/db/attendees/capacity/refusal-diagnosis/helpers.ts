@@ -19,11 +19,15 @@ const AWAIT_PROBE_TIMEOUT_MS = 5_000;
  * a test can change capacity between the diagnosis's batches without racing
  * the batch still in flight. Yields to the macrotask queue with a wall-clock
  * deadline: a microtask spin cannot observe an I/O-backed batch, because
- * microtasks drain before the batch's network round trip resolves. */
-export const awaitObservedProbe = async (): Promise<void> => {
+ * microtasks drain before the batch's network round trip resolves.
+ * `deadlineMs` is injectable so a test of the loud failure does not pay the
+ * real timeout. */
+export const awaitObservedProbe = async (
+  deadlineMs = AWAIT_PROBE_TIMEOUT_MS,
+): Promise<void> => {
   const probeObserved = (): boolean =>
     getQueryLog().some((entry) => entry.sql.includes("AS fits"));
-  const deadline = Date.now() + AWAIT_PROBE_TIMEOUT_MS;
+  const deadline = Date.now() + deadlineMs;
   while (!probeObserved() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
