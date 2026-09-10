@@ -56,8 +56,9 @@ const SYNC_PAGE = 200;
 
 /**
  * Re-sync the `base` rows of exactly these listings from their current
- * `unit_price` columns, in one batch per page. The batch reads the source
- * rows it just synced and the parse below is the loud drift check: a text
+ * `unit_price` columns, in one batch per page. The batch's SELECT reads the
+ * source first and the guarded DELETE and INSERT rewrite it in the same
+ * transaction snapshot; the parse below is the loud drift check: a text
  * `unit_price` fails it while the guarded writes beside it never landed, so
  * the valid mirror is left standing. Day-count rows are written from input
  * by the write paths, not re-derived here.
