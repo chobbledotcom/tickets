@@ -2,14 +2,14 @@
  * refusedOrderUnfitListingIds names a refused order's culprit in a bounded
  * number of primary round trips: one facts batch, then the order's prefixes
  * asked as one snapshot batch. A longer order narrows a bracket over stride
- * batches instead — those cases live in refusal-diagnosis-batches.test.ts.
+ * batches instead — those cases live in stride.test.ts.
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/checks.ts";
+import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import { execute } from "#db/client.ts";
 import { enableQueryLog, runWithQueryLogContext } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,7 +22,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { awaitObservedProbe, DAY, line } from "./diagnosis-helpers.ts";
+import { awaitObservedProbe, DAY, line } from "./helpers.ts";
 
 /** A one-place daily listing whose place on DAY is already taken. */
 const dailyTakenOnDay = async (): Promise<{ id: number }> => {

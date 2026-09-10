@@ -9,10 +9,8 @@ import type {
   EncryptedAttendeeData,
 } from "#db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
-import {
-  buildCapacityCheckedInsert,
-  refusedOrderUnfitListingIds,
-} from "#db/attendees/capacity/checks.ts";
+import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
+import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,

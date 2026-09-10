@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { LineBooking } from "#db/attendee-types.ts";
-import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/checks.ts";
+import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import { execute } from "#db/client.ts";
 import {
   enableQueryLog,
@@ -13,7 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { awaitObservedProbe, line } from "./diagnosis-helpers.ts";
+import { awaitObservedProbe, line } from "./helpers.ts";
 
 // jscpd:ignore-end
 

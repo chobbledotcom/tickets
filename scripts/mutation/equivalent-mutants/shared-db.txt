@@ -207,13 +207,12 @@ src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → ""   # same su
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~10demh7  ?? → ||   # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → ||   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
 
-# attendees/capacity/checks.ts — the refusal diagnosis. The fits SELECT holds
-# only expressions, so it always returns exactly one row; a date reaching
-# the diagnosis is a validated YYYY-MM-DD string or null, never ""; and every
-# probe prefix length is a positive whole number.
+# attendees/capacity — the refusal diagnosis. The fits SELECT holds only
+# expressions, so it always returns exactly one row; and every probe prefix
+# length is a positive whole number.
 src/shared/db/attendees/capacity/checks.ts::getOrCreateBucket.bucket.throughLastUndated~0cjmyw7 0→1   # the first undated line overwrites the snapshot before any read, so the initializer's value is never observable
-src/shared/db/attendees/capacity/checks.ts::batchProbePrefixes~05jxu72 0→1   # when the carried bound is 1, skipping its probe only widens the next bracket back to (0, 1 + step], which re-metres from below — same names, one different batch mix
-src/shared/db/attendees/capacity/checks.ts::firstUnfitLineIndex.fittingBefore~1qn35dn ??→||   # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
+src/shared/db/attendees/capacity/refusal-diagnosis.ts::batchProbePrefixes~05jxu72 0→1   # when the carried bound is 1, skipping its probe only widens the next bracket back to (0, 1 + step], which re-metres from below — same names, one different batch mix
+src/shared/db/attendees/capacity/refusal-diagnosis.ts::firstUnfitLineIndex.fittingBefore~1qn35dn ??→||   # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
 
 # attendees/create.ts — the refusal's booking-to-line mapping. A booking's
 # date is a validated YYYY-MM-DD string, null, or undefined — never "" — and
