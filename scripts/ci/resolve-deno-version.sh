@@ -18,6 +18,9 @@ for attempt in 1 2 3; do
   if version="$(devenv $profile shell -- deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')" && [ -n "$version" ]; then
     break
   fi
+  # A failed pipeline can still print a version line first. Drop it, so the
+  # emptiness check below never counts a failed eval as a resolved version.
+  version=""
   echo "resolve attempt $attempt failed; retrying" >&2
   if [ "$attempt" -lt 3 ]; then
     sleep "${RESOLVE_RETRY_SLEEP:-5}"

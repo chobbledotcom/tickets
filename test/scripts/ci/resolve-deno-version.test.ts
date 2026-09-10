@@ -8,8 +8,10 @@ import { projectRoot } from "#scripts/project-root.ts";
  * scripts/ci/resolve-deno-version.sh, before the dependency cache exists. The
  * script retries because a cold eval can fail once on an ephemeral runner.
  * These tests stand a stub devenv in for the real CLI: the stub fails its
- * first N calls, then reports a version. They pin how many calls the script
- * makes, what it passes to devenv, and what it writes to $GITHUB_OUTPUT.
+ * first N calls, then reports a version, and it can also print a version line
+ * while failing, to pin that only a successful eval counts. They pin how many
+ * calls the script makes, what it passes to devenv, and what it writes to
+ * $GITHUB_OUTPUT.
  */
 
 const scriptPath = join(
@@ -30,6 +32,7 @@ type StubbedDevenv = {
 
 const makeStubbedDevenv = async (
   succeedOnCall: number,
+  printOnFailingCalls = false,
 ): Promise<StubbedDevenv> => {
   const binDir = await Deno.makeTempDir({ prefix: "resolve-stub-" });
   const callsFile = join(binDir, "calls");
@@ -40,6 +43,7 @@ const makeStubbedDevenv = async (
     `echo "$count" > "${callsFile}"`,
     `printf '%s\\n' "$*" > "${argsFile}"`,
     `if [ "$count" -lt "${succeedOnCall}" ]; then`,
+    ...(printOnFailingCalls ? [`  echo "deno 9.9.9 (stub)"`] : []),
     `  echo "simulated torn cold eval" >&2`,
     "  exit 1",
     "fi",
@@ -93,19 +97,34 @@ describe("the setup-devenv Deno version resolve", () => {
   test("succeeds when the second eval works, after one torn cold eval", () =>
     expectResolved(2));
 
-  test("fails after three torn cold evals", async () => {
-    const stub = await makeStubbedDevenv(4);
-    try {
-      const result = await runResolve(stub);
-      const stderr = new TextDecoder().decode(result.stderr);
-      expect(result.success, `script exited ${result.code}: ${stderr}`).toBe(
-        false,
-      );
-      expect(result.code, `script stderr: ${stderr}`).toBe(1);
-      expect(await Deno.readTextFile(stub.callsFile)).toBe("3\n");
-      expect(stderr).toContain("resolve attempt 3 failed; retrying");
-    } finally {
-      await Deno.remove(stub.binDir, { recursive: true });
-    }
-  });
+  const failureModes = [
+    { printOnFailingCalls: false, when: "three torn cold evals" },
+    {
+      printOnFailingCalls: true,
+      when: "every eval prints a version but exits nonzero",
+    },
+  ];
+
+  for (const failure of failureModes) {
+    test(`fails after ${failure.when}`, async () => {
+      const stub = await makeStubbedDevenv(4, failure.printOnFailingCalls);
+      try {
+        const result = await runResolve(stub);
+        const stderr = new TextDecoder().decode(result.stderr);
+        expect(result.success, `script exited ${result.code}: ${stderr}`).toBe(
+          false,
+        );
+        expect(result.code, `script stderr: ${stderr}`).toBe(1);
+        expect(await Deno.readTextFile(stub.callsFile)).toBe("3\n");
+        expect(stderr).toContain("resolve attempt 3 failed; retrying");
+        // A printed line from a failed eval must not become the cache key.
+        const output = await Deno.stat(
+          join(stub.binDir, "github-output"),
+        ).catch(() => null);
+        expect(output).toBe(null);
+      } finally {
+        await Deno.remove(stub.binDir, { recursive: true });
+      }
+    });
+  }
 });
