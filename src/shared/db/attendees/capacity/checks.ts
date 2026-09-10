@@ -320,6 +320,84 @@ const linesDemand = (
  * a room freed between batches still names no listing. */
 const PROBE_STRIDE = 8;
 
+/** The prefixes one batch asks: evenly by stride from the fitting end of
+ * the bracket, plus the bracket ends and the whole order. */
+const batchProbePrefixes = (
+  longestFit: number,
+  shortestUnfit: number,
+  orderLength: number,
+): number[] => {
+  const step = Math.ceil((shortestUnfit - longestFit) / PROBE_STRIDE);
+  const sampled: number[] = [];
+  for (let prefix = longestFit + step; prefix < shortestUnfit; prefix += step) {
+    sampled.push(prefix);
+  }
+  // Ascending, so the bracket walk below finds the first unfit prefix in
+  // numeric order rather than insertion order.
+  return unique([
+    ...sampled,
+    ...(longestFit > 0 ? [longestFit] : []),
+    shortestUnfit,
+    orderLength,
+  ]).sort((left, right) => left - right);
+};
+
+/** Ask one batch of prefixes through one primary snapshot. */
+const askWhetherPrefixesFit = async (
+  lines: LineBooking[],
+  factsById: Map<number, LineListingFacts>,
+  probes: readonly number[],
+): Promise<Map<number, boolean>> => {
+  const results = await queryBatchPrimary(
+    probes.map((prefix) =>
+      buildCartCapacitySql(linesDemand(lines.slice(0, prefix), factsById)),
+    ),
+  );
+  return new Map(
+    probes.map((prefix, index) => [
+      prefix,
+      resultRows<{ fits: number }>(results[index]!)[0]!.fits === 1,
+    ]),
+  );
+};
+
+/** The index of the first line that does not fit, found by stride batches
+ * over the order's prefixes: a typical order's whole search is one snapshot
+ * batch, a longer one narrows a bracket by the stride factor per batch —
+ * the bound only keeps a room oscillating between snapshots from spinning.
+ * Each batch re-proves the fitting bound it carries — a booking that
+ * consumed room between snapshots can leave an earlier line the first that
+ * no longer fits — and the whole-order probe rides every batch, so a room
+ * freed between batches still names nothing. Null means the whole order
+ * fits again at a snapshot and no line is named. */
+const firstUnfitLineIndex = async (
+  lines: LineBooking[],
+  factsById: Map<number, LineListingFacts>,
+): Promise<number | null> => {
+  let longestFit = 0;
+  let shortestUnfit = lines.length;
+  for (let batch = 0; batch < lines.length; batch++) {
+    const probes = batchProbePrefixes(longestFit, shortestUnfit, lines.length);
+    const fits = await askWhetherPrefixesFit(lines, factsById, probes);
+    // The whole order fitting again at this snapshot means the room was
+    // freed again and no line is named.
+    if (fits.get(lines.length)) return null;
+    // A carried fitting bound that no longer fits was outrun by a booking
+    // between snapshots: metre the next batch from the start instead of
+    // skipping the earlier lines that booking made unfit.
+    if (longestFit > 0 && !fits.get(longestFit)) {
+      longestFit = 0;
+      continue;
+    }
+    const firstUnfit = probes.find((prefix) => !fits.get(prefix))!;
+    const fittingBefore = probes[probes.indexOf(firstUnfit) - 1] ?? 0;
+    if (firstUnfit - fittingBefore <= 1) return firstUnfit - 1;
+    longestFit = fittingBefore;
+    shortestUnfit = firstUnfit;
+  }
+  return shortestUnfit - 1;
+};
+
 export const refusedOrderUnfitListingIds = async (
   lines: LineBooking[],
 ): Promise<number[]> => {
@@ -355,45 +433,9 @@ export const refusedOrderUnfitListingIds = async (
     ).groupIds.push(row.group_id);
   }
 
-  // Bracket the first unfit prefix: every prefix through `longestFit` fits,
-  // `shortestUnfit` does not — both judged at the snapshot of the batch that
-  // last probed them.
-  let longestFit = 0;
-  let shortestUnfit = lines.length;
-  // The bound only keeps a room oscillating between snapshots from spinning:
-  // each batch narrows the bracket by the stride, far under this bound.
-  for (let batch = 0; batch < lines.length; batch++) {
-    // The bracket keeps width at one or more, so the stride is too.
-    const width = shortestUnfit - longestFit;
-    const step = Math.ceil(width / PROBE_STRIDE);
-    const sampled: number[] = [];
-    for (
-      let prefix = longestFit + step;
-      prefix < shortestUnfit;
-      prefix += step
-    ) {
-      sampled.push(prefix);
-    }
-    const probes = unique([...sampled, shortestUnfit, lines.length]);
-    const results = await queryBatchPrimary(
-      probes.map((prefix) =>
-        buildCartCapacitySql(linesDemand(lines.slice(0, prefix), factsById)),
-      ),
-    );
-    const fits = new Map(
-      probes.map((prefix, index) => [
-        prefix,
-        resultRows<{ fits: number }>(results[index]!)[0]!.fits === 1,
-      ]),
-    );
-    // The whole order refitting at this snapshot means the room was freed
-    // again and no line is named.
-    if (fits.get(lines.length)) return [];
-    const firstUnfit = probes.find((prefix) => !fits.get(prefix))!;
-    const fittingBefore = probes[probes.indexOf(firstUnfit) - 1];
-    longestFit = fittingBefore ?? longestFit;
-    shortestUnfit = firstUnfit;
-    if (shortestUnfit - longestFit <= 1) break;
-  }
-  return [lines[shortestUnfit - 1]!.listingId];
+  // The reads run on the primary because the refused write did. A replica
+  // can lag behind the booking that took the last place, and the isolate's
+  // caches can hold a listing another isolate deleted.
+  const firstUnfit = await firstUnfitLineIndex(lines, factsById);
+  return firstUnfit === null ? [] : [lines[firstUnfit]!.listingId];
 };

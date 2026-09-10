@@ -47,6 +47,21 @@ const dailyTakenOnDay = async (): Promise<{ id: number }> => {
   return daily;
 };
 
+/** Wait until at least one probe statement has landed in the query log, so
+ * a test can change capacity between the diagnosis's batches without
+ * racing the batch still in flight. */
+const awaitObservedProbe = async (): Promise<void> => {
+  const probeObserved = (): boolean =>
+    getQueryLog().some((entry) => entry.sql.includes("AS fits"));
+  let spins = 0;
+  while (!probeObserved() && spins++ < 5_000) {
+    await Promise.resolve();
+  }
+  if (!probeObserved()) {
+    throw new Error("Setup: the probe batch was never observed");
+  }
+};
+
 describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   test("names the first line that does not fit on its predecessors", async () => {
     const { first, second } = await createTwoListingsSharingOnePlace();
@@ -305,18 +320,10 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       enableQueryLog();
       const diagnosis = refusedOrderUnfitListingIds(lines);
       // The probe batch's log entries appear together once the batch lands,
-      // so the fits SQL being observed means the snapshot is already taken.
-      // A limit expiry must fail the test, not free the room while the
-      // snapshot is still in flight and pass vacuously.
-      const probeObserved = (): boolean =>
-        getQueryLog().some((entry) => entry.sql.includes("AS fits"));
-      let spins = 0;
-      while (!probeObserved() && spins++ < 5_000) {
-        await Promise.resolve();
-      }
-      if (!probeObserved()) {
-        throw new Error("Setup: the prefix probes were never observed");
-      }
+      // so waiting for the fits SQL to be observed means the snapshot is
+      // already taken — a limit expiry must fail the test, not free the
+      // room while the snapshot is still in flight and pass vacuously.
+      await awaitObservedProbe();
       await execute("DELETE FROM listing_attendees WHERE listing_id = ?", [
         holder.id,
       ]);
@@ -386,11 +393,12 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     });
   });
 
-  test("a long order names the tipping line from stride samples alone", async () => {
-    // Sixty-five alternating lines is too many for one probe batch: the
-    // samples bracket the first unfit prefix (21), then narrow it over two
-    // more batches — four round trips, and the twenty-first line (an `a`
-    // line) is named without any batch asking one probe per line.
+  /** A twenty-place group with two roomy members, for orders long enough to
+   * need stride batches. */
+  const twentyPlaceGroupMembers = async (): Promise<{
+    a: { id: number };
+    b: { id: number };
+  }> => {
     const shared = await createTestGroup({ maxAttendees: 20 });
     const a = await createTestListing({
       groupId: shared.id,
@@ -400,6 +408,15 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       groupId: shared.id,
       maxAttendees: 10,
     });
+    return { a, b };
+  };
+
+  test("a long order names the tipping line from stride samples alone", async () => {
+    // Sixty-five alternating lines is too many for one probe batch: the
+    // samples bracket the first unfit prefix (21), then narrow it over two
+    // more batches — four round trips, and the twenty-first line (an `a`
+    // line) is named without any batch asking one probe per line.
+    const { a, b } = await twentyPlaceGroupMembers();
     const lines = Array.from({ length: 65 }, (_unused, index) =>
       line(index % 2 ? b.id : a.id),
     );
@@ -411,6 +428,40 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }),
     ).toBe(4);
     expect(diagnosis).toEqual([a.id]);
+  });
+
+  test("a booking that consumes room between batches still names the first unfit line", async () => {
+    // Each probe batch is its own snapshot. The bracket's fitting side
+    // carries between batches for sampling, so a booking that consumed the
+    // room after the first batch can leave an earlier line the first that
+    // no longer fits — every batch must re-prove the carried bound before
+    // trusting it, rather than meter its samples from a bound that booking
+    // outran and name a later line.
+    const { a, b } = await twentyPlaceGroupMembers();
+    const lines = [line(a.id)] as LineBooking[];
+    for (let index = 1; index < 65; index++) {
+      lines.push(line(b.id));
+    }
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const diagnosis = refusedOrderUnfitListingIds(lines);
+      // The first batch's log entries appear once it lands, so waiting for
+      // the fits SQL to be observed means the carried bound the next batch
+      // samples from is already fixed — a limit expiry must fail the test,
+      // not land the consuming booking after the whole diagnosis and pass
+      // vacuously.
+      await awaitObservedProbe();
+      // Fill the group after that batch: the first line is now the first
+      // that does not fit, whatever the earlier snapshots said.
+      await execute(
+        "INSERT INTO listing_attendees " +
+          "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
+          "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
+        [a.id, 999_999, 20, ""],
+      );
+      expect(await diagnosis).toEqual([a.id]);
+    });
   });
 
   test("an empty order names nothing", async () => {
