@@ -55,21 +55,41 @@ type Condition =
   | { type: "not"; cond: Condition };
 const ConditionSchema: v.GenericSchema<Condition> = v.lazy(() =>
   v.variant("type", [
-    v.object({ step: v.number(), type: v.picklist(["ok", "error"]) }),
+    v.object({ step: StepIndexSchema, type: v.picklist(["ok", "error"]) }),
     v.object({ cond: ConditionSchema, type: v.literal("not") }),
   ]),
 );
-const OperationSchema = v.object({
-  batch: v.optional(
+/** The protocol types a condition step reference as uint32. */
+const StepIndexSchema = v.pipe(
+  v.number(),
+  v.safeInteger(),
+  v.minValue(0),
+  v.maxValue(4294967295),
+);
+/** The protocol lets a condition reference only steps before its own. */
+const conditionRefersToPreviousStep = (
+  condition: Condition | undefined,
+  index: number,
+): boolean =>
+  condition === undefined ||
+  (condition.type === "not"
+    ? conditionRefersToPreviousStep(condition.cond, index)
+    : condition.step < index);
+const StepsSchema = v.pipe(
+  v.array(
     v.object({
-      steps: v.array(
-        v.object({
-          condition: v.optional(ConditionSchema),
-          stmt: StatementSchema,
-        }),
-      ),
+      condition: v.optional(ConditionSchema),
+      stmt: StatementSchema,
     }),
   ),
+  v.check((steps) =>
+    steps.every((step, index) =>
+      conditionRefersToPreviousStep(step.condition, index),
+    ),
+  ),
+);
+const OperationSchema = v.object({
+  batch: v.optional(v.object({ steps: StepsSchema })),
   sql: v.optional(v.string()),
   sql_id: v.optional(v.number()),
   stmt: v.optional(StatementSchema),

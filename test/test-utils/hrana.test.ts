@@ -3,6 +3,23 @@ import { describe, it as test } from "@std/testing/bdd";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
 
+const rejectsBeforeSqlWork = async (requests: unknown): Promise<string[]> => {
+  const selected: string[] = [];
+  const remote = hranaTestFetch((sql) => {
+    selected.push(sql);
+    return Promise.resolve(emptyResultSet());
+  });
+  await expect(
+    remote.fetch(
+      new Request("https://pipeline.test/v2/pipeline", {
+        body: JSON.stringify({ requests }),
+        method: "POST",
+      }),
+    ),
+  ).rejects.toMatchObject({ name: "ValiError" });
+  return selected;
+};
+
 describe("Hrana protocol fixture", () => {
   test("refuses a resumed session instead of discarding its state", async () => {
     const remote = hranaTestFetch();
@@ -19,33 +36,37 @@ describe("Hrana protocol fixture", () => {
 
   for (const type of ["and", "or", "is_autocommit", "unknown"]) {
     test(`rejects unsupported condition ${type} before SQL work`, async () => {
-      const selected: string[] = [];
-      const remote = hranaTestFetch((sql) => {
-        selected.push(sql);
-        return Promise.resolve(emptyResultSet());
-      });
-      await expect(
-        remote.fetch(
-          new Request("https://pipeline.test/v2/pipeline", {
-            body: JSON.stringify({
-              requests: [
-                {
-                  batch: {
-                    steps: [
-                      {
-                        condition: { conds: [], type },
-                        stmt: { sql: "SELECT 1" },
-                      },
-                    ],
-                  },
-                  type: "batch",
-                },
-              ],
-            }),
-            method: "POST",
-          }),
-        ),
-      ).rejects.toMatchObject({ name: "ValiError" });
+      const selected = await rejectsBeforeSqlWork([
+        {
+          batch: {
+            steps: [
+              { condition: { conds: [], type }, stmt: { sql: "SELECT 1" } },
+            ],
+          },
+          type: "batch",
+        },
+      ]);
+      expect(selected).toEqual([]);
+    });
+  }
+
+  for (const [name, step] of [
+    ["a negative step", -1],
+    ["a fractional step", 0.5],
+    ["a step beyond uint32", 4294967296],
+    ["a step reference to itself", 0],
+  ] as const) {
+    test(`rejects ${name} in a condition before SQL work`, async () => {
+      const selected = await rejectsBeforeSqlWork([
+        {
+          batch: {
+            steps: [
+              { condition: { step, type: "ok" }, stmt: { sql: "SELECT 1" } },
+            ],
+          },
+          type: "batch",
+        },
+      ]);
       expect(selected).toEqual([]);
     });
   }

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
 import { createDatabaseClient } from "#db/database-client.ts";
+import { isReadSql } from "#db/sql-text.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
@@ -22,14 +23,21 @@ describeWithEnv("listing save primary read", { db: true }, () => {
       fetch: remote.fetch,
       url: "libsql://pipeline.test",
     });
+    // Mirror the client's own routing rule: a complete SELECT-only write-mode
+    // batch is the one shape real libSQL can offload to a replica, so those
+    // run through the stale-replica reader. Mixed and pure-write batches stay
+    // on the write path — the server routes them to the primary itself.
     using _batch = stub(database, "batch", (statements, mode) => {
-      const readBack = statements.some(
-        (statement) =>
-          typeof statement === "object" &&
-          !Array.isArray(statement) &&
-          /^SELECT (record\.id|id, unit_price)/.test(statement.sql),
-      );
-      return readBack
+      const offloadable =
+        mode === "write" &&
+        statements.length > 0 &&
+        statements.every(
+          (statement) =>
+            typeof statement === "object" &&
+            !Array.isArray(statement) &&
+            isReadSql(statement.sql),
+        );
+      return offloadable
         ? reader.batch(statements, mode)
         : batch(statements, mode);
     });
@@ -50,7 +58,7 @@ describeWithEnv("listing save primary read", { db: true }, () => {
         [1, 1200],
         [2, 1200],
       ]);
-      expect(remote.requests).toHaveLength(4);
+      expect(remote.requests).toHaveLength(2);
       for (const request of remote.requests) {
         expect(request).toEqual([
           "BEGIN IMMEDIATE",
