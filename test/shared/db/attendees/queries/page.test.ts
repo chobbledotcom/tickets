@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import {
   ATTENDEES_PAGE_SIZE,
+  type AttendeesPage,
   getAttendeesPage,
 } from "#db/attendees/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,16 +29,17 @@ const attendeeWithSeveralLines = async (
   return made.attendees[0]!.id;
 };
 
+/** The page everyone queries by default: the unfiltered attendee browser,
+ *  newest first. */
+const newestPage = (page = 0): Promise<AttendeesPage> =>
+  getAttendeesPage({ listingIds: null, page, sort: "newest" });
+
 describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
   test("returns a short page whole, with no next page", async () => {
     const listing = await createTestListing();
     await seedFillerAttendees(listing.id, 3);
 
-    const page = await getAttendeesPage({
-      listingIds: null,
-      page: 0,
-      sort: "newest",
-    });
+    const page = await newestPage();
 
     expect(page.hasNext).toBe(false);
     expect(distinctIds(page.rows)).toHaveLength(3);
@@ -47,11 +49,7 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
     const listing = await createTestListing();
     await seedFillerAttendees(listing.id, 2);
 
-    const page = await getAttendeesPage({
-      listingIds: null,
-      page: 1,
-      sort: "newest",
-    });
+    const page = await newestPage(1);
 
     expect(page.hasNext).toBe(false);
     expect(page.rows).toEqual([]);
@@ -61,11 +59,7 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
     const listing = await createTestListing();
     await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE + 1);
 
-    const page = await getAttendeesPage({
-      listingIds: null,
-      page: 0,
-      sort: "newest",
-    });
+    const page = await newestPage();
 
     expect(page.hasNext).toBe(true);
     expect(distinctIds(page.rows)).toHaveLength(ATTENDEES_PAGE_SIZE);
@@ -79,11 +73,7 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
     const listing = await createTestListing();
     await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE + 1);
 
-    const page = await getAttendeesPage({
-      listingIds: null,
-      page: 1,
-      sort: "newest",
-    });
+    const page = await newestPage(1);
 
     expect(page.hasNext).toBe(false);
     expect(distinctIds(page.rows)).toHaveLength(1);
@@ -114,9 +104,38 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
     expect(page.rows.length).toBe(ATTENDEES_PAGE_SIZE + 1);
   });
 
+  test("a full page of distinct attendees has no next page", async () => {
+    // Exactly PAGE_SIZE distinct attendees, one of them holding two lines:
+    // the duplicate lines must not inflate the attendance count into a
+    // phantom next page, and no attendee's line may be trimmed away.
+    const listing = await createTestListing();
+    const other = await createTestListing();
+    await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE - 1);
+    const multiLineId = await attendeeWithSeveralLines([listing.id, other.id]);
+
+    const page = await getAttendeesPage({
+      listingIds: null,
+      page: 0,
+      sort: "newest",
+    });
+
+    expect(page.hasNext).toBe(false);
+    expect(distinctIds(page.rows)).toHaveLength(ATTENDEES_PAGE_SIZE);
+    expect(page.rows.length).toBe(ATTENDEES_PAGE_SIZE + 1);
+    expect(page.rows.filter((row) => row.id === multiLineId).length).toBe(2);
+  });
+
   test("the first page holds the newest attendees when more than a page exists", async () => {
     const listing = await createTestListing();
-    await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE + 2);
+    await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE + 1);
+    // One attendee booked after every filler: the newest id of all. The first
+    // page must hold it — a page drawn from the wrong end of the table holds
+    // the oldest attendees instead. It books two fresh listings; the seeded
+    // listing is full.
+    const newest = await attendeeWithSeveralLines([
+      (await createTestListing()).id,
+      (await createTestListing()).id,
+    ]);
 
     const page = await getAttendeesPage({
       listingIds: null,
@@ -125,11 +144,10 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
     });
     const ids = distinctIds(page.rows).sort((a, b) => b - a);
 
-    // More attendees than the overread: the page must come from the NEWEST
-    // end, so the newest attendee id of all sits at the top of the page.
-    const newestId = ids[0]!;
-    expect(newestId).toBeGreaterThan(ids[1]!);
-    expect(ids).not.toContain(newestId - (ATTENDEES_PAGE_SIZE + 1));
+    expect(ids[0]).toBe(newest);
+    // The page size caps the page, so the two oldest ids fall off the end.
+    expect(ids).not.toContain(newest - ATTENDEES_PAGE_SIZE);
+    expect(ids).not.toContain(newest - ATTENDEES_PAGE_SIZE - 1);
   });
 
   test("newest sorts attendee ids falling; oldest rising", async () => {
