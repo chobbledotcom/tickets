@@ -10,10 +10,8 @@ import { buildAttendeeInsert } from "#db/attendees/create.ts";
 import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
 import { encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { executeBatch, insert, queryAll } from "#db/client.ts";
-import {
-  dayCountPriceStatements,
-  syncListingPricesForIds,
-} from "#db/listing-prices.ts";
+import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
+import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { settings } from "#db/settings.ts";
 import { chunk, map, range, sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";

@@ -49,6 +49,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: devenv --profile ci shell bash -- -e {0}
+
 concurrency:
   group: email-sandbox-e2e
   cancel-in-progress: false
@@ -62,14 +66,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # No later step runs an authenticated git command, and the job
           # runs repository code with provider secrets in its environment.
           persist-credentials: false
 
-      - name: Set up Deno
-        uses: ./.github/actions/setup-deno
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
 
       - name: Run email sandbox e2e
         id: email-run

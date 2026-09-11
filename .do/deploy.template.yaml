@@ -2,11 +2,14 @@ spec:
   name: chobble-tickets
   services:
     - name: web
-      github:
-        repo: chobbledotcom/tickets
-        branch: main
-        deploy_on_push: true
-      dockerfile_path: Dockerfile
+      # Prebuilt OCI image assembled by devenv (devenv.nix,
+      # outputs.tickets-image) and published by
+      # .github/workflows/publish-image.yml on every merge to main.
+      image:
+        registry_type: GHCR
+        registry: chobbledotcom
+        repository: tickets
+        tag: latest
       http_port: 3000
       instance_count: 1
       instance_size_slug: basic-xxs

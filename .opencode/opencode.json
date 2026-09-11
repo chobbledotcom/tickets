@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "devenv shell deno task test": "allow",
+      "devenv shell deno task test:*": "allow",
+      "devenv shell deno task typecheck": "allow",
+      "devenv shell deno task lint": "allow",
+      "devenv shell deno task lint:ci": "allow",
+      "devenv shell deno task cpd": "allow",
+      "devenv shell deno task precommit": "allow",
+      "devenv shell deno task precommit:*": "allow",
+      "devenv shell deno task mutation": "allow",
+      "devenv shell deno task mutation:*": "allow",
+      "devenv shell deno task check:*": "allow",
+      "devenv shell deno task line-counts": "allow",
+      "devenv shell deno task find-unused-src": "allow",
+      "devenv shell -- deno task test:*": "allow",
+      "devenv shell -- deno task mutation:*": "allow",
+      "devenv shell pc": "allow",
+      "devenv shell container-build": "allow",
+      "devenv shell container-load": "allow",
+      "devenv shell container-check": "allow",
+      "deno task test": "allow",
+      "deno task test:*": "allow",
+      "deno task typecheck": "allow",
+      "deno task lint": "allow",
+      "deno task lint:ci": "allow",
+      "deno task cpd": "allow",
+      "deno task precommit": "allow",
+      "deno task precommit:*": "allow",
+      "deno task mutation": "allow",
+      "deno task mutation:*": "allow",
+      "deno task check:*": "allow",
+      "deno task line-counts": "allow",
+      "deno task find-unused-src": "allow",
+      "git status:*": "allow",
+      "git diff:*": "allow",
+      "git log:*": "allow",
+      "git show:*": "allow"
+    }
+  }
+}

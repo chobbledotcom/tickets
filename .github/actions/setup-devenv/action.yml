@@ -1,0 +1,68 @@
+name: Set up devenv
+description: >-
+  Install Nix, devenv, and the shared Deno dependency cache. The evaluated
+  environment is the same one developers get from devenv shell.
+inputs:
+  install_dependencies:
+    description: Populate the Deno module cache with deno install.
+    required: false
+    default: "true"
+  profile:
+    description: devenv profile (ci leaves Chromium out).
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    # shell: bash on every step — the job-level devenv shell does not exist yet.
+    # Pinned SHAs: these steps run inside secret-bearing workflows.
+    - name: Set up Nix
+      uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+
+    # The Nix store closure is ~1.5 GB; restoring it from the Actions cache
+    # costs more than the public devenv cache serves it.
+    - name: Use the devenv binary cache
+      uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
+      with:
+        name: devenv
+
+    # devenv.lock pins the module flake that evaluates this project, but not
+    # the CLI driver, so the registry can move it. Fail below 2.2.
+    - name: Install devenv.sh
+      shell: bash
+      run: |
+        nix profile add nixpkgs#devenv
+        version="$(devenv --version)"
+        echo "devenv CLI: $version"
+        case "$version" in
+          "devenv 2."[2-9].* | "devenv 2."[1-9][0-9].* | "devenv "[3-9].* ) ;;
+          * )
+            echo "::error::devenv CLI older than 2.2 ($version). Pin the registry or raise the floor."
+            exit 1
+            ;;
+        esac
+
+    # Evaluating the shell runs enterShell's Deno-version guard, so a broken
+    # pin fails here, and yields the version for the cache key. The script
+    # retries a torn cold eval; its tests live at
+    # test/scripts/ci/resolve-deno-version.test.ts.
+    - name: Resolve the Deno version
+      shell: bash
+      id: deno-version
+      run: bash scripts/ci/resolve-deno-version.sh "${{ inputs.profile }}"
+
+    - name: Cache Deno dependencies
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/deno
+        key: deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-${{ hashFiles('deno.lock', 'deno.json', 'e2e-payments/deno.json') }}
+        restore-keys: |
+          deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-
+
+    - name: Install Deno dependencies
+      if: inputs.install_dependencies == 'true'
+      shell: bash
+      run: |
+        profile=""
+        [ -n "${{ inputs.profile }}" ] && profile="--profile ${{ inputs.profile }}"
+        devenv $profile shell -- deno install --allow-scripts

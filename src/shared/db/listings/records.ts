@@ -4,10 +4,10 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { executeBatch, queryOnePrimary } from "#db/client.ts";
 import { cachedEntityTable } from "#db/common-schema.ts";
 import { getImageFilenamesForItem } from "#db/images.ts";
+import { syncListingPrices } from "#db/listing-price-sync.ts";
 import {
   dayCountPriceStatements,
   getListingDayPrices,
-  syncListingPrices,
 } from "#db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
 import { envNameSource } from "#db/query.ts";

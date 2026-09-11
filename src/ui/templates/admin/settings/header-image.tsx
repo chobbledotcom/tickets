@@ -3,6 +3,8 @@
  */
 
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
@@ -33,9 +35,11 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
         action="/admin/settings/header-image"
         description={
           <p>
-            {t("settings.header_image_hint", {
-              size: formatBytes(MAX_IMAGE_SIZE),
-            })}
+            <Raw
+              html={t("settings.header_image_hint", {
+                size: escapeHtml(formatBytes(MAX_IMAGE_SIZE)),
+              })}
+            />
           </p>
         }
         enctype="multipart/form-data"

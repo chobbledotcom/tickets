@@ -15,7 +15,7 @@ runs:
   using: composite
   steps:
     - name: Deploy script to Bunny Edge Scripting
-      shell: bash
+      shell: devenv --profile ci shell bash -- -e {0}
       env:
         BUNNY_SCRIPT_ID: ${{ inputs.script_id }}
         BUNNY_SCRIPT_FILE: ${{ inputs.file }}

@@ -349,33 +349,57 @@ access control, monitoring) are equally important.
 
 ## Alternative Deployment
 
+The production platform is Bunny Edge Scripting (see above). One prebuilt OCI
+image serves every other target. `devenv.nix` defines it as
+`outputs.tickets-image`. The image carries the pinned Deno runtime, built static
+assets, and server module cache. It runs as an unprivileged user on x86-64
+hosts.
+
+The `Create Release` workflow calls `.github/workflows/publish-image.yml` after
+the GitHub release succeeds. Image publication requires `main` in
+`chobbledotcom/tickets`. Each image uses the release run's exact commit and has
+a `sha-<commit>` tag. Only GitHub's latest release can replace
+`ghcr.io/chobbledotcom/tickets:latest`. Ordinary merges to `main` do not publish
+images.
+
+If image publication fails, the GitHub release remains available. Retry the
+failed image job from the release workflow run. A superseded release can publish
+its commit image, but it cannot replace `latest`.
+
+GitHub creates the registry package as private on the first publish. A
+repository admin must make it public once. Open the `tickets` package in the
+`chobbledotcom` organisation on GitHub. Select Package settings, then Change
+visibility.
+
 ### Docker
 
 ```bash
-docker build -t chobble-tickets .
 docker run -p 3000:3000 \
   -v tickets-data:/data \
   -e DB_URL="file:/data/tickets.db" \
   -e DB_ENCRYPTION_KEY="your-base64-key" \
-  chobble-tickets
+  ghcr.io/chobbledotcom/tickets:latest
 ```
 
-The Dockerfile uses a local SQLite file by default - set `DB_URL` and `DB_TOKEN`
-to point at a remote Turso database instead if you prefer.
+The image uses a local SQLite file by default - set `DB_URL` and `DB_TOKEN` to
+point at a remote Turso database instead if you prefer.
 
-### One-click platforms
+### Platforms
 
 Deploy to:
 [DigitalOcean](https://cloud.digitalocean.com/apps/new?repo=https://github.com/chobbledotcom/tickets/tree/main)
 |
-[Heroku](https://heroku.com/deploy?template=https://github.com/chobbledotcom/tickets/tree/main)
-|
-[Koyeb](https://app.koyeb.com/deploy?type=git&repository=github.com/chobbledotcom/tickets&branch=main&name=chobble-tickets&builder=dockerfile&ports=3000;http;/)
-|
 [Render](https://render.com/deploy?repo=https://github.com/chobbledotcom/tickets)
+|
+[Koyeb](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/chobbledotcom/tickets:latest&name=chobble-tickets&ports=3000;http;/)
 
-You can also deploy with [Fly.io](https://fly.io) (`fly launch`) or any Docker
-host.
+Each platform's config in this repository (`fly.toml`, `render.yaml`,
+`.do/deploy.template.yaml`) points at the published image. You can also deploy
+with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
+
+DigitalOcean App Platform does not watch GHCR images. It redeploys a `latest`
+image only when you ask it to: open the app, choose Actions, then Rebuild &
+Deploy — or run `doctl apps create-deployment <your-app-id>`.
 
 ## Repository layout
 
@@ -407,8 +431,8 @@ deno task screenshot --scenario ../tickets-site/scripts/screenshots/charity-even
 Themes are applied through the site's custom CSS form. The choices are
 `default`, `forest`, `sunset`, and `ink`; use `--theme all` to capture every
 selected page in every theme. Set `CHROMIUM_EXECUTABLE` when Chromium is not in
-Playwright's normal browser cache. On NixOS, `nix develop` provides Chromium and
-sets this variable for you.
+Playwright's normal browser cache. On NixOS, `devenv shell` provides Chromium
+and sets this variable for you.
 
 Form scenes such as `listing-form` and `add-attendee-form` hide the rest of the
 page, trim the image to the visible content, and add 32px of the page background
@@ -469,8 +493,10 @@ Tickets website imports that artifact into a reviewed pull request and keeps its
 ordinary site build offline.
 
 ```bash
-# Install Deno, cache dependencies, run all checks
-./setup.sh
+# Enter the development shell (installs the pinned Deno and the other tools),
+# then run all checks
+devenv shell
+deno task precommit
 
 # Run locally
 DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token \

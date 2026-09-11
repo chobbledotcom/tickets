@@ -8,7 +8,7 @@
  */
 
 import { listingGroups } from "#db/groups.ts";
-import { syncListingPrices } from "#db/listing-prices.ts";
+import { syncListingPrices } from "#db/listing-price-sync.ts";
 import {
   getAllListings,
   getListingWithCount,

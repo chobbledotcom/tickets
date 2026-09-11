@@ -12,6 +12,8 @@ const SKIPPED_FOLDERS = [
   ".agents",
   ".claude",
   ".codex",
+  ".container-work",
+  ".devenv",
   ".deno",
   ".deno-cache",
   ".deno_cache",

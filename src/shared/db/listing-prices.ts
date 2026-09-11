@@ -1,9 +1,8 @@
 /**
- * One row per (listing, pricing *dimension*, key within it). Every row but
- * `base` is the SOURCE of truth for its price.
+ * One row per (listing, pricing *dimension*, key within it).
  *
- *  - `("base", "")` mirrors the hot-path `listings.unit_price` column, which
- *    {@link syncListingPrices} keeps in step.
+ *  - `("base", "")` mirrors the hot-path `listings.unit_price` column —
+ *    `listing-price-sync.ts` keeps it in step.
  *  - `("group", "<groupId>")` is what a member charges per unit inside that
  *    package, whatever the span. A member with no override has no row.
  *  - `("start_day", "friday")` is reserved for weekday pricing. The shape
@@ -11,23 +10,15 @@
  */
 
 import * as v from "valibot";
-import {
-  execute,
-  executeBatch,
-  inPlaceholders,
-  queryAll,
-  queryIdColumn,
-  queryOnePrimary,
-  type TxScope,
-} from "#db/client.ts";
+import { execute, inPlaceholders, queryAll, type TxScope } from "#db/client.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-parents.ts";
-import { chunk, compact, mapNotNullish } from "#fp";
+import {
+  PRICE_TYPE_DAY_COUNT,
+  PRICE_TYPE_GROUP,
+  PRICE_TYPE_GROUP_DAY,
+} from "#db/price-types.ts";
+import { compact, mapNotNullish } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
-
-export const PRICE_TYPE_BASE = "base";
-export const PRICE_TYPE_DAY_COUNT = "day_count";
-export const PRICE_TYPE_GROUP = "group";
-export const PRICE_TYPE_GROUP_DAY = "group_day";
 
 /** The `price_id` composition for one (package group, day count) override. The
  * trailing `/` keeps LIKE prefixes exact: group 1's `1/%` can never match group
@@ -54,12 +45,14 @@ type PriceStatement = { sql: string; args: (number | string)[] };
 /** One managed price row's (listing, type, key, price) tuple. */
 type PriceRow = [number, string, string, number];
 
-/** The one INSERT every managed dimension shares, parameterised by its
- * (listing, type, key, price) args. */
-const insertPriceStatement = (args: PriceRow): PriceStatement => ({
-  args,
-  sql: "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
-});
+/** The delete that clears one managed dimension's rows for one listing — the
+ * head of every delete-then-insert replace this module writes. */
+const priceDimensionDelete =
+  (priceType: string) =>
+  (listingId: number): PriceStatement => ({
+    args: [listingId, priceType],
+    sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+  });
 
 /** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
  * are none. Every full-replace dimension (`day_count`, `group`, `group_day`)
@@ -237,21 +230,6 @@ export const getGroupDayPricesByGroupIds = async (
   return groups;
 };
 
-/** The delete-then-insert statements that make a listing's `base` row match
- * `unitPrice`. The `base` dimension mirrors the surviving `listings.unit_price`
- * column (kept as the hot-path read); {@link syncListingPrices} re-derives it
- * from that column after every write. */
-export const basePriceStatements = (
-  listingId: number,
-  unitPrice: number,
-): PriceStatement[] => [
-  {
-    args: [listingId, PRICE_TYPE_BASE],
-    sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-  },
-  insertPriceStatement([listingId, PRICE_TYPE_BASE, "", unitPrice]),
-];
-
 /** A full replace of a listing's per-day prices. These rows are the SOURCE of
  * truth, so the write paths pass the submitted prices rather than re-derive
  * from a column. `undefined` normalises to an empty map here, the one place
@@ -269,10 +247,7 @@ export const dayCountPriceStatements = (
     ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
   );
   return compact([
-    {
-      args: [listingId, PRICE_TYPE_DAY_COUNT],
-      sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-    },
+    priceDimensionDelete(PRICE_TYPE_DAY_COUNT)(listingId),
     multiInsertPriceStatement(rows),
   ]);
 };
@@ -316,96 +291,4 @@ export const writeListingDayCounts = async (
   }
   if (finishRelationships) await finishRelationships();
   await requireTouchingRelationshipsTx(tx, listingId);
-};
-
-/** A `listings` row projected to the one column the `base` mirror derives from.
- * `unit_price` may be NULL (read as 0). */
-const ListingPriceSourceRowSchema = v.object({
-  id: v.number(),
-  unit_price: v.nullable(v.number()),
-});
-
-type ListingPriceSourceRow = v.InferOutput<typeof ListingPriceSourceRowSchema>;
-
-/** The `base`-mirror statements for one raw `listings` row — shared by the
- * backfill and the per-listing {@link syncListingPrices}. A NULL `unit_price`
- * reads as 0. Day-count rows are written from input at write time, not from a
- * column, so they are not touched here. */
-export const sourceRowStatements = (row: ListingPriceSourceRow) =>
-  basePriceStatements(row.id, row.unit_price ?? 0);
-
-/** Listings read per backfill SELECT, and the ceiling on statements per write
- * batch — both bounded so a large site's backfill never materialises the whole
- * table into one libsql batch, which can exceed the edge migrator's payload
- * limits. A single listing contributes at most one delete plus one row per
- * offered day count, so a page stays comfortably within bounds. */
-const BACKFILL_LISTING_PAGE = 200;
-const BACKFILL_STATEMENT_PAGE = 500;
-
-/** Read the price-source column for a set of listing ids. */
-const readSourceRows = async (
-  ids: readonly number[],
-): Promise<ListingPriceSourceRow[]> => {
-  const rows = await execute(
-    `SELECT id, unit_price FROM listings
-      WHERE id IN (${inPlaceholders(ids)})`,
-    [...ids],
-  );
-  return v.parse(v.array(ListingPriceSourceRowSchema), rows.rows);
-};
-
-/** Execute the statements in bounded batches so no single write batch grows past
- * {@link BACKFILL_STATEMENT_PAGE}. Each listing's own delete+inserts may straddle
- * a page boundary; the backfill is idempotent, so a re-run still converges. */
-const executePaged = async (
-  statements: Array<{ sql: string; args: (number | string)[] }>,
-): Promise<void> => {
-  for (const page of chunk(BACKFILL_STATEMENT_PAGE)(statements)) {
-    await executeBatch(page);
-  }
-};
-
-/** Populate every listing's `base` row from its current `unit_price` — the
- * migration backfill for the `base` mirror. Idempotent: each row is deleted and
- * reinserted, so re-running converges. Paged by listing id (read) and by
- * statement count (write) to stay within edge payload limits on large sites.
- * (Day-count rows are backfilled by the day_prices migration from the column
- * before it is dropped; the per-write paths keep them in step thereafter.) */
-export const backfillListingPrices = async (): Promise<void> => {
-  const ids = await queryIdColumn("SELECT id FROM listings ORDER BY id");
-  for (const pageIds of chunk(BACKFILL_LISTING_PAGE)(ids)) {
-    const rows = await readSourceRows(pageIds);
-    await executePaged(rows.flatMap(sourceRowStatements));
-  }
-};
-
-/** Re-sync the `base` rows for a set of listings from their current
- * `unit_price` — the seed / bulk-clone bulk equivalent of
- * {@link syncListingPrices}, paged the same way as the backfill. Day-count rows
- * are written separately from the day prices those flows carry. */
-export const syncListingPricesForIds = async (
-  ids: readonly number[],
-): Promise<void> => {
-  if (ids.length === 0) return;
-  const rows = await readSourceRows(ids);
-  await executePaged(rows.flatMap(sourceRowStatements));
-};
-
-/** Re-sync one listing's `base` row from its current `unit_price` column. Called
- * after every listing insert/update (the form/API `afterCommit`) so the mirror
- * never drifts from the column. The source row is read on the primary
- * (write-mode batch) so it reflects the just-committed write rather than a
- * lagging replica, and parsed there — it does not go through
- * {@link readSourceRows}, whose bulk read need not be primary-pinned. A
- * missing listing is a no-op. Day-count rows are written from input by the
- * write paths, not re-derived here. */
-export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const row = await queryOnePrimary<unknown>(
-    "SELECT id, unit_price FROM listings WHERE id = ?",
-    [listingId],
-  );
-  if (row === null) return;
-  await executeBatch(
-    sourceRowStatements(v.parse(ListingPriceSourceRowSchema, row)),
-  );
 };

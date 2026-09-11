@@ -12,6 +12,6 @@ jobs:
   clean:
     runs-on: ubuntu-latest
     steps:
-      - uses: igorjs/gh-actions-clean-workflow@v7
+      - uses: igorjs/gh-actions-clean-workflow@5fa2e3a4fdd40e3e7098645a0b8df08624352e5e # v7
         with:
           runs_older_than: 7

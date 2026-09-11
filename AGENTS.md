@@ -15,23 +15,71 @@ The proposed corrections for PR #2259 are in the
 
 ## Getting Started
 
-Assume the workspace is probably running on NixOS. Use the repository's Nix
-development shell so Deno and the other tools come from `flake.nix`:
+Assume the workspace is probably running on NixOS. The developer environment is
+devenv (`devenv.nix`); it provides the pinned Deno and the other tools. Install
+devenv once (`nix profile add nixpkgs#devenv`, or see
+<https://devenv.sh/getting-started/>), then enter the shell:
 
 ```bash
-nix develop
+devenv shell
 ```
 
 For one command, run it through the shell instead of entering it:
 
 ```bash
-nix develop -c deno task precommit
+devenv shell deno task precommit
 ```
 
-Do not use `mise` or a host-installed `deno` directly when Nix is available. All
-`deno ...` commands in this file assume you are already inside `nix develop`;
-non-interactive agents must prefix them with `nix develop -c`. On systems
-without Nix, `./setup.sh` remains the fallback.
+A command with its own flags needs `--` before it:
+
+```bash
+devenv shell -- deno task test --filter "formats date"
+```
+
+### Automatic activation
+
+The devenv shell hook can start this environment when you enter this directory.
+Add the hook to your shell configuration first:
+
+```bash
+# bash
+eval "$(devenv hook bash)"
+```
+
+```bash
+# zsh
+eval "$(devenv hook zsh)"
+```
+
+```fish
+# fish
+devenv hook fish | source
+```
+
+Fish and nushell usually need no setup. devenv installed through Nix loads their
+hooks by itself.
+
+For nushell without automatic setup, run this once inside nushell:
+
+```nu
+mkdir ($nu.default-config-dir | path join autoload)
+devenv hook nu | save --force ($nu.default-config-dir | path join autoload/devenv-hook.nu)
+```
+
+Run `devenv allow` in this repository to trust it. The hook starts the shell at
+the next prompt. The hook leaves the shell when you `cd` out. The hook starts it
+again when you return.
+
+Do not add a direnv `.envrc` to this repository. The shell hook is the only
+automatic activation.
+
+Every development machine runs NixOS. Do not use a host-installed `deno`
+directly. All `deno ...` commands in this file assume you are already inside
+`devenv shell`; non-interactive agents must prefix them with `devenv shell`.
+
+`devenv.nix` declares the tools, profiles, and Git hook. Shell setup lives in
+`scripts/devenv/`. `nix/container.nix` declares the image and uses the scripts
+in `scripts/container/`.
 
 ## Runtime Environment
 
@@ -49,14 +97,25 @@ development with Deno ensures parity.
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
 project is expected to run on. Local development must use that version too.
 
-The Nix flake pins the required Deno version. Check it with:
+`devenv.yaml` pins the `nixpkgs-deno` input that provides that version.
+`enterShell` in `devenv.nix` refuses to enter when the pinned nixpkgs provides
+anything else. Check the version with:
 
 ```bash
-nix develop -c deno --version
+devenv shell -- deno --version
 ```
 
-The `.tool-versions` and mise configuration are kept in sync only for
-environments without Nix.
+The other tools (Biome, Chromium, gh) come from the main pinned `nixpkgs` input.
+Both `nixpkgs` and `nixpkgs-deno` are pinned to specific commits in
+`devenv.yaml`, so `devenv update` alone cannot move them — edit the commit SHA
+in `devenv.yaml`, then run `devenv update` to refresh `devenv.lock`. CI runs the
+same devenv environment as developers, through `.github/actions/setup-devenv`.
+
+Chromium dominates the environment's size. CI jobs that never launch a browser
+(the Test, backup, docs, and deploy workflows) evaluate the environment through
+its `ci` profile — `devenv --profile ci shell` — which leaves Chromium out. The
+browser-driven workflows (`spec-evidence`, `payment-sandbox-e2e`, `mutation`)
+use the full environment, the same one `devenv shell` gives a developer.
 
 ## stripe-mock
 
@@ -552,7 +611,7 @@ GitHub.
   most clearly. The name and the description are technical text, so they also
   follow
   [Simplified Technical English](#simplified-technical-english--how-we-write-documentation).
-- **Final check**: Run `nix develop -c deno task precommit` before finishing any
+- **Final check**: Run `devenv shell deno task precommit` before finishing any
   job with code or documentation changes. It is the only check that mirrors CI
   exactly — it typechecks the **test** files too, so `deno check <src>` plus
   `test:files` is not a substitute (a test-only type error will pass locally and
@@ -1273,6 +1332,10 @@ for grouping.
 | `sum(arr)`          | Sum an array of numbers                           |
 
 ## Code Duplication
+
+The main jscpd scan includes Bash (`.sh`) files under `scripts/`. Post-edit
+checks use the same scan for shell scripts. Bash retains the 0% threshold and
+the same minimum token count as the other source formats.
 
 `deno task cpd` (run as part of `deno task precommit`) runs jscpd with a **0%
 threshold — this is non-negotiable**. When it fails it prints this same
