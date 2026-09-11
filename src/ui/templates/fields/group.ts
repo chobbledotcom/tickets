@@ -5,11 +5,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import {
-  defineForm,
-  type FormDefinition,
-  type FormValues,
-} from "#shared/forms/definition.ts";
+import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { ChoiceField, Field, InputField } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
@@ -96,10 +92,7 @@ const groupCreateFields = () => {
   ] as const satisfies readonly Field[];
 };
 
-type GroupCreateForm = FormDefinition<ReturnType<typeof groupCreateFields>>;
-
-export const getGroupCreateForm = (): GroupCreateForm =>
-  defineForm({ fields: groupCreateFields() });
+export const getGroupCreateForm = defineFieldsForm(groupCreateFields);
 
 /** Group form field definitions (edit - includes slug) */
 const groupEditFields = () => {
@@ -107,10 +100,9 @@ const groupEditFields = () => {
   return [name, getSlugField(), ...remainingFields] as const;
 };
 
-type GroupForm = FormDefinition<ReturnType<typeof groupEditFields>>;
+export const getGroupForm = defineFieldsForm(groupEditFields);
 
-export const getGroupForm = (): GroupForm =>
-  defineForm({ fields: groupEditFields() });
-
-export type GroupCreateFormValues = FormValues<GroupCreateForm>;
-export type GroupFormValues = FormValues<GroupForm>;
+export type GroupCreateFormValues = FormValues<
+  ReturnType<typeof getGroupCreateForm>
+>;
+export type GroupFormValues = FormValues<ReturnType<typeof getGroupForm>>;

@@ -73,10 +73,6 @@ src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~1geahz2 read
 # seeds.tsx: the page passes no nav route, and no nav section owns the empty
 # string, so any non-route value renders the same unhighlighted nav.
 src/ui/templates/admin/seeds.tsx::adminSeedsPage~0quyacc  →"mutated"   # the page passes no nav route, and no section owns the empty string, so any non-route value renders the same unhighlighted nav
-src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~1dfcwnz  original_name → ""   # the duplicate preview table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
-src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~0mlva16  new_name → ""   # same as the original_name key — the preview table is rendered without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~01ktg5a  original_date → ""   # same as the original_name key — the preview table is rendered without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~1oyjr6z  new_date → ""   # same as the original_name key — the preview table is rendered without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.initialRows.dateFind~0jpoy5k  → "mutated"   # computeDayOffset short-circuits when either date is empty, and the initial dateReplace is empty, so the offset stays 0 under either value
 src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.initialRows.dateReplace~0u00vsl  → "mutated"   # computeDayOffset short-circuits when the initial dateFind is empty, so the replace value is never read
 src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.initialRows.nameReplace~1eieidw  → "mutated"   # applyNameReplacement short-circuits when the initial nameFind is empty, so the replace value is never read

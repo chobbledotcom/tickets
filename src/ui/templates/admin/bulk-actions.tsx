@@ -27,7 +27,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
@@ -171,31 +171,39 @@ export const adminBulkActionsPage = (
   );
 };
 
+/** One duplicate-preview column. The client-side preview recomputation reads
+ *  each cell through its data attribute, which spells the column key with
+ *  hyphens instead of underscores. */
+const previewTableColumn = <TRow, const TKey extends string>(
+  key: TKey,
+  headerKey: string,
+  cell: TableColumn<TRow, string, TKey>["cell"],
+): TableColumn<TRow, string, TKey> =>
+  translatedTableColumn(key, headerKey, cell, {
+    cellAttrs: () => ({ [`data-preview-${key.replaceAll("_", "-")}`]: true }),
+  });
+
 const previewColumns: readonly TableColumn<DuplicatePreviewRow, string>[] = [
-  {
-    cell: (row) => row.originalName,
-    cellAttrs: () => ({ "data-preview-original-name": true }),
-    header: translatedTableHeader("bulk_actions.preview_col_original_name"),
-    key: "original_name",
-  },
-  {
-    cell: (row) => row.newName,
-    cellAttrs: () => ({ "data-preview-new-name": true }),
-    header: translatedTableHeader("bulk_actions.preview_col_new_name"),
-    key: "new_name",
-  },
-  {
-    cell: (row, timezone) => formatIsoForPreview(row.originalDate, timezone),
-    cellAttrs: () => ({ "data-preview-original-date": true }),
-    header: translatedTableHeader("bulk_actions.preview_col_original_date"),
-    key: "original_date",
-  },
-  {
-    cell: (row, timezone) => formatIsoForPreview(row.newDate, timezone),
-    cellAttrs: () => ({ "data-preview-new-date": true }),
-    header: translatedTableHeader("bulk_actions.preview_col_new_date"),
-    key: "new_date",
-  },
+  previewTableColumn(
+    "original_name",
+    "bulk_actions.preview_col_original_name",
+    (row) => row.originalName,
+  ),
+  previewTableColumn(
+    "new_name",
+    "bulk_actions.preview_col_new_name",
+    (row) => row.newName,
+  ),
+  previewTableColumn(
+    "original_date",
+    "bulk_actions.preview_col_original_date",
+    (row, timezone) => formatIsoForPreview(row.originalDate, timezone),
+  ),
+  previewTableColumn(
+    "new_date",
+    "bulk_actions.preview_col_new_date",
+    (row, timezone) => formatIsoForPreview(row.newDate, timezone),
+  ),
 ];
 
 const duplicatePreviewTable = defineTable(previewColumns);
