@@ -1577,6 +1577,9 @@ query logging and table-scoped cache invalidation stay automatic.
 
 ## Scripts
 
+- `agent-diagnose` - The Nix-built host diagnostic tool reports read-only
+  process, check, and Git lock facts. Use the immutable path from OpenCode's
+  global instructions. See [Precommit status records](docs/precommit-status.md).
 - `deno task start` - Run the server
 - `deno task dev` - Run the server with `--watch`, restarting it whenever a
   source file changes. `build:static` runs once at the start, so an edit to a

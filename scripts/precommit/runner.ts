@@ -6,6 +6,10 @@ import { withPrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { runChecksBeforePush } from "./run-order.ts";
+import {
+  type PrecommitStatusProducer,
+  runWithPrecommitStatus,
+} from "./status.ts";
 import { getSteps, type Step } from "./steps.ts";
 import {
   canPrompt,
@@ -93,13 +97,13 @@ const runStep = async (step: Step): Promise<boolean> => {
   return success;
 };
 
-const runSteps = async (): Promise<void> => {
+const runSteps = async (status: PrecommitStatusProducer): Promise<void> => {
   const steps = getSteps();
   for (const step of steps) {
-    const passed = await runStep(step);
+    const passed = await status.runStep(step.name, () => runStep(step));
     if (!passed) {
       console.log(`\n${red("precommit failed")} at ${step.name}`);
-      Deno.exit(1);
+      throw new Error("Precommit check failed");
     }
   }
 
@@ -115,28 +119,31 @@ const pushCheckedInChanges = async (): Promise<void> => {
   });
   if (!pushSucceeded) {
     console.log(red("git push failed"));
-    Deno.exit(1);
+    throw new Error("Git push failed");
   }
 };
 
 export const main = async (): Promise<void> => {
-  const ci = isCi();
-  if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
-  // Cap test parallelism for the run. CI uses every thread; a local git hook
-  // uses (threads / 2) - 1 so the editor and foreground work keep headroom.
-  // A valid explicit DENO_JOBS wins; replace invalid values with the default.
-  const jobs = resolveDenoJobs(
-    navigator.hardwareConcurrency,
-    ci,
-    Deno.env.get("DENO_JOBS"),
-  );
-  Deno.env.set("DENO_JOBS", String(jobs));
-  console.log(bold(ci ? "precommit (ci)" : "precommit"));
-  await warnAboutMergeConflicts();
-  await runChecksBeforePush(
-    ci,
-    runSteps,
-    pushCheckedInChanges,
-    withPrecommitLock,
-  );
+  await runWithPrecommitStatus(async (status) => {
+    const ci = isCi();
+    if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
+    // Cap test parallelism for the run. CI uses every thread; a local git hook
+    // uses (threads / 2) - 1 so the editor and foreground work keep headroom.
+    // A valid explicit DENO_JOBS wins; replace invalid values with the default.
+    const jobs = resolveDenoJobs(
+      navigator.hardwareConcurrency,
+      ci,
+      Deno.env.get("DENO_JOBS"),
+    );
+    Deno.env.set("DENO_JOBS", String(jobs));
+    console.log(bold(ci ? "precommit (ci)" : "precommit"));
+    await warnAboutMergeConflicts();
+    await runChecksBeforePush(
+      ci,
+      () => runSteps(status),
+      pushCheckedInChanges,
+      withPrecommitLock,
+    );
+    return 0;
+  });
 };
