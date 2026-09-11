@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateToRange } from "#db/capacity.ts";
 import {
+  addDemandToBucket,
   buildCartCapacitySql,
   type CapacityBucket,
   type CartDemand,
+  getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
@@ -155,7 +157,32 @@ describe("buildCartCapacitySql", () => {
     expect(occurrences(flatSql(sql), "dayDemand.column3")).toBe(1);
     expect(occurrences(flatSql(sql), "VALUES")).toBe(1);
     expect(occurrences(flatSql(sql), ") AND (")).toBe(0);
+    // The rows of one day-demand table are comma-separated tuples of
+    // (start_at, end_at, qty), each column read by its own reference.
+    expect(sql).toContain("), (");
+    expect(occurrences(flatSql(sql), "dayDemand.column2")).toBe(1);
     expect(sql).toContain("max_attendees");
+  });
+
+  test("two demanding buckets join their clauses with AND", () => {
+    const demand: CartDemand = {
+      groupDemand: new Map([[9, bucket([], 3)]]),
+      listingDemand: new Map([[LISTING, bucket([], 2)]]),
+    };
+    const { sql } = buildCartCapacitySql(demand);
+    // One AND joins the two buckets' clauses; the other sits inside the
+    // violation expression itself.
+    expect(occurrences(flatSql(sql), " AND ")).toBe(2);
+    expect(occurrences(flatSql(sql), "dayDemand.column1")).toBe(0);
+  });
+
+  test("a dated clause reads its day range from the day-demand columns", () => {
+    const { sql } = buildCartCapacitySql(
+      demandWith(new Map([[LISTING, bucket([[DAY, 2]], 0)]])),
+    );
+    // The count subquery's window is the VALUES row's own columns.
+    expect(occurrences(flatSql(sql), "dayDemand.column1")).toBe(1);
+    expect(occurrences(flatSql(sql), "dayDemand.column2")).toBe(1);
   });
 
   test("group demand folds the cart's date-less units into every day and keeps the running-total clause", () => {
@@ -225,5 +252,99 @@ describe("buildCartCapacitySql", () => {
     expect(sql).toContain("AS fits");
     expect(sql).toContain("+ 2 <=");
     expect(args).toEqual([LISTING]);
+  });
+});
+
+/** One cart line as the demand fold feeds it. */
+const item = (quantity: number, durationDays?: number) => ({
+  ...(durationDays === undefined ? {} : { durationDays }),
+  listingId: LISTING,
+  quantity,
+});
+
+describe("addDemandToBucket", () => {
+  const freshBucket = (): CapacityBucket =>
+    getOrCreateBucket(new Map<number, CapacityBucket>(), 5);
+
+  test("the bucket's last date-less line replaces, not adds to, the snapshot it pins", () => {
+    // Two date-less lines on a total-counted listing: the snapshot the write's
+    // last undated statement reads is the running total AT that line (3),
+    // never an accumulator of earlier snapshots (0 + 1 + 3).
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "standard" }, item(1), undefined);
+    addDemandToBucket(bucket, { listing_type: "standard" }, item(2), undefined);
+    expect(bucket).toEqual({
+      everyDay: 3,
+      perDay: new Map(),
+      runningTotal: 3,
+      throughLastUndated: 3,
+      undatedOnly: 0,
+    });
+  });
+
+  test("a date-less line on a per-date listing pins the same snapshot on its own side", () => {
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), null);
+    expect(bucket).toEqual({
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 2,
+      throughLastUndated: 2,
+      undatedOnly: 2,
+    });
+  });
+
+  test("a dated line booked after the last date-less line never raises the pinned snapshot", () => {
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(1), null);
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), DAY);
+    expect(bucket.runningTotal).toBe(3);
+    expect(bucket.throughLastUndated).toBe(1);
+    expect([...bucket.perDay]).toEqual([[DAY, 2]]);
+  });
+
+  test("a zero-quantity line demands nothing", () => {
+    // getOrCreateBucket's fields stay untouched by the zero line — the
+    // initializer's zeros are visible to the demand fold's caller.
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "standard" }, item(0), undefined);
+    expect(bucket).toEqual({
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 0,
+      throughLastUndated: 0,
+      undatedOnly: 0,
+    });
+  });
+
+  test("a multi-day line occupies each of its days once", () => {
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(1, 2), DAY);
+    expect([...bucket.perDay]).toEqual([
+      [DAY, 1],
+      ["2026-05-02", 1],
+    ]);
+  });
+
+  test("two date-less lines on a per-date listing replace the pinned snapshot", () => {
+    // The undated snapshot on a per-date listing is the same replace-not-add
+    // rule: the write's last undated statement reads the running total AT
+    // that line (3), not an accumulator of the earlier snapshot (1 + 3).
+    const bucket = freshBucket();
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(1), null);
+    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), null);
+    expect(bucket.throughLastUndated).toBe(3);
+    expect(bucket.undatedOnly).toBe(3);
+  });
+
+  test("a bucket created for one key is stored and handed back on the next visit", () => {
+    const buckets = new Map<number, CapacityBucket>();
+    const first = getOrCreateBucket(buckets, 5);
+    first.everyDay = 9;
+    expect(getOrCreateBucket(buckets, 5)).toBe(first);
+    expect(getOrCreateBucket(buckets, 5).everyDay).toBe(9);
+    // Another key gets its own bucket, leaving the first untouched.
+    expect(getOrCreateBucket(buckets, 6).everyDay).toBe(0);
+    expect(getOrCreateBucket(buckets, 5).everyDay).toBe(9);
   });
 });

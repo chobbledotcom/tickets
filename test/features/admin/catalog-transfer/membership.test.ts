@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/listing-prices.ts";
+import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import {
   type ImportedMembership,
   membershipStatements,

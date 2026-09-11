@@ -2,8 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import {
-  backfillListingPrices,
-  basePriceStatements,
   dayCountPriceStatements,
   getGroupDayPrices,
   getGroupDayPricesByGroupIds,
@@ -11,32 +9,15 @@ import {
   groupDayPriceStatements,
   groupFlatPriceStatements,
   removeListingGroupPricesStatement,
-  sourceRowStatements,
-  syncListingPrices,
-  syncListingPricesForIds,
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  createTestListing,
-  updateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
-
-describe("basePriceStatements", () => {
-  test("emits a base-scoped delete then one base insert", () => {
-    const stmts = basePriceStatements(5, 750);
-    expect(stmts.map((s) => s.args)).toEqual([
-      [5, "base"],
-      [5, "base", "", 750],
-    ]);
-    // The delete scopes to the base dimension only (never day_count/group rows).
-    expect(stmts[0]!.sql).toBe(
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-    );
-    expect(stmts[1]!.sql.startsWith("INSERT INTO listing_prices")).toBe(true);
-  });
-});
+  createDayPricedListing,
+  priceRows,
+} from "./listing-prices/fixtures.ts";
 
 describe("dayCountPriceStatements", () => {
   test("emits a day_count-scoped delete then ONE multi-row insert for all day counts", () => {
@@ -81,26 +62,6 @@ describe("dayCountPriceStatements", () => {
     const stmts = dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 });
     expect(stmts.length).toBe(2);
     expect(stmts[1]!.args).toEqual([9, "day_count", "4", 800]);
-  });
-});
-
-describe("sourceRowStatements", () => {
-  test("projects a raw listings row's base row from unit_price", () => {
-    expect(
-      sourceRowStatements({ id: 3, unit_price: 250 }).map((s) => s.args),
-    ).toEqual([
-      [3, "base"],
-      [3, "base", "", 250],
-    ]);
-  });
-
-  test("reads a NULL unit_price as 0", () => {
-    expect(
-      sourceRowStatements({ id: 4, unit_price: null }).map((s) => s.args),
-    ).toEqual([
-      [4, "base"],
-      [4, "base", "", 0],
-    ]);
   });
 });
 
@@ -205,39 +166,7 @@ describe("removeListingGroupPricesStatement", () => {
   });
 });
 
-/** The managed rows for a listing, ordered for stable assertions. */
-const priceRows = (
-  listingId: number,
-): Promise<{ price_type: string; price_id: string; unit_price: number }[]> =>
-  queryAll(
-    `SELECT price_type, price_id, unit_price FROM listing_prices
-      WHERE listing_id = ? ORDER BY price_type, price_id`,
-    [listingId],
-  );
-
-/** Create a customisable listing with the given per-day-count prices through the
- * real admin form path (which writes the day_count rows). */
-const createDayPricedListing = (dayPrices: Record<number, number>) =>
-  createTestListing({
-    customisableDays: true,
-    dayPrices,
-    durationDays: 5,
-    unitPrice: 0,
-  });
-
 describeWithEnv("listing_prices persistence", { db: true }, () => {
-  test("admin create/edit keep the base row synced from unit_price", async () => {
-    // The real admin form path writes base from the unit_price column mirror.
-    const listing = await createTestListing({ unitPrice: 750 });
-    expect(await priceRows(listing.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 750 },
-    ]);
-    await updateTestListing(listing.id, { unitPrice: 900 });
-    expect(await priceRows(listing.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 900 },
-    ]);
-  });
-
   test("admin create writes day_count rows and projects them back on read", async () => {
     // day_prices is no longer a column — the write path persists day_count rows,
     // and the entity's day_prices is projected back from them on read.
@@ -266,49 +195,6 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     expect(edited.day_prices).toEqual({ 1: 550 });
   });
 
-  test("updating day prices directly via the wrapper replaces the day_count rows", async () => {
-    const listing = await createDayPricedListing({ 1: 400 });
-    const updated = await listingsTable.update(listing.id, {
-      customisableDays: true,
-      dayPrices: { 2: 900, 3: 1300 },
-      durationDays: 5,
-    });
-    expect(updated!.day_prices).toEqual({ 2: 900, 3: 1300 });
-    expect(await getListingDayPrices(listing.id)).toEqual({ 2: 900, 3: 1300 });
-  });
-
-  test("a partial update that omits day prices leaves the day_count rows intact", async () => {
-    const listing = await createDayPricedListing({ 1: 400, 2: 700 });
-    // A direct partial update (no dayPrices) must not clobber the day_count rows.
-    const row = await listingsTable.update(listing.id, { active: false });
-    expect(row!.day_prices).toEqual({ 1: 400, 2: 700 });
-    expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 2: 700 });
-  });
-
-  test("backfill rebuilds the base rows from unit_price", async () => {
-    const a = await createTestListing({ unitPrice: 750 });
-    const b = await createTestListing({ unitPrice: 400 });
-    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
-    await backfillListingPrices();
-    expect(await priceRows(a.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 750 },
-    ]);
-    expect(await priceRows(b.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 400 },
-    ]);
-  });
-
-  test("a source row whose price is not a number fails the backfill loudly", async () => {
-    // SQLite stores whatever survives the column's affinity: a price that
-    // reached the column as text is a drifted shape the read must refuse, not
-    // pass through to the base row as-is.
-    const listing = await createTestListing({ unitPrice: 750 });
-    await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
-      listing.id,
-    ]);
-    await expect(backfillListingPrices()).rejects.toThrow("Invalid type");
-  });
-
   test("a day-count row whose price is not a number fails the read loudly", async () => {
     // Before the parse, a drifted row let parseDayPrices quietly drop the day
     // from the projection, so an editor read a price that was not the stored
@@ -331,66 +217,30 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     expect(await priceRows(listing.id)).toEqual([]);
   });
 
-  test("syncListingPricesForIds rebuilds base rows for the given listings only", async () => {
-    const a = await createTestListing({ unitPrice: 300 });
-    const b = await createTestListing({ unitPrice: 700 });
-    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
-    await syncListingPricesForIds([a.id, b.id]);
-    expect(await priceRows(a.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 300 },
-    ]);
-    expect(await priceRows(b.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 700 },
-    ]);
-  });
-
-  test("syncListingPricesForIds rebuilds a single listing, and only it", async () => {
-    const only = await createTestListing({ unitPrice: 450 });
-    const untouched = await createTestListing({ unitPrice: 800 });
-    // The other listing's mirror is left deliberately stale. Syncing one id
-    // must not quietly refresh it — that is what proves the scope is honoured
-    // rather than the whole table being rebuilt.
-    await queryAll("DELETE FROM listing_prices WHERE listing_id = ?", [
-      only.id,
-    ]);
-    await queryAll(
-      "UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ?",
-      [untouched.id],
-    );
-
-    await syncListingPricesForIds([only.id]);
-
-    expect(await priceRows(only.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 450 },
-    ]);
-    expect(await priceRows(untouched.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 1 },
-    ]);
-  });
-
-  test("syncListingPricesForIds is a no-op for an empty id list", async () => {
-    await syncListingPricesForIds([]);
-    expect(await priceRows(987656)).toEqual([]);
-  });
-
-  test("syncListingPrices is a no-op for a listing that does not exist", async () => {
-    await syncListingPrices(987654);
-    expect(await priceRows(987654)).toEqual([]);
-  });
-
-  test("a source row that is not a number fails the sync loudly", async () => {
-    const listing = await createTestListing({ unitPrice: 750 });
-    await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
-      listing.id,
-    ]);
-    await expect(syncListingPrices(listing.id)).rejects.toThrow("Invalid type");
-  });
-
   test("updating a missing listing writes no price rows", async () => {
     // The table wrapper only re-syncs when the update returns a row; a missing
     // id yields null and must not touch listing_prices.
     expect(await listingsTable.update(987655, { unitPrice: 500 })).toBeNull();
     expect(await priceRows(987655)).toEqual([]);
+  });
+
+  test("updating day prices directly via the wrapper replaces the day_count rows", async () => {
+    const listing = await createDayPricedListing({ 1: 400 });
+    const updated = await listingsTable.update(listing.id, {
+      customisableDays: true,
+      dayPrices: { 2: 900, 3: 1300 },
+      durationDays: 5,
+    });
+    expect(updated!.day_prices).toEqual({ 2: 900, 3: 1300 });
+    expect(await getListingDayPrices(listing.id)).toEqual({ 2: 900, 3: 1300 });
+  });
+
+  test("a partial update that omits day prices leaves the day_count rows intact", async () => {
+    const listing = await createDayPricedListing({ 1: 400, 2: 700 });
+    // A direct partial update (no dayPrices) must not clobber the day_count rows.
+    const row = await listingsTable.update(listing.id, { active: false });
+    expect(row!.day_prices).toEqual({ 1: 400, 2: 700 });
+    expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 2: 700 });
   });
 
   /** Insert one raw `group_day` row with a crafted price_id, so the readers'

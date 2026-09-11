@@ -17,10 +17,8 @@ import {
   copyPackageMemberOverridesTx,
   setListingGroupsTx,
 } from "#db/groups.ts";
-import {
-  syncListingPrices,
-  writeListingDayCounts,
-} from "#db/listing-prices.ts";
+import { syncListingPrices } from "#db/listing-price-sync.ts";
+import { writeListingDayCounts } from "#db/listing-prices.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */

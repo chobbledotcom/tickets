@@ -1,20 +1,17 @@
 /**
  * refusedOrderUnfitListingIds names a refused order's culprit in a bounded
- * number of primary round trips: one facts batch, one whole-order probe, and
- * a binary search over the order's prefixes.
+ * number of primary round trips: one facts batch, then the order's prefixes
+ * asked as one snapshot batch. A longer order narrows a bracket over stride
+ * batches instead — those cases live in stride.test.ts.
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/checks.ts";
+import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import { execute } from "#db/client.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, runWithQueryLogContext } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -25,14 +22,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-
-const DAY = "2026-10-01";
-
-const line = (
-  listingId: number,
-  date: string | null = null,
-  quantity = 1,
-): LineBooking => ({ date, durationDays: 1, listingId, quantity });
+import { awaitObservedProbe, DAY, line } from "./helpers.ts";
 
 /** A one-place daily listing whose place on DAY is already taken. */
 const dailyTakenOnDay = async (): Promise<{ id: number }> => {
@@ -275,12 +265,12 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     ]);
   });
 
-  test("a cancellation during the search names nothing, not the last line", async () => {
-    // The probes are separate reads. If the room frees between the
-    // whole-order probe and the midpoints, every later probe fits on top of
-    // a refusal the room no longer supports — the search must answer no
-    // culprit, like the race guard above it, instead of naming the last
-    // line off the stale probe.
+  test("a cancellation after the probes' one snapshot still names the tipping line", async () => {
+    // The facts batch and the prefix probes are the read's only two round
+    // trips, and the probes share one snapshot. A cancellation observed after
+    // that snapshot cannot change its answer, so the line that did not fit at
+    // the snapshot is still named — no re-probe guard can veto it, because no
+    // probe contradicts another any more.
     const group = await createTestGroup({ maxAttendees: 8 });
     const holder = await createDailyTestListing({
       groupId: group.id,
@@ -303,33 +293,38 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     await runWithQueryLogContext(async () => {
       enableQueryLog();
       const diagnosis = refusedOrderUnfitListingIds(lines);
-      // The facts batch and the whole-order probe are the read's first two
-      // round trips. Free the two held places once the probe has run, so
-      // every later probe sees the freed room. A limit expiry must fail the
-      // test, not free the room too early and pass vacuously.
-      const probeObserved = (): boolean =>
-        getQueryLog().some((entry) => entry.sql.includes("AS fits"));
-      let spins = 0;
-      while (!probeObserved() && spins++ < 5_000) {
-        await Promise.resolve();
-      }
-      if (!probeObserved()) {
-        throw new Error("Setup: the whole-order probe was never observed");
-      }
+      // The probe batch's log entries appear together once the batch lands,
+      // so waiting for the fits SQL to be observed means the snapshot is
+      // already taken — a limit expiry must fail the test, not free the
+      // room while the snapshot is still in flight and pass vacuously.
+      await awaitObservedProbe();
       await execute("DELETE FROM listing_attendees WHERE listing_id = ?", [
         holder.id,
       ]);
-      expect(await diagnosis).toEqual([]);
+      // Two held places plus seven lines tip the cap of eight, so the line
+      // that did not fit at the snapshot is the seventh.
+      expect(await diagnosis).toEqual([lines[6]!.listingId]);
     });
   });
 
-  test("a long refused order is named within a logarithmic call count", async () => {
-    // The facts batch plus the whole-order probe plus three halving probes
-    // plus the final whole-order look is six calls — one per prefix would be
-    // nine.
+  test("a long refused order is named in one facts batch and one snapshot batch", async () => {
+    // The prefix probes share one snapshot, so the whole order's answer and
+    // every prefix's answer come back together: all prefixes this order
+    // needs are one probe batch, so the diagnosis costs two database calls.
     const lines = await eightLinesSharingOnePlace();
     expect(
-      await countDatabaseCalls(6, () => refusedOrderUnfitListingIds(lines)),
-    ).toBe(6);
+      await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
+    ).toBe(2);
+  });
+
+  test("an empty order names nothing", async () => {
+    expect(await refusedOrderUnfitListingIds([])).toEqual([]);
+  });
+
+  test("a single unfit line names itself", async () => {
+    const daily = await dailyTakenOnDay();
+    expect(await refusedOrderUnfitListingIds([line(daily.id, DAY)])).toEqual([
+      daily.id,
+    ]);
   });
 });

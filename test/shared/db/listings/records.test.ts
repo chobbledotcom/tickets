@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { getListingDayPrices, PRICE_TYPE_BASE } from "#db/listing-prices.ts";
+import { getListingDayPrices } from "#db/listing-prices.ts";
 import {
   getAllListingOptions,
   getAllListings,
@@ -15,6 +15,7 @@ import {
   requireListingsWithCountsByIds,
   requireListingWithCount,
 } from "#db/listings/records.ts";
+import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import {
   enableQueryLog,
   getQueryLog,

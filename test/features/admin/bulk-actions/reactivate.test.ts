@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
-import { expectHtml } from "#test-utils/assertions.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
+import {
+  expectErrorFlash,
+  expectFlash,
+  expectHtml,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -74,6 +79,12 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
+      // The success flash and the activity row both name the action, and every
+      // member comes back.
+      expectFlash(response, "Group reactivated (2 listing(s))");
+      expect(await activityMessages()).toContain(
+        "Group 'Bring Back' reactivated (2 listing(s))",
+      );
       expect((await getListingWithCount(a.id))?.active).toBe(true);
       expect((await getListingWithCount(b.id))?.active).toBe(true);
     });
@@ -100,6 +111,8 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       expect(response.headers.get("location")).toContain(
         `/admin/groups/${group.id}/bulk-actions/reactivate`,
       );
+      // The mismatch error names the field to type.
+      expectErrorFlash(response, "Group name does not match");
       expect((await getListingWithCount(listing.id))?.active).toBe(false);
     });
   });
