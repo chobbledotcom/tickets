@@ -108,6 +108,28 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
 
     expect(lines.length).toBe(2);
     expect(distinctIds(page.rows)).toHaveLength(ATTENDEES_PAGE_SIZE);
+    // Every attendee's lines count in full: 99 single-line fillers plus this
+    // attendee's two. A page that split (or double-counted) an attendee's
+    // lines would change this row count.
+    expect(page.rows.length).toBe(ATTENDEES_PAGE_SIZE + 1);
+  });
+
+  test("the first page holds the newest attendees when more than a page exists", async () => {
+    const listing = await createTestListing();
+    await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE + 2);
+
+    const page = await getAttendeesPage({
+      listingIds: null,
+      page: 0,
+      sort: "newest",
+    });
+    const ids = distinctIds(page.rows).sort((a, b) => b - a);
+
+    // More attendees than the overread: the page must come from the NEWEST
+    // end, so the newest attendee id of all sits at the top of the page.
+    const newestId = ids[0]!;
+    expect(newestId).toBeGreaterThan(ids[1]!);
+    expect(ids).not.toContain(newestId - (ATTENDEES_PAGE_SIZE + 1));
   });
 
   test("newest sorts attendee ids falling; oldest rising", async () => {

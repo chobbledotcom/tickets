@@ -305,3 +305,8 @@ src/shared/accounting/backfill.ts::nextPaidAttendeeIds~075mmxn  %20ORDER BY atte
 src/shared/accounting/backfill.ts::paidRowsForAttendees~1lrcy8f  %20WHERE listingAttendee.price_paid > 0→""   # the page's attendee ids are pre-gated on price_paid > 0; a freed zero-gross line is dropped by mapBooking and adds 0 to every sum
 src/shared/accounting/backfill.ts::paidRowsForAttendees~1v0m15x  %20ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id→""   # rows feed sums grouped by attendee and a group-keyed stamp; no reader consumes their order
 src/shared/accounting/backfill.ts::attendeeStatements~0lgaj8m  0 → 1   # every backfilled attendee's order posts a sale and a payment leg sharing one event group, so legs[1] carries the same group as legs[0]
+
+# SQLite lexes `?` followed directly by `WHEN` as the parameter then the
+# keyword, so removing the join separator between CASE arms parses to the
+# same statement with the same bound args.
+src/shared/accounting/reverses-group.ts::reversesStatements.sql~1cwsis7  %20→""   # `THEN ?WHEN ?` lexes as `THEN ? WHEN ?`; the CASE arm list and its binds are unchanged

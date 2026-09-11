@@ -90,7 +90,8 @@ export const postListingSale = async ({
   amountPaid?: number;
   eventId?: string;
   stampStartAt?: string;
-}): Promise<void> => {
+  /** @returns the booking event group the sale landed under. */
+}): Promise<string> => {
   const legs = await oneListingBookingLegs({
     amountPaid,
     attendeeId,
@@ -111,6 +112,7 @@ export const postListingSale = async ({
       " WHERE attendee_id = ? AND listing_id = ? AND ledger_event_group = ''" +
       (stampStartAt === undefined ? "" : " AND start_at IS ?"),
   });
+  return legs[0]!.eventGroup;
 };
 
 /**

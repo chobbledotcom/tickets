@@ -243,3 +243,10 @@ src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → ||   # r
 
 src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → ||   # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
 src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true   # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
+
+# A booking event posts its legs once, together: the store rejects adding a
+# leg to an already-posted group (replay conflict), and mapBooking always
+# pairs a sale with a payment INTO the same attendee. So a payment-kind leg
+# sharing an unpaid sale's event group but landing in another account is not
+# a state any ledger write can produce.
+src/shared/db/listing-overview-stats.ts::incompleteSales.noPayment~1t2xb3x  %20AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id→""   # shop appends whole events atomically; a payment leg in a sale's group always destinations that booking's attendee
