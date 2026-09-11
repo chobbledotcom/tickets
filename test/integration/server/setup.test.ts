@@ -299,7 +299,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
             await expectHtmlResponse(
               response,
               503,
-              "Temporary Error",
+              "Temporary error",
               "status.bunny.net",
             );
           });
@@ -479,7 +479,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
                   csrfToken as string,
                 ),
               );
-              await expectHtmlResponse(response, 503, "Temporary Error");
+              await expectHtmlResponse(response, 503, "Temporary error");
             },
           );
         });

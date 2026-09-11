@@ -29,8 +29,8 @@ describe("temporaryErrorPage", () => {
   registerPublicTemplateHooks();
 
   test("renders error message with auto-refresh", () => {
-    const html = temporaryErrorPage();
-    expect(html).toContain("<h1>Temporary Error</h1>");
+    const html = temporaryErrorPage(true);
+    expect(html).toContain("<h1>Temporary error</h1>");
     expect(html).toContain("Retrying automatically");
     expect(html).toContain('http-equiv="refresh"');
     expect(html).toContain('content="2"');
@@ -40,6 +40,18 @@ describe("temporaryErrorPage", () => {
     expect(html).toContain(
       'Check <strong><a href="https://status.bunny.net/">status.bunny.net</a>',
     );
+  });
+  test("preserves uncertainty about the submission", () => {
+    const html = temporaryErrorPage(false);
+    expect(html).not.toContain('http-equiv="refresh"');
+    expect(html).not.toContain("Retrying automatically");
+    expect(html).not.toContain("your submission was not saved");
+    expect(html).toContain("Your changes may already be saved.");
+    expect(html).toContain(
+      "Check the existing records or your booking before you submit again.",
+    );
+    expect(html).toContain("font-family:system-ui");
+    expect(html).toContain('href="https://status.bunny.net/"');
   });
 });
 

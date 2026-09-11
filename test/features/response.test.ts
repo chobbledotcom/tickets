@@ -18,6 +18,7 @@ import {
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 // jscpd:ignore-end
 
@@ -176,26 +177,29 @@ describeWithEnv("route responses", { db: true }, () => {
   });
 
   describe("system responses", () => {
-    test("renders a temporary error that reloads", async () => {
-      const response = temporaryErrorResponse();
-      await expectHtmlResponse(
-        response,
-        503,
-        "Temporary Error",
-        "Retrying automatically",
-        'http-equiv="refresh"',
-      );
-    });
+    for (const [method, autoRefresh] of [
+      ["GET", true],
+      ["HEAD", true],
+      ["POST", false],
+      ["PUT", false],
+      ["PATCH", false],
+      ["DELETE", false],
+      ["OPTIONS", false],
+    ] as const) {
+      test(`applies the temporary error refresh policy for ${method}`, async () => {
+        await expectTemporaryError(autoRefresh)(temporaryErrorResponse(method));
+      });
+    }
 
     test("reloads a busy database page only for a safe request", async () => {
       const retry = await expectHtmlResponse(
-        databaseBusyResponse(true),
+        databaseBusyResponse("GET"),
         503,
         "The database is too busy.",
         'http-equiv="refresh"',
       );
       const noRetry = await expectHtmlResponse(
-        databaseBusyResponse(false),
+        databaseBusyResponse("POST"),
         503,
         "Please go back and try again",
       );
@@ -220,7 +224,7 @@ describeWithEnv("route responses", { db: true }, () => {
         "backing up and updating the database",
         'http-equiv="refresh"',
       );
-      expect(html).not.toContain("Temporary Error");
+      expect(html).not.toContain("Temporary error");
     });
   });
 });
