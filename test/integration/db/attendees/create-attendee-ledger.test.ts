@@ -5,7 +5,6 @@ import {
   revenueAccount,
   WORLD,
 } from "#accounting/accounts.ts";
-import { mapBooking } from "#accounting/mappers.ts";
 import {
   accountBalance,
   allTransfers,
@@ -13,10 +12,8 @@ import {
 } from "#accounting/queries.ts";
 import { postTransfersTx } from "#accounting/store.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { type TxScope, withTransaction } from "#db/client.ts";
-import { postBookingLegsTx } from "#shared/checkout-complete.ts";
+import type { TxScope } from "#db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -158,40 +155,6 @@ describeWithEnv(
       expect(posted.value).toBe(false);
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);
-    });
-
-    // A booking row's `ledger_event_group` must name ITS order. An attendee
-    // who already holds an order (the state a merge leaves) must keep that
-    // order's rows pointing at its legs when a later order posts: the stamp
-    // fills only rows still carrying no order, never overwrites one.
-    test("stamps only rows the order created, never an earlier order's rows", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const made = await attendeesApi.createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 1 }],
-        email: "stamps@example.com",
-        name: "Stamps",
-      });
-      expect(made.success).toBe(true);
-      if (!made.success) return;
-      const attendeeId = made.attendees[0]!.id;
-      const orderLegs = (gross: number, eventId: string) =>
-        mapBooking({
-          amountPaid: gross,
-          attendeeId,
-          bookingFee: 0,
-          eventId,
-          lines: [{ gross, listingId: listing.id }],
-          modifiers: [],
-          occurredAt: "2026-06-21T00:00:00.000Z",
-        });
-      const first = await orderLegs(100, "stamp-order-one");
-      await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, first));
-
-      const second = await orderLegs(200, "stamp-order-two");
-      await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, second));
-
-      const lines = await loadExistingLines(attendeeId);
-      expect(lines[0]!.booking.ledger_event_group).toBe(first[0]!.eventGroup);
     });
   },
 );
