@@ -309,9 +309,8 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
 
   test("a long refused order is named in one facts batch and one snapshot batch", async () => {
     // The prefix probes share one snapshot, so the whole order's answer and
-    // every prefix's answer come back together: two round trips for an order
-    // small enough to sample every line, where the halving search needed
-    // one request per probe.
+    // every prefix's answer come back together: all prefixes this order
+    // needs are one probe batch, so the diagnosis costs two database calls.
     const lines = await eightLinesSharingOnePlace();
     expect(
       await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
