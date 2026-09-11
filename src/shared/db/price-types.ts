@@ -1,7 +1,7 @@
 /**
- * The price-dimension keys every `listing_prices` row carries. A leaf module
- * of pure values, so the base-mirror sync and the group overrides can both
- * reach them without joining each other's import rings.
+ * The price-dimension keys every `listing_prices` row carries. The
+ * base-mirror sync and the group overrides both read these values from here,
+ * so neither module has to import the other.
  */
 
 export const PRICE_TYPE_BASE = "base";

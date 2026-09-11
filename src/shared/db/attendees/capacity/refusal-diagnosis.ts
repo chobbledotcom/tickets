@@ -151,18 +151,29 @@ const readFacts = (
   return { facts, vanished };
 };
 
-/** The model read from one snapshot, as a comparable structure: a signature
- * only differs when a group membership or a listing type moved on. */
-const factsSignature = (facts: Map<number, LineListingFacts>): string =>
-  JSON.stringify(
+/** Whether the facts the probe batch's demands were built from still hold at
+ * the batch's own snapshot: every listing's type and group ids, member by
+ * member. The two models come from two reads at different snapshots, and
+ * either read can return a membership in a different row order, so each
+ * listing's ids sort before the compare. A change in the type or a group
+ * membership breaks the match and voids the batch. */
+const listingFactsChanged = (
+  withDemand: Map<number, LineListingFacts>,
+  atSnapshot: Map<number, LineListingFacts>,
+): boolean => {
+  const factsInRowOrder = (facts: Map<number, LineListingFacts>): unknown =>
     [...facts.entries()]
       .sort((left, right) => left[0] - right[0])
       .map(([id, listing]) => [
         id,
         listing.listing_type,
         [...listing.groupIds].sort((left, right) => left - right),
-      ]),
+      ]);
+  return (
+    JSON.stringify(factsInRowOrder(withDemand)) !==
+    JSON.stringify(factsInRowOrder(atSnapshot))
   );
+};
 
 /** One batch's verdict: the fits, the facts to build the next batch from, and
  * whether the facts moved under this batch (or a listing vanished), which
@@ -195,9 +206,8 @@ const askWhetherPrefixesFit = async (
     results[probes.length]!,
     results[probes.length + 1]!,
   );
-  const signature = factsSignature(factsById);
   const fits =
-    fresh.vanished || factsSignature(fresh.facts) !== signature
+    fresh.vanished || listingFactsChanged(factsById, fresh.facts)
       ? null
       : new Map(
           probes.map((prefix, index) => [

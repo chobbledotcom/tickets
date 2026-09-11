@@ -297,11 +297,11 @@
   },
   {
     "first": "src/shared/db/attendees/capacity/refusal-diagnosis.ts",
-    "firstStart": 181,
+    "firstStart": 192,
     "hash": "61fe7d2501c9dcedb7ef9513789707c5adc336d1e8850102a0a0963b254d8afd",
     "reason": "two layers of one mechanism, not a copy: askWhetherPrefixesFit asks one probe batch (builds the SQL, re-reads and validates the facts) and firstUnfitLineIndex walks the bracket ladder by calling it; the shared shape is their parameter plumbing, which a curry would only wrap in an object without removing a line — the batch ask is not the ladder, and the file the pair lives in names both",
     "second": "src/shared/db/attendees/capacity/refusal-diagnosis.ts",
-    "secondStart": 224
+    "secondStart": 234
   },
   {
     "first": "src/shared/db/attendees/dependent-data.ts",

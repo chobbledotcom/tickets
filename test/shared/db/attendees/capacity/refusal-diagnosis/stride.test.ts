@@ -4,12 +4,18 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { LineBooking } from "#db/attendee-types.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
-import { execute, getDb } from "#db/client.ts";
+import { execute, executeBatch, getDb } from "#db/client.ts";
+import {
+  cloneGroupMembershipStatement,
+  getListingsByGroupId,
+} from "#db/groups.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#db/query-log.ts";
+import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -26,18 +32,34 @@ import { line } from "./helpers.ts";
  * re-proves the bracket ends it carries. */
 describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   /** Seventeen roomy lines whose shared group has one place: only the first
-   * fits, so the bracket must narrow to the second line. */
+   * fits, so the bracket must narrow to the second line. One member is
+   * created through the production path; the rest batch-clone its row with
+   * the duplicate flow's insert statement, so the fixture stays quick
+   * however many members it seeds. */
   const seventeenLinesSharingOnePlace = async (): Promise<LineBooking[]> => {
     const shared = await createTestGroup({ maxAttendees: 1 });
-    const lines: LineBooking[] = [];
-    for (let index = 0; index < 17; index++) {
-      const listing = await createTestListing({
-        groupId: shared.id,
-        maxAttendees: 10,
+    const first = await createTestListing({
+      groupId: shared.id,
+      maxAttendees: 10,
+      name: "Strided member 1",
+    });
+    const clones = [];
+    for (let index = 2; index <= 17; index++) {
+      const clone = await buildDuplicateListingInput(first, {
+        name: `Strided member ${index}`,
       });
-      lines.push(line(listing.id));
+      clones.push(
+        await listingsTable.insertStatement!(clone),
+        cloneGroupMembershipStatement({
+          groupSlugIndex: shared.slug_index,
+          listingSlugIndex: clone.slugIndex,
+          quantity: 1,
+        }),
+      );
     }
-    return lines;
+    await executeBatch(clones);
+    const members = await getListingsByGroupId(shared.id);
+    return members.map((listing) => line(listing.id));
   };
 
   test("a longer refused order narrows a bracket instead of one query per line", async () => {
