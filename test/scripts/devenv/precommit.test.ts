@@ -15,10 +15,12 @@ exit "$HOOK_STATUS"
 `;
 
 describe("Git hook output", () => {
-  // Capture both streams inside the PTY, as prek does for its child.
-  const command =
-    'bash -euo pipefail -c "$HOOK" </dev/null >"$CAPTURE_OUT" 2>"$CAPTURE_ERR"';
-  const expected = "task\nprecommit\nsetup=ready\nfd0=no\n";
+  // prek runs the hook under itself with both streams captured. The parent
+  // shell here stands in for prek, and its stdout says who is calling.
+  const hookRun = 'bash -c "$HOOK" </dev/null';
+  const captured = `bash -euo pipefail -c '${hookRun}' >"$CAPTURE_OUT" 2>"$CAPTURE_ERR"`;
+  const capturedLines =
+    "task\nprecommit\nsetup=ready\nfd0=no\nfd1=no\nfd2=no\n";
   for (const mode of [
     {
       args: [
@@ -26,21 +28,36 @@ describe("Git hook output", () => {
         "--return",
         "--flush",
         "--command",
-        command,
+        `: >"$CAPTURE_OUT" 2>"$CAPTURE_ERR"; exec bash -euo pipefail -c '${hookRun}'`,
         "/dev/null",
       ],
       err: "",
-      live: `${expected}fd1=yes\nfd2=yes\nerror output\n`,
-      name: "shows live terminal output",
+      live: "task\nprecommit\nsetup=ready\nfd0=no\nfd1=yes\nfd2=yes\nerror output\n",
+      name: "shows live terminal output to an interactive caller",
       out: "",
       program: "script",
     },
     {
-      args: ["--fork", "--wait", "bash", "-c", command],
+      args: [
+        "--quiet",
+        "--return",
+        "--flush",
+        "--command",
+        captured,
+        "/dev/null",
+      ],
       err: "error output\n",
       live: "",
-      name: "preserves captured output",
-      out: `${expected}fd1=no\nfd2=no\n`,
+      name: "keeps captured output for a piped caller",
+      out: capturedLines,
+      program: "script",
+    },
+    {
+      args: ["--fork", "--wait", "bash", "-c", captured],
+      err: "error output\n",
+      live: "",
+      name: "preserves captured output without a controlling terminal",
+      out: capturedLines,
       program: "setsid",
     },
   ]) {
