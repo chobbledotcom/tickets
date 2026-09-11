@@ -121,21 +121,21 @@ p{line-height:1.5;margin:.75rem 0}
 a{color:#0369a1}
 </style>`;
 
-/**
- * Temporary error page with auto-refresh
- * Used when a transient CDN or network error occurs
- */
 const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="2" />
 ${ERROR_DIALOG_STYLE}`;
 
-export const temporaryErrorPage = (): string =>
+export const temporaryErrorPage = (autoRefresh: boolean): string =>
   errorPage(
     "public.temporary_error.title",
     "public.temporary_error.heading",
-    TEMPORARY_ERROR_HEAD,
+    autoRefresh ? TEMPORARY_ERROR_HEAD : ERROR_DIALOG_STYLE,
   )(
     <>
-      <p>{t("public.temporary_error.message")}</p>
+      <p>
+        {autoRefresh
+          ? t("public.temporary_error.message")
+          : t("public.temporary_error.message_manual")}
+      </p>
       <p>
         <small>
           Check{" "}

@@ -9,7 +9,6 @@ import {
   shouldBufferRequestBody,
   shouldLogQueries,
   shouldPrefetchSettings,
-  shouldRetryBusyRequest,
   trackingRedirectLocation,
 } from "#routes/app/rules.ts";
 
@@ -116,12 +115,6 @@ describe("request rules", () => {
     await runOrganicMaintenanceWhenDue("GET", "/", 200, run(179_999), 179_999);
     await runOrganicMaintenanceWhenDue("GET", "/", 200, run(180_000), 180_000);
     expect(calls).toEqual([120_000, 180_000]);
-  });
-
-  test("retries busy requests only when they are safe to repeat", () => {
-    expect(shouldRetryBusyRequest("GET")).toBe(true);
-    expect(shouldRetryBusyRequest("HEAD")).toBe(true);
-    expect(shouldRetryBusyRequest("POST")).toBe(false);
   });
 
   test("recognizes only the setup path family", () => {

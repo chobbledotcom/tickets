@@ -100,7 +100,7 @@ describeWithEnv(
               await expectHtmlResponse(
                 await proxyRequest(),
                 503,
-                "Temporary Error",
+                "Temporary error",
               );
             });
           },

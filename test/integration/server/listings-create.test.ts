@@ -18,15 +18,17 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { mockMultipartRequest } from "#test-utils/mocks.ts";
+import { mockMultipartRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
   adminMultipartPost,
   setupListingAndLogin,
   testCookie,
 } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 // jscpd:ignore-end
 
@@ -103,6 +105,32 @@ describeWithEnv("server listings > create", { db: true }, () => {
       const listing = await getListingWithCount(1);
       expect(listing).not.toBeNull();
       expect(listing?.name).toBe("New Listing");
+    });
+
+    test("does not refresh after the listing commits and its activity write fails", async () => {
+      const { response } = await withDbFault(
+        `CREATE TRIGGER fail_listing_activity
+         BEFORE INSERT ON activity_log
+         WHEN NEW.listing_id IS NOT NULL
+         BEGIN
+           SELECT RAISE(ABORT, 'Listing activity write failed');
+         END`,
+        "fail_listing_activity",
+        () =>
+          withExpectedError(() =>
+            adminMultipartPost("/admin/listing", {
+              max_attendees: "50",
+              max_quantity: "1",
+              name: "Saved before error",
+              thank_you_url: "https://example.com/thanks",
+            }),
+          ),
+      );
+
+      const listings = await getAllListings();
+      expect(listings.map(({ name }) => name)).toEqual(["Saved before error"]);
+      expect(listings[0]?.max_attendees).toBe(50);
+      await expectTemporaryError(false)(response);
     });
 
     test("still creates when the read-back replica lags the just-committed write", async () => {

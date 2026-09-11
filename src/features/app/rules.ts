@@ -93,10 +93,6 @@ export const runOrganicMaintenanceWhenDue = async (
   await run();
 };
 
-/** Whether a busy-database page may retry the request automatically. */
-export const shouldRetryBusyRequest = (method: string): boolean =>
-  method === "GET" || method === "HEAD";
-
 /** A clean location for a tracked GET URL, or null when no redirect is needed. */
 export const trackingRedirectLocation = (
   url: URL,

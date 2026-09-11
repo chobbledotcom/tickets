@@ -29,6 +29,7 @@ import {
   scheduledAuthorization,
   TEST_SCHEDULED_KEY,
 } from "#test-utils/scheduled.ts";
+import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 const request = (path: string): Request =>
   new Request(`http://localhost${path}`, { headers: { host: "localhost" } });
@@ -104,14 +105,25 @@ describeWithEnv("serve-app", { db: true }, () => {
       });
     });
 
-    test("a failing boot check returns 503 and does not poison later boots", async () => {
-      // MAIN_INSTANCE_KEY must be unset or ≥32 bytes; a short one fails the
-      // boot checks inside the handler, which must answer with the generic
-      // temporary-error page rather than crash the isolate.
+    for (const method of ["GET", "HEAD"]) {
+      test(`refreshes ${method} after a failed boot`, async () => {
+        using _env = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
+        await withExpectedError(async () => {
+          const response = await serveHandler(
+            new Request("http://localhost/health", { method }),
+          );
+          await expectTemporaryError(true)(response);
+        });
+      });
+    }
+
+    test("does not refresh a POST when the outer handler catches an error", async () => {
       using _env = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
       await withExpectedError(async () => {
-        const response = await serveHandler(request("/health"));
-        expect(response.status).toBe(503);
+        const response = await serveHandler(
+          new Request("http://localhost/admin/listing", { method: "POST" }),
+        );
+        await expectTemporaryError(false)(response);
       });
     });
 

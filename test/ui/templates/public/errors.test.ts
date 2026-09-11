@@ -4,6 +4,7 @@ import {
   databaseBusyPage,
   migrationInProgressPage,
   notFoundPage,
+  qrBookCheckoutErrorPage,
   qrBookErrorPage,
   rateLimitedPage,
   readOnlyPage,
@@ -29,8 +30,8 @@ describe("temporaryErrorPage", () => {
   registerPublicTemplateHooks();
 
   test("renders error message with auto-refresh", () => {
-    const html = temporaryErrorPage();
-    expect(html).toContain("<h1>Temporary Error</h1>");
+    const html = temporaryErrorPage(true);
+    expect(html).toContain("<h1>Temporary error</h1>");
     expect(html).toContain("Retrying automatically");
     expect(html).toContain('http-equiv="refresh"');
     expect(html).toContain('content="2"');
@@ -41,11 +42,31 @@ describe("temporaryErrorPage", () => {
       'Check <strong><a href="https://status.bunny.net/">status.bunny.net</a>',
     );
   });
+  test("preserves uncertainty about the submission", () => {
+    const html = temporaryErrorPage(false);
+    expect(html).not.toContain('http-equiv="refresh"');
+    expect(html).not.toContain("Retrying automatically");
+    expect(html).not.toContain("your submission was not saved");
+    expect(html).toContain("Your changes may already be saved.");
+    expect(html).toContain(
+      "Check the existing records or your booking before you submit again.",
+    );
+    expect(html).toContain("font-family:system-ui");
+    expect(html).toContain('href="https://status.bunny.net/"');
+  });
 });
 
 describe("qrBookErrorPage", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
+
+  test("identifies a checkout failure and escapes the provider message", () => {
+    const html = qrBookCheckoutErrorPage("summer-fete", "Failed <payment>");
+    expect(html).toContain("<title>Could not start payment</title>");
+    expect(html).toContain("<h1>Could not start your payment</h1>");
+    expect(html).toContain("<p>Failed &lt;payment&gt;</p>");
+    expect(html).toContain('href="/ticket/summer-fete"');
+  });
 
   test("offers the normal booking page when the listing has a slug", () => {
     const html = qrBookErrorPage("summer-fete");

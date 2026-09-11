@@ -13,6 +13,7 @@ import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 const deleteSetting = async (key: string): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
@@ -176,8 +177,8 @@ describeWithEnv("request pipeline", { db: true }, () => {
     using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
     const response = await handleRequest(brokenBodyPost("/payment/webhook"));
 
-    expect(response.status).toBe(503);
     expect(errors.contains("E_CDN_REQUEST")).toBe(true);
+    await expectTemporaryError(false)(response);
   });
 
   test("keeps the styled 404 page for GET and HEAD probes", async () => {
@@ -191,6 +192,21 @@ describeWithEnv("request pipeline", { db: true }, () => {
     expect(head.status).toBe(404);
     expect(await head.text()).toContain("Not Found");
   });
+
+  for (const method of ["GET", "HEAD"]) {
+    test(`refreshes a generic ${method} failure`, async () => {
+      const { getDb } = await import("#db/client.ts");
+      using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
+      using _fault = stub(getDb(), "execute", () => {
+        throw new Error("Database read failed");
+      });
+
+      const response = await handleRequest(
+        mockRequest("/ticket/nonexistent", { method }),
+      );
+      await expectTemporaryError(true)(response);
+    });
+  }
 
   test("rethrows unexpected errors in test mode", async () => {
     const { getDb } = await import("#db/client.ts");

@@ -105,6 +105,6 @@ export const serveHandler = async (request: Request): Promise<Response> => {
     });
     return scheduledAccess.kind === "authorized"
       ? scheduledResponse(503)
-      : temporaryErrorResponse();
+      : temporaryErrorResponse(request.method);
   }
 };

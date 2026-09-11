@@ -67,21 +67,19 @@ export const notFoundResponse = (): Response =>
 export const rateLimitedResponse = (): Response =>
   htmlResponse(rateLimitedPage(), 429);
 
-/**
- * Create temporary error response (e.g. transient CDN failures)
- * Returns a styled page with auto-refresh so the user retries automatically
- */
-export const temporaryErrorResponse = (): Response =>
-  htmlResponse(temporaryErrorPage(), 503);
+type RequestErrorResponse = (method: string) => Response;
 
-/**
- * Create "database too busy" response: a write couldn't acquire the lock after
- * retrying. 503. `autoRefresh` (idempotent GET/HEAD only) reloads the page to
- * retry itself; non-idempotent methods get a "go back and resubmit" message
- * instead, since a reload would drop the submitted form body.
- */
-export const databaseBusyResponse = (autoRefresh: boolean): Response =>
-  htmlResponse(databaseBusyPage(autoRefresh), 503);
+// A refresh loads the URL as GET. It cannot preserve a submitted form.
+const requestErrorResponse =
+  (page: (autoRefresh: boolean) => string): RequestErrorResponse =>
+  (method) =>
+    htmlResponse(page(method === "GET" || method === "HEAD"), 503);
+
+export const temporaryErrorResponse: RequestErrorResponse =
+  requestErrorResponse(temporaryErrorPage);
+
+export const databaseBusyResponse: RequestErrorResponse =
+  requestErrorResponse(databaseBusyPage);
 
 /**
  * Create "site not activated" response for sites whose database has not

@@ -65,7 +65,6 @@ import {
   runOrganicMaintenanceWhenDue,
   shouldLogQueries,
   shouldPrefetchSettings,
-  shouldRetryBusyRequest,
   trackingRedirectLocation,
 } from "./rules.ts";
 
@@ -205,7 +204,7 @@ const handleRoutingError = (
       detail: formatRequestError(method, path, error),
       error,
     });
-    return databaseBusyResponse(shouldRetryBusyRequest(method));
+    return databaseBusyResponse(method);
   }
 
   logError({
@@ -223,7 +222,7 @@ const handleRoutingError = (
   if (error instanceof SessionKeyError) {
     return redirectResponse("/admin", clearSessionCookie());
   }
-  return temporaryErrorResponse();
+  return temporaryErrorResponse(method);
 };
 
 /** Run the application request pipeline. */
