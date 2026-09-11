@@ -103,11 +103,8 @@ describeWithEnv(
             quantity: 1,
           }),
         );
-        const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
-        await postAttendeeRefund({
-          attendeeId: attendee.id,
-          listingId: listing.id,
-        });
+        const { refundBookedOrder } = await import("#test-utils/ledger.ts");
+        await refundBookedOrder(attendee.id, listing.id);
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         await expectHtmlResponse(response, 200, "Refunded");
       });
@@ -124,12 +121,9 @@ describeWithEnv(
           }),
         );
         const { updateCheckedIn } = await import("#db/attendees/update.ts");
-        const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
+        const { refundBookedOrder } = await import("#test-utils/ledger.ts");
         await updateCheckedIn(attendee.id, listing.id, true);
-        await postAttendeeRefund({
-          attendeeId: attendee.id,
-          listingId: listing.id,
-        });
+        await refundBookedOrder(attendee.id, listing.id);
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();
         expect(response.status).toBe(200);

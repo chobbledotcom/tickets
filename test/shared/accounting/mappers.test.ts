@@ -311,6 +311,20 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       );
     });
 
+    test("names the reversed booking order on every refund leg", async () => {
+      // The link the per-order refunded projection joins on: a reversal that
+      // cannot name the order it undid would mark the wrong booking refunded.
+      const order = await bookingOrder();
+      const refund = await mapRefund({
+        occurredAt: REFUND_AT,
+        orderLegs: order,
+      });
+      expect(refund.length).toBeGreaterThan(0);
+      for (const leg of refund) {
+        expect(leg.reversesGroup).toBe(order[0]!.eventGroup);
+      }
+    });
+
     test("stamps the actor onto every refund leg", async () => {
       const order = await bookingOrder();
       const refund = await mapRefund({

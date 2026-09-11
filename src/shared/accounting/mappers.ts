@@ -250,7 +250,10 @@ export const asOrderLegs = (
  * Refunds do not use `reverses_id`. That one-slot link is for admin voids,
  * while a refund posts many rows, so repeat and partial refunds are scoped by
  * event group instead (decision 8). The derived group also makes a re-submit
- * replay as a no-op.
+ * replay as a no-op. Every leg carries {@link TransferInput.reversesGroup} —
+ * the booking order's event group — so a read can join a reversal back to the
+ * one order it undid, a per-booking-row question the hashed refund group and
+ * references cannot answer on their own.
  */
 export const mapRefund = async (
   facts: RefundFacts,
@@ -272,6 +275,7 @@ export const mapRefund = async (
       occurredAt: facts.occurredAt,
       postedBy: facts.postedBy ?? "system",
       reference: await legReference([REFUND, bookingGroup, leg.reference]),
+      reversesGroup: bookingGroup,
       source: leg.destination,
     })),
   );

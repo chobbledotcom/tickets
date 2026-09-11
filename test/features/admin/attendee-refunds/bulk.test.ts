@@ -235,11 +235,17 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         "peer@example.com",
         "pi_independent_peer",
       );
+      // The second row is a folded child of the SAME order, so production's
+      // booking stamp would give it the order's event group too — carry the
+      // first row's stamp so the per-order projections read the pair as one.
       await execute(
         `INSERT INTO listing_attendees
-          (listing_id, attendee_id, quantity, parent_listing_id)
-         VALUES (?, ?, 1, ?)`,
-        [listing.id, repeated.id, listing.id + 1000],
+          (listing_id, attendee_id, quantity, parent_listing_id,
+           ledger_event_group)
+         SELECT ?, ?, 1, ?, ledger_event_group
+           FROM listing_attendees
+          WHERE attendee_id = ? AND listing_id = ?`,
+        [listing.id, repeated.id, listing.id + 1000, repeated.id, listing.id],
       );
 
       await withRefundMock(refundCompletes, async (mockRefund) => {

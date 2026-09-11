@@ -18,7 +18,11 @@ import {
   saleLegPredicate,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { refundedForBooking } from "#db/attendees/select.ts";
+import {
+  LISTING_ATTENDEE_REFUNDED_ROW,
+  type RefundedRowExprs,
+  refundedForBooking,
+} from "#db/attendees/select.ts";
 import { requireOne } from "#db/client.ts";
 import { isPaidListing, type Listing } from "#types";
 
@@ -54,15 +58,11 @@ export type ListingOverviewStats = {
 };
 
 /** SQL predicate: this booking has NOT come back, asked through the same
- *  `refundedForBooking` the row projection uses so the two cannot drift. It is
- *  here so a refunded booking whose processed reference was later pruned is not
- *  mistaken for a bare sale. */
-const notRefunded = (
-  attendeeIdExpr: string,
-  listingIdExpr: string,
-  placeholderWhen: string,
-): string =>
-  `NOT ${refundedForBooking(attendeeIdExpr, listingIdExpr, placeholderWhen)}`;
+ * `refundedForBooking` the row projection uses so the two cannot drift. It is
+ * here so a refunded booking whose processed reference was later pruned is not
+ * mistaken for a bare sale. */
+const notRefunded = (row: RefundedRowExprs): string =>
+  `NOT ${refundedForBooking(row)}`;
 
 /** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
  *  incomplete payment: a recognised `sale` leg for the booking with no
@@ -94,11 +94,7 @@ const incompleteRowPredicate = (paid: boolean): string => {
   )} <= 0`;
   return (
     `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference}` +
-    ` AND ${nothingOwed} AND ${notRefunded(
-      "listingAttendee.attendee_id",
-      "listingAttendee.listing_id",
-      "listingAttendee.quantity = 0",
-    )})`
+    ` AND ${nothingOwed} AND ${notRefunded(LISTING_ATTENDEE_REFUNDED_ROW)})`
   );
 };
 
@@ -133,11 +129,12 @@ const incompleteSales = async (listingId: number): Promise<number> => {
   )} <= 0`;
   // Every row here HAS a sale leg — the query reads from them — so the
   // placeholder arm is unreachable and says so rather than guessing a quantity.
-  const notRefundedSale = notRefunded(
-    "CAST(saleLeg.source_id AS INTEGER)",
-    "CAST(saleLeg.dest_id AS INTEGER)",
-    "0",
-  );
+  const notRefundedSale = notRefunded({
+    attendeeId: "CAST(saleLeg.source_id AS INTEGER)",
+    eventGroup: "saleLeg.event_group",
+    listingId: "CAST(saleLeg.dest_id AS INTEGER)",
+    placeholderWhen: "0",
+  });
   const row = await requireOne<{ incomplete_sales: number | bigint }>(
     `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
        FROM transfers AS saleLeg

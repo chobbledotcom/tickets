@@ -49,6 +49,10 @@ export type TransferInput = {
   readonly memo?: string;
   /** The transfer this one reverses/corrects (admin void/correction only). */
   readonly reversesId?: number;
+  /** The event group of the order this leg's event reverses — set on every
+   *  refund leg, so a read can tell which booking order came back without
+   *  rebuilding the legs it would have written. Undefined on every other leg. */
+  readonly reversesGroup?: string;
   /** Actor: "system" or an admin user id. */
   readonly postedBy?: string;
 };

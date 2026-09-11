@@ -23,46 +23,61 @@ import type { Attendee } from "#types";
  * Projected from the ledger rather than a stored column, so the projection and
  * the stats that exclude refunded bookings cannot answer differently.
  *
- * Asked per LISTING, not per person. A refund can return one charge and leave a
- * sibling with the provider, and the scanner turns people away on this flag, so
- * an account-wide answer would refuse a ticket they never got back.
- *
- * A payment-only placeholder has no sale leg to mirror, so it falls back to the
- * account's returned cash. ONLY a placeholder may: a FREE booking has no sale
- * leg either, and that fallback would turn a real ticket away.
+ * Asked per BOOKING ORDER — the row's `ledger_event_group` — not per person,
+ * because one person can hold two orders for the same listing (a merge), and
+ * reversing one must not mark the other refunded: the scanner turns people
+ * away on this flag. A reversal leg carries the order it undid in
+ * `reverses_group`, which is what makes the join answerable in SQL.
  */
-export const refundedForBooking = (
-  attendeeIdExpr: string,
-  listingIdExpr: string,
-  placeholderWhen: string,
-): string => {
-  const legExists = (kind: string, predicate: string): string =>
-    `EXISTS(SELECT 1 FROM transfers WHERE kind = '${kind}' AND ${predicate})`;
-  const wasSold = legExists(
-    KIND.sale,
-    `${accountPredicate("source", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("dest", REVENUE, listingIdExpr)}`,
+/** The row expressions every read through the `listingAttendee` alias shares. */
+export const LISTING_ATTENDEE_REFUNDED_ROW = {
+  attendeeId: "listingAttendee.attendee_id",
+  eventGroup: "listingAttendee.ledger_event_group",
+  listingId: "listingAttendee.listing_id",
+  placeholderWhen: "listingAttendee.quantity = 0",
+} as const;
+
+/** What one booking row tells the refunded projection, as SQL expressions:
+ *  who booked, on which listing, in which order, and when the row is a
+ *  quantity-0 placeholder. The keys live once, on the shared constant above. */
+export type RefundedRowExprs = {
+  [Key in keyof typeof LISTING_ATTENDEE_REFUNDED_ROW]: string;
+};
+
+export const refundedForBooking = (row: RefundedRowExprs): string => {
+  const { attendeeId, eventGroup, listingId, placeholderWhen } = row;
+  const legCameBack = (predicate: string): string =>
+    `EXISTS(SELECT 1 FROM transfers WHERE ${predicate})`;
+  const wasSold = legCameBack(
+    saleLegPredicate(attendeeId, listingId, eventGroup),
   );
-  const saleCameBack = legExists(
-    KIND.refundSale,
-    `${accountPredicate("source", REVENUE, listingIdExpr)} AND ${accountPredicate("dest", ATTENDEE, attendeeIdExpr)}`,
-  );
-  const cashCameBack = legExists(
-    KIND.refundCash,
-    accountPredicate("source", ATTENDEE, attendeeIdExpr),
+  // A refund of this order, given back to this attendee. `listingExpr` narrows
+  // it to one listing's sale; null asks about any sale of the order.
+  const orderSaleCameBackFor = (listingExpr: string | null): string =>
+    legCameBack(
+      `kind = '${KIND.refundSale}'` +
+        (listingExpr === null
+          ? ""
+          : ` AND ${accountPredicate("source", REVENUE, listingExpr)}`) +
+        ` AND ${accountPredicate("dest", ATTENDEE, attendeeId)}` +
+        ` AND reverses_group = ${eventGroup}`,
+    );
+  const saleCameBack = orderSaleCameBackFor(listingId);
+  const orderSaleCameBack = orderSaleCameBackFor(null);
+  const cashCameBack = legCameBack(
+    `kind = '${KIND.refundCash}'` +
+      ` AND ${accountPredicate("source", ATTENDEE, attendeeId)}`,
   );
   return (
     `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack}` +
-    ` WHEN ${placeholderWhen} THEN ${cashCameBack} ELSE 0 END)`
+    ` WHEN ${placeholderWhen} THEN ${cashCameBack}` +
+    ` ELSE ${orderSaleCameBack} END)`
   );
 };
 
 /** {@link refundedForBooking} under the alias the booking row type reads. */
-export const refundedFromLedger = (
-  attendeeIdExpr: string,
-  listingIdExpr: string,
-  placeholderWhen: string,
-): string =>
-  `${refundedForBooking(attendeeIdExpr, listingIdExpr, placeholderWhen)} AS refunded`;
+export const refundedFromLedger = (row: RefundedRowExprs): string =>
+  `${refundedForBooking(row)} AS refunded`;
 
 /**
  * Amount paid for one booking row, read from the ledger and scoped to the row's
@@ -177,12 +192,7 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => string> = {
       "listingAttendee.ledger_event_group",
       "listingAttendee.id",
     ),
-  refunded: () =>
-    refundedFromLedger(
-      "listingAttendee.attendee_id",
-      "listingAttendee.listing_id",
-      "listingAttendee.quantity = 0",
-    ),
+  refunded: () => refundedFromLedger(LISTING_ATTENDEE_REFUNDED_ROW),
   remaining_balance: () => remainingBalanceFromLedger("attendee.id"),
 };
 

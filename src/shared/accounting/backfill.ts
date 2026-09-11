@@ -125,10 +125,13 @@ const attendeeLegs = async (
 
 /** The UPDATE that writes an attendee's rows' `ledger_event_group` link — what
  *  the per-row amount-paid projection keys on. `valueSql` is the SQL expression
- *  producing the event group; its bound args come before the attendee id. */
+ *  producing the event group; its bound args come before the attendee id. Only
+ *  rows still missing their link are filled, so an attendee who already carries
+ *  two orders' stamps (a merge target) keeps each order's rows pointing at
+ *  that order's legs. */
 const stampUpdate = (valueSql: string, args: InValue[]): SqlStatement => ({
   args,
-  sql: `UPDATE listing_attendees SET ledger_event_group = ${valueSql} WHERE attendee_id = ?`,
+  sql: `UPDATE listing_attendees SET ledger_event_group = ${valueSql} WHERE attendee_id = ? AND ledger_event_group = ''`,
 });
 
 /** Stamp the row→event link with a known event group (a just-built booking's). */

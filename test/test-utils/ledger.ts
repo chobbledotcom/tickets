@@ -1,9 +1,10 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { postWriteoffAdjustmentTx } from "#accounting/adjustments.ts";
 import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
 import type { RefPart } from "#accounting/refs.ts";
 import { postTransfers } from "#accounting/store.ts";
-import { getDb, withTransaction } from "#db/client.ts";
+import { getDb, queryOne, withTransaction } from "#db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils/db.ts";
@@ -69,7 +70,11 @@ const oneListingBookingLegs = ({
  * longer contributes to income on its own. `amountPaid` defaults to `gross`
  * (paid in full, so the attendee account nets to zero). Mirrors production by
  * stamping the booking row's `ledger_event_group`, so the per-row amount-paid
- * projection resolves this sale leg.
+ * projection resolves this sale leg. `stampStartAt` pins the stamp to the row
+ * booked for that date — for seeding an attendee who holds SEVERAL orders for
+ * one listing (a merge), where each order stamps its own rows. The stamp only
+ * fills rows still carrying no order, so a second order never overwrites the
+ * first order's link, matching the production writers.
  */
 export const postListingSale = async ({
   listingId,
@@ -77,12 +82,14 @@ export const postListingSale = async ({
   gross,
   amountPaid = gross,
   eventId = `sale-${listingId}-${attendeeId}`,
+  stampStartAt,
 }: {
   listingId: number;
   attendeeId: number;
   gross: number;
   amountPaid?: number;
   eventId?: string;
+  stampStartAt?: string;
 }): Promise<void> => {
   const legs = await oneListingBookingLegs({
     amountPaid,
@@ -93,8 +100,16 @@ export const postListingSale = async ({
   });
   await postTransfers(legs);
   await getDb().execute({
-    args: [legs[0]!.eventGroup, attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+    args: [
+      legs[0]!.eventGroup,
+      attendeeId,
+      listingId,
+      ...(stampStartAt === undefined ? [] : [stampStartAt]),
+    ],
+    sql:
+      "UPDATE listing_attendees SET ledger_event_group = ?" +
+      " WHERE attendee_id = ? AND listing_id = ? AND ledger_event_group = ''" +
+      (stampStartAt === undefined ? "" : " AND start_at IS ?"),
   });
 };
 
@@ -130,15 +145,46 @@ export const postModifierLeg = async ({
 };
 
 /**
- * Make an attendee "refunded" the way production now models it: post a complete,
- * net-zero refunded booking order for them — a `sale` + `payment`, then the full
- * reversal (`refund_sale` + a `refund_cash` leg whose SOURCE is the attendee).
- * The refunded-status projection reads exactly that `refund_cash` leg, so this is
- * the real path that replaces the dropped `refunded` column. Self-contained under
- * its own event group, so it never collides with a booking the attendee may
- * already hold, and nets to zero for both the attendee and revenue (income and
- * balance are left unchanged). Defaults `gross` to 500, matching the paid-test
- * attendee helpers.
+ * Make an attendee read "refunded" by reversing the booking order their row is
+ * stamped with — the production shape: the reversal names that order in
+ * `reverses_group`, and the per-order projections resolve it. Throws when the
+ * row carries no order yet (a pre-ledger booking — use
+ * {@link postAttendeeRefund} to post a self-contained round-trip instead).
+ */
+export const refundBookedOrder = async (
+  attendeeId: number,
+  listingId: number,
+): Promise<void> => {
+  const stamped = await queryOne<{ ledger_event_group: string }>(
+    "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?" +
+      " AND listing_id = ? AND ledger_event_group != '' ORDER BY id LIMIT 1",
+    [attendeeId, listingId],
+  );
+  if (stamped === null) {
+    throw new Error(
+      `Attendee ${attendeeId} has no booked order on listing ${listingId} to refund`,
+    );
+  }
+  await postTransfers(
+    await mapRefund({
+      occurredAt: BOOKING_OCCURRED_AT,
+      orderLegs: await transfersByEventGroup(stamped.ledger_event_group),
+    }),
+  );
+};
+
+/**
+ * Post a self-contained net-zero refunded booking order — a `sale` + `payment`
+ * under one event group, then the full reversal (`refund_sale` + a
+ * `refund_cash` leg whose SOURCE is the attendee) — and stamp the booking row
+ * with that event group when the row carries no order, so the refunded-status
+ * projection resolves it. Use this for an attendee whose own order legs are
+ * not under test (a pre-ledger booking, or a deliberate extra order beside a
+ * real one); use {@link refundBookedOrder} to refund the order a row really
+ * belongs to. Never collides with a booking the attendee may already hold,
+ * and nets to zero for both the attendee and revenue (income and balance are
+ * left unchanged). Defaults `gross` to 500, matching the paid-test attendee
+ * helpers.
  */
 export const postAttendeeRefund = async ({
   attendeeId,
@@ -158,6 +204,12 @@ export const postAttendeeRefund = async ({
     listingId,
   });
   await postTransfers(bookingInputs);
+  await getDb().execute({
+    args: [bookingInputs[0]!.eventGroup, attendeeId, listingId],
+    sql:
+      "UPDATE listing_attendees SET ledger_event_group = ?" +
+      " WHERE attendee_id = ? AND listing_id = ? AND ledger_event_group = ''",
+  });
   await postTransfers(
     await mapRefund({
       occurredAt: BOOKING_OCCURRED_AT,

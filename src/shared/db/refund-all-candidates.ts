@@ -63,11 +63,12 @@ type RefundAllCandidateRow = {
   refunded: number;
 };
 
-const refundStatus = refundedForBooking(
-  "attendee.id",
-  "listingAttendee.listing_id",
-  "0",
-);
+const refundStatus = refundedForBooking({
+  attendeeId: "attendee.id",
+  eventGroup: "listingAttendee.ledger_event_group",
+  listingId: "listingAttendee.listing_id",
+  placeholderWhen: "0",
+});
 
 const anchorSession = paymentAnchorSessionCondition(
   "payment.payment_session_id",

@@ -40,11 +40,12 @@ export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
   const column = columnFrom(sourceName);
   return `${column("listing_id")}, ${column("start_at")}, ${column(
     "end_at",
-  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
-    column("attendee_id"),
-    column("listing_id"),
-    `${column("quantity")} = 0`,
-  )}, ${pricePaidFromLedger(
+  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger({
+    attendeeId: column("attendee_id"),
+    eventGroup: column("ledger_event_group"),
+    listingId: column("listing_id"),
+    placeholderWhen: `${column("quantity")} = 0`,
+  })}, ${pricePaidFromLedger(
     column("attendee_id"),
     column("listing_id"),
     column("ledger_event_group"),

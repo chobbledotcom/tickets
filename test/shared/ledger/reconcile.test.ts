@@ -84,6 +84,12 @@ describe("legIdentityDiff", () => {
     expect(legIdentityDiff(legFacts, { ...legFacts, reversesId: 7 })).toEqual([
       "reversesId",
     ]);
+    expect(
+      legIdentityDiff(legFacts, {
+        ...legFacts,
+        reversesGroup: "evt-booking",
+      }),
+    ).toEqual(["reversesGroup"]);
   });
 });
 
