@@ -99,6 +99,15 @@ describe("legFingerprint", () => {
       legFingerprint({ ...legFacts, reversesId: null }),
     );
   });
+
+  it('treats a leg with no reverses group as an empty-string link (the identity normalises undefined to "")', () => {
+    expect(legFingerprint(legFacts)).toBe(
+      legFingerprint({ ...legFacts, reversesGroup: "" }),
+    );
+    expect(
+      legFingerprint({ ...legFacts, reversesGroup: "evt-order" }),
+    ).not.toBe(legFingerprint(legFacts));
+  });
 });
 
 describe("reconcileLegs", () => {

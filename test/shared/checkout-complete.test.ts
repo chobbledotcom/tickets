@@ -9,8 +9,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** An attendee whose first order is posted and stamped, with the leg builder
- *  for a second order. */
-const attendeeWithPostedOrder = async (): Promise<{
+ *  for a second order. `firstAmountPaid` shapes the first order: 0 leaves it
+ *  a lone sale leg (an owed booking), anything else adds its payment leg. */
+const attendeeWithPostedOrder = async (
+  firstAmountPaid = 100,
+): Promise<{
   attendeeId: number;
   firstOrderLegs: Awaited<ReturnType<typeof mapBooking>>;
   nextOrderLegs: (
@@ -36,7 +39,15 @@ const attendeeWithPostedOrder = async (): Promise<{
       modifiers: [],
       occurredAt: "2026-06-21T00:00:00.000Z",
     });
-  const firstOrderLegs = await orderLegs(100, "stamp-order-one");
+  const firstOrderLegs = await mapBooking({
+    amountPaid: firstAmountPaid,
+    attendeeId,
+    bookingFee: 0,
+    eventId: "stamp-order-one",
+    lines: [{ gross: 100, listingId: listing.id }],
+    modifiers: [],
+    occurredAt: "2026-06-21T00:00:00.000Z",
+  });
   await withTransaction((tx) =>
     postBookingLegsTx(tx, attendeeId, firstOrderLegs),
   );
@@ -53,6 +64,17 @@ describeWithEnv("checkout-complete > postBookingLegsTx", { db: true }, () => {
   test("posts the legs and stamps every row of the order", async () => {
     const { attendeeId, firstOrderLegs } = await attendeeWithPostedOrder();
 
+    expect(await stampOfFirstLine(attendeeId)).toBe(
+      firstOrderLegs[0]!.eventGroup,
+    );
+  });
+
+  test("a one-leg order still stamps the row", async () => {
+    // An owed booking posts only its sale leg; the stamp must not wait for
+    // a second leg to exist.
+    const { attendeeId, firstOrderLegs } = await attendeeWithPostedOrder(0);
+
+    expect(firstOrderLegs.length).toBe(1);
     expect(await stampOfFirstLine(attendeeId)).toBe(
       firstOrderLegs[0]!.eventGroup,
     );

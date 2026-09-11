@@ -211,6 +211,51 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       );
       expect(legs).toEqual([]);
     });
+
+    test("posts every one-unit leg — the smallest money there is", async () => {
+      // A gross, fee and payment of exactly 1 minor unit must survive the
+      // zero-drop guard, not fall through it.
+      const legs = await mapBooking(
+        facts({
+          amountPaid: 1,
+          bookingFee: 1,
+          lines: [{ gross: 1, listingId: 1 }],
+        }),
+      );
+      expect(
+        legs.filter((l) => l.kind === "sale").map((l) => l.amount),
+      ).toEqual([1]);
+      expect(legs.filter((l) => l.kind === "fee").map((l) => l.amount)).toEqual(
+        [1],
+      );
+      expect(
+        legs.filter((l) => l.kind === "payment").map((l) => l.amount),
+      ).toEqual([1]);
+    });
+
+    test("posts a one-unit surcharge and discount at their smallest size", async () => {
+      const [surcharge] = (
+        await mapBooking(facts({ modifiers: [{ delta: 1, modifierId: 11 }] }))
+      ).filter((l) => l.kind === "modifier");
+      expect(surcharge!.amount).toBe(1);
+      expect(surcharge!.source).toEqual(attendeeAccount(3));
+
+      const [discount] = (
+        await mapBooking(facts({ modifiers: [{ delta: -1, modifierId: 10 }] }))
+      ).filter((l) => l.kind === "modifier");
+      expect(discount!.amount).toBe(1);
+      expect(discount!.destination).toEqual(attendeeAccount(3));
+    });
+
+    test("joins every invalid fact into one report, comma-separated", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(facts({ amountPaid: -50, bookingFee: -10, eventId: "" })),
+        ),
+      ).toBe(
+        "mapBooking: invalid facts (empty eventId, negative bookingFee, negative amountPaid)",
+      );
+    });
   });
 
   describe("mapRefund", () => {
@@ -323,6 +368,22 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       for (const leg of refund) {
         expect(leg.reversesGroup).toBe(order[0]!.eventGroup);
       }
+    });
+
+    test("reverses a one-leg order — an owed booking's lone sale", async () => {
+      const order = await bookingOrder({
+        amountPaid: 0,
+        lines: [{ gross: 10000, listingId: 1 }],
+      });
+      expect(order.length).toBe(1); // one sale leg, nothing collected
+
+      const refund = await mapRefund({
+        occurredAt: REFUND_AT,
+        orderLegs: order,
+      });
+
+      expect(refund.length).toBe(1);
+      expect(refund[0]!.reversesGroup).toBe(order[0]!.eventGroup);
     });
 
     test("stamps the actor onto every refund leg", async () => {

@@ -240,3 +240,6 @@ src/shared/db/link-table.ts::oneDirectionReader.fetchIdsByKeys~0a4lik4 Unexpecte
 
 src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → ""   # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → ||   # read.one answers the row object or null, and every row object is truthy
+
+src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → ||   # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true   # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field

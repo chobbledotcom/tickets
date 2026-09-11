@@ -241,6 +241,40 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     expect(stats.incompleteQuantity).toBe(0);
   });
 
+  test("a balance payment does not pay an unpaid sale", async () => {
+    // The payment that clears a sale must land in the sale's own event group:
+    // a balance payment from another order credits the same attendee, but the
+    // sale it never covered stays incomplete.
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const attendee = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Other Order Paid",
+      "other-order-paid@example.com",
+      "",
+      500,
+      1,
+    );
+    await postIncompleteSale(attendee.id, listing.id, 500);
+    await postTransfers([
+      {
+        amount: 500,
+        destination: attendeeAccount(attendee.id),
+        eventGroup: await balanceEventGroup("overview_other_order_paid"),
+        kind: KIND.payment,
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "overview-other-order-payment",
+        source: WORLD,
+      },
+    ]);
+
+    const stats = await getListingOverviewStats(listing);
+    expect(stats.incompleteQuantity).toBe(1);
+    expect(stats.incompleteSales).toBe(500);
+  });
+
   test("does not count a refunded balance-paid attendee whose reference was pruned", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
