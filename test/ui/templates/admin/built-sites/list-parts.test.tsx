@@ -40,21 +40,30 @@ test("renders a site's link, URL, status, channel, and host id", () => {
   expect(html).toContain("host-42");
 });
 
-test("distinguishes available and unavailable unassigned sites", () => {
+test("labels an unassigned site that others can book as Available", () => {
   const html = String(
     BuiltSitesListBody({
       hostingIds: "",
       renewalTiers: [],
-      sites: [
-        testBuiltSite({ assignable: true, id: 1, name: "Available" }),
-        testBuiltSite({ assignable: false, id: 2, name: "Unavailable" }),
-      ],
+      sites: [testBuiltSite({ assignable: true, id: 1, name: "Alpha" })],
     }),
   );
-  expect(html).toContain("Available</a>");
+  expect(html).toContain('<a href="/admin/built-sites/1">Alpha</a>');
   expect(html).toContain("Available</td>");
-  expect(html).toContain("Unavailable</a>");
-  expect(html).toContain("Not assignable");
+  expect(html).not.toContain("Not assignable");
+});
+
+test("labels an unassigned site nobody can book as Not assignable", () => {
+  const html = String(
+    BuiltSitesListBody({
+      hostingIds: "",
+      renewalTiers: [],
+      sites: [testBuiltSite({ assignable: false, id: 2, name: "Beta" })],
+    }),
+  );
+  expect(html).toContain('<a href="/admin/built-sites/2">Beta</a>');
+  expect(html).toContain("Not assignable</td>");
+  expect(html).not.toContain("Available</td>");
 });
 
 test("links a bare bunny.run address as a working b-cdn.net link", () => {
