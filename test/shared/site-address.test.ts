@@ -59,6 +59,18 @@ describe("siteBaseUrl", () => {
     );
   });
 
+  test("maps the bunny.run host when the URL also carries a port", () => {
+    expect(siteBaseUrl("https://child.bunny.run:8443")).toBe(
+      "https://child.b-cdn.net:8443",
+    );
+  });
+
+  test("keeps a custom domain's non-default port", () => {
+    expect(siteBaseUrl("https://tickets.example.co.uk:8443")).toBe(
+      "https://tickets.example.co.uk:8443",
+    );
+  });
+
   test("leaves a Deno Deploy URL on its own address", () => {
     expect(siteBaseUrl("https://site.org.deno.net/")).toBe(
       "https://site.org.deno.net",

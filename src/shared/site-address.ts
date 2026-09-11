@@ -22,14 +22,17 @@ export const toStableHostname = (hostname: string): string => {
   return hostname;
 };
 
-/** The stable absolute address of a built site — scheme + host only, so a
- * caller can safely append a path. siteUrl may be stored as a bare hostname,
- * so a default scheme is added first (scheme detection is case-insensitive,
- * so an `HTTPS://` URL is not mistaken for a hostname); `new URL(...).origin`
- * then collapses anything past the host and lower-cases the scheme. */
+/** The stable absolute address of a built site — the scheme, host, and any
+ * non-default port of the stored URL, with the host mapped to its stable
+ * twin, so a caller can safely append a path. siteUrl may be stored as a bare
+ * hostname, so a default scheme is added first (scheme detection is
+ * case-insensitive, so an `HTTPS://` URL is not mistaken for a hostname), and
+ * `new URL(...).origin` drops anything past the host. */
 export const siteBaseUrl = (siteUrl: string): string => {
   const withScheme = /^https?:\/\//i.test(siteUrl)
     ? siteUrl
     : `https://${siteUrl}`;
-  return toStableHostname(new URL(withScheme).origin);
+  const url = new URL(withScheme);
+  url.hostname = toStableHostname(url.hostname);
+  return url.origin;
 };
