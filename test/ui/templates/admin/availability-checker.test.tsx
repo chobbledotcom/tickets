@@ -43,7 +43,7 @@ describe("AvailabilityChecker", () => {
           name: "Bravo",
           remaining: 1,
           total: 2,
-          unitPrice: 500,
+          unitPrice: 1,
         },
       ],
       "2027-03-14",
@@ -61,11 +61,19 @@ describe("AvailabilityChecker", () => {
     expect(html).toContain(
       '<input aria-label="Select Alpha" class="order-select" id="select_10" name="select_10" type="checkbox" value="1">',
     );
+    expect(html).toContain('<label class="row-select">');
+    expect(html).toContain(
+      '<span aria-hidden="true" class="row-select-tick"></span>',
+    );
+    expect(html).toContain(
+      '<th><span class="visually-hidden">Select</span></th>',
+    );
     expect(html).toContain('<td class="col-quantity">3/5</td>');
+    expect(html).toContain('<td class="col-quantity">1/2</td>');
     expect(html).toContain('<td class="col-quantity danger">0/4</td>');
     expect(html).toContain('<td class="col-amount">Free</td>');
     expect(html).toContain(
-      `<td class="col-amount">From ${formatCurrency(500)}</td>`,
+      `<td class="col-amount">From ${formatCurrency(1)}</td>`,
     );
     expect(html).toContain(
       `<td class="col-amount">${formatCurrency(1250)}</td>`,
@@ -88,6 +96,7 @@ describe("AvailabilityChecker", () => {
     );
 
     expect(html).not.toContain('name="start_date"');
+    expect(html).toContain('<div class="order-actions">');
     expect(html).toContain('<button class="order-cart" type="submit">');
     expect(html).toContain(
       '<button class="order-cart" formaction="/admin/servicing/new" type="submit">',

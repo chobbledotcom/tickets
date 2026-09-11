@@ -82,4 +82,60 @@ src/ui/templates/admin/api-keys.tsx::apiKeyColumns~171hyss  name → ""   # the 
 src/ui/templates/admin/api-keys.tsx::apiKeyColumns~1pdocf9  created → ""   # same as the name key — the key table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/api-keys.tsx::apiKeyColumns~13k1qvy  last_used → ""   # same as the name key — the key table renders without columnKeys, hiddenKeys, or filters
 
+# renewal-tier summary table (built-sites) — same class as the key table above:
+# RenewalTierSummary renders it with no options at all.
+src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~035yw77  tier → ""   # the tier table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~1cvsdgu  months → ""   # same as the tier key — the tier table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~1qd3mhi  price → ""   # same as the tier key — the tier table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~0pama76  units → ""   # same as the tier key — the tier table renders without columnKeys, hiddenKeys, or filters
+
+# availability checker table — same class as the renewal tiers above: the
+# checker renders it with only a table class, so nothing reads a column key.
+src/ui/templates/admin/availability-checker.tsx::availabilityColumns.key~1i3cwde  select → ""   # the availability table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1icoqk7  listing → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/availability-checker.tsx::availabilityColumns~15bbaul  remaining → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1ra2ram  price → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
+
+# attendee detail — booking column keys the bookings table never reads back
+# (it renders with only a context and a foot row), and two fallbacks whose
+# left side can never be falsy-but-non-null.
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1cgjcue  listing → ""   # the bookings table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1tza93f  date → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~15kw9kh  quantity → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~029b0v4  status → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns.parent~0t7jibv  ?? → ||   # nameByListingId holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the empty fallback is the only falsy string, and it cannot occur
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1dkqpm3  ?? → ||   # BookingStatusBadges returns a div element or null, and an element object is always truthy, so ?? and || pick the same side
+src/ui/templates/admin/attendee-detail.tsx::AttendeeBookingsTable.names~1d4a28o  ?? → ||   # childNamesByParentId.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
+
+# attendee-form listing editor — column keys the editor table never reads
+# back, and two fallbacks whose left side can never be falsy-but-non-null.
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0b4eb34  listing → ""   # the listing editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~1pp18xr  dates → ""   # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0pvuhzr  quantity → ""   # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns.key~0s9jed5  notices → ""   # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::pathLabel.name~0i58gz8  ?? → ||   # parentNamesById holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the falsy fallback cannot occur
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingNoticesCell~0s46002  ?? → ||   # lineWarnings.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
+
+# servicing pages (features/admin/servicing) — three tables whose column keys
+# nothing reads back (each renderTable call passes no columnKeys, hiddenKeys,
+# or filters), and fallbacks whose left side can never be falsy-but-non-null.
+src/features/admin/servicing/page.tsx::servicingListingsTable~0nw80un  listing → ""   # the servicing listings table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/features/admin/servicing/page.tsx::servicingListingsTable~0yujpzb  quantity → ""   # same as the listing key — the servicing listings table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingCostsTable~0odr3ie  listing → ""   # the costs table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/features/admin/servicing/page.tsx::servicingCostsTable~0ddbrbs  date → ""   # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingCostsTable~1di7dor  amount → ""   # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingCostsTable~0727n96  note → ""   # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingCostsTable~0g8rkej  actions → ""   # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingEventsTable~1a6aadf  name → ""   # the events table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/features/admin/servicing/page.tsx::servicingEventsTable~0gqe9hj  date → ""   # same as the name key — the events table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingEventsTable~06l76zw  listings → ""   # same as the name key — the events table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingEventsTable~1di7ynd  quantity → ""   # same as the name key — the events table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::firstBookingDate~1fk4ln1  ?? → ||   # find() only returns a booking whose date is a truthy string, so the found side is never falsy and ?? and || agree on every input
+src/features/admin/servicing/page.tsx::firstBookingDuration~115f2gu  ?? → ||   # find() only returns a booking whose durationDays is a truthy number, so the found side is never falsy and ?? and || agree on every input
+src/features/admin/servicing/page.tsx::listingFormQuantities~1sgnzg4  ?? → ||   # event?.bookings is an array or undefined, and an array is always truthy, so ?? and || keep exactly the same list
+src/features/admin/servicing/page.tsx::costListingDisplay.name~0u6nohx  ?? → ||   # costListingNames holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the fallback cannot differ
+src/features/admin/servicing/page.tsx::servicingEventsTable~0rgbx6b  ?? → ||   # the listings join reads fieldById("name") of listing rows, and a listing name is required and saved non-empty — the left side is undefined or a non-empty string, so ?? and || agree
+src/features/admin/servicing/page.tsx::renderServicingPage.html.name~1q0cbpf  ?? → ||   # event?.name is undefined or a stored event name, and an event name is required, so the left side can never be the "" fallback's only falsy string
+src/features/admin/servicing/page.tsx::renderServicingPage.title~0y52sh9  ?? → ||   # event?.name is undefined or a stored event name, and an event name is required, so ?? and || pick the same title for every event
+
 src/ui/templates/admin/listings/overview.tsx::overviewStatsFromAttendees~0so9vc9  ?? → ||   # the operand is a Set or undefined, and every Set object is truthy
