@@ -4,9 +4,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   databaseBusyResponse,
   downloadResponse,
+  htmlResponse,
+  icsResponse,
+  jsonResponse,
   migrationInProgressResponse,
+  notFoundResponse,
+  plainResponse,
+  rateLimitedResponse,
   redirect,
   redirectResponse,
+  rssResponse,
   siteNotActivatedResponse,
   temporaryErrorResponse,
   withCookie,
@@ -23,6 +30,37 @@ import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 // jscpd:ignore-end
 
 describeWithEnv("route responses", { db: true }, () => {
+  describe("encoded responses", () => {
+    for (const [build, type, body] of [
+      [htmlResponse, "text/html", "<p>Hello</p>"],
+      [plainResponse, "text/plain", "Hello"],
+      [icsResponse, "text/calendar", "BEGIN:VCALENDAR"],
+      [rssResponse, "application/rss+xml", "<rss/>"],
+    ] as const) {
+      test(`returns ${type} with its body and charset`, async () => {
+        const response = build(body, 201);
+        expect(response.status).toBe(201);
+        expect(response.headers.get("content-type")).toBe(
+          `${type}; charset=utf-8`,
+        );
+        expect(await response.text()).toBe(body);
+      });
+    }
+
+    test("returns JSON with the default status and content type", async () => {
+      const response = jsonResponse({ saved: true });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "application/json; charset=utf-8",
+      );
+      expect(await response.json()).toEqual({ saved: true });
+    });
+
+    test("uses an explicit JSON response status", () => {
+      expect(jsonResponse({ saved: false }, 409).status).toBe(409);
+    });
+  });
+
   describe("withCookie", () => {
     test("adds a cookie to a response without existing cookies", async () => {
       const response = new Response("body", { status: 200 });
@@ -83,9 +121,9 @@ describeWithEnv("route responses", { db: true }, () => {
         expect(response.headers.get("location")).not.toContain("success=");
       }));
 
-    test("targets a form while preserving its anchor", () =>
+    test("replaces the existing anchor with the target form", () =>
       withRequestContext(() => {
-        const response = redirect("/admin/settings", "Updated", true, {
+        const response = redirect("/admin/settings#old", "Updated", true, {
           formId: "settings&email",
         });
         expectRedirectWithFlash(
@@ -131,6 +169,9 @@ describeWithEnv("route responses", { db: true }, () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/ticket/test");
       expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
     });
 
     test("carries iframe mode into the redirect location", () =>
@@ -177,6 +218,18 @@ describeWithEnv("route responses", { db: true }, () => {
   });
 
   describe("system responses", () => {
+    test("returns the not-found page with status 404", async () => {
+      await expectHtmlResponse(notFoundResponse(), 404, "<h1>Not Found</h1>");
+    });
+
+    test("returns the rate-limit page with status 429", async () => {
+      await expectHtmlResponse(
+        rateLimitedResponse(),
+        429,
+        "<h1>Too Many Requests</h1>",
+      );
+    });
+
     for (const [method, autoRefresh] of [
       ["GET", true],
       ["HEAD", true],

@@ -4,6 +4,7 @@ import {
   databaseBusyPage,
   migrationInProgressPage,
   notFoundPage,
+  qrBookCheckoutErrorPage,
   qrBookErrorPage,
   rateLimitedPage,
   readOnlyPage,
@@ -58,6 +59,14 @@ describe("temporaryErrorPage", () => {
 describe("qrBookErrorPage", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
+
+  test("identifies a checkout failure and escapes the provider message", () => {
+    const html = qrBookCheckoutErrorPage("summer-fete", "Failed <payment>");
+    expect(html).toContain("<title>Could not start payment</title>");
+    expect(html).toContain("<h1>Could not start your payment</h1>");
+    expect(html).toContain("<p>Failed &lt;payment&gt;</p>");
+    expect(html).toContain('href="/ticket/summer-fete"');
+  });
 
   test("offers the normal booking page when the listing has a slug", () => {
     const html = qrBookErrorPage("summer-fete");

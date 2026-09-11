@@ -1,5 +1,8 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
+src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → ||   # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
+src/features/response.ts::redirect.flash~0r1iimg  ?? → ||   # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
+
 # Connection-test answer lines: a valid credential's mode is always a
 # non-empty provider word ("test"/"live"/"sandbox") or the "unknown"
 # fallback itself, so the empty string never reaches this operand.
