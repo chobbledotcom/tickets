@@ -31,6 +31,7 @@ describe("Git hook output", () => {
         `: >"$CAPTURE_OUT" 2>"$CAPTURE_ERR"; exec bash -euo pipefail -c '${hookRun}'`,
         "/dev/null",
       ],
+      env: {},
       err: "",
       live: "task\nprecommit\nsetup=ready\nfd0=no\nfd1=yes\nfd2=yes\nerror output\n",
       name: "shows live terminal output to an interactive caller",
@@ -46,14 +47,37 @@ describe("Git hook output", () => {
         captured,
         "/dev/null",
       ],
+      env: {},
       err: "error output\n",
       live: "",
-      name: "keeps captured output for a piped caller",
+      name: "keeps captured output for a caller writing to a file",
+      out: capturedLines,
+      program: "script",
+    },
+    {
+      // The parent's stdout is a real pipe, the shape CI and agents see.
+      // `exec bash -o pipefail -c "<CMD>"` keeps the hook's exit status the
+      // pipeline's and lets $HOOK expand only inside the hook's own bash.
+      args: [
+        "--quiet",
+        "--return",
+        "--flush",
+        "--command",
+        'exec bash -o pipefail -c "$PIPE_BODY"',
+        "/dev/null",
+      ],
+      env: {
+        PIPE_BODY: `bash -euo pipefail -c '${hookRun}' 2>"$CAPTURE_ERR" | cat >"$CAPTURE_OUT"`,
+      },
+      err: "error output\n",
+      live: "",
+      name: "keeps captured output for a caller on a pipe",
       out: capturedLines,
       program: "script",
     },
     {
       args: ["--fork", "--wait", "bash", "-c", captured],
+      env: {},
       err: "error output\n",
       live: "",
       name: "preserves captured output without a controlling terminal",
@@ -73,6 +97,7 @@ describe("Git hook output", () => {
           const result = await new Deno.Command(mode.program, {
             args: mode.args,
             env: {
+              ...mode.env,
               CAPTURE_ERR: `${dir}/stderr`,
               CAPTURE_OUT: `${dir}/stdout`,
               HOOK: hook,
