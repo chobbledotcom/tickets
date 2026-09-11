@@ -8,6 +8,7 @@ import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
   BookingStatusBadges,
+  InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
 import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
 import { renderSection } from "#templates/admin/entity-pages.tsx";
@@ -134,7 +135,9 @@ describe("BookingStatusBadges", () => {
     const html = String(
       BookingStatusBadges({ checkedIn: true, refunded: false }),
     );
-    expect(html).toContain('<span class="badge">Checked in</span>');
+    expect(html).toContain(
+      '<div class="muted small"><span class="badge">Checked in</span></div>',
+    );
     expect(html).not.toContain("Refunded");
   });
 
@@ -150,8 +153,24 @@ describe("BookingStatusBadges", () => {
     const html = String(
       BookingStatusBadges({ checkedIn: true, refunded: true }),
     );
-    expect(html).toContain("Checked in");
-    expect(html).toContain("Refunded");
+    expect(html).toContain(
+      '<span class="badge">Checked in</span> <span class="badge danger">Refunded</span>',
+    );
+  });
+});
+
+describe("InactiveNote", () => {
+  test("returns nothing for an active listing", () => {
+    expect(InactiveNote({ active: true })).toBeNull();
+  });
+
+  test("marks an inactive listing, with and without a leading space", () => {
+    expect(String(InactiveNote({ active: false, leadingSpace: true }))).toBe(
+      '<span class="muted small"> (Inactive)</span>',
+    );
+    expect(String(InactiveNote({ active: false }))).toBe(
+      '<span class="muted small">(Inactive)</span>',
+    );
   });
 });
 
@@ -176,7 +195,7 @@ describe("AttendeeBookingsTable", () => {
     expectListingRowQuantity(html, 7, 2);
     expectListingRowQuantity(html, 8, 3);
     // ...and the footer totals them (2 + 3); only the total cell holds 5.
-    expect(html).toContain("Total");
+    expect(html).toContain('<th colspan="2" scope="row">Total</th>');
     expect(html).toContain('<td class="col-quantity">5</td>');
   });
 
@@ -211,16 +230,19 @@ describe("AttendeeBookingsTable", () => {
 
   test("annotates a folded child row with the parent it was chosen under", () => {
     // The child's parentListingId points at the parent, which is booked in the
-    // same order — so its name resolves from the sibling row.
+    // same order — so its name resolves from the sibling row. A parent id of
+    // the lowest possible value keeps the "has a parent" check honest.
     const html = renderBookings([
-      booking({ listingId: 7, listingName: "Base unit" }),
+      booking({ listingId: 1, listingName: "Base unit" }),
       booking({
         listingId: 8,
         listingName: "Add-on",
-        parentListingId: 7,
+        parentListingId: 1,
       }),
     ]);
-    expect(html).toContain("Add-on chosen under Base unit");
+    expect(html).toContain(
+      '<div class="muted small">Add-on chosen under Base unit</div>',
+    );
   });
 
   test("a plain booking shows no add-on annotation", () => {
@@ -233,15 +255,20 @@ describe("AttendeeBookingsTable", () => {
 
   test("annotates a parent row with the add-on children folded under it (#5)", () => {
     // The reverse of "chosen under": the parent row lists every child booked
-    // against it in this order, so the relationship reads both ways.
+    // against it in this order, so the relationship reads both ways. Children
+    // pointed at the lowest possible parent id keep the fold's check honest.
     const html = renderBookings([
-      booking({ listingId: 7, listingName: "Base unit" }),
-      booking({ listingId: 8, listingName: "Paddle", parentListingId: 7 }),
-      booking({ listingId: 9, listingName: "Helmet", parentListingId: 7 }),
+      booking({ listingId: 1, listingName: "Base unit" }),
+      booking({ listingId: 8, listingName: "Paddle", parentListingId: 1 }),
+      booking({ listingId: 9, listingName: "Helmet", parentListingId: 1 }),
     ]);
-    expect(html).toContain("Includes add-on: Paddle, Helmet");
+    expect(html).toContain(
+      '<div class="muted small">Includes add-on: Paddle, Helmet</div>',
+    );
     // The children still show their own "chosen under" annotation.
-    expect(html).toContain("Add-on chosen under Base unit");
+    expect(html).toContain(
+      '<div class="muted small">Add-on chosen under Base unit</div>',
+    );
   });
 
   test("falls back to the parent id when its row is absent from the order", () => {
@@ -307,6 +334,14 @@ describe("AttendeeAnswersTable", () => {
     expect(
       AttendeeAnswersTable({ questions, selectedAnswerIds: [] }),
     ).toBeNull();
+  });
+
+  test("joins every chosen answer of one question with a comma", () => {
+    const html = String(
+      AttendeeAnswersTable({ questions, selectedAnswerIds: [10, 11] }),
+    );
+    expect(html).toContain("Shirt size?");
+    expect(html).toContain("Small, Large");
   });
 });
 

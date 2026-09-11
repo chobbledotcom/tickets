@@ -180,12 +180,12 @@ const servicingCostsTable = defineTable<
   translatedTableColumn("date", "servicing.column.date", (cost) =>
     formatDateLabel(cost.date.slice(0, 10)),
   ),
-  {
-    ...translatedTableColumn("amount", "servicing.column.amount", (cost) =>
-      formatCurrency(cost.amount),
-    ),
-    class: "amount",
-  },
+  translatedTableColumn(
+    "amount",
+    "servicing.column.amount",
+    (cost) => formatCurrency(cost.amount),
+    { class: "amount" },
+  ),
   translatedTableColumn("note", "servicing.column.note", (cost) => cost.memo),
   translatedTableColumn(
     "actions",

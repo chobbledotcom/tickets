@@ -28,10 +28,7 @@ import type {
 } from "#templates/admin/attendee-form/types.ts";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import {
-  translatedTableColumn,
-  translatedTableHeader,
-} from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -171,12 +168,12 @@ const listingColumns: readonly TableColumn<
 >[] = [
   translatedTableColumn("listing", "terms.listing", listingNameCell),
   translatedTableColumn("dates", "attendee_form.col_dates", listingDatesCell),
-  {
-    cell: listingQuantityCell,
-    className: "attendee-line-qty",
-    header: translatedTableHeader("attendee_form.col_qty"),
-    key: "quantity",
-  },
+  translatedTableColumn(
+    "quantity",
+    "attendee_form.col_qty",
+    listingQuantityCell,
+    { className: "attendee-line-qty" },
+  ),
   {
     cell: listingNoticesCell,
     header: "",

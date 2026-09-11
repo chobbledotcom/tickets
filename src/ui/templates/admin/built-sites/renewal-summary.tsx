@@ -6,10 +6,7 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import {
-  translatedTableColumn,
-  translatedTableHeader,
-} from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
@@ -18,24 +15,24 @@ const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
   translatedTableColumn("tier", "built_sites.tier_table_tier", (tier) => (
     <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>
   )),
-  {
-    cell: (tier) => tier.months_per_unit,
-    class: "quantity",
-    header: translatedTableHeader("built_sites.tier_table_months"),
-    key: "months",
-  },
-  {
-    cell: (tier) => formatCurrency(tier.unit_price),
-    class: "amount",
-    header: translatedTableHeader("built_sites.tier_table_price"),
-    key: "price",
-  },
-  {
-    cell: (tier) => tier.attendee_count,
-    class: "quantity",
-    header: translatedTableHeader("built_sites.tier_table_units"),
-    key: "units",
-  },
+  translatedTableColumn(
+    "months",
+    "built_sites.tier_table_months",
+    (tier) => tier.months_per_unit,
+    { class: "quantity" },
+  ),
+  translatedTableColumn(
+    "price",
+    "built_sites.tier_table_price",
+    (tier) => formatCurrency(tier.unit_price),
+    { class: "amount" },
+  ),
+  translatedTableColumn(
+    "units",
+    "built_sites.tier_table_units",
+    (tier) => tier.attendee_count,
+    { class: "quantity" },
+  ),
 ];
 
 const renewalTierTable = defineTable(renewalTierColumns);

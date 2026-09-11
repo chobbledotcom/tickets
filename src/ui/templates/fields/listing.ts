@@ -9,8 +9,8 @@ import { t } from "#i18n";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
+  defineFieldsForm,
   defineForm,
-  type FormDefinition,
   type FormValues,
 } from "#shared/forms/definition.ts";
 import {
@@ -340,22 +340,17 @@ const listingFields = (view: ListingFormView = {}) =>
     },
   ] as const satisfies readonly Field[];
 
-type ListingForm = FormDefinition<ReturnType<typeof listingFields>>;
+export const getListingForm = defineFieldsForm(listingFields);
 
-export const getListingForm = (view: ListingFormView = {}): ListingForm =>
-  defineForm({ fields: listingFields(view) });
-
-const listingEditFields = (view: ListingFormView) =>
+const listingEditFields = (view: ListingFormView = {}) =>
   [...listingFields(view), { ...getSlugField(), section: "advanced" }] as const;
 
-type ListingEditForm = FormDefinition<ReturnType<typeof listingEditFields>>;
+export const getListingEditForm = defineFieldsForm(listingEditFields);
 
-export const getListingEditForm = (
-  view: ListingFormView = {},
-): ListingEditForm => defineForm({ fields: listingEditFields(view) });
-
-export type ListingFormValues = FormValues<ListingForm>;
-export type ListingEditFormValues = FormValues<ListingEditForm>;
+export type ListingFormValues = FormValues<ReturnType<typeof getListingForm>>;
+export type ListingEditFormValues = FormValues<
+  ReturnType<typeof getListingEditForm>
+>;
 
 /** Logistics agent form field definitions
  */

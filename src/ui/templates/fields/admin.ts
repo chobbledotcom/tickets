@@ -5,11 +5,7 @@
  */
 
 import { t } from "#i18n";
-import {
-  defineForm,
-  type FormDefinition,
-  type FormValues,
-} from "#shared/forms/definition.ts";
+import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
@@ -38,10 +34,7 @@ const getLoginFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-type LoginForm = FormDefinition<ReturnType<typeof getLoginFields>>;
-
-export const getLoginForm = (): LoginForm =>
-  defineForm({ fields: getLoginFields() });
+export const getLoginForm = defineFieldsForm(getLoginFields);
 
 /**
  * Holiday form field definitions (per-request builder)
@@ -72,10 +65,7 @@ const getHolidayFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-type HolidayForm = FormDefinition<ReturnType<typeof getHolidayFields>>;
-
-export const getHolidayForm = (): HolidayForm =>
-  defineForm({ fields: getHolidayFields() });
+export const getHolidayForm = defineFieldsForm(getHolidayFields);
 
 /** One built-site box: its label and placeholder come from the field's
  * catalog keys, so every form naming this value says the same words. */
@@ -188,10 +178,7 @@ const getBuiltSiteFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-type BuiltSiteForm = FormDefinition<ReturnType<typeof getBuiltSiteFields>>;
-
-export const getBuiltSiteForm = (): BuiltSiteForm =>
-  defineForm({ fields: getBuiltSiteFields() });
+export const getBuiltSiteForm = defineFieldsForm(getBuiltSiteFields);
 
 /** Password field telling the browser to offer a new password, not a saved one. */
 const newPasswordField = <TName extends string>(
@@ -241,10 +228,7 @@ const getSetupFields = () =>
     ),
   ] as const satisfies readonly Field[];
 
-type SetupForm = FormDefinition<ReturnType<typeof getSetupFields>>;
-
-export const getSetupForm = (): SetupForm =>
-  defineForm({ fields: getSetupFields() });
+export const getSetupForm = defineFieldsForm(getSetupFields);
 
 /**
  * Change password form field definitions (per-request builder)
@@ -266,12 +250,7 @@ const getChangePasswordFields = () =>
     ),
   ] as const satisfies readonly Field[];
 
-type ChangePasswordForm = FormDefinition<
-  ReturnType<typeof getChangePasswordFields>
->;
-
-export const getChangePasswordForm = (): ChangePasswordForm =>
-  defineForm({ fields: getChangePasswordFields() });
+export const getChangePasswordForm = defineFieldsForm(getChangePasswordFields);
 
 /** A required payment-provider credential field: never autofilled, always
  * carries a hint, and (when given) a placeholder. `type` is "password" for
@@ -385,9 +364,8 @@ const getInviteUserFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-type InviteUserForm = FormDefinition<ReturnType<typeof getInviteUserFields>>;
+export const getInviteUserForm = defineFieldsForm(getInviteUserFields);
 
-export const getInviteUserForm = (): InviteUserForm =>
-  defineForm({ fields: getInviteUserFields() });
-
-export type InviteUserFormValues = FormValues<InviteUserForm>;
+export type InviteUserFormValues = FormValues<
+  ReturnType<typeof getInviteUserForm>
+>;

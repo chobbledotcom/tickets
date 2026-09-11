@@ -2,11 +2,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import {
-  defineForm,
-  type FormDefinition,
-  type FormValues,
-} from "#shared/forms/definition.ts";
+import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import {
   CalcKindSchema,
@@ -144,9 +140,6 @@ const getModifierFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-type ModifierForm = FormDefinition<ReturnType<typeof getModifierFields>>;
+export const getModifierForm = defineFieldsForm(getModifierFields);
 
-export const getModifierForm = (): ModifierForm =>
-  defineForm({ fields: getModifierFields() });
-
-export type ModifierFormValues = FormValues<ModifierForm>;
+export type ModifierFormValues = FormValues<ReturnType<typeof getModifierForm>>;

@@ -159,6 +159,17 @@ export const defineForm = <
   };
 };
 
+/** Wrap a per-request fields builder in the per-request form getter a fields
+ *  module ends with: every call builds a fresh form from a fresh field list,
+ *  so translated labels follow the active request. The getter takes the same
+ *  arguments as the fields builder it wraps. */
+export const defineFieldsForm =
+  <TArgs extends readonly unknown[], TFields extends FormFieldDefinitions>(
+    getFields: (...args: TArgs) => TFields,
+  ): ((...args: TArgs) => FormDefinition<TFields>) =>
+  (...args) =>
+    defineForm({ fields: getFields(...args) });
+
 /** The field shape `defineTextForm` builds: one required text box. */
 type SingleTextField<TName extends string> = {
   readonly label: string;

@@ -15,6 +15,27 @@ const exactKey: "name" = nameColumn.key;
 const table = defineTable([nameColumn]);
 void exactKey;
 
+test("carries the extras a column with more than a heading needs", () => {
+  const remainingColumn = translatedTableColumn<
+    { value: string },
+    "name",
+    number
+  >("name", "common.name", (row, ctx) => `${row.value}/${ctx}`, {
+    cellAttrs: (row) => ({ "data-remaining": row.value }),
+    class: "quantity",
+  });
+  const remainingTable = defineTable([remainingColumn]);
+  const html = String(
+    renderTable(remainingTable, [{ value: "2" }], {
+      context: 5,
+    }),
+  );
+  expect(html).toContain('<th class="col-quantity">Name</th>');
+  expect(html).toContain(
+    '<td class="col-quantity" data-remaining="2">2/5</td>',
+  );
+});
+
 const headerWith = (replacement: string): string => {
   using _env = withEnv({ I18N_REPLACEMENTS: `name|${replacement}` });
   resetI18nForTest();
