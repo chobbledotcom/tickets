@@ -10,7 +10,6 @@ import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   assignBuiltSite,
   getAssignableBuiltSites,
-  siteBaseUrl,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { getAllListings } from "#db/listings/records.ts";
@@ -23,6 +22,7 @@ import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 import {
   reportSiteAssignmentFailure,
   type SiteAssignmentConfigValidation,

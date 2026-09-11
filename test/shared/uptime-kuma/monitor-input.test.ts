@@ -95,4 +95,10 @@ describe("Uptime Kuma monitor input", () => {
     expect(first.conditions).not.toBe(second.conditions);
     expect(first.rabbitmqNodes).not.toBe(second.rabbitmqNodes);
   });
+
+  test("monitors a bunny.run child at its stable b-cdn.net address", () => {
+    expect(scheduledUrl(testBuiltSite({ siteUrl: "child.bunny.run" }))).toBe(
+      "https://child.b-cdn.net/scheduled",
+    );
+  });
 });

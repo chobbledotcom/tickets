@@ -4,6 +4,7 @@ import { resolveHostingProvider, siteHostingAccess } from "#shared/builder.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 
 type SiteSchedulerResult = Result<void>;
 
@@ -18,14 +19,11 @@ const verifyScheduledKey = async (
   key: string,
 ): Promise<SiteSchedulerResult> => {
   try {
-    const result = await fetchText(
-      `${new URL(/^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`).origin}/scheduled`,
-      {
-        headers: { authorization: `Bearer ${key}` },
-        method: "POST",
-        redirect: "manual",
-      },
-    );
+    const result = await fetchText(`${siteBaseUrl(siteUrl)}/scheduled`, {
+      headers: { authorization: `Bearer ${key}` },
+      method: "POST",
+      redirect: "manual",
+    });
     return result.status === 204 && result.text === ""
       ? okResult(undefined)
       : errorResult("The child did not accept the scheduled task key.");

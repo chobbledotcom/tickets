@@ -366,6 +366,12 @@ describeWithEnv(
         await expectSetupEmailBody("https://c.test.net/setup/");
       });
 
+      test("email setup link names a bunny.run site by its stable b-cdn.net address", async () => {
+        await insertBuiltSite("Site D", "newbooking.bunny.run", "", "", true);
+
+        await expectSetupEmailBody("https://newbooking.b-cdn.net/setup/");
+      });
+
       test("uses DB email config when available and includes reply-to", async () => {
         // Configure email via DB settings (not host config) so getEmailConfig()
         // returns non-null, covering the left branch of the ?? operator

@@ -3,6 +3,7 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
@@ -42,7 +43,7 @@ const builtSiteNameCell = linkCell(
 );
 
 const builtSiteUrlCell = (site: BuiltSite): JSX.Element => (
-  <NewTabUrl url={site.siteUrl} />
+  <NewTabUrl url={siteBaseUrl(site.siteUrl)} />
 );
 
 const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [

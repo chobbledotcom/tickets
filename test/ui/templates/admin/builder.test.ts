@@ -50,6 +50,18 @@ describe("adminBuilderPage", () => {
     expect(html).toContain('target="_blank"');
   });
 
+  test("links a bare bunny.run address as a working b-cdn.net link", () => {
+    const html = adminBuilderPage(OWNER_SESSION, [
+      {
+        created: "1 Jan 2026",
+        name: "Bunny-run site",
+        siteUrl: "childsite.bunny.run",
+      },
+    ]);
+    expect(html).toContain('href="https://childsite.b-cdn.net"');
+    expect(html).not.toContain("bunny.run");
+  });
+
   test("renders error message", () => {
     const html = adminBuilderPage(OWNER_SESSION, [], "Something went wrong");
     expect(html).toContain("Something went wrong");

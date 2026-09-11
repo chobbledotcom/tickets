@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import {
   builtSites,
   builtSitesCrudTable,
   insertBuiltSite,
-  siteBaseUrl,
 } from "#db/built-sites.ts";
 import { execute } from "#db/client.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
@@ -18,30 +17,6 @@ const formBlob = async (
   const values = await builtSitesCrudTable.toDbValues(input);
   return parseSiteDataBlob(values.site_data as string);
 };
-
-describe("siteBaseUrl", () => {
-  test("prepends https:// to a bare hostname", () => {
-    expect(siteBaseUrl("site.b-cdn.net")).toBe("https://site.b-cdn.net");
-  });
-
-  test("keeps an existing scheme", () => {
-    expect(siteBaseUrl("http://example.com")).toBe("http://example.com");
-  });
-
-  test("strips a trailing slash so a path can be appended", () => {
-    expect(siteBaseUrl("https://example.com/")).toBe("https://example.com");
-  });
-
-  test("collapses a path, query, and hash to the origin", () => {
-    expect(siteBaseUrl("https://example.com/admin?x=1#y")).toBe(
-      "https://example.com",
-    );
-  });
-
-  test("normalizes an uppercase scheme to a lowercase origin", () => {
-    expect(siteBaseUrl("HTTPS://example.com")).toBe("https://example.com");
-  });
-});
 
 describeWithEnv("built-site storage", { db: true }, () => {
   test("toDbValues creates valid site-data JSON", async () => {

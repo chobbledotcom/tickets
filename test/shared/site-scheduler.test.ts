@@ -142,10 +142,12 @@ describeWithEnv(
       });
     });
 
-    test("verifies only the child origin when its URL includes a path", async () => {
+    /** Provision the scheduler for a child stored at `siteUrl`, succeed at the
+     * live check, and name the URL the verification request went to. */
+    const expectVerifiedFetchUrl = async (siteUrl: string): Promise<string> => {
       const child = await insertBuiltSite(
         "Child",
-        "HTTPS://child.example.test/unsafe/path",
+        siteUrl,
         "",
         "",
         false,
@@ -155,8 +157,18 @@ describeWithEnv(
       using fetchStub = stubFetch(new Response(null, { status: 204 }));
 
       expect((await provisionSiteScheduler(child.id)).ok).toBe(true);
-      expect(String(fetchStub.calls[0]!.args[0])).toBe(
-        "https://child.example.test/scheduled",
+      return String(fetchStub.calls[0]!.args[0]);
+    };
+
+    test("verifies only the child origin when its URL includes a path", async () => {
+      expect(
+        await expectVerifiedFetchUrl("HTTPS://child.example.test/unsafe/path"),
+      ).toBe("https://child.example.test/scheduled");
+    });
+
+    test("verifies a bunny.run child at its stable b-cdn.net address", async () => {
+      expect(await expectVerifiedFetchUrl("child.bunny.run")).toBe(
+        "https://child.b-cdn.net/scheduled",
       );
     });
   },

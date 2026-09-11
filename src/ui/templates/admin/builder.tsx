@@ -5,6 +5,7 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
@@ -26,7 +27,7 @@ export type BuiltSiteDisplay = {
 const builtSitesTable = defineTable<BuiltSiteDisplay>([
   translatedTableColumn("name", "common.name", (site) => site.name),
   translatedTableColumn("url", "builder.table_url", (site) => (
-    <NewTabUrl url={site.siteUrl} />
+    <NewTabUrl url={siteBaseUrl(site.siteUrl)} />
   )),
   translatedTableColumn("built", "builder.table_built", (site) => site.created),
 ]);
