@@ -7,7 +7,6 @@
 
 import {
   type Client,
-  createClient,
   type InStatement,
   type InValue,
   LibsqlError,
@@ -15,6 +14,7 @@ import {
   type Transaction,
   type TransactionMode,
 } from "@libsql/client";
+import { createDatabaseClient } from "#db/database-client.ts";
 import { beginTransaction, wrapExecute } from "#db/libsql-call.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import {
@@ -22,6 +22,7 @@ import {
   enforceTransactionRoundTripGuard,
   trackSql,
 } from "#db/query-log.ts";
+import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
@@ -39,12 +40,6 @@ import { topLevelCommas } from "#shared/top-level-commas.ts";
  */
 const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
-
-/** A CTE-led statement's tail, without its leading `WITH ... AS (...)`. Every
- *  CTE closes with `) <verb> ...`, so the alternation catches the tail whichever
- *  verb follows. See {@link writeSqlOf} for what depends on this. */
-const CTE_PREFIX_RE =
-  /^\s*WITH\b[\s\S]*?\)\s*((?:INSERT|UPDATE|DELETE|REPLACE|SELECT)[\s\S]*)$/i;
 
 /**
  * The lower-cased column names an UPDATE's SET clause assigns, or null when none
@@ -88,20 +83,6 @@ export const extractUpdateColumns = (
 };
 
 /**
- * The real statement inside a possibly CTE-led string, so the write regexes
- * anchor on the true verb: a `WITH ... INSERT` is a write, not a bare SELECT
- * that the write gates would skip. {@link isReadSql} and {@link invalidateForSql}
- * share it, so retry and cache invalidation cannot disagree on what is a write.
- */
-const writeSqlOf = (sql: string): string => CTE_PREFIX_RE.exec(sql)?.[1] ?? sql;
-
-/** The SQL text of a libsql statement, which may be a bare string or a
- *  `{ sql, args }` object. Shared by the batch/transaction scopes and the
- *  batch retry gate so the InStatement shape is unwrapped in one place. */
-const sqlOf = (stmt: InStatement): string =>
-  typeof stmt === "string" ? stmt : stmt.sql;
-
-/**
  * After a successful write, invalidate every cache that declared a dependency on
  * the mutated table; a no-op for reads and for tables nothing depends on. An
  * UPDATE is narrowed by its SET columns, so a dependency gated on
@@ -131,10 +112,10 @@ const createDbClient = (): Client => {
   // exactOptionalPropertyTypes rejects an explicit `undefined`. A no-token
   // client is valid at runtime, so assert the type rather than branch on it
   // (a branch here would leave one side uncovered).
-  return createClient({
+  return createDatabaseClient({
     authToken: getEnv("DB_TOKEN"),
     url,
-  } as Parameters<typeof createClient>[0]);
+  } as Parameters<typeof createDatabaseClient>[0]);
 };
 
 const GUARDED_CLIENT = Symbol("guarded-db-client");
@@ -298,16 +279,6 @@ const isTransientUpstreamError = (error: unknown): boolean =>
   error instanceof LibsqlError &&
   error.code === "SERVER_ERROR" &&
   TRANSIENT_UPSTREAM_STATUS_RE.test(error.message);
-
-/** The one statement shape the upstream retry may replay: a SELECT, possibly
- *  CTE-led. Anything else — a write, DDL (CREATE/ALTER/DROP), a PRAGMA — may
- *  have side effects that landed before the gateway timed out, so the gate
- *  fails closed: only a positively recognized read retries. */
-const READ_SQL_RE = /^\s*select\b/i;
-
-/** Whether a statement is a read the upstream retry may replay, the CTE prefix
- *  stripped first so a `WITH ... SELECT` still reads as a SELECT. */
-const isReadSql = (sql: string): boolean => READ_SQL_RE.test(writeSqlOf(sql));
 
 /**
  * The one place two retry rules are spelled out:
@@ -619,13 +590,8 @@ export const queryBatch = batchFor(
   true,
 );
 
-/**
- * Read queries pinned to the primary in one round-trip, for a caller that must
- * read its own writes — the migrator verifying DDL it just applied. "read" mode
- * can be served by a lagging replica, so this asks for "write" mode, which Turso
- * always serves from the primary. Holding only SELECTs is fine: the mode buys the
- * connection, not permission to write.
- */
+/** HTTP primary reads use a separate BEGIN and COMMIT in one pipeline. A complete
+ * SELECT-only batch can run on a replica despite its write mode. */
 export const queryBatchPrimary = batchFor("write", true);
 
 /** Write statements in order in one transaction, returning every ResultSet —
