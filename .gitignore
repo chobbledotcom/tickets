@@ -32,6 +32,7 @@ cov_profile/
 .deno/
 .deno-cache/
 .local-data/
+.diagnostics/
 .mutation-runs/
 .pi-worktrees/
 .security-worktrees/
