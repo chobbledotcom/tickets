@@ -57,6 +57,24 @@ test("distinguishes available and unavailable unassigned sites", () => {
   expect(html).toContain("Not assignable");
 });
 
+test("links a bare bunny.run address as a working b-cdn.net link", () => {
+  const html = String(
+    BuiltSitesListBody({
+      hostingIds: "",
+      renewalTiers: [],
+      sites: [
+        testBuiltSite({
+          id: 7,
+          name: "Bunny-run site",
+          siteUrl: "childsite.bunny.run",
+        }),
+      ],
+    }),
+  );
+  expect(html).toContain('href="https://childsite.b-cdn.net"');
+  expect(html).not.toContain("bunny.run");
+});
+
 test("renders the list actions and guide destination", () => {
   const actions = String(BuiltSitesListActions());
   expect(actions).toContain('href="/admin/built-sites/new"');

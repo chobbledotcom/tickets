@@ -374,6 +374,39 @@ describeWithEnv(
       });
     });
 
+    test("POST /admin/builder records the flash at the site's stable address", async () => {
+      await withMocks(
+        () => ({
+          buildStub: stub(builderApi, "buildSite", async (_input, retain) => {
+            const result = {
+              dbProvider: "bunny" as const,
+              dbToken: "tok",
+              dbUrl: "libsql://test.io",
+              defaultHostname: "freshsite.bunny.run",
+              hostingId: "42",
+              hostingProvider: "bunny" as const,
+              ok: true as const,
+            };
+            await retain({ ...result, scheduledTaskKey: TEST_SCHEDULED_KEY });
+            return result;
+          }),
+          dbTestStub: stubDbOk(),
+        }),
+        async () => {
+          const { response } = await adminFormPost("/admin/builder", {
+            db_token: "token",
+            db_url: "libsql://test.io",
+            site_name: "Stable Address Site",
+          });
+          expectRedirect(response, "/admin/builder");
+          expectFlash(
+            response,
+            expect.stringContaining("https://freshsite.b-cdn.net"),
+          );
+        },
+      );
+    });
+
     test("POST /admin/builder returns error when build fails", async () => {
       await withMocks(
         () => ({

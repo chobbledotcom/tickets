@@ -1,5 +1,5 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { siteBaseUrl } from "#db/built-sites.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 import type { UptimeKumaMonitorInput } from "./client.ts";
 import type { UptimeKumaConfig } from "./config.ts";
 

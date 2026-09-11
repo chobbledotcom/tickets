@@ -25,6 +25,7 @@ import {
   isDenoDeployEnabled,
   isTursoEnabled,
 } from "#shared/config.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 import {
   adminBuilderPage,
   type BuiltSiteDisplay,
@@ -150,7 +151,9 @@ const builderPost = createAuthedFormRoute({
 
     return redirect(
       BUILDER_PATH,
-      `Site "${values.site_name}" created successfully at ${buildResult.defaultHostname}`,
+      `Site "${values.site_name}" created successfully at ${siteBaseUrl(
+        buildResult.defaultHostname,
+      )}`,
       true,
     );
   },

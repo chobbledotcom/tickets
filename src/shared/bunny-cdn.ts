@@ -17,6 +17,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { toStableHostname } from "#shared/site-address.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -106,7 +107,7 @@ const findPullZoneIdImpl = (): Promise<
  * This is the stable hostname for CNAME targets, independent of request URL.
  */
 const toCnameTarget = (hostname: string): string =>
-  hostname.replace(/^https?:\/\//, "").replace(/\.bunny\.run$/, ".b-cdn.net");
+  toStableHostname(hostname.replace(/^https?:\/\//, ""));
 
 const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
   withEdgeScript((data) => ({
@@ -331,7 +332,8 @@ const registerBunnySubdomainImpl = async (
   const recordName = buildSubdomainRecordName(subdomain);
   const fullDomain = availCheck.fullDomain;
 
-  // Resolve CDN hostname for CNAME target (stable .b-cdn.net, not custom domain)
+  // Resolve the stable CDN hostname for the CNAME target, never the raw
+  // script host or the custom domain.
   const cdnHostname = await bunnyCdnApi.getCdnHostname();
   if (!cdnHostname.ok) {
     return reported(cdnHostname);
