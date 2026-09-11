@@ -16,6 +16,7 @@ import {
   runWithQueryLogContext,
 } from "#db/query-log.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -201,16 +202,17 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // batch resolves; the next batch re-validates its facts inside its own
     // snapshot, voids the stale-sided one, and names the second line.
     const { a, b, lines } = await longOrderOnGroup(65);
-    const spare = await createTestGroup({
-      maxAttendees: 1,
-      name: "Spare full group",
-    });
+    await createTestGroup({ maxAttendees: 1, name: "Spare full group" });
     // The group-create helper returns the last cached row, which is
-    // ambiguous once two groups exist; take the spare by its own name.
+    // ambiguous once two groups exist; take the spare by its own name, and
+    // fail loudly when the cache does not hold it.
     const { groups } = await import("#db/groups.ts");
-    const fullGroup = (await groups.cache.getAll()).find(
-      (group) => group.id === spare.id,
-    )!;
+    const fullGroup = requireValue(
+      (await groups.cache.getAll()).find(
+        (group) => group.name === "Spare full group",
+      ),
+      "Spare full group was not found",
+    );
 
     using _batchGate = gateDiagnosisBatches(async (call) => {
       // The membership lands after the facts batch and before the first
@@ -232,6 +234,61 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }),
     ).toBe(6);
     expect(diagnosis).toEqual([b.id]);
+  });
+
+  test("a membership set that comes back in a different row order is the same facts", async () => {
+    // The facts compare is member-by-member: two memberships deleted and
+    // re-inserted reversed preserve the set, so the first probe batch's own
+    // re-read must still match the model and settle the search — the extra
+    // batch a false change would bill is the pin.
+    const shared = await createTestGroup({
+      maxAttendees: 1,
+      name: "One place",
+    });
+    const other = await createTestGroup({
+      maxAttendees: 0,
+      name: "Roomy other",
+    });
+    const first = await createTestListing({
+      groupId: shared.id,
+      maxAttendees: 10,
+      name: "Two-group member",
+    });
+    await execute(
+      "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+      [other.id, first.id],
+    );
+    const second = await createTestListing({
+      groupId: shared.id,
+      maxAttendees: 10,
+      name: "Single member",
+    });
+    const lines = [line(first.id), line(second.id)];
+
+    using _batchGate = gateDiagnosisBatches(async (call) => {
+      if (call === 1) {
+        // The rows land in the opposite scan order; the set is unchanged.
+        await execute("DELETE FROM group_listings WHERE listing_id = ?", [
+          first.id,
+        ]);
+        await execute(
+          "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+          [other.id, first.id],
+        );
+        await execute(
+          "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+          [shared.id, first.id],
+        );
+      }
+    });
+
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(5, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(5);
+    expect(diagnosis).toEqual([second.id]);
   });
 
   test("a listing that vanishes mid-diagnosis names nothing", async () => {

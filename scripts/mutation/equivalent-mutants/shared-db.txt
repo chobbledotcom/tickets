@@ -240,13 +240,3 @@ src/shared/db/link-table.ts::oneDirectionReader.fetchIdsByKeys~0a4lik4 Unexpecte
 
 src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → ""   # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → ||   # read.one answers the row object or null, and every row object is truthy
-
-src/shared/db/attendees/capacity/refusal-diagnosis.ts::listingFactsChanged.factsInRowOrder~0ptxaaz  - → /
-src/shared/db/attendees/capacity/refusal-diagnosis.ts::listingFactsChanged.factsInRowOrder~1gjwt45  - → /
-# Both comparators sit in listingFactsChanged's factsInRowOrder, whose only
-# consumer is the one comparison between the facts a probe batch was built on
-# and the batch's own snapshot — the same function sorts both sides. A broken
-# ordering can then only mark matching facts unequal (costing one extra probe
-# batch) — it can never mark changed facts equal, because a changed membership
-# also changes the sorted sequences; and the two reads feed the comparator the
-# same row order unless a membership really did move.
