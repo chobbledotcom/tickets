@@ -40,6 +40,7 @@ let
     deno = "${deno}/bin/deno";
     denoVersion = "2.5.6";
     chromium = lib.optionalString browserTools "${pkgs.chromium}/bin/chromium";
+    legacyHookCleanup = toString ./scripts/devenv/remove-legacy-hook.sh;
   };
 in
 {

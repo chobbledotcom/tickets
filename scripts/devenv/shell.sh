@@ -34,3 +34,8 @@ chromium="@chromium@"
 if [ -n "$chromium" ]; then
   export CHROMIUM_EXECUTABLE="$chromium"
 fi
+
+# prek kept the repo's pre-migration commit hook beside the managed one and
+# runs both, so every commit pays for the suite twice and the bare hook breaks
+# when the caller's PATH lacks util-linux.
+bash @legacyHookCleanup@
