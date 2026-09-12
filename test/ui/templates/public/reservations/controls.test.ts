@@ -41,6 +41,8 @@ describe("renderDateSelector", () => {
     expect(html).toContain('value="2026-01-02" selected');
     expect(html).toContain('value="2026-01-01"');
     expect(html).not.toContain('value="2026-01-01" selected');
+    // Options join edge to edge between the two dates.
+    expect(html).not.toContain("mutated");
   });
 
   test("says how many days each booking reserves when it spans several", () => {
@@ -146,6 +148,13 @@ describe("renderPayMoreInput", () => {
   test("makes a page-listing price input required down to the smallest price", () => {
     const nearlyFree = { ...listing, unit_price: 50 };
     expect(renderPayMoreInput(nearlyFree)).toContain(" required />");
+  });
+
+  test("treats even one minor unit as a priced minimum", () => {
+    const smallest = { ...listing, unit_price: 1 };
+    const html = renderPayMoreInput(smallest);
+    expect(html).toContain("Price per ticket (£0.01 minimum)");
+    expect(html).toContain(" required />");
   });
 
   test("prefills the entered value when it is at or above the minimum", () => {
