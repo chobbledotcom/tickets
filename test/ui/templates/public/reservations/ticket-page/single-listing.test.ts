@@ -158,7 +158,12 @@ describe("ticketPage (single listing)", () => {
     });
     const html = renderTicket(planListing);
     expect(html).toContain("Number of months");
+    // Each option states the months it buys: three units of a three-month
+    // plan are nine months.
+    expect(html).toContain('<option value="1">3 months</option>');
+    expect(html).toContain('<option value="3">9 months</option>');
     expect(html).not.toContain("Number of Tickets");
+    expect(html).not.toContain('">3</option>');
   });
 
   test("hides quantity selector when max_quantity is 1", () => {

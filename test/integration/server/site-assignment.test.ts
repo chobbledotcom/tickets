@@ -265,6 +265,24 @@ describeWithEnv(
         }
       });
 
+      test("each entry still attempts its own build after one build fails", async () => {
+        const buildStub = stubBuildSiteFailure();
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11, quantity: 2 }),
+            siteEntry({ attendeeId: 12 }),
+          ]);
+
+          expect(buildStub.calls.length).toBe(2);
+          const sites = await builtSites.getAll();
+          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(0);
+          expect(fetchStub.calls.length).toBe(0);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
       test("fails if an auto-build succeeds without retaining its site", async () => {
         const buildStub = stub(builderApi, "buildSite", () =>
           Promise.resolve({
