@@ -9,7 +9,7 @@ import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { type ModifierInput, modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { assertPublicHtml, expectFlash } from "#test-utils/assertions.ts";
@@ -18,7 +18,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
+import {
+  configureTestEmail,
+  expectSingleTicketSvg,
+} from "#test-utils/email.ts";
+import { awaitTestRequest, useFetchStub } from "#test-utils/mocks.ts";
 import { setupAnswerTier } from "#test-utils/modifiers.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -27,6 +31,41 @@ import { enablePublicSite } from "#test-utils/settings.ts";
  * path (nothing can be charged through Square in tests). */
 const selectProviderSquare = async (): Promise<void> => {
   await settings.update.paymentProvider("square");
+};
+
+/** Book under Square as a buyer whose phone number carries one previous
+ * booking, with a visit-gated modifier live, and assert the paid-order email
+ * rule rejects the form. The listing asks for a phone (so the repricing pass
+ * can resolve the buyer's visit count) but never an email; only what the
+ * modifier does to the repriced total differs between callers. */
+const expectReturningBuyerRejectedForEmail = async (
+  unitPrice: number,
+  modifier: Pick<
+    ModifierInput,
+    "calcKind" | "calcValue" | "direction" | "name"
+  >,
+): Promise<void> => {
+  await selectProviderSquare();
+  const listing = await createTestListing({
+    fields: "phone",
+    maxAttendees: 50,
+    unitPrice,
+  });
+  await modifiersTable.insert({ ...modifier, minVisits: 1 });
+  await createTestAttendeeDirect(
+    listing.id,
+    "Returning Buyer",
+    "returning@example.com",
+    1,
+    "07700 900000",
+  );
+
+  const response = await submitTicketForm(listing.slug, {
+    name: "John Doe",
+    phone: "07700 900000",
+  });
+
+  expectFlash(response, expect.stringContaining("Email is required"), false);
 };
 
 /** Turn the public-default status into a reservation charging `amount`, so a
@@ -79,6 +118,18 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       );
     });
 
+    test("keeps requiring email for a one-penny order a discount would make free", async () => {
+      // A returning buyer's 100% discount re-prices the £0.01 order to
+      // nothing — but the order was paid when the form was first checked,
+      // so the email Square demands of paid orders must still be there.
+      await expectReturningBuyerRejectedForEmail(1, {
+        calcKind: "percent",
+        calcValue: 100,
+        direction: "discount",
+        name: "Loyalty",
+      });
+    });
+
     test("books a free booking without email", async () => {
       await selectProviderSquare();
       const listing = await createTestListing({
@@ -97,63 +148,48 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
     });
 
     test("re-checks the email rule when repricing raises a one-penny total", async () => {
-      await selectProviderSquare();
-      const listing = await createTestListing({
-        fields: "phone",
-        maxAttendees: 50,
-      });
       // A one-penny surcharge for returning buyers: the first pass (no
       // contact, zero visits) prices the order free, the repriced order
-      // with the buyer's real visit count costs a penny — and a paid order
-      // under Square must carry an email.
-      await modifiersTable.insert({
+      // with the buyer's real visit count costs exactly a penny — and a
+      // paid order under Square must carry an email.
+      await expectReturningBuyerRejectedForEmail(0, {
         calcKind: "fixed",
-        calcValue: 1,
+        calcValue: 0.01,
         direction: "charge",
-        minVisits: 1,
         name: "Returning buyer fee",
       });
-      await createTestAttendeeDirect(
-        listing.id,
-        "Returning Buyer",
-        "returning@example.com",
-        1,
-        "07700 900000",
-      );
-
-      const response = await submitTicketForm(listing.slug, {
-        name: "John Doe",
-        phone: "07700 900000",
-      });
-
-      expectFlash(
-        response,
-        expect.stringContaining("Email is required"),
-        false,
-      );
     });
   });
+  describe("a provider-less paid booking with a deposit status", () => {
+    const fetch = useFetchStub();
 
-  test("charges nothing now for a provider-less paid booking with a deposit status", async () => {
-    await setPublicReservation("50%");
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com/thanks",
-      unitPrice: 1000,
+    test("charges nothing now, records the full value owed, and shows no paid price", async () => {
+      await configureTestEmail();
+      await setPublicReservation("50%");
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 1000,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        email: "john@example.com",
+        name: "John Doe",
+      });
+
+      // The ledger records the full value as owed and nothing collected —
+      // the 50% deposit status cannot take a deposit with no provider
+      // configured. The ticket attachment prices the booking by what the
+      // buyer was charged, so it carries no paid price either.
+      expect(response.status).toBe(302);
+      const [attendee] = await getAttendeesRaw(listing.id);
+      expect(
+        (await getAttendeeBalanceState(attendee!.id))?.remainingBalance,
+      ).toBe(1000);
+      const svg = expectSingleTicketSvg(fetch.getFetchJsonBody());
+      expect(svg).not.toContain("Price:");
+      expect(svg).toContain("Qty: 1");
     });
-
-    const response = await submitTicketForm(listing.slug, {
-      email: "john@example.com",
-      name: "John Doe",
-    });
-
-    expect(response.status).toBe(302);
-    const [attendee] = await getAttendeesRaw(listing.id);
-    expect(attendee?.remaining_balance).toBe(1000);
-    // The ledger agrees: the full value is owed, nothing was collected.
-    expect(
-      (await getAttendeeBalanceState(attendee!.id))?.remainingBalance,
-    ).toBe(1000);
   });
 
   describe("quotes without a payment provider", () => {
