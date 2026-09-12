@@ -53,6 +53,8 @@
   "public.ticket.agree_terms": "I agree to the terms above",
   "public.ticket.your_price_min": "Price per ticket ({min} minimum)",
   "public.ticket.your_price_optional": "Price per ticket (optional, up to {max})",
+  "public.ticket.your_price_plan_min": "Price per {count, plural, one {# month} other {# months}} ({min} minimum)",
+  "public.ticket.your_price_plan_optional": "Price per {count, plural, one {# month} other {# months}} (optional, up to {max})",
   "public.multi.title": "Reserve Tickets",
   "public.multi.all_sold_out": "Sorry, all listings are sold out.",
   "public.multi.select_tickets": "Select Tickets",
