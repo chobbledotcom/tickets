@@ -35,6 +35,7 @@
   "public.ticket.cart_no_shared_date": "{names} do not share an available date. Book them separately.",
   "public.ticket.cart_no_shared_length": "{names} do not share a booking length. Book them separately.",
   "public.ticket.number_of_tickets": "Number of Tickets",
+  "public.ticket.number_of_months": "Number of months",
   "public.ticket.choose_option": "Choose an option for {name}",
   "public.ticket.choose_total": "Choose add-ons to match your ticket quantity.",
   "public.ticket.child_from_price": "(from {price})",

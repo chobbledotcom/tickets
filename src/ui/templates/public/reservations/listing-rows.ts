@@ -222,6 +222,12 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
+/** A built-site plan sells months of service, not tickets. */
+const quantityLabel = (listing: TicketListing["listing"]): string =>
+  listing.assign_built_site
+    ? t("public.ticket.number_of_months")
+    : t("public.ticket.number_of_tickets");
+
 /** Controls for one listing — quantity and pay-more — without its details. */
 const renderSingleListingControls = (
   info: TicketListing,
@@ -233,7 +239,7 @@ const renderSingleListingControls = (
   const controls = listingControls(info, node, hideQuantity, prefill, childCtx);
   const labelledQuantity = hideQuantity
     ? controls.quantityHtml
-    : `<label>${t("public.ticket.number_of_tickets")}${controls.quantityHtml}</label>`;
+    : `<label>${quantityLabel(info.listing)}${controls.quantityHtml}</label>`;
   return `${labelledQuantity}${controls.priceHtml}${controls.childBlock}`;
 };
 
