@@ -55,7 +55,6 @@ const fetchPkpassResponse = (token: string) =>
   awaitTestRequest(`/wallet/${token}.pkpass`);
 
 /** Fetch and parse pass.json from a pkpass response */
-// deno-lint-ignore no-explicit-any
 const parsePkpassJson = async (token: string): Promise<Record<string, any>> => {
   const response = await fetchPkpassResponse(token);
   const bytes = new Uint8Array(await response.arrayBuffer());
