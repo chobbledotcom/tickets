@@ -77,6 +77,18 @@ jobs:
       - name: Check module import names
         run: deno task check:imports
 
+      - name: Check for alias exports
+        run: deno task check:alias-exports
+
+      - name: Check for empty catch blocks
+        run: deno task check:empty-catch
+
+      - name: Check file line counts
+        run: deno task check:file-lengths
+
+      - name: Check technical English in Markdown
+        run: deno task check:ste
+
       - name: Check payment e2e labels against the catalog
         run: deno task check:e2e-labels
 

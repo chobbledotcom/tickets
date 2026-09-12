@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { readJsonOrNull } from "#scripts/read-json.ts";
+import { readJsonOrNull, readJsonOrThrow } from "#scripts/read-json.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 const NoteSchema = v.object({ note: v.string() });
@@ -48,6 +48,33 @@ describe("reading a JSON file that may not be there", () => {
       // A folder where a file was expected: not "nothing here", but a disk we
       // cannot make sense of.
       await expect(readJsonOrNull(folder, NoteSchema)).rejects.toThrow();
+    });
+  });
+});
+
+describe("reading a JSON file the caller requires", () => {
+  test("gives back what the file holds", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "note.json");
+      Deno.writeTextFileSync(path, '{ "note": "hello" }');
+      expect(await readJsonOrThrow(path, NoteSchema)).toEqual({
+        note: "hello",
+      });
+    });
+  });
+
+  test("fails loudly, naming the path, for a file that is not there", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "missing.json");
+      await expect(readJsonOrThrow(path, NoteSchema)).rejects.toThrow(path);
+    });
+  });
+
+  test("fails loudly for text of the wrong shape", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "note.json");
+      Deno.writeTextFileSync(path, '{ "other": 1 }');
+      await expect(readJsonOrThrow(path, NoteSchema)).rejects.toThrow();
     });
   });
 });

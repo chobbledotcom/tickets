@@ -7,7 +7,10 @@
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { parseProgram } from "#scripts/parse-program.ts";
 import { shapeOf } from "#scripts/typescript-lex.ts";
-import { collectScriptFiles } from "#scripts/walk-files.ts";
+import {
+  collectAuthoredScriptFiles,
+  collectFromFiles,
+} from "#scripts/walk-files.ts";
 import { acceptedProblems, formatProblem, parseAccepted } from "./accepted.ts";
 import { maskedRuns, namedFunctions } from "./functions.ts";
 import { maskSpans } from "./mask-spans.ts";
@@ -31,16 +34,6 @@ export const SOURCE_DIRS = ["src", "scripts", "e2e-payments"];
 
 export const ACCEPTED_DIR = "scripts/check-shapes/accepted";
 
-/**
- * Files this check never reads, matching what `.jscpd.json` skips: a shipped
- * migration is history that must never change, and `src/ui/static` holds built
- * bundles rather than code anybody wrote.
- */
-const isFrozen = (file: string): boolean =>
-  /(^|\/)migrations\/2\d/.test(file) ||
-  /(^|\/)migrations\/schema\/columns\.ts$/.test(file) ||
-  /(^|\/)ui\/static\//.test(file);
-
 /** The one file whose repetition is the point. See {@link outsideSharedMechanism}. */
 export const isSharedMechanism = (file: string): boolean =>
   /(^|\/)fp\.ts$/.test(file);
@@ -61,33 +54,25 @@ const distinctNames = (found: readonly { name: string }[]): string[] => {
   });
 };
 
-/** Every named function body under the given roots. */
-export const collectSites = async (
-  roots: readonly string[],
-): Promise<ShapeSite[]> => {
-  const sites: ShapeSite[] = [];
-  for (const root of roots) {
-    for (const file of await collectScriptFiles(root)) {
-      if (isFrozen(file)) continue;
-      const source = await Deno.readTextFile(file);
-      const program = parseProgram(file, source);
-      const runs = maskedRuns(program, source);
-      const found = namedFunctions(program, source);
-      const names = distinctNames(found);
-      found.forEach((one, index) => {
-        sites.push({
-          body: source.slice(one.start, one.end),
-          file,
-          line: one.line,
-          masked: maskSpans(source, one, runs),
-          name: names[index] as string,
-          sharedMechanism: isSharedMechanism(file),
-        });
-      });
-    }
-  }
-  return sites;
+/** The named function bodies one source file holds. */
+const sitesInFile = (file: string, source: string): ShapeSite[] => {
+  const program = parseProgram(file, source);
+  const runs = maskedRuns(program, source);
+  const found = namedFunctions(program, source);
+  const names = distinctNames(found);
+  return found.map((one, index) => ({
+    body: source.slice(one.start, one.end),
+    file,
+    line: one.line,
+    masked: maskSpans(source, one, runs),
+    name: names[index] as string,
+    sharedMechanism: isSharedMechanism(file),
+  }));
 };
+
+/** Every named function body under the given roots. */
+export const collectSites = (roots: readonly string[]): Promise<ShapeSite[]> =>
+  collectFromFiles(roots, collectAuthoredScriptFiles, sitesInFile);
 
 /** Read every `.txt` in the accepted directory as one list. The files are read
  * in name order, because a directory hands them over in whatever order it

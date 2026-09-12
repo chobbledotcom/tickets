@@ -27,7 +27,7 @@
 
 import { join } from "node:path";
 import * as v from "valibot";
-import { sameOrder, unique } from "#fp";
+import { notCoveredBy, sameOrder, unique } from "#fp";
 import { sha256Hex } from "#scripts/checksum.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -197,8 +197,10 @@ export const writeStaticAssetManifest = async (
   const paths = unique([...build.inputs, ...build.outputs].sort());
   const tracked = await Promise.all(paths.map(trackFile));
   const files = tracked.filter((file): file is TrackedFile => file !== null);
-  const found = new Set(files.map((file) => file.path));
-  const missing = build.outputs.filter((output) => !found.has(output));
+  const missing = notCoveredBy(
+    (file: TrackedFile) => file.path,
+    files,
+  )(build.outputs);
   if (missing.length > 0) {
     throw new Error(
       `Static asset build did not leave every asset on disk: ${missing.join(", ")}`,

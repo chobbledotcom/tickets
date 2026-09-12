@@ -1,0 +1,25 @@
+/**
+ * IO shell for the empty-catch checks: runs a per-file rule over the source
+ * trees (see the Offensive Programming rules in AGENTS.md). Kept thin so the
+ * logic stays testable.
+ */
+
+/* jscpd:ignore-start -- imports */
+import { perFileCheck } from "#scripts/check-runner.ts";
+import { collectAuthoredScriptFiles } from "#scripts/walk-files.ts";
+import { findIssues } from "./rules.ts";
+/* jscpd:ignore-end */
+
+/** The trees whose catch blocks the check reads. */
+export const SOURCE_DIRS = ["src", "test", "scripts", "cli", "e2e-payments"];
+
+/** Check every source tree for an empty catch block. */
+export const runEmptyCatchCheck = perFileCheck(
+  collectAuthoredScriptFiles,
+  findIssues,
+  {
+    guide: '"Offensive Programming" in AGENTS.md',
+    noun: "empty-catch",
+    success: "Every catch block says what it does with the error.",
+  },
+);

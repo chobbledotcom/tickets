@@ -1,0 +1,19 @@
+{
+  "AGENTS.md": 53,
+  "CLAUDE.md": 0,
+  "E2E_TESTS.md": 21,
+  "PR_WORKFLOW.md": 62,
+  "README.md": 16,
+  "REPO_STRUCTURE.md": 0,
+  "docs/cold-start.md": 5,
+  "docs/comment-policy.md": 25,
+  "docs/designing-systems.md": 33,
+  "docs/env-vars.md": 8,
+  "docs/external-order-library.md": 62,
+  "docs/group-page-corrections.md": 1,
+  "docs/mutation-testing.md": 6,
+  "docs/payment-aggregate-lessons.md": 9,
+  "docs/precommit-status.md": 0,
+  "docs/scheduled-maintenance.md": 1,
+  "docs/test-duplication.md": 12
+}

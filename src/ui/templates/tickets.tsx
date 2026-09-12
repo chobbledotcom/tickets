@@ -20,9 +20,6 @@ import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { clampDurationDays } from "#types";
 
-/** Alias export used by ticket templates */
-export type { TokenEntry as TicketEntry };
-
 /** Ticket card data for rendering */
 export type TicketCard = {
   entry: TokenEntry;

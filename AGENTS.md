@@ -276,6 +276,8 @@ GitHub.
   layer hides the one shared mechanism behind per-module vocabulary and gives
   the same behavior two names. A thin wrapper that _adds_ something — a default,
   a transformation, a guard — is not an alias and is fine.
+  `deno task
+  check:alias-exports` enforces this over every source tree.
 - **No internal compatibility layers**: We own every internal caller. When
   replacing an internal API, migrate every caller in the same change and delete
   the old surface instead of keeping wrappers, aliases, re-exports, or
@@ -322,7 +324,10 @@ GitHub.
   more specific test files let us run mutation tests far faster, because a
   source file's mutants only need to run against the narrow test file that
   covers it, not one giant suite. Biome enforces a hard 1,000-line ceiling for
-  every code and test file; never add an override to let one past it. Root
+  every code and test file; never add an override to let one past it.
+  `deno task check:file-lengths` holds the 400-line aim over every source tree,
+  against the accepted list at `scripts/check-file-lengths/over-limit.json` that
+  records where each over-limit file stands. The list only shrinks. Root
   instruction files such as `AGENTS.md` are exempt because their policy must be
   available as one automatically loaded document, but their sections must still
   stay concise. (Expect a known side effect when splitting: jscpd cannot fully
@@ -676,7 +681,8 @@ handling.
   into a 400. A `catch {}` whose body ignores the error is acceptable only when
   the fallback _is_ the documented behavior, stated in a comment (for example
   `tryDecrypt` in `src/features/api/sms-webhook.ts`, whose contract is "fall
-  back to the raw value if it is not encrypted").
+  back to the raw value if it is not encrypted"). `deno task check:empty-catch`
+  flags a catch block that holds no statement and no comment.
 - **A function that looks something up, resolves, computes, or finds something
   must THROW when it cannot** — never return `null` / `""` / `0` / `-1` / `[]`
   as a "not found" stand-in — unless "not found" is a genuinely expected,
@@ -849,8 +855,8 @@ explain becomes a paragraph nobody can follow under pressure.
 - Write in the active voice. Use the passive voice only in descriptive text, and
   only when the actor is unknown.
 - Use only these modals: `can`, `will`, and `must`.
-- Do not use should, would, may, might, or could. Write "must" when the thing is
-  required. Delete the word when the thing is optional.
+- Do not use `should`, `would`, `may`, `might`, or `could`. Write "must" when
+  the thing is required. Delete the word when the thing is optional.
 
 ### Sentences
 
@@ -868,10 +874,11 @@ explain becomes a paragraph nobody can follow under pressure.
   verbs.
 - Limit a noun chain to three words. Break a longer chain with prepositions.
   Write "the timeout value for the connection pool".
-- Delete a word that carries no fact. Examples: simply, seamlessly, robust,
-  powerful, comprehensive, leverage, "in order to", and "it is worth noting".
-- Replace utilize with use, prior to with before, in the event that with if, and
-  e.g. with "for example".
+- Delete a word that carries no fact. Examples: `simply`, `seamlessly`,
+  `robust`, `powerful`, `comprehensive`, `leverage`, "in order to", and "it is
+  worth noting".
+- Replace `utilize` with use, `prior to` with before, `in the event that` with
+  if, and `e.g.` with "for example".
 - Use British spelling. Code, identifiers, file names, and an established term
   such as the behavior contract keep their own spelling.
 
@@ -903,7 +910,9 @@ A warning inside the app is copy, so it opens with `Warning:` instead. See
 - Count the words in your three longest sentences. Split every sentence that is
   above its limit.
 - Collapse a rotation of synonyms into the one word you chose.
-- No checker enforces this section. The judgement is yours on every change.
+- `deno task check:ste` enforces the mechanical patterns over the repository
+  Markdown, against per-document baselines that only fall. The judgement is
+  still yours on every change.
 
 ### Before → after
 
@@ -1184,6 +1193,19 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task check:shapes` - Report two named functions that share a shape under
   different names — the duplication jscpd cannot see (see
   [Code Duplication](#code-duplication))
+- `deno task check:alias-exports` - Report an exported name that only renames an
+  imported one (see "No alias exports" above)
+- `deno task check:empty-catch` - Report a catch block that holds no statement
+  and no comment (see
+  [Offensive Programming](#offensive-programming--never-suppress-errors))
+- `deno task check:file-lengths` - Hold code and test files under ~400 lines,
+  against the accepted list that only shrinks. Pass `--update` after splitting a
+  file to re-record the list (see "Keep code and test files under ~400 lines"
+  above)
+- `deno task check:ste` - Hold the repository Markdown to the mechanical
+  Simplified Technical English rules, against per-document baselines that only
+  fall. Pass `--update` after fixing prose to re-record them (see
+  [Simplified Technical English](#simplified-technical-english--how-we-write-documentation))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The branch mutation gate: mutation-test every
   `src/` file this branch changed and demand a 100% kill rate. See

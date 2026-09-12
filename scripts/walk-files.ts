@@ -50,3 +50,42 @@ export const collectSourceFiles = collectMatching(/\.tsx?$/);
  * script we ship as plain `.js` is source too, so a check that has to read all
  * of our code reaches for this one. */
 export const collectScriptFiles = collectMatching(/\.[cm]?[jt]sx?$/);
+
+/**
+ * Files no authored-code check reads, matching what `.jscpd.json` skips: a
+ * shipped migration is history that must never change, and `ui/static` holds
+ * built bundles rather than code anybody wrote.
+ */
+export const isFrozenBuildFile = (file: string): boolean =>
+  /(^|\/)migrations\/2\d/.test(file) ||
+  /(^|\/)migrations\/schema\/columns\.ts$/.test(file) ||
+  /(^|\/)ui\/static\//.test(file);
+
+/** Every authored TypeScript or JavaScript file beneath `directory`, sorted,
+ * with the frozen trees left out. */
+export const collectAuthoredScriptFiles = async (
+  directory: string,
+): Promise<string[]> =>
+  (await collectScriptFiles(directory)).filter(
+    (file) => !isFrozenBuildFile(file),
+  );
+
+/**
+ * Read every file the collector gathers under each root, and collect what one
+ * reader derives from a file's path and text. The reader returns its items
+ * for that file. A reader with nothing to say about a file returns an empty
+ * list for it.
+ */
+export const collectFromFiles = async <Item>(
+  roots: readonly string[],
+  collect: (root: string) => Promise<string[]>,
+  read: (file: string, content: string) => Item[],
+): Promise<Item[]> => {
+  const items: Item[] = [];
+  for (const root of roots) {
+    for (const file of await collect(root)) {
+      items.push(...read(file, await Deno.readTextFile(file)));
+    }
+  }
+  return items;
+};

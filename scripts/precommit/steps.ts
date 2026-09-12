@@ -48,6 +48,29 @@ const STEPS = [
   // no import spelling a module longer than its own alias allows (see
   // "Imports name a module one way" in AGENTS.md).
   { cmd: ["task", "check:imports"], name: "check:imports" },
+  // No exported name may only rename an imported one (see "No alias
+  // exports" in AGENTS.md).
+  {
+    cmd: ["task", "check:alias-exports"],
+    name: "check:alias-exports",
+  },
+  // Every catch block must recover, re-raise, or comment its fallback (see
+  // "Offensive Programming" in AGENTS.md).
+  {
+    cmd: ["task", "check:empty-catch"],
+    name: "check:empty-catch",
+  },
+  // Hold code and test files under ~400 lines, against the accepted list that
+  // only shrinks (see "Keep code and test files under ~400 lines" in
+  // AGENTS.md).
+  {
+    cmd: ["task", "check:file-lengths"],
+    name: "check:file-lengths",
+  },
+  // Hold the repository Markdown to the mechanical half of the Simplified
+  // Technical English rules, against per-document baselines that only fall
+  // (see the "Simplified Technical English" section of AGENTS.md).
+  { cmd: ["task", "check:ste"], name: "check:ste" },
   // Hold the payment e2e to the catalog's own words: every label it clicks
   // or asserts must be copy src/locales/en renders (or a t("…") call), so a
   // copy rename fails here instead of the schedule-only nightly run.
