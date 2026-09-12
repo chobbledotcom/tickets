@@ -126,7 +126,7 @@
   "test/shared/db/provider-refund-authority.test.ts": 403,
   "test/shared/db/provider-refund-cases.test.ts": 415,
   "test/shared/db/query-log.test.ts": 481,
-  "test/shared/db/settings.test.ts": 652,
+  "test/shared/db/settings.test.ts": 567,
   "test/shared/db/table.test.ts": 424,
   "test/shared/email.test.ts": 511,
   "test/shared/email/bulk.test.ts": 448,
