@@ -19,6 +19,7 @@ import type {
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { countedText } from "#shared/count-text.ts";
 import {
   type ErrorCodeType,
   type LogCategory,
@@ -34,6 +35,7 @@ import {
 import { signPrice } from "#shared/payment-signature.ts";
 import type {
   CheckoutIntent,
+  CheckoutItem,
   CheckoutSessionResult,
   SessionMetadata,
   ValidatedPaymentSession,
@@ -176,6 +178,27 @@ export const buildProviderLineItems = <Item>(
   ...order.lines.map((line) => render.line(line, currency)),
   ...order.extras.map((extra) => render.extra(extra, currency)),
 ];
+
+/** The name and one-unit description a provider checkout shows a priced line
+ *  as. A built-site plan is priced per term, not per ticket — ×3 beside a
+ *  "(1 Month)" plan buys three months of one site, not three sites — so its
+ *  line names the plan and states what one unit grants. */
+export const providerLineCopy = (
+  item: CheckoutItem,
+  quantity: number,
+): { description: string; name: string } =>
+  item.initialSiteMonths === undefined
+    ? {
+        description: countedText("Tickets", quantity),
+        name: `Ticket: ${item.name}`,
+      }
+    : {
+        description:
+          item.initialSiteMonths === 1
+            ? "1 month"
+            : `${item.initialSiteMonths} months`,
+        name: `Site plan: ${item.name}`,
+      };
 
 /** Run an operation with the lazily-resolved client. Returns null when the
  * client is unconfigured or the operation fails (unless the error should

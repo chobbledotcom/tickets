@@ -20,7 +20,11 @@ import {
 import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 /* jscpd:ignore-start */
-import { type PricedLine, priceCheckout } from "#shared/checkout-pricing.ts";
+import {
+  type PricedLine,
+  type PricedOrder,
+  priceCheckout,
+} from "#shared/checkout-pricing.ts";
 import { countedText, orderLabel } from "#shared/count-text.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -66,6 +70,23 @@ export type SumupConnectionTestResult = {
 };
 
 type SumupClient = SumupTransport;
+
+/** The SumUp checkout description: ×N beside a site plan buys N terms of one
+ *  site, not N sites, so a one-line plan order names the plan and states the
+ *  months its units buy; every other order keeps the listing's name with its
+ *  count. */
+const sumupDescription = (order: PricedOrder): string => {
+  const [only] = order.lines;
+  const months = only?.item.initialSiteMonths;
+  if (order.lines.length === 1 && months !== undefined) {
+    const item = only!.item;
+    return `Site plan: ${item.name} — ${item.quantity * months} months`;
+  }
+  return countedText(
+    orderLabel(order.lines),
+    sumOf((line: PricedLine) => line.quantity)(order.lines),
+  );
+};
 
 /** Internal getSumupClient implementation — reads the current API key. */
 const getClientImpl = (): SumupClient | null => {
@@ -163,8 +184,6 @@ export const sumupApi: {
     const order = priceCheckout(intent);
     const totalMinor = order.total;
 
-    // Persist metadata before creating the checkout so it is present when the
-    // webhook or redirect arrives. An orphaned row (if create fails) is pruned.
     const reference = crypto.randomUUID();
     // SumUp carries no provider metadata: the booking fields are stored locally
     // (db/sumup-checkouts.ts), so its registry caps are unbounded and the
@@ -180,10 +199,7 @@ export const sumupApi: {
           amount: Number(toMajorUnits(totalMinor)),
           checkout_reference: reference,
           currency: settings.currency.toUpperCase(),
-          description: countedText(
-            orderLabel(order.lines),
-            sumOf((line: PricedLine) => line.quantity)(order.lines),
-          ),
+          description: sumupDescription(order),
           hosted_checkout: { enabled: true },
           merchant_code: merchantCode,
           redirect_url: `${baseUrl}/payment/success?session_id=${reference}`,

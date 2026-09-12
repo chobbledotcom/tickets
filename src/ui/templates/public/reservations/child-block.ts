@@ -26,7 +26,11 @@ import {
   childQuestionsToRender,
 } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
-import { quantityOptions, restoredChildQty } from "./quantities.ts";
+import {
+  monthLabelsForListing,
+  quantityOptions,
+  restoredChildQty,
+} from "./quantities.ts";
 import { renderQuestion } from "./questions.tsx";
 import type { ChildRenderCtx } from "./types.ts";
 
@@ -145,6 +149,7 @@ const renderChildOption = (
     ? `<select name="${selectName}" data-child-qty="${listing.id}"${dateAttrs}>${quantityOptions(
         childLimit,
         restoredChildQty(parentId, listing.id, childLimit),
+        monthLabelsForListing(listing),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
   return `<label class="child-option">${select} ${label}</label>${priceHtml}${input.attributesHtml}`;

@@ -116,6 +116,35 @@ describe("sumup createCheckout", () => {
     });
   });
 
+  test("says what a site plan order's units buy in months", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_plan",
+      url: "https://pay.sumup.com/plan",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [
+            {
+              initialSiteMonths: 1,
+              listingId: 3,
+              name: "(1 Month)",
+              quantity: 3,
+              slug: "one-month",
+              unitPrice: 500,
+            },
+          ],
+        },
+        "http://localhost",
+      );
+      // ×3 beside a plan buys three months of one site, not three sites.
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 3 months",
+      );
+    });
+  });
+
   test("logs the created checkout's own id", async () => {
     // The payment-sandbox story reads this line to deliver the callback for
     // the checkout it just made, so the id has to be in it.

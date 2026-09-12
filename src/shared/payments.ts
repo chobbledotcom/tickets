@@ -39,16 +39,28 @@ export type CheckoutItem = {
    * Signed per line as the item's `k`/`r` edge tag and stamped onto the line's
    * booking row. */
   packageGroupId?: number | undefined;
+  /** The months one unit of a built-site plan buys. Present only on
+   *  assigned-site plans; ordinary lines stay tickets. The provider checkout
+   *  names the priced unit from it — ×3 beside a "(1 Month)" plan buys three
+   *  months of one site, not three sites. */
+  initialSiteMonths?: number | undefined;
 };
 
 /** Build a standalone-line {@link CheckoutItem} for one listing — the shared
  * shape every single-listing checkout (direct-to-provider QR booking, the
  * plain public booking form) builds its one-item `items` array from. */
 export const checkoutItem = (
-  listing: Pick<CheckoutItem, "name" | "slug"> & { id: number },
+  listing: Pick<CheckoutItem, "name" | "slug"> & {
+    id: number;
+    assign_built_site?: boolean | undefined;
+    initial_site_months?: number | undefined;
+  },
   quantity: number,
   unitPrice: number,
 ): CheckoutItem => ({
+  ...(listing.assign_built_site && (listing.initial_site_months ?? 0) > 0
+    ? { initialSiteMonths: listing.initial_site_months }
+    : {}),
   listingId: listing.id,
   name: listing.name,
   quantity,

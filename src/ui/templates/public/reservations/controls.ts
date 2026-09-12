@@ -17,8 +17,8 @@ import type { ListingWithCount } from "#types";
 /** A date-selector dropdown for daily listings. */
 export const renderDateSelector = (
   dates: string[],
-  selected = "",
-  durationDays = 1,
+  selected: string,
+  durationDays: number,
 ): string =>
   dates.length === 0
     ? `<div class="error">${t("public.ticket.no_dates_available")}</div>`

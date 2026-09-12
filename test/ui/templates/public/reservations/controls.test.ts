@@ -28,16 +28,21 @@ describe("renderDateSelector", () => {
   test("escapes date values in the option value attribute", () => {
     // A date string containing a double-quote would break out of the value
     // attribute and inject markup if not escaped.
-    const html = renderDateSelector([
-      '2026-01-01" onload="alert(1)',
-      "2026-01-02",
-    ]);
+    const html = renderDateSelector(
+      ['2026-01-01" onload="alert(1)', "2026-01-02"],
+      "",
+      1,
+    );
     expect(html).toContain('value="2026-01-01&quot; onload=&quot;alert(1)"');
     expect(html).not.toContain('value="2026-01-01" onload="alert(1)"');
   });
 
   test("marks the selected date as selected", () => {
-    const html = renderDateSelector(["2026-01-01", "2026-01-02"], "2026-01-02");
+    const html = renderDateSelector(
+      ["2026-01-01", "2026-01-02"],
+      "2026-01-02",
+      1,
+    );
     expect(html).toContain('value="2026-01-02" selected');
     expect(html).toContain('value="2026-01-01"');
     expect(html).not.toContain('value="2026-01-01" selected');
@@ -51,14 +56,14 @@ describe("renderDateSelector", () => {
   });
 
   test("says nothing about duration for one-day bookings", () => {
-    const html = renderDateSelector(["2026-01-01"]);
+    const html = renderDateSelector(["2026-01-01"], "", 1);
     expect(html).not.toContain(reservesHintStart());
     // The duration slot stays empty; no stray filler renders between options.
     expect(html).not.toContain("mutated");
   });
 
   test("offers the error copy when no dates remain", () => {
-    expect(renderDateSelector([])).toBe(
+    expect(renderDateSelector([], "", 1)).toBe(
       '<div class="error">No dates are currently available for booking.</div>',
     );
   });

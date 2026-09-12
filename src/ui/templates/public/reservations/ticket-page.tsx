@@ -164,6 +164,7 @@ export const ticketPage = ({
   actionUrl,
   addOns,
   promoCodesEnabled,
+  renewal,
   childrenByParentId,
   childDatesById,
   groupRemainingByGroupId = new Map(),
@@ -261,6 +262,8 @@ export const ticketPage = ({
     packageLimits,
     packages,
     prefill,
+    // A renewal page prices its tiers by months per unit, not tickets.
+    renewal: renewal === true,
     singlePackagePage,
     standaloneRowIds,
   });

@@ -25,6 +25,7 @@ import { renderChildBlock } from "./child-block.ts";
 import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
 import {
+  monthLabelsForListing,
   quantityOptions,
   restoredPackageQuantity,
   restoredQuantity,
@@ -52,13 +53,15 @@ const joinRenderedRows = <T>(
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
- * available range) — used by multi-listing scenarios such as the order cart. */
+ * available range) — used by multi-listing scenarios such as the order cart.
+ * A renewal page prices its counts by the listings' months per unit. */
 const listingControls = (
   info: TicketListing,
   node: BookingNode,
   hideQuantity: boolean,
   prefill: TicketPrefill | undefined,
   childCtx: ChildRenderCtx | undefined,
+  renewal?: boolean | undefined,
 ): { childBlock: string; priceHtml: string; quantityHtml: string } => {
   const { listing } = info;
   const maxPurchasable = childLimitedMax(info, childCtx);
@@ -74,18 +77,30 @@ const listingControls = (
       : `<select name="${fieldName}">${quantityOptions(
           maxPurchasable,
           restoredQuantity(listing.id, prefill, maxPurchasable),
-          monthOptionLabels(listing),
+          monthLabelsForListing(listing, renewal),
         )}</select>`,
   };
 };
 
-const renderListingRow = (
+/** Renders one listing's controls: bare on a single-listing page, in its own
+ *  row on multi-listing pages. */
+type RenderListingControls = (
   info: TicketListing,
   node: BookingNode,
-  hideQuantity = false,
+  hideQuantity: boolean,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
   attributes?: AttributeWithOptions[],
+  renewal?: boolean,
+) => string;
+const renderListingRow: RenderListingControls = (
+  info,
+  node,
+  hideQuantity,
+  prefill,
+  childCtx,
+  attributes,
+  renewal,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -120,6 +135,7 @@ const renderListingRow = (
     hideQuantity,
     prefill,
     childCtx,
+    renewal,
   );
 
   return `
@@ -144,17 +160,25 @@ const renderPackageMemberRow = (
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
   attributes?: AttributeWithOptions[],
-): string => `
+): string => {
+  // A plan member's fixed count buys months, so the row says what it grants:
+  // ×2 beside a "(1 Month)" plan is two months per package, not two sites.
+  const monthsLabel = monthLabelsForListing(info.listing);
+  const quantity = monthsLabel
+    ? `&times;${fixedQty} (${monthsLabel(fixedQty)})`
+    : `&times;${fixedQty}`;
+  return `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(
         info.listing.name,
-      )} <span class="package-member-qty">&times;${fixedQty}</span></label>
+      )} <span class="package-member-qty">${quantity}</span></label>
       ${renderListingDescription(info.listing.description)}
       ${renderListingAttributes(attributes)}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
+};
 
 /** One package's booking controls: its "number of packages" selector, then each
  * member row (each showing its fixed quantity) — unless the package hides its
@@ -223,34 +247,36 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
-/** A built-site plan sells months of service, not tickets. */
-const quantityLabel = (listing: TicketListing["listing"]): string =>
-  listing.assign_built_site
+/** A built-site plan sells months of service, not tickets — and a renewal page
+ *  prices every tier by its months per unit. */
+const monthsQuantity = (
+  listing: TicketListing["listing"],
+  renewal?: boolean,
+) =>
+  renewal || listing.assign_built_site
     ? t("public.ticket.number_of_months")
     : t("public.ticket.number_of_tickets");
 
-/** Labels the plan's quantity options in the months they buy: three units of a
- *  three-month plan are nine months, so the plain count would mislead. */
-const monthOptionLabels = (listing: TicketListing["listing"]) =>
-  listing.assign_built_site
-    ? (count: number) =>
-        t("public.ticket.month_option", {
-          count: count * listing.initial_site_months,
-        })
-    : undefined;
-
-/** Controls for one listing — quantity and pay-more — without its details. */
-const renderSingleListingControls = (
-  info: TicketListing,
-  node: BookingNode,
-  hideQuantity: boolean,
-  prefill?: TicketPrefill,
-  childCtx?: ChildRenderCtx,
+const renderSingleListingControls: RenderListingControls = (
+  info,
+  node,
+  hideQuantity,
+  prefill,
+  childCtx,
+  _attributes,
+  renewal,
 ): string => {
-  const controls = listingControls(info, node, hideQuantity, prefill, childCtx);
+  const controls = listingControls(
+    info,
+    node,
+    hideQuantity,
+    prefill,
+    childCtx,
+    renewal,
+  );
   const labelledQuantity = hideQuantity
     ? controls.quantityHtml
-    : `<label>${quantityLabel(info.listing)}${controls.quantityHtml}</label>`;
+    : `<label>${monthsQuantity(info.listing, renewal)}${controls.quantityHtml}</label>`;
   return `${labelledQuantity}${controls.priceHtml}${controls.childBlock}`;
 };
 
@@ -267,6 +293,7 @@ const buildListingRows = (
   prefill: BookingPrefill | undefined,
   childCtxFor: (info: TicketListing) => ChildRenderCtx | undefined,
   attributesByListing: ListingAttributesById = new Map(),
+  renewal?: boolean,
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
@@ -275,6 +302,8 @@ const buildListingRows = (
         hideQuantity,
         prefill?.listings.get(listings[0]!.listing.id),
         childCtxFor(listings[0]!),
+        undefined,
+        renewal,
       )
     : joinRenderedRows(listings, (e) =>
         renderListingRow(
@@ -284,6 +313,7 @@ const buildListingRows = (
           prefill?.listings.get(e.listing.id),
           childCtxFor(e),
           attributesByListing.get(e.listing.id),
+          renewal,
         ),
       );
 
@@ -305,6 +335,7 @@ export const buildPageListingRows = (opts: {
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
   attributesByListing: ListingAttributesById;
+  renewal?: boolean | undefined;
 }): string => {
   const { attributesByListing } = opts;
   const membersOf = (pkg: PagePackage): TicketListing[] => {
@@ -366,6 +397,7 @@ export const buildPageListingRows = (opts: {
       (info) =>
         claimedChildParents.has(info.listing.id) ? undefined : opts.childCtx,
       attributesByListing,
+      opts.renewal,
     )
   );
 };

@@ -108,6 +108,11 @@ export const buildOrderLines = (
     return [
       {
         listingId: node.listingId,
+        // A plan line names its term on the provider checkout: ×3 beside a
+        // "(1 Month)" plan buys three months of one site, not three sites.
+        ...(node.listing.assign_built_site
+          ? { initialSiteMonths: node.listing.initial_site_months }
+          : {}),
         name: node.listing.name,
         ...(packageGroupId === undefined ? {} : { packageGroupId }),
         quantity,
@@ -139,6 +144,9 @@ export const buildOrderLines = (
       return [
         {
           listingId,
+          ...(child.listing.assign_built_site
+            ? { initialSiteMonths: child.listing.initial_site_months }
+            : {}),
           name: child.listing.name,
           quantity,
           slug: child.listing.slug,
