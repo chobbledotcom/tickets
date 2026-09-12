@@ -73,6 +73,13 @@ describe("readComments", () => {
     const found = readComments("// prefer a named type over a cast\n");
     expect(found).toHaveLength(1);
   });
+
+  // The directive family retired with deno lint, so its comments are prose.
+  test("keeps a deno-lint-ignore comment as prose", () => {
+    expect(readComments("// deno-lint-ignore no-explicit-any\n")).toEqual([
+      { column: 0, line: 1, text: "// deno-lint-ignore no-explicit-any" },
+    ]);
+  });
 });
 
 describe("comment-length rule", () => {
