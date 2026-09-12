@@ -1,10 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FormParams } from "#shared/form-data.ts";
+import {
+  runWithSavedFormContext,
+  setSavedFormData,
+} from "#shared/forms/saved-data.ts";
 import {
   quantityOptions,
+  restoredChildQty,
   restoredPackageQuantity,
   restoredQuantity,
 } from "#templates/public/reservations/quantities.ts";
+
+/** Read restores under the just-submitted values a re-render sees. */
+const withSaved = (saved: Record<string, string>, read: () => number): number =>
+  runWithSavedFormContext(() => {
+    setSavedFormData(new FormParams(saved));
+    return read();
+  });
 
 describe("quantityOptions", () => {
   test("lists zero through max with the chosen count selected", () => {
@@ -40,5 +53,47 @@ describe("restoredQuantity", () => {
 
   test("stays at zero without a pre-fill", () => {
     expect(restoredQuantity(1, undefined, 10)).toBe(0);
+  });
+
+  test("stays at zero for a negative pre-fill", () => {
+    expect(restoredQuantity(1, { quantity: -3 }, 10)).toBe(0);
+  });
+
+  test("restores the just-submitted count", () => {
+    expect(
+      withSaved({ quantity_1: "5" }, () => restoredQuantity(1, undefined, 10)),
+    ).toBe(5);
+  });
+
+  test("clamps a too-large submitted count", () => {
+    expect(
+      withSaved({ quantity_1: "30" }, () => restoredQuantity(1, undefined, 10)),
+    ).toBe(10);
+  });
+
+  test("keeps zero for a non-numeric submitted count", () => {
+    expect(
+      withSaved({ quantity_1: "abc" }, () =>
+        restoredQuantity(1, undefined, 10),
+      ),
+    ).toBe(0);
+  });
+
+  test("clamps a negative submitted count to zero", () => {
+    expect(
+      withSaved({ quantity_1: "-3" }, () => restoredQuantity(1, undefined, 10)),
+    ).toBe(0);
+  });
+});
+
+describe("restoredChildQty", () => {
+  test("stays at zero when nothing was submitted", () => {
+    expect(restoredChildQty(7, 10, 5)).toBe(0);
+  });
+
+  test("restores a submitted child count, clamped high", () => {
+    expect(
+      withSaved({ child_qty_7_10: "3" }, () => restoredChildQty(7, 10, 2)),
+    ).toBe(2);
   });
 });
