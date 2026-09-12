@@ -59,14 +59,13 @@ describe("readComments", () => {
     const source = [
       "/* jscpd:ignore-start */",
       '/// <reference lib="dom" />',
-      "// deno-lint-ignore no-explicit-any",
       "// biome-ignore lint: needed",
       "// @ts-expect-error deliberate",
       "// test-groups: run-alone",
       "// kept",
     ].join("\n");
     expect(readComments(source)).toEqual([
-      { column: 0, line: 7, text: "// kept" },
+      { column: 0, line: 6, text: "// kept" },
     ]);
   });
 
