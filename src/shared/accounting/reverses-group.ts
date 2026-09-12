@@ -32,8 +32,8 @@ const GROUP_PAGE = 5000;
  *  every mapped reversal); GLOB keeps `_` literal, unlike LIKE. */
 const REFUND_KIND_GLOB = "refund_*";
 
-/** The settings row holding the walk's resumed position. A stopped run
- *  leaves it behind; a finished run deletes it. */
+/** The settings row holding the walk's position. A stopped run leaves it
+ *  behind; a finished run leaves {@link CURSOR_COMPLETE} in it. */
 const CURSOR_KEY = "backfill_reverses_group_cursor";
 
 /** One page of distinct event groups meeting `condition`, keyed past the
@@ -59,6 +59,15 @@ const cursorOf = (group: string): GroupCursor => group as GroupCursor;
 /** Every page's last group becomes the next cursor, brand-checked above. */
 const cursorAfter = (page: readonly { event_group: string }[]): GroupCursor =>
   cursorOf(page[page.length - 1]!.event_group);
+
+/** The cursor's terminal value: the walk finished and the final scan found no
+ *  orphans. Kept, never deleted, because the migration runner verifies and
+ *  marks the migration only after up() returns: a run that deleted the row
+ *  here would make an unverified retry re-walk every page, and a request whose
+ *  budget ended exactly at the finish would repeat that forever and block the
+ *  upgrade. The retried up() reads the mark and returns, so verify always runs
+ *  with budget. Same shape as the activity-log backfill's terminal mark. */
+const CURSOR_COMPLETE: GroupCursor = cursorOf("complete");
 
 /** The pairs of one booking-group page whose refund event actually exists. */
 const pagePairs = async (
@@ -154,6 +163,7 @@ export const backfillReversesGroup = async (
   pageSize: number = GROUP_PAGE,
 ): Promise<void> => {
   let after = await readCursor();
+  if (after === CURSOR_COMPLETE) return;
   for (;;) {
     const bookingGroups = await eventGroupsPage(
       pageSize,
@@ -171,15 +181,17 @@ export const backfillReversesGroup = async (
   }
 
   const orphans = await unattributedRefundGroups(pageSize);
-  // Clear the checkpoint before any refusal: an operator repairs an orphan by
-  // restoring legs that sit BEFORE the walked cursor, so leaving the checkpoint
-  // would make the retried walk skip the repaired region forever.
-  await clearCursor();
   if (orphans.length > 0) {
+    // Clear the checkpoint before any refusal: an operator repairs an orphan
+    // by restoring legs that sit BEFORE the walked cursor, so leaving the
+    // checkpoint would make the retried walk skip the repaired region
+    // forever.
+    await clearCursor();
     throw new Error(
       "refund legs with no booking order they reverse: " +
         orphans.join(", ") +
         " — repair the orphaned refund legs or their missing order, then re-run",
     );
   }
+  await saveCursor(CURSOR_COMPLETE);
 };

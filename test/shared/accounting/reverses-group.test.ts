@@ -5,6 +5,11 @@ import { KIND } from "#accounting/kinds.ts";
 import { backfillReversesGroup } from "#accounting/reverses-group.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#db/query-log.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
   expectStampedToBooking,
@@ -110,8 +115,32 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
 
     await expectStampedToBooking(first);
     await expectStampedToBooking(second);
-    // A finished run leaves no checkpoint behind.
-    expect(await storedCursor()).toBe("");
+    // A finished run leaves the terminal mark, not a walk position.
+    expect(await storedCursor()).toBe("complete");
+  });
+
+  test("a clean finish keeps a terminal mark a retry reads instead of re-walking", async () => {
+    // The migration runner verifies and marks the migration only AFTER up()
+    // returns. A request whose database budget ended exactly at the finish
+    // never verified, so its retry reads this mark and skips the walk — a
+    // deleted mark would make that retry re-walk every page, and the same
+    // budget alignment would repeat forever and block the upgrade.
+    const bookingGroup = await seedUnattributedRefund(
+      "reverses-group-terminal",
+      7,
+    );
+    await backfillReversesGroup();
+
+    expect(await storedCursor()).toBe("complete");
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await backfillReversesGroup();
+      const ran = getQueryLog().map((entry) => entry.sql);
+      expect(ran.length).toBe(1);
+      expect(ran[0]).toContain("FROM settings WHERE key = ?");
+    });
+    await expectStampedToBooking(bookingGroup);
   });
 
   test("fills only empty links, never one an operator already set", async () => {
