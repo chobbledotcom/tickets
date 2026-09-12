@@ -226,6 +226,39 @@ describe("ticketPage — fields & form", () => {
     }
   });
 
+  test("fills the promo box from the ?promo= prefill", () => {
+    const html = singleListingPageHtml({
+      prefill: { listings: new Map(), promo: "summer25" },
+      promoCodesEnabled: true,
+    });
+    expect(html).toContain(
+      'name="promo_code" placeholder="Optional" type="text" value="summer25"',
+    );
+  });
+
+  test("restores the submitted promo code before the ?promo= prefill", () => {
+    setSavedFormData(new FormParams({ promo_code: "TYPED99" }));
+    try {
+      const html = singleListingPageHtml({
+        prefill: { listings: new Map(), promo: "summer25" },
+        promoCodesEnabled: true,
+      });
+      expect(html).toContain(
+        'name="promo_code" placeholder="Optional" type="text" value="TYPED99"',
+      );
+      expect(html).not.toContain('value="summer25"');
+    } finally {
+      clearSavedFormData();
+    }
+  });
+
+  test("leaves the promo box empty with no ?promo= prefill", () => {
+    const html = singleListingPageHtml({ promoCodesEnabled: true });
+    expect(html).toContain(
+      'name="promo_code" placeholder="Optional" type="text" value=""',
+    );
+  });
+
   test("prefills the name and signed token", () => {
     const html = renderForm({
       fields: [{ label: "Name", name: "name", type: "text" }],

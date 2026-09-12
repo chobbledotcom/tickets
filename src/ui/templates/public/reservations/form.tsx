@@ -117,8 +117,13 @@ const AddOnsFieldset = ({ addOns }: { addOns: AddOnOption[] }): JSX.Element => (
 );
 
 /** Promo-code text input, shown when any active modifier is unlocked by a code.
- * The entered value is restored on a validation-error re-render. */
-const PromoCodeField = (): JSX.Element => (
+ * The entered value is restored on a validation-error re-render; a `?promo=`
+ * link value fills the box only when nothing was entered. */
+const PromoCodeField = ({
+  prefilled,
+}: {
+  prefilled: string | undefined;
+}): JSX.Element => (
   <div class="promo-code">
     <label>
       {t("public.promo.heading")}
@@ -126,7 +131,7 @@ const PromoCodeField = (): JSX.Element => (
         name="promo_code"
         placeholder={t("public.promo.placeholder")}
         type="text"
-        value={savedFormValue("promo_code")}
+        value={savedFormValue("promo_code") || prefilled || ""}
       />
     </label>
   </div>
@@ -238,7 +243,7 @@ export const TicketPageForm = ({
         questions.length > 0 &&
         renderQuestions(questions, questionListingMap)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
-      {promoCodesEnabled && <PromoCodeField />}
+      {promoCodesEnabled && <PromoCodeField prefilled={prefill?.promo} />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
       {/* Continue is rendered first so it stays the form's default submit: an
           implicit submit (Enter in a text field) completes the booking, not the
