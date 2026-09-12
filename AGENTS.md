@@ -222,25 +222,16 @@ GitHub.
   is no, delete the comment. This applies to prose in commit messages and PR
   descriptions too: say what changed and why, then stop.
 
-  `deno task check:comments` enforces the size half of this, since Biome never
-  reflows comment text and so has never held a comment to any width. It caps the
-  lines in one comment and the columns in one comment line, exempting only the
-  machine-read directives, the `deno doc` barrels, and shipped migrations, which
-  are history. **Both numbers ratchet downward** — lower the one in
-  `scripts/check-comments/run.ts`, bring the tree to it, repeat — so no file is
-  ever grandfathered. `docs/comment-policy.md` measures what the comments cost
+  `deno task check:comments` enforces the size half of this. Both numbers
+  ratchet downward, and `docs/comment-policy.md` measures what the comments cost
   and prices each remaining step. The judgement half is still yours: no checker
   can tell whether a comment earns its place.
 - **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix
   duplication with a helper or currying — see
-  [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import
-  blocks, essentially nothing else. The warning is a _positive signal_ pointing
-  at a real merge to make — never work around it by changing a structure so the
-  matcher stops matching (config objects, namespace imports, reordering, lifting
-  to a named const, all to dodge the token match) while leaving two parallel
-  implementations standing. Every merge is warranted; the merges are the whole
-  goal. After each dedup, zoom out and fold the new helper into other call sites
-  and older siblings it now subsumes.
+  [Code Duplication](#code-duplication). The warning is a _positive signal_
+  pointing at a real merge to make; never restructure code so the matcher stops
+  matching while two parallel implementations stay standing. Every merge is
+  warranted; the merges are the whole goal.
 - **100% test coverage**: All code must have complete test coverage - run
   `deno coverage` to find uncovered lines/branches. Coverage must also be
   _deterministic_: a line or branch reached only through a spawned subprocess or
@@ -295,12 +286,10 @@ GitHub.
   reaches it with one statement. The spelling is the shortest alias in the
   `deno.json` import map that reaches the file, so `#db/client.ts` beats
   `#shared/db/client.ts` and `#types` beats `#shared/types.ts`. A file must not
-  import the same module twice: put the type-only names in the same statement
-  with an inline `type`, as in
-  `import { type Result, okResult } from "#shared/result.ts"`. A namespace
-  import beside named ones is the one allowed pair, because it reads the whole
-  module on purpose. `deno task check:imports` enforces both rules, and reads
-  the alias table out of `deno.json`, so a new alias enforces itself.
+  import the same module twice. A namespace import beside named ones is the one
+  allowed pair, because it reads the whole module on purpose.
+  `deno task check:imports` enforces both rules, and its findings name the
+  spelling to use, so a new alias enforces itself.
 
   An alias is a build-time rename with no runtime cost, but it is also a second
   name for a folder everybody already knows. Add one only when the measured
@@ -786,16 +775,12 @@ pattern rather than inventing a new phrasing:
 ### What is checked automatically
 
 `deno task check:copy` (run inside `deno task precommit`) scans the catalog and
-fails on the **mechanical** rules a machine can judge without reading for tone:
-
-- **Descriptive links** — never "click here" / "tap below"; the link text names
-  where it goes ("View your ticket", "Read the release notes").
-- **Even spacing** — no double spaces (literal `<code>`/`<pre>` examples are
-  exempt).
-
-The checker is a floor, not the whole rule. It cannot tell whether a sentence
-runs too long or a word is too fancy — that judgement is yours on every copy
-change, which is what the rest of this section is for.
+fails on the **mechanical** rules a machine can judge: descriptive links (never
+"click here" / "tap below"; the link text names where it goes) and even spacing
+(no double spaces; literal `<code>`/`<pre>` examples are exempt). Each finding
+names its fix. The checker is a floor, not the whole rule. It cannot tell
+whether a sentence runs too long or a word is too fancy — that judgement is
+yours on every copy change, which is what the rest of this section is for.
 
 ### Before → after
 
@@ -1333,72 +1318,40 @@ for grouping.
 
 ## Code Duplication
 
-The main jscpd scan includes Bash (`.sh`) files under `scripts/`. Post-edit
-checks use the same scan for shell scripts. Bash retains the 0% threshold and
-the same minimum token count as the other source formats.
+`deno task cpd` (part of `deno task precommit`) runs jscpd with a **0% threshold
+— this is non-negotiable**. The main scan also covers Bash (`.sh`) files under
+`scripts/`. When it fails it prints the fix order itself: write a helper, else
+curry, and treat a `jscpd:ignore` tag as the last resort, excusable for import
+blocks and essentially nothing else.
 
-`deno task cpd` (run as part of `deno task precommit`) runs jscpd with a **0%
-threshold — this is non-negotiable**. When it fails it prints this same
-guidance. Fix the duplication; do not silence it:
-
-1. **Write a helper.** This is the answer in ~99.999% of cases. If an obvious
-   shared function jumps out, extract it and call it from both sites.
-2. **No obvious helper? Curry.** Lift the parts that differ into arguments of a
-   function that returns the specialised version, then call it at each site.
-   **Then review your work before committing — zoom out one step further.** The
-   first small curry you reach for is often not the best one; a larger, more
-   holistic curry across the call sites is very frequently far better.
-3. **`jscpd:ignore` is the last resort.** It is excusable for basically _one_
-   thing: **import blocks** (plus the rare unavoidable scrap of
-   boilerplate/infrastructure we have no control over). If the duplicated code
-   is not an import block, you almost certainly want option 1 or 2 — an
-   `jscpd:ignore` tag anywhere else is a code smell, not a fix.
-
-**The jscpd warning is a positive signal, not a nuisance to silence.** Each
-duplication it flags is a pointer at two things that must become one — a real
-merge waiting to happen, and the whole point of this exercise. So:
+**The warning is a positive signal, not a nuisance to silence.** Each flagged
+pair is a merge waiting to happen, and the merges are the goal of the whole
+exercise:
 
 - **Never work around the warning by changing a structure so the matcher stops
-  matching.** Swapping positional params for a config object, renaming to a
-  namespace import, reordering fields, lifting a line to a named const — any
-  edit whose _purpose_ is to break the token match while leaving two parallel
-  implementations in place is the opposite of what we want. It hides the signal
-  and keeps the duplication. If you find yourself asking "how do I make jscpd
-  stop flagging this," you are on the wrong track: the question is "how do I
-  make these two things one thing."
+  matching.** Any edit whose _purpose_ is to break the token match while leaving
+  two parallel implementations in place hides the signal and keeps the
+  duplication. The question is "how do I make these two things one thing."
 - **Every merge is warranted — the merges are the goal.** When jscpd flags a new
   helper against an existing one (as it will the moment you extract something),
-  that is not a problem to route around; it is telling you the new helper and
-  the old one are the same operation and must be unified into a single
-  mechanism. Do that unification. Reducing the codebase to one shared way of
-  doing each thing is the aim; the warning is just the to-do list.
+  the two are the same operation and must be unified into a single mechanism.
+  Reducing the codebase to one shared way of doing each thing is the aim; the
+  warning is just the to-do list.
 - **After a dedup, zoom out and integrate further.** Once your new helper
   exists, search the codebase for the _other_ places that can now fold into it
-  or into an existing sibling. A dedup pass rarely ends at the sites that first
-  tripped the check — the biggest wins come from noticing that the helper you
-  just wrote subsumes three more call sites, or that it and an older helper are
-  the same thing wearing two names. Keep pulling the thread until the merges are
+  or into an existing sibling. Keep pulling the thread until the merges are
   genuinely exhausted.
 - **A curry almost always exists — "these two cannot be merged" is nearly always
   wrong.** Two functions that differ only in a value, a path, a field name, a
   message, or a callback are one function that has not been given its parameter
-  yet. Lift what differs into a factory's argument and let the returned function
-  take the data. This holds even when the two bodies look nothing alike at a
-  glance, because the shared part is often a _tail_ ("…and then keep what they
-  were told") or an _opening_ ("open this page, and then…"), and a curry takes
-  either. So treat every flagged pair as mergeable until you have actually
-  written the curry and found what the parameter would have to be. "This pair is
-  noise" is a conclusion you earn by trying, never a first reading — and if you
-  reach for that phrase about a whole band of results, you are almost certainly
-  looking at a factory nobody has written yet.
-
-  Before you write one, look for the factory that already exists. An
-  under-adopted curry reads exactly like unavoidable duplication: the pairs pile
-  up at the call sites that never adopted it, so the check looks like it is
-  flagging noise when it is really flagging the gap. The Cucumber page openers
-  are the reference. `opensAdminPageAt(path)` in `test/specs/support/browser.ts`
-  turns any "open this one fixed admin page" wrapper into a single line, and
-  four support files hand-rolled the wrapper anyway.
+  yet. This holds even when the two bodies look nothing alike at a glance,
+  because the shared part is often a _tail_ ("…and then keep what they were
+  told") or an _opening_ ("open this page, and then…"). Treat every flagged pair
+  as mergeable until you have actually written the curry and found what the
+  parameter would have to be. Before you write one, look for the factory that
+  already exists: an under-adopted curry reads exactly like unavoidable
+  duplication, and the Cucumber page openers (`opensAdminPageAt` in
+  `test/specs/support/browser.ts`) are the reference.
 - **The one honest exception is a shared _signature_ with nothing behind it.**
   When two functions match only on their parameter list and return type, and
   share no call at all, there is nothing to lift and a curry cannot help. Give
@@ -1407,93 +1360,26 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The renamed copy jscpd cannot see
+Two further scans catch what literal token matching cannot, because a rename
+hides a copy from jscpd:
 
-jscpd compares the tokens as written, so **renaming one copy hides it**. Two
-functions that do the same job under different names, over differently named
-values, match no token run and pass every jscpd config at 0%. The wrapper scan
-below catches the renamed token run; `deno task check:shapes` reads the other
-half. It reduces each named function's body to its _shape_ — every name, number
-and string becomes one symbol — and reports two functions that share one.
+- `deno task check:shapes` reduces each named function's body to its _shape_ —
+  every name, number and string becomes one symbol — and reports two functions
+  that share one. It reports whole named functions, not token runs, so a config
+  object handed to a shared factory never looks like a function body. The
+  accepted list at `scripts/check-shapes/accepted/` records why each allowed
+  match stands; `merges-to-make.txt` must stay empty. The list only shrinks: a
+  match not on it fails the check, and an entry that matches nothing any more
+  fails too. `MIN_TOKENS` in the run script ratchets downward.
+- `deno task cpd:renamed` runs at a tighter token count and keeps only the pairs
+  whose two sides are the same code with different words. Every kept pair must
+  be merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`.
+  The registry only shrinks: merge a pair, delete its entry, and a new word-only
+  copy anywhere fails the gate.
 
-It reports whole named functions, not runs of tokens inside them. That is what
-keeps it readable: a config object handed to a shared factory is the shape this
-codebase wants more of, and it never looks like a function body.
-
-It reads every `.ts`, `.tsx` and `.js` file under the trees `.jscpd.json` scans,
-so a browser script we ship as plain JavaScript is compared too. Words a
-component renders become one string, so two components that differ only in their
-wording share a shape, and rewrapped markup does not change one. `#fp` is
-compared like anything else, and only a group whose every site is inside it is
-dropped: its curried pairs match each other by design, but a body elsewhere that
-copies one of them is a real merge to make — call the helper.
-
-The accepted list at `scripts/check-shapes/accepted/` records every match this
-tree already carries, one per line with the reason it stands, split in two:
-
-- `merges-to-make.txt` — the same thing written twice. Every line is work
-  somebody still has to do. Make the merge, delete the line. **This file is
-  empty**, and that is the state to keep it in: a line added here is a merge
-  somebody owes.
-- `coincidences.txt` — two functions with one shape and no shared step to lift.
-  A line earns this file only after somebody tried writing the curry.
-
-**The list only shrinks.** A match that is not on it fails the check, and an
-entry that matches nothing any more fails too, so a merge has to take its entry
-with it. `MIN_TOKENS` in `scripts/check-shapes/run.ts` ratchets downward the
-same way the numbers in `check:comments` do.
-
-A key is every site as `path::name~fingerprint`, sorted. The fingerprint is
-seven characters over the body's text, read line-trimmed so a deeper nesting
-that only re-indents a listed function changes nothing. Any other edit to the
-body changes it, so the entry goes stale and the check says so — re-read the
-note, then refresh the fingerprints, or delete the entry if the pair no longer
-stands. A rename, a move, or a deletion stales an entry the same way. The report
-prints the `to accept:` line to paste, because no one writes a fingerprint by
-hand.
-
-### The eight scans, and how hard each looks
-
-The 0% threshold is not the number that decides how hard jscpd looks.
-`minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
-lower number is a tighter net. Six configs divide the tree, because helper code,
-test bodies and stylesheets each deserve a different net. The seventh is a
-wrapper scan that catches what renamed words hide from all of them. The eighth
-matches whole named functions by shape.
-
-| Config                    | Scans                            | minTokens             |
-| ------------------------- | -------------------------------- | --------------------- |
-| `.jscpd.json`             | `src`, `e2e-payments`, `scripts` | 19                    |
-| `.jscpd.specs.json`       | `src` + `test/specs/support`     | 19                    |
-| `.jscpd.support.json`     | `test/specs/support`             | 18                    |
-| `.jscpd.helpers.json`     | `src` + `test/test-utils`        | 40                    |
-| `.jscpd.test.json`        | `test`                           | 48                    |
-| `.jscpd.css.json`         | `src/ui/static/style.scss`       | 50                    |
-| `scripts/cpd-renamed.ts`  | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
-| `scripts/check-shapes.ts` | `src`, `e2e-payments`, `scripts` | 20, whole functions   |
-
-Both helper trees are scanned **alongside `src/`**, so a helper that
-reimplements production logic is flagged against the source it copied. A
-separate run could never see that pair. Where a helper tree can be held tighter
-than `src/` can, it gets a second scan of its own — the support helpers are at
-18 that way, because the scan they share with `src/` cannot go below 19 without
-dragging `src/` down too. A test body is different: it repeats by design, and
-the shared mechanism is the test framework itself, so the whole of `test/` stays
-at the loose 48.
-
-The seventh scan (`deno task cpd:renamed`) catches copies that renamed words
-hide. jscpd matches literal token runs, so two copies of one operation with
-different names sit below `minTokens` 19: every renamed word breaks the run. The
-scan runs jscpd at 17 and keeps only the pairs whose two sides share their whole
-punctuation shape — the same code with different words. Every kept pair must be
-merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`. The
-registry only shrinks: merge a pair, delete its entry, and a new word-only copy
-anywhere fails the gate.
-
-**Every helper number ratchets downward** — lower it, bring the tree to it,
-repeat — the same way `check:comments` works. `docs/test-duplication.md`
-measures what each remaining step costs. Read its counts as work to do, not as a
-floor: the counts fall as the curries land.
+**Every helper number ratchets downward.** `docs/test-duplication.md` measures
+what each remaining step costs. Read its counts as work to do, not as a floor:
+the counts fall as the curries land.
 
 ## Database Queries
 
