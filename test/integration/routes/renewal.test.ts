@@ -93,6 +93,9 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).toContain(`quantity_${annual.id}`);
       expect(html).toContain("Monthly tier");
       expect(html).toContain("Annual tier");
+      // Counts price months per unit, not tickets.
+      expect(html).toContain('<option value="1">1 month</option>');
+      expect(html).toContain('<option value="1">12 months</option>');
       // The form posts back to /renew/?t=… so the token survives submission.
       expect(html).toContain(`/renew/?t=${encodeURIComponent(token)}`);
       expect(html).toContain("csrf_token");

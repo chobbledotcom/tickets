@@ -104,6 +104,10 @@ export type TicketPageOptions = GroupAvailability & {
   addOns?: AddOnOption[];
   /** Whether to offer a promo-code field. */
   promoCodesEnabled?: boolean;
+  /** A renewal page sells months of service: its listings price their counts
+   * by months per unit instead of tickets. Set for /renew renders, which carry
+   * the page's renewal context. */
+  renewal?: boolean;
   /** Parent listing id → its children. Drives the per-parent child selector
    * rendered under each parent row. */
   childrenByParentId?: Map<number, TicketListing[]>;

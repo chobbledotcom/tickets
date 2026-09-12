@@ -51,6 +51,37 @@ describeSquare(() => {
       ]);
     });
 
+    test("names a site plan line for the term one unit buys", async () => {
+      await configureSquare({ locationId: "L_loc_456" });
+      await withSquareClient(
+        linkResult("order_plans", "https://square.link/plans"),
+        async ({ checkoutCreate }) => {
+          const result = await squareApi.createPaymentLink(
+            checkoutIntent({
+              items: [
+                checkoutItem({
+                  initialSiteMonths: 3,
+                  name: "(3 Months)",
+                  quantity: 2,
+                  unitPrice: 4500,
+                }),
+              ],
+              name: "Jane Smith",
+            }),
+            "https://tickets.example.com",
+          );
+
+          expect(result).not.toBeNull();
+          const args = checkoutCreate.calls[0]
+            ?.args[0] as CreatePaymentLinkInput;
+          expect(args.order.lineItems[0]!.name).toBe("Site plan: (3 Months)");
+          expect(args.order.lineItems[0]!.note).toBe("3 months");
+          // The priced units stay the checkout's unit count.
+          expect(args.order.lineItems[0]!.quantity).toBe("2");
+        },
+      );
+    });
+
     test("constructs correct SDK call for single-listing checkout", async () => {
       await configureSquare({ locationId: "L_loc_456" });
       await withSquareClient(

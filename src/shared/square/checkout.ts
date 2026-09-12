@@ -14,6 +14,7 @@ import {
   buildProviderLineItems,
   createWithClient,
   PaymentUserError,
+  providerLineCopy,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
@@ -130,15 +131,18 @@ export const createSquarePaymentLink = async (
         note: extra.name,
         quantity: String(extra.quantity),
       }),
-      line: (line, currency) => ({
-        basePriceMoney: {
-          amount: BigInt(line.chargedUnitAmount),
-          currency,
-        },
-        name: `Ticket: ${line.item.name}`,
-        note: line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
-        quantity: String(line.quantity),
-      }),
+      line: (line, currency) => {
+        const copy = providerLineCopy(line.item, line.quantity);
+        return {
+          basePriceMoney: {
+            amount: BigInt(line.chargedUnitAmount),
+            currency,
+          },
+          name: copy.name,
+          note: copy.description,
+          quantity: String(line.quantity),
+        };
+      },
     },
   );
   const label = "Payment link";

@@ -6,6 +6,7 @@ import {
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
 import {
+  monthLabelsForListing,
   quantityOptions,
   restoredChildQty,
   restoredPackageQuantity,
@@ -18,6 +19,64 @@ const withSaved = (saved: Record<string, string>, read: () => number): number =>
     setSavedFormData(new FormParams(saved));
     return read();
   });
+
+describe("monthLabelsForListing", () => {
+  test("names the months each count buys on a plan", () => {
+    const labels = monthLabelsForListing({
+      assign_built_site: true,
+      initial_site_months: 3,
+      months_per_unit: 0,
+    });
+    expect(labels?.(1)).toBe("3 months");
+    expect(labels?.(2)).toBe("6 months");
+  });
+
+  test("prices a renewal page's counts by months per unit", () => {
+    const labels = monthLabelsForListing(
+      {
+        assign_built_site: true,
+        initial_site_months: 3,
+        months_per_unit: 1,
+      },
+      true,
+    );
+    expect(labels?.(2)).toBe("2 months");
+    // Every renewal tier prices by its months per unit, plan or not.
+    expect(
+      monthLabelsForListing(
+        {
+          assign_built_site: false,
+          initial_site_months: 0,
+          months_per_unit: 2,
+        },
+        true,
+      )?.(3),
+    ).toBe("6 months");
+  });
+
+  test("stays silent on a renewal page when the tier prices no months", () => {
+    expect(
+      monthLabelsForListing(
+        {
+          assign_built_site: true,
+          initial_site_months: 3,
+          months_per_unit: 0,
+        },
+        true,
+      ),
+    ).toBeUndefined();
+  });
+
+  test("leaves ordinary listings to the plain count", () => {
+    expect(
+      monthLabelsForListing({
+        assign_built_site: false,
+        initial_site_months: 0,
+        months_per_unit: 0,
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe("quantityOptions", () => {
   test("lists zero through max with the chosen count selected", () => {

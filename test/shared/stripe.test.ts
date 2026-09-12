@@ -81,6 +81,37 @@ describeStripe("what Stripe is asked to charge for", () => {
     ).toBe("Ticket");
   });
 
+  test("names a site plan line by its plan, not its ticket count", async () => {
+    const params = await createdWith(
+      checkoutIntent({
+        items: [
+          checkoutItem({
+            initialSiteMonths: 1,
+            name: "(1 Month)",
+            quantity: 3,
+          }),
+        ],
+      }),
+    );
+    const [line] = params.line_items as [
+      { price_data: { product_data: { description: string; name: string } } },
+    ];
+    expect(line.price_data.product_data.name).toBe("Site plan: (1 Month)");
+    expect(line.price_data.product_data.description).toBe("1 month");
+  });
+
+  test("describes a multi-month plan's term in months", async () => {
+    expect(
+      describedAs(
+        await createdWith(
+          checkoutIntent({
+            items: [checkoutItem({ initialSiteMonths: 3, name: "(3 Months)" })],
+          }),
+        ),
+      ),
+    ).toBe("3 months");
+  });
+
   test("sends the buyer's email so Stripe can receipt them", async () => {
     const params = await createdWith(
       checkoutIntent({ email: "buyer@example.com" }),
