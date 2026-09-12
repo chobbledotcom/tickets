@@ -36,8 +36,8 @@ const configEntry = (initialSiteMonths = 3) => ({
   },
 });
 
-const assignmentEntry = (quantity: number) => ({
-  attendee: { email: "buyer@example.com", id: 81, quantity },
+const assignmentEntry = (attendeeId = 81) => ({
+  attendee: { email: "buyer@example.com", id: attendeeId, quantity: 1 },
   listing: {
     assign_built_site: true,
     id: 71,
@@ -89,7 +89,9 @@ const sendSetupEmail = async (siteNames: readonly string[]) => {
     );
   }
 
-  await assignAndNotifyBuiltSites([assignmentEntry(siteNames.length)]);
+  await assignAndNotifyBuiltSites(
+    siteNames.map((_, index) => assignmentEntry(81 + index)),
+  );
 
   return JSON.parse(fetchStub.calls[0]!.args[1].body);
 };
@@ -254,7 +256,7 @@ describeWithEnv(
       );
       using _time = new FakeTime("2030-01-15T12:00:00.000Z");
 
-      await assignAndNotifyBuiltSites([assignmentEntry(1)]);
+      await assignAndNotifyBuiltSites([assignmentEntry()]);
 
       const site = (await builtSites.getAll()).find(
         ({ name }) => name === "Renewable site",
