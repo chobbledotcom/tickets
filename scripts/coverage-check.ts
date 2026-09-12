@@ -118,13 +118,6 @@ const COVERAGE_EXCLUSIONS = [
   // redelivery replays them; a two-file run reports DA:150,1 and DA:153,3),
   // and the mutation gate still mutates the file against its direct tests.
   "src/features/api/payment-processing/rejected-target.ts",
-  // The same merger mis-attribution: the merged record says the rise-path
-  // filter callback never ran while it counts the line that calls it 18
-  // times against FNDA:13,findingsFor — internally impossible. The callback
-  // is genuinely executed: a single-isolate run of
-  // test/scripts/check-ste/run.test.ts covers it, and its assertions read
-  // what the filter printed.
-  "scripts/check-ste/run.ts",
   // parseLiveTarget's throw path is tested in test/e2e-payments/parse-target, but
   // the test runner's group system may not pair it into the same isolate as the
   // coverage probe — the function is also covered by the live Cucumber run.

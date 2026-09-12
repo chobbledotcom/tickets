@@ -75,6 +75,15 @@ describe("check-empty-catch rules", () => {
     expect(findIssues("eleven.ts", "touch().catch(handleIt);\n")).toEqual([]);
   });
 
+  test("flags an empty function-expression callback", () => {
+    const issues = findIssues(
+      "thirteen.ts",
+      "touch().catch(function () {});\n",
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.caught).toBe(".catch");
+  });
+
   test("lets a callback that recovers inside braces stand", () => {
     expect(
       findIssues("twelve.ts", "touch().catch(() => {\n  save();\n});\n"),

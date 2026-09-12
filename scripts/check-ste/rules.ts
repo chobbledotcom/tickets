@@ -89,22 +89,42 @@ const fenceState = (
 };
 
 /**
- * The prose lines of one Markdown file: fenced code blocks and table rows are
- * dropped line-by-line, and every remaining line has its machine-owned spans
- * removed. A line is a table row when the first character of its content is
- * `|`, the way every table in this repository is written.
+ * The prose lines of one Markdown file: fenced code blocks, indented code
+ * blocks, and table rows are dropped line-by-line, and every remaining line
+ * has its machine-owned spans removed. A line is a table row when the first
+ * character of its content is `|`, the way every table in this repository is
+ * written.
  *
  * A fence closes only on the marker it opened with: Markdown pairs the
  * closing fence with the opening one, so a `~~~` line inside a ` ``` `
  * block is code, not a terminator.
+ *
+ * An indented block starts at four or more leading spaces, the standard
+ * Markdown code form, and runs until a line that is neither indented nor
+ * blank — the way CommonMark ends one. Blank lines inside it belong to it.
  */
+/** The standard Markdown code-block indent: four or more spaces, or a tab. */
+const INDENT = /^(?: {4}|\t)/;
+
+/** Whether one line sits inside an indented code block, given whether the
+ * line before it did: the indent opens the block, and a non-blank line
+ * without the indent closes it. Blank lines belong to the block either way. */
+const insideIndentAfter = (raw: string, wasInside: boolean): boolean => {
+  const indented = INDENT.test(raw);
+  if (wasInside) return indented || raw.trim() === "";
+  return indented;
+};
+
 export const proseLines = (content: string): ProseLine[] => {
   const lines: ProseLine[] = [];
   let openFence: string | null = null;
+  let inIndentedBlock = false;
   for (const [index, raw] of blankQuotedSpans(content).split("\n").entries()) {
     const fence = fenceOn(raw);
     openFence = fenceState(fence, openFence);
     if (fence !== null || openFence !== null) continue;
+    inIndentedBlock = insideIndentAfter(raw, inIndentedBlock);
+    if (inIndentedBlock) continue;
     if (raw.trimStart().startsWith("|")) continue;
     lines.push({ line: index + 1, text: stripMachineSpans(raw) });
   }

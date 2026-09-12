@@ -4,14 +4,21 @@ import { countLines, findIssues } from "#scripts/check-file-lengths/rules.ts";
 
 describe("check-file-lengths rules", () => {
   test("counts the lines one file's content holds", () => {
-    expect(countLines("a\nb\nc\n")).toBe(4);
+    expect(countLines("a\nb\nc\n")).toBe(3);
     expect(countLines("a")).toBe(1);
+    expect(countLines("\n")).toBe(1);
+  });
+
+  test("a file at the limit passes, newline included", () => {
+    expect(findIssues("at.ts", `${"a;\n".repeat(199)}b\n`, 200, {})).toEqual(
+      [],
+    );
   });
 
   test("flags a file over the limit that no entry covers", () => {
     const [issue] = findIssues("big.ts", "\n".repeat(500), 400, {});
     expect(issue?.rule).toBe("over-limit");
-    expect(issue?.problem).toContain("501 lines");
+    expect(issue?.problem).toContain("500 lines");
     expect(issue?.fix).toBe("split the file");
   });
 
@@ -29,7 +36,7 @@ describe("check-file-lengths rules", () => {
   });
 
   test("fails when a covered file shrank, so the step lands with its entry", () => {
-    const [issue] = findIssues("shrank.ts", "\n".repeat(30), 30, {
+    const [issue] = findIssues("shrank.ts", "\n".repeat(31), 30, {
       "shrank.ts": 35,
     });
     expect(issue?.rule).toBe("improved");
@@ -46,7 +53,7 @@ describe("check-file-lengths rules", () => {
 
   test("leaves a covered file at its recorded count alone", () => {
     expect(
-      findIssues("held.ts", "\n".repeat(34), 30, { "held.ts": 35 }),
+      findIssues("held.ts", "\n".repeat(35), 30, { "held.ts": 35 }),
     ).toEqual([]);
   });
 });

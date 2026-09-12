@@ -5,9 +5,10 @@
  * error with no statement and no comment hides a failure; catch only when
  * there is a real recovery path. A catch whose only content is a comment is
  * the documented exception — the comment states the fallback on purpose, so
- * it stands. A promise callback counts as the same clause: a
- * `.catch(() => {})` that holds no statement and no comment is an empty
- * catch too.
+ * it stands. A promise callback counts as the same clause: a `.catch(() {})`
+ * or `.catch(function () {})` that holds no statement and no comment is an
+ * empty catch too. A callback passed by name cannot be read here, so the
+ * gate leaves it to its own definition.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -76,7 +77,8 @@ type NodeCatches = (
   node: Record<string, unknown>,
 ) => EmptyCatchIssue[];
 
-/** The empty `.catch(() => {})` callbacks in one call-expression node. */
+/** The empty `.catch(() => {})` and `.catch(function () {})` callbacks in one
+ * call-expression node. */
 const promiseCatches: NodeCatches = (source, node) => {
   const call = node as unknown as {
     arguments: Spanned[];
@@ -88,9 +90,12 @@ const promiseCatches: NodeCatches = (source, node) => {
   if (property.name !== "catch") return [];
   const callback = call.arguments[0];
   if (callback === undefined) return [];
-  const arrow = callback as unknown as Record<string, unknown>;
-  if (arrow.type !== "ArrowFunctionExpression") return [];
-  const body = arrow.body as Record<string, unknown> & Spanned;
+  const handler = callback as unknown as Record<string, unknown>;
+  const isCallbackBody =
+    handler.type === "ArrowFunctionExpression" ||
+    handler.type === "FunctionExpression";
+  if (!isCallbackBody) return [];
+  const body = handler.body as Record<string, unknown> & Spanned;
   if (body.type !== "BlockStatement") return [];
   const block = body as unknown as BlockBody;
   if (block.body.length > 0) return [];

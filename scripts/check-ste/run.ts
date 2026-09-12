@@ -170,6 +170,38 @@ export const runSteCheck = (
       "Every policy document passes the simplified-technical-english checks.",
   });
 };
+/** One document's recorded baseline entry beside its current finding counts,
+ * the pair every rise and shrink check compares. */
+interface ComparedCounts {
+  current: Record<string, number>;
+  recorded: Record<string, number>;
+}
+/** The count one identity holds, zero where it holds none. */
+const countOf = (counts: Record<string, number>, identity: string): number =>
+  counts[identity] ?? 0;
+
+/** The findings whose identity count rose past its recorded count. */
+const risenFindings = (
+  issues: readonly SteIssue[],
+  { current, recorded }: ComparedCounts,
+): SteIssue[] => {
+  const risen: SteIssue[] = [];
+  for (const issue of issues) {
+    const identity = identityOf(issue);
+    if (countOf(current, identity) > countOf(recorded, identity)) {
+      risen.push(issue);
+    }
+  }
+  return risen;
+};
+
+/** Whether any recorded identity count fell below its current count. */
+const anyShrank = ({ current, recorded }: ComparedCounts): boolean => {
+  for (const [identity, count] of Object.entries(recorded)) {
+    if (count > countOf(current, identity)) return true;
+  }
+  return false;
+};
 
 /** One document's findings against its baseline entry, or the prompt that
  * asks for the entry to be lowered. */
@@ -181,22 +213,14 @@ const findingsFor = (
   if (records[file.path] !== undefined) return [];
   const recorded = baseline[file.path] ?? {};
   const issues = findIssues(file.content);
-  const current = countsByIdentity(issues);
-  if (countsRose(recorded, current)) {
-    return fileFindingLines(
-      file.path,
-      issues.filter(
-        // An identity the record never held counts as zero on its side.
-        (issue) =>
-          (current[identityOf(issue)] ?? 0) >
-          (recorded[identityOf(issue)] ?? 0),
-      ),
-    );
+  const compared: ComparedCounts = {
+    current: countsByIdentity(issues),
+    recorded,
+  };
+  if (countsRose(recorded, compared.current)) {
+    return fileFindingLines(file.path, risenFindings(issues, compared));
   }
-  const shrank = Object.entries(recorded).some(
-    ([identity, count]) => count > (current[identity] ?? 0),
-  );
-  if (!shrank) return [];
+  if (!anyShrank(compared)) return [];
   return [
     formatFinding(file.path, {
       fix: "run `deno task check:ste --update` to record the step",

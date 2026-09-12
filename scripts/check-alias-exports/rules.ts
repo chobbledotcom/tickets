@@ -3,12 +3,12 @@
  *
  * The "No alias exports" rule in AGENTS.md says never export a renamed copy of
  * something another module already exports; expose the shared mechanism itself
- * instead. This module finds the three mechanical shapes of that: an exported
- * `const` whose whole value is one imported name, an
- * `export { imported as alias }` clause, and a re-export clause
- * (`export { X as Y } from "…"`) that gives a foreign name a second name.
- * A wrapper that calls, transforms, or defaults is not an alias, so a call or
- * a literal value never flags.
+ * instead. This module finds the mechanical shapes of that: an exported
+ * `const` whose whole value is one imported name, including a member pulled
+ * from one by destructuring, an `export { imported as alias }` clause, and a
+ * re-export clause (`export { X as Y } from "…"`) that gives a foreign name a
+ * second name. A wrapper that calls, transforms, or defaults is not an alias,
+ * so a call or a literal value never flags.
  */
 
 import { byLine } from "#scripts/check-report.ts";
@@ -75,12 +75,81 @@ const localAliases = (
     // renames the import, so only a `const` keeps its target for sure.
     if (statement.kind !== "const") continue;
     for (const declarator of statement.declarations) {
-      if (declarator.id.type !== "Identifier") continue;
-      const renamed = renamedValue(declarator.init, imported, content);
-      if (renamed !== null) aliases.set(declarator.id.name, renamed);
+      for (const bound of bindingAliases(
+        declarator.id,
+        declarator.init,
+        imported,
+        content,
+      )) {
+        aliases.set(bound.bound, bound.target);
+      }
     }
   }
   return aliases;
+};
+
+/** One name a declaration binds, with the imported value it stands for. */
+interface BindingAlias {
+  bound: string;
+  target: string;
+}
+
+/** One pattern a declarator can bind with, as its named parts. */
+type PatternNode = {
+  elements?: unknown | null;
+  name?: unknown;
+  properties?: unknown;
+  type?: unknown;
+};
+
+/** The members one pattern binds to an imported value, spelled as that
+ * value's member: `const { getIds } = byParent` binds `getIds` to
+ * `byParent.getIds`, and `const [first] = pair` binds `first` to `pair[0]`.
+ * A member with a default value, a rest element, a computed key, or a nested
+ * pattern adds or hides something of its own, so those names never stand for
+ * the plain member. */
+const bindingAliases = (
+  id: unknown,
+  init: unknown,
+  imported: Set<string>,
+  content: string,
+): BindingAlias[] => {
+  const target = renamedValue(init, imported, content);
+  if (target === null) return [];
+  const pattern = id as PatternNode;
+  if (pattern.type === "Identifier") {
+    return [{ bound: pattern.name as string, target }];
+  }
+  if (pattern.type === "ObjectPattern") {
+    const properties = pattern.properties as Array<{
+      computed?: unknown;
+      key?: ValueNode;
+      type?: unknown;
+      value?: ValueNode;
+    }>;
+    return properties.flatMap((property) => {
+      if (property.type !== "Property" || property.computed === true) {
+        return [];
+      }
+      const key = property.key?.name;
+      const value = property.value;
+      if (typeof key !== "string" || value?.type !== "Identifier") return [];
+      return [{ bound: value.name as string, target: `${target}.${key}` }];
+    });
+  }
+  // A declarator's pattern is an identifier, an object pattern, or an array
+  // pattern, so what is left binds array elements.
+  const elements = pattern.elements as (ValueNode | null)[];
+  const bound: BindingAlias[] = [];
+  elements.forEach((element, index) => {
+    if (element !== null && element.type === "Identifier") {
+      bound.push({
+        bound: element.name as string,
+        target: `${target}[${index}]`,
+      });
+    }
+  });
+  return bound;
 };
 
 /** What one alias finding says, by the place it was found. */
@@ -214,7 +283,8 @@ const clauseHides = (
 const targetOf = (name: string, scan: FileScan): string | null =>
   scan.imported.has(name) ? name : (scan.aliased.get(name) ?? null);
 
-/** An exported `const` whose whole value is one imported name. */
+/** An exported `const` whose whole value, or a member pulled from one by
+ * destructuring, is one imported name. */
 const constValueAliases = (
   declaration: ExportStatement["declaration"],
   scan: FileScan,
@@ -222,8 +292,10 @@ const constValueAliases = (
   if (declaration === null || declaration.type !== "VariableDeclaration") {
     return [];
   }
+  // An exported `let` or `var` can be reassigned to a value of its own, so
+  // its declaration alone cannot name the import for sure.
+  if (declaration.kind !== "const") return [];
   return declaration.declarations.flatMap((declarator) => {
-    if (declarator.id.type !== "Identifier") return [];
     // A declared type the value does not already carry adds a contract — the
     // documented "thin wrapper that adds a guard is not an alias" case, so an
     // annotated export like `const total: Messages = system` stands. A
@@ -235,15 +307,18 @@ const constValueAliases = (
     ) {
       return [];
     }
-    const renamed = renamedValue(declarator.init, scan.imported, scan.content);
-    if (renamed === null) return [];
-    return [
+    return bindingAliases(
+      declarator.id,
+      declarator.init,
+      scan.imported,
+      scan.content,
+    ).map((bound) =>
       aliasIssue(scan, declarator.start, {
-        exported: declarator.id.name,
-        fix: exportTheImportItself(renamed),
-        target: renamed,
+        exported: bound.bound,
+        fix: exportTheImportItself(bound.target),
+        target: bound.target,
       }),
-    ];
+    );
   });
 };
 

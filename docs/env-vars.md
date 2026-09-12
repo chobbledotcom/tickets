@@ -118,10 +118,12 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   page (`/admin/support`), where the operator can message this address.
 - `HOST_EMAIL_PROVIDER` - The host machine's email provider: `mailgun-eu`,
   `mailgun-us`, `postmark`, `resend`, or `sendgrid`. Set with
-  `HOST_EMAIL_API_KEY` and `HOST_EMAIL_FROM_ADDRESS`. Email sends use these
-  credentials when a site holds no email settings of its own, and a builder
-  copies the trio to every built site it creates. Any other value (or a missing
-  part of the trio) disables host email and logs an error that says which.
+  `HOST_EMAIL_API_KEY` and `HOST_EMAIL_FROM_ADDRESS`. Email sends fall back to
+  these credentials when a site holds no email settings of its own, a site's own
+  settings win over them, and a builder copies each set variable to every built
+  site it creates, empty or not. An invalid provider logs an error. Any other
+  gap — a variable of the trio missing, or a From address that is not a valid
+  email — turns the host credentials off silently until it is filled.
 - `HOST_EMAIL_API_KEY` - The provider API key for the host email credentials
   (required with `HOST_EMAIL_PROVIDER`).
 - `HOST_EMAIL_FROM_ADDRESS` - The From address for host email (required with

@@ -35,6 +35,19 @@ describe("check-ste rules", () => {
       expect(findIssues(content)).toEqual([]);
     });
 
+    test("never reads indented code blocks", () => {
+      const content =
+        "Prose before.\n\n    Run this; it should work.\n\n    More code; still code.\n\nProse after.\n";
+      expect(findIssues(content)).toEqual([]);
+      // A blank line inside the block does not close it.
+      expect(rulesOn(content)).toEqual([]);
+    });
+
+    test("keeps reading prose after an indented block closes", () => {
+      const content = "    code; here\nProse; after.\n";
+      expect(rulesOn(content)).toEqual(["semicolon"]);
+    });
+
     test("never reads table rows", () => {
       const content = '| "has been; done" | should |\n';
       expect(findIssues(content)).toEqual([]);

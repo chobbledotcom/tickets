@@ -18,9 +18,13 @@ export const LINE_LIMIT = 400;
 /** The count each accepted-over-the-limit file carried when recorded. */
 export type OverLimit = Record<string, number>;
 
-/** The lines one file's content holds. */
-export const countLines = (content: string): number =>
-  content.split("\n").length;
+/** The lines one file's content holds. A final newline ends the last line
+ * rather than starting an empty one, the way a person counts them. */
+export const countLines = (content: string): number => {
+  const lines = content.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines.length;
+};
 
 /** Whether `file` sits above the limit only with the list's permission. */
 export const findIssues = (

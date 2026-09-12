@@ -137,7 +137,7 @@ describe("the per-file check runners", () => {
       const { code, errors } = await check(
         (roots, output) => runFileLengthCheck(roots, {}, output),
         "big.ts",
-        "\n".repeat(400),
+        "\n".repeat(401),
       );
       expect(code).toBe(1);
       expect(errors[0]).toContain("[over-limit]: holds 401 lines");
@@ -152,14 +152,14 @@ describe("the per-file check runners", () => {
             output,
           ),
         "big.ts",
-        "\n".repeat(400),
+        "\n".repeat(401),
       );
       expect(code).toBe(0);
     });
 
     test("lists every file over the limit with its current count", async () => {
       Deno.mkdirSync(`${dir.path}/src`);
-      Deno.writeTextFileSync(`${dir.path}/src/big.ts`, "\n".repeat(400));
+      Deno.writeTextFileSync(`${dir.path}/src/big.ts`, "\n".repeat(401));
       Deno.writeTextFileSync(`${dir.path}/src/small.ts`, "\n");
       const over = await filesOverLimit([dir.path]);
       expect(over).toEqual({ [`${dir.path}/src/big.ts`]: 401 });

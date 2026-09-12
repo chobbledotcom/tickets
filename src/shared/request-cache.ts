@@ -64,7 +64,9 @@ const cacheSlot = <S>() => {
  * batch fetch answering ids this caller never asked for. */
 const ignoreUnobserved = (promise: Promise<unknown>): void => {
   promise.catch(() => {
-    // Nobody observes this promise, so nobody exists to handle the error.
+    // No caller may observe this pending promise, so this handler keeps an
+    // early rejection from surfacing as unhandled. A caller that does observe
+    // the promise still sees the rejection itself.
   });
 };
 

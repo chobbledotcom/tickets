@@ -104,15 +104,75 @@ describe("check-alias-exports rules", () => {
     ).toEqual([]);
   });
 
-  test("lets a declared const with no value, and a destructured one, stand", () => {
+  test("lets a declared const with no value stand", () => {
+    expect(
+      findIssues("ten.ts", importing("export declare const choice: string;\n")),
+    ).toEqual([]);
+  });
+
+  test("flags a member pulled from an import by destructuring,", () => {
+    const issues = findIssues(
+      "eleven.ts",
+      importing("export const { getIds, both } = byParent;\n"),
+    );
+    expect(issues).toHaveLength(2);
+    expect(issues[0]?.exported).toBe("getIds");
+    expect(issues[0]?.target).toBe("byParent.getIds");
+    expect(issues[1]?.exported).toBe("both");
+    expect(issues[1]?.target).toBe("byParent.both");
+  });
+
+  test("flags an array element pulled from an import by destructuring", () => {
+    const issues = findIssues(
+      "twelve.ts",
+      importing("export const [first, , third] = byParent;\n"),
+    );
+    expect(issues).toHaveLength(2);
+    expect(issues[0]?.exported).toBe("first");
+    expect(issues[0]?.target).toBe("byParent[0]");
+    expect(issues[1]?.exported).toBe("third");
+    expect(issues[1]?.target).toBe("byParent[2]");
+  });
+
+  test("lets a binding that adds something of its own stand", () => {
     expect(
       findIssues(
-        "ten.ts",
+        "thirteen.ts",
         importing(
-          "export declare const choice: string;\n" +
-            "const { one } = byParent;\n" +
-            "export const { two } = byParent;\n",
+          "const { [name]: computed, withDefault = 3, ...rest } = byParent;\n",
         ),
+      ),
+    ).toEqual([]);
+  });
+
+  test("lets a destructuring from a local value stand", () => {
+    expect(
+      findIssues(
+        "fourteen.ts",
+        importing(
+          "const local = { a: 1 };\n" +
+            "const { a } = local;\n" +
+            "export { a };\n",
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  test("flags a local destructured member exported by name", () => {
+    const issues = findIssues(
+      "fifteen.ts",
+      importing("const { getIds } = byParent;\nexport { getIds };\n"),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.exported).toBe("getIds");
+    expect(issues[0]?.target).toBe("byParent.getIds");
+  });
+
+  test("lets an exported let stand, because its target is no longer certain", () => {
+    expect(
+      findIssues(
+        "sixteen.ts",
+        importing("export let value = byParent;\nvalue = { getIds: 1 };\n"),
       ),
     ).toEqual([]);
   });
