@@ -6,7 +6,7 @@
 
 /* jscpd:ignore-start -- imports */
 import { perFileCheck } from "#scripts/check-runner.ts";
-import { collectAuthoredScriptFiles } from "#scripts/walk-files.ts";
+import { collectGateScriptFiles } from "#scripts/walk-files.ts";
 import { findIssues } from "./rules.ts";
 /* jscpd:ignore-end */
 
@@ -15,7 +15,7 @@ export const SOURCE_DIRS = ["src", "test", "scripts", "cli", "e2e-payments"];
 
 /** Check every source tree's exports for a name that only renames an import. */
 export const runAliasExportCheck = perFileCheck(
-  collectAuthoredScriptFiles,
+  collectGateScriptFiles,
   findIssues,
   {
     guide: '"No alias exports" in AGENTS.md',

@@ -1,19 +1,78 @@
 {
-  "AGENTS.md": 53,
-  "CLAUDE.md": 0,
-  "E2E_TESTS.md": 21,
-  "PR_WORKFLOW.md": 62,
-  "README.md": 16,
-  "REPO_STRUCTURE.md": 0,
-  "docs/cold-start.md": 5,
-  "docs/comment-policy.md": 25,
-  "docs/designing-systems.md": 33,
-  "docs/env-vars.md": 8,
-  "docs/external-order-library.md": 62,
-  "docs/group-page-corrections.md": 1,
-  "docs/mutation-testing.md": 6,
-  "docs/payment-aggregate-lessons.md": 9,
-  "docs/precommit-status.md": 0,
-  "docs/scheduled-maintenance.md": 1,
-  "docs/test-duplication.md": 12
+  "AGENTS.md": {
+    "semicolon": 41,
+    "banned-modal": 10,
+    "participle": 1,
+    "present-perfect": 1
+  },
+  "CLAUDE.md": {},
+  "E2E_TESTS.md": {
+    "semicolon": 12,
+    "present-perfect": 1,
+    "banned-modal": 8,
+    "wordy": 1
+  },
+  "PR_WORKFLOW.md": {
+    "semicolon": 60,
+    "banned-modal": 1,
+    "present-perfect": 1
+  },
+  "README.md": {
+    "semicolon": 13,
+    "banned-modal": 3
+  },
+  "REPO_STRUCTURE.md": {},
+  "cli/README.md": {},
+  "docs/cold-start.md": {
+    "semicolon": 5
+  },
+  "docs/comment-policy.md": {
+    "banned-modal": 9,
+    "semicolon": 15,
+    "present-perfect": 1
+  },
+  "docs/designing-systems.md": {
+    "semicolon": 32,
+    "banned-modal": 1
+  },
+  "docs/env-vars.md": {
+    "semicolon": 7,
+    "participle": 1
+  },
+  "docs/external-order-library.md": {
+    "participle": 3,
+    "banned-modal": 15,
+    "semicolon": 30,
+    "contraction": 6,
+    "wordy": 8
+  },
+  "docs/group-page-corrections.md": {
+    "semicolon": 1
+  },
+  "docs/mutation-testing.md": {
+    "semicolon": 5,
+    "present-perfect": 1
+  },
+  "docs/payment-aggregate-lessons.md": {
+    "semicolon": 7,
+    "banned-modal": 2
+  },
+  "docs/precommit-status.md": {},
+  "docs/scheduled-maintenance.md": {
+    "banned-modal": 1
+  },
+  "docs/test-duplication.md": {
+    "semicolon": 10,
+    "banned-modal": 2
+  },
+  "e2e-payments/README.md": {
+    "semicolon": 12
+  },
+  "scripts/email-sandbox-e2e/README.md": {
+    "semicolon": 1
+  },
+  "scripts/unread-fields/README.md": {
+    "banned-modal": 2,
+    "wordy": 1
+  }
 }

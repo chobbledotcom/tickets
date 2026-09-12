@@ -59,6 +59,42 @@ describe("check-ste rules", () => {
       const lines = proseLines("one\n```\ncode\n```\nfour\n");
       expect(lines.map((line) => line.line)).toEqual([1, 5, 6]);
     });
+
+    test("leaves a line reading as inside the fence, whatever its marker", () => {
+      // A ``` block holding a ~~~ line: the tilde line is code, and prose
+      // after the block still reads.
+      const content = "before\n```\nwrap\n~~~\nstill code\n```\nafter\n";
+      expect(
+        findIssues(content.replace("before", "a;").replace("after", "b;")),
+      ).toEqual([
+        {
+          fix: "write two sentences",
+          line: 1,
+          problem: '";"',
+          rule: "semicolon",
+        },
+        {
+          fix: "write two sentences",
+          line: 7,
+          problem: '";"',
+          rule: "semicolon",
+        },
+      ]);
+    });
+
+    test("leaves a tilde block holding a backtick line inside too", () => {
+      const content = "a;\n~~~\n```\ninside\n~~~\nb;\n";
+      expect(findIssues(content).map((issue) => issue.line)).toEqual([1, 6]);
+    });
+
+    test("closes only on a fence at least as long as its opener", () => {
+      // Four backticks open; three are content, not a close.
+      const content = "````\n```\n````\ncoffee; cup\n";
+      expect(proseLines(content).map((line) => line.text)).toEqual([
+        "coffee; cup",
+        "",
+      ]);
+    });
   });
 
   describe("each rule", () => {
@@ -70,6 +106,13 @@ describe("check-ste rules", () => {
 
     test("contraction leaves a possessive noun alone", () => {
       expect(rulesOn("The site's name stays.")).toEqual([]);
+    });
+
+    test("contraction flags the 'd short form of a modal", () => {
+      expect(rulesOn("They'd retry. We'd stop.")).toEqual([
+        "contraction",
+        "contraction",
+      ]);
     });
 
     test("present-perfect flags has, have, and had been", () => {
@@ -89,6 +132,13 @@ describe("check-ste rules", () => {
       expect(rulesOn("It may fail.")).toEqual(["banned-modal"]);
     });
 
+    test("banned-modal flags a sentence-initial Should, Would, or Could", () => {
+      expect(rulesOn("Should the test fail, read the log.")).toEqual([
+        "banned-modal",
+      ]);
+      expect(rulesOn("Would this work?")).toEqual(["banned-modal"]);
+    });
+
     test("banned-modal leaves May the month alone", () => {
       expect(rulesOn("The deploy runs in May.")).toEqual([]);
     });
@@ -104,6 +154,13 @@ describe("check-ste rules", () => {
     test("participle flags a comma plus one -ing clause word", () => {
       expect(rulesOn("Run it, making it easy.")).toEqual(["participle"]);
       expect(rulesOn("Run it, allowing more.")).toEqual(["participle"]);
+    });
+
+    test("participle flags every clause on a line, not only the first", () => {
+      expect(rulesOn("Run it, making it easy, hiding the cost.")).toEqual([
+        "participle",
+        "participle",
+      ]);
     });
 
     test("participle leaves a sentence without the pattern alone", () => {

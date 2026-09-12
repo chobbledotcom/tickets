@@ -4,5 +4,6 @@
   "docs/payment-aggregate-acceptance.md": "An acceptance record captured at one moment in time. Its words are history, not ours to rewrite now.",
   "docs/pending-return-plan.md": "A delivered feature's plan, kept as the record of what shipped. Its words are history, not ours to rewrite now.",
   "docs/stripe-mock-port-steal.md": "A worked example that quotes the wrong reasoning it corrects. Its words are history, not ours to rewrite now.",
-  "docs/sumup-sandbox-evidence.md": "Captured evidence of a provider behaving as it did on one day. Its words are history, not ours to rewrite now."
+  "docs/sumup-sandbox-evidence.md": "Captured evidence of a provider behaving as it did on one day. Its words are history, not ours to rewrite now.",
+  "scripts/mutation/LICENSE.mutasaurus.md": "The vendored MIT license text of Mutasaurus. Legal text, not ours to rewrite."
 }

@@ -44,36 +44,64 @@ export const stripMachineSpans = (line: string): string =>
 export const blankQuotedSpans = (content: string): string =>
   content.replace(/"[^"]*"/g, (span) => span.replace(/[^\n]/g, "%"));
 
+/** The opening fence of a code block: three or more backticks or tildes. */
+const FENCE = /^(\s*)(`{3,}|~{3,})/;
+
+/** Whether `fence` closes a block that `open` opened: same marker, at
+ * least as long. */
+const sameFence = (fence: string, open: string): boolean =>
+  fence[0] === open[0] && fence.length >= open.length;
+
+/** The open fence after one line. `fence` marks a fence line, which either
+ * closes `open` or becomes the new open fence. */
+const fenceState = (
+  fence: string | null,
+  open: string | null,
+): string | null => {
+  if (fence === null) return open;
+  if (open === null) return fence;
+  return sameFence(fence, open) ? null : open;
+};
+
 /**
  * The prose lines of one Markdown file: fenced code blocks and table rows are
  * dropped line-by-line, and every remaining line has its machine-owned spans
  * removed. A line is a table row when the first character of its content is
  * `|`, the way every table in this repository is written.
+ *
+ * A fence closes only on the marker it opened with: Markdown pairs the
+ * closing fence with the opening one, so a `~~~` line inside a ` ``` `
+ * block is code, not a terminator.
  */
 export const proseLines = (content: string): ProseLine[] => {
   const lines: ProseLine[] = [];
-  let inFence = false;
+  let openFence: string | null = null;
   for (const [index, raw] of blankQuotedSpans(content).split("\n").entries()) {
-    if (/^\s*(```|~~~)/.test(raw)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
+    const fence = FENCE.exec(raw)?.[2] ?? null;
+    openFence = fenceState(fence, openFence);
+    if (fence !== null || openFence !== null) continue;
     if (raw.trimStart().startsWith("|")) continue;
     lines.push({ line: index + 1, text: stripMachineSpans(raw) });
   }
   return lines;
 };
 
-/** Contractions the guide names: pronoun contractions and every `n't`. */
+/** Contractions the guide names: pronoun contractions, `'d`, and every
+ * `n't`. */
 const CONTRACTION =
-  /\b\w+n't\b|\b(?:it|that|there|what|who|he|she|let|you|we|they|i)'s\b|\b(?:i|you|we|they|he|she|it|that|there|who|what)'(?:re|ve|ll|m)\b/gi;
+  /\b\w+n't\b|\b(?:it|that|there|what|who|he|she|let|you|we|they|i)'s\b|\b(?:i|you|we|they|he|she|it|that|there|who|what)'(?:re|ve|ll|m|d)\b/gi;
 
 /** The present perfect the guide names, spotted by its passive marker. */
 const HAS_BEEN = /\b(?:has|have|had) been\b/gi;
 
-/** The modals the guide bans (only `can`, `will`, and `must` are allowed). */
-const BANNED_MODAL = /\b(?:should|would|might|could|may)\b/g;
+/** The modals the guide bans, at any capitalization — a sentence-initial
+ * `Should` or `Would` cannot slip through. Capital-`M` `May` is left alone:
+ * the machine cannot tell the month from a modal question, and in technical
+ * prose capital-`M` May is the month almost always. */
+const BANNED_MODAL = /\b(?:should|would|might|could)\b/gi;
+
+/** The modal `may` on its own, lowercase: capital-`M` `May` is the month. */
+const BANNED_MAY = /\bmay\b/g;
 
 /** One word from the guide's delete-or-replace list, not run into a longer
  * word. The lookahead, not a trailing `\b`, ends the match: a word like
@@ -129,30 +157,24 @@ const hasBeenIssues = findingsFor(
   "present-perfect",
 );
 
-const modalIssues = findingsFor(
-  BANNED_MODAL,
-  "use can, will, or must",
-  "banned-modal",
-);
+const modalIssues = [
+  findingsFor(BANNED_MODAL, "use can, will, or must", "banned-modal"),
+  findingsFor(BANNED_MAY, "use can, will, or must", "banned-modal"),
+];
 
 const semicolonIssues = findingsFor(/;/g, "write two sentences", "semicolon");
 
 /** The `, making it easy` family: an -ing clause tacked onto a comma. */
 const PARTICIPLE =
-  /,\s+(making|allowing|giving|showing|letting|causing|keeping|using|forcing|hiding|leaving)\b/i;
+  /,\s+(making|allowing|giving|showing|letting|causing|keeping|using|forcing|hiding|leaving)\b/gi;
 
-const participleIssues = (line: string, lineNo: number): SteIssue[] => {
-  const match = PARTICIPLE.exec(line);
-  if (match === null) return [];
-  return [
-    {
-      fix: "write a new sentence",
-      line: lineNo,
-      problem: `", ${match[1]}"`,
-      rule: "participle",
-    },
-  ];
-};
+const participleIssues = (line: string, lineNo: number): SteIssue[] =>
+  [...line.matchAll(PARTICIPLE)].map((match) => ({
+    fix: "write a new sentence",
+    line: lineNo,
+    problem: `", ${match[1]}"`,
+    rule: "participle",
+  }));
 
 const wordyIssues = (line: string, lineNo: number): SteIssue[] =>
   Object.entries(WORDY).flatMap(([word, fix]) =>
@@ -163,7 +185,7 @@ const wordyIssues = (line: string, lineNo: number): SteIssue[] =>
 const RULES = [
   contractionIssues,
   hasBeenIssues,
-  modalIssues,
+  ...modalIssues,
   semicolonIssues,
   participleIssues,
   wordyIssues,

@@ -6,7 +6,12 @@ import {
   filesOverLimit,
   runFileLengthCheck,
 } from "#scripts/check-file-lengths/run.ts";
-import { readCounts } from "#scripts/check-runner.ts";
+import {
+  countsRose,
+  readCounts,
+  recordedState,
+  updateMode,
+} from "#scripts/check-runner.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 describe("reading the counts a check ratchets on", () => {
@@ -159,5 +164,112 @@ describe("the per-file check runners", () => {
       const over = await filesOverLimit([dir.path]);
       expect(over).toEqual({ [`${dir.path}/src/big.ts`]: 401 });
     });
+
+    test("fails an accepted entry whose file is gone, asking for deletion", async () => {
+      Deno.mkdirSync(`${dir.path}/src`);
+      Deno.writeTextFileSync(`${dir.path}/src/kept.ts`, "\n");
+      const errors: string[] = [];
+      const code = await runFileLengthCheck(
+        [dir.path],
+        { [`${dir.path}/src/gone.ts`]: 500 },
+        {
+          log: () => {},
+          logError: (line: string) => errors.push(line),
+        },
+      );
+      expect(code).toBe(1);
+      expect(errors[0]).toContain(`${dir.path}/src/gone.ts [stale-entry]`);
+      expect(errors[0]).toContain("delete the entry");
+      expect(errors[1]).toContain("1 file-length issue(s) found");
+    });
+  });
+});
+
+describe("the record step of a ratchet", () => {
+  let dir: TempPath;
+
+  beforeEach(() => {
+    dir = tempDir();
+  });
+
+  afterEach(() => {
+    dir.dispose();
+  });
+
+  /** Write JSON in the registry format `writeJsonFile` produces. */
+  const counted = (path: string, value: unknown): void => {
+    Deno.writeTextFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+  };
+
+  const recordPath = (): string => `${dir.path}/record.json`;
+
+  test("countsRose answers yes only for a rise, missing keys included", () => {
+    expect(countsRose({ "a.md": 2 }, { "a.md": 2 })).toBe(false);
+    expect(countsRose({ "a.md": 2 }, { "a.md": 1 })).toBe(false);
+    expect(countsRose({ "a.md": 2 }, { "a.md": 3 })).toBe(true);
+    expect(countsRose({}, { "new.md": 1 })).toBe(true);
+    expect(countsRose({ "a.md": 2 }, {})).toBe(false);
+  });
+
+  test("updateMode reads both flags off the command line", () => {
+    expect(updateMode([])).toEqual({ seed: false, update: false });
+    expect(updateMode(["--update"])).toEqual({ seed: false, update: true });
+    expect(updateMode(["--seed"])).toEqual({ seed: true, update: false });
+    expect(updateMode(["--seed", "--update"])).toEqual({
+      seed: true,
+      update: true,
+    });
+  });
+
+  /** Record `count` of `a.md` on disk, then run one recording pass, and
+   * hand back what the check must now compare against plus what landed on
+   * disk. */
+  const recording = async (
+    flags: readonly string[],
+    fresh: Record<string, number>,
+  ): Promise<{ after: unknown; onDisk: unknown }> => {
+    const path = recordPath();
+    counted(path, { "a.md": 2 });
+    const after = await recordedState(
+      path,
+      updateMode(flags),
+      { "a.md": 2 },
+      () => Promise.resolve(fresh),
+      countsRose,
+    );
+    return { after, onDisk: JSON.parse(Deno.readTextFileSync(path)) };
+  };
+
+  test("recordedState changes nothing without a recording flag", async () => {
+    const path = recordPath();
+    counted(path, { old: 1 });
+    expect(
+      await recordedState(
+        path,
+        updateMode([]),
+        { old: 1 },
+        () => Promise.resolve({ fresh: 2 }),
+        countsRose,
+      ),
+    ).toEqual({ old: 1 });
+    expect(JSON.parse(Deno.readTextFileSync(path))).toEqual({ old: 1 });
+  });
+
+  test("recordedState records the fresh state when nothing rose, and the check runs on it", async () => {
+    const { after, onDisk } = await recording(["--update"], { "a.md": 1 });
+    expect(after).toEqual({ "a.md": 1 });
+    expect(onDisk).toEqual({ "a.md": 1 });
+  });
+
+  test("recordedState refuses a rise, keeping what the check must compare against", async () => {
+    const { after, onDisk } = await recording(["--update"], { "a.md": 5 });
+    expect(after).toEqual({ "a.md": 2 });
+    expect(onDisk).toEqual({ "a.md": 2 });
+  });
+
+  test("recordedState records whatever a --seed holds, rise or not", async () => {
+    const { after, onDisk } = await recording(["--seed"], { "a.md": 9 });
+    expect(after).toEqual({ "a.md": 9 });
+    expect(onDisk).toEqual({ "a.md": 9 });
   });
 });

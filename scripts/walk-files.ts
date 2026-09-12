@@ -52,23 +52,40 @@ export const collectSourceFiles = collectMatching(/\.tsx?$/);
 export const collectScriptFiles = collectMatching(/\.[cm]?[jt]sx?$/);
 
 /**
- * Files no authored-code check reads, matching what `.jscpd.json` skips: a
- * shipped migration is history that must never change, and `ui/static` holds
- * built bundles rather than code anybody wrote.
+ * A script collector that leaves out every file `frozen` names. One mechanism
+ * behind both collectors below, so they cannot drift apart.
  */
-export const isFrozenBuildFile = (file: string): boolean =>
-  /(^|\/)migrations\/2\d/.test(file) ||
+const scriptsSkipping =
+  (frozen: (file: string) => boolean) =>
+  async (directory: string): Promise<string[]> =>
+    (await collectScriptFiles(directory)).filter((file) => !frozen(file));
+
+/**
+ * Files no code check reads: the browser bundles in `ui/static`, which esbuild
+ * builds, and the schema-columns module, which a script generates. Nobody
+ * writes them by hand, so a finding in one has no author to fix it.
+ */
+export const isGeneratedFile = (file: string): boolean =>
   /(^|\/)migrations\/schema\/columns\.ts$/.test(file) ||
   /(^|\/)ui\/static\//.test(file);
 
-/** Every authored TypeScript or JavaScript file beneath `directory`, sorted,
- * with the frozen trees left out. */
-export const collectAuthoredScriptFiles = async (
-  directory: string,
-): Promise<string[]> =>
-  (await collectScriptFiles(directory)).filter(
-    (file) => !isFrozenBuildFile(file),
-  );
+/**
+ * A migration that shipped: history that must never change. A duplication scan
+ * skips these because a migration repeats by design. The rule gates still read
+ * every one, so a migration added on a branch is checked like any new file.
+ */
+export const isShippedMigration = (file: string): boolean =>
+  /(^|\/)migrations\/2\d/.test(file);
+
+/** Every script the rule gates read: all TypeScript and JavaScript beneath
+ * `directory`, built output left out — shipped migrations included. */
+export const collectGateScriptFiles = scriptsSkipping(isGeneratedFile);
+
+/** Every script a duplication scan reads: gate-checked files minus the
+ * shipped migrations, sorted. */
+export const collectAuthoredScriptFiles = scriptsSkipping(
+  (file) => isGeneratedFile(file) || isShippedMigration(file),
+);
 
 /**
  * Read every file the collector gathers under each root, and collect what one

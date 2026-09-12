@@ -3,11 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import { findIssues } from "#scripts/check-alias-exports/rules.ts";
 
 describe("check-alias-exports rules", () => {
+  /** One source that imports byParent, plus whatever the test adds. */
+  const importing = (extra: string): string =>
+    `import { byParent } from "#shared/parents.ts";\n${extra}`;
+
   test("flags an exported const whose whole value is one imported name", () => {
     const issues = findIssues(
       "one.ts",
-      'import { byParent } from "#shared/parents.ts";\n' +
-        "export const getChildIds = byParent.getIds;\n",
+      importing("export const getChildIds = byParent.getIds;\n"),
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.exported).toBe("getChildIds");
@@ -74,8 +77,7 @@ describe("check-alias-exports rules", () => {
   test("flags a computed member reached through an import, by its own text", () => {
     const issues = findIssues(
       "nine.ts",
-      'import { byParent } from "#shared/parents.ts";\n' +
-        "export const getChildIds = byParent[choice];\n",
+      importing("export const getChildIds = byParent[choice];\n"),
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.target).toBe("byParent[choice]");
@@ -95,11 +97,59 @@ describe("check-alias-exports rules", () => {
     expect(
       findIssues(
         "ten.ts",
-        'import { byParent } from "#shared/parents.ts";\n' +
+        importing(
           "export declare const choice: string;\n" +
-          "export const { one } = byParent;\n",
+            "const { one } = byParent;\n" +
+            "export const { two } = byParent;\n",
+        ),
       ),
     ).toEqual([]);
+  });
+
+  /** What the checker says about the one finding a source holds, or null. */
+  const soleFinding = (...content: [string, string]): unknown => {
+    const issues = findIssues(content[0], importing(content[1]));
+    return issues.length === 1 ? issues[0] : null;
+  };
+
+  test("flags a local const alias exported by name", () => {
+    const issue = soleFinding(
+      "twelve.ts",
+      "const getChildIds = byParent.getIds;\nexport { getChildIds };\n",
+    ) as { exported: string; line: number; target: string };
+    expect(issue).not.toBeNull();
+    expect(issue.exported).toBe("getChildIds");
+    expect(issue.target).toBe("byParent.getIds");
+    expect(issue.line).toBe(3);
+  });
+
+  test("flags a local const alias exported under a second new name", () => {
+    const issue = soleFinding(
+      "thirteen.ts",
+      "const getChildIds = byParent.getIds;\nexport { getChildIds as Kids };\n",
+    ) as { exported: string; target: string };
+    expect(issue).not.toBeNull();
+    expect(issue.exported).toBe("Kids");
+    expect(issue.target).toBe("byParent.getIds");
+  });
+
+  test("flags an annotated alias that only repeats the imported type", () => {
+    const issues = findIssues(
+      "fourteen.ts",
+      importing(
+        "export const getChildIds: typeof byParent.getIds = byParent.getIds;\n",
+      ),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.target).toBe("byParent.getIds");
+  });
+
+  test("lets a local const built from a local stand, exported or not", () => {
+    const content =
+      "const local = { one: 1 };\n" +
+      "const named = local.one;\n" +
+      "export { named };\n";
+    expect(findIssues("fifteen.ts", content)).toEqual([]);
   });
 
   test("reports each finding with the fix a reader needs", () => {
