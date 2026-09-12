@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   attendeeStatuses,
   requirePublicDefaultStatus,
@@ -11,6 +12,7 @@ import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
@@ -185,11 +187,14 @@ export const createProgrammeCharge = (
   });
 
 /** The "SAVE10" promo-code discount shared by every test that prices a
- * booking through a 10%-off code rather than an automatic modifier. */
-export const createSave10Promo = () =>
+ * booking through a 10%-off code rather than an automatic modifier. Carries
+ * the blind index, so the code lookup finds it through `promo_code` form
+ * fields, not only through an explicit modifier reference. */
+export const createSave10Promo = async () =>
   modifiersTable.insert({
     calcKind: "percent",
     calcValue: 10,
+    codeIndex: await hmacHash(normalizeCode("SAVE10")),
     direction: "discount",
     name: "SAVE10",
     trigger: "code",

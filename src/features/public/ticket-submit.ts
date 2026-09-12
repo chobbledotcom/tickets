@@ -463,13 +463,23 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
   return applyHiddenNoindex(response, ctx.pageHidden);
 };
 
+/** Parse a `?promo=` code for pre-fill: trimmed for display, null when blank.
+ * Case stays as typed because the submit-time code lookup matches without
+ * case. */
+const parsePromoParam = (value: string | null): string | null => {
+  const trimmed = value?.trim() ?? "";
+  return trimmed !== "" ? trimmed : null;
+};
+
 /**
  * Build a booking pre-fill from query params: per-listing quantities from
  * `?q_<id>=n` (the order page redirects into `/ticket/<slugs>?q_<id>=1…` to
- * land the visitor with their chosen items selected) and the date selector
+ * land the visitor with their chosen items selected), the date selector
  * from `?date=YYYY-MM-DD` (the /listings date filter carries the searched
- * date into a daily listing's Book CTA, #51). A package needs no count
- * pre-fill — its selector already defaults to one bundle.
+ * date into a daily listing's Book CTA, #51), and the promo box from
+ * `?promo=<code>` (a marketing link lands the code in the box, #2367). A
+ * package needs no count pre-fill — its selector already defaults to one
+ * bundle.
  */
 export const parseQuantityPrefill = (
   request: Request,
@@ -484,8 +494,13 @@ export const parseQuantityPrefill = (
     }
   }
   const date = parseIsoDateParam(params.get("date"));
-  if (map.size === 0 && date === null) return;
-  return { listings: map, ...(date !== null ? { date } : {}) };
+  const promo = parsePromoParam(params.get("promo"));
+  if (map.size === 0 && date === null && promo === null) return;
+  return {
+    listings: map,
+    ...(date !== null ? { date } : {}),
+    ...(promo !== null ? { promo } : {}),
+  };
 };
 
 /**

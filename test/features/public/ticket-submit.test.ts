@@ -103,4 +103,22 @@ describe("parseQuantityPrefill", () => {
       ),
     ).toEqual({ date: "2026-09-12", listings: new Map() });
   });
+
+  test("reads a promo code with its surrounding spaces trimmed", () => {
+    expect(
+      parseQuantityPrefill(
+        new Request("https://example.com/ticket/a?promo=%20save10%20"),
+        listings,
+      ),
+    ).toEqual({ listings: new Map(), promo: "save10" });
+  });
+
+  test("treats a blank promo code as no prefill", () => {
+    expect(
+      parseQuantityPrefill(
+        new Request("https://example.com/ticket/a?promo=%20%20"),
+        listings,
+      ),
+    ).toBeUndefined();
+  });
 });

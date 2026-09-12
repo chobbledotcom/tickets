@@ -48,11 +48,12 @@ export type ChildRenderCtx = {
 
 /**
  * Pre-fill for the booking page: per-listing quantities (and optional price), an
- * optional pre-filled name/date, and — only for signed QR links — a token
- * re-submitted as a hidden field to authorise a price override. Any scenario that
- * lands a visitor on a booking form with listings pre-selected builds one: the QR
- * flow sets a single listing plus a `token`; the order cart sets many listings
- * (quantity 1 each) and no token.
+ * optional pre-filled name/date, the promo code from a `?promo=` URL parameter,
+ * and — only for signed QR links — a token re-submitted as a hidden field to
+ * authorise a price override. Any scenario that lands a visitor on a booking
+ * form with listings pre-selected builds one: the QR flow sets a single
+ * listing plus a `token`; the order cart sets many listings (quantity 1 each)
+ * and no token.
  */
 export type BookingPrefill = {
   /** Per-listing pre-fill — keyed by listing id */
@@ -61,6 +62,8 @@ export type BookingPrefill = {
   name?: string;
   /** Pre-fill date selector (for daily listings) */
   date?: string;
+  /** Pre-fill the promo code box (the `?promo=` URL parameter) */
+  promo?: string;
   /** Opaque signed token re-submitted via a hidden input to verify a price
    * override. Only signed QR booking links set this. */
   token?: string;

@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { hmacHash } from "#crypto/hashing.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
@@ -11,12 +10,12 @@ import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
-import { normalizeCode } from "#shared/price-modifier.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { createSave10Promo } from "#test-utils/reservation/helpers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** GET the booking page for `pageSlug` to mint a CSRF token, then POST the
@@ -465,14 +464,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       name: "Workshop",
       unitPrice: 1000,
     });
-    await modifiersTable.insert({
-      calcKind: "percent",
-      calcValue: 10,
-      codeIndex: await hmacHash(normalizeCode("SAVE10")),
-      direction: "discount",
-      name: "10% off",
-      trigger: "code",
-    });
+    await createSave10Promo();
     return listing;
   };
 
@@ -495,7 +487,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const html = await quoteSave10Promo();
 
     // Discount line shown with modifier name and negative amount.
-    expect(html).toContain("10% off");
+    expect(html).toContain("SAVE10");
     expect(html).toContain(formatCurrency(-100));
     // Total reflects the discounted price (10% off £10.00 = £9.00).
     expect(html).toContain(formatCurrency(900));
@@ -508,7 +500,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     // The ticket line is the full £10.00 list price, so the discount isn't
     // baked into it — the modifier is itemised separately on its own row...
     expect(html).toContain(formatCurrency(1000));
-    expect(html).toContain("10% off");
+    expect(html).toContain("SAVE10");
     expect(html).toContain(formatCurrency(-100));
     // ...and only the total carries the £9.00 discounted figure.
     expect(html).toContain(formatCurrency(900));
@@ -520,7 +512,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     // Full price — no promo code entered, no discount line.
     expect(html).toContain(formatCurrency(1000));
     expect(html).not.toContain(formatCurrency(900));
-    expect(html).not.toContain("10% off");
+    expect(html).not.toContain("SAVE10");
   });
 
   test("does not apply a promo code discount when a wrong code is submitted", async () => {
@@ -529,7 +521,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     // Full price — wrong promo code, no discount line.
     expect(html).toContain(formatCurrency(1000));
     expect(html).not.toContain(formatCurrency(900));
-    expect(html).not.toContain("10% off");
+    expect(html).not.toContain("SAVE10");
   });
 
   /** Turn the seeded public-default status into a reservation charging `amount`,
@@ -569,7 +561,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const html = await quotePromoListing({ promo_code: "save10" });
 
     // Lowercase variant of the code should still match.
-    expect(html).toContain("10% off");
+    expect(html).toContain("SAVE10");
     expect(html).toContain(formatCurrency(-100));
     expect(html).toContain(formatCurrency(900));
   });

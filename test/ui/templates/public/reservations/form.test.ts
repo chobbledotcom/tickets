@@ -226,6 +226,32 @@ describe("ticketPage — fields & form", () => {
     }
   });
 
+  test("prefills the promo code from the URL", () => {
+    const html = singleListingPageHtml({
+      prefill: { listings: new Map(), promo: "save10" },
+      promoCodesEnabled: true,
+    });
+    expect(html).toContain(
+      'name="promo_code" placeholder="Optional" type="text" value="save10"',
+    );
+  });
+
+  test("restores the submitted promo code ahead of the URL code", () => {
+    setSavedFormData(new FormParams({ promo_code: "TYPED" }));
+    try {
+      const html = singleListingPageHtml({
+        prefill: { listings: new Map(), promo: "url-code" },
+        promoCodesEnabled: true,
+      });
+      expect(html).toContain(
+        'name="promo_code" placeholder="Optional" type="text" value="TYPED"',
+      );
+      expect(html).not.toContain('value="url-code"');
+    } finally {
+      clearSavedFormData();
+    }
+  });
+
   test("prefills the name and signed token", () => {
     const html = renderForm({
       fields: [{ label: "Name", name: "name", type: "text" }],
