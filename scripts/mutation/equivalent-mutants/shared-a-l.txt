@@ -289,6 +289,7 @@ src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?
 # defined value a writer passes is a non-empty event group.
 src/shared/accounting/rows.ts::legColumns~1hsch91  ?? → ||   # insertStatement reverses_group: undefined or a non-empty event group; "" ?? "" === "" || "" on the only falsy case
 src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0pukv95  ?? → ||   # reversesGroup identity: the only falsy-non-null value is "" and "" ?? "" === "" || ""
+src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → ||   # the stored cursor is a string or undefined; "" is the fallback itself, so "" ?? "" === "" || "" either way
 
 src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1   # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
 
