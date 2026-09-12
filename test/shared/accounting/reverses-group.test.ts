@@ -159,4 +159,23 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
         " missing order, then re-run",
     );
   });
+
+  test("an orphan refusal leaves no checkpoint behind", async () => {
+    // Page size 1 makes the walk checkpoint real pages before the final scan
+    // refuses on the orphan.
+    const first = await seedUnattributedRefund("reverses-group-refuse-a", 7);
+    const second = await seedUnattributedRefund("reverses-group-refuse-b", 8);
+    await postTransfers([orphanRefundLeg()]);
+
+    await expect(backfillReversesGroup(1)).rejects.toThrow(
+      "refund legs with no booking order they reverse: evt-orphan-refund",
+    );
+
+    // The refusal is a finished run: an operator repairs an orphan by adding
+    // legs that sort before the walked cursor, so a left-behind checkpoint
+    // would make the retried walk skip the repaired region forever.
+    expect(await storedCursor()).toBe("");
+    await expectStampedToBooking(first);
+    await expectStampedToBooking(second);
+  });
 });

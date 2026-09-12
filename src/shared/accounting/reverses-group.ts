@@ -171,6 +171,10 @@ export const backfillReversesGroup = async (
   }
 
   const orphans = await unattributedRefundGroups(pageSize);
+  // Clear the checkpoint before any refusal: an operator repairs an orphan by
+  // restoring legs that sit BEFORE the walked cursor, so leaving the checkpoint
+  // would make the retried walk skip the repaired region forever.
+  await clearCursor();
   if (orphans.length > 0) {
     throw new Error(
       "refund legs with no booking order they reverse: " +
@@ -178,5 +182,4 @@ export const backfillReversesGroup = async (
         " — repair the orphaned refund legs or their missing order, then re-run",
     );
   }
-  await clearCursor();
 };
