@@ -50,12 +50,32 @@ const referenceFor = async (listingId: number) => {
 
 /** Post a recognised sale with no payment ever received — the ledger signature
  *  of an abandoned/incomplete checkout (a `sale` leg, no `payment` leg). */
-const postIncompleteSale = (
+const postIncompleteSale = async (
   attendeeId: number,
   listingId: number,
   gross: number,
-): Promise<void> =>
-  postListingSale({ amountPaid: 0, attendeeId, gross, listingId });
+): Promise<void> => {
+  await postListingSale({ amountPaid: 0, attendeeId, gross, listingId });
+};
+
+/** One payment leg received by `destination` under `eventGroup`. */
+const postPaymentLeg = async (
+  destination: ReturnType<typeof attendeeAccount>,
+  eventGroup: string,
+  reference: string,
+): Promise<void> => {
+  await postTransfers([
+    {
+      amount: 500,
+      destination,
+      eventGroup,
+      kind: KIND.payment,
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference,
+      source: WORLD,
+    },
+  ]);
+};
 
 describeWithEnv("db > listing-overview-stats", { db: true }, () => {
   test("matches the attendee-derived reference across payment states", async () => {
@@ -239,6 +259,34 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     const stats = await getListingOverviewStats(listing);
     expect(stats.completeQuantitySum).toBe(1);
     expect(stats.incompleteQuantity).toBe(0);
+  });
+
+  test("a balance payment does not pay an unpaid sale", async () => {
+    // The payment that clears a sale must land in the sale's own event group:
+    // a balance payment from another order credits the same attendee, but the
+    // sale it never covered stays incomplete.
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const attendee = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Other Order Paid",
+      "other-order-paid@example.com",
+      "",
+      500,
+      1,
+    );
+    await postIncompleteSale(attendee.id, listing.id, 500);
+    await postPaymentLeg(
+      attendeeAccount(attendee.id),
+      await balanceEventGroup("overview_other_order_paid"),
+      "overview-other-order-payment",
+    );
+
+    const stats = await getListingOverviewStats(listing);
+    expect(stats.incompleteQuantity).toBe(1);
+    expect(stats.incompleteSales).toBe(500);
   });
 
   test("does not count a refunded balance-paid attendee whose reference was pruned", async () => {

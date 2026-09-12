@@ -50,13 +50,14 @@ type TransferRow = TransferEndpoints & {
   kind: string;
   memo: string;
   reverses_id: number | bigint | null;
+  reverses_group: string;
   posted_by: string;
 };
 
 const COLUMNS =
   "id, source_type, source_id, dest_type, dest_id, amount, " +
   "occurred_at, recorded_at, reference, event_group, kind, memo, " +
-  "reverses_id, posted_by";
+  "reverses_id, reverses_group, posted_by";
 
 /** Turn a database row into the {@link Transfer} the rest of the code uses.
  *  A kindless leg is stored as `kind = ''` (see {@link legColumns}); it maps
@@ -74,6 +75,7 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
   recordedAt: epochMsToIso(Number(row.recorded_at)),
   reference: row.reference,
   ...(row.reverses_id === null ? {} : { reversesId: Number(row.reverses_id) }),
+  ...(row.reverses_group === "" ? {} : { reversesGroup: row.reverses_group }),
   source: account(row.source_type, row.source_id),
 });
 
@@ -119,6 +121,7 @@ const legColumns = (
   lit("kind", t.kind ?? ""),
   lit("memo", t.memo ?? ""),
   lit("reverses_id", t.reversesId ?? null),
+  lit("reverses_group", t.reversesGroup ?? ""),
   lit("posted_by", t.postedBy ?? "system"),
 ];
 

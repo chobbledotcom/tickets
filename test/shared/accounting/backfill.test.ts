@@ -105,6 +105,19 @@ const seedTwoListingOrder = async () => {
   return { attendee, first, second };
 };
 
+/** One attendee holding a paid line and a free line flagged refunded — the
+ *  free line's flag must not read as the order being refunded. */
+const seedPaidLineWithFlaggedFreeLine = async () => {
+  const listing = await createTestListing({ maxAttendees: 5 });
+  const free = await createTestListing({ maxAttendees: 5 });
+  const attendee = await historicalBooking([
+    { listingId: listing.id, pricePaid: 3000 },
+    { listingId: free.id, pricePaid: 0 },
+  ]);
+  await flagRefunded(attendee.id, free.id);
+  return { attendee, listing };
+};
+
 const expectBalances = async (
   expected: ReadonlyArray<readonly [AccountRef, number]>,
 ): Promise<void> => {
@@ -242,6 +255,42 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       [attendeeAccount(attendee.id), 0],
     ]);
     await expectRefundCash(attendee.id); // the whole payment returned
+  });
+
+  test("a refunded flag on a FREE line does not reverse the paid order", async () => {
+    // The rows the backfill reads are the PAID lines: a free sibling's flag
+    // says nothing about the order's money, so no reversal is posted.
+    const { attendee, listing } = await seedPaidLineWithFlaggedFreeLine();
+
+    await backfillTransfers();
+
+    await expectBalances([
+      [revenueAccount(listing.id), 3000], // still earned
+      [attendeeAccount(attendee.id), 0], // paid in full
+    ]);
+    expect(
+      refundCashOf(await transfersByAccount(attendeeAccount(attendee.id))),
+    ).toEqual([]);
+  });
+
+  test("pages the historical attendees and rows in database order", async () => {
+    // The id cursor advances to each page's last id, so unordered rows would
+    // strand attendees behind the cursor and silently skip their ledger
+    // backfill. The statements themselves must carry the ordering.
+    const listing = await createTestListing({ maxAttendees: 5 });
+    await historicalBooking([{ listingId: listing.id, pricePaid: 5000 }]);
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await backfillTransfers();
+      const ran = getQueryLog()
+        .map((entry) => entry.sql)
+        .join("\n");
+      expect(ran).toContain("ORDER BY attendee.attendee_id LIMIT ?");
+      expect(ran).toContain(
+        "ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id",
+      );
+    });
   });
 
   test("skips an attendee that already carries ledger legs (no double-post)", async () => {

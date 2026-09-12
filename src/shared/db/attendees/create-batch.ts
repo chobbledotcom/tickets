@@ -174,8 +174,11 @@ export const writeAsLedgerBatch = async (
       : [
           {
             args: [plan.legs[0]!.eventGroup, tokenIndex],
+            // Fill only rows still missing their order's link, so the stamp
+            // stays per ORDER — see postBookingLegsTx.
             sql: `UPDATE listing_attendees SET ledger_event_group = ?
-                  WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}`,
+                  WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}
+                  AND ledger_event_group = ''`,
           },
         ];
   const finalize = plan.finalize

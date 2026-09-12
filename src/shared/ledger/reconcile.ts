@@ -34,7 +34,7 @@ export const reconcileExternal =
   };
 
 /** The minimal leg shape a fingerprint reads — shared by an expected
- *  `TransferInput` and an observed {@link Transfer}. */
+ * `TransferInput` and an observed {@link Transfer}. */
 type LegFacts = {
   readonly kind?: string;
   readonly source: AccountRef;
@@ -42,6 +42,7 @@ type LegFacts = {
   readonly amount: number;
   readonly occurredAt: string;
   readonly reversesId?: number | null;
+  readonly reversesGroup?: string;
 };
 
 /**
@@ -77,6 +78,7 @@ const IDENTITY_FIELDS: ReadonlyArray<
   // the stored leg rather than read as an occurredAt conflict.
   ["occurredAt", (leg) => instantToEpochMs(leg.occurredAt)],
   ["reversesId", (leg) => leg.reversesId ?? null],
+  ["reversesGroup", (leg) => leg.reversesGroup ?? ""],
 ];
 
 export const legFingerprint = (leg: LegFacts): LegFingerprint =>

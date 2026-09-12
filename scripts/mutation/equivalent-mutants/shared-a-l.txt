@@ -283,3 +283,17 @@ src/shared/local-host.ts::ipv6FirstGroup~16zpdpl  1 → 0   # at to === 1 the gr
 # `?? ""` and `|| ""` return the same value, so no test can tell them apart.
 src/shared/attendee-list-controls.ts::compareOptionalDates.firstDate~0yc1a5v  ?? → ||   # "" is falsy, but both operators fall back to the same "" here; a non-empty string is returned by both
 src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?? → ||   # same proof as firstDate
+
+# The refund-order link's write and identity: reverses_group follows the same
+# kind/memo shape — a defined falsy value ("") equals the "" fallback, and any
+# defined value a writer passes is a non-empty event group.
+src/shared/accounting/rows.ts::legColumns~1hsch91  ?? → ||   # insertStatement reverses_group: undefined or a non-empty event group; "" ?? "" === "" || "" on the only falsy case
+src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0pukv95  ?? → ||   # reversesGroup identity: the only falsy-non-null value is "" and "" ?? "" === "" || ""
+src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → ||   # the stored cursor is a string or undefined; "" is the fallback itself, so "" ?? "" === "" || "" either way
+
+src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1   # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
+
+# The historical backfill's leg choice is invisible: every backfilled
+# attendee's order posts a sale and a payment leg sharing one event group, so
+# legs[1] carries the same group as legs[0].
+src/shared/accounting/backfill.ts::attendeeStatements~0lgaj8m  0 → 1   # every backfilled attendee's order posts a sale and a payment leg sharing one event group, so legs[1] carries the same group as legs[0]

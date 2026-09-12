@@ -84,6 +84,12 @@ describe("legIdentityDiff", () => {
     expect(legIdentityDiff(legFacts, { ...legFacts, reversesId: 7 })).toEqual([
       "reversesId",
     ]);
+    expect(
+      legIdentityDiff(legFacts, {
+        ...legFacts,
+        reversesGroup: "evt-booking",
+      }),
+    ).toEqual(["reversesGroup"]);
   });
 });
 
@@ -92,6 +98,15 @@ describe("legFingerprint", () => {
     expect(legFingerprint({ ...legFacts, reversesId: 0 })).not.toBe(
       legFingerprint({ ...legFacts, reversesId: null }),
     );
+  });
+
+  it('treats a leg with no reverses group as an empty-string link (the identity normalises undefined to "")', () => {
+    expect(legFingerprint(legFacts)).toBe(
+      legFingerprint({ ...legFacts, reversesGroup: "" }),
+    );
+    expect(
+      legFingerprint({ ...legFacts, reversesGroup: "evt-order" }),
+    ).not.toBe(legFingerprint(legFacts));
   });
 });
 

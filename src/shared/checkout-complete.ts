@@ -74,11 +74,14 @@ export const postBookingLegsTx = async (
 ): Promise<void> => {
   await ledgerTx.post(tx, legs);
   if (legs.length > 0) {
+    // Fill only rows still missing their order's link, so the stamp stays
+    // per ORDER: a row this order never created (an earlier order's line, a
+    // merge-moved row) keeps the group it was stamped with.
     await tx.execute(
       update(
         "listing_attendees",
         { ledger_event_group: legs[0]!.eventGroup },
-        { attendee_id: attendeeId },
+        { attendee_id: attendeeId, ledger_event_group: "" },
       ),
     );
   }

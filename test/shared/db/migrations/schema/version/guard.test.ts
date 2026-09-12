@@ -105,8 +105,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-04_login_attempt_stamp",
         "2026-08-10_refund_authority_records",
         "2026-08-18_sumup_recovery_state",
+        "2026-09-11_refund_order_link",
       ],
-      schemaHash: "g0zsbw",
+      schemaHash: "10kf51e",
     });
   });
 
@@ -121,7 +122,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Ask SumUp what became of every checkout, so a payment whose message went missing still becomes a ticket.",
+        "Name the booking order each refund reverses, so one returned order no longer marks a person's other orders refunded.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

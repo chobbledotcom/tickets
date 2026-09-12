@@ -323,4 +323,39 @@ describe("accounting > rows > stored-row round-trip", () => {
     // rather than as any filler a reader would later show to an operator.
     expect(stored!.memo).toBe("");
   });
+
+  test("a reversal leg reads back naming its order; a plain leg carries no mark", async () => {
+    // A refund leg and a plain leg of the same order: the round-trip must
+    // return the reversed order's group on the refund leg and omit the field
+    // for a leg with none, mirroring `reverses_id`'s NULL-vs-id mapping.
+    const refund: TransferInput = {
+      amount: 5000,
+      destination: account("attendee", 3),
+      eventGroup: "evt-refund",
+      kind: "refund_sale",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-refund",
+      reversesGroup: "evt-order",
+      source: account("revenue", 7),
+    };
+    const plain: TransferInput = {
+      amount: 5000,
+      destination: account("revenue", 7),
+      eventGroup: "evt-order",
+      kind: "sale",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-sale",
+      source: account("attendee", 3),
+    };
+    await executeBatch([
+      insertStatement(plain, recordedAt),
+      insertStatement(refund, recordedAt),
+    ]);
+
+    const all = await selectTransfers(queryBatch, { order: "id" });
+    const [sale, reversal] = all;
+    expect(sale!.reversesGroup).toBeUndefined();
+    expect("reversesGroup" in sale!).toBe(false);
+    expect(reversal!.reversesGroup).toBe("evt-order");
+  });
 });

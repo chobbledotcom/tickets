@@ -115,6 +115,10 @@ export const contentTables: [name: string, table: Table][] = [
         ["kind", "TEXT NOT NULL DEFAULT ''"],
         ["memo", "TEXT NOT NULL DEFAULT ''"],
         ["reverses_id", "INTEGER DEFAULT NULL"],
+        // The event group of the booking order a refund leg reverses — the
+        // join a per-order read (the refunded status) uses to tell two orders
+        // of one listing apart. Empty on every non-refund leg.
+        ["reverses_group", "TEXT NOT NULL DEFAULT ''"],
         ["posted_by", "TEXT NOT NULL DEFAULT 'system'"],
       ],
       indexes: [
@@ -138,6 +142,8 @@ export const contentTables: [name: string, table: Table][] = [
           name: "idx_transfers_reverses_id",
           unique: true,
         },
+        // The per-order refunded projection scans by the reversed order.
+        { columns: ["reverses_group"], name: "idx_transfers_reverses_group" },
       ],
     },
   ],

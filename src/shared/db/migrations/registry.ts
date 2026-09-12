@@ -411,6 +411,12 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-08-18_sumup_recovery_state",
     () => import("./2026-08-18_sumup_recovery_state.ts"),
   ),
+  // The per-order join the refunded projection reads: names the booking order
+  // each refund leg reverses, backfilled over every stored refund leg.
+  entry(
+    "2026-09-11_refund_order_link",
+    () => import("./2026-09-11_refund_order_link.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 
