@@ -63,22 +63,12 @@ describe("check-ste rules", () => {
     test("leaves a line reading as inside the fence, whatever its marker", () => {
       // A ``` block holding a ~~~ line: the tilde line is code, and prose
       // after the block still reads.
-      const content = "before\n```\nwrap\n~~~\nstill code\n```\nafter\n";
+      const content = "a;\n```\nwrap\n~~~\nstill code\n```\nb;\n";
       expect(
-        findIssues(content.replace("before", "a;").replace("after", "b;")),
+        findIssues(content).map((issue) => [issue.line, issue.context]),
       ).toEqual([
-        {
-          fix: "write two sentences",
-          line: 1,
-          problem: '";"',
-          rule: "semicolon",
-        },
-        {
-          fix: "write two sentences",
-          line: 7,
-          problem: '";"',
-          rule: "semicolon",
-        },
+        [1, "a;"],
+        [7, "b;"],
       ]);
     });
 
@@ -94,6 +84,18 @@ describe("check-ste rules", () => {
         "coffee; cup",
         "",
       ]);
+    });
+
+    test("a typed fence inside an open block is code, not a close", () => {
+      // `` ```ts `` carries an info string, so it cannot close the block it
+      // sits in; prose after the true closer still reads.
+      const content = "```\ncode\n```ts\nalso code\n```\na;\n";
+      expect(proseLines(content).map((line) => line.text)).toEqual(["a;", ""]);
+    });
+
+    test("a typed fence opens when no block is open", () => {
+      const content = "a;\n```ts\ncode\n```\nb;\n";
+      expect(findIssues(content).map((issue) => issue.line)).toEqual([1, 5]);
     });
   });
 
@@ -137,6 +139,7 @@ describe("check-ste rules", () => {
         "banned-modal",
       ]);
       expect(rulesOn("Would this work?")).toEqual(["banned-modal"]);
+      expect(rulesOn("Could this work?")).toEqual(["banned-modal"]);
     });
 
     test("banned-modal leaves May the month alone", () => {

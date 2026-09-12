@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-write=scripts/check-file-lengths/over-limit.json
+#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-write=scripts/check-file-lengths/over-limit.json
 
 /**
  * Check the source trees for files over the ~400-line limit (see "Keep code
@@ -10,10 +10,10 @@
  * only when the limit itself changed and the list must be recorded anew.
  */
 
+import { SOURCE_DIRS } from "#scripts/source-dirs.ts";
 import {
   filesOverLimit,
   runFileLengthCheck,
-  SOURCE_DIRS,
 } from "./check-file-lengths/run.ts";
 import { consoleOutput } from "./check-report.ts";
 import {

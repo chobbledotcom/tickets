@@ -17,10 +17,8 @@ import {
   collectGateScriptFiles,
 } from "#scripts/walk-files.ts";
 import { countLines, findIssues, LINE_LIMIT, type OverLimit } from "./rules.ts";
-/* jscpd:ignore-end */
 
-/** The trees whose files the check reads. */
-export const SOURCE_DIRS = ["src", "test", "scripts", "cli", "e2e-payments"];
+/* jscpd:ignore-end */
 
 /**
  * Check every source tree for a file over the limit, against the accepted

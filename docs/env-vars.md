@@ -116,6 +116,16 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   letters, numbers, hyphens, underscores). Email delivery must be configured
   before the superuser can be enabled. Also enables the owner-only **Support**
   page (`/admin/support`), where the operator can message this address.
+- `HOST_EMAIL_PROVIDER` - The host machine's email provider: `mailgun-eu`,
+  `mailgun-us`, `postmark`, `resend`, or `sendgrid`. Set with
+  `HOST_EMAIL_API_KEY` and `HOST_EMAIL_FROM_ADDRESS`. Email sends use these
+  credentials when a site holds no email settings of its own, and a builder
+  copies the trio to every built site it creates. Any other value (or a missing
+  part of the trio) disables host email and logs an error that says which.
+- `HOST_EMAIL_API_KEY` - The provider API key for the host email credentials
+  (required with `HOST_EMAIL_PROVIDER`).
+- `HOST_EMAIL_FROM_ADDRESS` - The From address for host email (required with
+  `HOST_EMAIL_PROVIDER`). Must be a valid email address.
 - `SUPPORT_PAGE_TEXT` - Optional markdown shown at the top of the Support page
   (requires `ADMIN_EMAIL_ADDRESS`). Use literal `\n` for line breaks since Bunny
   secrets cannot hold real newlines. When unset, a placeholder note is shown

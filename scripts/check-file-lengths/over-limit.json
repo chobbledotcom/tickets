@@ -162,7 +162,7 @@
   "scripts/compact-test-reporter.ts": 562,
   "scripts/mutation/generate.ts": 466,
   "scripts/mutation/runner.ts": 447,
-  "e2e-payments/src/browser.ts": 491,
+  "e2e-payments/src/browser.ts": 474,
   "e2e-payments/src/cucumber/steps/booking.ts": 697,
   "e2e-payments/src/flow.ts": 418,
   "e2e-payments/src/providers/shared.ts": 421,

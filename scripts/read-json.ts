@@ -16,9 +16,6 @@ export const parseJsonWith =
     }
   };
 
-/** Torn text reads as "nothing here", which every caller already handles. */
-const parseOrNull = parseJsonWith(() => null);
-
 /**
  * Reads the JSON at the file named by `path`, validated against `schema`.
  * `Missing` names what an unreadable or wrong-shaped file becomes.
@@ -28,6 +25,9 @@ type SchemaRead<Missing = never> = <Schema extends v.GenericSchema>(
   schema: Schema,
 ) => Promise<v.InferOutput<Schema> | Missing>;
 
+/** What torn text reads as, distinct from any value a parse can produce. */
+const torn = Symbol("torn text");
+
 /**
  * What the file at `path` holds, checked against `schema`. `null` means there
  * is no file, or what is there is half written or the wrong shape. A disk that
@@ -35,12 +35,16 @@ type SchemaRead<Missing = never> = <Schema extends v.GenericSchema>(
  *
  * A file that holds valid JSON `null` for a schema that accepts it is
  * refused loudly: this API uses `null` as its unread marker, so a null value
- * would read as missing.
+ * would read as missing. A torn text is checked before the schema ever sees
+ * it, so a half-written file still reads as `null` even for null-accepting
+ * schemas.
  */
 export const readJsonOrNull: SchemaRead<null> = async (path, schema) => {
   const text = await nullIfNotFound(Deno.readTextFile(path));
   if (text === null) return null;
-  const parsed = v.safeParse(schema, parseOrNull(text));
+  const json = parseJsonWith(() => torn)(text);
+  if (json === torn) return null;
+  const parsed = v.safeParse(schema, json);
   if (parsed.success && parsed.output === null) {
     throw new Error(
       `The JSON at ${path} holds null, which this API uses as its "nothing" marker. ` +

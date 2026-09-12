@@ -199,17 +199,17 @@ export const getAuthenticatedApiKey = async (
     return null;
   }
 
-  // Re-wrap DATA_KEY with the token so getPrivateKey() works
-  // (it expects token + wrappedDataKey in the same format as sessions)
+  // getPrivateKey() expects token + wrappedDataKey in the session's format.
   const wrappedDataKey = apiKeyRow.wrapped_data_key;
 
   const adminLevel = await decryptAdminLevel(user);
 
-  // Best-effort last_used update: queued as pending work so it settles before
-  // the response is sent (a write left running after the response is killed on
-  // Bunny, and its lock-retry timers would leak into whatever runs next).
-  // Failure is swallowed — a stats write must never fail the request.
-  addPendingWork(touchApiKeyLastUsed(apiKeyRow.id).catch(() => {}));
+  // Best-effort last_used update, queued as pending work so it settles.
+  addPendingWork(
+    touchApiKeyLastUsed(apiKeyRow.id).catch(() => {
+      // A stats write must never fail the request.
+    }),
+  );
 
   const result: AuthSession = {
     adminLevel,

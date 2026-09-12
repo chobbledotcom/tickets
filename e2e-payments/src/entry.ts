@@ -12,7 +12,9 @@ export const failRun = async (
   notify: () => Promise<void>,
 ): Promise<void> => {
   fail(message);
-  await notify().catch(() => {});
+  await notify().catch(() => {
+    // The run already failed; a failed ping must not stop the exit.
+  });
   process.exitCode = 1;
 };
 

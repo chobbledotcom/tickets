@@ -10,10 +10,7 @@ import { collectGateScriptFiles } from "#scripts/walk-files.ts";
 import { findIssues } from "./rules.ts";
 /* jscpd:ignore-end */
 
-/** The trees whose catch blocks the check reads. */
-export const SOURCE_DIRS = ["src", "test", "scripts", "cli", "e2e-payments"];
-
-/** Check every source tree for an empty catch block. */
+/** Check every source tree for an empty catch. */
 export const runEmptyCatchCheck = perFileCheck(
   collectGateScriptFiles,
   findIssues,

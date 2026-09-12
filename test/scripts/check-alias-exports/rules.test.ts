@@ -29,13 +29,24 @@ describe("check-alias-exports rules", () => {
     expect(issues[0]?.target).toBe("TokenEntry");
   });
 
-  test("lets a re-export from another module publish its name", () => {
+  test("lets an unrenamed re-export from another module publish its name", () => {
     expect(
       findIssues(
         "three.ts",
-        'export { TokenEntry as CheckinEntry } from "#routes/tickets/token-utils.ts";\n',
+        'export { TokenEntry } from "#routes/tickets/token-utils.ts";\n',
       ),
     ).toEqual([]);
+  });
+
+  test("flags a re-export that renames the foreign name", () => {
+    const issues = findIssues(
+      "seventeen.ts",
+      'export { TokenEntry as CheckinEntry } from "#routes/tickets/token-utils.ts";\n',
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.exported).toBe("CheckinEntry");
+    expect(issues[0]?.target).toBe("TokenEntry");
+    expect(issues[0]?.fix).toContain("its own module");
   });
 
   test("lets a wrapper that adds something stand", () => {
@@ -150,6 +161,15 @@ describe("check-alias-exports rules", () => {
       "const named = local.one;\n" +
       "export { named };\n";
     expect(findIssues("fifteen.ts", content)).toEqual([]);
+  });
+
+  test("lets a reassigned let stand, because its target is no longer certain", () => {
+    const content = importing(
+      "let getChildIds = byParent.getIds;\n" +
+        "getChildIds = other;\n" +
+        "export { getChildIds };\n",
+    );
+    expect(findIssues("sixteen.ts", content)).toEqual([]);
   });
 
   test("reports each finding with the fix a reader needs", () => {

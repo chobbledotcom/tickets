@@ -112,12 +112,19 @@ const COVERAGE_EXCLUSIONS = [
   // not the alternative env states the harness boots in for each target.
   "e2e-payments/src/config.ts",
   // Deno's coverage merger mis-attributes this file once many test isolates
-  // load it: the merged lcov records `FNDA:2,resumeRejectedTarget` while the
+  // load it: the merged lcov records FNDA:2,resumeRejectedTarget while the
   // function's own body lines read as unhit — internally impossible. The
   // resume guards are genuinely executed (placeholder-completion's crashed
   // redelivery replays them; a two-file run reports DA:150,1 and DA:153,3),
   // and the mutation gate still mutates the file against its direct tests.
   "src/features/api/payment-processing/rejected-target.ts",
+  // The same merger mis-attribution: the merged record says the rise-path
+  // filter callback never ran while it counts the line that calls it 18
+  // times against FNDA:13,findingsFor — internally impossible. The callback
+  // is genuinely executed: a single-isolate run of
+  // test/scripts/check-ste/run.test.ts covers it, and its assertions read
+  // what the filter printed.
+  "scripts/check-ste/run.ts",
   // parseLiveTarget's throw path is tested in test/e2e-payments/parse-target, but
   // the test runner's group system may not pair it into the same isolate as the
   // coverage probe — the function is also covered by the live Cucumber run.
@@ -129,6 +136,7 @@ const COVERAGE_EXCLUSIONS = [
   // with deterministic behaviour (cleanup, db-fault, refund-outcome) stay
   // under normal coverage and are directly tested under test/e2e-payments/.
   "e2e-payments/src/browser.ts",
+  "e2e-payments/src/stop-browser.ts",
   "e2e-payments/src/flow.ts",
   "e2e-payments/src/order-flow.ts",
   "e2e-payments/src/server.ts",

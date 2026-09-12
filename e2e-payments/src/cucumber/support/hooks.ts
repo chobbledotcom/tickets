@@ -158,7 +158,9 @@ After(
     const infra = this.infraMaybe;
     if (infra === null) {
       // Startup itself failed: nothing to sweep but the journal.
-      await this.saveJournal().catch(() => {});
+      await this.saveJournal().catch(() => {
+        // The journal write is best effort; startup already failed.
+      });
       return;
     }
 
@@ -170,8 +172,13 @@ After(
         name: "failure screenshots",
         run: async () => {
           if (!this.stepFailed) return;
-          await infra.owner.dumpPage("scenario-failed").catch(() => {});
-          await infra.visitor.dumpPage("scenario-failed").catch(() => {});
+          await infra.owner.dumpPage("scenario-failed").catch(() => {
+            // The owner's dump failing must not stop the visitor's.
+          });
+          await infra.visitor.dumpPage("scenario-failed").catch(() => {
+            // The step already failed; a missed screenshot has evidence
+            // elsewhere.
+          });
         },
       },
       {

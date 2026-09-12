@@ -10,9 +10,6 @@ import { collectGateScriptFiles } from "#scripts/walk-files.ts";
 import { findIssues } from "./rules.ts";
 /* jscpd:ignore-end */
 
-/** The trees whose exports the check reads. */
-export const SOURCE_DIRS = ["src", "test", "scripts", "cli", "e2e-payments"];
-
 /** Check every source tree's exports for a name that only renames an import. */
 export const runAliasExportCheck = perFileCheck(
   collectGateScriptFiles,

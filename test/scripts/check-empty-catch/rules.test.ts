@@ -38,9 +38,46 @@ describe("check-empty-catch rules", () => {
     ).toEqual([]);
   });
 
-  test("leaves a swallowed promise callback alone", () => {
+  test("flags a swallowed promise callback", () => {
+    const issues = findIssues(
+      "five.ts",
+      "addPendingWork(touch().catch(() => {}));\n",
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.caught).toBe(".catch");
+    expect(issues[0]?.line).toBe(1);
+  });
+
+  test("lets a promise callback that states its fallback stand", () => {
     expect(
-      findIssues("five.ts", "addPendingWork(touch().catch(() => {}));\n"),
+      findIssues(
+        "seven.ts",
+        "touch().catch(() => {\n  // The stats write must not fail the request.\n});\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("lets a promise callback that recovers stand", () => {
+    expect(findIssues("eight.ts", "touch().catch(() => save());\n")).toEqual(
+      [],
+    );
+  });
+
+  test("leaves an empty callback on another member alone", () => {
+    expect(findIssues("nine.ts", "items.map(() => {});\n")).toEqual([]);
+  });
+
+  test("leaves a catch call with no callback alone", () => {
+    expect(findIssues("ten.ts", "touch().catch();\n")).toEqual([]);
+  });
+
+  test("leaves a named handler alone, empty or not", () => {
+    expect(findIssues("eleven.ts", "touch().catch(handleIt);\n")).toEqual([]);
+  });
+
+  test("lets a callback that recovers inside braces stand", () => {
+    expect(
+      findIssues("twelve.ts", "touch().catch(() => {\n  save();\n});\n"),
     ).toEqual([]);
   });
 

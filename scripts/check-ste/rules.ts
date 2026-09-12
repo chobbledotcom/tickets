@@ -23,7 +23,12 @@ export interface ProseLine {
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 
 /** Where a rule found a Simplified Technical English problem. */
-export type SteIssue = PerFileFinding;
+export interface SteIssue extends PerFileFinding {
+  /** The prose of the whole line the problem was found on, junk stripped —
+   * the stable identity the baseline records, because line numbers shift
+   * every time somebody edits a paragraph above. */
+  context: string;
+}
 
 /**
  * Replace every machine-owned span in one line with a `%`, which breaks word
@@ -45,21 +50,41 @@ export const blankQuotedSpans = (content: string): string =>
   content.replace(/"[^"]*"/g, (span) => span.replace(/[^\n]/g, "%"));
 
 /** The opening fence of a code block: three or more backticks or tildes. */
-const FENCE = /^(\s*)(`{3,}|~{3,})/;
+const FENCE = /^(\s*)(`{3,}|~{3,})(.*)$/;
 
-/** Whether `fence` closes a block that `open` opened: same marker, at
- * least as long. */
-const sameFence = (fence: string, open: string): boolean =>
-  fence[0] === open[0] && fence.length >= open.length;
+/** A fence line, split into its marker and what follows it. */
+interface FenceLine {
+  /** What follows the marker: an info string when the line opens, and only
+   * spaces when the line can close. */
+  after: string;
+  /** The backtick or tilde run that opens or closes a block. */
+  marker: string;
+}
 
-/** The open fence after one line. `fence` marks a fence line, which either
- * closes `open` or becomes the new open fence. */
+/** What fence marker, if any, one line holds. */
+const fenceOn = (line: string): FenceLine | null => {
+  const match = FENCE.exec(line);
+  // Both groups always participate: the marker run and the line remainder.
+  return match === null ? null : { after: match[3]!, marker: match[2]! };
+};
+
+/** Whether `fence` closes a block that `open` opened: same marker, at least
+ * as long, and only spaces after the marker — Markdown lets an opening fence
+ * carry an info string (` ```ts `), but a closing fence carry none, so a
+ * typed fence inside an open block is code, not a terminator. */
+const sameFence = (fence: FenceLine, open: string): boolean =>
+  fence.marker[0] === open[0] &&
+  fence.marker.length >= open.length &&
+  fence.after.trim() === "";
+
+/** The open fence after one line. A fence line either closes `open` or
+ * becomes the new open fence. */
 const fenceState = (
-  fence: string | null,
+  fence: FenceLine | null,
   open: string | null,
 ): string | null => {
   if (fence === null) return open;
-  if (open === null) return fence;
+  if (open === null) return fence.marker;
   return sameFence(fence, open) ? null : open;
 };
 
@@ -77,7 +102,7 @@ export const proseLines = (content: string): ProseLine[] => {
   const lines: ProseLine[] = [];
   let openFence: string | null = null;
   for (const [index, raw] of blankQuotedSpans(content).split("\n").entries()) {
-    const fence = FENCE.exec(raw)?.[2] ?? null;
+    const fence = fenceOn(raw);
     openFence = fenceState(fence, openFence);
     if (fence !== null || openFence !== null) continue;
     if (raw.trimStart().startsWith("|")) continue;
@@ -133,6 +158,7 @@ const matchIssues = (
   lineNo: number,
 ): SteIssue[] =>
   [...line.matchAll(pattern)].map((match) => ({
+    context: line,
     fix,
     line: lineNo,
     problem: `"${match[0]}"`,
@@ -170,6 +196,7 @@ const PARTICIPLE =
 
 const participleIssues = (line: string, lineNo: number): SteIssue[] =>
   [...line.matchAll(PARTICIPLE)].map((match) => ({
+    context: line,
     fix: "write a new sentence",
     line: lineNo,
     problem: `", ${match[1]}"`,

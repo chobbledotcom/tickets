@@ -86,10 +86,13 @@ export const invalidateVersionProbe = (
 /** Start fetching the settings version as early as possible in a request, so
  *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */
 export const prefetchVersion = (): void => {
-  // Failure dropped (a fresh install has no settings table; loadKeys
-  // re-fetches). Pending work so early returns that skip loadKeys still
-  // settle the probe before responding — Bunny kills post-response fetches.
-  addPendingWork(versionProbe.getAll().catch(() => {}));
+  // Pending work so early returns that skip loadKeys still settle the probe
+  // before responding — Bunny kills post-response fetches.
+  addPendingWork(
+    versionProbe.getAll().catch(() => {
+      // A fresh install has no settings table; loadKeys re-fetches.
+    }),
+  );
 };
 
 /**

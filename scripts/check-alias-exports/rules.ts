@@ -3,10 +3,12 @@
  *
  * The "No alias exports" rule in AGENTS.md says never export a renamed copy of
  * something another module already exports; expose the shared mechanism itself
- * instead. This module finds the two mechanical shapes of that: an exported
- * `const` whose whole value is one imported name, and an
- * `export { imported as alias }` clause. A wrapper that calls, transforms, or
- * defaults is not an alias, so a call or a literal value never flags.
+ * instead. This module finds the three mechanical shapes of that: an exported
+ * `const` whose whole value is one imported name, an
+ * `export { imported as alias }` clause, and a re-export clause
+ * (`export { X as Y } from "…"`) that gives a foreign name a second name.
+ * A wrapper that calls, transforms, or defaults is not an alias, so a call or
+ * a literal value never flags.
  */
 
 import { byLine } from "#scripts/check-report.ts";
@@ -69,6 +71,9 @@ const localAliases = (
 ): Map<string, string> => {
   const aliases = new Map<string, string>();
   for (const statement of statementsOf(program, "VariableDeclaration")) {
+    // A `let` or `var` binding can be reassigned to something that no longer
+    // renames the import, so only a `const` keeps its target for sure.
+    if (statement.kind !== "const") continue;
     for (const declarator of statement.declarations) {
       if (declarator.id.type !== "Identifier") continue;
       const renamed = renamedValue(declarator.init, imported, content);
@@ -78,20 +83,30 @@ const localAliases = (
   return aliases;
 };
 
+/** What one alias finding says, by the place it was found. */
+interface AliasWords {
+  exported: string;
+  fix: string;
+  target: string;
+}
+
 /** One alias finding, with its line taken from where it starts. */
 const aliasIssue = (
   scan: FileScan,
   start: number,
-  exported: string,
-  target: string,
+  words: AliasWords,
 ): AliasExportIssue => ({
-  exported,
-  fix: `export ${target} itself, and let callers use it`,
+  exported: words.exported,
+  fix: words.fix,
   line: lineColumnAt(scan.content, start).line,
-  problem: `"${exported}" renames the imported ${target}`,
+  problem: `"${words.exported}" renames the imported ${words.target}`,
   rule: "alias-export",
-  target,
+  target: words.target,
 });
+
+/** The fix for a rename of a binding this file imported or aliased. */
+const exportTheImportItself = (target: string): string =>
+  `export ${target} itself, and let callers use it`;
 
 /** The name one side of an export clause goes by: an identifier, or the
  * string it was renamed to. Real syntax is always one of the two. */
@@ -133,27 +148,66 @@ const renamedValue = (
   return null;
 };
 
-/** A renamed export of an imported or aliased binding:
- * `export { imported as alias }`, `export { localAlias }`, or
- * `export { localAlias as alias }`. */
-const renamedSpecifiers = (
+/** One binder of an export clause — the clause's own `Specifier` shape. */
+type Clause = ExportStatement["specifiers"][number];
+
+/** Whether an export clause gives the binding a name it did not have. */
+const isRenamed = (specifier: Clause): boolean =>
+  clauseName(specifier.exported) !== clauseName(specifier.local);
+
+/** The issues for a statement's export clauses, by what each renames. A
+ * specifier that hides nothing returns null and produces no issue. */
+const issuesOnClauses = (
   statement: ExportStatement,
   scan: FileScan,
+  wordsFor: (specifier: Clause) => AliasWords | null,
 ): AliasExportIssue[] =>
   [...statement.specifiers].flatMap((specifier) => {
-    const local = clauseName(specifier.local);
-    const target = targetOf(local, scan);
-    if (target === null) return [];
-    // A directly imported name exported under its own name publishes that
-    // name on purpose, so only a rename counts. A local const alias hides
-    // the import it copies under any name, its own included.
-    const aliasedName = scan.imported.has(local) === false;
-    const renamedExport = clauseName(specifier.exported) !== local;
-    if (!aliasedName && !renamedExport) return [];
-    return [
-      aliasIssue(scan, specifier.start, clauseName(specifier.exported), target),
-    ];
+    const words = wordsFor(specifier);
+    if (words === null) return [];
+    return [aliasIssue(scan, specifier.start, words)];
   });
+
+/** The finding words for one clause, by its target and the fix for that
+ * target. */
+const clauseWords = (
+  specifier: Clause,
+  target: string,
+  fixFor: (target: string) => string,
+): AliasWords => ({
+  exported: clauseName(specifier.exported),
+  fix: fixFor(target),
+  target,
+});
+
+/** What an export clause hides, if anything:
+
+- A clause on the file's own export names a local import or a local const
+  alias. A directly imported name exported under its own name publishes that
+  name on purpose, so only a rename counts. A local const alias hides the
+  import it copies under any name, its own included.
+- A re-export clause (`export { X as Y } from "…"`) names a foreign export.
+  The value already has its own name in its own module, so a second name here
+  is the same alias the rule forbids. An unrenamed re-export — publishing the
+  foreign name under its own name — is a barrel passing through. */
+const clauseHides = (
+  statement: ExportStatement,
+  specifier: Clause,
+  scan: FileScan,
+): AliasWords | null => {
+  if (statement.source !== null) {
+    if (!isRenamed(specifier)) return null;
+    const keptName = (target: string) =>
+      `let callers import ${target} from its own module, and drop the second name`;
+    return clauseWords(specifier, clauseName(specifier.local), keptName);
+  }
+  const local = clauseName(specifier.local);
+  const target = targetOf(local, scan);
+  if (target === null) return null;
+  const importedDirectly = scan.imported.has(local);
+  if (importedDirectly && !isRenamed(specifier)) return null;
+  return clauseWords(specifier, target, exportTheImportItself);
+};
 
 /** The import target a local binding names, when it names one at all: an
  * import spelled directly, or a local const that renames one. */
@@ -183,7 +237,13 @@ const constValueAliases = (
     }
     const renamed = renamedValue(declarator.init, scan.imported, scan.content);
     if (renamed === null) return [];
-    return [aliasIssue(scan, declarator.start, declarator.id.name, renamed)];
+    return [
+      aliasIssue(scan, declarator.start, {
+        exported: declarator.id.name,
+        fix: exportTheImportItself(renamed),
+        target: renamed,
+      }),
+    ];
   });
 };
 
@@ -210,14 +270,12 @@ export const findIssues = (
   return program.body
     .flatMap((statement) => {
       if (statement.type !== "ExportNamedDeclaration") return [];
-      // A re-export (`export { … } from "…"`) publishes another module's name
-      // on purpose; only a local rename of an import is an alias.
-      return statement.source === null
-        ? [
-            ...renamedSpecifiers(statement, scan),
-            ...constValueAliases(statement.declaration, scan),
-          ]
-        : [];
+      return [
+        ...issuesOnClauses(statement, scan, (specifier) =>
+          clauseHides(statement, specifier, scan),
+        ),
+        ...constValueAliases(statement.declaration, scan),
+      ];
     })
     .sort(byLine);
 };

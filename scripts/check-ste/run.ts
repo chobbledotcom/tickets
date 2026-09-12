@@ -5,11 +5,12 @@
  * stays testable.
  *
  * The STE guide applies to the text you write or rewrite, so the check holds
- * a per-document, per-rule baseline of the issues each policy document
- * carries today. Each rule's count only falls: fix a document's prose, then
- * run `deno task check:ste --update` to record the step. A rule that gained
- * findings never reads its old allowance back, so one grandfathered finding
- * cannot pay for a new one.
+ * a per-document baseline of the findings each policy document carries today,
+ * recorded per finding identity — the rule, the match, and the prose of the
+ * line it sits on. Each identity's count only falls: fix a document's prose,
+ * then run `deno task check:ste --update` to record the step. A finding that
+ * gained occurrences never reads its old allowance back, and an allowance
+ * cannot move to new prose, because new prose carries a new identity.
  */
 
 import { join } from "@std/path";
@@ -21,7 +22,7 @@ import {
 } from "#scripts/check-report.ts";
 import { countsRose, fileFindingLines } from "#scripts/check-runner.ts";
 import { collectFiles, directoryEntries } from "#scripts/walk-files.ts";
-import { findIssues } from "./rules.ts";
+import { findIssues, type SteIssue } from "./rules.ts";
 
 /**
  * Documents that record how something was done or captured at a moment in
@@ -33,7 +34,8 @@ export interface Records {
   [path: string]: string;
 }
 
-/** The finding count each document carries today, one number per rule. */
+/** The finding count each document carries today, one number per finding
+ * identity. */
 export type Baseline = Record<string, Record<string, number>>;
 
 /** One Markdown file and its content, ready to check. */
@@ -86,11 +88,23 @@ export const readDocuments = async (
   return files;
 };
 
-/** What the check currently finds in one document, counted per rule. */
-const countsPerRule = (content: string): Record<string, number> => {
+/**
+ * The finding identity the baseline records: the rule, what it matched, and
+ * the prose of the line the match sits on. Line numbers shift when somebody
+ * edits a paragraph above, but the context stays until that exact text is
+ * edited — so an allowance cannot move to new prose, only fall away.
+ */
+export const identityOf = (issue: SteIssue): string =>
+  `${issue.rule} ${issue.problem} in ${issue.context}`;
+
+/** Count one document's findings by identity. */
+const countsByIdentity = (
+  issues: readonly SteIssue[],
+): Record<string, number> => {
   const counts: Record<string, number> = {};
-  for (const { rule } of findIssues(content)) {
-    counts[rule] = (counts[rule] ?? 0) + 1;
+  for (const issue of issues) {
+    const identity = identityOf(issue);
+    counts[identity] = (counts[identity] ?? 0) + 1;
   }
   return counts;
 };
@@ -98,11 +112,9 @@ const countsPerRule = (content: string): Record<string, number> => {
 /** The baseline entry one document holds today. Rules that find nothing
  * stay out of the record. */
 export const freshEntry = (content: string): Record<string, number> =>
-  Object.fromEntries(
-    Object.entries(countsPerRule(content)).filter(([, count]) => count > 0),
-  );
+  countsByIdentity(findIssues(content));
 
-/** Whether any document's any rule rose above its record. */
+/** Whether any document's any finding rose above its record. */
 export const baselineRose = (recorded: Baseline, fresh: Baseline): boolean =>
   Object.entries(fresh).some(([path, entry]) =>
     countsRose(recorded[path] ?? {}, entry),
@@ -120,13 +132,12 @@ export const freshBaseline = async (
   );
 
 /**
- * Compare every document against its baseline, rule by rule. A rule above
- * its recorded count reports the document's every finding for that rule. A
- * rule that now finds fewer asks for the entry to be lowered, so an
- * improvement lands together with its ratchet step. A records entry or a
- * baseline entry whose document no longer exists fails, because both lists
- * only shrink. Logs a line per finding (or a success line) and returns the
- * process exit code.
+ * Compare every document against its baseline, finding by finding. An
+ * identity above its recorded count reports that finding. An entry that now
+ * counts fewer asks for the baseline to record the step, so an improvement
+ * lands together with its ratchet step. A records entry or a baseline entry
+ * whose document no longer exists fails, because both lists only shrink. Logs
+ * a line per finding (or a success line) and returns the process exit code.
  */
 export const runSteCheck = (
   files: readonly DocumentFile[],
@@ -169,42 +180,36 @@ const findingsFor = (
 ): string[] => {
   if (records[file.path] !== undefined) return [];
   const recorded = baseline[file.path] ?? {};
-  const current = countsPerRule(file.content);
+  const issues = findIssues(file.content);
+  const current = countsByIdentity(issues);
   if (countsRose(recorded, current)) {
-    const offenders = rulesAbove(recorded, current);
     return fileFindingLines(
       file.path,
-      findIssues(file.content).filter((issue) => offenders.has(issue.rule)),
+      issues.filter(
+        // An identity the record never held counts as zero on its side.
+        (issue) =>
+          (current[identityOf(issue)] ?? 0) >
+          (recorded[identityOf(issue)] ?? 0),
+      ),
     );
   }
   const shrank = Object.entries(recorded).some(
-    ([rule, count]) => count > (current[rule] ?? 0),
+    ([identity, count]) => count > (current[identity] ?? 0),
   );
   if (!shrank) return [];
   return [
     formatFinding(file.path, {
       fix: "run `deno task check:ste --update` to record the step",
-      problem: `fewer findings than recorded (${summaryOf(current)})`,
+      problem: `fewer findings than recorded (${summaryOf(issues)})`,
       rule: "improved",
     }),
   ];
 };
 
-/** The rules whose current count rose above the record. */
-const rulesAbove = (
-  recorded: Record<string, number>,
-  current: Record<string, number>,
-): Set<string> =>
-  new Set(
-    Object.entries(current)
-      .filter(([rule, count]) => count > (recorded[rule] ?? 0))
-      .map(([rule]) => rule),
+/** One readable list of what a document still holds, e.g. `";": 12`. */
+const summaryOf = (issues: readonly SteIssue[]): string => {
+  const parts = Object.entries(countsByIdentity(issues)).map(
+    ([identity, count]) => `${identity}: ${count}`,
   );
-
-/** One readable list of what a document still holds, e.g. "semicolon: 12". */
-const summaryOf = (counts: Record<string, number>): string => {
-  const parts = Object.entries(counts)
-    .filter(([, count]) => count > 0)
-    .map(([rule, count]) => `${rule}: ${count}`);
   return parts.length === 0 ? "none" : parts.join(", ");
 };

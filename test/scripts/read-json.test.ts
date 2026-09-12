@@ -121,4 +121,12 @@ describe("a schema that accepts JSON null", () => {
       await expect(readJsonOrThrow(path, v.null())).rejects.toThrow("nothing");
     });
   });
+
+  test("answers nothing for half-written text, before the schema sees it", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "null.json");
+      Deno.writeTextFileSync(path, '{ "note": "hel');
+      await expect(readJsonOrNull(path, v.null())).resolves.toBeNull();
+    });
+  });
 });
