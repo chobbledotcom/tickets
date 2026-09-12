@@ -9,9 +9,33 @@ import {
   packageQuantityFieldName,
   quantityFieldName,
 } from "#booking/tree.ts";
+import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
+import type { ListingWithCount } from "#types";
 import type { TicketPrefill } from "./types.ts";
 /* jscpd:ignore-end */
+
+/** Labels each count with the months it buys; undefined keeps the plain count.
+ *  One unit of a plan prices its whole initial term (`initial_site_months`); a
+ *  renewal page prices the same listings by their months per unit. */
+export const monthLabelsForListing = (
+  listing: Pick<
+    ListingWithCount,
+    "assign_built_site" | "initial_site_months" | "months_per_unit"
+  >,
+  renewal?: boolean | undefined,
+): ((count: number) => string) | undefined => {
+  const monthsEach = renewal
+    ? listing.months_per_unit > 0
+      ? listing.months_per_unit
+      : undefined
+    : listing.assign_built_site && listing.initial_site_months > 0
+      ? listing.initial_site_months
+      : undefined;
+  return monthsEach === undefined
+    ? undefined
+    : (count) => t("public.ticket.month_option", { count: count * monthsEach });
+};
 
 /** An `<option>` list `0..max` for a quantity selector, with `selected` chosen.
  *  `labelFor` names what each count buys (default: the count itself). */

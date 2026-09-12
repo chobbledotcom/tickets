@@ -119,7 +119,12 @@ export const resolvePageDate = (
 
 /** Render ticket HTML (CSRF token auto-embedded by CsrfForm) */
 export const renderTicketPage = (ctx: TicketCtx, error?: string) =>
-  ticketPage({ ...ctx, ...(error !== undefined ? { error } : {}) });
+  ticketPage({
+    ...ctx,
+    // A renewal page prices its tier counts by months per unit, not tickets.
+    ...(ctx.siteToken !== undefined ? { renewal: true } : {}),
+    ...(error !== undefined ? { error } : {}),
+  });
 
 /** Ticket response builder */
 export const ticketResponse =

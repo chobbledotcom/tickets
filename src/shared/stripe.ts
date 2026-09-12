@@ -27,6 +27,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
+  providerLineCopy,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {
@@ -86,11 +87,7 @@ const createCheckoutSession = async (
       line: (line, cur) => ({
         price_data: {
           currency: cur,
-          product_data: {
-            description:
-              line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
-            name: `Ticket: ${line.item.name}`,
-          },
+          product_data: providerLineCopy(line.item, line.quantity),
           unit_amount: line.chargedUnitAmount,
         },
         quantity: line.quantity,

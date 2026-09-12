@@ -109,6 +109,15 @@ describe("aggregateNodeQuantities", () => {
 });
 
 describe("buildOrderLines", () => {
+  /** A parent (id 1, "Bouncy Castle") with one folded child the given spec
+   *  builds — the shape every child-line test asserts against. */
+  const childLineTree = (child: Partial<Parameters<typeof resolved>[0]>) =>
+    buildBookingTree({
+      childrenByParentId: new Map([[1, [resolved(child)]]]),
+      listings: [resolved({ id: 1, name: "Bouncy Castle", slug: "bounc" })],
+      slugs: ["bounc"],
+    });
+
   test("books one line per path, each priced by its own rule", () => {
     const tree = dualPathTree();
     const nodeQuantities = nodeQuantitiesFor(
@@ -225,13 +234,7 @@ describe("buildOrderLines", () => {
   });
 
   test("adds one line per folded child for units the top level does not cover", () => {
-    const tree = buildBookingTree({
-      childrenByParentId: new Map([
-        [1, [resolved({ id: 10, name: "Generator", slug: "genrt" })]],
-      ]),
-      listings: [resolved({ id: 1, name: "Bouncy Castle", slug: "bounc" })],
-      slugs: ["bounc"],
-    });
+    const tree = childLineTree({ id: 10, name: "Generator", slug: "genrt" });
     const lines = buildOrderLines(
       tree,
       new Map([["listing:1", 2]]),
@@ -325,5 +328,33 @@ describe("buildOrderLines", () => {
       1,
     );
     expect(lines.map((line) => line.quantity)).toEqual([4, 1]);
+  });
+
+  test("a plan child's line carries the item's initial term", () => {
+    const tree = childLineTree({
+      assign_built_site: true,
+      id: 10,
+      initial_site_months: 3,
+      name: "Site Plan",
+      slug: "plan0",
+    });
+    const lines = buildOrderLines(
+      tree,
+      new Map([["listing:1", 1]]),
+      new Map([
+        [1, 1],
+        [10, 1],
+      ]),
+      new Map([[10, 777]]),
+      1,
+    );
+    expect(lines[1]).toEqual({
+      initialSiteMonths: 3,
+      listingId: 10,
+      name: "Site Plan",
+      quantity: 1,
+      slug: "plan0",
+      unitPrice: 777,
+    });
   });
 });
