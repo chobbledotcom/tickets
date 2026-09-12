@@ -76,11 +76,16 @@ const atMostLong = (
 ): ((value: string) => string | null) =>
   checkedBy(v.pipe(v.string(), v.maxLength(max)), messageKey, { max });
 
+/** Max length for a buyer's contact field — name, email, or phone (must fit
+ *  in payment metadata: Square packs every contact field into one 255-char
+ *  metadata entry, so each string stays at 250). */
+export const MAX_CONTACT_LENGTH = 250;
+
 /**
  * Validate email format
  */
 export const validateEmail = checkedBy(
-  EmailFormatSchema,
+  v.pipe(EmailFormatSchema, v.maxLength(MAX_CONTACT_LENGTH)),
   "fields.validation.email",
 );
 
@@ -93,7 +98,10 @@ const PhoneSchema = v.pipe(
   v.regex(/^[+\d][\d\s\-()]{5,}$/),
 );
 
-export const validatePhone = checkedBy(PhoneSchema, "fields.validation.phone");
+export const validatePhone = (value: string): string | null =>
+  value.length > MAX_CONTACT_LENGTH
+    ? t("fields.validation.phone_length", { max: MAX_CONTACT_LENGTH })
+    : checkedBy(PhoneSchema, "fields.validation.phone")(value);
 
 /** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
 const UsernameSchema = v.pipe(
@@ -235,6 +243,12 @@ export const validateAddress = atMostLong(
 
 /** Max length for special instructions field (must fit in payment metadata) */
 export const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
+
+/** Validate a buyer's contact name (must fit in payment metadata) */
+export const validateName = atMostLong(
+  MAX_CONTACT_LENGTH,
+  "fields.validation.name_max",
+);
 
 /** Validate special instructions length */
 export const validateSpecialInstructions = atMostLong(

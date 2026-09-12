@@ -162,6 +162,7 @@ describe("limits", () => {
         "MAX_EMAIL_TEMPLATES",
         "MAX_FORM_LINES",
         "MAX_IMAGE_SIZE",
+        "MAX_INPUT_LENGTH",
         "MAX_LOGIN_ATTEMPTS",
         "MAX_TEXTAREA_LENGTH",
         "MAX_TOKEN_404S",

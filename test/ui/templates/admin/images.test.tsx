@@ -75,8 +75,12 @@ describe("admin image templates", () => {
       expect(html).toContain('action="/admin/images"');
       expect(html).toContain('enctype="multipart/form-data"');
       expect(html).toContain('<a class="active" href="/admin/images">');
-      expect(html).toContain('<input name="name" required type="text">');
-      expect(html).toContain('<input name="alt_text" type="text">');
+      expect(html).toContain(
+        '<input maxlength="500" name="name" required type="text">',
+      );
+      expect(html).toContain(
+        '<input maxlength="500" name="alt_text" type="text">',
+      );
       expect(html).toContain(
         '<input accept="image/jpeg,image/png,image/webp" name="image" type="file">',
       );

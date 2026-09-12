@@ -5,6 +5,7 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   type ChoiceField,
+  effectiveMaxLength,
   type Field,
   type InputField,
   requireCheckboxOptions,
@@ -94,7 +95,7 @@ const renderTextareaInput = (
     autocomplete={field.autocomplete}
     data-markdown-preview={field.markdown || undefined}
     id={field.id}
-    maxlength={field.maxlength}
+    maxlength={effectiveMaxLength(field)}
     name={field.name}
     placeholder={field.placeholder}
     required={field.required}
@@ -176,7 +177,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
       id={field.id}
       inputmode={field.inputmode}
       max={field.max}
-      maxlength={field.maxlength}
+      maxlength={effectiveMaxLength(field)}
       min={field.min}
       minlength={field.minlength}
       name={field.name}

@@ -40,6 +40,7 @@ import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
@@ -408,18 +409,33 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   return lostPageOrphanedAddOn(input, existingId);
 };
 
+/** The listing name's own checks. It must be unique across BOTH listings and
+ *  groups (create and edit alike), so the catalog can be referenced by name
+ *  for import/export. It also travels to every payment provider on the order
+ *  ("Ticket: <name>" at Square caps at 512 characters), so it stays at the
+ *  input length limit. */
+const listingNameError = async (
+  name: string,
+  existingId?: number,
+): Promise<string | null> => {
+  const nameTaken = await isNameTakenAnywhere(
+    name,
+    existingId === undefined ? undefined : { id: existingId, kind: "listing" },
+  );
+  if (nameTaken) return t("error.name_in_use");
+  if (name.length > MAX_INPUT_LENGTH) {
+    return t("fields.validation.name_max", { max: MAX_INPUT_LENGTH });
+  }
+  return null;
+};
+
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (
   input: ListingInput,
   existingId?: number,
 ): Promise<string | null> => {
-  // A listing name must be unique across BOTH listings and groups (create and
-  // edit alike), so the catalog can be referenced by name for import/export.
-  const nameTaken = await isNameTakenAnywhere(
-    input.name,
-    existingId === undefined ? undefined : { id: existingId, kind: "listing" },
-  );
-  if (nameTaken) return t("error.name_in_use");
+  const nameError = await listingNameError(input.name, existingId);
+  if (nameError) return nameError;
   if (existingId !== undefined) {
     const taken = await isSlugTaken(input.slug, existingId);
     if (taken) return t("error.slug_in_use");

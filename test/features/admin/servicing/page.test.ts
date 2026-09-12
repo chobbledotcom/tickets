@@ -149,7 +149,7 @@ describeWithEnv("servicing cost page", { db: true }, () => {
     expect(body).toContain('id="servicing-form"');
     expect(body).toContain("Create service event");
     expect(body).toContain(
-      '<input autocomplete="off" name="name" required type="text">',
+      '<input autocomplete="off" maxlength="500" name="name" required type="text">',
     );
     expect(body).toContain('<input name="start_date" type="date">');
     expect(body).toContain(

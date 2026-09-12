@@ -224,6 +224,29 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("returns 400 when name is longer than 500 characters", async () => {
+      // The name travels to payment providers on the order ("Ticket: <name>"
+      // at Square caps at 512), so a name beyond 500 must be refused rather
+      // than stored and later fatal at checkout.
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 50, name: "N".repeat(501) },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("Name must be 500 characters or fewer");
+        },
+      );
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 50, name: "N".repeat(500) },
+          method: "POST",
+        }),
+        201,
+      );
+    });
+
     test("returns 400 when max_attendees is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/listings", {

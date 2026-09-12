@@ -126,6 +126,17 @@ export const MAX_TEXTAREA_LENGTH = limit(
   "chars",
 );
 
+/** Maximum single-line input length in characters (default: 500). Every form
+ *  input answers to this unless it declares its own tighter limit. A listing
+ *  name over 504 would overflow Square's 512-character line-item name ("Ticket: "
+ *  + name), so the default keeps every uncapped input safely inside it. */
+export const MAX_INPUT_LENGTH = limit(
+  "MAX_INPUT_LENGTH",
+  500,
+  "Max input length",
+  "chars",
+);
+
 /**
  * Maximum number of line items one attendee-form submission may declare
  * (default: 1000).

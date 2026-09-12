@@ -1,6 +1,10 @@
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ChoiceField, Field } from "#shared/forms/field.ts";
+import {
+  type ChoiceField,
+  effectiveMaxLength,
+  type Field,
+} from "#shared/forms/field.ts";
 import {
   DATETIME_PARTIAL_ERROR,
   readSubmittedFieldValue,
@@ -78,12 +82,9 @@ const validateFieldText = (field: Field, value: string): string | null => {
   if (value && field.type === "select" && hasInvalidChoice(field, value)) {
     return invalidFieldMessage(field);
   }
-  if (
-    "maxlength" in field &&
-    field.maxlength !== undefined &&
-    value.length > field.maxlength
-  ) {
-    return `${field.label} must be ${field.maxlength} characters or fewer`;
+  const maxlength = effectiveMaxLength(field);
+  if (maxlength !== undefined && value.length > maxlength) {
+    return `${field.label} must be ${maxlength} characters or fewer`;
   }
   return null;
 };

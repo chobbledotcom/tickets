@@ -7,6 +7,7 @@ import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import { fieldsApi, getTicketFields } from "#templates/fields/ticket.ts";
 import {
   validateAddress,
+  validateName,
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
@@ -198,6 +199,26 @@ describe("validatePhone", () => {
     expect(validatePhone("123")).not.toBeNull();
     expect(validatePhone("abc1234567")).not.toBeNull();
     expect(validatePhone("")).not.toBeNull();
+  });
+
+  test("rejects a phone number too long for checkout metadata", () => {
+    expect(validatePhone(`+1${"2".repeat(249)}`)).toBe(
+      "Phone number must be 250 characters or fewer",
+    );
+    expect(validatePhone(`+1${"2".repeat(248)}`)).toBeNull();
+  });
+});
+
+describe("validateName", () => {
+  test("accepts a name within 250 characters", () => {
+    expect(validateName("Ada Lovelace")).toBeNull();
+    expect(validateName("n".repeat(250))).toBeNull();
+  });
+
+  test("rejects a name too long for checkout metadata", () => {
+    expect(validateName("n".repeat(251))).toBe(
+      "Name must be 250 characters or fewer",
+    );
   });
 });
 

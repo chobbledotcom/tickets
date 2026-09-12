@@ -32,6 +32,7 @@ describe("limit registry contract", () => {
       ["MAX_ATTACHMENT_SIZE", 26_214_400, "Max attachment size", "bytes"],
       ["MAX_BACKUPS", 30, "Max retained backups", "backups"],
       ["MAX_TEXTAREA_LENGTH", 10_240, "Max textarea length", "chars"],
+      ["MAX_INPUT_LENGTH", 500, "Max input length", "chars"],
       ["MAX_FORM_LINES", 1000, "Max attendee-form line items", "lines"],
       ["ATTACHMENT_URL_MAX_AGE_S", 3600, "Attachment URL max age", "seconds"],
       ["SESSION_MAX_AGE_S", 86_400, "Session max age", "seconds"],
