@@ -151,20 +151,35 @@ export const postModifierLeg = async ({
  * stamped with — the production shape: the reversal names that order in
  * `reverses_group`, and the per-order projections resolve it. Throws when the
  * row carries no order yet (a pre-ledger booking — use
- * {@link postAttendeeRefund} to post a self-contained round-trip instead).
+ * {@link postAttendeeRefund} to post a self-contained round-trip instead),
+ * and when the attendee holds MORE than one order on the listing (a merge):
+ * silently reversing the first would mark the wrong booking refunded, so the
+ * caller must name the order (post its reversal through `mapRefund`, the way
+ * `reverseOrderGroup` in test/shared/db/attendees/select-refunded.test.ts
+ * does) rather than let this helper guess.
  */
 export const refundBookedOrder = async (
   attendeeId: number,
   listingId: number,
 ): Promise<void> => {
-  const stamped = await queryOne<{ ledger_event_group: string }>(
-    "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?" +
-      " AND listing_id = ? AND ledger_event_group != '' ORDER BY id LIMIT 1",
+  const stamped = await queryOne<{
+    ledger_event_group: string;
+    order_count: number;
+  }>(
+    "SELECT ledger_event_group, COUNT(DISTINCT ledger_event_group)" +
+      " AS order_count FROM listing_attendees WHERE attendee_id = ?" +
+      " AND listing_id = ? AND ledger_event_group != ''",
     [attendeeId, listingId],
   );
-  if (stamped === null) {
+  if (stamped === null || stamped.order_count === 0) {
     throw new Error(
       `Attendee ${attendeeId} has no booked order on listing ${listingId} to refund`,
+    );
+  }
+  if (stamped.order_count > 1) {
+    throw new Error(
+      `Attendee ${attendeeId} holds more than one order on listing ${listingId}` +
+        " — reverse the event group you mean, not a guessed one",
     );
   }
   await postTransfers(

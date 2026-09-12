@@ -51,19 +51,26 @@ export const refundedForBooking = (row: RefundedRowExprs): string => {
   const wasSold = legCameBack(
     saleLegPredicate(attendeeId, listingId, eventGroup),
   );
-  // A refund of this order, given back to this attendee. `listingExpr` narrows
-  // it to one listing's sale; null asks about any sale of the order.
-  const orderSaleCameBackFor = (listingExpr: string | null): string =>
-    legCameBack(
-      `kind = '${KIND.refundSale}'` +
-        (listingExpr === null
-          ? ""
-          : ` AND ${accountPredicate("source", REVENUE, listingExpr)}`) +
-        ` AND ${accountPredicate("dest", ATTENDEE, attendeeId)}` +
-        ` AND reverses_group = ${eventGroup}`,
-    );
-  const saleCameBack = orderSaleCameBackFor(listingId);
-  const orderSaleCameBack = orderSaleCameBackFor(null);
+  const saleCameBack = legCameBack(
+    `kind = '${KIND.refundSale}'` +
+      ` AND ${accountPredicate("source", REVENUE, listingId)}` +
+      ` AND ${accountPredicate("dest", ATTENDEE, attendeeId)}` +
+      ` AND reverses_group = ${eventGroup}`,
+  );
+  // A free line has no sale of its own, so it reads the order as a whole:
+  // refunded only once EVERY sale leg of this order came back. A partial
+  // reversal must not refund a free package member beside an unreversed line.
+  const orderFullyReturned =
+    "NOT EXISTS(SELECT 1 FROM transfers AS unreturned WHERE" +
+    ` kind = '${KIND.sale}'` +
+    ` AND ${accountPredicate("source", ATTENDEE, attendeeId)}` +
+    ` AND unreturned.dest_type = '${REVENUE}'` +
+    ` AND unreturned.event_group = ${eventGroup}` +
+    " AND NOT EXISTS(SELECT 1 FROM transfers AS returned" +
+    ` WHERE returned.kind = '${KIND.refundSale}'` +
+    ` AND ${accountPredicate("source", REVENUE, "unreturned.dest_id")}` +
+    ` AND ${accountPredicate("dest", ATTENDEE, attendeeId)}` +
+    ` AND returned.reverses_group = ${eventGroup}))`;
   const cashCameBack = legCameBack(
     `kind = '${KIND.refundCash}'` +
       ` AND ${accountPredicate("source", ATTENDEE, attendeeId)}`,
@@ -71,7 +78,10 @@ export const refundedForBooking = (row: RefundedRowExprs): string => {
   return (
     `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack}` +
     ` WHEN ${placeholderWhen} THEN ${cashCameBack}` +
-    ` ELSE ${orderSaleCameBack} END)`
+    // A row with no recorded order has nothing to reverse into: its group is
+    // '' and every leg test below would match nothing, so never fall through.
+    ` WHEN ${eventGroup} = '' THEN 0` +
+    ` ELSE ${orderFullyReturned} END)`
   );
 };
 

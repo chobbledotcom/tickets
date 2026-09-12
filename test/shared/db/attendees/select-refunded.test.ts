@@ -24,7 +24,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, withTransaction } from "#db/client.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
-import type { Transfer } from "#shared/ledger/types.ts";
+import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -36,6 +36,14 @@ import type { Attendee } from "#types";
 
 const PRICE = 500;
 const REVERSED_AT = "2026-08-11T00:00:00.000Z";
+
+/** BalanceOf ignores ids; placeholder fields keep freshly built inputs usable
+ *  wherever a reversal's stored legs are expected. */
+const asTransfer = (input: TransferInput): Transfer => ({
+  ...input,
+  id: 0,
+  recordedAt: REVERSED_AT,
+});
 
 /** Every booking order this person holds, as the leg group of each order. */
 const ordersHeldBy = async (attendeeId: number): Promise<Transfer[][]> => [
@@ -185,41 +193,69 @@ const bookTwoOrdersOnOneListing = async (): Promise<{
   };
 };
 
-/** One order holding a paid line and a free line (a package's free member):
- *  the legs are posted through the production booking stamp, so BOTH rows —
- *  the free line included — carry the order's event group the way checkout
- *  leaves them, and the free line has no sale leg of its own. */
-const bookPaidAndFreeOrder = async (): Promise<{
+/** One order of the given paid listings plus one free line (a package's free
+ *  member). The legs are posted through the production booking stamp, so every
+ *  row — the free line included — carries the order's event group the way
+ *  checkout leaves it, and the free line has no sale leg of its own. */
+const orderWithPaidLinesAndAFreeMember = async (
+  paidIds: number[],
+  email: string,
+): Promise<{
   attendeeId: number;
   freeId: number;
-  paidId: number;
+  sales: Transfer[];
 }> => {
-  const paid = await createPaidListing({ name: "Paid" });
   const free = await createTestListing({ maxAttendees: 10, unitPrice: 0 });
   const made = await attendeesApi.createAttendeeAtomic({
     bookings: [
-      { listingId: paid.id, pricePaid: PRICE },
+      ...paidIds.map((listingId) => ({ listingId, pricePaid: PRICE })),
       { listingId: free.id, pricePaid: 0 },
     ],
-    email: "mixed-order@example.com",
+    email,
     name: "Paid And Free",
   });
   if (!made.success) throw new Error("booking setup failed");
   const attendeeId = made.attendees[0]!.id;
   const legs = await mapBooking({
-    amountPaid: PRICE,
+    amountPaid: PRICE * paidIds.length,
     attendeeId,
     bookingFee: 0,
-    eventId: `mixed-order-${attendeeId}`,
+    eventId: `mixed-order-${email}`,
     lines: [
-      { gross: PRICE, listingId: paid.id },
+      ...paidIds.map((listingId) => ({ gross: PRICE, listingId })),
       { gross: 0, listingId: free.id },
     ],
     modifiers: [],
     occurredAt: REVERSED_AT,
   });
   await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, legs));
-  return { attendeeId, freeId: free.id, paidId: paid.id };
+  return {
+    attendeeId,
+    freeId: free.id,
+    sales: legs.filter((leg) => leg.kind === "sale").map(asTransfer),
+  };
+};
+
+/** One paid line plus one free line in one order, naming the paid listing. */
+const bookPaidAndFreeOrder = async (): Promise<{
+  attendeeId: number;
+  freeId: number;
+  paidId: number;
+}> => {
+  const paid = await createPaidListing({ name: "Paid" });
+  const { attendeeId, freeId } = await orderWithPaidLinesAndAFreeMember(
+    [paid.id],
+    "mixed-order@example.com",
+  );
+  return { attendeeId, freeId, paidId: paid.id };
+};
+
+/** Reverse ONLY some sales of an order — the legs a partial provider refund
+ *  would give back when the rest of the order stays with the provider. */
+const reverseSales = async (sales: readonly Transfer[]): Promise<void> => {
+  await postTransferGroups([
+    await mapRefund({ occurredAt: REVERSED_AT, orderLegs: [...sales] }),
+  ]);
 };
 
 describeWithEnv(
@@ -234,11 +270,8 @@ describeWithEnv(
         expect(await refundedOn(cameBack, attendeeId)).toBe(1);
       });
 
-      // The fault this closes: the flag was an EXISTS on ANY `refund_cash` leg
-      // sourced from the person, so one returned charge marked every booking
-      // they held. The scanner then dropped them from the check-in list and
-      // reported "refunded" at the door for an event they had paid for and not
-      // got back.
+      // A reversal leg only names the order it undid, so an order whose
+      // provider charge was never returned keeps reading paid.
       test("the booking still with the provider does not", async () => {
         const { attendeeId, cameBack, stillPaid } = await bookTwoListings();
         await reverseOrderFor(attendeeId, cameBack);
@@ -283,9 +316,8 @@ describeWithEnv(
     });
 
     describe("two orders for the SAME listing", () => {
-      // The fault this closes: the refund ask was per (attendee, listing),
-      // so reversing one of two orders for the same listing marked BOTH rows
-      // refunded and turned the still-paid ticket away at the door.
+      // Each order's reversal belongs to that order alone: one person's
+      // still-paid order must keep its ticket live at the door.
       test("reversing one order's charge does not refund the other", async () => {
         const { attendeeId, listingId, secondGroup } =
           await bookTwoOrdersOnOneListing();
@@ -304,9 +336,8 @@ describeWithEnv(
     });
 
     describe("a free line of a wholly-reversed order", () => {
-      // The fault this closes: the free line has no sale leg of its own, so a
-      // reversed package order left it reading live — the scanner and
-      // check-in kept accepting a ticket whose order came back in full.
+      // A free line reads the order as a whole: it has no sale leg of its
+      // own, so only the order's complete return un-books its ticket.
       test("reads refunded when the order's sale came back", async () => {
         const { attendeeId, freeId, paidId } = await bookPaidAndFreeOrder();
         await reverseOrderFor(attendeeId, paidId);
@@ -320,6 +351,39 @@ describeWithEnv(
 
         expect(await refundedOn(paidId, attendeeId)).toBe(0);
         expect(await refundedOn(freeId, attendeeId)).toBe(0);
+      });
+
+      test("stays live while only SOME of the order's sales came back", async () => {
+        // Two paid lines and one free line in one order: returning one paid
+        // line's money leaves the other paid line live, so the free member's
+        // ticket stays live too.
+        const first = await createPaidListing({ name: "Part one" });
+        const second = await createPaidListing({ name: "Part two" });
+        const { attendeeId, freeId, sales } =
+          await orderWithPaidLinesAndAFreeMember(
+            [first.id, second.id],
+            "partially-reversed@example.com",
+          );
+        await reverseSales([sales[0]!]);
+
+        expect(await refundedOn(first.id, attendeeId)).toBe(1);
+        expect(await refundedOn(second.id, attendeeId)).toBe(0);
+        expect(await refundedOn(freeId, attendeeId)).toBe(0);
+      });
+
+      test("reads refunded once every sale of the order came back", async () => {
+        const first = await createPaidListing({ name: "Whole one" });
+        const second = await createPaidListing({ name: "Whole two" });
+        const { attendeeId, freeId, sales } =
+          await orderWithPaidLinesAndAFreeMember(
+            [first.id, second.id],
+            "wholly-reversed@example.com",
+          );
+        await reverseSales(sales);
+
+        expect(await refundedOn(first.id, attendeeId)).toBe(1);
+        expect(await refundedOn(second.id, attendeeId)).toBe(1);
+        expect(await refundedOn(freeId, attendeeId)).toBe(1);
       });
     });
   },

@@ -6,53 +6,91 @@
  * The derivation is deterministic, so re-computing it here attributes every
  * stored refund leg exactly; anything left over is data no derivation can
  * name, and the caller refuses rather than guess.
+ *
+ * The scan runs in bounded keyset pages on the indexed event group, so a
+ * ledger of any size costs O(events) lookups and one page of memory.
  */
 
+import type { InValue } from "@libsql/client";
 import { refundEventGroup } from "#accounting/mappers.ts";
 import {
   executeBatch,
+  inPlaceholders,
   queryAllPrimary,
   type SqlStatement,
 } from "#db/client.ts";
-import { chunk } from "#fp";
 
 /** One (refund group → booking group) attribution. */
 type ReversesPair = readonly [refundGroup: string, bookingGroup: string];
 
-/** Pairs per UPDATE statement — two bound args per pair keeps every statement
- * far below libsql's 32,766-variable ceiling with room for the page to grow. */
-const PAIRS_PER_PAGE = 5000;
+/** Keyset page of event groups, and pairs per UPDATE statement. Both keep
+ *  every statement far below libsql's 32,766-variable ceiling. */
+const GROUP_PAGE = 5000;
 
 /** Refund legs are exactly the `refund_`-prefixed kinds (`refundKind` prefixes
- * every mapped reversal); GLOB keeps `_` literal, unlike LIKE. */
+ *  every mapped reversal); GLOB keeps `_` literal, unlike LIKE. */
 const REFUND_KIND_GLOB = "refund_*";
 
-/**
- * The pages of `event_group = ?`-paired CASE arms that stamp every refund leg
- * with the order it reverses. One statement per page, so the whole backfill is
- * a handful of round-trips whatever the ledger's size.
- */
-const reversesStatements = (pairs: ReversesPair[]): SqlStatement[] =>
-  chunk(PAIRS_PER_PAGE)(pairs).map((page) => ({
-    args: page.flatMap(([refundGroup, bookingGroup]) => [
-      refundGroup,
-      bookingGroup,
-    ]),
-    sql:
-      "UPDATE transfers SET reverses_group = CASE event_group" +
-      ` ${page.map(() => "WHEN ? THEN ?").join(" ")}` +
-      " ELSE reverses_group END" +
-      ` WHERE kind GLOB '${REFUND_KIND_GLOB}' AND reverses_group = ''`,
-  }));
-
-/** Read every distinct event group whose legs meet `condition`. */
-const eventGroupsWhere = (
+/** One page of distinct event groups meeting `condition`, keyed past the
+ *  page's start, in index order. */
+const eventGroupsPage = (
   condition: string,
+  conditionArgs: readonly InValue[],
 ): Promise<{ event_group: string }[]> =>
   queryAllPrimary<{ event_group: string }>({
-    args: [],
-    sql: `SELECT DISTINCT event_group FROM transfers WHERE ${condition}`,
+    args: [...conditionArgs, GROUP_PAGE],
+    sql:
+      "SELECT DISTINCT event_group FROM transfers" +
+      ` WHERE ${condition} ORDER BY event_group LIMIT ?`,
   });
+
+/** The pairs of one booking-group page whose refund event actually exists. */
+const pagePairs = async (
+  bookingGroups: readonly string[],
+): Promise<ReversesPair[]> => {
+  const refundGroupOf = await Promise.all(
+    bookingGroups.map((group) => refundEventGroup(group)),
+  );
+  const stored = await eventGroupsPage(
+    `kind GLOB '${REFUND_KIND_GLOB}' AND event_group IN (${inPlaceholders(
+      refundGroupOf,
+    )})`,
+    refundGroupOf,
+  );
+  const storedGroups = new Set(stored.map((row) => row.event_group));
+  return bookingGroups
+    .map((group, index) => [refundGroupOf[index]!, group] as const)
+    .filter(([refundGroup]) => storedGroups.has(refundGroup));
+};
+
+/** Stamp one page's pairs in a single UPDATE, joining each refund event's
+ *  legs through the event-group index. */
+const pageUpdate = (pairs: readonly ReversesPair[]): SqlStatement => ({
+  args: pairs.flat(),
+  sql:
+    "WITH pairs(refund_group, booking_group) AS (VALUES" +
+    ` ${pairs.map(() => "(?, ?)").join(", ")})` +
+    " UPDATE transfers SET reverses_group = pairs.booking_group" +
+    " FROM pairs" +
+    " WHERE transfers.event_group = pairs.refund_group" +
+    ` AND transfers.kind GLOB '${REFUND_KIND_GLOB}'` +
+    " AND transfers.reverses_group = ''",
+});
+
+/** Every refund group still carrying an unattributed leg, page by page. */
+const unattributedRefundGroups = async (): Promise<string[]> => {
+  const orphans: string[] = [];
+  let after = "";
+  for (;;) {
+    const page = await eventGroupsPage(
+      `kind GLOB '${REFUND_KIND_GLOB}' AND reverses_group = '' AND event_group > ?`,
+      [after],
+    );
+    if (page.length === 0) return orphans;
+    after = page[page.length - 1]!.event_group;
+    orphans.push(...page.map((row) => row.event_group));
+  }
+};
 
 /**
  * Attribute every stored refund leg to the booking order it reversed.
@@ -61,29 +99,23 @@ const eventGroupsWhere = (
  * derivable names are operator-repairable data, never a silent guess.
  */
 export const backfillReversesGroup = async (): Promise<void> => {
-  const refundKind = `kind GLOB '${REFUND_KIND_GLOB}'`;
-  const [storedGroups, storedRefundGroups] = await Promise.all([
-    eventGroupsWhere(`NOT ${refundKind}`),
-    eventGroupsWhere(refundKind),
-  ]);
-  const refundGroups = new Set(
-    storedRefundGroups.map((row) => row.event_group),
-  );
-  const pairs: ReversesPair[] = [];
-  for (const { event_group: group } of storedGroups) {
-    const refundGroup = await refundEventGroup(group);
-    if (refundGroups.has(refundGroup)) pairs.push([refundGroup, group]);
+  let after = "";
+  for (;;) {
+    const bookingGroups = await eventGroupsPage(
+      `kind NOT GLOB '${REFUND_KIND_GLOB}' AND event_group > ?`,
+      [after],
+    );
+    if (bookingGroups.length === 0) break;
+    after = bookingGroups[bookingGroups.length - 1]!.event_group;
+    const pairs = await pagePairs(bookingGroups.map((row) => row.event_group));
+    if (pairs.length > 0) await executeBatch([pageUpdate(pairs)]);
   }
-  const statements = reversesStatements(pairs);
-  if (statements.length > 0) await executeBatch(statements);
 
-  const orphans = await eventGroupsWhere(
-    `${refundKind} AND reverses_group = ''`,
-  );
+  const orphans = await unattributedRefundGroups();
   if (orphans.length > 0) {
     throw new Error(
       "refund legs with no booking order they reverse: " +
-        orphans.map((row) => row.event_group).join(", ") +
+        orphans.join(", ") +
         " — repair the orphaned refund legs or their missing order, then re-run",
     );
   }

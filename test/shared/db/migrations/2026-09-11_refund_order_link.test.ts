@@ -7,6 +7,11 @@ import {
   getExistingColumns,
   syncIndexes,
 } from "#db/migrations/schema-sync.ts";
+import {
+  refundGroupOfBooking,
+  seedUnattributedRefund,
+  stampedReversesOf,
+} from "#test/shared/accounting/reverses-group/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
 
@@ -14,10 +19,11 @@ const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const migration = () => refundOrderLink(context);
 
 describeWithEnv("db > migrations > refund order link", { db: true }, () => {
-  test("applies the column and the index together with the backfill", async () => {
-    // The backfill itself is pinned at its mirror,
+  test("applies the schema and the backfill in one up()", async () => {
+    // The backfill's own behaviour is pinned at its mirror,
     // test/shared/accounting/reverses-group.test.ts; this side pins that the
-    // migration owns the schema objects and runs them in one up().
+    // migration owns the schema objects and runs the backfill with them.
+    const bookingGroup = await seedUnattributedRefund("migration-order", 7);
     await getDb().execute("DROP INDEX IF EXISTS idx_transfers_reverses_group");
     await getDb().execute("ALTER TABLE transfers DROP COLUMN reverses_group");
 
@@ -27,6 +33,9 @@ describeWithEnv("db > migrations > refund order link", { db: true }, () => {
       true,
     );
     expect(await indexExists("idx_transfers_reverses_group")).toBe(true);
+    expect(
+      await stampedReversesOf(await refundGroupOfBooking(bookingGroup)),
+    ).toEqual(new Set([bookingGroup]));
   });
 
   test("declares every object it owns", () => {
@@ -38,13 +47,13 @@ describeWithEnv("db > migrations > refund order link", { db: true }, () => {
     });
     expect(migration().id).toBe("2026-09-11_refund_order_link");
     expect(migration().description).toBe(
-      "Add transfers.reverses_group — the booking-order event group each refund " +
-        "leg reverses — and backfill it onto every stored refund leg, so the " +
-        "refunded-status projection can ask per booking order instead of per " +
-        "attendee and listing. mapRefund is the only poster of refund legs and " +
-        "stamps the link going forward; the backfill re-derives the same " +
-        "attribution for historical legs and refuses loudly on any refund leg " +
-        "no derivation can attribute.",
+      "Add transfers.reverses_group. It names the booking order each refund " +
+        "leg reverses. Backfill it onto every stored refund leg, so the " +
+        "refunded status can ask per booking order instead of per attendee " +
+        "and listing. mapRefund is the only poster of refund legs. It stamps " +
+        "the link going forward. The backfill derives the same attribution " +
+        "for historical legs. It refuses loudly on any refund leg no " +
+        "derivation can attribute.",
     );
   });
 });
