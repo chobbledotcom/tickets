@@ -139,3 +139,5 @@ src/features/admin/servicing/page.tsx::renderServicingPage.html.name~1q0cbpf  ??
 src/features/admin/servicing/page.tsx::renderServicingPage.title~0y52sh9  ?? → ||   # event?.name is undefined or a stored event name, and an event name is required, so ?? and || pick the same title for every event
 
 src/ui/templates/admin/listings/overview.tsx::overviewStatsFromAttendees~0so9vc9  ?? → ||   # the operand is a Set or undefined, and every Set object is truthy
+
+src/ui/templates/public/reservations/listing-rows.ts::renderListingRow.hideQuantity~0u0j56w  false → true   # buildListingRows holds renderListingRow's only call site, and it passes hideQuantity explicitly, so the default parameter is never read
