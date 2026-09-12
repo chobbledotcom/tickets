@@ -22,6 +22,7 @@
   "public.ticket.number_of_days": "Number of days",
   "public.ticket.select_placeholder": "— Select —",
   "public.ticket.day_option": "{count, plural, one {# day} other {# days}}",
+  "public.ticket.month_option": "{count, plural, one {# month} other {# months}}",
   "public.ticket.days_ago": "{count, plural, one {# day ago} other {# days ago}}",
   "public.ticket.date_label": "Date:",
   "public.ticket.location_label": "Location:",

@@ -74,6 +74,7 @@ const listingControls = (
       : `<select name="${fieldName}">${quantityOptions(
           maxPurchasable,
           restoredQuantity(listing.id, prefill, maxPurchasable),
+          monthOptionLabels(listing),
         )}</select>`,
   };
 };
@@ -227,6 +228,16 @@ const quantityLabel = (listing: TicketListing["listing"]): string =>
   listing.assign_built_site
     ? t("public.ticket.number_of_months")
     : t("public.ticket.number_of_tickets");
+
+/** Labels the plan's quantity options in the months they buy: three units of a
+ *  three-month plan are nine months, so the plain count would mislead. */
+const monthOptionLabels = (listing: TicketListing["listing"]) =>
+  listing.assign_built_site
+    ? (count: number) =>
+        t("public.ticket.month_option", {
+          count: count * listing.initial_site_months,
+        })
+    : undefined;
 
 /** Controls for one listing — quantity and pay-more — without its details. */
 const renderSingleListingControls = (

@@ -13,14 +13,19 @@ import { savedFormValue } from "#shared/forms/saved-data.ts";
 import type { TicketPrefill } from "./types.ts";
 /* jscpd:ignore-end */
 
-/** An `<option>` list `0..max` for a quantity selector, with `selected` chosen. */
-export const quantityOptions = (max: number, selected: number): string =>
+/** An `<option>` list `0..max` for a quantity selector, with `selected` chosen.
+ *  `labelFor` names what each count buys (default: the count itself). */
+export const quantityOptions = (
+  max: number,
+  selected: number,
+  labelFor: (count: number) => string = String,
+): string =>
   Array.from({ length: max + 1 }, (_, i) => i)
     .map(
       (n) =>
         `<option value="${n}"${
           n === selected ? " selected" : ""
-        }>${n}</option>`,
+        }>${labelFor(n)}</option>`,
     )
     .join("");
 

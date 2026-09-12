@@ -317,7 +317,8 @@ const assignSitesForEntries = async (
     // A no-quantity line buys nothing, so it books no site.
     if (attendee.quantity < 1) continue;
     const site = available.pop() ?? (await buildAssignableSite());
-    if (!site) break;
+    // A failed build must not cost later entries their own attempt.
+    if (!site) continue;
 
     assignments.push(await assignSiteWithRenewal({ attendee, listing, site }));
   }

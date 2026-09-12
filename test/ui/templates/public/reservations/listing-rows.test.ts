@@ -202,10 +202,15 @@ describe("buildPageListingRows", () => {
       isSingleListing: true,
       listings: [plan],
     });
+    // Each option states the months it buys: three units of a three-month
+    // plan are nine months.
+    expect(planHtml).toContain('<option value="1">3 months</option>');
+    expect(planHtml).toContain('<option value="2">6 months</option>');
     expect(planHtml).toContain(
       '<label>Number of months<select name="quantity_1">',
     );
     expect(planHtml).not.toContain("Number of Tickets");
+    expect(planHtml).not.toContain('">2</option>');
 
     const ordinaryHtml = renderRows({
       isSingleListing: true,
@@ -214,6 +219,7 @@ describe("buildPageListingRows", () => {
     expect(ordinaryHtml).toContain(
       '<label>Number of Tickets<select name="quantity_1">',
     );
+    expect(ordinaryHtml).toContain('<option value="2">2</option>');
     expect(ordinaryHtml).not.toContain("Number of months");
   });
 
