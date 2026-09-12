@@ -72,7 +72,12 @@ describe("renderDayCountSelector", () => {
 });
 
 describe("renderPayMoreInput", () => {
-  const listing = { max_price: 10000, unit_price: 500 };
+  const listing = {
+    assign_built_site: false,
+    initial_site_months: 0,
+    max_price: 10000,
+    unit_price: 500,
+  };
 
   test("restores the submitted price on a re-render", () => {
     const html = renderedWithSaved({ custom_price: "25.00" }, () =>
@@ -83,6 +88,35 @@ describe("renderPayMoreInput", () => {
 
   test("falls back to the minimum price when nothing was submitted", () => {
     expect(renderPayMoreInput(listing)).toContain('value="5.00"');
+  });
+
+  test("states the months each priced unit buys on a site plan", () => {
+    const plan = {
+      assign_built_site: true,
+      initial_site_months: 3,
+      max_price: 10000,
+      unit_price: 500,
+    };
+    const html = renderPayMoreInput(plan);
+    expect(html).toContain("Price per 3 months (£5 minimum)");
+    expect(html).not.toContain("Price per ticket");
+  });
+
+  test("prices an ordinary listing per ticket", () => {
+    const html = renderPayMoreInput(listing);
+    expect(html).toContain("Price per ticket (£5 minimum)");
+  });
+
+  test("names the optional ceiling in months on a free site plan", () => {
+    const freePlan = {
+      assign_built_site: true,
+      initial_site_months: 3,
+      max_price: 10000,
+      unit_price: 0,
+    };
+    const html = renderPayMoreInput(freePlan);
+    expect(html).toContain("Price per 3 months (optional, up to £100)");
+    expect(html).not.toContain("required");
   });
 });
 
