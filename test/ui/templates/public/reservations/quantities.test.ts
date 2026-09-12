@@ -79,6 +79,14 @@ describe("restoredQuantity", () => {
     ).toBe(0);
   });
 
+  test("keeps zero for a hex-looking submitted count", () => {
+    expect(
+      withSaved({ quantity_1: "0x10" }, () =>
+        restoredQuantity(1, undefined, 10),
+      ),
+    ).toBe(0);
+  });
+
   test("clamps a negative submitted count to zero", () => {
     expect(
       withSaved({ quantity_1: "-3" }, () => restoredQuantity(1, undefined, 10)),
