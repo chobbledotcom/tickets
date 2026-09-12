@@ -189,6 +189,25 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
     );
   });
 
+  test("refuses a page size that would walk nothing and still mark complete", async () => {
+    // A page size of 0 walks no page and scans no orphan, so without the
+    // refusal it would write the terminal mark over unstamped legs and the
+    // walk would stay skipped forever.
+    const bookingGroup = await seedUnattributedRefund(
+      "reverses-group-zero-page",
+      7,
+    );
+
+    await expect(backfillReversesGroup(0)).rejects.toThrow(
+      "backfillReversesGroup: pageSize must be a positive whole number, got 0",
+    );
+
+    expect(await storedCursor()).toBe("");
+    expect(
+      await stampedReversesOf(await refundGroupOfBooking(bookingGroup)),
+    ).toEqual(new Set([""]));
+  });
+
   test("an orphan refusal leaves no checkpoint behind", async () => {
     // Page size 1 makes the walk checkpoint real pages before the final scan
     // refuses on the orphan.

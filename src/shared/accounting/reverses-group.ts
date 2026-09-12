@@ -140,7 +140,8 @@ const saveCursor = (after: GroupCursor): Promise<unknown> =>
     },
   ]);
 
-/** A finished run leaves no checkpoint behind. */
+/** Drop the checkpoint so the next run walks from the start. Only the orphan
+ *  refusal runs it; a clean finish writes {@link CURSOR_COMPLETE} instead. */
 const clearCursor = (): Promise<unknown> =>
   executeBatch([
     {
@@ -162,6 +163,13 @@ const clearCursor = (): Promise<unknown> =>
 export const backfillReversesGroup = async (
   pageSize: number = GROUP_PAGE,
 ): Promise<void> => {
+  // A zero or negative page size walks nothing yet still writes the terminal
+  // mark, so the walk would stay skipped forever — refuse it before any read.
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1) {
+    throw new RangeError(
+      `backfillReversesGroup: pageSize must be a positive whole number, got ${pageSize}`,
+    );
+  }
   let after = await readCursor();
   if (after === CURSOR_COMPLETE) return;
   for (;;) {
