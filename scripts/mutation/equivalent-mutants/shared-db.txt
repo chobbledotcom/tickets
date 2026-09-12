@@ -250,3 +250,13 @@ src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → tru
 # sharing an unpaid sale's event group but landing in another account is not
 # a state any ledger write can produce.
 src/shared/db/listing-overview-stats.ts::incompleteSales.noPayment~1t2xb3x  %20AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id→""   # shop appends whole events atomically; a payment leg in a sale's group always destinations that booking's attendee
+
+# The settings_version row only ever holds whole-number text:
+# settingsVersionIncrement inserts '1' or updates to CAST(value AS INTEGER)+1,
+# so the empty string — the only value where ?? and || differ — never reaches
+# this operand.
+src/shared/db/settings/cache.ts::getCurrentSettingsVersion~07k086m  ?? → ||  # the version row holds whole-number text or is absent, so undefined is the only empty value here
+
+# parseInt treats radix 0 exactly like radix 10, by the ECMAScript spec, so
+# no input distinguishes the two literals.
+src/shared/db/settings/cache.ts::getCurrentSettingsVersion~18tvevh  10 → 0  # spec: radix 0 and 10 parse identically
