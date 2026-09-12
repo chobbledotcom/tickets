@@ -44,6 +44,16 @@ const eventGroupsPage = (
       ` WHERE ${condition} ORDER BY event_group LIMIT ?`,
   });
 
+/** Keyset cursor over the event-group index. Branded, so a plain `+=`
+ *  concatenation of two cursors is a type error instead of a page replay. */
+type GroupCursor = string & { readonly is: "GroupCursor" };
+
+const cursorOf = (group: string): GroupCursor => group as GroupCursor;
+
+/** Every page's last group becomes the next cursor, brand-checked above. */
+const cursorAfter = (page: readonly { event_group: string }[]): GroupCursor =>
+  cursorOf(page[page.length - 1]!.event_group);
+
 /** The pairs of one booking-group page whose refund event actually exists. */
 const pagePairs = async (
   bookingGroups: readonly string[],
@@ -80,14 +90,14 @@ const pageUpdate = (pairs: readonly ReversesPair[]): SqlStatement => ({
 /** Every refund group still carrying an unattributed leg, page by page. */
 const unattributedRefundGroups = async (): Promise<string[]> => {
   const orphans: string[] = [];
-  let after = "";
+  let after = cursorOf("");
   for (;;) {
     const page = await eventGroupsPage(
       `kind GLOB '${REFUND_KIND_GLOB}' AND reverses_group = '' AND event_group > ?`,
       [after],
     );
     if (page.length === 0) return orphans;
-    after = page[page.length - 1]!.event_group;
+    after = cursorAfter(page);
     orphans.push(...page.map((row) => row.event_group));
   }
 };
@@ -99,14 +109,14 @@ const unattributedRefundGroups = async (): Promise<string[]> => {
  * derivable names are operator-repairable data, never a silent guess.
  */
 export const backfillReversesGroup = async (): Promise<void> => {
-  let after = "";
+  let after = cursorOf("");
   for (;;) {
     const bookingGroups = await eventGroupsPage(
       `kind NOT GLOB '${REFUND_KIND_GLOB}' AND event_group > ?`,
       [after],
     );
     if (bookingGroups.length === 0) break;
-    after = bookingGroups[bookingGroups.length - 1]!.event_group;
+    after = cursorAfter(bookingGroups);
     const pairs = await pagePairs(bookingGroups.map((row) => row.event_group));
     if (pairs.length > 0) await executeBatch([pageUpdate(pairs)]);
   }

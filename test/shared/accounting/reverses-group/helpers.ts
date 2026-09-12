@@ -5,6 +5,29 @@ import { bookingEventGroup, refundEventGroup } from "#accounting/mappers.ts";
 import { getDb } from "#db/client.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 
+/** The refund legs of one refund event, as (id, link) pairs. */
+export const refundLegLinks = async (
+  refundGroup: string,
+): Promise<{ id: number; reverses_group: string }[]> => {
+  const rows = await getDb().execute({
+    args: [refundGroup],
+    sql:
+      "SELECT id, reverses_group FROM transfers WHERE event_group = ?" +
+      " AND kind GLOB 'refund_*'",
+  });
+  return rows.rows.map((row) => ({
+    id: Number(row.id),
+    reverses_group: String(row.reverses_group),
+  }));
+};
+
+/** Set one stored link by hand — the backfill must never overwrite it. */
+export const forceLegLink = (legId: number, value: string): Promise<unknown> =>
+  getDb().execute({
+    args: [value, legId],
+    sql: "UPDATE transfers SET reverses_group = ? WHERE id = ?",
+  });
+
 /** Seed a refunded booking order through the production mappers, then wipe the
  *  refund legs' link — the exact rows a site carries before the backfill. */
 export const seedUnattributedRefund = async (
@@ -25,15 +48,8 @@ export const seedUnattributedRefund = async (
 };
 
 /** The `reverses_group` every refund leg of one refund event carries. */
-export const stampedReversesOf = async (
-  group: string,
-): Promise<Set<string>> => {
-  const rows = await getDb().execute({
-    args: [group],
-    sql: "SELECT reverses_group FROM transfers WHERE event_group = ? AND kind GLOB 'refund_*'",
-  });
-  return new Set(rows.rows.map((row) => String(row.reverses_group)));
-};
+export const stampedReversesOf = async (group: string): Promise<Set<string>> =>
+  new Set((await refundLegLinks(group)).map((leg) => leg.reverses_group));
 
 /** The refund event group a booking order's reversals land under, so a test
  *  can ask for the order's stamp without rebuilding it by hand. */

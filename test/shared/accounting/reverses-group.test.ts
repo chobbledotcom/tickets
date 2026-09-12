@@ -6,7 +6,9 @@ import { backfillReversesGroup } from "#accounting/reverses-group.ts";
 import { postTransfers } from "#accounting/store.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
+  forceLegLink,
   refundGroupOfBooking,
+  refundLegLinks,
   seedUnattributedRefund,
   stampedReversesOf,
 } from "#test/shared/accounting/reverses-group/helpers.ts";
@@ -65,6 +67,30 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
     expect(
       await stampedReversesOf(await refundGroupOfBooking(bookingGroup)),
     ).toEqual(new Set([bookingGroup]));
+  });
+
+  test("fills only empty links, never one an operator already set", async () => {
+    const bookingGroup = await seedUnattributedRefund(
+      "reverses-group-preset",
+      7,
+    );
+    const refundGroup = await refundGroupOfBooking(bookingGroup);
+    const legs = await refundLegLinks(refundGroup);
+    // An operator's repair holds a foreign link: the backfill must leave it
+    // alone even while attributing the sibling legs it came in with.
+    const repaired = legs[0]!;
+    await forceLegLink(repaired.id, "evt-operator-repair");
+
+    await backfillReversesGroup();
+
+    const after = await refundLegLinks(refundGroup);
+    expect(after.find((leg) => leg.id === repaired.id)!.reverses_group).toBe(
+      "evt-operator-repair",
+    );
+    for (const leg of after) {
+      if (leg.id === repaired.id) continue;
+      expect(leg.reverses_group).toBe(bookingGroup);
+    }
   });
 
   test("names the orphan refund event and fails rather than guess", async () => {
