@@ -1,6 +1,7 @@
 /** Seeding for the reverses-group backfill, shared by its direct tests and
  *  the refund-order-link migration's. */
 
+import { expect } from "@std/expect";
 import { bookingEventGroup, refundEventGroup } from "#accounting/mappers.ts";
 import { getDb } from "#db/client.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
@@ -55,3 +56,12 @@ export const stampedReversesOf = async (group: string): Promise<Set<string>> =>
  *  can ask for the order's stamp without rebuilding it by hand. */
 export const refundGroupOfBooking = (bookingGroup: string): Promise<string> =>
   refundEventGroup(bookingGroup);
+
+/** Assert every refund leg of one booking order carries that order's link. */
+export const expectStampedToBooking = async (
+  bookingGroup: string,
+): Promise<void> => {
+  expect(
+    await stampedReversesOf(await refundGroupOfBooking(bookingGroup)),
+  ).toEqual(new Set([bookingGroup]));
+};

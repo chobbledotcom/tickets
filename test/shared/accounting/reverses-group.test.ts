@@ -4,8 +4,10 @@ import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { backfillReversesGroup } from "#accounting/reverses-group.ts";
 import { postTransfers } from "#accounting/store.ts";
+import { getDb } from "#db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
+  expectStampedToBooking,
   forceLegLink,
   refundGroupOfBooking,
   refundLegLinks,
@@ -13,6 +15,7 @@ import {
   stampedReversesOf,
 } from "#test/shared/accounting/reverses-group/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
 
 /** A refund leg no derivation can attribute — an event group nothing derived
@@ -26,6 +29,15 @@ const orphanRefundLeg = (suffix = ""): TransferInput =>
     reference: `orphan-refund-sale${suffix}`,
     source: revenueAccount(99),
   });
+
+/** The stored cursor checkpoint, or "" when no run is paused. */
+const storedCursor = async (): Promise<string> => {
+  const rows = await getDb().execute({
+    args: ["backfill_reverses_group_cursor"],
+    sql: "SELECT value FROM settings WHERE key = ?",
+  });
+  return String(rows.rows[0]?.value ?? "");
+};
 
 describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
   test("attributes every stored refund leg to the order it reversed", async () => {
@@ -47,12 +59,8 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
 
     await backfillReversesGroup();
 
-    expect(await stampedReversesOf(await refundGroupOfBooking(first))).toEqual(
-      new Set([first]),
-    );
-    expect(await stampedReversesOf(await refundGroupOfBooking(second))).toEqual(
-      new Set([second]),
-    );
+    await expectStampedToBooking(first);
+    await expectStampedToBooking(second);
   });
 
   test("is idempotent: a re-run writes nothing and still verifies", async () => {
@@ -67,6 +75,43 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
     expect(
       await stampedReversesOf(await refundGroupOfBooking(bookingGroup)),
     ).toEqual(new Set([bookingGroup]));
+  });
+
+  test("resumes at its checkpoint after a mid-walk stop", async () => {
+    // A page-size of 1 puts each order on its own page. A trigger that
+    // aborts the SECOND page's stamp models a crash mid-walk: the first
+    // page is committed, its checkpoint written, the rest unprocessed.
+    const first = await seedUnattributedRefund("reverses-group-page-a", 7);
+    const second = await seedUnattributedRefund("reverses-group-page-b", 8);
+    const laterGroup = [first, second].sort()[1]!;
+    const stampsOf = async (bookingGroup: string): Promise<Set<string>> =>
+      stampedReversesOf(await refundGroupOfBooking(bookingGroup));
+
+    await expect(
+      withDbFault(
+        `CREATE TRIGGER test_reverses_page_stop
+          BEFORE UPDATE ON transfers
+          WHEN NEW.reverses_group = '${laterGroup}'
+          BEGIN SELECT RAISE(ABORT, 'stop before the later page'); END`,
+        "test_reverses_page_stop",
+        () => backfillReversesGroup(1),
+      ),
+    ).rejects.toThrow("stop before the later page");
+
+    // One page committed and the checkpoint names it; the run stopped with
+    // the other order's link still empty.
+    expect(
+      (await stampsOf(first)).has(first) !==
+        (await stampsOf(second)).has(second),
+    ).toBe(true);
+    expect(await storedCursor()).not.toBe("");
+
+    await backfillReversesGroup(1);
+
+    await expectStampedToBooking(first);
+    await expectStampedToBooking(second);
+    // A finished run leaves no checkpoint behind.
+    expect(await storedCursor()).toBe("");
   });
 
   test("fills only empty links, never one an operator already set", async () => {

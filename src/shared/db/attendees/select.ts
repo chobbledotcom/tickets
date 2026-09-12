@@ -58,8 +58,14 @@ export const refundedForBooking = (row: RefundedRowExprs): string => {
       ` AND reverses_group = ${eventGroup}`,
   );
   // A free line has no sale of its own, so it reads the order as a whole:
-  // refunded only once EVERY sale leg of this order came back. A partial
-  // reversal must not refund a free package member beside an unreversed line.
+  // refunded only once the order was reversed AND every sale leg of it came
+  // back. A partial reversal must not refund a free package member beside an
+  // unreversed line — and a stamped order with no sale legs (a free listing
+  // plus a booking fee, or a surcharge) must not read refunded off an empty
+  // sale set, so the reversal itself is the positive evidence.
+  const orderWasReversed = legCameBack(
+    `kind GLOB 'refund_*' AND reverses_group = ${eventGroup}`,
+  );
   const orderFullyReturned =
     "NOT EXISTS(SELECT 1 FROM transfers AS unreturned WHERE" +
     ` kind = '${KIND.sale}'` +
@@ -81,7 +87,7 @@ export const refundedForBooking = (row: RefundedRowExprs): string => {
     // A row with no recorded order has nothing to reverse into: its group is
     // '' and every leg test below would match nothing, so never fall through.
     ` WHEN ${eventGroup} = '' THEN 0` +
-    ` ELSE ${orderFullyReturned} END)`
+    ` ELSE ${orderWasReversed} AND ${orderFullyReturned} END)`
   );
 };
 

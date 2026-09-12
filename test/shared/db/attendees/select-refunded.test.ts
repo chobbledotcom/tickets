@@ -250,6 +250,37 @@ const bookPaidAndFreeOrder = async (): Promise<{
   return { attendeeId, freeId, paidId: paid.id };
 };
 
+/** One order of a FREE listing plus a booking fee: stamped and posted through
+ *  the production path, but NO sale leg exists anywhere in the order — the
+ *  money the attendee paid is the fee alone. */
+const orderWithAFeeAndAFreeLine = async (): Promise<{
+  attendeeId: number;
+  legs: Transfer[];
+  freeId: number;
+}> => {
+  const free = await createTestListing({ maxAttendees: 10, unitPrice: 0 });
+  const made = await attendeesApi.createAttendeeAtomic({
+    bookings: [{ listingId: free.id, pricePaid: 0 }],
+    email: "fee-and-free@example.com",
+    name: "Fee And Free",
+  });
+  if (!made.success) throw new Error("booking setup failed");
+  const attendeeId = made.attendees[0]!.id;
+  const legs = (
+    await mapBooking({
+      amountPaid: 150,
+      attendeeId,
+      bookingFee: 150,
+      eventId: `fee-order-${attendeeId}`,
+      lines: [{ gross: 0, listingId: free.id }],
+      modifiers: [],
+      occurredAt: REVERSED_AT,
+    })
+  ).map(asTransfer);
+  await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, legs));
+  return { attendeeId, freeId: free.id, legs };
+};
+
 /** Reverse ONLY some sales of an order — the legs a partial provider refund
  *  would give back when the rest of the order stays with the provider. */
 const reverseSales = async (sales: readonly Transfer[]): Promise<void> => {
@@ -383,6 +414,28 @@ describeWithEnv(
 
         expect(await refundedOn(first.id, attendeeId)).toBe(1);
         expect(await refundedOn(second.id, attendeeId)).toBe(1);
+        expect(await refundedOn(freeId, attendeeId)).toBe(1);
+      });
+    });
+
+    describe("a free line of an order with no sale legs", () => {
+      // A stamped order whose only money is a booking fee has no sale leg at
+      // all, so "every sale came back" is vacuously true. The order's own
+      // reversal is the positive evidence: the ticket stays live until one
+      // exists.
+      test("stays live while nothing was reversed", async () => {
+        const { attendeeId, freeId, legs } = await orderWithAFeeAndAFreeLine();
+        expect(legs.filter((leg) => leg.kind === "sale")).toEqual([]);
+
+        expect(await refundedOn(freeId, attendeeId)).toBe(0);
+      });
+
+      test("reads refunded once the fee order itself was reversed", async () => {
+        const { attendeeId, freeId, legs } = await orderWithAFeeAndAFreeLine();
+        await postTransferGroups([
+          await mapRefund({ occurredAt: REVERSED_AT, orderLegs: legs }),
+        ]);
+
         expect(await refundedOn(freeId, attendeeId)).toBe(1);
       });
     });

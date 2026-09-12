@@ -8,9 +8,8 @@ import {
   syncIndexes,
 } from "#db/migrations/schema-sync.ts";
 import {
-  refundGroupOfBooking,
+  expectStampedToBooking,
   seedUnattributedRefund,
-  stampedReversesOf,
 } from "#test/shared/accounting/reverses-group/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
@@ -33,9 +32,7 @@ describeWithEnv("db > migrations > refund order link", { db: true }, () => {
       true,
     );
     expect(await indexExists("idx_transfers_reverses_group")).toBe(true);
-    expect(
-      await stampedReversesOf(await refundGroupOfBooking(bookingGroup)),
-    ).toEqual(new Set([bookingGroup]));
+    await expectStampedToBooking(bookingGroup);
   });
 
   test("declares every object it owns", () => {
