@@ -6,6 +6,7 @@ import {
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
 import {
+  monthLabelsForListing,
   quantityOptions,
   restoredChildQty,
   restoredPackageQuantity,
@@ -18,6 +19,26 @@ const withSaved = (saved: Record<string, string>, read: () => number): number =>
     setSavedFormData(new FormParams(saved));
     return read();
   });
+
+describe("monthLabelsForListing", () => {
+  test("names the months each count buys on a plan", () => {
+    const labels = monthLabelsForListing({
+      assign_built_site: true,
+      initial_site_months: 3,
+    });
+    expect(labels?.(1)).toBe("3 months");
+    expect(labels?.(2)).toBe("6 months");
+  });
+
+  test("leaves ordinary listings to the plain count", () => {
+    expect(
+      monthLabelsForListing({
+        assign_built_site: false,
+        initial_site_months: 0,
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe("quantityOptions", () => {
   test("lists zero through max with the chosen count selected", () => {

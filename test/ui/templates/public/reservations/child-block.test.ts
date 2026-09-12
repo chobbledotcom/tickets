@@ -320,5 +320,40 @@ describeWithEnv(
       expect(html).toContain("(£0");
       expect(html).toContain("(£10");
     });
+
+    test("a plan child prices its options in months, an ordinary child in counts", () => {
+      const parent = ticketListing({ id: 7, max_quantity: 3, name: "Parent" });
+      const planChild = ticketListing({
+        assign_built_site: true,
+        id: 10,
+        initial_site_months: 3,
+        max_quantity: 3,
+        name: "Add-on A",
+      });
+      const ordinaryChild = ticketListing({
+        id: 11,
+        max_quantity: 3,
+        name: "Add-on B",
+      });
+
+      const html = renderChildBlock(parent, {
+        attributesByListing: new Map(),
+        childDatesById: new Map(),
+        children: new Map([[7, [planChild, ordinaryChild]]]),
+        foldReserveByChildId: new Map(),
+        groupIdsByListingId: new Map(),
+        groupRemainingByGroupId: new Map(),
+        questionListingMap: new Map(),
+        questions: [],
+        rendered: new Set(),
+      });
+
+      expect(html).toContain('<option value="1">3 months</option>');
+      expect(html).toContain('<option value="2">6 months</option>');
+      expect(html).toContain('<option value="3">9 months</option>');
+      expect(html).toContain('<option value="1">1</option>');
+      expect(html).toContain('<option value="3">3</option>');
+      expect(html).not.toContain('value="1">1 month</option>');
+    });
   },
 );
