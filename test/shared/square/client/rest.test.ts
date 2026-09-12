@@ -47,7 +47,7 @@ describeSquare(() => {
             {
               basePriceMoney: { amount: BigInt(2500), currency: "GBP" },
               name: "Ticket: Show",
-              note: "2 Tickets",
+              note: "Tickets (x2)",
               quantity: "2",
             },
           ],

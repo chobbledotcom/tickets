@@ -23,6 +23,7 @@ import {
 import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { ticketsCountText } from "#shared/count-text.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
@@ -87,8 +88,7 @@ const createCheckoutSession = async (
         price_data: {
           currency: cur,
           product_data: {
-            description:
-              line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
+            description: ticketsCountText(line.quantity),
             name: `Ticket: ${line.item.name}`,
           },
           unit_amount: line.chargedUnitAmount,

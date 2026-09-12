@@ -361,7 +361,7 @@ describeWithEnv(
       });
       const expected = t("listings_table.group_duplicate_children_dropped", {
         reason,
-        success: `Duplicated 'Stranded bundle' to 'Stranded bundle copy' (1 listing(s))`,
+        success: `Duplicated 'Stranded bundle' to 'Stranded bundle copy' (x1 listings)`,
       });
       await expectFlashRedirect(
         `/admin/groups/${newGroup.id}`,
@@ -413,7 +413,7 @@ describeWithEnv(
       });
       const expected = t("listings_table.group_duplicate_children_dropped", {
         reason,
-        success: `Duplicated 'Incoming bundle' to 'Incoming bundle copy' (1 listing(s))`,
+        success: `Duplicated 'Incoming bundle' to 'Incoming bundle copy' (x1 listings)`,
       });
       await expectFlashRedirect(
         `/admin/groups/${newGroup.id}`,

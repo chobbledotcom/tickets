@@ -396,7 +396,7 @@ describeStripe("stripe", () => {
           );
           expect(params.customer_email).toBe("jane@example.com");
           expect(ticketItem?.price_data.product_data.description).toBe(
-            "Ticket",
+            "Tickets (x1)",
           );
           expect(feeItem).toMatchObject({
             price_data: { unit_amount: 50 },
@@ -444,7 +444,7 @@ describeStripe("stripe", () => {
           expect(ticketItem.price_data.unit_amount).toBe(100);
           expect(ticketItem.quantity).toBe(2);
           expect(ticketItem.price_data.product_data.description).toBe(
-            "2 Tickets",
+            "Tickets (x2)",
           );
           // Fee is still 5% of the full £20.00 order, not of the deposit.
           expect(feeItem.price_data.unit_amount).toBe(100);

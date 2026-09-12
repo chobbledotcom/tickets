@@ -88,7 +88,7 @@ describeSquare(() => {
           expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
             BigInt(2500),
           );
-          expect(args.order.lineItems[0]!.note).toBe("3 Tickets");
+          expect(args.order.lineItems[0]!.note).toBe("Tickets (x3)");
 
           // Verify metadata includes intent fields. Small fields (phone, …) are
           // packed into `b` on the wire, so decode the way the webhook does.
@@ -114,7 +114,7 @@ describeSquare(() => {
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
           expect(debugMessages(debugLog()).slice(-2)).toEqual([
-            "[Square] Creating payment link for 1 listing(s)",
+            "[Square] Creating payment link for x1 listings",
             "[Square] Payment link created orderId=order_abc",
           ]);
         },
@@ -171,7 +171,7 @@ describeSquare(() => {
             ?.args[0] as CreatePaymentLinkInput;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
-          expect(args.order.lineItems[0]!.note).toBe("Ticket");
+          expect(args.order.lineItems[0]!.note).toBe("Tickets (x1)");
         },
       );
     });

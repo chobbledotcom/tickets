@@ -26,6 +26,26 @@ const intent = {
   special_instructions: "",
 };
 
+/** A fake SumUp client that answers creates as the given checkout and hands
+ *  back the last body it was sent, so a test can read what went over the wire. */
+const bodyCapturingClient = (checkout: { id: string; url: string }) => {
+  let sent: Record<string, unknown> = {};
+  return {
+    client: makeSumupClient({
+      create: (body) => {
+        sent = body as Record<string, unknown>;
+        return Promise.resolve({
+          checkout_reference: sent.checkout_reference,
+          hosted_checkout_url: checkout.url,
+          id: checkout.id,
+          status: "PENDING",
+        });
+      },
+    }),
+    sent: () => sent,
+  };
+};
+
 describe("sumup createCheckout", () => {
   const { loggedDebug } = setupSumupSuite();
 
@@ -40,35 +60,58 @@ describe("sumup createCheckout", () => {
   });
 
   test("creates a hosted checkout, converts the total, and persists metadata + id", async () => {
-    let sentBody: Record<string, unknown> = {};
-    const client = makeSumupClient({
-      create: (body) => {
-        sentBody = body as Record<string, unknown>;
-        return Promise.resolve({
-          checkout_reference: sentBody.checkout_reference,
-          hosted_checkout_url: "https://pay.sumup.com/x",
-          id: "co_created",
-          status: "PENDING",
-        });
-      },
+    const capture = bodyCapturingClient({
+      id: "co_created",
+      url: "https://pay.sumup.com/x",
     });
-    await withSumupClient(client, async () => {
+    await withSumupClient(capture.client, async () => {
       const result = await sumupApi.createCheckout(intent, "http://localhost");
       expect(result).not.toBeNull();
       expect(result!.url).toBe("https://pay.sumup.com/x");
       // 2 tickets * 1000 minor units = 2000 minor => 20 major units
-      expect(sentBody.amount).toBe(20);
-      expect(sentBody.currency).toBe("GBP");
-      expect(sentBody.hosted_checkout).toEqual({ enabled: true });
-      expect(sentBody.merchant_code).toBe("MC123");
-      expect(String(sentBody.redirect_url)).toContain(
+      expect(capture.sent().amount).toBe(20);
+      expect(capture.sent().currency).toBe("GBP");
+      expect(capture.sent().description).toBe("Tickets (x2)");
+      expect(capture.sent().hosted_checkout).toEqual({ enabled: true });
+      expect(capture.sent().merchant_code).toBe("MC123");
+      expect(String(capture.sent().redirect_url)).toContain(
         `session_id=${result!.reference}`,
       );
-      expect(sentBody.return_url).toBe("https://example.com/payment/webhook");
+      expect(capture.sent().return_url).toBe(
+        "https://example.com/payment/webhook",
+      );
       // Metadata + SumUp id persisted under the generated reference
       const stored = await getSumupCheckout(result!.reference);
       expect(stored!.metadata.name).toBe("Alice");
       expect(stored!.sumupId).toBe("co_created");
+    });
+  });
+
+  test("describes the order by every ticket it sells, across listings", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_multi",
+      url: "https://pay.sumup.com/multi",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [
+            ...intent.items,
+            {
+              listingId: 2,
+              name: "Gala",
+              quantity: 3,
+              slug: "gala",
+              unitPrice: 500,
+            },
+          ],
+        },
+        "http://localhost",
+      );
+      // 2 tickets on the first listing + 3 on the second = 5 tickets: the
+      // order label counts tickets, not the listings they sit on.
+      expect(capture.sent().description).toBe("Tickets (x5)");
     });
   });
 
@@ -164,21 +207,14 @@ describe("sumup createCheckout", () => {
   test("derives the major-unit amount from the configured currency", async () => {
     // CLP is a SumUp-supported zero-decimal currency: 2000 stays 2000.
     settings.setForTest({ currency: "CLP" });
-    let sentBody: Record<string, unknown> = {};
-    const client = makeSumupClient({
-      create: (body) => {
-        sentBody = body as Record<string, unknown>;
-        return Promise.resolve({
-          hosted_checkout_url: "https://pay.sumup.com/y",
-          id: "co_clp",
-          status: "PENDING",
-        });
-      },
+    const capture = bodyCapturingClient({
+      id: "co_clp",
+      url: "https://pay.sumup.com/y",
     });
-    await withSumupClient(client, async () => {
+    await withSumupClient(capture.client, async () => {
       await sumupApi.createCheckout(intent, "http://localhost");
-      expect(sentBody.amount).toBe(2000);
-      expect(sentBody.currency).toBe("CLP");
+      expect(capture.sent().amount).toBe(2000);
+      expect(capture.sent().currency).toBe("CLP");
     });
   });
 

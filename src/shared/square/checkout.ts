@@ -8,6 +8,7 @@ import {
   rejectedBuyerFieldOf,
 } from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { ticketsCountText, xCount } from "#shared/count-text.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
@@ -113,7 +114,7 @@ export const createSquarePaymentLink = async (
 
   logDebug(
     "Square",
-    `Creating payment link for ${intent.items.length} listing(s)`,
+    `Creating payment link for ${xCount(intent.items.length)} listings`,
   );
   const metadata = await assembleCheckoutMetadata(
     "square",
@@ -136,7 +137,7 @@ export const createSquarePaymentLink = async (
           currency,
         },
         name: `Ticket: ${line.item.name}`,
-        note: line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
+        note: ticketsCountText(line.quantity),
         quantity: String(line.quantity),
       }),
     },

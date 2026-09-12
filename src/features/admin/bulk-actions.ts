@@ -49,6 +49,7 @@ import {
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { xCount } from "#shared/count-text.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   buildDuplicateListingInput,
@@ -127,11 +128,11 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
       }
       const affected = await setGroupListingsActive(group.id, opts.active);
       await logActivity(
-        `Group '${group.name}' ${opts.action}d (${affected} listing(s))`,
+        `Group '${group.name}' ${opts.action}d (${xCount(affected)} listings)`,
       );
       return redirect(
         `/admin/groups/${group.id}`,
-        `Group ${opts.action}d (${affected} listing(s))`,
+        `Group ${opts.action}d (${xCount(affected)} listings)`,
         true,
       );
     },
@@ -327,10 +328,10 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const edgeErrors = await remapDuplicatedGroupEdges(idMap);
 
   await logActivity(
-    `Group '${group.name}' duplicated to '${newName}' with ${listings.length} listing(s)`,
+    `Group '${group.name}' duplicated to '${newName}' with ${xCount(listings.length)} listings`,
   );
 
-  const success = `Duplicated '${group.name}' to '${newName}' (${listings.length} listing(s))`;
+  const success = `Duplicated '${group.name}' to '${newName}' (${xCount(listings.length)} listings)`;
   if (edgeErrors.length > 0) {
     return redirect(
       `/admin/groups/${newGroupId}`,

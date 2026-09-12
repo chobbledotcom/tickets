@@ -9,6 +9,7 @@
 
 import { settings } from "#db/settings.ts";
 import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
+import { sumOf } from "#fp";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
 import { askProvider } from "#payment/provider-call.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -19,7 +20,8 @@ import {
 import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 /* jscpd:ignore-start */
-import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { type PricedLine, priceCheckout } from "#shared/checkout-pricing.ts";
+import { ticketsCountText } from "#shared/count-text.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -158,7 +160,8 @@ export const sumupApi: {
     // Price the order once and reuse that total for both the signed proof
     // (stored in metadata) and the amount charged below, so the two can never
     // disagree even if pricing settings change mid-checkout (see #1300).
-    const totalMinor = priceCheckout(intent).total;
+    const order = priceCheckout(intent);
+    const totalMinor = order.total;
 
     // Persist metadata before creating the checkout so it is present when the
     // webhook or redirect arrives. An orphaned row (if create fails) is pruned.
@@ -177,7 +180,9 @@ export const sumupApi: {
           amount: Number(toMajorUnits(totalMinor)),
           checkout_reference: reference,
           currency: settings.currency.toUpperCase(),
-          description: `Tickets (${intent.items.length} listing(s))`,
+          description: ticketsCountText(
+            sumOf((line: PricedLine) => line.quantity)(order.lines),
+          ),
           hosted_checkout: { enabled: true },
           merchant_code: merchantCode,
           redirect_url: `${baseUrl}/payment/success?session_id=${reference}`,

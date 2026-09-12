@@ -120,14 +120,14 @@ describeSquare(() => {
           expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
             BigInt(1500),
           );
-          expect(args.order.lineItems[0]!.note).toBe("2 Tickets");
+          expect(args.order.lineItems[0]!.note).toBe("Tickets (x2)");
 
           expect(args.order.lineItems[1]!.name).toBe("Ticket: Gala Dinner");
           expect(args.order.lineItems[1]!.quantity).toBe("1");
           expect(args.order.lineItems[1]!.basePriceMoney.amount).toBe(
             BigInt(3000),
           );
-          expect(args.order.lineItems[1]!.note).toBe("Ticket");
+          expect(args.order.lineItems[1]!.note).toBe("Tickets (x1)");
 
           // Verify multi-intent metadata (small fields packed into `b`).
           const metadata = extractSessionMetadata(

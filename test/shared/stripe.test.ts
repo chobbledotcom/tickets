@@ -68,17 +68,17 @@ describeStripe("what Stripe is asked to charge for", () => {
           checkoutIntent({ items: [checkoutItem({ quantity: 3 })] }),
         ),
       ),
-    ).toBe("3 Tickets");
+    ).toBe("Tickets (x3)");
   });
 
-  test("says one ticket in the singular", async () => {
+  test("labels a one-ticket line with the same count", async () => {
     expect(
       describedAs(
         await createdWith(
           checkoutIntent({ items: [checkoutItem({ quantity: 1 })] }),
         ),
       ),
-    ).toBe("Ticket");
+    ).toBe("Tickets (x1)");
   });
 
   test("sends the buyer's email so Stripe can receipt them", async () => {
