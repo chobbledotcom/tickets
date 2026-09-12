@@ -6,7 +6,40 @@ import {
   filesOverLimit,
   runFileLengthCheck,
 } from "#scripts/check-file-lengths/run.ts";
+import { readCounts } from "#scripts/check-runner.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
+
+describe("reading the counts a check ratchets on", () => {
+  let dir: TempPath;
+
+  beforeEach(() => {
+    dir = tempDir();
+  });
+
+  afterEach(() => {
+    dir.dispose();
+  });
+
+  const writeCounts = (text: string): string => {
+    const path = `${dir.path}/counts.json`;
+    Deno.writeTextFileSync(path, text);
+    return path;
+  };
+
+  test("gives back the counts the file holds", async () => {
+    const path = writeCounts('{ "a.md": 2, "b.md": 0 }');
+    expect(await readCounts(path)).toEqual({ "a.md": 2, "b.md": 0 });
+  });
+
+  test("fails loudly for a counts file that is not there", async () => {
+    await expect(readCounts(`${dir.path}/gone.json`)).rejects.toThrow();
+  });
+
+  test("fails loudly for counts of the wrong shape", async () => {
+    const path = writeCounts('{ "a.md": "two" }');
+    await expect(readCounts(path)).rejects.toThrow();
+  });
+});
 
 describe("the per-file check runners", () => {
   let dir: TempPath;

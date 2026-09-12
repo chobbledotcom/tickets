@@ -1,6 +1,62 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type DocumentFile, runSteCheck } from "#scripts/check-ste/run.ts";
+import {
+  type DocumentFile,
+  markdownFilesIn,
+  readDocuments,
+  runSteCheck,
+} from "#scripts/check-ste/run.ts";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
+
+describe("reading the markdown the check covers", () => {
+  let dir: TempPath;
+
+  const makeDocs = () => {
+    Deno.mkdirSync(`${dir.path}/docs`);
+    Deno.writeTextFileSync(`${dir.path}/AGENTS.md`, "Write it.\n");
+    Deno.writeTextFileSync(`${dir.path}/notes.txt`, "not markdown\n");
+    Deno.writeTextFileSync(`${dir.path}/docs/one.md`, "Write one.\n");
+    Deno.writeTextFileSync(`${dir.path}/docs/two.md`, "Write two.\n");
+  };
+
+  test("markdownFilesIn lists only .md files in one folder, sorted", async () => {
+    await withTemp(async () => {
+      makeDocs();
+      expect(await markdownFilesIn(dir.path)).toEqual([
+        `${dir.path}/AGENTS.md`,
+      ]);
+      expect(await markdownFilesIn(`${dir.path}/docs`)).toEqual([
+        `${dir.path}/docs/one.md`,
+        `${dir.path}/docs/two.md`,
+      ]);
+    });
+  });
+
+  test("readDocuments reads the root folder and the docs folder, sorted", async () => {
+    await withTemp(async () => {
+      makeDocs();
+      const documents: DocumentFile[] = await readDocuments(
+        dir.path,
+        `${dir.path}/docs`,
+      );
+      expect(documents.map((one) => one.path)).toEqual([
+        `${dir.path}/AGENTS.md`,
+        `${dir.path}/docs/one.md`,
+        `${dir.path}/docs/two.md`,
+      ]);
+      expect(documents[0]?.content).toBe("Write it.\n");
+    });
+  });
+
+  const withTemp = async (run: () => Promise<void>) => {
+    dir = tempDir();
+    try {
+      await run();
+    } finally {
+      dir.dispose();
+    }
+  };
+});
 
 describe("check-ste runner", () => {
   const output = {

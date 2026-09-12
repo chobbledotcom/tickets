@@ -133,6 +133,23 @@ describe("ticketViewPage wallet links and package cards", () => {
     expect(html).not.toContain("mutated");
   });
 
+  test("totals the booked quantity on a hidden-listings package card", () => {
+    const html = ticketViewPage(
+      [
+        packageMember({ quantity: 2 }, { id: 1, name: "Spa Day" }),
+        packageMember({ quantity: 3 }, { id: 2, name: "Meal For Two" }),
+      ],
+      false,
+      false,
+      packageDisplays(true),
+    );
+    expect(html).toContain(
+      '<div class="ticket-card-package-qty"><span class="package-member-qty">&times;5</span></div>',
+    );
+    expect(html).not.toContain("Spa Day");
+    expect(html).not.toContain("Meal For Two");
+  });
+
   test("shows no ID-required notice when every package member is transferable", () => {
     const html = ticketViewPage(
       [packageMember(undefined, { id: 1, name: "Spa Day" })],

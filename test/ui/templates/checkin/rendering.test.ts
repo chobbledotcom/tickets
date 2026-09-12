@@ -164,6 +164,9 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       const body = await response.text();
       expect(body).toContain('class="bulk-checkin"');
       expect(body).toContain("Check In All");
+      // The form posts this hidden input, so the name the POST handler reads
+      // is part of what the page renders.
+      expect(body).toContain('name="check_in"');
       expect(body).toContain('value="true"');
     });
 

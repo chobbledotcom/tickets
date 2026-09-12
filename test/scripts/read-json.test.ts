@@ -2,7 +2,11 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { readJsonOrNull, readJsonOrThrow } from "#scripts/read-json.ts";
+import {
+  readJsonOrNull,
+  readJsonOrThrow,
+  writeJsonFile,
+} from "#scripts/read-json.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 const NoteSchema = v.object({ note: v.string() });
@@ -75,6 +79,18 @@ describe("reading a JSON file the caller requires", () => {
       const path = join(folder, "note.json");
       Deno.writeTextFileSync(path, '{ "other": 1 }');
       await expect(readJsonOrThrow(path, NoteSchema)).rejects.toThrow();
+    });
+  });
+});
+
+describe("writing a JSON file a person reviews", () => {
+  test("writes indented, newline-terminated JSON that reads back the same", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "counts.json");
+      await writeJsonFile(path, { "a.md": 1 });
+      const text = Deno.readTextFileSync(path);
+      expect(text).toBe('{\n  "a.md": 1\n}\n');
+      expect(JSON.parse(text)).toEqual({ "a.md": 1 });
     });
   });
 });

@@ -57,16 +57,9 @@ export const findIssues = (file: string, source: string): EmptyCatchIssue[] => {
   const program = parseProgram(file, source);
   walkNodes(program, (node) => {
     if (node.type !== "CatchClause") return;
-    const body = node.body as {
-      body: unknown[];
-      end: number;
-      start: number;
-      type: string;
-    };
-    if (body.type !== "BlockStatement") return;
+    const body = node.body as { body: unknown[] } & Spanned;
     if (body.body.length > 0) return;
-    const span = { end: body.end, start: body.start };
-    if (blockExplainsItself(source, span)) return;
+    if (blockExplainsItself(source, body)) return;
     const param = node.param as Spanned | null;
     issues.push({
       caught:

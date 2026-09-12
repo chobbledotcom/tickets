@@ -19,7 +19,7 @@ const RECORDS_PATH = new URL("./check-ste/records.json", import.meta.url)
 const BASELINE_PATH = new URL("./check-ste/baseline.json", import.meta.url)
   .pathname;
 
-const documents = await readDocuments(".");
+const documents = await readDocuments(".", "docs");
 const records = await readJsonOrThrow(
   RECORDS_PATH,
   v.record(v.string(), v.string()),

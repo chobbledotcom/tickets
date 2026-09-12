@@ -20,8 +20,6 @@ import {
 import { directoryEntries } from "#scripts/walk-files.ts";
 import { findIssues, type SteIssue } from "./rules.ts";
 
-export const DOCS_DIR = "docs";
-
 /**
  * Documents that record how something was done or captured at a moment in
  * time — delivered plans, acceptance records, captured evidence. Their words
@@ -50,14 +48,14 @@ export const markdownFilesIn = async (directory: string): Promise<string[]> =>
     .map((entry) => join(directory, entry.name))
     .sort();
 
-/**
- * Every markdown file the check reads: at the root, plus `docs/`. Paths stay
- * relative to the repository root, the way the task runs.
- */
-export const readDocuments = async (root: string): Promise<DocumentFile[]> => {
+/** Every markdown file the check reads: at the root, plus the docs folder. */
+export const readDocuments = async (
+  root: string,
+  docsDir: string,
+): Promise<DocumentFile[]> => {
   const paths = [
     ...(await markdownFilesIn(root)),
-    ...(await markdownFilesIn(DOCS_DIR)),
+    ...(await markdownFilesIn(docsDir)),
   ];
   const files: DocumentFile[] = [];
   for (const path of paths) {

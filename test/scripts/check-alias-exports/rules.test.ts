@@ -60,6 +60,48 @@ describe("check-alias-exports rules", () => {
     expect(findIssues("six.ts", content)).toEqual([]);
   });
 
+  test("flags a rename spelled as a string", () => {
+    const issues = findIssues(
+      "eight.ts",
+      'import { TokenEntry } from "#routes/tickets/token-utils.ts";\n' +
+        'export { TokenEntry as "checkin-entry" };\n',
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.exported).toBe("checkin-entry");
+    expect(issues[0]?.target).toBe("TokenEntry");
+  });
+
+  test("flags a computed member reached through an import, by its own text", () => {
+    const issues = findIssues(
+      "nine.ts",
+      'import { byParent } from "#shared/parents.ts";\n' +
+        "export const getChildIds = byParent[choice];\n",
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.target).toBe("byParent[choice]");
+  });
+
+  test("lets a member reached through a local value stand", () => {
+    expect(
+      findIssues(
+        "eleven.ts",
+        "const local = { getIds: 1 };\n" +
+          "export const getChildIds = local.getIds;\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("lets a declared const with no value, and a destructured one, stand", () => {
+    expect(
+      findIssues(
+        "ten.ts",
+        'import { byParent } from "#shared/parents.ts";\n' +
+          "export declare const choice: string;\n" +
+          "export const { one } = byParent;\n",
+      ),
+    ).toEqual([]);
+  });
+
   test("reports each finding with the fix a reader needs", () => {
     const [issue] = findIssues(
       "seven.ts",

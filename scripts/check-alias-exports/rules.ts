@@ -59,51 +59,42 @@ const aliasIssue = (
   target,
 });
 
-/**
- * The name one side of an export clause goes by, however spelled: an
- * identifier (`x`) or a string (`"x-y"`).
- */
+/** The name one side of an export clause goes by: an identifier, or the
+ * string it was renamed to. Real syntax is always one of the two. */
 const clauseName = (
   part: ExportStatement["specifiers"][number]["exported"],
 ): string => {
   const identifier = part as { name?: unknown };
   if (typeof identifier.name === "string") return identifier.name;
   const literal = part as { value?: unknown };
-  if (typeof literal.value === "string") return literal.value;
-  throw new Error("An export clause names neither an identifier nor a string");
+  return literal.value as string;
 };
 
 /** One value expression in a parsed file, as its named parts. */
-type ValueNode = {
-  name?: unknown;
-  object?: unknown;
-  property?: unknown;
-  type?: unknown;
-};
-
-/** The name a value expression goes by, or null when it has none. */
-const valueName = (value: unknown): string | null => {
-  const node = value as ValueNode;
-  return typeof node.name === "string" ? node.name : null;
-};
+type ValueNode = { name?: unknown; type?: unknown };
 
 /**
  * The value an exported `const` renames, when it renames one at all: a whole
  * imported name (`system`), or a member reached through one
- * (`byParent.getIds`). Anything else — a call, a literal, a local — is the
- * value's own export.
+ * (`byParent.getIds`, `byParent[choice]`). A member takes its target from
+ * the source text, so a computed access keeps its own spelling. Anything
+ * else — a call, a literal, a local — is the value's own export.
  */
-const renamedValue = (value: unknown, imported: Set<string>): string | null => {
-  if (value === null || typeof value !== "object") return null;
-  const node = value as ValueNode;
-  if (node.type === "Identifier") {
-    const name = valueName(value);
-    return name !== null && imported.has(name) ? name : null;
+const renamedValue = (
+  value: unknown,
+  imported: Set<string>,
+  content: string,
+): string | null => {
+  const node = value as ValueNode | null;
+  if (node !== null && node.type === "Identifier") {
+    const name = (value as ValueNode).name;
+    return typeof name === "string" && imported.has(name) ? name : null;
   }
-  if (node.type === "MemberExpression") {
-    const base = renamedValue(node.object, imported);
-    const member = valueName(node.property);
-    return base === null || member === null ? null : `${base}.${member}`;
+  if (node !== null && node.type === "MemberExpression") {
+    const member = value as { object: unknown; end: number; start: number };
+    return renamedValue(member.object, imported, content) === null
+      ? null
+      : content.slice(member.start, member.end);
   }
   return null;
 };
@@ -142,7 +133,7 @@ const constValueAliases = (
     // A declared type adds a contract — the documented "thin wrapper that
     // adds a guard is not an alias" case, so an annotated export stands.
     if (declarator.id.typeAnnotation !== null) return [];
-    const renamed = renamedValue(declarator.init, scan.imported);
+    const renamed = renamedValue(declarator.init, scan.imported, scan.content);
     if (renamed === null) return [];
     return [aliasIssue(scan, declarator.start, declarator.id.name, renamed)];
   });
