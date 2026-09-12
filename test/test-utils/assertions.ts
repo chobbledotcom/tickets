@@ -118,16 +118,14 @@ export const fetchListingExportCsv = async (
 };
 
 export const expectJsonResponse =
-  // deno-lint-ignore no-explicit-any
-    <T = any>(status: number, assertions?: (body: T) => void) =>
-    async (response: Response): Promise<T> => {
-      expect(response.status).toBe(status);
-      const body = (await response.json()) as T;
-      assertions?.(body);
-      return body;
-    };
+  <T = any>(status: number, assertions?: (body: T) => void) =>
+  async (response: Response): Promise<T> => {
+    expect(response.status).toBe(status);
+    const body = (await response.json()) as T;
+    assertions?.(body);
+    return body;
+  };
 
-// deno-lint-ignore no-explicit-any
 export const assertJson = async <T = any>(
   request: Promise<Response>,
   status: number,
@@ -383,7 +381,6 @@ export const parseFlashCookie = (
 
 export const expectFlash = (
   response: Response,
-  // deno-lint-ignore no-explicit-any
   message: string | any,
   succeeded = true,
 ): Response => {
@@ -414,19 +411,18 @@ export const expectErrorFlash = (response: Response, text: string): void => {
 };
 
 export const expectRedirectWithFlash =
-  // deno-lint-ignore no-explicit-any
-    (location: string, message?: string | any, succeeded = true) =>
-    (response: Response): Response => {
-      const actualLocation = expectRedirect(response);
-      const url = new URL(actualLocation, "http://localhost");
-      const flashId = url.searchParams.get("flash");
-      expect(flashId).toBeDefined();
-      url.searchParams.delete("flash");
-      const clean = url.pathname + url.search + url.hash;
-      expect(clean).toBe(location);
-      expectFlash(response, message, succeeded);
-      return response;
-    };
+  (location: string, message?: string | any, succeeded = true) =>
+  (response: Response): Response => {
+    const actualLocation = expectRedirect(response);
+    const url = new URL(actualLocation, "http://localhost");
+    const flashId = url.searchParams.get("flash");
+    expect(flashId).toBeDefined();
+    url.searchParams.delete("flash");
+    const clean = url.pathname + url.search + url.hash;
+    expect(clean).toBe(location);
+    expectFlash(response, message, succeeded);
+    return response;
+  };
 
 /** Lazy default follow cookie: the owner test session, which can GET any admin
  *  page, so the destination renders for the common admin case without the
@@ -475,7 +471,6 @@ const sessionCookieFromResponse = (response: Response): string | null => {
 export const expectFlashRedirect =
   (
     location: string,
-    // deno-lint-ignore no-explicit-any
     message: string | any,
     succeeded = true,
     cookie?: string,
@@ -568,7 +563,6 @@ export const getHeader = (response: Response, name: string): string =>
 /** Assert `fn` throws an error of `errorClass` and (optionally) whose message
  *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
  *  idempotent predicates (validators, pure checks), not stateful operations. */
-// deno-lint-ignore no-explicit-any
 export const expectThrows = (
   fn: () => unknown,
   errorClass: any,

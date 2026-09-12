@@ -5,7 +5,6 @@ export const csrfPost = async (
   url: string,
   csrfToken: string,
   extraBody = "",
-  // deno-lint-ignore no-explicit-any
 ): Promise<any> => {
   const body = `csrf_token=${encodeURIComponent(csrfToken)}${extraBody}`;
   const res = await fetch(url, {

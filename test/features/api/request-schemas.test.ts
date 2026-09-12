@@ -7,7 +7,6 @@ import {
   PackageChildrenSchema,
 } from "#routes/api/request-schemas.ts";
 
-// deno-lint-ignore no-explicit-any
 type Schema = any;
 
 const parse = (schema: Schema, input: unknown) => v.safeParse(schema, input);

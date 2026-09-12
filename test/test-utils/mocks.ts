@@ -103,7 +103,6 @@ export const mockMultipartRequest = (
   const formData = new FormData();
   appendTestFormValues(formData, data);
   if (file) {
-    // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
   }
@@ -203,9 +202,7 @@ export const withMockBunnyCdnApi = async (
 ): Promise<void> => {
   const originals: Partial<typeof bunnyCdnApi> = {};
   for (const key of Object.keys(overrides) as (keyof typeof bunnyCdnApi)[]) {
-    // deno-lint-ignore no-explicit-any
     originals[key] = bunnyCdnApi[key] as any;
-    // deno-lint-ignore no-explicit-any
     bunnyCdnApi[key] = overrides[key] as any;
   }
   try {
@@ -484,7 +481,6 @@ export const stubReleaseFetch = (
   });
 
 export const useFetchStub = () => {
-  // deno-lint-ignore no-explicit-any
   type FetchStubRef = { current: any };
   const ref: FetchStubRef = { current: null };
 

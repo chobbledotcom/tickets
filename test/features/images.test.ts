@@ -42,7 +42,6 @@ describeWithEnv(
         const encrypted = await encryptBytes(imageData);
 
         await withCdnProxy(
-          // deno-lint-ignore no-explicit-any
           () => new Response(encrypted as any, { status: 200 }),
           async () => {
             const response = await proxyRequest();
