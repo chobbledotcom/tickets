@@ -4,6 +4,7 @@ import {
   getAllModifiers,
   type ModifierInput,
   modifiersTable,
+  setModifierAnswers,
 } from "#db/modifiers.ts";
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
@@ -126,4 +127,41 @@ export const expectModifierUsage = async (
 ): Promise<void> => {
   expect(await modifierUsageAmount(modifierId)).toBe(usageAmount);
   expect(await modifierAggregates(modifierId)).toEqual(aggregates);
+};
+
+/** Create a radio question with one answer on `listing`, plus a sold-out
+ * answer-triggered £5 charge modifier linked to that answer — the stock-limited
+ * tier shape behind the sold-out answer-tier tests. `overrides` retune the
+ * tier (minVisits, stock, name, …). */
+export const setupAnswerTier = async (
+  listing: { id: number },
+  overrides: Partial<ModifierInput> = {},
+): Promise<{ answerId: number; modifierId: number; questionId: number }> => {
+  const [{ answersTable, questionsTable }, { listingQuestions }] =
+    await Promise.all([
+      import("#db/questions/tables.ts"),
+      import("#db/questions/queries.ts"),
+    ]);
+  const question = await questionsTable.insert({
+    displayType: "radio",
+    text: "T-shirt size?",
+  });
+  const answer = await answersTable.insert({
+    questionId: question.id,
+    sortOrder: 0,
+    text: "Small",
+  });
+  await listingQuestions.setIds(listing.id, [question.id]);
+  const modifier = await insertModifier({
+    name: "VIP upgrade",
+    stock: 0,
+    trigger: "answer",
+    ...overrides,
+  });
+  await setModifierAnswers(modifier.id, [answer.id]);
+  return {
+    answerId: answer.id,
+    modifierId: modifier.id,
+    questionId: question.id,
+  };
 };

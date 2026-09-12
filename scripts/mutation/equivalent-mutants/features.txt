@@ -230,6 +230,7 @@ src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz
 src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
 src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit.ts::parseQuantityPrefill.promo~0tck3kx  ?? → ||   # URLSearchParams.get answers a string or null, and the only falsy string is the empty fallback
 src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3  ?? → ||   # URLSearchParams.get answers a string or null, and the only falsy string is the empty fallback
 src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3   → "mutated"   # an absent quantity uses the fallback, and both fallback strings fail the positive-integer parser
 src/features/public/ticket-submit.ts::renderTicketFlow.prefill~160lbzo  ?? → ||   # a supplied prefill is an object, so every present value is truthy

@@ -5,40 +5,25 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { modifiersTable, setModifierAnswers } from "#db/modifiers.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
-import { extractCsrfToken } from "#test-utils/csrf.ts";
+import { postRunningTotal } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { setupAnswerTier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-/** GET the booking page for `pageSlug` to mint a CSRF token, then POST the
- * given inputs to `/calculate/<postSlug>` exactly as the running total would. */
-const calculate = async (
-  pageSlug: string,
-  postSlug: string,
-  data: Record<string, string>,
-): Promise<Response> => {
-  const page = await handleRequest(mockRequest(`/ticket/${pageSlug}`));
-  const csrf = extractCsrfToken(await page.text()) ?? "";
-  return handleRequest(
-    mockFormRequest(`/calculate/${postSlug}`, { csrf_token: csrf, ...data }),
-  );
-};
 
 /** POST a quote for a single-slug page (page and post slug are the same) and
  * return just its HTML. */
 const quote = async (
   slug: string,
   data: Record<string, string>,
-): Promise<string> => (await calculate(slug, slug, data)).text();
+): Promise<string> => (await postRunningTotal(slug, slug, data)).text();
 
 /** Quote a package by its package count and return the summary HTML. */
 const quotePackage = (
@@ -56,7 +41,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       unitPrice: 1500,
     });
 
-    const response = await calculate(listing.slug, listing.slug, {
+    const response = await postRunningTotal(listing.slug, listing.slug, {
       [`quantity_${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
@@ -91,7 +76,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       { listingId: member.id, price: null },
     ]);
 
-    const response = await calculate(group.slug, group.slug, {
+    const response = await postRunningTotal(group.slug, group.slug, {
       [`package_quantity_${group.id}`]: "1",
     });
     expect(response.status).toBe(200);
@@ -166,7 +151,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ]);
 
     // "abc" → 0 packages → empty order.
-    const response = await calculate(group.slug, group.slug, {
+    const response = await postRunningTotal(group.slug, group.slug, {
       [`package_quantity_${group.id}`]: "abc",
     });
     expect(await response.text()).toContain("select at least one");
@@ -264,7 +249,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
 
     const html = await (
-      await calculate(listing.slug, listing.slug, {
+      await postRunningTotal(listing.slug, listing.slug, {
         [`quantity_${listing.id}`]: "2",
       })
     ).text();
@@ -287,7 +272,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
 
     // No name/email/phone sent — a quote must not require them.
-    const response = await calculate(listing.slug, listing.slug, {
+    const response = await postRunningTotal(listing.slug, listing.slug, {
       [`quantity_${listing.id}`]: "3",
     });
     expect(response.status).toBe(200);
@@ -297,7 +282,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   test("shows a prompt when nothing is selected", async () => {
     const listing = await createTestListing({ maxQuantity: 5, name: "Seat" });
 
-    const response = await calculate(listing.slug, listing.slug, {
+    const response = await postRunningTotal(listing.slug, listing.slug, {
       [`quantity_${listing.id}`]: "0",
     });
     expect(response.status).toBe(200);
@@ -330,7 +315,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       unitPrice: 2000,
     });
 
-    const response = await calculate("festival", "festival", {
+    const response = await postRunningTotal("festival", "festival", {
       [`quantity_${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
@@ -351,7 +336,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
 
     const html = await (
-      await calculate(listing.slug, listing.slug, {
+      await postRunningTotal(listing.slug, listing.slug, {
         [`quantity_${listing.id}`]: "1",
       })
     ).text();
@@ -369,7 +354,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
 
     const html = await (
-      await calculate(listing.slug, listing.slug, {
+      await postRunningTotal(listing.slug, listing.slug, {
         [`quantity_${listing.id}`]: "1",
       })
     ).text();
@@ -380,36 +365,18 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   test("rejects a sold-out answer tier in the quote", async () => {
     await setupStripe();
     const listing = await createTestListing({ maxAttendees: 50 });
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: "T-shirt size?",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Small",
-    });
-    await listingQuestions.setIds(listing.id, [question.id]);
     // A stock-limited answer tier with no stock left, selected by the quote.
-    const tier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
-      direction: "charge",
-      name: "VIP upgrade",
-      stock: 0,
-      trigger: "answer",
-    });
-    await setModifierAnswers(tier.id, [answer.id]);
+    const { answerId, modifierId, questionId } = await setupAnswerTier(listing);
 
     const selection = {
-      [`question_${question.id}`]: String(answer.id),
+      [`question_${questionId}`]: String(answerId),
       [`quantity_${listing.id}`]: "1",
     };
     expect(await quote(listing.slug, selection)).toContain(
       "no longer available",
     );
 
-    await modifiersTable.update(tier.id, { minVisits: 1 });
+    await modifiersTable.update(modifierId, { minVisits: 1 });
     expect(await quote(listing.slug, selection)).not.toContain(
       "no longer available",
     );
@@ -431,7 +398,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     );
     try {
       const html = await (
-        await calculate(listing.slug, listing.slug, {
+        await postRunningTotal(listing.slug, listing.slug, {
           [`quantity_${listing.id}`]: "1",
         })
       ).text();
@@ -552,7 +519,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
 
     const html = await (
-      await calculate(listing.slug, listing.slug, {
+      await postRunningTotal(listing.slug, listing.slug, {
         [`quantity_${listing.id}`]: "1",
       })
     ).text();
