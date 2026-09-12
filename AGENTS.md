@@ -1200,12 +1200,12 @@ query logging and table-scoped cache invalidation stay automatic.
   [Offensive Programming](#offensive-programming--never-suppress-errors))
 - `deno task check:file-lengths` - Hold code and test files under ~400 lines,
   against the accepted list that only shrinks. Pass `--update` after splitting a
-  file to re-record the list; it refuses a rise, so growth must be split first
-  (see "Keep code and test files under ~400 lines" above)
+  file to re-record the list. The update refuses a rise, so growth must be split
+  first (see "Keep code and test files under ~400 lines" above)
 - `deno task check:ste` - Hold the repository Markdown to the mechanical
   Simplified Technical English rules, against per-document, per-rule baselines
-  that only fall. Pass `--update` after fixing prose to re-record them; it
-  refuses a rise, so new findings must be fixed first (see
+  that only fall. Pass `--update` after fixing prose to re-record them. The
+  update refuses a rise, so new findings must be fixed first (see
   [Simplified Technical English](#simplified-technical-english--how-we-write-documentation))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The branch mutation gate: mutation-test every
