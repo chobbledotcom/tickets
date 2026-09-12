@@ -71,7 +71,8 @@ describe("sumup createCheckout", () => {
       // 2 tickets * 1000 minor units = 2000 minor => 20 major units
       expect(capture.sent().amount).toBe(20);
       expect(capture.sent().currency).toBe("GBP");
-      expect(capture.sent().description).toBe("Tickets (x2)");
+      // The whole order sits on one listing, so it is named for that listing.
+      expect(capture.sent().description).toBe("Evt (x2)");
       expect(capture.sent().hosted_checkout).toEqual({ enabled: true });
       expect(capture.sent().merchant_code).toBe("MC123");
       expect(String(capture.sent().redirect_url)).toContain(
@@ -110,7 +111,7 @@ describe("sumup createCheckout", () => {
         "http://localhost",
       );
       // 2 tickets on the first listing + 3 on the second = 5 tickets: the
-      // order label counts tickets, not the listings they sit on.
+      // mixed order keeps the plain Tickets label with the ticket count.
       expect(capture.sent().description).toBe("Tickets (x5)");
     });
   });

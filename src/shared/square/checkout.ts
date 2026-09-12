@@ -8,7 +8,7 @@ import {
   rejectedBuyerFieldOf,
 } from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { ticketsCountText, xCount } from "#shared/count-text.ts";
+import { countedText, xCount } from "#shared/count-text.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
@@ -137,7 +137,7 @@ export const createSquarePaymentLink = async (
           currency,
         },
         name: `Ticket: ${line.item.name}`,
-        note: ticketsCountText(line.quantity),
+        note: countedText("Tickets", line.quantity),
         quantity: String(line.quantity),
       }),
     },

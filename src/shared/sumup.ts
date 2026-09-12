@@ -21,7 +21,7 @@ import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 /* jscpd:ignore-start */
 import { type PricedLine, priceCheckout } from "#shared/checkout-pricing.ts";
-import { ticketsCountText } from "#shared/count-text.ts";
+import { countedText, orderLabel } from "#shared/count-text.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -180,7 +180,8 @@ export const sumupApi: {
           amount: Number(toMajorUnits(totalMinor)),
           checkout_reference: reference,
           currency: settings.currency.toUpperCase(),
-          description: ticketsCountText(
+          description: countedText(
+            orderLabel(order.lines),
             sumOf((line: PricedLine) => line.quantity)(order.lines),
           ),
           hosted_checkout: { enabled: true },
