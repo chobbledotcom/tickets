@@ -316,7 +316,7 @@ export const LISTING_FIELDS = [
     visible: false,
   },
   {
-    hint: "How many months the site stays active after purchase. Required when assigning a built site.",
+    hint: "How many months the site starts with for each unit bought. Required when assigning a built site.",
     label: "Initial site months (built site listings only)",
     max: 120,
     min: 0,
@@ -326,7 +326,7 @@ export const LISTING_FIELDS = [
     visible: false,
   },
   {
-    hint: "Automatically assign a built site to each ticket purchased for this listing",
+    hint: "Automatically assign a site when someone books this listing. Quantity buys months, not extra sites.",
     label: "Assign built site",
     name: "assign_built_site",
     options: [

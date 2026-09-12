@@ -25,6 +25,7 @@ import { renderChildBlock } from "./child-block.ts";
 import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
 import {
+  monthLabelsForListing,
   quantityOptions,
   restoredPackageQuantity,
   restoredQuantity,
@@ -74,6 +75,7 @@ const listingControls = (
       : `<select name="${fieldName}">${quantityOptions(
           maxPurchasable,
           restoredQuantity(listing.id, prefill, maxPurchasable),
+          monthLabelsForListing(listing),
         )}</select>`,
   };
 };
@@ -143,17 +145,25 @@ const renderPackageMemberRow = (
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
   attributes?: AttributeWithOptions[],
-): string => `
+): string => {
+  // A plan member's fixed count buys months, so the row says what it grants:
+  // ×2 beside a "(1 Month)" plan is two months per package, not two sites.
+  const monthsLabel = monthLabelsForListing(info.listing);
+  const quantity = monthsLabel
+    ? `&times;${fixedQty} (${monthsLabel(fixedQty)})`
+    : `&times;${fixedQty}`;
+  return `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(
         info.listing.name,
-      )} <span class="package-member-qty">&times;${fixedQty}</span></label>
+      )} <span class="package-member-qty">${quantity}</span></label>
       ${renderListingDescription(info.listing.description)}
       ${renderListingAttributes(attributes)}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
+};
 
 /** One package's booking controls: its "number of packages" selector, then each
  * member row (each showing its fixed quantity) — unless the package hides its
@@ -222,6 +232,12 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
+/** A built-site plan sells months of service, not tickets. */
+const quantityLabel = (listing: TicketListing["listing"]): string =>
+  listing.assign_built_site
+    ? t("public.ticket.number_of_months")
+    : t("public.ticket.number_of_tickets");
+
 /** Controls for one listing — quantity and pay-more — without its details. */
 const renderSingleListingControls = (
   info: TicketListing,
@@ -233,7 +249,7 @@ const renderSingleListingControls = (
   const controls = listingControls(info, node, hideQuantity, prefill, childCtx);
   const labelledQuantity = hideQuantity
     ? controls.quantityHtml
-    : `<label>${t("public.ticket.number_of_tickets")}${controls.quantityHtml}</label>`;
+    : `<label>${quantityLabel(info.listing)}${controls.quantityHtml}</label>`;
   return `${labelledQuantity}${controls.priceHtml}${controls.childBlock}`;
 };
 

@@ -122,8 +122,14 @@ describeWithEnv(
     let fetchStub: Stub;
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
 
+    /** Three entries that each need one site — the mixed-order case. One
+     *  attendee takes quantity 2 to pin that quantity buys months, not sites. */
     const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
-      await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+      await assignAndNotifyBuiltSites([
+        siteEntry({ attendeeId: 11 }),
+        siteEntry({ attendeeId: 12, quantity: 2 }),
+        siteEntry({ attendeeId: 13 }),
+      ]);
       const sites = await builtSites.getAll();
       const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
       expect(assigned).toHaveLength(3);
@@ -203,14 +209,14 @@ describeWithEnv(
     const silencedErrors = () => stub(console, "error", () => {});
 
     describe("assignAndNotifyBuiltSites", () => {
-      test("assigns one site per ticket and sends email", async () => {
+      test("assigns one site per booking and sends email", async () => {
         await insertSitesAAndB();
 
         await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
 
         const sites = await builtSites.getAll();
         const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-        expect(assigned).toHaveLength(2);
+        expect(assigned).toHaveLength(1);
         expect(assigned.every((s) => !s.assignable)).toBe(true);
         expect(fetchStub.calls.length).toBe(1);
       });
@@ -253,6 +259,24 @@ describeWithEnv(
           const existing = sites.find((s) => s.name === "Site A")!;
           expect(existing.assignedAttendeeId).toBeNull();
           expect(buildStub.calls.length).toBe(1);
+          expect(fetchStub.calls.length).toBe(0);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
+      test("each entry still attempts its own build after one build fails", async () => {
+        const buildStub = stubBuildSiteFailure();
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11, quantity: 2 }),
+            siteEntry({ attendeeId: 12 }),
+          ]);
+
+          expect(buildStub.calls.length).toBe(2);
+          const sites = await builtSites.getAll();
+          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(0);
           expect(fetchStub.calls.length).toBe(0);
         } finally {
           buildStub.restore();
@@ -324,7 +348,10 @@ describeWithEnv(
           builtNames.push(input.siteName);
         });
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11 }),
+            siteEntry({ attendeeId: 12 }),
+          ]);
 
           expect(builtNames).toEqual(["00002", "00003"]);
         } finally {
@@ -543,34 +570,37 @@ describeWithEnv(
         );
       });
 
-      test("with quantity=3, three independent tokens and secret pushes are created", async () => {
+      test("with quantity=3, one site is assigned with months = initial x quantity", async () => {
         await createTierListing();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2003");
-        await insertBuiltSite("Site B", "b.test.net", "", "", true, "2004");
 
-        const buildStub = stubBuildSiteSuccess();
-        try {
-          const assigned = await assignAndCollectThreeSites();
+        await assignAndNotifyBuiltSites([
+          siteEntry({ initialSiteMonths: 3, quantity: 3 }),
+        ]);
 
-          const tokens = assigned.map((s) => s.renewalToken);
-          const nonNullTokens = tokens.filter((t): t is string => t !== null);
-          expect(nonNullTokens).toHaveLength(3);
+        const all = await builtSites.getAll();
+        const assigned = all.filter((s) => s.assignedAttendeeId !== null);
+        expect(assigned).toHaveLength(1);
+        await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 9).slice(0, 10),
+        );
+        // One site means the singular "Your new site is ready" email.
+        expectLastEmailBody({ subject: "Your new site is ready" });
+        expect(
+          secretStub.calls.filter((c) => c.args[1] === "READ_ONLY_FROM"),
+        ).toHaveLength(1);
+      });
 
-          const uniqueTokens = new Set(nonNullTokens);
-          expect(uniqueTokens.size).toBe(3);
+      test("a no-quantity line books no site and sends no email", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-          const rofCalls = secretStub.calls.filter(
-            (c) => c.args[1] === "READ_ONLY_FROM",
-          );
-          expect(rofCalls).toHaveLength(3);
-          const renewalUrlCalls = secretStub.calls.filter(
-            (c) => c.args[1] === "RENEWAL_URL",
-          );
-          expect(renewalUrlCalls).toHaveLength(3);
-        } finally {
-          buildStub.restore();
-        }
+        await assignAndNotifyBuiltSites([siteEntry({ quantity: 0 })]);
+
+        const sites = await builtSites.getAll();
+        expect(sites[0]!.assignedAttendeeId).toBeNull();
+        expect(fetchStub.calls.length).toBe(0);
       });
 
       test("Bunny push failure on one site of three leaves that site's readOnlyFrom empty, others persist", async () => {
@@ -598,7 +628,11 @@ describeWithEnv(
         );
         const buildStub = stubBuildSiteSuccess();
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11 }),
+            siteEntry({ attendeeId: 12 }),
+            siteEntry({ attendeeId: 13 }),
+          ]);
 
           const allSites = await builtSites.getAll();
           const assigned = allSites.filter(

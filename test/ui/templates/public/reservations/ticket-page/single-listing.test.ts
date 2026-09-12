@@ -149,6 +149,23 @@ describe("ticketPage (single listing)", () => {
     expect(html).not.toContain('<option value="4">4</option>');
   });
 
+  test("a built-site plan sells months, not tickets", () => {
+    const planListing = testListingWithCount({
+      assign_built_site: true,
+      attendee_count: 0,
+      initial_site_months: 3,
+      max_quantity: 5,
+    });
+    const html = renderTicket(planListing);
+    expect(html).toContain("Number of months");
+    // Each option states the months it buys: three units of a three-month
+    // plan are nine months.
+    expect(html).toContain('<option value="1">3 months</option>');
+    expect(html).toContain('<option value="3">9 months</option>');
+    expect(html).not.toContain("Number of Tickets");
+    expect(html).not.toContain('">3</option>');
+  });
+
   test("hides quantity selector when max_quantity is 1", () => {
     const html = renderTicket(listing); // max_quantity is 1
     expect(html).not.toContain("Number of Tickets");

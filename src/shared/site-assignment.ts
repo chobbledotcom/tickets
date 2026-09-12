@@ -4,6 +4,7 @@
  * All assignment logic is gated behind CAN_BUILD_SITES.
  */
 
+/* jscpd:ignore-start */
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -14,7 +15,7 @@ import {
 } from "#db/built-sites.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-import { range, sort } from "#fp";
+import { sort } from "#fp";
 import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
@@ -29,6 +30,8 @@ import {
 } from "#shared/site-assignment-failure.ts";
 import { buildAssignableSite } from "#shared/site-build.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
+
+/* jscpd:ignore-end */
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {
@@ -273,7 +276,8 @@ export const rotateRenewalToken = async (
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
-/** Assign a site and provision its renewal token. */
+/** Assign a site and provision its renewal. On a site plan the quantity the
+ *  buyer chose is months of service on one site, not extra sites. */
 const assignSiteWithRenewal = async ({
   attendee,
   listing,
@@ -282,7 +286,7 @@ const assignSiteWithRenewal = async ({
   await assignBuiltSite(site.id, attendee.id, listing.id);
   await provisionSiteRenewal(
     site,
-    listing.initial_site_months,
+    listing.initial_site_months * attendee.quantity,
     `Failed to push initial renewal secrets for site ${site.id}`,
   );
   return { listingName: listing.name, siteUrl: site.siteUrl };
@@ -310,14 +314,13 @@ const assignSitesForEntries = async (
   const available = [...(await getAssignableBuiltSites())].reverse();
 
   for (const { listing, attendee } of needsSite) {
-    for (const _unit of range(0, attendee.quantity)) {
-      const site = available.pop() ?? (await buildAssignableSite());
-      if (!site) break;
+    // A no-quantity line buys nothing, so it books no site.
+    if (attendee.quantity < 1) continue;
+    const site = available.pop() ?? (await buildAssignableSite());
+    // A failed build must not cost later entries their own attempt.
+    if (!site) continue;
 
-      assignments.push(
-        await assignSiteWithRenewal({ attendee, listing, site }),
-      );
-    }
+    assignments.push(await assignSiteWithRenewal({ attendee, listing, site }));
   }
 
   return assignments;

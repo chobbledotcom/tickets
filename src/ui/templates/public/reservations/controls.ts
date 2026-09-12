@@ -77,19 +77,36 @@ export const renderDayCountSelector = (
  * demanding a price for an UNSELECTED child; the server validates only the chosen
  * child's price. */
 export const renderPayMoreInput = (
-  listing: Pick<ListingWithCount, "unit_price" | "max_price">,
+  listing: Pick<
+    ListingWithCount,
+    "assign_built_site" | "initial_site_months" | "max_price" | "unit_price"
+  >,
   fieldName = "custom_price",
   prefillMinor?: number,
   required = true,
 ): string => {
   const minPrice = listing.unit_price;
   const maxPrice = listing.max_price;
+  // One priced unit of a site plan is its whole initial term, not one month.
+  const pricedMonths = listing.assign_built_site
+    ? listing.initial_site_months
+    : undefined;
   const rangeHint =
     minPrice > 0
-      ? t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
-      : t("public.ticket.your_price_optional", {
-          max: formatCurrency(maxPrice),
-        });
+      ? pricedMonths
+        ? t("public.ticket.your_price_plan_min", {
+            count: pricedMonths,
+            min: formatCurrency(minPrice),
+          })
+        : t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
+      : pricedMonths
+        ? t("public.ticket.your_price_plan_optional", {
+            count: pricedMonths,
+            max: formatCurrency(maxPrice),
+          })
+        : t("public.ticket.your_price_optional", {
+            max: formatCurrency(maxPrice),
+          });
   const prefillValue =
     prefillMinor !== undefined && prefillMinor >= minPrice
       ? prefillMinor
