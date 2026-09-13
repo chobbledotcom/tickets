@@ -65,4 +65,20 @@ describe("the promo-code box", () => {
       clearSavedFormData();
     }
   });
+
+  test("keeps the box empty when the buyer cleared the code", () => {
+    setSavedFormData(new FormParams({ promo_code: "" }));
+    try {
+      const html = singleListingPageHtml({
+        prefill: { listings: new Map(), promo: "url-code" },
+        promoCodesEnabled: true,
+      });
+      expect(html).toContain(
+        'name="promo_code" placeholder="Optional" type="text" value=""',
+      );
+      expect(html).not.toContain('value="url-code"');
+    } finally {
+      clearSavedFormData();
+    }
+  });
 });
