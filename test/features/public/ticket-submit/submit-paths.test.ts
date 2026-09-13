@@ -5,10 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { getDb } from "#db/client.ts";
 import { type ModifierInput, modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -24,6 +22,7 @@ import {
 } from "#test-utils/email.ts";
 import { awaitTestRequest, useFetchStub } from "#test-utils/mocks.ts";
 import { setupAnswerTier } from "#test-utils/modifiers.ts";
+import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Select Square as the payment provider without giving it credentials, so
@@ -66,16 +65,6 @@ const expectReturningBuyerRejectedForEmail = async (
   });
 
   expectFlash(response, expect.stringContaining("Email is required"), false);
-};
-
-/** Turn the public-default status into a reservation charging `amount`, so a
- * booking without a provider still faces a deposit split. */
-const setPublicReservation = async (amount: string): Promise<void> => {
-  await getDb().execute({
-    args: [amount],
-    sql: "UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ? WHERE is_public_default = 1",
-  });
-  attendeeStatuses.invalidate();
 };
 
 describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
