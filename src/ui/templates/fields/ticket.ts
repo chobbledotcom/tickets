@@ -17,10 +17,10 @@ import {
 } from "#shared/listing-fields.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import {
+  CONTACT_FIELD_LENGTH,
   MAX_ADDRESS_LENGTH,
-  MAX_CONTACT_LENGTH,
-  MAX_PHONE_LENGTH,
   MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  PHONE_FIELD_LENGTH,
   validateAddress,
   validateEmail,
   validateName,
@@ -45,7 +45,7 @@ export type { ContactInfo };
 const nameField: Field = {
   autocomplete: "name",
   label: "Your Name",
-  maxlength: MAX_CONTACT_LENGTH,
+  maxlength: CONTACT_FIELD_LENGTH,
   name: "name",
   required: true,
   type: "text",
@@ -56,7 +56,7 @@ const nameField: Field = {
 const emailField: Field = {
   autocomplete: "email",
   label: "Your Email",
-  maxlength: MAX_CONTACT_LENGTH,
+  maxlength: CONTACT_FIELD_LENGTH,
   name: "email",
   required: true,
   type: "email",
@@ -81,7 +81,7 @@ export const SUBDOMAIN_INPUT_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?";
 const phoneField: Field = {
   autocomplete: "tel",
   label: "Your Phone Number",
-  maxlength: MAX_PHONE_LENGTH,
+  maxlength: PHONE_FIELD_LENGTH,
   name: "phone",
   pattern: PHONE_INPUT_PATTERN,
   required: true,

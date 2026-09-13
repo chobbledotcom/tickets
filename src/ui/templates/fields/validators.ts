@@ -18,7 +18,7 @@ import type {
   InputField,
   TextareaField,
 } from "#shared/forms/field.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   firstIssueMessage,
   normalizeSlug,
@@ -88,6 +88,19 @@ export const MAX_CONTACT_LENGTH = 250;
  */
 export const MAX_PHONE_LENGTH = 32;
 
+/**
+ * The contact-field caps that apply now: the Square metadata budgets above,
+ * or the operator's smaller input-length ceiling where one is configured.
+ * The contact validators and the hand-rendered inputs read these, so a
+ * smaller MAX_INPUT_LENGTH override tightens contact fields too — the same
+ * bound effectiveMaxLength applies to field-rendered inputs.
+ */
+export const CONTACT_FIELD_LENGTH = Math.min(
+  MAX_CONTACT_LENGTH,
+  MAX_INPUT_LENGTH,
+);
+export const PHONE_FIELD_LENGTH = Math.min(MAX_PHONE_LENGTH, MAX_INPUT_LENGTH);
+
 /** The phone's format: a digit (or plus) first, then digits, spaces, hyphens,
  *  parentheses, at least six characters in total. */
 const PhoneSchema = v.pipe(v.string(), v.regex(/^[+\d][\d\s\-()]{5,}$/));
@@ -109,7 +122,7 @@ const lengthThenFormat =
 
 /** Checks the email's format and keeps it inside the metadata entry budget. */
 export const validateEmail = lengthThenFormat(
-  MAX_CONTACT_LENGTH,
+  CONTACT_FIELD_LENGTH,
   "fields.validation.email_length",
   EmailFormatSchema,
   "fields.validation.email",
@@ -118,7 +131,7 @@ export const validateEmail = lengthThenFormat(
 /** Checks the phone number's format and keeps it inside the packed metadata
  *  entry it rides at Square. */
 export const validatePhone = lengthThenFormat(
-  MAX_PHONE_LENGTH,
+  PHONE_FIELD_LENGTH,
   "fields.validation.phone_length",
   PhoneSchema,
   "fields.validation.phone",
@@ -267,7 +280,7 @@ export const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
 
 /** Validate a buyer's contact name (must fit in payment metadata) */
 export const validateName = atMostLong(
-  MAX_CONTACT_LENGTH,
+  CONTACT_FIELD_LENGTH,
   "fields.validation.name_max",
 );
 

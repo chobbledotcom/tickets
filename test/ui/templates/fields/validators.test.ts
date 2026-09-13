@@ -5,10 +5,12 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   buildDescriptionField,
   buildHiddenField,
+  CONTACT_FIELD_LENGTH,
   getSlugField,
   getUsernameFieldBase,
   MAX_CONTACT_LENGTH,
   MAX_PHONE_LENGTH,
+  PHONE_FIELD_LENGTH,
   slugFieldBase,
   validateAddress,
   validateBookableDays,
@@ -236,6 +238,19 @@ describe("fields validators", () => {
     expect(getSlugField()).toHaveProperty("hint");
     expect(slugFieldBase().validate("Valid Slug")).toBeNull();
     rejects(slugFieldBase().validate, "!!!");
+  });
+
+  describe("the contact-field caps that apply now", () => {
+    // The clamped constants are the minimum of the Square budget and the
+    // configured input maximum, so every contact field obeys both the
+    // provider's 255-character metadata limit and the operator's ceiling.
+    test("name and email use the Square budget under the default ceiling", () => {
+      expect(CONTACT_FIELD_LENGTH).toBe(250);
+    });
+
+    test("phone uses its packed-entry budget under the default ceiling", () => {
+      expect(PHONE_FIELD_LENGTH).toBe(32);
+    });
   });
 
   describe("length-bounded text validators", () => {

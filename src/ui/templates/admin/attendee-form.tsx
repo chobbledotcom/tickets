@@ -42,8 +42,8 @@ import {
 } from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 import {
-  MAX_CONTACT_LENGTH,
-  MAX_PHONE_LENGTH,
+  CONTACT_FIELD_LENGTH,
+  PHONE_FIELD_LENGTH,
 } from "#templates/fields/validators.ts";
 import { type AdminSession, MAX_DURATION_DAYS } from "#types";
 
@@ -168,7 +168,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
         autocomplete="off"
         autofocus={!formHasError(data)}
         id="name"
-        maxlength={MAX_CONTACT_LENGTH}
+        maxlength={CONTACT_FIELD_LENGTH}
         name="name"
         required
         type="text"
@@ -183,7 +183,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
       <input
         autocomplete="off"
         id="email"
-        maxlength={MAX_CONTACT_LENGTH}
+        maxlength={CONTACT_FIELD_LENGTH}
         name="email"
         type="email"
         value={data.parsed.email || ""}
@@ -195,7 +195,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
       <input
         autocomplete="off"
         id="phone"
-        maxlength={MAX_PHONE_LENGTH}
+        maxlength={PHONE_FIELD_LENGTH}
         name="phone"
         pattern={PHONE_INPUT_PATTERN}
         title={t("attendee_form.phone_title")}

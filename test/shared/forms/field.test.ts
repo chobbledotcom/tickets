@@ -107,6 +107,22 @@ describe("effectiveMaxLength", () => {
     ).toBe(9);
   });
 
+  test("bounds a declared limit by the configured input maximum", () => {
+    // The contact fields declare 250 — a Square budget, tighter than the
+    // default 500 — and the bound keeps it at 250. With a smaller
+    // MAX_INPUT_LENGTH override the same bound tightens it further, so the
+    // configured maximum is the maximum everywhere, never just for the
+    // fields without a cap of their own.
+    expect(
+      effectiveMaxLength({
+        label: "X",
+        maxlength: 250,
+        name: "x",
+        type: "text",
+      }),
+    ).toBe(250);
+  });
+
   test("keeps a declared limit of zero rather than swapping in the default", () => {
     expect(
       effectiveMaxLength({ label: "X", maxlength: 0, name: "x", type: "text" }),
