@@ -22,6 +22,7 @@
   "schema.check.sumup_unknown_state": "A SumUp recovery record has a state this site does not know. The record and stored state follow.",
   "schema.check.sumup_checkout_id_mismatch": "A SumUp recovery record's state and checkout ID do not match. The record and stored state follow.",
   "schema.check.sumup_check_time_mismatch": "A SumUp recovery record's state and next check time do not match. The record and stored state follow.",
+  "schema.check.catalog_name_over_length": "A listing or group name is longer than the {budget} characters an order line accepts, so the payment provider will refuse its checkout. Shorten the name. The record follows.",
   "schema.unanswered.heading": "Money nobody has answered for",
   "schema.unanswered.intro": "These SumUp checkouts may hold money that is not matched to a booking or a refund. The site keeps them until they get a clear answer. Each row shows its state, its age, and its one-way code.",
   "schema.unanswered.none": "No SumUp checkout needs your attention.",

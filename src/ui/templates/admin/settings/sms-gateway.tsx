@@ -6,6 +6,7 @@ import { MASK_SENTINEL } from "#db/settings/mask.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
@@ -37,6 +38,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       {t("sms.settings.passphrase")}
       <input
         autocomplete="off"
+        maxlength={MAX_INPUT_LENGTH}
         minlength={SMS_PASSPHRASE_MIN_LENGTH}
         name="sms_gateway_passphrase"
         placeholder={t("sms.settings.passphrase_placeholder")}

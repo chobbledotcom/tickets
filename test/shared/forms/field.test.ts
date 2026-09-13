@@ -123,6 +123,21 @@ describe("effectiveMaxLength", () => {
     ).toBe(250);
   });
 
+  test("bounds a declared textarea limit by the configured textarea maximum", () => {
+    // The address and special-instructions fields declare 250 — Square
+    // budgets under the 10,240 default — and the bound keeps them at 250.
+    // A smaller MAX_TEXTAREA_LENGTH override tightens them the way the
+    // single-line bound tightens contact fields.
+    expect(
+      effectiveMaxLength({
+        label: "X",
+        maxlength: 250,
+        name: "x",
+        type: "textarea",
+      }),
+    ).toBe(250);
+  });
+
   test("keeps a declared limit of zero rather than swapping in the default", () => {
     expect(
       effectiveMaxLength({ label: "X", maxlength: 0, name: "x", type: "text" }),

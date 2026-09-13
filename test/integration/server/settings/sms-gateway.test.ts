@@ -54,6 +54,46 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       expect(settings.smsGatewayPassphrase).toBe("");
     });
 
+    test("rejects any field past the input length", async () => {
+      // The browser maxlength on each control is skipped by a crafted POST,
+      // so the server carries the cap for every single-line value, including
+      // newly chosen secrets (these choose a secret, they never re-enter one
+      // an older site stored). The URL stays structurally valid so the
+      // length refusal, not the format refusal, is what answers.
+      const { response } = await post({
+        sms_gateway_base_url: `https://sms.example.com/${"u".repeat(500)}`,
+        sms_gateway_passphrase: "p".repeat(501),
+        sms_gateway_password: "w".repeat(501),
+        sms_gateway_username: "user",
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        "Server URL (optional) must be 500 characters or fewer",
+        false,
+      );
+      expect(settings.smsGatewayUsername).toBe("");
+      expect(settings.smsGatewayPassphrase).toBe("");
+    });
+
+    test("rejects a newly chosen secret past the input length", async () => {
+      const { response } = await post({
+        sms_gateway_base_url: "https://sms.example.com",
+        sms_gateway_username: "user",
+        sms_gateway_webhook_secret: "s".repeat(501),
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        "Webhook signing secret (optional) must be 500 characters or fewer",
+        false,
+      );
+      expect(settings.smsGatewayUsername).toBe("");
+      expect(settings.smsGatewayWebhookSecret).toBe("");
+    });
+
     test("accepts a passphrase exactly at the minimum length", async () => {
       const { response } = await post({
         sms_gateway_passphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH),
