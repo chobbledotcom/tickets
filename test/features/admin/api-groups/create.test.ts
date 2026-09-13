@@ -28,6 +28,28 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
+    test("returns 400 when the name is longer than 500 characters", async () => {
+      // A concealed package order carries the group's name on Square's line
+      // items, so a name past the catalog length must be refused, not stored.
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { name: "G".repeat(501) },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("Name must be 500 characters or fewer");
+        },
+      );
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { name: "G".repeat(500) },
+          method: "POST",
+        }),
+        201,
+      );
+    });
+
     test("still creates when the read-back replica lags the just-committed write", async () => {
       // Regression (JSON API, shared crud write-back): after committing the row in
       // a transaction on the primary, the API read it back with a plain "read"-mode

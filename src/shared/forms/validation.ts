@@ -84,7 +84,10 @@ const validateFieldText = (field: Field, value: string): string | null => {
   }
   const maxlength = effectiveMaxLength(field);
   if (maxlength !== undefined && value.length > maxlength) {
-    return `${field.label} must be ${maxlength} characters or fewer`;
+    return t("fields.validation.max_length", {
+      label: field.label,
+      max: maxlength,
+    });
   }
   return null;
 };

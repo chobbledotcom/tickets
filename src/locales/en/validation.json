@@ -14,6 +14,8 @@
   "fields.validation.date": "Please enter a valid date (YYYY-MM-DD)",
   "fields.validation.url_https": "URL must use https://",
   "fields.validation.address_max": "Address must be {max} characters or fewer",
+  "fields.validation.email_length": "Email address must be {max} characters or fewer",
+  "fields.validation.max_length": "{label} must be {max} characters or fewer",
   "fields.validation.name_max": "Name must be {max} characters or fewer",
   "fields.validation.phone_length": "Phone number must be {max} characters or fewer",
   "fields.validation.special_instructions_max": "Special instructions must be {max} characters or fewer",

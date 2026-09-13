@@ -202,10 +202,10 @@ describe("validatePhone", () => {
   });
 
   test("rejects a phone number too long for checkout metadata", () => {
-    expect(validatePhone(`+1${"2".repeat(249)}`)).toBe(
-      "Phone number must be 250 characters or fewer",
+    expect(validatePhone("2".repeat(33))).toBe(
+      "Phone number must be 32 characters or fewer",
     );
-    expect(validatePhone(`+1${"2".repeat(248)}`)).toBeNull();
+    expect(validatePhone("2".repeat(32))).toBeNull();
   });
 });
 

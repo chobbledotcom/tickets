@@ -35,12 +35,14 @@ import {
   type ListingGroupMembership,
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
-import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import {
+  catalogNameLengthError,
+  isNameTakenAnywhere,
+} from "#db/name-registry.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
@@ -411,9 +413,8 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
 
 /** The listing name's own checks. It must be unique across BOTH listings and
  *  groups (create and edit alike), so the catalog can be referenced by name
- *  for import/export. It also travels to every payment provider on the order
- *  ("Ticket: <name>" at Square caps at 512 characters), so it stays at the
- *  input length limit. */
+ *  for import/export. Its length is capped by the shared catalog-name rule —
+ *  see {@link catalogNameLengthError}. */
 const listingNameError = async (
   name: string,
   existingId?: number,
@@ -423,10 +424,7 @@ const listingNameError = async (
     existingId === undefined ? undefined : { id: existingId, kind: "listing" },
   );
   if (nameTaken) return t("error.name_in_use");
-  if (name.length > MAX_INPUT_LENGTH) {
-    return t("fields.validation.name_max", { max: MAX_INPUT_LENGTH });
-  }
-  return null;
+  return catalogNameLengthError(name);
 };
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */

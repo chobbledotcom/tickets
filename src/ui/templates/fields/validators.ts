@@ -59,49 +59,70 @@ export const validateNonNegativeInteger =
       : `${label} must be 0 or greater`;
   };
 
+/** One field's answer to a submitted value: why it was refused, or null. */
+type ValueCheck = (value: string) => string | null;
+
 /** Refuses a value the schema turns down, with the message that says why. */
 const checkedBy =
   <TSchema extends v.GenericSchema>(
     schema: TSchema,
     messageKey: string,
     values?: Record<string, number>,
-  ): ((value: string) => string | null) =>
+  ): ValueCheck =>
   (value) =>
     v.is(schema, value) ? null : t(messageKey, values);
 
 /** Refuses text longer than a field allows, naming the limit in the message. */
-const atMostLong = (
-  max: number,
-  messageKey: string,
-): ((value: string) => string | null) =>
+const atMostLong = (max: number, messageKey: string): ValueCheck =>
   checkedBy(v.pipe(v.string(), v.maxLength(max)), messageKey, { max });
 
-/** Max length for a buyer's contact field — name, email, or phone (must fit
- *  in payment metadata: Square packs every contact field into one 255-char
- *  metadata entry, so each string stays at 250). */
+/** Max length for a buyer's contact field — name or email (must fit in payment
+ *  metadata: Square stores each as its own 255-character value, so 250 fits). */
 export const MAX_CONTACT_LENGTH = 250;
 
 /**
- * Validate email format
+ * Max length for a buyer's phone number. Square packs the phone into one
+ * 255-character metadata entry TOGETHER with the other small fields (see
+ * PACKED_KEYS), so the number must stay short enough that the mounted JSON
+ * fits — well under the 250 the top-level contact entries allow.
  */
-export const validateEmail = checkedBy(
-  v.pipe(EmailFormatSchema, v.maxLength(MAX_CONTACT_LENGTH)),
+export const MAX_PHONE_LENGTH = 32;
+
+/** The phone's format: a digit (or plus) first, then digits, spaces, hyphens,
+ *  parentheses, at least six characters in total. */
+const PhoneSchema = v.pipe(v.string(), v.regex(/^[+\d][\d\s\-()]{5,}$/));
+
+/** A contact-field validator: refuse a value past its length limit with the
+ *  message that names the limit, then check the value's format — a too-long
+ *  value answered by the format message would misname its own problem. */
+const lengthThenFormat =
+  (
+    maxLength: number,
+    lengthMessageKey: string,
+    formatSchema: v.GenericSchema<string>,
+    formatMessageKey: string,
+  ): ValueCheck =>
+  (value) =>
+    value.length > maxLength
+      ? t(lengthMessageKey, { max: maxLength })
+      : checkedBy(formatSchema, formatMessageKey)(value);
+
+/** Checks the email's format and keeps it inside the metadata entry budget. */
+export const validateEmail = lengthThenFormat(
+  MAX_CONTACT_LENGTH,
+  "fields.validation.email_length",
+  EmailFormatSchema,
   "fields.validation.email",
 );
 
-/**
- * Validate phone number format
- */
-const PhoneSchema = v.pipe(
-  v.string(),
-  // Allow digits, spaces, hyphens, parentheses, plus sign
-  v.regex(/^[+\d][\d\s\-()]{5,}$/),
+/** Checks the phone number's format and keeps it inside the packed metadata
+ *  entry it rides at Square. */
+export const validatePhone = lengthThenFormat(
+  MAX_PHONE_LENGTH,
+  "fields.validation.phone_length",
+  PhoneSchema,
+  "fields.validation.phone",
 );
-
-export const validatePhone = (value: string): string | null =>
-  value.length > MAX_CONTACT_LENGTH
-    ? t("fields.validation.phone_length", { max: MAX_CONTACT_LENGTH })
-    : checkedBy(PhoneSchema, "fields.validation.phone")(value);
 
 /** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
 const UsernameSchema = v.pipe(

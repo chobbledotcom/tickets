@@ -30,7 +30,10 @@ import {
 } from "#db/groups.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
-import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import {
+  catalogNameLengthError,
+  isNameTakenAnywhere,
+} from "#db/name-registry.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
@@ -127,6 +130,8 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
     id === undefined ? undefined : { id: Number(id), kind: "group" },
   );
   if (nameTaken) return t("error.name_in_use");
+  const nameLengthError = catalogNameLengthError(input.name);
+  if (nameLengthError) return nameLengthError;
   const slugError = await validateGroupSlug(input, id);
   if (slugError) return slugError;
   if (id === undefined) return null;

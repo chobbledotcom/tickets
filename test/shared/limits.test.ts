@@ -5,6 +5,7 @@ import {
   ADDRESS_CACHE_MS,
   ADDRESS_LOOKUP_LOCKOUT_MS,
   ATTACHMENT_URL_MAX_AGE_S,
+  assertInputLengthSafe,
   assertPaymentsRetentionSafe,
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
@@ -21,6 +22,7 @@ import {
   MAX_BACKUPS,
   MAX_EMAIL_TEMPLATES,
   MAX_IMAGE_SIZE,
+  MAX_INPUT_LENGTH,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
   PRUNE_CONTACTS_RETENTION_DAYS,
@@ -35,6 +37,7 @@ import {
   readLimit,
   SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
+  SQUARE_NAME_BUDGET,
   STALE_RESERVATION_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
@@ -125,6 +128,37 @@ describe("limits", () => {
       expect(PRUNE_PAYMENTS_RETENTION_DAYS).toBeGreaterThanOrEqual(
         WEBHOOK_RETRY_WINDOW_DAYS,
       );
+    });
+  });
+
+  describe("assertInputLengthSafe", () => {
+    test("uses the catalog-name budget Square's line-item names leave", () => {
+      expect(SQUARE_NAME_BUDGET).toBe(504);
+    });
+
+    test("returns the value when it fits the Square budget", () => {
+      expect(assertInputLengthSafe(MAX_INPUT_LENGTH)).toBe(MAX_INPUT_LENGTH);
+      expect(assertInputLengthSafe(SQUARE_NAME_BUDGET)).toBe(
+        SQUARE_NAME_BUDGET,
+      );
+    });
+
+    test("throws when the ceiling exceeds the Square budget", () => {
+      // A ceiling above 504 would let an operator save a catalog name that
+      // Square refuses at checkout ("Ticket: " + name caps at 512), so an
+      // unsafe override must fail loudly at startup instead.
+      expect(() => assertInputLengthSafe(SQUARE_NAME_BUDGET + 1)).toThrow(
+        "MAX_INPUT_LENGTH=505 is above the 504-character catalog-name budget " +
+          "Square's 512-character line-item names leave. A longer limit would " +
+          "let an operator save a name that Square later refuses at checkout. " +
+          "Set it to 504 or below (the default is 500).",
+      );
+    });
+
+    test("the live input length satisfies its own ceiling", () => {
+      // MAX_INPUT_LENGTH is validated at import; pin the invariant so a future
+      // default change can't silently break Square checkouts.
+      expect(MAX_INPUT_LENGTH).toBeLessThanOrEqual(SQUARE_NAME_BUDGET);
     });
   });
 

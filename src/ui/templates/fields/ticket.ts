@@ -19,6 +19,7 @@ import { renderAddressLookupPanel } from "#templates/components/address-lookup.t
 import {
   MAX_ADDRESS_LENGTH,
   MAX_CONTACT_LENGTH,
+  MAX_PHONE_LENGTH,
   MAX_SPECIAL_INSTRUCTIONS_LENGTH,
   validateAddress,
   validateEmail,
@@ -80,7 +81,7 @@ export const SUBDOMAIN_INPUT_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?";
 const phoneField: Field = {
   autocomplete: "tel",
   label: "Your Phone Number",
-  maxlength: MAX_CONTACT_LENGTH,
+  maxlength: MAX_PHONE_LENGTH,
   name: "phone",
   pattern: PHONE_INPUT_PATTERN,
   required: true,
