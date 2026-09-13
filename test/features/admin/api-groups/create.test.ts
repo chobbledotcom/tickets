@@ -28,22 +28,22 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
-    test("returns 400 when the name is longer than 500 characters", async () => {
+    test("returns 400 when the name is longer than 250 characters", async () => {
       // A concealed package order carries the group's name on Square's line
       // items, so a name past the catalog length must be refused, not stored.
       await assertJson(
         apiRequest("/api/admin/groups", {
-          body: { name: "G".repeat(501) },
+          body: { name: "G".repeat(251) },
           method: "POST",
         }),
         400,
         (body) => {
-          expect(body.error).toBe("Name must be 500 characters or fewer");
+          expect(body.error).toBe("Name must be 250 characters or fewer");
         },
       );
       await assertJson(
         apiRequest("/api/admin/groups", {
-          body: { name: "G".repeat(500) },
+          body: { name: "G".repeat(250) },
           method: "POST",
         }),
         201,

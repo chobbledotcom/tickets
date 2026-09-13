@@ -22,8 +22,10 @@ import {
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { formLengthError } from "#shared/forms/constraints.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
+import { settingsFormFields } from "#shared/settings/forms.ts";
 
 /* jscpd:ignore-end */
 
@@ -72,6 +74,16 @@ const wrapRoute = (path: string, auth: AuthPolicy<"form"> = OWNER_FORM) => {
 
 /** Owner auth form route — errors redirect to /admin/settings */
 const settingsRoute = wrapRoute(SETTINGS_PATH);
+
+export const withSettingsFields =
+  (
+    formId: string | undefined,
+    handler: SettingsFormHandler,
+  ): SettingsFormHandler =>
+  (form, errorPage, session) => {
+    const error = formLengthError(form, settingsFormFields(formId ?? ""));
+    return error ? errorPage(error, formId) : handler(form, errorPage, session);
+  };
 
 /** Owner auth form route — errors redirect to /admin/settings-advanced */
 const advancedSettingsRoute = wrapRoute(ADVANCED_PATH);
@@ -144,7 +156,14 @@ type SettingsHandlerConfig<T> = RedirectOpts &
     taskName?: string | undefined;
   };
 
-const createSettingsHandler =
+const validatedSettings =
+  <C extends { formId?: string | undefined }>(
+    build: (cfg: C) => SettingsFormHandler,
+  ) =>
+  (cfg: C): SettingsFormHandler =>
+    withSettingsFields(cfg.formId, build(cfg));
+
+const settingsValueHandler =
   <T = string>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
   async (form, errorPage) => {
     const value =
@@ -179,6 +198,10 @@ const createSettingsHandler =
       },
     );
   };
+
+const createSettingsHandler = <T = string>(
+  cfg: SettingsHandlerConfig<T>,
+): SettingsFormHandler => validatedSettings(settingsValueHandler<T>)(cfg);
 
 /** Convenience: createSettingsHandler + route wrapping */
 const settingsHandler = <T = string>(
@@ -289,9 +312,8 @@ type SecretFieldConfig = FieldConfig & {
   formId: string;
 };
 
-const secretFieldHandler =
-  (cfg: SecretFieldConfig): SettingsFormHandler =>
-  async (form, errorPage) => {
+const secretFieldHandler = validatedSettings<SecretFieldConfig>(
+  (cfg) => async (form, errorPage) => {
     const field = processSecretField(form, cfg.field);
     const to = pathFor(cfg);
     const formOpts = { formId: cfg.formId };
@@ -320,7 +342,8 @@ const secretFieldHandler =
         );
       },
     );
-  };
+  },
+);
 
 /** Convenience: secretFieldHandler + route wrapping */
 const settingsSecret: (cfg: SecretFieldConfig) => RequestRoute =

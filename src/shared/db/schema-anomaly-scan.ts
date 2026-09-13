@@ -3,10 +3,6 @@
 import type { ResultSet } from "@libsql/client";
 import * as v from "valibot";
 import { inPlaceholders, queryBatch, resultRows } from "#db/client.ts";
-import {
-  type CatalogNameIndex,
-  loadCatalogNameIndex,
-} from "#db/name-registry.ts";
 import { uniqueBy } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
@@ -16,19 +12,14 @@ import {
   recoveryCheckoutIdAgrees,
   SumupRecoveryStateSchema,
 } from "#payment/sumup-recovery-machine-spec.ts";
-import { SQUARE_NAME_BUDGET } from "#shared/limits.ts";
 
 type PaymentAnomalyKey = "armed_without_claim" | "claim_without_charge";
 type SumupAnomalyKey =
   | "sumup_checkout_id_mismatch"
   | "sumup_check_time_mismatch"
   | "sumup_unknown_state";
-type CatalogAnomalyKey = "catalog_name_over_length";
 
-export type SchemaAnomalyKey =
-  | PaymentAnomalyKey
-  | SumupAnomalyKey
-  | CatalogAnomalyKey;
+export type SchemaAnomalyKey = PaymentAnomalyKey | SumupAnomalyKey;
 
 /** One stored row that breaks a declared rule: the rule's key, the record,
  * and the stored state word beside it when the rule judges that word. A
@@ -167,29 +158,6 @@ const SUMUP_SCAN: DeclaredScan = declaredScan<SumupScanRow>(
   sumupAnomaly,
 );
 
-/** Every record whose catalog name no write path accepts any more — it is
- *  longer than Square's order-line budget, so every payment provider that
- *  carries "Ticket: <name>" will refuse its checkout until the name is
- *  shortened. Names are stored encrypted with no length column, so this
- *  scans the already-decrypted catalog set in memory, not with SQL. */
-const catalogNameAnomalies = (index: CatalogNameIndex): SchemaAnomaly[] => {
-  const kindLabel = { group: "group", listing: "listing" } as const;
-  const anomalies: SchemaAnomaly[] = [];
-  for (const kind of ["listing", "group"] as const) {
-    for (const [name, ids] of index[kind]) {
-      if (name.length > SQUARE_NAME_BUDGET) {
-        for (const id of ids.slice(0, SCAN_LIMIT)) {
-          anomalies.push({
-            key: "catalog_name_over_length",
-            recordId: `${kindLabel[kind]}:${id}`,
-          });
-        }
-      }
-    }
-  }
-  return anomalies;
-};
-
 /** Scan the stored rows for every declared impossible state. */
 export const scanSchemaAnomalies = async (): Promise<SchemaAnomaly[]> => {
   const paymentScans = uniqueBy((scan: DeclaredScan) => scan.sql)(
@@ -198,12 +166,8 @@ export const scanSchemaAnomalies = async (): Promise<SchemaAnomaly[]> => {
     ),
   );
   const scans = [...paymentScans, SUMUP_SCAN];
-  const [results, nameIndex] = await Promise.all([
-    queryBatch(scans.map((scan) => ({ args: [...scan.args], sql: scan.sql }))),
-    loadCatalogNameIndex(),
-  ]);
-  return [
-    ...scans.flatMap((scan, index) => scan.read(results[index]!)),
-    ...catalogNameAnomalies(nameIndex),
-  ];
+  const results = await queryBatch(
+    scans.map((scan) => ({ args: [...scan.args], sql: scan.sql })),
+  );
+  return scans.flatMap((scan, index) => scan.read(results[index]!));
 };

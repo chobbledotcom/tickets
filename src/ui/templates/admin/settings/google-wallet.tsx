@@ -24,6 +24,7 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
         {hostOverrideHint(s.hostGoogleWalletLabel, s.googleWalletConfigured)}
       </p>
     ),
+    formId: "settings-google-wallet",
     secretFields: [
       {
         labelKey: "settings.advanced.google_service_key",

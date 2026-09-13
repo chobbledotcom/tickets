@@ -5,7 +5,6 @@ import {
   ADDRESS_CACHE_MS,
   ADDRESS_LOOKUP_LOCKOUT_MS,
   ATTACHMENT_URL_MAX_AGE_S,
-  assertInputLengthSafe,
   assertPaymentsRetentionSafe,
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
@@ -38,7 +37,6 @@ import {
   readLimit,
   SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
-  SQUARE_NAME_BUDGET,
   STALE_RESERVATION_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
@@ -132,57 +130,22 @@ describe("limits", () => {
     });
   });
 
-  describe("assertInputLengthSafe", () => {
-    test("uses the catalog-name budget Square's line-item names leave", () => {
-      expect(SQUARE_NAME_BUDGET).toBe(504);
-    });
-
+  describe("fixed input limit", () => {
     test("uses the new-password minimum as its floor", () => {
       expect(PASSWORD_MIN_LENGTH).toBe(8);
     });
 
-    test("returns the value when it fits both floors and the Square budget", () => {
-      expect(assertInputLengthSafe(MAX_INPUT_LENGTH)).toBe(MAX_INPUT_LENGTH);
-      expect(assertInputLengthSafe(PASSWORD_MIN_LENGTH)).toBe(
-        PASSWORD_MIN_LENGTH,
-      );
-      expect(assertInputLengthSafe(SQUARE_NAME_BUDGET)).toBe(
-        SQUARE_NAME_BUDGET,
-      );
+    test("uses 250 characters", () => {
+      expect(MAX_INPUT_LENGTH).toBe(250);
     });
 
-    test("throws when the ceiling exceeds the Square budget", () => {
-      // A ceiling above 504 would let an operator save a catalog name that
-      // Square refuses at checkout ("Ticket: " + name caps at 512), so an
-      // unsafe override must fail loudly at startup instead.
-      expect(() => assertInputLengthSafe(SQUARE_NAME_BUDGET + 1)).toThrow(
-        "MAX_INPUT_LENGTH=505 is above the 504-character catalog-name budget " +
-          "Square's 512-character line-item names leave. A longer input limit " +
-          "will let an operator save a name that Square must refuse at " +
-          "checkout. Set the limit to 504 or below (the default is 500).",
-      );
-    });
-
-    test("throws when the ceiling falls below the password minimum", () => {
-      // The new-password fields carry minlength 8 and take their maxlength
-      // from MAX_INPUT_LENGTH: below 8 no password passes both rules, so
-      // setup, invitation completion, and password changes all stop working
-      // — an unsafe override must fail loudly at startup instead.
-      expect(() => assertInputLengthSafe(PASSWORD_MIN_LENGTH - 1)).toThrow(
-        "MAX_INPUT_LENGTH=7 is below the 8-character password minimum. The " +
-          "new-password fields ask for at least 8 characters and cap length " +
-          "at MAX_INPUT_LENGTH, so a lower ceiling blocks account setup and " +
-          "every password change. Set the limit to 8 or above (the default " +
-          "is 500).",
-      );
-    });
-
-    test("the live constants satisfy their own fences", () => {
-      // MAX_INPUT_LENGTH is validated at import; pin the invariants so a
-      // future default change can't silently break Square checkouts or the
-      // password forms.
-      expect(MAX_INPUT_LENGTH).toBeLessThanOrEqual(SQUARE_NAME_BUDGET);
-      expect(MAX_INPUT_LENGTH).toBeGreaterThanOrEqual(PASSWORD_MIN_LENGTH);
+    test("is not configurable through the environment", () => {
+      // A tunable constant reads its env var through the registry, so the
+      // fixed limit must stay out of it — this fails if MAX_INPUT_LENGTH is
+      // ever wired back to readLimit.
+      expect(
+        LIMIT_ENTRIES.some((entry) => entry.envKey === "MAX_INPUT_LENGTH"),
+      ).toBe(false);
     });
   });
 
@@ -220,7 +183,6 @@ describe("limits", () => {
         "MAX_EMAIL_TEMPLATES",
         "MAX_FORM_LINES",
         "MAX_IMAGE_SIZE",
-        "MAX_INPUT_LENGTH",
         "MAX_LOGIN_ATTEMPTS",
         "MAX_TEXTAREA_LENGTH",
         "MAX_TOKEN_404S",

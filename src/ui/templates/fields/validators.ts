@@ -76,30 +76,13 @@ const checkedBy =
 const atMostLong = (max: number, messageKey: string): ValueCheck =>
   checkedBy(v.pipe(v.string(), v.maxLength(max)), messageKey, { max });
 
-/** Max length for a buyer's contact field — name or email (must fit in payment
- *  metadata: Square stores each as its own 255-character value, so 250 fits). */
-export const MAX_CONTACT_LENGTH = 250;
-
 /**
  * Max length for a buyer's phone number. Square packs the phone into one
  * 255-character metadata entry TOGETHER with the other small fields (see
  * PACKED_KEYS), so the number must stay short enough that the mounted JSON
  * fits — well under the 250 the top-level contact entries allow.
  */
-export const MAX_PHONE_LENGTH = 32;
-
-/**
- * The contact-field caps that apply now: the Square metadata budgets above,
- * or the operator's smaller input-length ceiling where one is configured.
- * The contact validators and the hand-rendered inputs read these, so a
- * smaller MAX_INPUT_LENGTH override tightens contact fields too — the same
- * bound effectiveMaxLength applies to field-rendered inputs.
- */
-export const CONTACT_FIELD_LENGTH = Math.min(
-  MAX_CONTACT_LENGTH,
-  MAX_INPUT_LENGTH,
-);
-export const PHONE_FIELD_LENGTH = Math.min(MAX_PHONE_LENGTH, MAX_INPUT_LENGTH);
+export const PHONE_FIELD_LENGTH = 32;
 
 /** The phone's format: a digit (or plus) first, then digits, spaces, hyphens,
  *  parentheses, at least six characters in total. */
@@ -122,7 +105,7 @@ const lengthThenFormat =
 
 /** Checks the email's format and keeps it inside the metadata entry budget. */
 export const validateEmail = lengthThenFormat(
-  CONTACT_FIELD_LENGTH,
+  MAX_INPUT_LENGTH,
   "fields.validation.email_length",
   EmailFormatSchema,
   "fields.validation.email",
@@ -137,11 +120,13 @@ export const validatePhone = lengthThenFormat(
   "fields.validation.phone",
 );
 
-/** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
+/** Usernames permit letters, digits, hyphens, and underscores, but no initial punctuation. */
 const UsernameSchema = v.pipe(
   v.string(),
-  v.minLength(2, () => t("fields.validation.username_min")),
-  v.maxLength(32, () => t("fields.validation.username_max")),
+  v.nonEmpty(() => t("fields.validation.username_min")),
+  v.maxLength(MAX_INPUT_LENGTH, () =>
+    t("fields.validation.username_max", { max: MAX_INPUT_LENGTH }),
+  ),
   v.regex(/^[a-zA-Z0-9_-]+$/, () => t("fields.validation.username_chars")),
   v.check(
     (s) => !s.startsWith("-") && !s.startsWith("_"),
@@ -157,8 +142,8 @@ export const getUsernameFieldBase = (): InputField<"username"> & {
   required: true;
 } => ({
   label: t("common.username"),
-  maxlength: 32,
-  minlength: 2,
+  maxlength: MAX_INPUT_LENGTH,
+  minlength: 1,
   name: "username",
   pattern: "[a-zA-Z0-9_\\-]+",
   required: true,
@@ -266,26 +251,20 @@ export const getSlugField = (): InputField<"slug"> => ({
   hint: t("fields.listing.slug_hint_field"),
 });
 
-/** Max length for address field (must fit in payment metadata) */
-export const MAX_ADDRESS_LENGTH = 250;
-
 /** Validate address length */
 export const validateAddress = atMostLong(
-  MAX_ADDRESS_LENGTH,
+  MAX_INPUT_LENGTH,
   "fields.validation.address_max",
 );
 
-/** Max length for special instructions field (must fit in payment metadata) */
-export const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
-
 /** Validate a buyer's contact name (must fit in payment metadata) */
 export const validateName = atMostLong(
-  CONTACT_FIELD_LENGTH,
+  MAX_INPUT_LENGTH,
   "fields.validation.name_max",
 );
 
 /** Validate special instructions length */
 export const validateSpecialInstructions = atMostLong(
-  MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  MAX_INPUT_LENGTH,
   "fields.validation.special_instructions_max",
 );

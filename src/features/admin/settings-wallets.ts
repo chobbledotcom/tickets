@@ -18,7 +18,6 @@ import {
   isValidCertificate,
 } from "#shared/apple-wallet/certificate.ts";
 import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
-import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 
 /** One credential on a wallet form: the form field it comes from, its label
@@ -97,30 +96,7 @@ const validateWallet = async (
   if (isAllCleared(wallet, values)) return null;
   const blankText = wallet.texts.find((field) => !values.texts[field.name]);
   if (blankText) return t(blankText.missingKey);
-  // Every wallet text field is a short id, so it carries the single-line cap;
-  // every secret is a PEM block, so a provided value carries the textarea
-  // cap. Crafted POSTs skip the browser maxlength both controls now render.
-  const overLongText = wallet.texts.find(
-    (field) =>
-      values.texts[field.name] &&
-      (values.texts[field.name] as string).length > MAX_INPUT_LENGTH,
-  );
-  if (overLongText) {
-    return t("fields.validation.max_length", {
-      label: t(overLongText.labelKey),
-      max: MAX_INPUT_LENGTH,
-    });
-  }
   const checkSecrets = firstSecretProblem(wallet, values);
-  const overLongSecret = await checkSecrets((field, secret) =>
-    secret.action === "provided" && secret.value.length > MAX_TEXTAREA_LENGTH
-      ? t("fields.validation.max_length", {
-          label: t(field.labelKey),
-          max: MAX_TEXTAREA_LENGTH,
-        })
-      : null,
-  );
-  if (overLongSecret) return overLongSecret;
   if (!wallet.hasSavedConfig()) {
     // No saved config to fall back on, so every secret must be uploaded now.
     const missing = await checkSecrets((field, secret) =>

@@ -47,9 +47,9 @@ describeWithEnv("server (admin news)", { db: true }, () => {
 
     test("the shared content fields render their input limits", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
-      expect(html).toContain('maxlength="128" name="name"');
-      expect(html).toContain('maxlength="64" name="meta_title"');
-      expect(html).toContain('maxlength="160" name="meta_description"');
+      expect(html).toContain('maxlength="250" name="name"');
+      expect(html).toContain('maxlength="250" name="meta_title"');
+      expect(html).toContain('maxlength="250" name="meta_description"');
     });
 
     test("the list shows each post's name and published date, newest first", async () => {

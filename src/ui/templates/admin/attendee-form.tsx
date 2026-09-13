@@ -19,6 +19,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { AdminPage, renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
@@ -41,10 +42,7 @@ import {
   type SelectOption,
 } from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
-import {
-  CONTACT_FIELD_LENGTH,
-  PHONE_FIELD_LENGTH,
-} from "#templates/fields/validators.ts";
+import { PHONE_FIELD_LENGTH } from "#templates/fields/validators.ts";
 import { type AdminSession, MAX_DURATION_DAYS } from "#types";
 
 /* jscpd:ignore-end */
@@ -168,7 +166,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
         autocomplete="off"
         autofocus={!formHasError(data)}
         id="name"
-        maxlength={CONTACT_FIELD_LENGTH}
+        maxlength={MAX_INPUT_LENGTH}
         name="name"
         required
         type="text"
@@ -183,7 +181,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
       <input
         autocomplete="off"
         id="email"
-        maxlength={CONTACT_FIELD_LENGTH}
+        maxlength={MAX_INPUT_LENGTH}
         name="email"
         type="email"
         value={data.parsed.email || ""}
@@ -211,7 +209,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
       <textarea
         autocomplete="off"
         id="special_instructions"
-        maxlength={250}
+        maxlength={MAX_INPUT_LENGTH}
         name="special_instructions"
         rows={3}
       >

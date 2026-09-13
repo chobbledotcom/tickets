@@ -13,12 +13,12 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import { AdminPage, adminListingLink } from "#templates/admin/admin-page.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
-import { CONTACT_FIELD_LENGTH } from "#templates/fields/validators.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
@@ -198,7 +198,7 @@ export const ListingQrPanel = ({
         <label>
           {t("listing_qr.customer_name")}
           <input
-            maxlength={CONTACT_FIELD_LENGTH}
+            maxlength={MAX_INPUT_LENGTH}
             name="customer_name"
             type="text"
             value={values.customer_name}

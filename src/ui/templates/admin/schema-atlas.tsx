@@ -9,7 +9,6 @@ import type { SchemaAnomaly } from "#db/schema-anomaly-scan.ts";
 import type { UnansweredSumupMoney } from "#db/sumup-recovery.ts";
 import { t } from "#i18n";
 import { formatTimeAgo } from "#shared/dates.ts";
-import { SQUARE_NAME_BUDGET } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
@@ -139,10 +138,6 @@ const MachineSection = ({ machine }: { machine: ViewMachine }): JSX.Element => (
 
 const ANOMALY_MESSAGES: Record<SchemaAnomaly["key"], () => string> = {
   armed_without_claim: () => t("schema.check.armed_without_claim"),
-  catalog_name_over_length: () =>
-    t("schema.check.catalog_name_over_length", {
-      budget: `${SQUARE_NAME_BUDGET}`,
-    }),
   claim_without_charge: () => t("schema.check.claim_without_charge"),
   sumup_check_time_mismatch: () => t("schema.check.sumup_check_time_mismatch"),
   sumup_checkout_id_mismatch: () =>

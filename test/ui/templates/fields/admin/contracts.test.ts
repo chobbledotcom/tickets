@@ -116,10 +116,6 @@ describe("fields contracts", () => {
     });
 
     test("caps chosen passwords but not the credential being checked", () => {
-      // Regression: when the free-text default covered password inputs, the
-      // login and current-password caps would lock out every owner whose
-      // pre-existing password ran past 500 characters. The cap now applies
-      // only to fields choosing a NEW password.
       const login = byName(getLoginForm().fields, "password");
       expect(login.maxlength).toBeUndefined();
       const change = getChangePasswordForm().fields;
@@ -151,10 +147,10 @@ describe("fields contracts", () => {
       });
     }
 
-    test("the login username field keeps its 2–32 length bounds", () => {
+    test("the login username field uses 1-250 length bounds", () => {
       const username = byName(getLoginForm().fields, "username");
-      expect(username.minlength).toBe(2);
-      expect(username.maxlength).toBe(32);
+      expect(username.minlength).toBe(1);
+      expect(username.maxlength).toBe(MAX_INPUT_LENGTH);
     });
 
     test("the invite-user role is a required select", () => {

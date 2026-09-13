@@ -11,15 +11,13 @@ import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { validateForm } from "#shared/forms/validation.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   parseListingFields,
   withRequiredEmail,
 } from "#shared/listing-fields.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import {
-  CONTACT_FIELD_LENGTH,
-  MAX_ADDRESS_LENGTH,
-  MAX_SPECIAL_INSTRUCTIONS_LENGTH,
   PHONE_FIELD_LENGTH,
   validateAddress,
   validateEmail,
@@ -45,7 +43,7 @@ export type { ContactInfo };
 const nameField: Field = {
   autocomplete: "name",
   label: "Your Name",
-  maxlength: CONTACT_FIELD_LENGTH,
+  maxlength: MAX_INPUT_LENGTH,
   name: "name",
   required: true,
   type: "text",
@@ -56,7 +54,7 @@ const nameField: Field = {
 const emailField: Field = {
   autocomplete: "email",
   label: "Your Email",
-  maxlength: CONTACT_FIELD_LENGTH,
+  maxlength: MAX_INPUT_LENGTH,
   name: "email",
   required: true,
   type: "email",
@@ -95,7 +93,7 @@ const phoneField: Field = {
 const addressField: Field = {
   autocomplete: "street-address",
   label: "Your Address",
-  maxlength: MAX_ADDRESS_LENGTH,
+  maxlength: MAX_INPUT_LENGTH,
   name: "address",
   required: true,
   type: "textarea",
@@ -105,7 +103,7 @@ const addressField: Field = {
 /** Special instructions field for ticket forms (textarea) */
 const specialInstructionsField: Field = {
   label: "Special Instructions",
-  maxlength: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  maxlength: MAX_INPUT_LENGTH,
   name: "special_instructions",
   required: true,
   type: "textarea",

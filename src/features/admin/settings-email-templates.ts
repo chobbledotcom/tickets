@@ -3,7 +3,6 @@
  * Owner-only access enforced via settingsHandler / withAuth
  */
 
-import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
 import { settings } from "#db/settings.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { validateTemplate } from "#shared/email-renderer.ts";
@@ -21,9 +20,6 @@ const validateTemplateFields = ({
     ["html", html],
     ["text", text],
   ] as const) {
-    if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
-      return `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`;
-    }
     if (value) {
       const error = validateTemplate(value);
       if (error) return `Invalid template syntax in ${name}: ${error}`;

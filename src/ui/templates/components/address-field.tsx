@@ -7,6 +7,7 @@
 
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 
 export const AddressFieldWithLookup = ({
@@ -21,7 +22,7 @@ export const AddressFieldWithLookup = ({
       <textarea
         autocomplete="off"
         id="address"
-        maxlength={250}
+        maxlength={MAX_INPUT_LENGTH}
         name="address"
         rows={3}
       >

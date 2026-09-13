@@ -20,6 +20,7 @@ export type MaskedTextareaProps = {
   placeholder: string;
   /** Whether the field is already configured (renders the mask sentinel). */
   configured: boolean;
+  maxlength?: number | undefined;
 };
 
 export const MaskedTextarea = ({
@@ -27,11 +28,12 @@ export const MaskedTextarea = ({
   name,
   placeholder,
   configured,
+  maxlength = MAX_TEXTAREA_LENGTH,
 }: MaskedTextareaProps): JSX.Element => (
   <label>
     {t(labelKey)}
     <textarea
-      maxlength={MAX_TEXTAREA_LENGTH}
+      maxlength={maxlength}
       name={name}
       placeholder={placeholder}
       rows={4}

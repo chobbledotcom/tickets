@@ -17,7 +17,7 @@ import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 const SortedAttendeeIdsSchema = v.pipe(
   v.array(integerAtLeast(1)),
-  v.minLength(1),
+  v.nonEmpty(),
   v.check(
     (ids) => ids.every((id, index) => index === 0 || ids[index - 1]! < id),
     "Refund claim attendee ids must be sorted and unique",

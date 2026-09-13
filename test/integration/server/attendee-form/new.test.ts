@@ -29,6 +29,19 @@ describeWithEnv(
 
       testRequiresAuth("/admin/attendees/new");
 
+      test("renders the shared contact length limits", async () => {
+        const html = await bareCreateForm();
+        for (const name of [
+          "name",
+          "email",
+          "address",
+          "special_instructions",
+        ]) {
+          expect(html).toContain(`id="${name}" maxlength="250" name="${name}"`);
+        }
+        expect(html).toContain('id="phone" maxlength="32" name="phone"');
+      });
+
       test("renders the create form with a quantity box per listing", async () => {
         const listing = await createTestListing({
           maxAttendees: 100,

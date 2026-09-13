@@ -48,14 +48,14 @@ describeWithEnv("catalog group import", { db: true }, () => {
   test("refuses a group name past the catalog length", async () => {
     const member = await createTestListing({ name: "Overlong import member" });
     const result = await importCatalog({
-      group: { name: "G".repeat(501) },
+      group: { name: "G".repeat(251) },
       kind: "group",
       members: [{ listing: member.name }],
       version: 1,
     });
 
     expect(result).toEqual({
-      error: "Name must be 500 characters or fewer",
+      error: "Name must be 250 characters or fewer",
       ok: false,
     });
   });

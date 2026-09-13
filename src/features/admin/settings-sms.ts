@@ -7,7 +7,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-import { t } from "#i18n";
 /* jscpd:ignore-start */
 import {
   processSecretField,
@@ -15,7 +14,6 @@ import {
   saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 
@@ -28,24 +26,6 @@ type SmsGatewayFormData = {
   passphrase: SecretFieldResult;
   webhookSecret: SecretFieldResult;
 };
-
-/** Whether a value is over the input cap, with the length refusal if so. The
- *  login-password exception does not apply here: these fields choose a new
- *  secret, they never re-enter one an older site already stored. */
-const overLong = (value: string, labelKey: string): string | null =>
-  value.length > MAX_INPUT_LENGTH
-    ? t("fields.validation.max_length", {
-        label: t(labelKey),
-        max: MAX_INPUT_LENGTH,
-      })
-    : null;
-
-/** A provided secret past the cap (stored secrets never re-validate). */
-const secretOverLong = (
-  secret: SecretFieldResult,
-  labelKey: string,
-): string | null =>
-  secret.action === "provided" ? overLong(secret.value, labelKey) : null;
 
 export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
   advanced: true,
@@ -74,7 +54,7 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
       clearable,
     );
   },
-  validate: ({ baseUrl, passphrase, username, password, webhookSecret }) => {
+  validate: ({ baseUrl, passphrase }) => {
     const baseUrlError = validateSafeServerFetchUrl(
       baseUrl,
       "Invalid server URL",
@@ -86,12 +66,6 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
     ) {
       return `End-to-end passphrase must be at least ${SMS_PASSPHRASE_MIN_LENGTH} characters`;
     }
-    return (
-      overLong(username, "sms.settings.username") ??
-      overLong(baseUrl, "sms.settings.base_url") ??
-      secretOverLong(password, "sms.settings.password") ??
-      secretOverLong(passphrase, "sms.settings.passphrase") ??
-      secretOverLong(webhookSecret, "sms.settings.webhook_secret")
-    );
+    return null;
   },
 });

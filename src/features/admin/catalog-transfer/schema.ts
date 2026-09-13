@@ -110,7 +110,7 @@ const BookableDaySchema = v.picklist(VALID_DAY_NAMES);
 /** A minor-unit price — a non-negative integer. */
 const PriceSchema = integerAtLeast(0);
 /** A required, trimmed, non-empty name reference. */
-const NameRefSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
+const NameRefSchema = v.pipe(v.string(), v.trim(), v.nonEmpty());
 /** A day-count JSON key: a positive whole number within the bookable range, so a
  * typo key ("weekday") or an out-of-range count is a field error rather than a
  * silently-dropped override. */

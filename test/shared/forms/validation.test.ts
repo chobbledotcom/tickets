@@ -136,22 +136,22 @@ describe("validateForm", () => {
     });
   });
 
-  test("rejects an input longer than the default 500 when no maxlength is declared", () => {
+  test("rejects an input longer than 250 when no maxlength is declared", () => {
     const fields: Field[] = [field({ label: "Location", name: "location" })];
     const result = validateForm(
-      new FormParams({ location: "L".repeat(501) }),
+      new FormParams({ location: "L".repeat(251) }),
       fields,
     );
     expect(result).toEqual({
-      error: "Location must be 500 characters or fewer",
+      error: "Location must be 250 characters or fewer",
       valid: false,
     });
   });
 
-  test("accepts an input at exactly the default 500", () => {
+  test("accepts an input at exactly 250", () => {
     const fields: Field[] = [field({ label: "Location", name: "location" })];
     const result = validateForm(
-      new FormParams({ location: "L".repeat(500) }),
+      new FormParams({ location: "L".repeat(250) }),
       fields,
     );
     expect(result.valid).toBe(true);

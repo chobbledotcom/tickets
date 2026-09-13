@@ -84,7 +84,7 @@ test("builder form defines every field and option exactly", () => {
   expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
     {
       label: "Site name",
-      maxlength: 64,
+      maxlength: 250,
       minlength: 1,
       name: "site_name",
       placeholder: "My Ticket Site",

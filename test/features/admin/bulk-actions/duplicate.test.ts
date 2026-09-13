@@ -48,7 +48,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   });
 
   describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
-    test("refuses a duplicate whose generated names pass the catalog length", async () => {
+    test("refuses a duplicate whose generated names pass the catalog length cap", async () => {
       // Regression: the batch insert bypasses the create-path validators, so
       // the duplicate flow re-checks the catalog-name rules itself. Without
       // the length leg, an over-long new group name or find/replace result
@@ -64,12 +64,12 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         {
           name_find: "Lengthy",
           name_replace: "Long",
-          new_name: "N".repeat(501),
+          new_name: "N".repeat(251),
         },
       );
       expectFlash(
         overLongGroup.response,
-        "Name must be 500 characters or fewer",
+        "Name must be 250 characters or fewer",
         false,
       );
 
@@ -77,13 +77,13 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
         {
           name_find: "Lengthy",
-          name_replace: "L".repeat(501),
+          name_replace: "L".repeat(251),
           new_name: "Short Copy",
         },
       );
       expectFlash(
         overLongClone.response,
-        "Name must be 500 characters or fewer",
+        "Name must be 250 characters or fewer",
         false,
       );
       expect(

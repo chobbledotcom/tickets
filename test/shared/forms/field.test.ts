@@ -107,35 +107,26 @@ describe("effectiveMaxLength", () => {
     ).toBe(9);
   });
 
-  test("bounds a declared limit by the configured input maximum", () => {
-    // The contact fields declare 250 — a Square budget, tighter than the
-    // default 500 — and the bound keeps it at 250. With a smaller
-    // MAX_INPUT_LENGTH override the same bound tightens it further, so the
-    // configured maximum is the maximum everywhere, never just for the
-    // fields without a cap of their own.
+  test("bounds a declared input limit by the fixed maximum", () => {
     expect(
       effectiveMaxLength({
         label: "X",
-        maxlength: 250,
+        maxlength: 500,
         name: "x",
         type: "text",
       }),
     ).toBe(250);
   });
 
-  test("bounds a declared textarea limit by the configured textarea maximum", () => {
-    // The address and special-instructions fields declare 250 — Square
-    // budgets under the 10,240 default — and the bound keeps them at 250.
-    // A smaller MAX_TEXTAREA_LENGTH override tightens them the way the
-    // single-line bound tightens contact fields.
+  test("preserves the explicit email template textarea maximum", () => {
     expect(
       effectiveMaxLength({
         label: "X",
-        maxlength: 250,
+        maxlength: 51_200,
         name: "x",
         type: "textarea",
       }),
-    ).toBe(250);
+    ).toBe(51_200);
   });
 
   test("keeps a declared limit of zero rather than swapping in the default", () => {

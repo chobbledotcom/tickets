@@ -137,14 +137,14 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
     // stored. The status name is a catalog name like any other.
     const seed = await seedStatus();
     const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {
-      name: "S".repeat(501),
+      name: "S".repeat(251),
     });
     const html = await expectHtmlResponse(
       response,
       400,
-      "Name must be 500 characters or fewer",
+      "Name must be 250 characters or fewer",
     );
-    expect(html).toContain(`maxlength="500"`);
+    expect(html).toContain(`maxlength="250"`);
     expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
   });
 

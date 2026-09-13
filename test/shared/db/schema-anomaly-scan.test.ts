@@ -1,77 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { scanSchemaAnomalies } from "#db/schema-anomaly-scan.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
-import { SQUARE_NAME_BUDGET } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantArmedCharge, plantPaymentRow } from "#test-utils/joint-state.ts";
 import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
 
-/** A listing row the write guard never saw — every name this suite plants
- *  bypasses the guarded write paths, exactly as a name stored before the
- *  guard existed does. */
-const plantListingNamed = async (name: string): Promise<number> => {
-  const slug = `scan-${name.length}`;
-  const listing = await listingsTable.insert({
-    maxAttendees: 10,
-    maxPrice: 0,
-    name,
-    slug,
-    slugIndex: await hmacHash(slug),
-  });
-  return listing.id;
-};
-
-/** A group row planted the same way, past the guarded write paths. */
-const plantGroupNamed = async (name: string): Promise<number> => {
-  const slug = `scan-group-${name.length}`;
-  const group = await groups.table.insert({
-    name,
-    slug,
-    slugIndex: await hmacHash(slug),
-  });
-  return group.id;
-};
-
 describeWithEnv("schema anomaly scan", { db: true }, () => {
   test("finds nothing on a clean database", async () => {
     expect(await scanSchemaAnomalies()).toEqual([]);
-  });
-
-  test("reports a stored listing name past the order-line budget", async () => {
-    // Regression: a name written before the write guard exists is never
-    // re-checked by a save, so the buyer keeps meeting the provider refusal.
-    // The scan surfaces it to the operator instead, with the record named.
-    const id = await plantListingNamed("L".repeat(SQUARE_NAME_BUDGET + 1));
-    expect(await scanSchemaAnomalies()).toEqual([
-      { key: "catalog_name_over_length", recordId: `listing:${id}` },
-    ]);
-  });
-
-  test("reports a stored group name, and accepts one at the budget", async () => {
-    const listingId = await plantListingNamed(
-      "L".repeat(SQUARE_NAME_BUDGET + 1),
-    );
-    const groupId = await plantGroupNamed("G".repeat(SQUARE_NAME_BUDGET + 1));
-    // A name exactly at the budget stays clean, so only the two planted rows
-    // past it show.
-    await plantListingNamed("N".repeat(SQUARE_NAME_BUDGET));
-    await plantGroupNamed("M".repeat(500));
-
-    const anomalies = await scanSchemaAnomalies();
-    expect(anomalies).toContainEqual({
-      key: "catalog_name_over_length",
-      recordId: `group:${groupId}`,
-    });
-    expect(anomalies).toContainEqual({
-      key: "catalog_name_over_length",
-      recordId: `listing:${listingId}`,
-    });
-    expect(anomalies.length).toBe(2);
   });
 
   test("reports an armed send on a row nobody holds", async () => {

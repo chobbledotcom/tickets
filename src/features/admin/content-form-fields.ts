@@ -10,7 +10,7 @@ import { pick } from "@std/collections";
 import { t } from "#i18n";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { slugFieldBase } from "#templates/fields/validators.ts";
 
@@ -22,9 +22,9 @@ import { slugFieldBase } from "#templates/fields/validators.ts";
  */
 export const CONTENT_FIELD_LIMITS = {
   content: MAX_TEXTAREA_LENGTH,
-  meta_description: 160,
-  meta_title: 64,
-  name: 128,
+  meta_description: MAX_INPUT_LENGTH,
+  meta_title: MAX_INPUT_LENGTH,
+  name: MAX_INPUT_LENGTH,
 } as const;
 
 /** The required display-name field (each editor supplies its own label). */

@@ -61,16 +61,17 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       // an older site stored). The URL stays structurally valid so the
       // length refusal, not the format refusal, is what answers.
       const { response } = await post({
-        sms_gateway_base_url: `https://sms.example.com/${"u".repeat(500)}`,
-        sms_gateway_passphrase: "p".repeat(501),
-        sms_gateway_password: "w".repeat(501),
+        // 251 characters in all: the 24-character start pushes it over.
+        sms_gateway_base_url: `https://sms.example.com/${"u".repeat(227)}`,
+        sms_gateway_passphrase: "p".repeat(251),
+        sms_gateway_password: "w".repeat(251),
         sms_gateway_username: "user",
       });
 
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        "Server URL (optional) must be 500 characters or fewer",
+        "Server URL (optional) must be 250 characters or fewer",
         false,
       );
       expect(settings.smsGatewayUsername).toBe("");
@@ -81,13 +82,13 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       const { response } = await post({
         sms_gateway_base_url: "https://sms.example.com",
         sms_gateway_username: "user",
-        sms_gateway_webhook_secret: "s".repeat(501),
+        sms_gateway_webhook_secret: "s".repeat(251),
       });
 
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        "Webhook signing secret (optional) must be 500 characters or fewer",
+        "Webhook signing secret (optional) must be 250 characters or fewer",
         false,
       );
       expect(settings.smsGatewayUsername).toBe("");

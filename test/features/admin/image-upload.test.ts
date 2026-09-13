@@ -44,18 +44,18 @@ describe("admin image upload helper", () => {
       // The rendered input caps length in the browser, but a crafted POST
       // skips the browser, so the parser carries the same limit.
       expect(
-        imageMetadataFromForm(metadataForm("N".repeat(501), "Fine")),
+        imageMetadataFromForm(metadataForm("N".repeat(251), "Fine")),
       ).toEqual({
-        error: "Image name must be 500 characters or fewer",
+        error: "Image name must be 250 characters or fewer",
         ok: false,
       });
     });
 
     test("rejects an over-long alt text with the limit named", () => {
       expect(
-        imageMetadataFromForm(metadataForm("Fine", "A".repeat(501))),
+        imageMetadataFromForm(metadataForm("Fine", "A".repeat(251))),
       ).toEqual({
-        error: "Alt text must be 500 characters or fewer",
+        error: "Alt text must be 250 characters or fewer",
         ok: false,
       });
     });

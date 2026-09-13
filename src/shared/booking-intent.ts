@@ -40,7 +40,7 @@ const BookingItemSchema = v.pipe(
   ),
 );
 
-const BookingItemsSchema = v.pipe(v.array(BookingItemSchema), v.minLength(1));
+const BookingItemsSchema = v.pipe(v.array(BookingItemSchema), v.nonEmpty());
 
 export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 

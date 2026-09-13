@@ -291,12 +291,12 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     // The wallet's id fields are short single-line values, so the server
     // carries the single-line cap past any crafted POST.
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "p".repeat(501),
+      apple_wallet_pass_type_id: "p".repeat(251),
       apple_wallet_team_id: "TEAM123456",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
-      "Pass Type ID must be 500 characters or fewer",
+      "Pass Type ID must be 250 characters or fewer",
       false,
     )(response);
   });

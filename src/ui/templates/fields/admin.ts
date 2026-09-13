@@ -7,7 +7,7 @@
 import { t } from "#i18n";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, PASSWORD_MIN_LENGTH } from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
@@ -196,7 +196,10 @@ const newPasswordField = <TName extends string>(
   name,
   required: true,
   type: "password",
-  ...(!confirm && { hint: t("fields.setup.password_hint"), minlength: 8 }),
+  ...(!confirm && {
+    hint: t("fields.setup.password_hint"),
+    minlength: PASSWORD_MIN_LENGTH,
+  }),
 });
 
 const newPasswordFields = <TName extends string, TConfirmName extends string>(

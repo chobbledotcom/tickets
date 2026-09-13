@@ -178,19 +178,10 @@ export type Field<
  *  owner out. Fields that CHOOSE a new password declare their own maxlength. */
 const FREE_TEXT_INPUT_TYPES: readonly string[] = ["text", "email", "url"];
 
-/** The length cap a field answers to: its own when it declares one, otherwise
- *  the default — 500 for a free-text input, the textarea cap for a textarea —
- *  so no free-text field is ever uncapped. A declared cap is itself bounded
- *  by the configured maximum of its kind, so a smaller override tightens
- *  every input, never just the ones without a cap of their own. Choice and
- *  file fields list what they accept, parsed inputs reject unusable values
- *  on their own, and a password stays uncapped (see FREE_TEXT_INPUT_TYPES). */
+/** Text inputs obey the fixed ceiling. Textareas can declare a larger content budget. */
 export const effectiveMaxLength = (field: Field): number | undefined => {
   if (field.type === "textarea") {
-    return Math.min(
-      field.maxlength ?? MAX_TEXTAREA_LENGTH,
-      MAX_TEXTAREA_LENGTH,
-    );
+    return field.maxlength ?? MAX_TEXTAREA_LENGTH;
   }
   return FREE_TEXT_INPUT_TYPES.includes(field.type)
     ? Math.min(field.maxlength ?? MAX_INPUT_LENGTH, MAX_INPUT_LENGTH)

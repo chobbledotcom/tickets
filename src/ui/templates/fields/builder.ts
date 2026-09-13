@@ -1,7 +1,10 @@
 /** Site builder form fields. */
 
+/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+/* jscpd:ignore-end */
 import {
   builtSiteBox,
   denoDeployOption,
@@ -12,7 +15,7 @@ export const builderForm = defineForm({
   fields: [
     {
       ...builtSiteBox("site_name", "name", "text" as const),
-      maxlength: 64,
+      maxlength: MAX_INPUT_LENGTH,
       minlength: 1,
       required: true,
     },

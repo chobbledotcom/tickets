@@ -17,18 +17,16 @@ import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { optionalRecordList } from "#shared/validation/list.ts";
 import { parseOrThrow } from "#shared/validation/parse.ts";
 import {
+  NonEmptyTextSchema,
   OptionalNullableStringSchema,
   OptionalStringSchema,
 } from "#shared/validation/string.ts";
 
-/** Text Square must fill in when it sends the field at all. */
-const WireText = v.pipe(v.string(), v.minLength(1));
-
 /** Square states money as whole minor units, so the amount is checked as a
- * whole number and held as a bigint. */
+ *  whole number and held as a bigint. */
 const WireMoney = v.object({
   amount: v.pipe(v.number(), v.safeInteger(), v.minValue(0)),
-  currency: WireText,
+  currency: NonEmptyTextSchema,
 });
 
 type WireMoneyValue = v.InferOutput<typeof WireMoney>;
@@ -62,7 +60,7 @@ const PaymentAnswer = v.pipe(
         id: ResourceIdSchema,
         order_id: v.optional(ResourceIdSchema),
         refunded_money: v.optional(WireMoney),
-        status: WireText,
+        status: NonEmptyTextSchema,
       }),
     ),
   }),
@@ -159,7 +157,7 @@ const PaymentLinkAnswer = v.pipe(
     orderId: link?.order_id,
     url: link?.long_url ?? link?.url,
   })),
-  v.object({ orderId: ResourceIdSchema, url: WireText }),
+  v.object({ orderId: ResourceIdSchema, url: NonEmptyTextSchema }),
 );
 
 /** One place a merchant takes money at. */

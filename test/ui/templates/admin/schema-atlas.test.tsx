@@ -122,21 +122,6 @@ describe("the system map page", () => {
     );
   });
 
-  test("the live check names a catalog name past the order-line budget", () => {
-    const page = adminSchemaAtlasPage(
-      { adminLevel: "owner" },
-      "light",
-      [{ key: "catalog_name_over_length", recordId: "listing:7" }],
-      NO_UNANSWERED,
-    );
-    expect(page).toContain(
-      "A listing or group name is longer than the 504 characters an order " +
-        "line accepts, so the payment provider will refuse its checkout. " +
-        "Shorten the name.",
-    );
-    expect(page).toContain("<code>listing:7</code>");
-  });
-
   test("the live check names an unknown SumUp state", () => {
     const page = adminSchemaAtlasPage(
       { adminLevel: "owner" },

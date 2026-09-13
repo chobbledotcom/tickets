@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { builderForm } from "#templates/fields/builder.ts";
 
 describe("builder form", () => {
@@ -10,7 +11,7 @@ describe("builder form", () => {
     expect(names).toContain("db_token");
     const name = builderForm.fields[0]!;
     expect(name.required).toBe(true);
-    expect(name.maxlength).toBe(64);
+    expect(name.maxlength).toBe(MAX_INPUT_LENGTH);
     expect(name.minlength).toBe(1);
   });
 
