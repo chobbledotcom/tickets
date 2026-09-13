@@ -138,12 +138,16 @@ describeWithEnv("ticket submit", { db: true, triggers: true }, () => {
       await setContactVisits(await hashPhone(RETURNING_PHONE), 1);
     };
 
-    /** A one-penny price change only a returning buyer's repricing sees: the
-     * initial price ran at the buyer's unknown visit count (zero). */
-    const returningBuyerPriceChange = (direction: "charge" | "discount") =>
+    /** A price change only a returning buyer's repricing sees: the initial
+     * price ran at the buyer's unknown visit count (zero). `calcValue` is in
+     * whole currency units, so a penny-sized change is 0.01. */
+    const returningBuyerPriceChange = (
+      direction: "charge" | "discount",
+      calcValue: number,
+    ) =>
       modifiersTable.insert({
         calcKind: "fixed",
-        calcValue: 1,
+        calcValue,
         direction,
         minVisits: 1,
         name:
@@ -181,7 +185,7 @@ describeWithEnv("ticket submit", { db: true, triggers: true }, () => {
       await chooseSquare();
       await seedReturningBuyer();
       const listing = await phoneOnlyListing(1);
-      await returningBuyerPriceChange("discount");
+      await returningBuyerPriceChange("discount", 1);
 
       await expectEmailDemanded(listing);
     });
@@ -190,7 +194,9 @@ describeWithEnv("ticket submit", { db: true, triggers: true }, () => {
       await chooseSquare();
       await seedReturningBuyer();
       const listing = await phoneOnlyListing(0);
-      await returningBuyerPriceChange("charge");
+      // A penny onto a returning buyer's order, so the repriced order
+      // becomes paid after the initial free price passed validation.
+      await returningBuyerPriceChange("charge", 0.01);
 
       await expectEmailDemanded(listing);
     });
