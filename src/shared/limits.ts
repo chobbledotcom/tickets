@@ -131,12 +131,19 @@ export const MAX_TEXTAREA_LENGTH = limit(
  *  longer than 504 characters makes Square refuse the checkout later. */
 export const SQUARE_NAME_BUDGET = 512 - "Ticket: ".length;
 
+/** The new-password fields ask for at least this many characters and take
+ *  their maxlength from MAX_INPUT_LENGTH. A ceiling below the floor leaves no
+ *  password that passes both rules, which blocks account setup, invitation
+ *  completion, and every password change. */
+export const PASSWORD_MIN_LENGTH = 8;
+
 /**
  * Validate the input-length config: a ceiling above the Square budget would
- * let an operator save catalog names that break every Square checkout, so an
- * unsafe override throws at startup rather than failing at the till. Extracted
- * from the constant below so the invariant is unit-testable without having to
- * construct a broken live environment.
+ * let an operator save catalog names that break every Square checkout, and a
+ * ceiling below the password minimum would leave no valid new password. An
+ * unsafe override either way throws at startup rather than failing later at
+ * the till or the login. Extracted from the constant below so the invariant
+ * is unit-testable without having to construct a broken live environment.
  */
 export const assertInputLengthSafe = (length: number): number => {
   if (length > SQUARE_NAME_BUDGET) {
@@ -148,13 +155,23 @@ export const assertInputLengthSafe = (length: number): number => {
         "below (the default is 500).",
     );
   }
+  if (length < PASSWORD_MIN_LENGTH) {
+    throw new Error(
+      `MAX_INPUT_LENGTH=${length} is below the ${PASSWORD_MIN_LENGTH}-character ` +
+        "password minimum. The new-password fields ask for at least " +
+        `${PASSWORD_MIN_LENGTH} characters and cap length at MAX_INPUT_LENGTH, ` +
+        "so a lower ceiling blocks account setup and every password change. " +
+        `Set the limit to ${PASSWORD_MIN_LENGTH} or above (the default is 500).`,
+    );
+  }
   return length;
 };
 
 /** Maximum single-line input length in characters (default: 500). Every form
  *  input answers to this unless it declares its own tighter limit, and a
  *  catalog name of this length also fits the provider order lines that carry
- *  it. An unsafe override fails startup rather than the buyer's checkout. */
+ *  it. An unsafe override above the Square budget or below the password
+ *  minimum fails startup rather than breaking checkout or login. */
 export const MAX_INPUT_LENGTH = computedLimit(
   assertInputLengthSafe(readLimit("MAX_INPUT_LENGTH", 500)),
   500,

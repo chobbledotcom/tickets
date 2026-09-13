@@ -25,6 +25,7 @@ import {
   MAX_INPUT_LENGTH,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
+  PASSWORD_MIN_LENGTH,
   PRUNE_CONTACTS_RETENTION_DAYS,
   PRUNE_INTERVAL_HOURS,
   PRUNE_INTERVAL_MS,
@@ -136,8 +137,15 @@ describe("limits", () => {
       expect(SQUARE_NAME_BUDGET).toBe(504);
     });
 
-    test("returns the value when it fits the Square budget", () => {
+    test("uses the new-password minimum as its floor", () => {
+      expect(PASSWORD_MIN_LENGTH).toBe(8);
+    });
+
+    test("returns the value when it fits both floors and the Square budget", () => {
       expect(assertInputLengthSafe(MAX_INPUT_LENGTH)).toBe(MAX_INPUT_LENGTH);
+      expect(assertInputLengthSafe(PASSWORD_MIN_LENGTH)).toBe(
+        PASSWORD_MIN_LENGTH,
+      );
       expect(assertInputLengthSafe(SQUARE_NAME_BUDGET)).toBe(
         SQUARE_NAME_BUDGET,
       );
@@ -155,10 +163,26 @@ describe("limits", () => {
       );
     });
 
-    test("the live input length satisfies its own ceiling", () => {
-      // MAX_INPUT_LENGTH is validated at import; pin the invariant so a future
-      // default change can't silently break Square checkouts.
+    test("throws when the ceiling falls below the password minimum", () => {
+      // The new-password fields carry minlength 8 and take their maxlength
+      // from MAX_INPUT_LENGTH: below 8 no password passes both rules, so
+      // setup, invitation completion, and password changes all stop working
+      // — an unsafe override must fail loudly at startup instead.
+      expect(() => assertInputLengthSafe(PASSWORD_MIN_LENGTH - 1)).toThrow(
+        "MAX_INPUT_LENGTH=7 is below the 8-character password minimum. The " +
+          "new-password fields ask for at least 8 characters and cap length " +
+          "at MAX_INPUT_LENGTH, so a lower ceiling blocks account setup and " +
+          "every password change. Set the limit to 8 or above (the default " +
+          "is 500).",
+      );
+    });
+
+    test("the live constants satisfy their own fences", () => {
+      // MAX_INPUT_LENGTH is validated at import; pin the invariants so a
+      // future default change can't silently break Square checkouts or the
+      // password forms.
       expect(MAX_INPUT_LENGTH).toBeLessThanOrEqual(SQUARE_NAME_BUDGET);
+      expect(MAX_INPUT_LENGTH).toBeGreaterThanOrEqual(PASSWORD_MIN_LENGTH);
     });
   });
 

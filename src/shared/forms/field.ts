@@ -1,6 +1,6 @@
-/** One value offered by a select or checkbox group. */
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
+/** One value offered by a select or checkbox group. */
 export interface FieldOption<TValue extends string = string> {
   hint?: string;
   label: string;
