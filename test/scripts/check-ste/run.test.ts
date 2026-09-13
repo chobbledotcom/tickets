@@ -138,9 +138,9 @@ describe("check-ste runner", () => {
     // Editing the line makes new prose of every finding on it, so the
     // semicolon's old identity no longer covers it either.
     expect(errors[0]).toBe(
-      'a.md:1 [banned-modal]: "may" — use can, will, or must',
+      'a.md:1:16 [banned-modal]: "may" — use can, will, or must',
     );
-    expect(errors[1]).toBe('a.md:1 [semicolon]: ";" — write two sentences');
+    expect(errors[1]).toBe('a.md:1:6 [semicolon]: ";" — write two sentences');
     expect(errors[2]).toContain("2 technical-english issue(s) found");
   });
 
@@ -240,8 +240,8 @@ describe("the baseline the update step records", () => {
   test("freshEntry counts each finding identity", () => {
     const entry = freshEntry("Write; one. It may fail.\n");
     expect(Object.keys(entry)).toEqual([
-      'banned-modal "may" in Write; one. It may fail.',
       'semicolon ";" in Write; one. It may fail.',
+      'banned-modal "may" in Write; one. It may fail.',
     ]);
     expect(Object.values(entry)).toEqual([1, 1]);
     expect(freshEntry("Write it clean.\n")).toEqual({});
@@ -255,8 +255,8 @@ describe("the baseline the update step records", () => {
   });
 
   test("baselineRose answers yes only when an identity's count rose", () => {
-    const recorded = { "a.md": freshEntry("Write; one.\nTwo; three.\n") };
-    const atBaseline = freshEntry("Write; one.\nTwo; three.\n");
+    const recorded = { "a.md": freshEntry("Write; one.\n\nTwo; three.\n") };
+    const atBaseline = freshEntry("Write; one.\n\nTwo; three.\n");
     expect(baselineRose(recorded, { "a.md": atBaseline })).toBe(false);
     expect(baselineRose(recorded, {})).toBe(false);
     const oneLeft = freshEntry("Write; one.\n");

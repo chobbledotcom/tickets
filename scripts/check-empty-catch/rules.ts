@@ -5,10 +5,11 @@
  * error with no statement and no comment hides a failure; catch only when
  * there is a real recovery path. A catch whose only content is a comment is
  * the documented exception — the comment states the fallback on purpose, so
- * it stands. A promise callback counts as the same clause: a `.catch(() {})`
+ * it stands. A promise callback counts as the same clause: a `.catch(() => {})`
  * or `.catch(function () {})` that holds no statement and no comment is an
- * empty catch too. A callback passed by name cannot be read here, so the
- * gate leaves it to its own definition.
+ * empty catch too, and so is an empty rejection handler passed to
+ * `.then(onSuccess, () => {})`. A callback passed by name cannot be read
+ * here, so the gate leaves it to its own definition.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -88,8 +89,9 @@ const memberName = (property: unknown): string | null => {
   return null;
 };
 
-/** The empty `.catch(() => {})` and `.catch(function () {})` callbacks in one
- * call-expression node. */
+/** The empty rejection callbacks in one call expression: the first argument
+ * of `.catch(…)`, or the second of `.then(…, …)` — both swallow a rejection
+ * the same way. */
 const promiseCatches: NodeCatches = (source, node) => {
   const call = node as unknown as {
     arguments: Spanned[];
@@ -97,8 +99,13 @@ const promiseCatches: NodeCatches = (source, node) => {
   };
   const callee = call.callee;
   if (callee.type !== "MemberExpression") return [];
-  if (memberName(callee.property) !== "catch") return [];
-  const callback = call.arguments[0];
+  const member = memberName(callee.property);
+  const callback =
+    member === "catch"
+      ? call.arguments[0]
+      : member === "then"
+        ? call.arguments[1]
+        : undefined;
   if (callback === undefined) return [];
   const handler = callback as unknown as Record<string, unknown>;
   const isCallbackBody =
@@ -110,7 +117,13 @@ const promiseCatches: NodeCatches = (source, node) => {
   const block = body as unknown as BlockBody;
   if (block.body.length > 0) return [];
   if (blockExplainsItself(source, block)) return [];
-  return [issueAt(source, callback.start, ".catch")];
+  return [
+    issueAt(
+      source,
+      callback.start,
+      member === "catch" ? ".catch" : ".then rejection handler",
+    ),
+  ];
 };
 
 /** The empty `catch {}` blocks in one catch-clause node. */

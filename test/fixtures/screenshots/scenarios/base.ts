@@ -1,5 +1,7 @@
-export const scenario = {
+const scenario = {
   css: "",
   name: "test",
   run: async () => {},
 };
+
+export default scenario;

@@ -52,5 +52,6 @@ describe("GroupAttendeesPanel", () => {
     );
     expect(html).toContain('name="return_url"');
     expect(html).toContain('value="/admin/groups/5/attendees"');
+    expect(html).toContain('<h2 id="attendees">Attendees</h2>');
   });
 });

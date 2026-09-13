@@ -165,6 +165,21 @@ describe("the per-file check runners", () => {
       expect(over).toEqual({ [`${dir.path}/src/big.ts`]: 401 });
     });
 
+    test("reads authored shell and stylesheet files, not the frozen ones", async () => {
+      Deno.mkdirSync(`${dir.path}/ui/static`, { recursive: true });
+      const write = (name: string, lines: number) =>
+        Deno.writeTextFileSync(`${dir.path}/${name}`, "\n".repeat(lines));
+      write("authored.css", 401);
+      write("ui/static/style.css", 401);
+      write("ui/static/logistics-map.css", 401);
+      write("run.sh", 401);
+      const over = await filesOverLimit([dir.path]);
+      expect(Object.keys(over)).toEqual([
+        `${dir.path}/authored.css`,
+        `${dir.path}/run.sh`,
+      ]);
+    });
+
     test("fails an accepted entry whose file is gone, asking for deletion", async () => {
       Deno.mkdirSync(`${dir.path}/src`);
       Deno.writeTextFileSync(`${dir.path}/src/kept.ts`, "\n");
@@ -211,14 +226,15 @@ describe("the record step of a ratchet", () => {
     expect(countsRose({ "a.md": 2 }, {})).toBe(false);
   });
 
-  test("updateMode reads both flags off the command line", () => {
-    expect(updateMode([])).toEqual({ seed: false, update: false });
-    expect(updateMode(["--update"])).toEqual({ seed: false, update: true });
-    expect(updateMode(["--seed"])).toEqual({ seed: true, update: false });
-    expect(updateMode(["--seed", "--update"])).toEqual({
-      seed: true,
-      update: true,
-    });
+  test("updateMode reads the recording flag off the command line", () => {
+    expect(updateMode([])).toEqual({ update: false });
+    expect(updateMode(["--update"])).toEqual({ update: true });
+  });
+
+  test("updateMode fails loudly for the removed --seed flag", () => {
+    expect(() => updateMode(["--seed"])).toThrow(
+      "The --seed flag is gone. A registry only falls.",
+    );
   });
 
   /** Record `count` of `a.md` on disk, then run one recording pass, and
@@ -267,9 +283,12 @@ describe("the record step of a ratchet", () => {
     expect(onDisk).toEqual({ "a.md": 2 });
   });
 
-  test("recordedState records whatever a --seed holds, rise or not", async () => {
-    const { after, onDisk } = await recording(["--seed"], { "a.md": 9 });
-    expect(after).toEqual({ "a.md": 9 });
-    expect(onDisk).toEqual({ "a.md": 9 });
+  test("a removed registry can no longer be recorded anew", () => {
+    const path = recordPath();
+    counted(path, { "a.md": 2 });
+    expect(() => updateMode(["--seed"])).toThrow(
+      "The --seed flag is gone. A registry only falls.",
+    );
+    expect(JSON.parse(Deno.readTextFileSync(path))).toEqual({ "a.md": 2 });
   });
 });

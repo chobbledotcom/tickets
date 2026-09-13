@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { findIssues, proseLines } from "#scripts/check-ste/rules.ts";
+import { proseBlocks } from "#scripts/check-ste/prose.ts";
+import { findIssues } from "#scripts/check-ste/rules.ts";
 
 const issuesOn = (line: string) => findIssues(`${line}\n`);
 const rulesOn = (line: string) => issuesOn(line).map((issue) => issue.rule);
@@ -51,7 +52,7 @@ describe("check-ste rules", () => {
     test("keeps reading an indented line that continues a paragraph", () => {
       const content = "Text\n    Should this continue?\n";
       expect(rulesOn(content)).toEqual(["banned-modal"]);
-      expect(proseLines(content)[1]?.text).toContain("Should");
+      expect(proseBlocks(content)[0]?.text).toContain("Should");
     });
 
     test("keeps reading an indented line that continues a list item", () => {
@@ -60,14 +61,16 @@ describe("check-ste rules", () => {
     });
 
     test("never reads table rows", () => {
-      const content = '| "has been; done" | should |\n';
+      const content =
+        '| left | right |\n| --- | --- |\n| "has been; done" | should |\n';
       expect(findIssues(content)).toEqual([]);
     });
 
     test("never reads inline code, quoted words, or link targets", () => {
       expect(
-        proseLines("Use `should` now. [See docs](http://x?a=b;c=d)\n")[0]?.text,
-      ).toBe("Use % now. [See docs%");
+        proseBlocks("Use `should` now. [See docs](http://x?a=b;c=d)\n")[0]
+          ?.text,
+      ).toBe("Use % now. See docs");
       expect(rulesOn('Say "would" here.')).toEqual([]);
       expect(rulesOn("Use `would` here.")).toEqual([]);
     });
@@ -87,8 +90,8 @@ describe("check-ste rules", () => {
     });
 
     test("keeps the line numbers of every prose line", () => {
-      const lines = proseLines("one\n```\ncode\n```\nfour\n");
-      expect(lines.map((line) => line.line)).toEqual([1, 5, 6]);
+      const blocks = proseBlocks("one\n```\ncode\n```\nfour\n");
+      expect(blocks.map((block) => block.lines[0])).toEqual([1, 5]);
     });
 
     test("leaves a line reading as inside the fence, whatever its marker", () => {
@@ -111,9 +114,8 @@ describe("check-ste rules", () => {
     test("closes only on a fence at least as long as its opener", () => {
       // Four backticks open; three are content, not a close.
       const content = "````\n```\n````\ncoffee; cup\n";
-      expect(proseLines(content).map((line) => line.text)).toEqual([
+      expect(proseBlocks(content).map((line) => line.text)).toEqual([
         "coffee; cup",
-        "",
       ]);
     });
 
@@ -121,7 +123,7 @@ describe("check-ste rules", () => {
       // `` ```ts `` carries an info string, so it cannot close the block it
       // sits in; prose after the true closer still reads.
       const content = "```\ncode\n```ts\nalso code\n```\na;\n";
-      expect(proseLines(content).map((line) => line.text)).toEqual(["a;", ""]);
+      expect(proseBlocks(content).map((line) => line.text)).toEqual(["a;"]);
     });
 
     test("a typed fence opens when no block is open", () => {
@@ -204,11 +206,11 @@ describe("check-ste rules", () => {
     test("wordy flags each banned word with its own fix", () => {
       const issues = issuesOn("Prior to this, in order to run it.");
       expect(issues.map((issue) => issue.problem)).toEqual([
-        '"in order to"',
         '"Prior to"',
+        '"in order to"',
       ]);
-      expect(issues[0]?.fix).toBe('write "to"');
-      expect(issues[1]?.fix).toBe('write "before"');
+      expect(issues[0]?.fix).toBe('write "before"');
+      expect(issues[1]?.fix).toBe('write "to"');
     });
 
     test("wordy flags e.g. with periods, but not inside a longer word", () => {

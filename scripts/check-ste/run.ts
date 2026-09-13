@@ -1,17 +1,4 @@
-/**
- * IO shell for the Simplified Technical English checks: reads the repository
- * Markdown, skips the record documents on the exemption list, and compares
- * the rest against the pure rules in `rules.ts`. Kept thin so the logic
- * stays testable.
- *
- * The STE guide applies to the text you write or rewrite, so the check holds
- * a per-document baseline of the findings each policy document carries today,
- * recorded per finding identity — the rule, the match, and the prose of the
- * line it sits on. Each identity's count only falls: fix a document's prose,
- * then run `deno task check:ste --update` to record the step. A finding that
- * gained occurrences never reads its old allowance back, and an allowance
- * cannot move to new prose, because new prose carries a new identity.
- */
+/** Compare repository prose with its accepted findings. Each allowance can only fall. */
 
 import { join } from "@std/path";
 import { notCoveredBy } from "#fp";
@@ -20,7 +7,7 @@ import {
   formatFinding,
   reportCheck,
 } from "#scripts/check-report.ts";
-import { countsRose, fileFindingLines } from "#scripts/check-runner.ts";
+import { countsRose } from "#scripts/check-runner.ts";
 import { collectFiles, directoryEntries } from "#scripts/walk-files.ts";
 import { findIssues, type SteIssue } from "./rules.ts";
 
@@ -88,12 +75,7 @@ export const readDocuments = async (
   return files;
 };
 
-/**
- * The finding identity the baseline records: the rule, what it matched, and
- * the prose of the line the match sits on. Line numbers shift when somebody
- * edits a paragraph above, but the context stays until that exact text is
- * edited — so an allowance cannot move to new prose, only fall away.
- */
+/** Source reflow preserves identity. A change to the normalized prose block does not. */
 export const identityOf = (issue: SteIssue): string =>
   `${issue.rule} ${issue.problem} in ${issue.context}`;
 
@@ -224,7 +206,9 @@ const findingsFor = (
     recorded,
   };
   if (countsRose(recorded, compared.current)) {
-    return fileFindingLines(file.path, risenFindings(issues, compared));
+    return risenFindings(issues, compared).map((issue) =>
+      formatFinding(`${file.path}:${issue.line}:${issue.column}`, issue),
+    );
   }
   if (!anyShrank(compared)) return [];
   return [

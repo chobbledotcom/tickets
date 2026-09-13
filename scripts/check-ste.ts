@@ -4,9 +4,8 @@
  * english rules (see the "Simplified Technical English" section of AGENTS.md).
  * Run as part of `deno task precommit`, or on its own with
  * `deno task check:ste`. Pass `--update` after fixing prose to record the
- * step; it refuses to write a baseline that rose, so a rise must be fixed
- * first. Pass `--seed` only when the rules themselves changed and the
- * baseline must be recorded anew.
+ * step. The update refuses a baseline that rose, so a rise must be fixed
+ * first. A removed baseline can no longer be recorded anew.
  */
 
 import * as v from "valibot";

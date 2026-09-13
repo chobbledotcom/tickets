@@ -81,16 +81,19 @@ export const isShippedMigration = (file: string): boolean =>
  * `directory`, built output left out — shipped migrations included. */
 export const collectGateScriptFiles = scriptsSkipping(isGeneratedFile);
 
-/** Every file a rule gate reads: the gate scripts, plus the authored
- * stylesheets. The stylesheet under `ui/static` is written by hand even though
- * the bundles beside it are built, so it joins this collector while the
- * built files stay out. */
+/** Every file a rule gate reads: the gate scripts, the authored stylesheets,
+ * and the shell scripts. The `.scss` under `ui/static` is written by hand
+ * even though the bundles beside it are built, so it joins this collector;
+ * the built `style.css` and the vendored Leaflet stylesheet stay out. */
 export const collectGateFiles = async (
   directory: string,
 ): Promise<string[]> => {
   const gateScripts = await collectGateScriptFiles(directory);
-  const stylesheets = await collectMatching(/\.scss$/)(directory);
-  return [...gateScripts, ...stylesheets].sort();
+  const stylesheets = (
+    await collectMatching(/\.(?:css|scss)$/)(directory)
+  ).filter((file) => file.endsWith(".scss") || !isGeneratedFile(file));
+  const shellScripts = await collectMatching(/\.sh$/)(directory);
+  return [...gateScripts, ...stylesheets, ...shellScripts].sort();
 };
 
 /** Every script a duplication scan reads: gate-checked files minus the

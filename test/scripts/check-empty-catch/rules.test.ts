@@ -90,6 +90,28 @@ describe("check-empty-catch rules", () => {
     expect(issues[0]?.caught).toBe(".catch");
   });
 
+  test("flags an empty rejection handler passed to then", () => {
+    // Spelled computed so the repo's own no-.then rule does not read the
+    // fixture as a real call.
+    const issues = findIssues(
+      "sixteen.ts",
+      'touch()["then"](useIt, () => {});\n',
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.caught).toBe(".then rejection handler");
+    expect(issues[0]?.line).toBe(1);
+  });
+
+  test("leaves a then call with no rejection handler alone", () => {
+    expect(findIssues("seventeen.ts", 'touch()["then"](useIt);\n')).toEqual([]);
+  });
+
+  test("lets a recovering then rejection handler stand", () => {
+    expect(
+      findIssues("eighteen.ts", 'touch()["then"](useIt, () => save());\n'),
+    ).toEqual([]);
+  });
+
   test("leaves a computed member with a non-string key alone", () => {
     expect(findIssues("fifteen.ts", "touch()[0](() => {});\n")).toEqual([]);
   });

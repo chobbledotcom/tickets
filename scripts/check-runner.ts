@@ -29,23 +29,27 @@ export const readCounts = async (path: string): Promise<Counts> =>
 
 /** Which registry-recording mode the caller asked for on the command line. */
 export interface UpdateMode {
-  seed: boolean;
   update: boolean;
 }
 
-/** Read the recording flags from a command line: `--update` records a step
- * and refuses a rise; `--seed` records fresh state whatever it holds. */
-export const updateMode = (args: readonly string[]): UpdateMode => ({
-  seed: args.includes("--seed"),
-  update: args.includes("--update"),
-});
+/** The removed reset flag, named for the error a contributor meets. */
+const SEED_ERROR =
+  "The --seed flag is gone. A registry only falls. Use --update after a fix, " +
+  "or change the registry in a reviewed commit.";
+
+/** Read the recording flag from a command line: `--update` records a step
+ * and refuses a rise. A removed registry can no longer be recorded anew. */
+export const updateMode = (args: readonly string[]): UpdateMode => {
+  if (args.includes("--seed")) throw new Error(SEED_ERROR);
+  return { update: args.includes("--update") };
+};
 
 /**
  * One ratchet's whole record step. Without a recording flag it changes
  * nothing. Otherwise it builds the fresh state, records it at `path` when
- * allowed, and answers what the check must now compare against: the fresh
- * state when recorded, the old one when a rise was refused — so the run
- * that follows names the rise for what it is.
+ * nothing rose, and answers what the check must now compare against: the
+ * recorded state when a rise was refused — so the run that follows names
+ * the rise for what it is.
  */
 export const recordedState = async <T>(
   path: string,
@@ -54,9 +58,9 @@ export const recordedState = async <T>(
   fresh: () => Promise<T>,
   rose: (recorded: T, fresh: T) => boolean,
 ): Promise<T> => {
-  if (!mode.update && !mode.seed) return recorded;
+  if (!mode.update) return recorded;
   const freshState = await fresh();
-  if (mode.seed || !rose(recorded, freshState)) {
+  if (!rose(recorded, freshState)) {
     await writeJsonFile(path, freshState);
     return freshState;
   }

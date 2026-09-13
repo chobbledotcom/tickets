@@ -297,3 +297,12 @@ src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1   # the placeh
 # attendee's order posts a sale and a payment leg sharing one event group, so
 # legs[1] carries the same group as legs[0].
 src/shared/accounting/backfill.ts::attendeeStatements~0lgaj8m  0 → 1   # every backfilled attendee's order posts a sale and a payment leg sharing one event group, so legs[1] carries the same group as legs[0]
+
+# firstMatch only yields undefined | null | a target object; null fails both
+# arms of the coalescing the same way, so ?? and || read identically.
+src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → ||  # the awaited value is undefined, null, or an object: ?? and || agree on all three
+
+# The optional parameters are Record<string, unknown> | undefined: undefined
+# is the only absent value, so ?? and || read identically over the type.
+src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecordDefaults is undefined or a truthy record object
+src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object

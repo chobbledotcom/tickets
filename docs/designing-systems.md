@@ -32,17 +32,18 @@ mechanisms to copy:
   See `src/shared/types.ts` (six of these) and `src/shared/price-modifier.ts` (a
   whole family). For structured values, compose `v.object` schemas into a
   discriminated union with `v.variant("kind", […])` and a single `v.is` guard —
-  `src/shared/bulk-email-targets.ts` is the reference.
+  `src/shared/bulk-email-targets/types.ts` is the reference.
 - **Declarative tables.** `defineTable`/`defineIdTable`
   (`src/shared/db/table.ts`, `src/shared/db/define-id-table.ts`): a `columns`
   config built from the `col.*` builders (`col.boolean`, `col.encrypted`,
   `col.generated`, …) drives serialization, encryption, and the derived `Input`
   type. Never hand-write row mapping.
 - **Config-driven CRUD.** `defineCrudApi` (`src/shared/rest/crud-api.ts`) turns
-  one config object into the five standard admin API routes;
-  `defineResource`/`defineNamedResource` (`src/shared/rest/resource.ts`) turn
-  `{table, fields, toInput, validate}` into typed operations that the handlers
-  in `src/shared/rest/handlers.ts` wire to HTTP.
+  one config object into the five standard admin API routes. `defineResource`
+  (`src/shared/rest/resource.ts`) turns `{table, fields, toInput, validate}`
+  into typed operations that `writeEntity` (`src/shared/rest/write-entity.ts`)
+  persists. The callers to copy are `src/features/admin/modifiers.ts` and
+  `src/features/admin/settings-logistics.ts`.
 - **Schema-driven forms.** `defineForm` + a `Field[]`
   (`src/shared/forms/definition.ts`): one field list drives the HTML rendering,
   the parsing/validation, and the `FormValuesFor<>` value types;

@@ -6,8 +6,8 @@
  * `scripts/check-file-lengths/over-limit.json`. Run as part of
  * `deno task precommit`, or on its own with `deno task check:file-lengths`.
  * Pass `--update` after splitting a file to re-record the list; it refuses to
- * write a list entry that grew, so growth must be split first. Pass `--seed`
- * only when the limit itself changed and the list must be recorded anew.
+ * write a list entry that grew, so growth must be split first. A removed
+ * list can no longer be recorded anew.
  */
 
 import { SOURCE_DIRS } from "#scripts/source-dirs.ts";

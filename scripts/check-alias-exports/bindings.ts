@@ -1,250 +1,306 @@
-/**
- * What a file's imports and local bindings name — the input half of the
- * alias-export rule. `rules.ts` reads this to decide which exports give an
- * imported thing a second name.
- */
+import type { Node, Program, TSTypeAnnotation } from "npm:oxc-parser@0.132.0";
 
-import type { parseProgram } from "#scripts/parse-program.ts";
+type Space = "type" | "value";
 
-export type Program = ReturnType<typeof parseProgram>;
-export type Statement = Program["body"][number];
-
-/** What one file's bindings name, for the alias rule: the names its imports
- * bring in, the names an import statement renamed, and the local `const` and
- * `type` bindings whose whole value renames one of those imports. */
-export interface FileBindings {
-  /** A local value binding that renames an import, by the target it renames. */
-  aliased: Map<string, string>;
-  /** A local type alias that renames an imported type, by its target. */
-  aliasedTypes: Map<string, string>;
-  imported: Set<string>;
-  /** Each local import name that its import statement itself renamed, by
-   * the source module's own name for the same thing. */
-  importRenames: Map<string, string>;
+interface Reference {
+  name: string;
+  path: string;
 }
 
-/** Folds every top-level statement of one kind into a Map, through what one
- * statement keeps: the shared shape behind import reading and alias
- * collection. */
-const keptBy = <T extends Statement["type"]>(
-  program: Program,
-  kind: T,
-  keepFrom: (
-    statement: Extract<Statement, { type: T }>,
-    keep: (key: string, value: string) => void,
-  ) => void,
-): Map<string, string> => {
-  const kept = new Map<string, string>();
-  for (const statement of program.body) {
-    if (statement.type !== kind) continue;
-    keepFrom(statement as Extract<Statement, { type: T }>, (key, value) =>
-      kept.set(key, value),
-    );
-  }
-  return kept;
-};
+interface ImportTarget extends Reference {
+  imported: string;
+  source: string;
+}
 
-/** One name a declaration binds, with the imported value it stands for. */
-export interface BindingAlias {
-  bound: string;
+type Binding =
+  | { kind: "import"; target: ImportTarget }
+  | {
+      annotation: Node | null;
+      kind: "alias";
+      path: string;
+      reference: Reference | null;
+    };
+
+type Bindings = Record<Space, Map<string, Binding>>;
+
+interface NamedBinding {
+  binding: Binding;
+  name: string;
+  space: Space;
+  start: number;
+}
+
+interface ExportName {
+  exported: string;
+  start: number;
+}
+
+type FileExport = ExportName &
+  (
+    | { kind: "local"; reference: Reference | null; spaces: Space[] }
+    | { kind: "foreign"; target: string }
+  );
+
+export interface ResolvedExport extends ExportName {
+  foreign: boolean;
   target: string;
 }
 
-/** One value expression in a parsed file, as its named parts. */
-type ValueNode = { name?: unknown; type?: unknown };
+const spelling = (
+  node: Extract<Node, { type: "Identifier" | "Literal" }>,
+): string => (node.type === "Identifier" ? node.name : String(node.value));
 
-/** The imported name a spelling holds, when it spells one the file brought
- * in: the shared ask behind value renames and type aliases. */
-export const importedNameOf = (
-  name: unknown,
-  imported: Set<string>,
-): string | null =>
-  typeof name === "string" && imported.has(name) ? name : null;
-
-/**
- * The value an exported `const` renames, when it renames one at all: a whole
- * imported name (`system`), or a member reached through one
- * (`byParent.getIds`, `byParent[choice]`). A member takes its target from
- * the source text, so a computed access keeps its own spelling. Anything
- * else — a call, a literal, a local — is the value's own export.
- */
-const renamedValue = (
-  value: unknown,
-  imported: Set<string>,
+const memberPath = (
+  node: Extract<Node, { type: "MemberExpression" | "TSQualifiedName" }>,
   content: string,
-): string | null => {
-  const node = value as ValueNode | null;
-  if (node !== null && node.type === "Identifier") {
-    return importedNameOf((value as ValueNode).name, imported);
+): string => {
+  if (node.type === "TSQualifiedName") return `.${node.right.name}`;
+  const property = content.slice(node.property.start, node.property.end);
+  return node.computed ? `[${property}]` : `.${property}`;
+};
+
+/** Calls, defaults, and specialisations do not name an unchanged import. */
+const referenceOf = (node: Node | null, content: string): Reference | null => {
+  if (node === null) return null;
+  if (node.type === "Identifier") return { name: node.name, path: "" };
+  if (node.type === "TSTypeReference" && node.typeArguments === null) {
+    return referenceOf(node.typeName, content);
   }
-  if (node !== null && node.type === "MemberExpression") {
-    const member = value as { object: unknown; end: number; start: number };
-    return renamedValue(member.object, imported, content) === null
-      ? null
-      : content.slice(member.start, member.end);
+  if (node.type === "MemberExpression" || node.type === "TSQualifiedName") {
+    const root = node.type === "MemberExpression" ? node.object : node.left;
+    const reference = referenceOf(root, content);
+    if (reference === null) return null;
+    return { ...reference, path: reference.path + memberPath(node, content) };
   }
   return null;
 };
 
-/** The imported name one type alias stands for, when it stands for one at
- * all: a plain type reference to an import, with no type arguments of its
- * own. Anything else — a union, a specialization, a `typeof` — is the
- * alias's own type. */
-export const typeAliasTarget = (
-  statement: Extract<Statement, { type: "TSTypeAliasDeclaration" }>,
-  imported: Set<string>,
-): string | null => {
-  const annotation = statement.typeAnnotation as {
-    type?: unknown;
-    typeArguments?: unknown[] | null;
-    typeName?: ValueNode;
-  };
-  if (annotation?.type !== "TSTypeReference") return null;
-  // A naked reference carries null arguments; a specialized one carries a
-  // list.
-  if (annotation.typeArguments !== null) return null;
-  return importedNameOf(annotation.typeName?.name, imported);
-};
+/** Only plain members retain identity after a destructure. */
+const plainName = (node: Node | null, path: string): Reference[] =>
+  node?.type === "Identifier" ? [{ name: node.name, path }] : [];
 
-/** One pattern a declarator can bind with, as its named parts. */
-type PatternNode = {
-  elements?: unknown | null;
-  name?: unknown;
-  properties?: unknown;
-  type?: unknown;
-};
-
-/** The members one pattern binds to an imported value, spelled as that
- * value's member: `const { getIds } = byParent` binds `getIds` to
- * `byParent.getIds`, and `const [first] = pair` binds `first` to `pair[0]`.
- * A member with a default value, a rest element, a computed key, or a nested
- * pattern adds or hides something of its own, so those names never stand for
- * the plain member. */
-export const bindingAliases = (
-  id: unknown,
-  init: unknown,
-  imported: Set<string>,
-  content: string,
-): BindingAlias[] => {
-  const target = renamedValue(init, imported, content);
-  if (target === null) return [];
-  const pattern = id as PatternNode;
-  if (pattern.type === "Identifier") {
-    return [{ bound: pattern.name as string, target }];
-  }
-  if (pattern.type === "ObjectPattern") {
-    const properties = pattern.properties as Array<{
-      computed?: unknown;
-      key?: ValueNode;
-      type?: unknown;
-      value?: ValueNode;
-    }>;
-    return properties.flatMap((property) => {
-      if (property.type !== "Property" || property.computed === true) {
+const patternNames = (node: Node): Reference[] => {
+  if (node.type === "ObjectPattern") {
+    return node.properties.flatMap((property) => {
+      if (
+        property.type !== "Property" ||
+        property.computed ||
+        property.key.type !== "Identifier"
+      )
         return [];
-      }
-      const key = property.key?.name;
-      const value = property.value;
-      if (typeof key !== "string" || value?.type !== "Identifier") return [];
-      return [{ bound: value.name as string, target: `${target}.${key}` }];
+      return plainName(property.value, `.${property.key.name}`);
     });
   }
-  // A declarator's pattern is an identifier, an object pattern, or an array
-  // pattern, so what is left binds array elements.
-  const elements = pattern.elements as (ValueNode | null)[];
-  const bound: BindingAlias[] = [];
-  elements.forEach((element, index) => {
-    if (element !== null && element.type === "Identifier") {
-      bound.push({
-        bound: element.name as string,
-        target: `${target}[${index}]`,
-      });
-    }
-  });
-  return bound;
+  if (node.type === "ArrayPattern") {
+    return node.elements.flatMap((element, index) =>
+      plainName(element, `[${index}]`),
+    );
+  }
+  return plainName(node, "");
 };
 
-/** What one file's imports bring in: every local name, and the local names
- * the import statement itself renamed, by the source module's own spelling
- * (`import { TokenEntry as CheckinEntry }` carries `CheckinEntry →
- * TokenEntry`). */
-const importsOf = (
-  program: Program,
-): { names: Set<string>; renamed: Map<string, string> } => {
-  const names = new Set<string>();
-  const renamed = keptBy(program, "ImportDeclaration", (statement, keep) => {
-    for (const specifier of statement.specifiers) {
-      names.add(specifier.local.name);
-      const sourceName = (specifier as { imported?: { name?: unknown } })
-        .imported?.name;
-      // A default or namespace import has no source spelling, so only a
-      // named import can rename one the source module already named.
-      if (
-        typeof sourceName === "string" &&
-        sourceName !== specifier.local.name
-      ) {
-        keep(specifier.local.name, sourceName);
-      }
-    }
-  });
-  return { names, renamed };
+const declaredBindings = (node: Node, content: string): NamedBinding[] => {
+  if (node.type === "VariableDeclaration") {
+    return node.declarations.flatMap((declaration) => {
+      // Oxc's pattern types omit the TypeScript annotation that its parser emits.
+      const pattern: { typeAnnotation?: TSTypeAnnotation | null } =
+        declaration.id;
+      const reference =
+        node.kind === "const" ? referenceOf(declaration.init, content) : null;
+      return patternNames(declaration.id).map((bound) => ({
+        binding: {
+          annotation: pattern.typeAnnotation?.typeAnnotation ?? null,
+          kind: "alias",
+          path: bound.path,
+          reference,
+        },
+        name: bound.name,
+        space: "value",
+        start: declaration.start,
+      }));
+    });
+  }
+  if (node.type === "TSTypeAliasDeclaration") {
+    return [
+      {
+        binding: {
+          annotation: null,
+          kind: "alias",
+          path: "",
+          reference:
+            node.typeParameters === null
+              ? referenceOf(node.typeAnnotation, content)
+              : null,
+        },
+        name: node.id.name,
+        space: "type",
+        start: node.start,
+      },
+    ];
+  }
+  return [];
 };
 
-/**
- * The local `const` bindings whose whole value renames an import, by the
- * target each renames — `const getChildIds = byParent.getIds` carries
- * `getChildIds → byParent.getIds`. Exporting such a binding under any name is
- * the alias the rule forbids, so the export clauses resolve through this map.
- */
-const localAliases = (
-  program: Program,
-  imported: Set<string>,
-  content: string,
-): Map<string, string> =>
-  keptBy(program, "VariableDeclaration", (statement, keep) => {
-    // A `let` or `var` binding can be reassigned to something that no longer
-    // renames the import, so only a `const` keeps its target for sure.
-    if (statement.kind !== "const") return;
-    for (const declarator of statement.declarations) {
-      for (const bound of bindingAliases(
-        declarator.id,
-        declarator.init,
+const readImport = (
+  statement: Extract<Node, { type: "ImportDeclaration" }>,
+  bindings: Bindings,
+): void => {
+  for (const specifier of statement.specifiers) {
+    const named = specifier.type === "ImportSpecifier";
+    const imported = named
+      ? spelling(specifier.imported)
+      : specifier.type === "ImportDefaultSpecifier"
+        ? "default"
+        : "*";
+    const binding: Binding = {
+      kind: "import",
+      target: {
         imported,
-        content,
-      )) {
-        keep(bound.bound, bound.target);
-      }
+        name: imported === "*" ? specifier.local.name : imported,
+        path: "",
+        source: statement.source.value,
+      },
+    };
+    bindings.type.set(specifier.local.name, binding);
+    if (
+      statement.importKind !== "type" &&
+      !(named && specifier.importKind === "type")
+    ) {
+      bindings.value.set(specifier.local.name, binding);
     }
+  }
+};
+
+const clauseExports = (
+  statement: Extract<Node, { type: "ExportNamedDeclaration" }>,
+): FileExport[] =>
+  statement.specifiers.map((specifier) => {
+    const name: ExportName = {
+      exported: spelling(specifier.exported),
+      start: specifier.start,
+    };
+    const local = spelling(specifier.local);
+    return statement.source !== null
+      ? { ...name, kind: "foreign", target: local }
+      : {
+          ...name,
+          kind: "local",
+          reference: { name: local, path: "" },
+          spaces:
+            statement.exportKind === "type" || specifier.exportKind === "type"
+              ? ["type"]
+              : ["value", "type"],
+        };
   });
 
-/**
- * The local `type` aliases whose whole value is one imported name, by the
- * target each renames — `type CheckinEntry = TokenEntry` carries
- * `CheckinEntry → TokenEntry`. Types cannot be reassigned, so every alias
- * holds its target for sure.
- */
-const localTypeAliases = (
-  program: Program,
-  imported: Set<string>,
-): Map<string, string> =>
-  keptBy(program, "TSTypeAliasDeclaration", (statement, keep) => {
-    const target = typeAliasTarget(statement, imported);
-    if (target !== null) {
-      keep(statement.id.name, target);
-    }
-  });
-
-/** Everything the alias rule wants to know about one file's imports and local
- * bindings, read once and shared by every question the rule asks. */
-export const fileBindingsOf = (
+const fileExports = (
   program: Program,
   content: string,
-): FileBindings => {
-  const { names, renamed } = importsOf(program);
-  return {
-    aliased: localAliases(program, names, content),
-    aliasedTypes: localTypeAliases(program, names),
-    imported: names,
-    importRenames: renamed,
+  bindings: Bindings,
+): FileExport[] =>
+  program.body.flatMap((statement): FileExport[] => {
+    const named = statement.type === "ExportNamedDeclaration";
+    const declaration = named ? statement.declaration : statement;
+    const declared =
+      declaration === null ? [] : declaredBindings(declaration, content);
+    for (const { binding, name, space } of declared) {
+      bindings[space].set(name, binding);
+    }
+    if (named) {
+      return [
+        ...clauseExports(statement),
+        ...declared.map(
+          ({ name, space, start }): FileExport => ({
+            exported: name,
+            kind: "local",
+            reference: { name, path: "" },
+            spaces: [space],
+            start,
+          }),
+        ),
+      ];
+    }
+    return statement.type === "ExportDefaultDeclaration"
+      ? [
+          {
+            exported: "default",
+            kind: "local",
+            reference: referenceOf(statement.declaration, content),
+            spaces: ["value"],
+            start: statement.start,
+          },
+        ]
+      : [];
+  });
+
+const sameTarget = (
+  left: ImportTarget | null,
+  right: ImportTarget | null,
+): boolean =>
+  left !== null &&
+  right !== null &&
+  left.source === right.source &&
+  left.imported === right.imported &&
+  left.path === right.path;
+
+/** Resolve both declaration and clause exports through the same local facts. */
+export const resolveExports = (
+  program: Program,
+  content: string,
+): ResolvedExport[] => {
+  const bindings: Bindings = { type: new Map(), value: new Map() };
+  for (const statement of program.body) {
+    if (statement.type === "ImportDeclaration") readImport(statement, bindings);
+  }
+  const exports = fileExports(program, content, bindings);
+
+  // A cycle has no imported root. The active set belongs to one resolution.
+  const resolve = (
+    reference: Reference | null,
+    space: Space,
+    active: Set<Binding>,
+  ): ImportTarget | null => {
+    if (reference === null) return null;
+    const binding = bindings[space].get(reference.name);
+    if (binding === undefined || active.has(binding)) return null;
+    if (binding.kind === "import") {
+      return { ...binding.target, path: reference.path };
+    }
+    active.add(binding);
+    const target = resolve(binding.reference, space, active);
+    const annotation = binding.annotation;
+    const repeatsTarget =
+      annotation === null ||
+      (annotation.type === "TSTypeQuery" &&
+        annotation.typeArguments === null &&
+        sameTarget(
+          target,
+          resolve(referenceOf(annotation.exprName, content), "value", active),
+        ));
+    active.delete(binding);
+    return target !== null && repeatsTarget
+      ? { ...target, path: target.path + binding.path + reference.path }
+      : null;
   };
+
+  return exports.flatMap((entry) => {
+    const targets =
+      entry.kind === "foreign"
+        ? [entry.target].filter((target) => target !== entry.exported)
+        : entry.spaces.flatMap((space) => {
+            const target = resolve(entry.reference, space, new Set());
+            if (
+              target === null ||
+              (target.path === "" && target.name === entry.exported)
+            )
+              return [];
+            return [target.name + target.path];
+          });
+    return [...new Set(targets)].map((target) => ({
+      exported: entry.exported,
+      foreign: entry.kind === "foreign",
+      start: entry.start,
+      target,
+    }));
+  });
 };
