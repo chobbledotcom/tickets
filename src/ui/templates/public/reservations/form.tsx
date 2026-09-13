@@ -13,7 +13,10 @@ import { formatDatetimeLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Field } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import { savedFormValue } from "#shared/forms/saved-data.ts";
+import {
+  savedFormValue,
+  savedFormValueOrNull,
+} from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
@@ -117,8 +120,14 @@ const AddOnsFieldset = ({ addOns }: { addOns: AddOnOption[] }): JSX.Element => (
 );
 
 /** Promo-code text input, shown when any active modifier is unlocked by a code.
- * The entered value is restored on a validation-error re-render. */
-const PromoCodeField = (): JSX.Element => (
+ * A submitted value wins — even an empty one, so a buyer who cleared the box
+ * does not get the URL code back on a validation re-render; a `?promo=` link
+ * value fills the box only when nothing was submitted. */
+const PromoCodeField = ({
+  prefilled,
+}: {
+  prefilled: string | undefined;
+}): JSX.Element => (
   <div class="promo-code">
     <label>
       {t("public.promo.heading")}
@@ -126,7 +135,7 @@ const PromoCodeField = (): JSX.Element => (
         name="promo_code"
         placeholder={t("public.promo.placeholder")}
         type="text"
-        value={savedFormValue("promo_code")}
+        value={savedFormValueOrNull("promo_code") ?? prefilled ?? ""}
       />
     </label>
   </div>
@@ -238,7 +247,7 @@ export const TicketPageForm = ({
         questions.length > 0 &&
         renderQuestions(questions, questionListingMap)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
-      {promoCodesEnabled && <PromoCodeField />}
+      {promoCodesEnabled && <PromoCodeField prefilled={prefill?.promo} />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
       {/* Continue is rendered first so it stays the form's default submit: an
           implicit submit (Enter in a text field) completes the booking, not the

@@ -13,7 +13,10 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { configureTestEmail } from "#test-utils/email.ts";
+import {
+  configureTestEmail,
+  expectSingleTicketSvg,
+} from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -24,23 +27,6 @@ const setupAndSendRegistration = async (
 ) => {
   await configureTestEmail(opts);
   return await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
-};
-
-/** Decode a base64 SVG attachment back to its UTF-8 source. */
-const decodeSvgAttachment = (content: string): string => {
-  const binary = atob(content);
-  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-};
-
-/** Assert the email body carries exactly one `ticket.svg` attachment and return
- * its decoded SVG source. */
-const expectSingleTicketSvg = (body: {
-  attachments: { filename: string; content: string }[];
-}): string => {
-  expect(body.attachments).toHaveLength(1);
-  expect(body.attachments[0]!.filename).toBe("ticket.svg");
-  return decodeSvgAttachment(body.attachments[0]!.content);
 };
 
 const createHiddenPackage = async (name: string): Promise<number> => {

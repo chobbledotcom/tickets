@@ -29,6 +29,14 @@ export const getSavedFormData = (): FormParams | null =>
 export const savedFormValue = (name: string): string =>
   savedFormScope.current().form?.getString(name) ?? "";
 
+/** The submitted value of one field, or null when this form never carried
+ * it — the distinction a pre-filled field needs: a submitted empty string is
+ * the buyer's choice, an absent field is not. */
+export const savedFormValueOrNull = (name: string): string | null => {
+  const form = savedFormScope.current().form;
+  return form?.has(name) ? form.getString(name) : null;
+};
+
 /** Return a restorable field value without exposing passwords or files. */
 export const getSavedFieldValue = (field: Field): string => {
   const form = savedFormScope.current().form;

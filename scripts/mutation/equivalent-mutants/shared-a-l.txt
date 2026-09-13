@@ -95,6 +95,10 @@ src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → ||   # bufB[i]: nu
 # non-null string is "" which equals the "" fallback, so ?? and || agree.
 src/shared/forms/saved-data.ts::savedFormValue~1w1m8os  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
 
+# getSavedFieldValue: readSubmittedFieldValue answers string|null; the only
+# nullish value is null, and "" already equals the "" fallback, so ?? and || agree.
+src/shared/forms/saved-data.ts::getSavedFieldValue~1y12b7e  ?? → ||   # string|null over the fallback "", so "" ?? "" === "" || ""
+
 # resize.ts writes each output pixel's channels exactly once into a freshly
 # zeroed Uint8ClampedArray, so `out[o] = x` and `out[o] += x` are identical
 # (0 + x === x). No input can revisit an index, so no test can distinguish them.
