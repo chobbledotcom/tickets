@@ -52,13 +52,19 @@ describe("renderField", () => {
 
   test("omits optional attributes, value, and beforeHtml when absent", () => {
     expect(rendered({ label: "Name", name: "name" })).toBe(
-      '<label>Name<input name="name" type="text"></label>',
+      '<label>Name<input maxlength="500" name="name" type="text"></label>',
+    );
+  });
+
+  test("renders the default textarea maxlength when none is declared", () => {
+    expect(rendered({ label: "Bio", name: "bio", type: "textarea" })).toBe(
+      '<label>Bio<textarea maxlength="10240" name="bio"></textarea></label>',
     );
   });
 
   test("renders trusted beforeHtml before the label", () => {
     expect(rendered({ beforeHtml: "<hr>", label: "Name", name: "name" })).toBe(
-      '<hr><label>Name<input name="name" type="text"></label>',
+      '<hr><label>Name<input maxlength="500" name="name" type="text"></label>',
     );
   });
 
@@ -82,7 +88,8 @@ describe("renderField", () => {
     },
     {
       description: "plain textarea without markdown metadata",
-      expected: '<label>Bio<textarea name="bio"></textarea></label>',
+      expected:
+        '<label>Bio<textarea maxlength="10240" name="bio"></textarea></label>',
       field: field({ label: "Bio", name: "bio", type: "textarea" }),
       value: "",
     },
@@ -276,7 +283,7 @@ describe("renderField", () => {
 
     test("renders the link for a value", () => {
       expect(rendered(withPublicLink, "my-post")).toBe(
-        '<label>Slug<input name="slug" type="text" value="my-post"><small class="public-link">Public link: <a href="/news/my-post" rel="noopener" target="_blank">/news/my-post</a></small></label>',
+        '<label>Slug<input maxlength="500" name="slug" type="text" value="my-post"><small class="public-link">Public link: <a href="/news/my-post" rel="noopener" target="_blank">/news/my-post</a></small></label>',
       );
     });
 
@@ -294,7 +301,7 @@ describe("renderField", () => {
     ] as const) {
       test(`omits the link when ${description}`, () => {
         expect(rendered(linkField, value)).toBe(
-          `<label>Slug<input name="slug" type="text"${
+          `<label>Slug<input maxlength="500" name="slug" type="text"${
             value ? ` value="${value}"` : ""
           }></label>`,
         );
@@ -320,7 +327,7 @@ describe("renderFields", () => {
         { count: 42, hidden: "secret", name: "Test" },
       ),
     ).toBe(
-      '<label>Name<input name="name" type="text" value="Test"></label><label>Count<input name="count" type="number" value="42"></label>',
+      '<label>Name<input maxlength="500" name="name" type="text" value="Test"></label><label>Count<input name="count" type="number" value="42"></label>',
     );
   });
 
@@ -355,7 +362,7 @@ describe("renderFields", () => {
             value === undefined ? {} : { name: value },
           ),
         ).toBe(
-          `<label>Name<input name="name" type="text" value="${expected}"></label>`,
+          `<label>Name<input maxlength="500" name="name" type="text" value="${expected}"></label>`,
         );
       });
     }
@@ -383,13 +390,15 @@ describe("renderFields", () => {
             [field({ defaultValue: "Default", label: "Name", name: "name" })],
             value === undefined ? {} : { name: value },
           ),
-        ).toBe(`<label>Name<input name="name" type="text"${expected}></label>`);
+        ).toBe(
+          `<label>Name<input maxlength="500" name="name" type="text"${expected}></label>`,
+        );
       });
     }
 
     test("falls back to a blank value when no source has a value", () => {
       expect(renderFields([field({ label: "Name", name: "name" })])).toBe(
-        '<label>Name<input name="name" type="text"></label>',
+        '<label>Name<input maxlength="500" name="name" type="text"></label>',
       );
     });
 

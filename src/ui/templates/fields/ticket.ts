@@ -18,9 +18,12 @@ import {
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import {
   MAX_ADDRESS_LENGTH,
+  MAX_CONTACT_LENGTH,
+  MAX_PHONE_LENGTH,
   MAX_SPECIAL_INSTRUCTIONS_LENGTH,
   validateAddress,
   validateEmail,
+  validateName,
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
@@ -42,15 +45,18 @@ export type { ContactInfo };
 const nameField: Field = {
   autocomplete: "name",
   label: "Your Name",
+  maxlength: MAX_CONTACT_LENGTH,
   name: "name",
   required: true,
   type: "text",
+  validate: validateName,
 };
 
 /** Email field for ticket forms */
 const emailField: Field = {
   autocomplete: "email",
   label: "Your Email",
+  maxlength: MAX_CONTACT_LENGTH,
   name: "email",
   required: true,
   type: "email",
@@ -75,6 +81,7 @@ export const SUBDOMAIN_INPUT_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?";
 const phoneField: Field = {
   autocomplete: "tel",
   label: "Your Phone Number",
+  maxlength: MAX_PHONE_LENGTH,
   name: "phone",
   pattern: PHONE_INPUT_PATTERN,
   required: true,

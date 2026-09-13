@@ -7,6 +7,8 @@ import {
   buildHiddenField,
   getSlugField,
   getUsernameFieldBase,
+  MAX_CONTACT_LENGTH,
+  MAX_PHONE_LENGTH,
   slugFieldBase,
   validateAddress,
   validateBookableDays,
@@ -16,6 +18,7 @@ import {
   validateEmail,
   validateHttpsDomainUrl,
   validateListingFields,
+  validateName,
   validateNonNegativeInteger,
   validateNonNegativePrice,
   validatePhone,
@@ -70,6 +73,11 @@ describe("fields validators", () => {
     for (const bad of ["", "notanemail", "missing@domain", "@example.com"]) {
       test(`rejects ${JSON.stringify(bad)}`, () => rejects(validateEmail, bad));
     }
+    test("rejects an address past the contact length, naming the limit", () => {
+      expect(
+        validateEmail(`${"e".repeat(MAX_CONTACT_LENGTH)}@example.com`),
+      ).toBe("Email address must be 250 characters or fewer");
+    });
   });
 
   describe("validatePhone", () => {
@@ -89,6 +97,14 @@ describe("fields validators", () => {
     for (const bad of ["", "abcdef", "phone!!"]) {
       test(`rejects ${JSON.stringify(bad)}`, () => rejects(validatePhone, bad));
     }
+    test("rejects a number past the phone length, naming the limit", () => {
+      // Square packs the phone (with other small fields) into one 255-char
+      // metadata entry, so the number must stay short; a length past the cap
+      // is refused by count, not by format.
+      expect(validatePhone("2".repeat(MAX_PHONE_LENGTH + 1))).toBe(
+        "Phone number must be 32 characters or fewer",
+      );
+    });
   });
 
   describe("validateUsername", () => {
@@ -236,6 +252,14 @@ describe("fields validators", () => {
     });
     test("validateSpecialInstructions rejects an over-long note", () => {
       rejects(validateSpecialInstructions, "x".repeat(1000));
+    });
+    test("validateName accepts a normal name", () => {
+      accepts(validateName, "Ada Lovelace");
+    });
+    test("validateName rejects an over-long buyer name, naming the limit", () => {
+      expect(validateName("n".repeat(MAX_CONTACT_LENGTH + 1))).toBe(
+        "Name must be 250 characters or fewer",
+      );
     });
   });
 });

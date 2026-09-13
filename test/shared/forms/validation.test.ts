@@ -136,6 +136,39 @@ describe("validateForm", () => {
     });
   });
 
+  test("rejects an input longer than the default 500 when no maxlength is declared", () => {
+    const fields: Field[] = [field({ label: "Location", name: "location" })];
+    const result = validateForm(
+      new FormParams({ location: "L".repeat(501) }),
+      fields,
+    );
+    expect(result).toEqual({
+      error: "Location must be 500 characters or fewer",
+      valid: false,
+    });
+  });
+
+  test("accepts an input at exactly the default 500", () => {
+    const fields: Field[] = [field({ label: "Location", name: "location" })];
+    const result = validateForm(
+      new FormParams({ location: "L".repeat(500) }),
+      fields,
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  test("caps a textarea at the textarea limit when none is declared", () => {
+    const long = "T".repeat(10_241);
+    const fields: Field[] = [
+      field({ label: "Notes", name: "notes", type: "textarea" }),
+    ];
+    const result = validateForm(new FormParams({ notes: long }), fields);
+    expect(result).toEqual({
+      error: "Notes must be 10240 characters or fewer",
+      valid: false,
+    });
+  });
+
   test("skips custom validate for empty optional field", () => {
     const fields: Field[] = [
       field({

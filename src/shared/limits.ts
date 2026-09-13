@@ -126,6 +126,43 @@ export const MAX_TEXTAREA_LENGTH = limit(
   "chars",
 );
 
+/** Square's order line-item names cap at 512 characters, and this app writes
+ *  them as "Ticket: " (8 characters) plus the catalog name, so a catalog name
+ *  longer than 504 characters makes Square refuse the checkout later. */
+export const SQUARE_NAME_BUDGET = 512 - "Ticket: ".length;
+
+/**
+ * Validate the input-length config: a ceiling above the Square budget would
+ * let an operator save catalog names that break every Square checkout, so an
+ * unsafe override throws at startup rather than failing at the till. Extracted
+ * from the constant below so the invariant is unit-testable without having to
+ * construct a broken live environment.
+ */
+export const assertInputLengthSafe = (length: number): number => {
+  if (length > SQUARE_NAME_BUDGET) {
+    throw new Error(
+      `MAX_INPUT_LENGTH=${length} is above the ${SQUARE_NAME_BUDGET}-character ` +
+        "catalog-name budget Square's 512-character line-item names leave. A " +
+        "longer limit would let an operator save a name that Square later " +
+        "refuses at checkout. Set it to " +
+        `${SQUARE_NAME_BUDGET} or below (the default is 500).`,
+    );
+  }
+  return length;
+};
+
+/** Maximum single-line input length in characters (default: 500). Every form
+ *  input answers to this unless it declares its own tighter limit, and a
+ *  catalog name of this length also fits the provider order lines that carry
+ *  it. An unsafe override fails startup rather than the buyer's checkout. */
+export const MAX_INPUT_LENGTH = computedLimit(
+  assertInputLengthSafe(readLimit("MAX_INPUT_LENGTH", 500)),
+  500,
+  "MAX_INPUT_LENGTH",
+  "Max input length",
+  "chars",
+);
+
 /**
  * Maximum number of line items one attendee-form submission may declare
  * (default: 1000).
