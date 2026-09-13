@@ -131,6 +131,23 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
     expect(html).toMatch(/name="name"[^>]*value=""/);
   });
 
+  test("refuses a status name past the catalog length", async () => {
+    // Regression: the status form renders its name input by hand, so the
+    // field-system default never capped it and a 501-character name was
+    // stored. The status name is a catalog name like any other.
+    const seed = await seedStatus();
+    const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {
+      name: "S".repeat(501),
+    });
+    const html = await expectHtmlResponse(
+      response,
+      400,
+      "Name must be 500 characters or fewer",
+    );
+    expect(html).toContain(`maxlength="500"`);
+    expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
+  });
+
   test("refuses to clear the only paid default", async () => {
     const seed = await seedStatus();
     const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {

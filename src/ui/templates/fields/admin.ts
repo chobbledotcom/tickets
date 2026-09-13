@@ -7,6 +7,7 @@
 import { t } from "#i18n";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
@@ -180,7 +181,10 @@ const getBuiltSiteFields = () =>
 
 export const getBuiltSiteForm = defineFieldsForm(getBuiltSiteFields);
 
-/** Password field telling the browser to offer a new password, not a saved one. */
+/** Password field telling the browser to offer a new password, not a saved one.
+ *  The length cap applies to the credential being CHOSEN here, never to a
+ *  login/current-password field, which must accept an existing credential of
+ *  any length an older site allowed. */
 const newPasswordField = <TName extends string>(
   name: TName,
   label: string,
@@ -188,6 +192,7 @@ const newPasswordField = <TName extends string>(
 ): InputField<TName> & { required: true } => ({
   autocomplete: "new-password",
   label,
+  maxlength: MAX_INPUT_LENGTH,
   name,
   required: true,
   type: "password",
@@ -255,7 +260,8 @@ export const getChangePasswordForm = defineFieldsForm(getChangePasswordFields);
 /** A required payment-provider credential field: never autofilled, always
  * carries a hint, and (when given) a placeholder. `type` is "password" for
  * secret keys/tokens and "text" for public ids like a location or merchant
- * code. */
+ * code. Password-type fields declare their own cap because the free-text
+ * default no longer covers password inputs. */
 const secretField = ({
   hint,
   label,
@@ -272,6 +278,7 @@ const secretField = ({
   autocomplete: "off",
   hint,
   label,
+  maxlength: MAX_INPUT_LENGTH,
   name,
   ...(placeholder !== undefined && { placeholder }),
   required: true,

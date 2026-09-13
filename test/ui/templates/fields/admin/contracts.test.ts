@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms/field.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
   getChangePasswordForm,
@@ -112,6 +113,20 @@ describe("fields contracts", () => {
       expect(byName(fields, "current_password").required).toBe(true);
       expect(byName(fields, "new_password").minlength).toBe(8);
       expect(byName(fields, "new_password_confirm").minlength).toBeUndefined();
+    });
+
+    test("caps chosen passwords but not the credential being checked", () => {
+      // Regression: when the free-text default covered password inputs, the
+      // login and current-password caps would lock out every owner whose
+      // pre-existing password ran past 500 characters. The cap now applies
+      // only to fields choosing a NEW password.
+      const login = byName(getLoginForm().fields, "password");
+      expect(login.maxlength).toBeUndefined();
+      const change = getChangePasswordForm().fields;
+      expect(byName(change, "current_password").maxlength).toBeUndefined();
+      expect(byName(change, "new_password").maxlength).toBe(MAX_INPUT_LENGTH);
+      const setup = getSetupForm().fields;
+      expect(byName(setup, "admin_password").maxlength).toBe(MAX_INPUT_LENGTH);
     });
   });
 

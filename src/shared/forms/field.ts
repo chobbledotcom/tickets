@@ -169,21 +169,20 @@ export type Field<
   | ChoiceField<"checkbox-group", string, TName, TSection>
   | FileField<TName, TSection>;
 
-/** Inputs that take free text. Nothing else bounds their length, so they answer
- *  to the default input limit. The other input types (number, money, date,
- *  datetime) parse what they accept and already reject unusable values, and a
- *  browser ignores maxlength on them anyway. */
-const FREE_TEXT_INPUT_TYPES: readonly string[] = [
-  "text",
-  "email",
-  "url",
-  "password",
-];
+/** Inputs that take free text entered fresh. Nothing else bounds their
+ *  length, so they answer to the default input limit. The other input types
+ *  (number, money, date, datetime) parse what they accept and already reject
+ *  unusable values, and a browser ignores maxlength on them anyway. Passwords
+ *  are excluded: a login or current-password control must accept a credential
+ *  of any length an older site let its owner set, so capping it locks that
+ *  owner out. Fields that CHOOSE a new password declare their own maxlength. */
+const FREE_TEXT_INPUT_TYPES: readonly string[] = ["text", "email", "url"];
 
 /** The length cap a field answers to: its own when it declares one, otherwise
  *  the default — 500 for a free-text input, the textarea cap for a textarea —
  *  so no free-text field is ever uncapped. Choice and file fields list what
- *  they accept, and parsed inputs reject unusable values on their own. */
+ *  they accept, parsed inputs reject unusable values on their own, and a
+ *  password stays uncapped (see FREE_TEXT_INPUT_TYPES). */
 export const effectiveMaxLength = (field: Field): number | undefined => {
   if (field.type === "textarea") {
     return field.maxlength ?? MAX_TEXTAREA_LENGTH;

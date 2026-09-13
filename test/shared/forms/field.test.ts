@@ -66,13 +66,26 @@ describe("requireCheckboxOptions", () => {
 });
 
 describe("effectiveMaxLength", () => {
-  for (const type of ["text", "email", "url", "password"] as const) {
+  for (const type of ["text", "email", "url"] as const) {
     test(`defaults a ${type} input to the input length`, () => {
       expect(effectiveMaxLength({ label: "X", name: "x", type })).toBe(
         MAX_INPUT_LENGTH,
       );
     });
   }
+
+  test("leaves a password uncapped so existing credentials can be entered", () => {
+    // A site created before the cap let an owner set any password length, so
+    // capping the login/current-password controls would lock that owner out.
+    // Fields that choose a NEW password declare their own maxlength instead.
+    expect(
+      effectiveMaxLength({
+        label: "Password",
+        name: "password",
+        type: "password",
+      }),
+    ).toBeUndefined();
+  });
 
   test("defaults a textarea to the textarea length", () => {
     expect(

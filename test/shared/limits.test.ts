@@ -149,9 +149,9 @@ describe("limits", () => {
       // unsafe override must fail loudly at startup instead.
       expect(() => assertInputLengthSafe(SQUARE_NAME_BUDGET + 1)).toThrow(
         "MAX_INPUT_LENGTH=505 is above the 504-character catalog-name budget " +
-          "Square's 512-character line-item names leave. A longer limit would " +
-          "let an operator save a name that Square later refuses at checkout. " +
-          "Set it to 504 or below (the default is 500).",
+          "Square's 512-character line-item names leave. A longer input limit " +
+          "will let an operator save a name that Square must refuse at " +
+          "checkout. Set the limit to 504 or below (the default is 500).",
       );
     });
 

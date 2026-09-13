@@ -142,10 +142,10 @@ export const assertInputLengthSafe = (length: number): number => {
   if (length > SQUARE_NAME_BUDGET) {
     throw new Error(
       `MAX_INPUT_LENGTH=${length} is above the ${SQUARE_NAME_BUDGET}-character ` +
-        "catalog-name budget Square's 512-character line-item names leave. A " +
-        "longer limit would let an operator save a name that Square later " +
-        "refuses at checkout. Set it to " +
-        `${SQUARE_NAME_BUDGET} or below (the default is 500).`,
+        "catalog-name budget Square's 512-character line-item names leave. " +
+        "A longer input limit will let an operator save a name that Square " +
+        `must refuse at checkout. Set the limit to ${SQUARE_NAME_BUDGET} or ` +
+        "below (the default is 500).",
     );
   }
   return length;
