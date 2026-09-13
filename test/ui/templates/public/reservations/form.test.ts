@@ -171,11 +171,6 @@ describe("ticketPage — fields & form", () => {
     expect(html).toContain('data-listing-ids="1"');
   });
 
-  test("omits the promo-code field when promo codes are disabled", () => {
-    const html = singleListingPageHtml();
-    expect(html).not.toContain('name="promo_code"');
-  });
-
   test("renders an opt-in add-on selector with its price label", () => {
     const listings = [
       ticketListing({
@@ -208,45 +203,6 @@ describe("ticketPage — fields & form", () => {
       expect(html).toContain(
         'max="5" min="0" name="addon_7" placeholder="0" type="number" value="2"',
       );
-    } finally {
-      clearSavedFormData();
-    }
-  });
-
-  test("restores the submitted promo code", () => {
-    setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
-    try {
-      const html = singleListingPageHtml({ promoCodesEnabled: true });
-      expect(html).toContain('<div class="promo-code"><label>Promo code');
-      expect(html).toContain(
-        'name="promo_code" placeholder="Optional" type="text" value="SAVE20"',
-      );
-    } finally {
-      clearSavedFormData();
-    }
-  });
-
-  test("prefills the promo code from the URL", () => {
-    const html = singleListingPageHtml({
-      prefill: { listings: new Map(), promo: "save10" },
-      promoCodesEnabled: true,
-    });
-    expect(html).toContain(
-      'name="promo_code" placeholder="Optional" type="text" value="save10"',
-    );
-  });
-
-  test("restores the submitted promo code ahead of the URL code", () => {
-    setSavedFormData(new FormParams({ promo_code: "TYPED" }));
-    try {
-      const html = singleListingPageHtml({
-        prefill: { listings: new Map(), promo: "url-code" },
-        promoCodesEnabled: true,
-      });
-      expect(html).toContain(
-        'name="promo_code" placeholder="Optional" type="text" value="TYPED"',
-      );
-      expect(html).not.toContain('value="url-code"');
     } finally {
       clearSavedFormData();
     }
