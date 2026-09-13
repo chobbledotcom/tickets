@@ -30,7 +30,7 @@ export interface CommentIssue {
  * build does, so no limit may apply to them.
  */
 const DIRECTIVE =
-  /jscpd:ignore|<reference|deno-lint-ignore|biome-ignore|@ts-expect-error|@ts-ignore|@ts-nocheck|@ts-self-types|deno-fmt-ignore|test-groups:|sourceMappingURL/;
+  /jscpd:ignore|<reference|biome-ignore|@ts-expect-error|@ts-ignore|@ts-nocheck|@ts-self-types|deno-fmt-ignore|test-groups:|sourceMappingURL/;
 
 /** How many newlines `content` holds between `from` and `to`. */
 const newlinesBetween = (content: string, from: number, to: number): number => {

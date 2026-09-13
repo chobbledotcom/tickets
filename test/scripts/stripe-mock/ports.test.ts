@@ -28,7 +28,6 @@ import {
 describe("stripe-mock ports and environment", () => {
   test("keeps a reserved port unavailable until release", () =>
     retryWhilePortTaken(
-      // deno-lint-ignore require-await -- retryWhilePortTaken awaits the attempt
       async () => {
         const reserved = reserveAvailablePort();
         let listener: Deno.Listener | undefined;

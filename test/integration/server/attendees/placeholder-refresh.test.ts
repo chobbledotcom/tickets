@@ -33,7 +33,6 @@ const submitRefreshPayment = async (
   refundedPredicate: (reference: string) => Promise<boolean>,
   // The expected flash message varies: "refunded" on first post, "up to date"
   // on retry. Accept any because expect.stringContaining returns a matcher.
-  // deno-lint-ignore no-explicit-any
   expectedFlash: any = expect.stringContaining("refunded"),
 ): Promise<void> => {
   await withRefreshPaymentProbe(
