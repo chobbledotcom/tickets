@@ -70,7 +70,6 @@ describeWithEnv(
           const encrypted = await encryptBytes(data);
           installUrlHandler(originalFetch, (url) => {
             if (url.includes("storage.bunnycdn.com")) {
-              // deno-lint-ignore no-explicit-any
               return Promise.resolve(new Response(encrypted as any));
             }
             return null;
