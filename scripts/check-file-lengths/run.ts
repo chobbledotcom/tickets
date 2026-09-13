@@ -12,16 +12,13 @@ import {
   reportCheck,
 } from "#scripts/check-report.ts";
 import { fileFindingLines } from "#scripts/check-runner.ts";
-import {
-  collectFromFiles,
-  collectGateScriptFiles,
-} from "#scripts/walk-files.ts";
+import { collectFromFiles, collectGateFiles } from "#scripts/walk-files.ts";
 import { countLines, findIssues, LINE_LIMIT, type OverLimit } from "./rules.ts";
 
 /* jscpd:ignore-end */
 
 /**
- * Check every source tree for a file over the limit, against the accepted
+ * Check every source file for a file over the limit, against the accepted
  * list. An entry whose file the trees no longer hold is a finding too: the
  * list only shrinks, and a stale entry quietly keeps its allowance. Logs a
  * line per issue (or a success line) and returns the process exit code.
@@ -32,7 +29,7 @@ export const runFileLengthCheck = (
   output: CheckOutput,
 ): Promise<number> => {
   const paths: string[] = [];
-  return collectFromFiles(roots, collectGateScriptFiles, (file, content) => {
+  return collectFromFiles(roots, collectGateFiles, (file, content) => {
     paths.push(file);
     return fileFindingLines(
       file,
@@ -68,7 +65,7 @@ export const filesOverLimit = async (
 ): Promise<OverLimit> => {
   const over = await collectFromFiles(
     roots,
-    collectGateScriptFiles,
+    collectGateFiles,
     (file, content) => {
       const lines = countLines(content);
       return lines > LINE_LIMIT ? [[file, lines] as const] : [];

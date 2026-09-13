@@ -105,9 +105,6 @@ export const lookupSingleTokenPassData = async (
   return { ok: true, passData: buildWalletPassData(entry, token) };
 };
 
-/** Route function signature for token-based routes */
-export type TokenRouteFn = PathMethodRoute;
-
 /** Handler type for token-based route methods */
 export type TokenMethodHandler = ResponseHandler<
   [request: Request, tokens: string[]]
@@ -293,7 +290,7 @@ export const withTokenRateLimit = async (
  * 404-based rate limiting per client IP.
  */
 export const createTokenRoute =
-  (prefix: string, methods: TokenMethodMap): TokenRouteFn =>
+  (prefix: string, methods: TokenMethodMap): PathMethodRoute =>
   (request, path, method, server) => {
     const tokensStr = extractTokenSegment(prefix, path);
     if (!tokensStr) return Promise.resolve(null);

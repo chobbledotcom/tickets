@@ -48,6 +48,17 @@ describe("check-ste rules", () => {
       expect(rulesOn(content)).toEqual(["semicolon"]);
     });
 
+    test("keeps reading an indented line that continues a paragraph", () => {
+      const content = "Text\n    Should this continue?\n";
+      expect(rulesOn(content)).toEqual(["banned-modal"]);
+      expect(proseLines(content)[1]?.text).toContain("Should");
+    });
+
+    test("keeps reading an indented line that continues a list item", () => {
+      const content = "- One item\n    Should retry now.\n";
+      expect(rulesOn(content)).toEqual(["banned-modal"]);
+    });
+
     test("never reads table rows", () => {
       const content = '| "has been; done" | should |\n';
       expect(findIssues(content)).toEqual([]);
@@ -59,6 +70,13 @@ describe("check-ste rules", () => {
       ).toBe("Use % now. [See docs%");
       expect(rulesOn('Say "would" here.')).toEqual([]);
       expect(rulesOn("Use `would` here.")).toEqual([]);
+    });
+
+    test("never reads code spans of two or more backticks", () => {
+      expect(rulesOn("Use ``should`` here.")).toEqual([]);
+      expect(rulesOn("Use ```would``` here.")).toEqual([]);
+      // A run closes only on a run of the same length.
+      expect(rulesOn("Use ` ``should` here.")).toEqual([]);
     });
 
     test("blanks a quoted span that wraps across lines, keeping line numbers", () => {

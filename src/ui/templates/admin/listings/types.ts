@@ -7,7 +7,7 @@ import type {
   AttendeeListState,
 } from "#shared/attendee-list-controls.ts";
 import type { CheckedInStats } from "#templates/admin/detail-rows.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import type { AdminSession, Attendee, Group, ListingWithCount } from "#types";
 
 export type GroupContext = {
@@ -17,7 +17,7 @@ export type GroupContext = {
 
 type ListingPanelSharedOptions = {
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  questionData?: TableQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
   groupContext?: GroupContext | undefined;
   moneyTotals?: ListingMoneyTotals | undefined;
   ledgerHref?: string | undefined;

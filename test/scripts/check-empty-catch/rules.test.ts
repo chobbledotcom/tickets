@@ -84,6 +84,16 @@ describe("check-empty-catch rules", () => {
     expect(issues[0]?.caught).toBe(".catch");
   });
 
+  test("flags an empty callback reached through a computed catch", () => {
+    const issues = findIssues("fourteen.ts", 'touch()["catch"](() => {});\n');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.caught).toBe(".catch");
+  });
+
+  test("leaves a computed member with a non-string key alone", () => {
+    expect(findIssues("fifteen.ts", "touch()[0](() => {});\n")).toEqual([]);
+  });
+
   test("lets a callback that recovers inside braces stand", () => {
     expect(
       findIssues("twelve.ts", "touch().catch(() => {\n  save();\n});\n"),

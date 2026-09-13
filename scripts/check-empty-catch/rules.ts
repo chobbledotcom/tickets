@@ -77,6 +77,17 @@ type NodeCatches = (
   node: Record<string, unknown>,
 ) => EmptyCatchIssue[];
 
+/** The property a member expression names, whether spelled as an identifier
+ * (`p.catch`) or a computed string literal (`p["catch"]`). */
+const memberName = (property: unknown): string | null => {
+  const key = property as { name?: unknown; value?: unknown; type?: unknown };
+  if (typeof key.name === "string") return key.name;
+  if (key.type === "Literal" && typeof key.value === "string") {
+    return key.value;
+  }
+  return null;
+};
+
 /** The empty `.catch(() => {})` and `.catch(function () {})` callbacks in one
  * call-expression node. */
 const promiseCatches: NodeCatches = (source, node) => {
@@ -86,8 +97,7 @@ const promiseCatches: NodeCatches = (source, node) => {
   };
   const callee = call.callee;
   if (callee.type !== "MemberExpression") return [];
-  const property = callee.property as Record<string, unknown>;
-  if (property.name !== "catch") return [];
+  if (memberName(callee.property) !== "catch") return [];
   const callback = call.arguments[0];
   if (callback === undefined) return [];
   const handler = callback as unknown as Record<string, unknown>;

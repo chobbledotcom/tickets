@@ -129,7 +129,6 @@ const COVERAGE_EXCLUSIONS = [
   // with deterministic behaviour (cleanup, db-fault, refund-outcome) stay
   // under normal coverage and are directly tested under test/e2e-payments/.
   "e2e-payments/src/browser.ts",
-  "e2e-payments/src/stop-browser.ts",
   "e2e-payments/src/flow.ts",
   "e2e-payments/src/order-flow.ts",
   "e2e-payments/src/server.ts",

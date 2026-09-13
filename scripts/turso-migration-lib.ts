@@ -13,12 +13,10 @@ import { tursoDatabaseSlug } from "#shared/config.ts";
 
 export const MIGRATE_TURSO_USAGE = "Usage: deno task migrate:turso";
 
-export type MigrateTursoCliDeps = TursoMigrationDeps;
+export type { TursoMigrationDeps } from "#scripts/turso-migration-steps.ts";
 
 /** Run the interactive source-to-Turso database migration. */
-export const runMigrateTursoCli = (
-  deps: MigrateTursoCliDeps,
-): Promise<number> =>
+export const runMigrateTursoCli = (deps: TursoMigrationDeps): Promise<number> =>
   runMigrationTask(deps, MIGRATE_TURSO_USAGE, async () => {
     const dbUrl = requiredAnswer(
       deps.prompt("Source database URL:"),

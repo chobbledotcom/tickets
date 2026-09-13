@@ -34,12 +34,13 @@ export interface SteIssue extends PerFileFinding {
  * Replace every machine-owned span in one line with a `%`, which breaks word
  * boundaries on both sides: no rule can match across a code span, and a
  * double space never joins into a false word. Machine-owned spans: inline
- * code, HTML comments, autolinks, and link targets. The link text stays
- * prose; the destination does not.
+ * code (one or more backticks, closed by a run of the same length), HTML
+ * comments, autolinks, and link targets. The link text stays prose; the
+ * destination does not.
  */
 export const stripMachineSpans = (line: string): string =>
   line
-    .replace(/`[^`]*`/g, "%")
+    .replace(/(`+)(.*?)\1/g, "%")
     .replace(/<!--.*?-->/g, "%")
     .replace(/<[^>]+>/g, "%")
     .replace(/\]\([^)]*\)/g, "%");
@@ -100,30 +101,52 @@ const fenceState = (
  * block is code, not a terminator.
  *
  * An indented block starts at four or more leading spaces, the standard
- * Markdown code form, and runs until a line that is neither indented nor
- * blank — the way CommonMark ends one. Blank lines inside it belong to it.
+ * Markdown code form, but only after a blank line: CommonMark lets an
+ * indented line continue a paragraph or a list item, so code cannot
+ * interrupt prose. Once open, the block runs until a line that is neither
+ * indented nor blank — the way CommonMark ends one. Blank lines inside it
+ * belong to it.
  */
 /** The standard Markdown code-block indent: four or more spaces, or a tab. */
 const INDENT = /^(?: {4}|\t)/;
 
+/** What one line is to the indented-block scan: blank, indented, or prose. */
+type IndentKind = "blank" | "indented" | "prose";
+
+/** What one raw line is to the indented-block scan. */
+const indentKind = (raw: string): IndentKind => {
+  if (raw.trim() === "") return "blank";
+  return INDENT.test(raw) ? "indented" : "prose";
+};
+
 /** Whether one line sits inside an indented code block, given whether the
- * line before it did: the indent opens the block, and a non-blank line
- * without the indent closes it. Blank lines belong to the block either way. */
-const insideIndentAfter = (raw: string, wasInside: boolean): boolean => {
-  const indented = INDENT.test(raw);
-  if (wasInside) return indented || raw.trim() === "";
-  return indented;
+ * line before it did and what that line was. The indent opens a block only
+ * after a blank line, because CommonMark lets an indented line continue a
+ * paragraph or a list item instead of starting code. Once open, the block
+ * runs through blank lines and further-indented lines, and a prose line
+ * closes it. */
+const insideIndentAfter = (
+  raw: string,
+  wasInside: boolean,
+  before: IndentKind,
+): boolean => {
+  const kind = indentKind(raw);
+  if (wasInside) return kind !== "prose";
+  if (before === "blank") return kind === "indented";
+  return false;
 };
 
 export const proseLines = (content: string): ProseLine[] => {
   const lines: ProseLine[] = [];
   let openFence: string | null = null;
   let inIndentedBlock = false;
+  let before: IndentKind = "blank";
   for (const [index, raw] of blankQuotedSpans(content).split("\n").entries()) {
     const fence = fenceOn(raw);
     openFence = fenceState(fence, openFence);
     if (fence !== null || openFence !== null) continue;
-    inIndentedBlock = insideIndentAfter(raw, inIndentedBlock);
+    inIndentedBlock = insideIndentAfter(raw, inIndentedBlock, before);
+    before = indentKind(raw);
     if (inIndentedBlock) continue;
     if (raw.trimStart().startsWith("|")) continue;
     lines.push({ line: index + 1, text: stripMachineSpans(raw) });

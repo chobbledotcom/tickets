@@ -1,11 +1,29 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { findIssues } from "#scripts/check-alias-exports/rules.ts";
+import {
+  type AliasExportIssue,
+  findIssues,
+} from "#scripts/check-alias-exports/rules.ts";
 
 describe("check-alias-exports rules", () => {
   /** One source that imports byParent, plus whatever the test adds. */
   const importing = (extra: string): string =>
     `import { byParent } from "#shared/parents.ts";\n${extra}`;
+
+  /** One source that imports TokenEntry, plus whatever the test adds: the
+   * shared prefix behind every TokenEntry check below. */
+  const importingToken = (extra: string): string =>
+    `import { TokenEntry } from "#routes/tickets/token-utils.ts";\n${extra}`;
+
+  /** The issues a TokenEntry-importing source holds, over the given extras. */
+  const tokenIssues = (extra: string) => findIssues("token.ts", extra);
+
+  /** What one CheckinEntry rename of TokenEntry looks like. */
+  const expectCheckinEntryRename = (issues: AliasExportIssue[]): void => {
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.exported).toBe("CheckinEntry");
+    expect(issues[0]?.target).toBe("TokenEntry");
+  };
 
   test("flags an exported const whose whole value is one imported name", () => {
     const issues = findIssues(
@@ -19,14 +37,52 @@ describe("check-alias-exports rules", () => {
   });
 
   test("flags a renamed export clause of a local import", () => {
-    const issues = findIssues(
-      "two.ts",
-      'import { TokenEntry } from "#routes/tickets/token-utils.ts";\n' +
-        "export { TokenEntry as CheckinEntry };\n",
+    expectCheckinEntryRename(
+      tokenIssues(importingToken("export { TokenEntry as CheckinEntry };\n")),
+    );
+  });
+
+  test("flags an export of a name the import itself renamed", () => {
+    expectCheckinEntryRename(
+      tokenIssues(
+        `import { TokenEntry as CheckinEntry } from "#routes/tickets/token-utils.ts";\n` +
+          "export { CheckinEntry };\n",
+      ),
+    );
+  });
+
+  test("flags an exported type alias of an imported type", () => {
+    expectCheckinEntryRename(
+      tokenIssues(importingToken("export type CheckinEntry = TokenEntry;\n")),
+    );
+  });
+
+  test("flags a local type alias exported by name", () => {
+    const issues = tokenIssues(
+      importingToken(
+        "type CheckinEntry = TokenEntry;\nexport { CheckinEntry };\n",
+      ),
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.exported).toBe("CheckinEntry");
     expect(issues[0]?.target).toBe("TokenEntry");
+  });
+
+  test("lets an exported type of its own shape stand", () => {
+    expect(
+      tokenIssues(importingToken("export type Local = { a: number };\n")),
+    ).toEqual([]);
+  });
+
+  test("lets an exported type that specializes an import stand", () => {
+    expect(
+      tokenIssues(importingToken("export type Sized = Array<TokenEntry>;\n")),
+    ).toEqual([]);
+  });
+
+  test("lets an exported function stand", () => {
+    expect(
+      tokenIssues(importingToken("export function helper(): void {}\n")),
+    ).toEqual([]);
   });
 
   test("lets an unrenamed re-export from another module publish its name", () => {

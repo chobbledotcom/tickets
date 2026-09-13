@@ -11,6 +11,13 @@
  * so a call or a literal value never flags.
  */
 
+import {
+  bindingAliases,
+  type FileBindings,
+  fileBindingsOf,
+  type Statement,
+  typeAliasTarget,
+} from "#scripts/check-alias-exports/bindings.ts";
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
@@ -24,133 +31,12 @@ export interface AliasExportIssue extends PerFileFinding {
   target: string;
 }
 
-type Program = ReturnType<typeof parseProgram>;
-type Statement = Program["body"][number];
 type ExportStatement = Extract<Statement, { type: "ExportNamedDeclaration" }>;
 
-/** What every alias scan reads: the file's text, its imported names, and the
- * local `const` bindings whose whole value renames one of those imports. */
-interface FileScan {
-  /** A local const binding that renames an import, by the target it renames. */
-  aliased: Map<string, string>;
+/** What every alias scan reads: the file's bindings plus its text. */
+interface FileScan extends FileBindings {
   content: string;
-  imported: Set<string>;
 }
-
-/** Every top-level statement of one kind, in source order. */
-const statementsOf = <T extends Statement["type"]>(
-  program: Program,
-  kind: T,
-): Extract<Statement, { type: T }>[] =>
-  program.body.filter(
-    (statement): statement is Extract<Statement, { type: T }> =>
-      statement.type === kind,
-  );
-
-/** The local names one file imports, however they are spelled. */
-export const importedNames = (program: Program): Set<string> => {
-  const names = new Set<string>();
-  for (const statement of statementsOf(program, "ImportDeclaration")) {
-    for (const specifier of statement.specifiers) {
-      names.add(specifier.local.name);
-    }
-  }
-  return names;
-};
-
-/**
- * The local `const` bindings whose whole value renames an import, by the
- * target each renames — `const getChildIds = byParent.getIds` carries
- * `getChildIds → byParent.getIds`. Exporting such a binding under any name is
- * the alias the rule forbids, so the export clauses resolve through this map.
- */
-const localAliases = (
-  program: Program,
-  imported: Set<string>,
-  content: string,
-): Map<string, string> => {
-  const aliases = new Map<string, string>();
-  for (const statement of statementsOf(program, "VariableDeclaration")) {
-    // A `let` or `var` binding can be reassigned to something that no longer
-    // renames the import, so only a `const` keeps its target for sure.
-    if (statement.kind !== "const") continue;
-    for (const declarator of statement.declarations) {
-      for (const bound of bindingAliases(
-        declarator.id,
-        declarator.init,
-        imported,
-        content,
-      )) {
-        aliases.set(bound.bound, bound.target);
-      }
-    }
-  }
-  return aliases;
-};
-
-/** One name a declaration binds, with the imported value it stands for. */
-interface BindingAlias {
-  bound: string;
-  target: string;
-}
-
-/** One pattern a declarator can bind with, as its named parts. */
-type PatternNode = {
-  elements?: unknown | null;
-  name?: unknown;
-  properties?: unknown;
-  type?: unknown;
-};
-
-/** The members one pattern binds to an imported value, spelled as that
- * value's member: `const { getIds } = byParent` binds `getIds` to
- * `byParent.getIds`, and `const [first] = pair` binds `first` to `pair[0]`.
- * A member with a default value, a rest element, a computed key, or a nested
- * pattern adds or hides something of its own, so those names never stand for
- * the plain member. */
-const bindingAliases = (
-  id: unknown,
-  init: unknown,
-  imported: Set<string>,
-  content: string,
-): BindingAlias[] => {
-  const target = renamedValue(init, imported, content);
-  if (target === null) return [];
-  const pattern = id as PatternNode;
-  if (pattern.type === "Identifier") {
-    return [{ bound: pattern.name as string, target }];
-  }
-  if (pattern.type === "ObjectPattern") {
-    const properties = pattern.properties as Array<{
-      computed?: unknown;
-      key?: ValueNode;
-      type?: unknown;
-      value?: ValueNode;
-    }>;
-    return properties.flatMap((property) => {
-      if (property.type !== "Property" || property.computed === true) {
-        return [];
-      }
-      const key = property.key?.name;
-      const value = property.value;
-      if (typeof key !== "string" || value?.type !== "Identifier") return [];
-      return [{ bound: value.name as string, target: `${target}.${key}` }];
-    });
-  }
-  // A declarator's pattern is an identifier, an object pattern, or an array
-  // pattern, so what is left binds array elements.
-  const elements = pattern.elements as (ValueNode | null)[];
-  const bound: BindingAlias[] = [];
-  elements.forEach((element, index) => {
-    if (element !== null && element.type === "Identifier") {
-      bound.push({
-        bound: element.name as string,
-        target: `${target}[${index}]`,
-      });
-    }
-  });
-  return bound;
-};
 
 /** What one alias finding says, by the place it was found. */
 interface AliasWords {
@@ -188,35 +74,6 @@ const clauseName = (
   return literal.value as string;
 };
 
-/** One value expression in a parsed file, as its named parts. */
-type ValueNode = { name?: unknown; type?: unknown };
-
-/**
- * The value an exported `const` renames, when it renames one at all: a whole
- * imported name (`system`), or a member reached through one
- * (`byParent.getIds`, `byParent[choice]`). A member takes its target from
- * the source text, so a computed access keeps its own spelling. Anything
- * else — a call, a literal, a local — is the value's own export.
- */
-const renamedValue = (
-  value: unknown,
-  imported: Set<string>,
-  content: string,
-): string | null => {
-  const node = value as ValueNode | null;
-  if (node !== null && node.type === "Identifier") {
-    const name = (value as ValueNode).name;
-    return typeof name === "string" && imported.has(name) ? name : null;
-  }
-  if (node !== null && node.type === "MemberExpression") {
-    const member = value as { object: unknown; end: number; start: number };
-    return renamedValue(member.object, imported, content) === null
-      ? null
-      : content.slice(member.start, member.end);
-  }
-  return null;
-};
-
 /** One binder of an export clause — the clause's own `Specifier` shape. */
 type Clause = ExportStatement["specifiers"][number];
 
@@ -249,12 +106,24 @@ const clauseWords = (
   target,
 });
 
+/** The import target a local binding names, when it names one at all: an
+ * import spelled directly (by its source module's own name when the import
+ * renamed it), or a local binding that renames one. */
+const targetOf = (name: string, scan: FileScan): string | null =>
+  scan.importRenames.get(name) ??
+  (scan.imported.has(name) ? name : undefined) ??
+  scan.aliased.get(name) ??
+  scan.aliasedTypes.get(name) ??
+  null;
+
 /** What an export clause hides, if anything:
 
 - A clause on the file's own export names a local import or a local const
   alias. A directly imported name exported under its own name publishes that
-  name on purpose, so only a rename counts. A local const alias hides the
-  import it copies under any name, its own included.
+  name on purpose, so only a rename counts — unless the import statement
+  itself renamed it, because exporting the local then gives the source
+  module's name a second name. A local const alias hides the import it copies
+  under any name, its own included.
 - A re-export clause (`export { X as Y } from "…"`) names a foreign export.
   The value already has its own name in its own module, so a second name here
   is the same alias the rule forbids. An unrenamed re-export — publishing the
@@ -273,29 +142,56 @@ const clauseHides = (
   const local = clauseName(specifier.local);
   const target = targetOf(local, scan);
   if (target === null) return null;
-  const importedDirectly = scan.imported.has(local);
-  if (importedDirectly && !isRenamed(specifier)) return null;
+  const renamedByImport = scan.importRenames.has(local);
+  if (scan.imported.has(local) && !renamedByImport && !isRenamed(specifier)) {
+    return null;
+  }
   return clauseWords(specifier, target, exportTheImportItself);
 };
 
-/** The import target a local binding names, when it names one at all: an
- * import spelled directly, or a local const that renames one. */
-const targetOf = (name: string, scan: FileScan): string | null =>
-  scan.imported.has(name) ? name : (scan.aliased.get(name) ?? null);
+/** One issue: a declaration that publishes an imported thing under a second
+ * name. */
+const secondNameIssue = (
+  scan: FileScan,
+  start: number,
+  exported: string,
+  target: string,
+): AliasExportIssue =>
+  aliasIssue(scan, start, {
+    exported,
+    fix: exportTheImportItself(target),
+    target,
+  });
+
+/** One exported declaration whose bindings the map reads, narrowed by the
+ * declaration kind that reaches it. Each reader narrows itself from the
+ * shared shape, because the dispatch table keys on the parser's own kind
+ * names. */
+type DeclaredAliasReader = (
+  declaration: never,
+  scan: FileScan,
+) => AliasExportIssue[];
+
+/** How one reader narrows the shared declaration shape to the kind the
+ * dispatch table routed to it: pass the kind's name as the type argument. */
+const declared = <T extends string>(
+  node: never,
+): Extract<Statement, { type: T }> =>
+  node as unknown as Extract<Statement, { type: T }>;
+
+/** Whether a declared type is a `typeof` query. */
+const namesTheImportedType = (
+  annotation: { typeAnnotation?: { type?: unknown } } | null | undefined,
+): boolean => annotation?.typeAnnotation?.type === "TSTypeQuery";
 
 /** An exported `const` whose whole value, or a member pulled from one by
  * destructuring, is one imported name. */
-const constValueAliases = (
-  declaration: ExportStatement["declaration"],
-  scan: FileScan,
-): AliasExportIssue[] => {
-  if (declaration === null || declaration.type !== "VariableDeclaration") {
-    return [];
-  }
+const constValueAliases: DeclaredAliasReader = (node, scan) => {
+  const exported = declared<"VariableDeclaration">(node);
   // An exported `let` or `var` can be reassigned to a value of its own, so
   // its declaration alone cannot name the import for sure.
-  if (declaration.kind !== "const") return [];
-  return declaration.declarations.flatMap((declarator) => {
+  if (exported.kind !== "const") return [];
+  return exported.declarations.flatMap((declarator) => {
     // A declared type the value does not already carry adds a contract — the
     // documented "thin wrapper that adds a guard is not an alias" case, so an
     // annotated export like `const total: Messages = system` stands. A
@@ -313,19 +209,46 @@ const constValueAliases = (
       scan.imported,
       scan.content,
     ).map((bound) =>
-      aliasIssue(scan, declarator.start, {
-        exported: bound.bound,
-        fix: exportTheImportItself(bound.target),
-        target: bound.target,
-      }),
+      secondNameIssue(scan, declarator.start, bound.bound, bound.target),
     );
   });
 };
 
-/** Whether a declared type is a `typeof` query. */
-const namesTheImportedType = (
-  annotation: { typeAnnotation?: { type?: unknown } } | null | undefined,
-): boolean => annotation?.typeAnnotation?.type === "TSTypeQuery";
+/** An exported `type` whose whole value is one imported name. */
+const typeValueAliases: DeclaredAliasReader = (node, scan) => {
+  const exported = declared<"TSTypeAliasDeclaration">(node);
+  const target = typeAliasTarget(exported, scan.imported);
+  if (target === null) return [];
+  return [
+    secondNameIssue(
+      scan,
+      exported.start,
+      exported.id.name,
+      scan.importRenames.get(target) ?? target,
+    ),
+  ];
+};
+
+/** The alias issues an exported declaration carries, by the declaration's
+ * own kind: the consts and types a file exports under second names. */
+const DECLARED_ALIASES = {
+  TSTypeAliasDeclaration: typeValueAliases,
+  VariableDeclaration: constValueAliases,
+} as unknown as Record<string, DeclaredAliasReader>;
+
+/** What one exported declaration's aliases are: empty for the declarations
+ * the table does not read (functions, classes, and a clause-only export). */
+const declaredIssues = (
+  declaration: ExportStatement["declaration"],
+  scan: FileScan,
+): AliasExportIssue[] => {
+  const read =
+    declaration === null
+      ? undefined
+      : DECLARED_ALIASES[declaration.type as string];
+  if (read === undefined) return [];
+  return read(declaration as never, scan);
+};
 
 /**
  * Every alias export in one file's content: exported names that only rename
@@ -336,11 +259,9 @@ export const findIssues = (
   content: string,
 ): AliasExportIssue[] => {
   const program = parseProgram(file, content);
-  const imported = importedNames(program);
   const scan: FileScan = {
-    aliased: localAliases(program, imported, content),
+    ...fileBindingsOf(program, content),
     content,
-    imported,
   };
   return program.body
     .flatMap((statement) => {
@@ -349,7 +270,7 @@ export const findIssues = (
         ...issuesOnClauses(statement, scan, (specifier) =>
           clauseHides(statement, specifier, scan),
         ),
-        ...constValueAliases(statement.declaration, scan),
+        ...declaredIssues(statement.declaration, scan),
       ];
     })
     .sort(byLine);

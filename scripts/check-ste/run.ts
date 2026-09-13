@@ -180,15 +180,21 @@ interface ComparedCounts {
 const countOf = (counts: Record<string, number>, identity: string): number =>
   counts[identity] ?? 0;
 
-/** The findings whose identity count rose past its recorded count. */
+/** Only the findings an identity holds beyond its recorded count, in order:
+ * an identity allowed twice and seen three times reports one finding, not
+ * three. */
 const risenFindings = (
   issues: readonly SteIssue[],
   { current, recorded }: ComparedCounts,
 ): SteIssue[] => {
   const risen: SteIssue[] = [];
+  const reportedPerIdentity = new Map<string, number>();
   for (const issue of issues) {
     const identity = identityOf(issue);
-    if (countOf(current, identity) > countOf(recorded, identity)) {
+    const reported = reportedPerIdentity.get(identity) ?? 0;
+    const excess = countOf(current, identity) - countOf(recorded, identity);
+    if (reported < excess) {
+      reportedPerIdentity.set(identity, reported + 1);
       risen.push(issue);
     }
   }

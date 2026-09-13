@@ -13,13 +13,10 @@ const bounded = async <T>(wait: Promise<T>, ms: number): Promise<T | null> => {
     timer = setTimeout(resolve, ms);
   });
   try {
-    return await Promise.race([
-      wait.then(
-        (value) => value,
-        () => null,
-      ),
-      timeout,
-    ]);
+    // A failed wait reads as nothing settled, so the next bound's fallback
+    // runs instead of a throw.
+    const settled = await wait.catch((): null => null);
+    return await Promise.race([settled, timeout]);
   } finally {
     clearTimeout(timer);
   }

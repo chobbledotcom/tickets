@@ -55,7 +55,7 @@ import {
   overviewStatsFromDbStats,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import {
   type Attendee,
   type Group,
@@ -159,7 +159,7 @@ const loadDecryptedListingAttendees = async (
  *  Returns undefined when the listing has no questions. */
 const loadOverviewQuestionData = async (
   listingId: number,
-): Promise<TableQuestionData | undefined> => {
+): Promise<AttendeeQuestionData | undefined> => {
   const [questions, attendeeAnswerMap] = await Promise.all([
     getQuestionsForListing(listingId),
     getListingChoiceAnswerMap(listingId),

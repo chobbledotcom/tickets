@@ -57,8 +57,8 @@ mechanisms to copy:
     — a `<legend>` is the section header, and routing every section through
     `FormSections`/`SectionFieldset` keeps that so. The listing form
     (`listings/form-sections.tsx`) and the attendee form
-    (`admin/attendee-form.tsx`) both build a `FormSection[]`; see them for
-    conditional sections (`compact` drops the ones that do not apply).
+    (`admin/attendee-form.tsx`) both build a `FormSection[]`, and show how to
+    make a section conditional (`compact` drops the ones that do not apply).
 - **One vocabulary for "attached to any record".** `defineRecordTarget`
   (`src/shared/db/record-target.ts`): a domain says which kinds of record it
   accepts and which two columns hold the kind and the id, and gets back the
