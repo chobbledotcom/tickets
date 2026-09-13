@@ -466,10 +466,8 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
 /** Parse a `?promo=` code for pre-fill: trimmed for display, null when blank.
  * Case stays as typed because the submit-time code lookup matches without
  * case. */
-const parsePromoParam = (value: string | null): string | null => {
-  const trimmed = value?.trim() ?? "";
-  return trimmed !== "" ? trimmed : null;
-};
+const parsePromoParam = (value: string | null): string | null =>
+  value === null ? null : value.trim() || null;
 
 /**
  * Build a booking pre-fill from query params: per-listing quantities from
