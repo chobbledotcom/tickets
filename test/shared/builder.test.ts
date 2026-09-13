@@ -128,6 +128,8 @@ describeWithEnv(
       DENO_DEPLOY_ORG_SLUG: "test-org",
       NTFY_URL: "https://ntfy.example.com/test",
       SENTRY_URL: "https://k@bugs.example.com/2",
+      SUPPORT_FORM_NAG_DAYS: "14",
+      SUPPORT_PAGE_TEXT: "# Help\\n\\nAsk us anything",
     },
   },
   () => {
@@ -171,6 +173,12 @@ describeWithEnv(
         expectSecret(secretsSet, "NTFY_URL", "https://ntfy.example.com/test");
         expectSecret(secretsSet, "SENTRY_URL", "https://k@bugs.example.com/2");
         expectSecret(secretsSet, "ADMIN_EMAIL_ADDRESS", "admin@example.com");
+        expectSecret(
+          secretsSet,
+          "SUPPORT_PAGE_TEXT",
+          "# Help\\n\\nAsk us anything",
+        );
+        expectSecret(secretsSet, "SUPPORT_FORM_NAG_DAYS", "14");
       }));
 
     test("buildSite succeeds with all steps", () =>

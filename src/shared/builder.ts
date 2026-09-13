@@ -38,6 +38,8 @@ const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "SENTRY_URL" },
   { name: "ADMIN_EMAIL_ADDRESS" },
+  { name: "SUPPORT_PAGE_TEXT" },
+  { name: "SUPPORT_FORM_NAG_DAYS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
   { hostInfra: true, name: "STORAGE_ZONE_KEY" },
   { name: "HOST_EMAIL_PROVIDER" },
