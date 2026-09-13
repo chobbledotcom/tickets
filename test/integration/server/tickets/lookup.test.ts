@@ -43,12 +43,10 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("claims no route for a method other than GET", async () => {
-    const { routeTicketView } = await import("#routes/tickets/index.ts");
-    const request = new Request("http://localhost/t/some-token", {
-      method: "POST",
-    });
-    const result = await routeTicketView(request, "/t/some-token", "POST");
-    expect(result).toBeNull();
+    // Mirrored directly in test/features/tickets/index.test.ts; kept here
+    // because the story owns the full refusal contract a scanner sees.
+    const response = await awaitTestRequest("/t/some-token", "POST");
+    expect(response.status).toBe(404);
   });
 
   test("gives every attendee its own blind token index", async () => {

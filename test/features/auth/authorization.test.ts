@@ -192,6 +192,17 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
     expect(await response.text()).toContain(t("auth.forbidden_owner_only"));
   });
 
+  test("an owner-only session gate gives a non-owner the owner-account body", async () => {
+    const response = await requireOwnerOr(
+      new Request("http://localhost/admin/x", {
+        headers: { cookie: (await createTestEditorSession()).cookie },
+      }),
+      (session) => new Response(session.adminLevel),
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain(t("auth.forbidden_owner_only"));
+  });
+
   test("a multi-role form gate gives a non-owner the generic role body", async () => {
     const response = await postThroughWithAuth(
       await createTestEditorSession(),

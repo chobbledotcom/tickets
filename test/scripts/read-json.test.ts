@@ -2,7 +2,11 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { readJsonOrNull } from "#scripts/read-json.ts";
+import {
+  readJsonOrNull,
+  readJsonOrThrow,
+  writeJsonFile,
+} from "#scripts/read-json.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 const NoteSchema = v.object({ note: v.string() });
@@ -48,6 +52,81 @@ describe("reading a JSON file that may not be there", () => {
       // A folder where a file was expected: not "nothing here", but a disk we
       // cannot make sense of.
       await expect(readJsonOrNull(folder, NoteSchema)).rejects.toThrow();
+    });
+  });
+});
+
+describe("reading a JSON file the caller requires", () => {
+  test("gives back what the file holds", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "note.json");
+      Deno.writeTextFileSync(path, '{ "note": "hello" }');
+      expect(await readJsonOrThrow(path, NoteSchema)).toEqual({
+        note: "hello",
+      });
+    });
+  });
+
+  test("fails loudly, naming the path, for a file that is not there", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "missing.json");
+      await expect(readJsonOrThrow(path, NoteSchema)).rejects.toThrow(path);
+    });
+  });
+
+  test("fails loudly for text of the wrong shape", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "note.json");
+      Deno.writeTextFileSync(path, '{ "other": 1 }');
+      await expect(readJsonOrThrow(path, NoteSchema)).rejects.toThrow();
+    });
+  });
+});
+
+describe("writing a JSON file a person reviews", () => {
+  test("writes indented, newline-terminated JSON that reads back the same", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "counts.json");
+      await writeJsonFile(path, { "a.md": 1 });
+      const text = Deno.readTextFileSync(path);
+      expect(text).toBe('{\n  "a.md": 1\n}\n');
+      expect(JSON.parse(text)).toEqual({ "a.md": 1 });
+    });
+  });
+
+  test("refuses a value that does not serialize, naming the path", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "broken.json");
+      await expect(writeJsonFile(path, undefined)).rejects.toThrow(path);
+      // The refused write left nothing behind.
+      expect(() => Deno.readTextFileSync(path)).toThrow();
+    });
+  });
+});
+
+describe("a schema that accepts JSON null", () => {
+  test("refuses a file holding null, rather than reading it as missing", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "null.json");
+      Deno.writeTextFileSync(path, "null");
+      const reads = readJsonOrNull(path, v.null());
+      await expect(reads).rejects.toThrow(path);
+    });
+  });
+
+  test("refuses the same read through readJsonOrThrow", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "null.json");
+      Deno.writeTextFileSync(path, "null");
+      await expect(readJsonOrThrow(path, v.null())).rejects.toThrow("nothing");
+    });
+  });
+
+  test("answers nothing for half-written text, before the schema sees it", async () => {
+    await withTempDir(async (folder) => {
+      const path = join(folder, "null.json");
+      Deno.writeTextFileSync(path, '{ "note": "hel');
+      await expect(readJsonOrNull(path, v.null())).resolves.toBeNull();
     });
   });
 });

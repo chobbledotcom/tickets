@@ -112,7 +112,7 @@ const COVERAGE_EXCLUSIONS = [
   // not the alternative env states the harness boots in for each target.
   "e2e-payments/src/config.ts",
   // Deno's coverage merger mis-attributes this file once many test isolates
-  // load it: the merged lcov records `FNDA:2,resumeRejectedTarget` while the
+  // load it: the merged lcov records FNDA:2,resumeRejectedTarget while the
   // function's own body lines read as unhit — internally impossible. The
   // resume guards are genuinely executed (placeholder-completion's crashed
   // redelivery replays them; a two-file run reports DA:150,1 and DA:153,3),

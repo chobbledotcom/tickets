@@ -89,7 +89,9 @@ export const stopProcess = async (
     }
     if (!(await beforeTimeout(status, timeoutMs))) {
       stopProcessNow(process);
-      await status.catch(() => {});
+      await status.catch(() => {
+        // The kill left this rejected; we only wait for the process to go.
+      });
     }
   } finally {
     await afterStop();

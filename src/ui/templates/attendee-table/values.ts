@@ -5,8 +5,8 @@ import { nonBlankLines } from "#shared/split.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type {
   AttendeeColumnOpts,
+  AttendeeQuestionData,
   AttendeeTableOptions,
-  TableQuestionData,
 } from "#templates/attendee-table/types.ts";
 import type { AttendeeTableRow } from "#types";
 
@@ -30,7 +30,7 @@ type AnswerDisplay = { short: string; tooltip: string };
 
 const freeTextAnswerParts = (
   attendeeId: number,
-  questionData: TableQuestionData,
+  questionData: AttendeeQuestionData,
 ): AnswerParts => {
   const textByQuestion = questionData.textAnswerMap?.get(attendeeId);
   const texts: string[] = [];
@@ -48,7 +48,7 @@ const freeTextAnswerParts = (
 /** Build the answer text and tooltip shown for one attendee. */
 export const getAnswerDisplay = (
   attendeeId: number,
-  questionData: TableQuestionData,
+  questionData: AttendeeQuestionData,
   answerTextMap: Map<number, string>,
   answerQuestionMap: Map<number, string>,
 ): AnswerDisplay => {

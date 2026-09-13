@@ -222,25 +222,16 @@ GitHub.
   is no, delete the comment. This applies to prose in commit messages and PR
   descriptions too: say what changed and why, then stop.
 
-  `deno task check:comments` enforces the size half of this, since Biome never
-  reflows comment text and so has never held a comment to any width. It caps the
-  lines in one comment and the columns in one comment line, exempting only the
-  machine-read directives, the `deno doc` barrels, and shipped migrations, which
-  are history. **Both numbers ratchet downward** — lower the one in
-  `scripts/check-comments/run.ts`, bring the tree to it, repeat — so no file is
-  ever grandfathered. `docs/comment-policy.md` measures what the comments cost
+  `deno task check:comments` enforces the size half of this. Both numbers
+  ratchet downward, and `docs/comment-policy.md` measures what the comments cost
   and prices each remaining step. The judgement half is still yours: no checker
   can tell whether a comment earns its place.
 - **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix
   duplication with a helper or currying — see
-  [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import
-  blocks, essentially nothing else. The warning is a _positive signal_ pointing
-  at a real merge to make — never work around it by changing a structure so the
-  matcher stops matching (config objects, namespace imports, reordering, lifting
-  to a named const, all to dodge the token match) while leaving two parallel
-  implementations standing. Every merge is warranted; the merges are the whole
-  goal. After each dedup, zoom out and fold the new helper into other call sites
-  and older siblings it now subsumes.
+  [Code Duplication](#code-duplication). The warning is a _positive signal_
+  pointing at a real merge to make; never restructure code so the matcher stops
+  matching while two parallel implementations stay standing. Every merge is
+  warranted; the merges are the whole goal.
 - **100% test coverage**: All code must have complete test coverage - run
   `deno coverage` to find uncovered lines/branches. Coverage must also be
   _deterministic_: a line or branch reached only through a spawned subprocess or
@@ -285,6 +276,8 @@ GitHub.
   layer hides the one shared mechanism behind per-module vocabulary and gives
   the same behavior two names. A thin wrapper that _adds_ something — a default,
   a transformation, a guard — is not an alias and is fine.
+  `deno task
+  check:alias-exports` enforces this over every source tree.
 - **No internal compatibility layers**: We own every internal caller. When
   replacing an internal API, migrate every caller in the same change and delete
   the old surface instead of keeping wrappers, aliases, re-exports, or
@@ -295,12 +288,10 @@ GitHub.
   reaches it with one statement. The spelling is the shortest alias in the
   `deno.json` import map that reaches the file, so `#db/client.ts` beats
   `#shared/db/client.ts` and `#types` beats `#shared/types.ts`. A file must not
-  import the same module twice: put the type-only names in the same statement
-  with an inline `type`, as in
-  `import { type Result, okResult } from "#shared/result.ts"`. A namespace
-  import beside named ones is the one allowed pair, because it reads the whole
-  module on purpose. `deno task check:imports` enforces both rules, and reads
-  the alias table out of `deno.json`, so a new alias enforces itself.
+  import the same module twice. A namespace import beside named ones is the one
+  allowed pair, because it reads the whole module on purpose.
+  `deno task check:imports` enforces both rules, and its findings name the
+  spelling to use, so a new alias enforces itself.
 
   An alias is a build-time rename with no runtime cost, but it is also a second
   name for a folder everybody already knows. Add one only when the measured
@@ -325,20 +316,24 @@ GitHub.
   thing, group them in a folder and give them shorter names that do not repeat
   the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see
   the `src/shared/ledger/` and `src/shared/db/attendees/` examples in
-  [Modularised](#modularised)). While you are at it, use the split as a chance
-  to separate pure from non-pure code — push the data-in/data-out logic into its
-  own file and keep the IO in a thin shell (see
-  [Pure, functional](#pure-functional)). **The same 400-line limit applies to
-  test files**, and matters just as much: smaller, more specific test files let
-  us run mutation tests far faster, because a source file's mutants only need to
-  run against the narrow test file that covers it, not one giant suite. Biome
-  enforces a hard 1,000-line ceiling for every code and test file; never add an
-  override to let one past it. Root instruction files such as `AGENTS.md` are
-  exempt because their policy must be available as one automatically loaded
-  document, but their sections must still stay concise. (Expect a known side
-  effect when splitting: jscpd cannot fully scan very large files, so a split
-  routinely _surfaces_ duplication that was silently passing inside the monolith
-  — budget for extracting helpers, not just moving tests.)
+  [Designing new systems](docs/designing-systems.md)). While you are at it, use
+  the split as a chance to separate pure from non-pure code — push the
+  data-in/data-out logic into its own file and keep the IO in a thin shell (see
+  [Pure, functional](docs/designing-systems.md#pure-functional)). **The same
+  400-line limit applies to test files**, and matters just as much: smaller,
+  more specific test files let us run mutation tests far faster, because a
+  source file's mutants only need to run against the narrow test file that
+  covers it, not one giant suite. Biome enforces a hard 1,000-line ceiling for
+  every code and test file; never add an override to let one past it.
+  `deno task check:file-lengths` holds the 400-line aim over every source tree,
+  against the accepted list at `scripts/check-file-lengths/over-limit.json` that
+  records where each over-limit file stands. The list only shrinks. Root
+  instruction files such as `AGENTS.md` are exempt because their policy must be
+  available as one automatically loaded document, but their sections must still
+  stay concise. (Expect a known side effect when splitting: jscpd cannot fully
+  scan very large files, so a split routinely _surfaces_ duplication that was
+  silently passing inside the monolith — budget for extracting helpers, not just
+  moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
@@ -686,7 +681,8 @@ handling.
   into a 400. A `catch {}` whose body ignores the error is acceptable only when
   the fallback _is_ the documented behavior, stated in a comment (for example
   `tryDecrypt` in `src/features/api/sms-webhook.ts`, whose contract is "fall
-  back to the raw value if it is not encrypted").
+  back to the raw value if it is not encrypted"). `deno task check:empty-catch`
+  flags a catch block that holds no statement and no comment.
 - **A function that looks something up, resolves, computes, or finds something
   must THROW when it cannot** — never return `null` / `""` / `0` / `-1` / `[]`
   as a "not found" stand-in — unless "not found" is a genuinely expected,
@@ -786,16 +782,12 @@ pattern rather than inventing a new phrasing:
 ### What is checked automatically
 
 `deno task check:copy` (run inside `deno task precommit`) scans the catalog and
-fails on the **mechanical** rules a machine can judge without reading for tone:
-
-- **Descriptive links** — never "click here" / "tap below"; the link text names
-  where it goes ("View your ticket", "Read the release notes").
-- **Even spacing** — no double spaces (literal `<code>`/`<pre>` examples are
-  exempt).
-
-The checker is a floor, not the whole rule. It cannot tell whether a sentence
-runs too long or a word is too fancy — that judgement is yours on every copy
-change, which is what the rest of this section is for.
+fails on the **mechanical** rules a machine can judge: descriptive links (never
+"click here" / "tap below"; the link text names where it goes) and even spacing
+(no double spaces; literal `<code>`/`<pre>` examples are exempt). Each finding
+names its fix. The checker is a floor, not the whole rule. It cannot tell
+whether a sentence runs too long or a word is too fancy — that judgement is
+yours on every copy change, which is what the rest of this section is for.
 
 ### Before → after
 
@@ -863,8 +855,8 @@ explain becomes a paragraph nobody can follow under pressure.
 - Write in the active voice. Use the passive voice only in descriptive text, and
   only when the actor is unknown.
 - Use only these modals: `can`, `will`, and `must`.
-- Do not use should, would, may, might, or could. Write "must" when the thing is
-  required. Delete the word when the thing is optional.
+- Do not use `should`, `would`, `may`, `might`, or `could`. Write "must" when
+  the thing is required. Delete the word when the thing is optional.
 
 ### Sentences
 
@@ -882,10 +874,11 @@ explain becomes a paragraph nobody can follow under pressure.
   verbs.
 - Limit a noun chain to three words. Break a longer chain with prepositions.
   Write "the timeout value for the connection pool".
-- Delete a word that carries no fact. Examples: simply, seamlessly, robust,
-  powerful, comprehensive, leverage, "in order to", and "it is worth noting".
-- Replace utilize with use, prior to with before, in the event that with if, and
-  e.g. with "for example".
+- Delete a word that carries no fact. Examples: `simply`, `seamlessly`,
+  `robust`, `powerful`, `comprehensive`, `leverage`, "in order to", and "it is
+  worth noting".
+- Replace `utilize` with use, `prior to` with before, `in the event that` with
+  if, and `e.g.` with "for example".
 - Use British spelling. Code, identifiers, file names, and an established term
   such as the behavior contract keep their own spelling.
 
@@ -917,7 +910,9 @@ A warning inside the app is copy, so it opens with `Warning:` instead. See
 - Count the words in your three longest sentences. Split every sentence that is
   above its limit.
 - Collapse a rotation of synonyms into the one word you chose.
-- No checker enforces this section. The judgement is yours on every change.
+- `deno task check:ste` enforces the mechanical patterns over the repository
+  Markdown, against per-document baselines that only fall. The judgement is
+  still yours on every change.
 
 ### Before → after
 
@@ -931,349 +926,14 @@ A warning inside the app is copy, so it opens with `Warning:` instead. See
 
 ## Designing New Systems
 
-When planning a new feature, design it to have every quality below. Each one
-names reference implementations in this codebase — read the exemplar before
-designing, and copy its shape rather than inventing a new one. These are the
-systems we want more of.
-
-### Schema-tized
-
-Model the thing as data first — a typed schema plus a few functions folded over
-it — and derive everything else (types, validation, rendering, routes) from that
-one declaration. The philosophy is in the Preferences ("Schema over organic
-structure", "Shared interfaces over branch-per-case"); these are the mechanisms
-to copy:
-
-- **A valibot schema as the single source of truth for a value type.** Declare
-  once; derive the TS type, the runtime guard, and the options list:
-
-  ```typescript
-  export const ContactFieldSchema = v.picklist([
-    "email",
-    "phone",
-    "address",
-    "special_instructions",
-  ]);
-  export type ContactField = v.InferOutput<typeof ContactFieldSchema>;
-  export const CONTACT_FIELDS = ContactFieldSchema.options;
-  export const isContactField = (s: string): s is ContactField =>
-    v.is(ContactFieldSchema, s);
-  ```
-
-  See `src/shared/types.ts` (six of these) and `src/shared/price-modifier.ts` (a
-  whole family). For structured values, compose `v.object` schemas into a
-  discriminated union with `v.variant("kind", […])` and a single `v.is` guard —
-  `src/shared/bulk-email-targets.ts` is the reference.
-- **Declarative tables.** `defineTable`/`defineIdTable`
-  (`src/shared/db/table.ts`, `src/shared/db/define-id-table.ts`): a `columns`
-  config built from the `col.*` builders (`col.boolean`, `col.encrypted`,
-  `col.generated`, …) drives serialization, encryption, and the derived `Input`
-  type. Never hand-write row mapping.
-- **Config-driven CRUD.** `defineCrudApi` (`src/shared/rest/crud-api.ts`) turns
-  one config object into the five standard admin API routes;
-  `defineResource`/`defineNamedResource` (`src/shared/rest/resource.ts`) turn
-  `{table, fields, toInput, validate}` into typed operations that the handlers
-  in `src/shared/rest/handlers.ts` wire to HTTP.
-- **Schema-driven forms.** `defineForm` + a `Field[]`
-  (`src/shared/forms/definition.ts`): one field list drives the HTML rendering,
-  the parsing/validation, and the `FormValuesFor<>` value types;
-  `createFormRoute`/`createAuthedFormRoute` (`src/shared/app-forms.ts`) wire
-  that same schema to both the GET (render) and POST (validate) handlers.
-- **Form section headers are a `FormSection[]`, never a hand-rolled heading.** A
-  form's grouped sections are modelled as data — a `FormSection[]` (`legend`
-  - `children`) rendered by `FormSections`
-    (`src/ui/templates/components/aggregate-sections.tsx`), which turns each
-    entry into a legend-led `SectionFieldset`. A single section uses
-    `SectionFieldset` directly. Never head a form section with an `<h3>`/`<h4>`
-    — a `<legend>` is the section header, and routing every section through
-    `FormSections`/ `SectionFieldset` keeps that so. The listing form
-    (`listings/form-sections.tsx`) and the attendee form
-    (`admin/attendee-form.tsx`) both build a `FormSection[]`; see them for
-    conditional sections (`compact` drops the ones that do not apply).
-- **One vocabulary for "attached to any record".** `defineRecordTarget`
-  (`src/shared/db/record-target.ts`): a domain says which kinds of record it
-  accepts and which two columns hold the kind and the id, and gets back the
-  naming (`of("listing")(7)`), a stable `key`/`fromKey` pair, the
-  `where`/`whereMany`/`whereChosenBy` clauses, the matching deletes, and an
-  existence check. Notes (`src/shared/db/notes/target.ts`), image links
-  (`src/shared/db/images.ts`), and site page items
-  (`src/shared/site-pages/target.ts`) all use it — a fourth "attach something to
-  any record" feature declares its kinds, it does not invent a fourth
-  vocabulary.
-- **A data table plus one fold.** `LISTING_DEFAULT_FIELDS` +
-  `resolveListingDefaults` (`src/shared/listing-defaults.ts`); the admin guide's
-  `GuideSection[]` + `renderGuideSections`.
-
-If your plan contains a hand-rolled dispatcher, an ad-hoc form, bespoke CRUD
-routes, or hand-written row (de)serialization, stop: there is a `define*`
-factory for that already. Use it — or extend it for every caller.
-
-### Checked forwards and backwards
-
-A stateful lifecycle is declared as a machine, its combinations with other
-machines are declared as a seam, and both declarations are checked in both
-directions: forwards by tests that drive the real transitions and crash them
-mid-flight, backwards by reading the stored data and proving it fits. This was
-retrofitted onto the payment machines across three large PRs (#2065, #2079,
-#2084); a new lifecycle declares it with its first slice, when it is cheap. The
-mechanisms, each with its reference:
-
-- **Declare the machine as data.** Nodes carrying representative states built
-  through the production transitions, events, and an exhaustive moves table — a
-  cell missing from the table is a declared refusal, never a fallthrough. The
-  framework is `src/shared/schema-atlas/machine-spec.ts`; the machines are
-  `src/shared/payment/{row,refund,review,sumup-recovery}-machine-spec.ts`, with
-  whole-graph properties (all reachable, all can end, one declared
-  provider-wait) in their `graph.test.ts` suites over the shared
-  `#test-utils/machine-graph.ts` walker.
-- **Derive, never restate.** SQL guards (`rowWorkMirrorSql`), status words,
-  danger flags, and the operator map (`SCHEMA_ATLAS_MACHINES`, rendered at
-  `/admin/schema`) all derive from the spec. Vocabulary lists derive from the
-  machine's own types — an exhaustive mapped record keyed by the machine's union
-  (`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`) — so a grown
-  or renamed state stops compiling until every consumer learns it.
-- **Declare the seam.** When two machines share reality, declare the ILLEGAL
-  combinations, each entry naming the invariant it breaks
-  (`ILLEGAL_JOINT_STATES` in `src/shared/payment/joint-state.ts`). List only
-  what is provably impossible: every crash window's intermediate state must stay
-  legal, because a redelivery has to finish from it.
-- **Witness every manufactured crash.** Each crash-manufacture test helper reads
-  back every stored record it touched and asserts the combination is one a real
-  run can produce (`expectLegalJointStates` in
-  `test/test-utils/joint-state.ts`), so the whole crash suite polices the seam
-  without new tests.
-- **Enumerate flows × crash windows.** List every flow; every await between two
-  durable writes is a window; each window gets an idempotent-redelivery proof or
-  a fault-injected test. Faults are triggers at SQLite's own boundary, not stubs
-  (`test/test-utils/db-fault.ts`), so the failing write rolls back exactly as
-  production would.
-- **Check backwards from the data.** A bounded scan reads the declared
-  impossibilities back out of the live database and shows the operator every hit
-  (`src/shared/db/schema-anomaly-scan.ts`, the `/admin/schema` "Live check").
-  Key the scan's queries by the declaration table's own literal types, so
-  declaring a new illegal combination refuses to compile until the scan knows
-  how to find it.
-
-### Pure, functional
-
-Write the core of a feature as pure data-in/data-out functions and keep IO (DB
-reads, settings, fetches) in a thin shell around it. Pure modules are trivially
-unit-testable, which is what keeps 100% coverage and a 100% mutation kill rate
-cheap to sustain.
-
-- `src/shared/largest-remainder.ts` — a complete allocation algorithm with zero
-  imports; the hardest logic in the money paths and the easiest to test.
-- `src/shared/listing-defaults.ts` — the header states "This module is pure":
-  callers fetch, it computes.
-- `src/shared/ledger/project.ts` — pure projections over a slice of transfers;
-  every derived total reuses the single `allBalances` fold, so no two totals can
-  disagree.
-- `src/shared/phone.ts`, `src/shared/countries.ts` — pure normalization, and a
-  pure data table with total accessors.
-
-Prefer the curried utilities from `#fp` over imperative loops (see
-[FP Imports](#fp-imports)). When a module needs both computation and
-configuration, split it the way `src/shared/dates.ts` does: the pure functions
-take the timezone as an argument, and thin wrappers inject `settings.timezone` —
-the pure core stays testable without a database.
-
-### Modularised
-
-One concept per file; one layer per directory. `REPO_STRUCTURE.md` defines where
-things go (`src/features/*` routes, `src/shared/*` domain logic, `src/ui/*`
-presentation). Within `shared/`, the shapes to copy:
-
-- `src/shared/rest/` — `resource.ts` (the resource abstraction), `handlers.ts`
-  (HTTP wiring), `crud-api.ts` (the JSON API): each file is one layer, named for
-  its job.
-- `src/shared/ledger/` — `types.ts`, `project.ts`, `account.ts`, `reconcile.ts`:
-  a domain split into files you can navigate blind.
-- `src/shared/db/attendees/` — `queries.ts`, `pii.ts`, `capacity.ts`,
-  `stats.ts`, `delete.ts`: a big table's concerns separated instead of one
-  1,500-line module.
-
-A new system must arrive as a small directory of single-purpose files, not one
-grab-bag module — and not as fragments scattered through unrelated existing
-files.
-
-### Well-named files
-
-The filename states the concept; the concept fills the file.
-`largest-remainder.ts`, `phone.ts`, `slug.ts`, `define-id-table.ts`,
-`request-cache.ts`, `keyed-cache.ts` — you can guess each file's exports from
-its name and vice versa. Function names carry contracts the same way: the `Raw`
-suffix on `getAttendeesRaw`/`getAttendeeRaw` means "PII still encrypted —
-decrypt before display", and `getUserDisplayFields` names the exact narrow
-column set it selects. If you cannot name the file in a couple of words, it is
-probably two concepts — split it.
-
-### Valibot and standard libraries
-
-Validation is valibot; collections are `@std/collections` (via `#fp`); paths,
-media types, and cookies are `@std/path`, `@std/media-types`, and
-`@std/http/cookie`; date/timezone math is `Temporal` (temporal-polyfill);
-formatting is `Intl`. Valibot patterns to copy:
-
-- **Branded scalar** — `src/shared/validation/email.ts`:
-  `v.pipe(v.string(), v.trim(), v.toLowerCase(), v.email(), v.brand("ValidEmail"))`.
-  A `ValidEmail` can only be produced by validation, so downstream code needs no
-  re-checks.
-- **Coercing schema factory** — `src/shared/validation/number.ts`:
-  `createIntSchema(minimum)` validates digits _before_ `v.transform(Number)`
-  (closing the `parseInt("5abc")` hole); `PositiveIntSchema` and friends are its
-  specializations.
-- **Boundary validation** — `src/features/api/sms-webhook.ts`: `v.safeParse` an
-  envelope `v.object` immediately after `JSON.parse`, 400 on failure. Validate
-  at the boundary; pass typed values inward.
-- **Deliberate non-use is fine when the platform is better** —
-  `src/shared/validation/timestamp.ts` delegates instant validation to
-  `Temporal.Instant.from` (valibot's `isoTimestamp` accepts overflow days) and
-  documents why.
-
-### Do not reinvent the wheel
-
-Before writing an algorithm, formatter, or parser, check `deno.json` — the
-answer is usually already a dependency. When the project's calling convention
-differs from a library's, write a thin adapter; do not re-implement:
-
-- `src/fp.ts` — `unique`, `uniqueBy`, `mapNotNullish`, `sumOf`, `chunk` are
-  one-line curried adapters over `@std/collections`.
-- `src/shared/db/table.ts` — `toCamelCase`/`toSnakeCase` delegate to valibot's
-  case actions rather than bespoke regexes.
-- `src/shared/timezone.ts` — all DST/offset math is `Temporal`;
-  `src/shared/currency.ts` gets currency symbols and decimal places from
-  `Intl.NumberFormat` instead of a hand-maintained table; `src/shared/slug.ts`
-  validates with `v.slug()`.
-
-When you genuinely must hand-roll, document the reason at the definition the way
-`#fp`'s `groupBy` does (it exists because `@std/collections` lacks the ordering
-guarantee its callers rely on).
-
-### Curried helpers
-
-Currying is the house style for both de-duplication (see
-[Code Duplication](#code-duplication)) and API design: the factory takes the
-configuration, the returned function takes the data.
-
-- `makeOutcome(succeeded)` → `export const ok = makeOutcome(true)` /
-  `fail = makeOutcome(false)` (`src/shared/response.ts`).
-- `roleIn(levels)` → `isStaffRole`, `isDeliveryRole` (`src/shared/types.ts`) —
-  predicate factories instead of near-identical functions.
-- `balanceOf(account)` → `(transfers) => number` and friends
-  (`src/shared/ledger/project.ts`) — curried projections that compose.
-- At larger scale the same shape becomes the config-driven factories:
-  `defineTable`, `defineCrudApi`, `defineForm`, and `cachedClientFactory`
-  (`src/shared/payment-helpers.ts`).
-
-### Built for cold starts
-
-Most production requests land on a freshly booted edge isolate with a ~500ms
-startup budget and a limited subrequest budget
-(`scripts/bench/cold-start/bundle-load.ts` measures single-file load and
-`scripts/bench/cold-start/first-request.ts` measures request round trips). The
-rules, with their reference implementations:
-
-- **Nothing heavy at module load.** Entry points only register the handler
-  (`src/edge.ts`); app boot runs `once()` on the _first request_
-  (`src/serve-app.ts`). Module-load work is fine only when pure and cheap (for
-  example `defineTable` building its schemas once).
-- **A foundation module must not reach the database.** `#shared/env.ts`,
-  `#shared/now.ts` and the crypto modules load before anything else, so a new
-  import in one of them can close a ring back to itself. Whichever module the
-  runtime then evaluates second reads a name the first has not reached yet, and
-  the app dies at startup with "Cannot access X before initialization". Which
-  module loses that race depends on the entry point, so such a ring can pass the
-  whole Deno suite and take every Cucumber Feature down. When a foundation
-  module needs a helper, put the helper in a module that imports nothing, the
-  way `parseDateMs` sits in `#shared/now.ts` rather than in `#shared/dates.ts`,
-  which reads a site's timezone from the database.
-  `test/integration/import-cycles.test.ts` holds `src/` at the rings it already
-  carries, and that list only shrinks.
-- **Lazy singletons via `once`/`lazyRef` from `#fp`.** The DB client (`getDb` in
-  `src/shared/db/client.ts`), the dynamically imported Stripe SDK
-  (`src/shared/stripe.ts`), the Liquid email engine, crypto key material — all
-  first-use, never import-time.
-- **Request-scoped memoization, not global state.** `requestCache`
-  (`src/shared/request-cache.ts`) shares one fetch among all callers within a
-  request. Any new per-request state is built on one of the three factories in
-  `src/shared/request-scoped.ts` (`createScope`, `createScopedValue`,
-  `createRequestScoped`) — the only module allowed to touch `AsyncLocalStorage`
-  — so two concurrent requests on one isolate cannot clobber each other and a
-  leaked post-request context always reads as "outside a request". Isolate-lived
-  caches are best-effort and bounded (`src/shared/db/keyed-cache.ts`; the
-  settings version-stamp cache in `src/shared/db/settings.ts`) — never
-  authoritative for security decisions, and invalidated automatically by the
-  write-sniffing db client (`src/shared/cache-registry.ts`).
-- **Compile once, render many.** ICU message templates (including the
-  `I18N_REPLACEMENTS` rebranding pass) compile once and cache
-  (`src/shared/i18n.ts`), so rendering is a plain format call.
-- **Respect the subrequest budget.** Fixed-cost designs like
-  `src/shared/limits.ts` (one SELECT plus one batch regardless of batch size),
-  `UPDATE … RETURNING` instead of update-then-select (`src/shared/db/table.ts`),
-  and `queryBatch` for multi-read round-trips. Bunny has a hard limit of 50
-  subrequests per request. One libsql `execute`, batch, transaction
-  begin/statement/commit/rollback, or external fetch counts as one; statements
-  inside one batch still count as one. The client guard blocks database call 51,
-  but routes that also call providers or storage must target at most 40 database
-  calls so those other fetches still fit.
-- **Model realistic database latency.** The request benchmark uses 0, 5, 10, and
-  20 ms per libsql round trip. Treat 20 ms as the expected worst case for a
-  replicated database; do not publish 50 or 100 ms projections as realistic
-  production measurements without evidence from production.
-
-A new feature that adds a top-level `await`, an import-time SDK load, or a
-per-request whole-table read is a cold-start regression even if it works.
-
-### Efficient SQL
-
-The rules live in [Database Queries](#database-queries) (narrow column lists,
-bounded reads, batches vs interactive transactions). Beyond those, copy these
-shapes:
-
-- **Enforce invariants in the mutating statement itself.**
-  `src/shared/db/capacity.ts` embeds the capacity check in the same
-  INSERT/UPDATE that books the attendee — no read-modify-write race, no second
-  round-trip.
-- **Trigger-maintained aggregates instead of scans.**
-  `listings.booked_quantity`/`tickets_count` are maintained by triggers on
-  `listing_attendees`
-  (`src/shared/db/migrations/2026-06-16_listing_aggregates.ts`), so listing
-  reads never sum attendee rows.
-- **One-round-trip patterns.** `UPDATE … RETURNING *` in
-  `src/shared/db/table.ts`; `queryBatch`/`executeBatchWithResults` in
-  `src/shared/db/client.ts`; keyset pagination for unbounded reads
-  (`src/shared/db/backup.ts` with `BACKUP_PAGE_SIZE`).
-
-### Decrypt only what you need
-
-Encrypted data stays encrypted until the moment of display, and lookups never
-require decryption:
-
-- **Blind HMAC indexes for lookups.** Alongside each searchable encrypted value
-  sits a deterministic `hmacHash` index column: `username_index`
-  (`src/shared/db/users.ts`), `ticket_token_index`
-  (`src/shared/crypto/hashing.ts`, `src/shared/db/attendees/queries.ts`),
-  `phone_index` for inbound SMS (`src/shared/db/attendee-phone-index.ts`),
-  `code_index` on modifiers. Query `WHERE …_index = ?`; never scan-and-decrypt.
-  (The one sanctioned scan-decrypt — invite codes in `users.ts` — is documented
-  and bounded by a tiny keyspace.)
-- **One blob, one decrypt, decrypt late.** All attendee PII lives in a single
-  `pii_blob` (`src/shared/db/attendees/pii.ts`); list queries select it without
-  decrypting (`getAttendeesRaw` and friends in
-  `src/shared/db/attendees/queries.ts`), and `decryptAttendees` runs only at
-  render time. `decryptPiiBlob`'s `paidListing` flag even gates which fields
-  come out of the blob, and `getAttendeeNamesByIds` decrypts just the name.
-- **Skip encrypted columns entirely when you can.** `getUserAuthFieldsById`
-  (`SELECT id, admin_level`) and `getAttendeeKindsByIds` (`SELECT id, kind`)
-  answer their questions without touching a ciphertext — the same discipline as
-  "Select only needed columns", applied to plaintext-in-memory.
-- **Declarative encryption at the column layer.**
-  `col.encrypted`/`col.encryptedText` in `src/shared/db/table.ts` decrypt
-  lazily, per present column; a new encrypted column is declared, not
-  hand-wired.
-- **Keys are request-scoped and short-lived.** The session private key is
-  fail-closed per request (`src/shared/session-private-key.ts`) and decrypt
-  caches are TTL-bounded to seconds (`src/shared/crypto/keys.ts`).
+When planning a new feature, design it to have every quality in
+[Designing new systems](docs/designing-systems.md): schema-tized, checked
+forwards and backwards, pure and functional, modularised, well-named, built on
+valibot and the standard libraries, curried, built for cold starts, with
+efficient SQL and decrypted-late PII. Each quality names reference
+implementations in this codebase. Read that document, and the exemplar it names,
+before you design. Copy the exemplar's shape rather than inventing a new one.
+These are the systems we want more of.
 
 ## FP Imports
 
@@ -1303,102 +963,50 @@ const result = reduce((acc, item) => {
 }, [])(items);
 ```
 
-### Available FP Functions
-
-These are the curried helpers actually exported from `#fp`. Several are thin
-adapters over `@std/collections` (noted below) so the standard library does the
-work while the project keeps its pipe-friendly calling convention. For
-collection operations not covered here (partitioning, keying, picking object
-keys, etc.), reach for `@std/collections` directly rather than hand-rolling —
-wrap it in a curried `#fp` adapter if it will be reused across the `pipe`-based
-code. Note `@std/collections` has **no** `groupBy` export (it was removed in
-favour of the runtime built-ins) — use native `Object.groupBy` / `Map.groupBy`
-for grouping.
-
-| Function            | Purpose                                           |
-| ------------------- | ------------------------------------------------- |
-| `pipe(...fns)`      | Compose functions left-to-right                   |
-| `filter(pred)`      | Curried array filter                              |
-| `map(fn)`           | Curried array map                                 |
-| `flatMap(fn)`       | Curried array flatMap                             |
-| `mapNotNullish(fn)` | Map, dropping nullish results (std mapNotNullish) |
-| `reduce(fn, init)`  | Curried array reduce                              |
-| `sort(cmp)`         | Non-mutating sort                                 |
-| `unique(arr)`       | Remove duplicates (std distinct)                  |
-| `uniqueBy(fn)`      | Dedupe by key (std distinctBy)                    |
-| `compact(arr)`      | Remove null/undefined                             |
-| `chunk(size)`       | Split array into chunks (std chunk)               |
-| `sumOf(selector)`   | Sum by selector (std sumOf)                       |
-| `sum(arr)`          | Sum an array of numbers                           |
+The curried helpers actually exported from `#fp` are documented on each
+definition in `src/fp.ts`; read those before you hand-roll a collection step.
+Several are thin adapters over `@std/collections`. For a collection operation
+`#fp` does not cover, use `@std/collections` directly, and wrap it in a curried
+`#fp` adapter once more than one caller needs it. `@std/collections` has **no**
+`groupBy` export (it was removed in favour of the runtime built-ins) — use
+native `Object.groupBy` / `Map.groupBy`, or `#fp`'s `groupToMap`.
 
 ## Code Duplication
 
-The main jscpd scan includes Bash (`.sh`) files under `scripts/`. Post-edit
-checks use the same scan for shell scripts. Bash retains the 0% threshold and
-the same minimum token count as the other source formats.
+`deno task cpd` (part of `deno task precommit`) runs jscpd with a **0% threshold
+— this is non-negotiable**. The main scan also covers Bash (`.sh`) files under
+`scripts/`. When it fails it prints the fix order itself: write a helper, else
+curry, and treat a `jscpd:ignore` tag as the last resort, excusable for import
+blocks and essentially nothing else.
 
-`deno task cpd` (run as part of `deno task precommit`) runs jscpd with a **0%
-threshold — this is non-negotiable**. When it fails it prints this same
-guidance. Fix the duplication; do not silence it:
-
-1. **Write a helper.** This is the answer in ~99.999% of cases. If an obvious
-   shared function jumps out, extract it and call it from both sites.
-2. **No obvious helper? Curry.** Lift the parts that differ into arguments of a
-   function that returns the specialised version, then call it at each site.
-   **Then review your work before committing — zoom out one step further.** The
-   first small curry you reach for is often not the best one; a larger, more
-   holistic curry across the call sites is very frequently far better.
-3. **`jscpd:ignore` is the last resort.** It is excusable for basically _one_
-   thing: **import blocks** (plus the rare unavoidable scrap of
-   boilerplate/infrastructure we have no control over). If the duplicated code
-   is not an import block, you almost certainly want option 1 or 2 — an
-   `jscpd:ignore` tag anywhere else is a code smell, not a fix.
-
-**The jscpd warning is a positive signal, not a nuisance to silence.** Each
-duplication it flags is a pointer at two things that must become one — a real
-merge waiting to happen, and the whole point of this exercise. So:
+**The warning is a positive signal, not a nuisance to silence.** Each flagged
+pair is a merge waiting to happen, and the merges are the goal of the whole
+exercise:
 
 - **Never work around the warning by changing a structure so the matcher stops
-  matching.** Swapping positional params for a config object, renaming to a
-  namespace import, reordering fields, lifting a line to a named const — any
-  edit whose _purpose_ is to break the token match while leaving two parallel
-  implementations in place is the opposite of what we want. It hides the signal
-  and keeps the duplication. If you find yourself asking "how do I make jscpd
-  stop flagging this," you are on the wrong track: the question is "how do I
-  make these two things one thing."
+  matching.** Any edit whose _purpose_ is to break the token match while leaving
+  two parallel implementations in place hides the signal and keeps the
+  duplication. The question is "how do I make these two things one thing."
 - **Every merge is warranted — the merges are the goal.** When jscpd flags a new
   helper against an existing one (as it will the moment you extract something),
-  that is not a problem to route around; it is telling you the new helper and
-  the old one are the same operation and must be unified into a single
-  mechanism. Do that unification. Reducing the codebase to one shared way of
-  doing each thing is the aim; the warning is just the to-do list.
+  the two are the same operation and must be unified into a single mechanism.
+  Reducing the codebase to one shared way of doing each thing is the aim; the
+  warning is just the to-do list.
 - **After a dedup, zoom out and integrate further.** Once your new helper
   exists, search the codebase for the _other_ places that can now fold into it
-  or into an existing sibling. A dedup pass rarely ends at the sites that first
-  tripped the check — the biggest wins come from noticing that the helper you
-  just wrote subsumes three more call sites, or that it and an older helper are
-  the same thing wearing two names. Keep pulling the thread until the merges are
+  or into an existing sibling. Keep pulling the thread until the merges are
   genuinely exhausted.
 - **A curry almost always exists — "these two cannot be merged" is nearly always
   wrong.** Two functions that differ only in a value, a path, a field name, a
   message, or a callback are one function that has not been given its parameter
-  yet. Lift what differs into a factory's argument and let the returned function
-  take the data. This holds even when the two bodies look nothing alike at a
-  glance, because the shared part is often a _tail_ ("…and then keep what they
-  were told") or an _opening_ ("open this page, and then…"), and a curry takes
-  either. So treat every flagged pair as mergeable until you have actually
-  written the curry and found what the parameter would have to be. "This pair is
-  noise" is a conclusion you earn by trying, never a first reading — and if you
-  reach for that phrase about a whole band of results, you are almost certainly
-  looking at a factory nobody has written yet.
-
-  Before you write one, look for the factory that already exists. An
-  under-adopted curry reads exactly like unavoidable duplication: the pairs pile
-  up at the call sites that never adopted it, so the check looks like it is
-  flagging noise when it is really flagging the gap. The Cucumber page openers
-  are the reference. `opensAdminPageAt(path)` in `test/specs/support/browser.ts`
-  turns any "open this one fixed admin page" wrapper into a single line, and
-  four support files hand-rolled the wrapper anyway.
+  yet. This holds even when the two bodies look nothing alike at a glance,
+  because the shared part is often a _tail_ ("…and then keep what they were
+  told") or an _opening_ ("open this page, and then…"). Treat every flagged pair
+  as mergeable until you have actually written the curry and found what the
+  parameter would have to be. Before you write one, look for the factory that
+  already exists: an under-adopted curry reads exactly like unavoidable
+  duplication, and the Cucumber page openers (`opensAdminPageAt` in
+  `test/specs/support/browser.ts`) are the reference.
 - **The one honest exception is a shared _signature_ with nothing behind it.**
   When two functions match only on their parameter list and return type, and
   share no call at all, there is nothing to lift and a curry cannot help. Give
@@ -1407,93 +1015,26 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The renamed copy jscpd cannot see
+Two further scans catch what literal token matching cannot, because a rename
+hides a copy from jscpd:
 
-jscpd compares the tokens as written, so **renaming one copy hides it**. Two
-functions that do the same job under different names, over differently named
-values, match no token run and pass every jscpd config at 0%. The wrapper scan
-below catches the renamed token run; `deno task check:shapes` reads the other
-half. It reduces each named function's body to its _shape_ — every name, number
-and string becomes one symbol — and reports two functions that share one.
+- `deno task check:shapes` reduces each named function's body to its _shape_ —
+  every name, number and string becomes one symbol — and reports two functions
+  that share one. It reports whole named functions, not token runs, so a config
+  object handed to a shared factory never looks like a function body. The
+  accepted list at `scripts/check-shapes/accepted/` records why each allowed
+  match stands; `merges-to-make.txt` must stay empty. The list only shrinks: a
+  match not on it fails the check, and an entry that matches nothing any more
+  fails too. `MIN_TOKENS` in the run script ratchets downward.
+- `deno task cpd:renamed` runs at a tighter token count and keeps only the pairs
+  whose two sides are the same code with different words. Every kept pair must
+  be merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`.
+  The registry only shrinks: merge a pair, delete its entry, and a new word-only
+  copy anywhere fails the gate.
 
-It reports whole named functions, not runs of tokens inside them. That is what
-keeps it readable: a config object handed to a shared factory is the shape this
-codebase wants more of, and it never looks like a function body.
-
-It reads every `.ts`, `.tsx` and `.js` file under the trees `.jscpd.json` scans,
-so a browser script we ship as plain JavaScript is compared too. Words a
-component renders become one string, so two components that differ only in their
-wording share a shape, and rewrapped markup does not change one. `#fp` is
-compared like anything else, and only a group whose every site is inside it is
-dropped: its curried pairs match each other by design, but a body elsewhere that
-copies one of them is a real merge to make — call the helper.
-
-The accepted list at `scripts/check-shapes/accepted/` records every match this
-tree already carries, one per line with the reason it stands, split in two:
-
-- `merges-to-make.txt` — the same thing written twice. Every line is work
-  somebody still has to do. Make the merge, delete the line. **This file is
-  empty**, and that is the state to keep it in: a line added here is a merge
-  somebody owes.
-- `coincidences.txt` — two functions with one shape and no shared step to lift.
-  A line earns this file only after somebody tried writing the curry.
-
-**The list only shrinks.** A match that is not on it fails the check, and an
-entry that matches nothing any more fails too, so a merge has to take its entry
-with it. `MIN_TOKENS` in `scripts/check-shapes/run.ts` ratchets downward the
-same way the numbers in `check:comments` do.
-
-A key is every site as `path::name~fingerprint`, sorted. The fingerprint is
-seven characters over the body's text, read line-trimmed so a deeper nesting
-that only re-indents a listed function changes nothing. Any other edit to the
-body changes it, so the entry goes stale and the check says so — re-read the
-note, then refresh the fingerprints, or delete the entry if the pair no longer
-stands. A rename, a move, or a deletion stales an entry the same way. The report
-prints the `to accept:` line to paste, because no one writes a fingerprint by
-hand.
-
-### The eight scans, and how hard each looks
-
-The 0% threshold is not the number that decides how hard jscpd looks.
-`minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
-lower number is a tighter net. Six configs divide the tree, because helper code,
-test bodies and stylesheets each deserve a different net. The seventh is a
-wrapper scan that catches what renamed words hide from all of them. The eighth
-matches whole named functions by shape.
-
-| Config                    | Scans                            | minTokens             |
-| ------------------------- | -------------------------------- | --------------------- |
-| `.jscpd.json`             | `src`, `e2e-payments`, `scripts` | 19                    |
-| `.jscpd.specs.json`       | `src` + `test/specs/support`     | 19                    |
-| `.jscpd.support.json`     | `test/specs/support`             | 18                    |
-| `.jscpd.helpers.json`     | `src` + `test/test-utils`        | 40                    |
-| `.jscpd.test.json`        | `test`                           | 48                    |
-| `.jscpd.css.json`         | `src/ui/static/style.scss`       | 50                    |
-| `scripts/cpd-renamed.ts`  | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
-| `scripts/check-shapes.ts` | `src`, `e2e-payments`, `scripts` | 20, whole functions   |
-
-Both helper trees are scanned **alongside `src/`**, so a helper that
-reimplements production logic is flagged against the source it copied. A
-separate run could never see that pair. Where a helper tree can be held tighter
-than `src/` can, it gets a second scan of its own — the support helpers are at
-18 that way, because the scan they share with `src/` cannot go below 19 without
-dragging `src/` down too. A test body is different: it repeats by design, and
-the shared mechanism is the test framework itself, so the whole of `test/` stays
-at the loose 48.
-
-The seventh scan (`deno task cpd:renamed`) catches copies that renamed words
-hide. jscpd matches literal token runs, so two copies of one operation with
-different names sit below `minTokens` 19: every renamed word breaks the run. The
-scan runs jscpd at 17 and keeps only the pairs whose two sides share their whole
-punctuation shape — the same code with different words. Every kept pair must be
-merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`. The
-registry only shrinks: merge a pair, delete its entry, and a new word-only copy
-anywhere fails the gate.
-
-**Every helper number ratchets downward** — lower it, bring the tree to it,
-repeat — the same way `check:comments` works. `docs/test-duplication.md`
-measures what each remaining step costs. Read its counts as work to do, not as a
-floor: the counts fall as the curries land.
+**Every helper number ratchets downward.** `docs/test-duplication.md` measures
+what each remaining step costs. Read its counts as work to do, not as a floor:
+the counts fall as the curries land.
 
 ## Database Queries
 
@@ -1630,59 +1171,45 @@ query logging and table-scoped cache invalidation stay automatic.
   `precommit` locally means the lint step will pass in CI too. Run
   `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
-- `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the
-  configured storage zone by default (so it appears on the Backups page and lets
-  the next migration skip its own inline backup); pass `--out <path>` to write a
-  local file. Runs in a full Deno process, so unlike the in-edge backup it has
-  no per-request subrequest budget and can dump arbitrarily large databases.
+- `deno task backup` - Dump the database out-of-band to a `.zip` (uploads to the
+  configured storage zone by default; pass `--out <path>` for a local file).
+  Runs in a full Deno process with no per-request subrequest budget, so it can
+  dump arbitrarily large databases.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` /
-  `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details,
-  asks for typed confirmation, and reports each restore step in the console.
+  `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Asks for typed
+  confirmation before changing anything.
 - `deno task bugs <issue-url-or-id>` - Print one Bugsink issue and its latest
-  event as JSON, so an LLM can study a live error. The event payload includes
-  the stacktrace rendered as Markdown. `--events N` sets how many events to
-  fetch. `deno task bugs list` prints unresolved issues, newest first, and
-  `--all` adds resolved ones. Reads `SENTRY_BASE_URL` (or `SENTRY_BASE`) and
-  `SENTRY_API_KEY` from `.env`.
+  event as JSON. `deno task bugs list` prints unresolved issues, and `--all`
+  adds resolved ones. Reads `SENTRY_BASE_URL` and `SENTRY_API_KEY` from `.env`.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database
-  to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN`
-  from `.env` over shell values. This developer-only task checkpoints and
-  verifies the file, refuses to overwrite an existing path, and removes its
-  temporary replica on success or failure.
-- `deno task migrate:turso` - Interactively copy a remote libSQL database into a
-  new Turso database through Turso's native SQLite file upload. The task asks
-  for source credentials and the destination name, uses `TURSO_API_TOKEN`,
-  `TURSO_ORGANIZATION`, and `TURSO_GROUP` from `.env` when available, checks
-  that the destination is free before downloading, and removes an incomplete
-  destination after a failed upload.
+  to a standalone local SQLite file. Checkpoints and verifies the file, refuses
+  to overwrite an existing path, and removes its temporary replica after.
+- `deno task migrate:turso` - Interactive copy of a remote libSQL database into
+  a new Turso database, through Turso's native SQLite file upload.
 - `deno task migrate:sites` - Interactive menu for moving built sites off Bunny
-  databases. Reads the live master site's `POST /instance/site-credentials`
-  endpoint to list every built site and which company runs its database,
-  migrates the chosen site to a new Turso database through a temporary SQLite
-  file, then sets that site's `DB_URL` and `DB_TOKEN` secrets through the Bunny
-  API so it uses the new database. Reads `MAIN_INSTANCE_URL`,
-  `MAIN_INSTANCE_KEY`, `BUNNY_API_KEY`, `TURSO_API_TOKEN`, `TURSO_ORGANIZATION`,
-  and `TURSO_GROUP` from `.env` when set, and asks for anything missing. It
-  confirms by typed site name before changing anything, and prints the new
-  `DB_URL`/`DB_TOKEN` so they can be set by hand if the secret update fails. The
-  site keeps its existing `DB_ENCRYPTION_KEY`.
+  databases: reads the master site's site-credentials endpoint, migrates the
+  chosen site to a new Turso database, and updates its Bunny secrets. Confirms
+  by typed site name before changing anything.
 - `deno task check:shapes` - Report two named functions that share a shape under
   different names — the duplication jscpd cannot see (see
-  [The renamed copy jscpd cannot see](#the-renamed-copy-jscpd-cannot-see))
+  [Code Duplication](#code-duplication))
+- `deno task check:alias-exports` - Report an exported name that only renames an
+  imported one (see "No alias exports" above)
+- `deno task check:empty-catch` - Report a catch block that holds no statement
+  and no comment (see
+  [Offensive Programming](#offensive-programming--never-suppress-errors))
+- `deno task check:file-lengths` - Hold code and test files under ~400 lines,
+  against the accepted list that only shrinks. Pass `--update` after splitting a
+  file to re-record the list. The update refuses a rise, so growth must be split
+  first (see "Keep code and test files under ~400 lines" above)
+- `deno task check:ste` - Hold the repository Markdown to the mechanical
+  Simplified Technical English rules, against per-document, per-rule baselines
+  that only fall. Pass `--update` after fixing prose to re-record them. The
+  update refuses a rise, so new findings must be fixed first (see
+  [Simplified Technical English](#simplified-technical-english--how-we-write-documentation))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its
-  own: mutation-test every `src/` file this branch changed and demand a 100%
-  kill rate. All of a source's mirror-located direct tests run first, whether or
-  not those tests changed; changed tests under `test/integration/`, `test/e2e/`,
-  or `specs/` run only for direct-test survivors. A changed Cucumber step or
-  support file selects every Feature. The changed set is the branch's committed
-  diff against the integration branch (`origin/main`, else a local `main`) via
-  `base...HEAD` — three-dot/merge-base, so it is the branch's full diff vs main
-  and stays bounded to the branch's own commits (precommit runs post-commit on a
-  clean tree, so the index is empty). Skips cheaply when there is no base ref or
-  no changed `src/` files. If a badly stale local `origin/main` balloons the
-  changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run
-  `git fetch origin main`" hint instead of mutating most of the tree. See
+- `deno task precommit:mutation` - The branch mutation gate: mutation-test every
+  `src/` file this branch changed and demand a 100% kill rate. See
   [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on
   demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the
@@ -1754,163 +1281,13 @@ STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-a
 ## Environment Variables
 
 Environment variables are configured as **Bunny native secrets** in the Bunny
-Edge Scripting dashboard. They are read at runtime via `process.env`.
+Edge Scripting dashboard. They are read at runtime via `process.env`. Three are
+required for every site: `DB_URL` (database URL), `DB_TOKEN` (database auth
+token), and `DB_ENCRYPTION_KEY` (32-byte base64 key).
 
-The optional static CDN is different: `CDN_URL`, `CDN_BUNNY_STORAGE_ZONE_NAME`,
-`CDN_BUNNY_STORAGE_ZONE_KEY`, `CDN_BUNNY_STORAGE_HOST`, and
-`CDN_BUNNY_PULL_ZONE_ID` are GitHub repository secrets used only while building.
-When all five are set, the build uploads site-independent browser assets and
-image-codec WASM under an immutable content-addressed path, purges the pull zone
-with the existing `BUNNY_ACCESS_KEY` repository secret, verifies every public
-object byte-for-byte, then bakes those public URLs and their CSP origin into the
-edge script. They must not be added to the running Bunny script. With all five
-absent, assets stay embedded; a partial set fails the build. Site-bound assets
-such as `embed.js` and the dynamic `/order.js` body remain in each script. Use
-the Storage API hostname shown on Bunny's Storage **Access** page for
-`CDN_BUNNY_STORAGE_HOST` (for example, `storage.bunnycdn.com` or
-`uk.storage.bunnycdn.com`).
-
-### Required (configure in Bunny dashboard)
-
-- `DB_URL` - Database URL (required, for example `libsql://your-db.turso.io`)
-- `DB_TOKEN` - Database auth token (required for remote databases)
-- `DB_ENCRYPTION_KEY` - 32-byte base64-encoded encryption key (required)
-
-### Optional
-
-- `PORT` - Server port (defaults to 3000, local dev only)
-- `BUNNY_API_KEY` - Bunny API key (required for custom domain management, with
-  `BUNNY_SCRIPT_ID`)
-- `BUNNY_SCRIPT_ID` - Bunny Edge Script ID (required for custom domain
-  management, with `BUNNY_API_KEY`)
-- `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
-- `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image
-  uploads)
-- `BACKUP_PAGE_SIZE` - Rows read per keyset page when dumping a table for backup
-  (default 500). Each page is one libsql response, so this bounds the response
-  size to stay under libsqld's "Response is too large" payload cap. Used by
-  `deno task backup` and the admin Backups page; migrations no longer back up
-  inline (the edge subrequest budget cannot fit a full dump), so backups are
-  taken out-of-band.
-- `MAIN_INSTANCE_KEY` - Shared secret authorizing the inter-instance
-  site-credentials endpoint (`POST /instance/site-credentials`). When set on a
-  builder/main instance, that endpoint returns built sites' DB URL + token to a
-  caller presenting this key as a bearer token, so the upgrade workflow can back
-  each site up to the builder's storage before deploying. The returned token is
-  each site's own full-access credential (the same one the site runs with) —
-  callers only read, but must treat the response as write-capable production
-  secrets. The caller passes the release tier it is publishing as
-  `?tier=alpha|beta|release` (a tier-less call defaults to `release` ⇒ the whole
-  fleet, which is what the single-site `backup-site` action relies on); each
-  site carries an `updates` channel and only the sites at that tier or more
-  eager are returned (a `release` deploy reaches every site, `beta` reaches
-  beta + alpha sites, `alpha` only alpha sites — an unknown tier is a 400). The
-  response echoes the applied `tier` so a caller can confirm the server actually
-  filtered: a pre-tier build ignores the query string and omits it, letting the
-  canary workflow fail closed instead of fanning a non-release deploy out to the
-  whole fleet. Unset `MAIN_INSTANCE_KEY` ⇒ the endpoint is disabled (404). The
-  upgrade workflow receives the key as a run-time input, not a stored GitHub
-  secret.
-- `DENO_DEPLOY_TOKEN` - Deno Deploy organization access token. Required with
-  `DENO_DEPLOY_ORG_ID` and `DENO_DEPLOY_ORG_SLUG` to build sites on Deno Deploy.
-- `DENO_DEPLOY_ORG_ID` - Deno Deploy organization ID used by the app creation
-  API.
-- `DENO_DEPLOY_ORG_SLUG` - Deno Deploy organization slug used in each app's
-  managed `<app>.<organization>.deno.net` production domain.
-- `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables
-  subdomain feature when set with `BUNNY_API_KEY`)
-- `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (for
-  example `.tickets`)
-- `NTFY_URL` - Ntfy endpoint URL for error notifications (for example
-  `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal
-  or encrypted data.
-- `SENTRY_URL` - Sentry DSN for server-side error reporting (for example a
-  self-hosted Bugsink: `https://<key>@bugs.example.com/<project>`). When set,
-  the same classified server errors that log to the console and ping ntfy are
-  also captured by Sentry, with a real stack trace when the originating
-  exception is available. Unset ⇒ Sentry is disabled (the SDK never
-  initializes). The release is `chobble-tickets@<commit>`, matching the source
-  maps the deploy workflows upload; readable (un-minified) traces additionally
-  require the `SENTRY_AUTH_TOKEN`, `SENTRY_CLI_URL` (the instance base URL, for
-  example `https://bugs.example.com/`), `SENTRY_ORG`, and `SENTRY_PROJECT`
-  GitHub Actions secrets so the deploy can inject debug IDs and upload the maps.
-  Without those secrets the deploy still works; traces just stay minified.
-- `UPTIME_KUMA_URL` - Uptime Kuma 2.4 or newer base URL used by builder
-  instances to inspect and add built-site scheduled maintenance monitors.
-  Requires `CAN_BUILD_SITES=true`, `UPTIME_KUMA_USERNAME`, and
-  `UPTIME_KUMA_PASSWORD`. A public host must use `https`. Cleartext `http` is
-  allowed only for a local network address (loopback, private, CGNAT,
-  link-local, or IPv6 unique-local).
-- `UPTIME_KUMA_USERNAME` - Uptime Kuma username. Must be set with
-  `UPTIME_KUMA_URL` and `UPTIME_KUMA_PASSWORD`.
-- `UPTIME_KUMA_PASSWORD` - Uptime Kuma password. Must be set with
-  `UPTIME_KUMA_URL` and `UPTIME_KUMA_USERNAME`.
-- `UPTIME_KUMA_INTERVAL_MINUTES` - Optional positive whole number controlling
-  how often new built-site monitors run. Defaults to `15`.
-- `DEBUG_KEY` - Optional diagnostic key. `GET /health` returns a plain `Up :)`
-  by default; a request with a matching `X-Debug-Key` header instead returns
-  JSON build diagnostics (commit, build timestamp, server time) — non-private
-  but useful to operators. Unset ⇒ verbose health disabled. The running build
-  also records its commit into `settings.current_script_commit` on boot, so a
-  backup carries the commit the site was on and a restore can surface which
-  commit to redeploy (via `.github/workflows/restore-deploy.yml`).
-- `BOTPOISON_PUBLIC_KEY` - Optional Botpoison public key (sent to the browser).
-  The contact form works without it; setting it together with
-  `BOTPOISON_SECRET_KEY` adds proof-of-work spam protection as a progressive
-  enhancement. The owner still enables the form under Site → Contact and sets a
-  business email.
-- `BOTPOISON_SECRET_KEY` - Optional Botpoison secret key. Used server-side to
-  verify contact form submissions when Botpoison is enabled. Never sent to the
-  browser.
-- `ADMIN_EMAIL_ADDRESS` - Enables a superuser recovery option in owner settings.
-  The local-part (before `@`) must be a valid app username (2–32 characters,
-  letters, numbers, hyphens, underscores). Email delivery must be configured
-  before the superuser can be enabled. Also enables the owner-only **Support**
-  page (`/admin/support`), where the operator can message this address.
-- `SUPPORT_PAGE_TEXT` - Optional markdown shown at the top of the Support page
-  (requires `ADMIN_EMAIL_ADDRESS`). Use literal `\n` for line breaks since Bunny
-  secrets cannot hold real newlines. When unset, a placeholder note is shown
-  instead. The support form below it (which delivers to `ADMIN_EMAIL_ADDRESS`)
-  needs a business email to be set, like the public contact form.
-- `SUPPORT_FORM_NAG_DAYS` - Optional positive integer (default `7`). For this
-  many days after a support-form submission, the Support page shows a "you last
-  submitted this form …" notice to discourage duplicate messages.
-- `I18N_REPLACEMENTS` - Optional comma-separated `from|to` substring
-  replacements that rebrand the **translatable copy** of every rendered message,
-  for example `ticket|booking,attendee|guest`. Matching is case-insensitive and
-  by substring (`ticket|booking` turns `tickets` into `bookings`), and the
-  output copies the source word's capitalisation — `Ticket` → `Booking`,
-  `ticket` → `booking` (only lowercase and title-case occur in real copy). It is
-  applied to each message **template** once at load, and the rebranded template
-  is compiled and cached, so rendering stays a plain ICU format with no per-call
-  cost (important on a cold-booting edge runtime). It deliberately leaves alone:
-  HTML tags and attributes (so link `href`s survive), `<code>` examples (literal
-  route/CLI text), interpolated values such as a stored listing name (so "type
-  this exact name" confirmations still match), and the fallback key returned for
-  a missing translation. Avoid terms that collide with ICU keywords or
-  placeholder names (`name`, `count`, `plural`, …).
-- `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (for example
-  `pass.com.example.tickets`)
-- `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (for example `ABC1234567`)
-- `APPLE_WALLET_SIGNING_CERT` - PEM-encoded signing certificate
-- `APPLE_WALLET_SIGNING_KEY` - PEM-encoded signing private key
-- `APPLE_WALLET_WWDR_CERT` - PEM-encoded Apple WWDR intermediate certificate
-
-Apple Wallet can be configured via env vars (all 5 required) or via the admin
-settings page. Admin settings (encrypted) take priority over env vars. If
-neither is configured, the feature is disabled.
-
-### Stripe Configuration
-
-Stripe is configured via the admin settings page (`/admin/settings`), not
-environment variables:
-
-- Enter your Stripe secret key in the admin settings
-- The webhook endpoint is automatically created in your Stripe account
-- The webhook signing secret is stored encrypted in the database
-
-Admin password and currency code are set through the web-based setup page at
-`/setup/` and stored encrypted in the database.
+Every optional variable, the build-time static CDN set, and the Stripe / admin
+password configuration notes are documented in
+[Environment variables](docs/env-vars.md).
 
 ## Deno Configuration
 
@@ -2040,105 +1417,18 @@ deno task mutation 'src/shared/forms/definition.ts' 'test/shared/forms/definitio
 ```
 
 It reports a mutation score and lists each survivor as
-`file:line:col  old → new`. Exit code is non-zero if any mutant survived, so it
-can gate CI on a chosen module. By default it runs the test files directly
-(fast, for pure-unit modules); pass `--harness` for tests that import the app /
-Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
-client-bundle source (anything bundled into `src/ui/static/*.js` — for example
-`src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
-bundle for each mutant, so the mutation reaches the built asset the tests load.
-Likewise, a mutant in any file that feeds the run-wide prebuilt test state (the
-golden schema DB and captured setup ceremony — the import graph of
-`test/test-utils/test-state.ts`, see `scripts/mutation/state-graph.ts`) runs
-direct tests without the stale state. If the mutant survives, the runner builds
-one fresh state from the mutant and shares it across all integration-test
-batches.
+`file:line:col  old → new`, and exits non-zero if any mutant survived. How the
+runner works: its isolated checkout copy, its static gates, `--harness` mode,
+the equivalent-mutants registry, and why it never judges a mutant by a clock,
+are documented in [Mutation testing](docs/mutation-testing.md).
 
-How it works (and why it is bespoke): static gates apply mutants in isolated
-sibling copies. Mutants that pass are written over the run's source file, tested
-in a fresh `deno test` subprocess, then restored. The normal
-`deno task mutation` command first copies the current checkout (including dirty
-source/test edits, excluding `.git`, cache/report folders, local databases,
-secrets, and generated assets) to `.mutation-runs/<id>/work`; test-stage writes
-and per-mutant bundle rebuilds happen inside that copy, not the live files.
-Static worker copies are deleted before tests start. A run deletes its main copy
-as soon as it ends — reporting the failure if it cannot — so `.mutation-runs/`
-does not fill up with checkout copies. While a run is going — and until the
-_next_ run starts — it has a small `.mutation-runs/<id>/run.json` holding the
-child PID/status, so a stray run is easy to find and stop. Starting a run clears
-out the folders of every earlier run that is no longer going, including any
-whose `run.json` is unreadable because it was killed mid-write:
-
-```bash
-deno task mutation --list
-deno task mutation --kill <run-id>   # or: all
-deno task mutation --clean finished  # or: <run-id> / all
-```
-
-In-place mutation inside the copied checkout is what makes mutations bind
-through `#…` import-map aliases. The operator tables and AST walk are vendored
-from [Mutasaurus](https://github.com/christoshrousis/mutasaurus) (MIT); its own
-execution model writes a temp copy but runs the original tests, so every mutant
-falsely "survives" on an alias-based project — see
-`scripts/mutation/LICENSE.mutasaurus.md`. As a manual tool it is **targeted**
-(run `deno task mutation` on the module you are hardening) — running it across
-the whole tree would be far too slow. The standalone
-`deno task precommit:mutation` runs it automatically, but **only over the files
-this branch changed** (its committed diff against `origin/main`/`main`): the
-`precommit:mutation` step runs each source's mirror-located direct tests first,
-whether or not the direct tests changed, then runs changed `test/integration/`,
-`test/e2e/`, and `specs/` files only for survivors. A changed Cucumber step or
-support file selects every Feature. Tests for unchanged sources, scripts, and
-test helpers are outside that src mutation run. A standalone mutation command
-still rejects any explicit test that neither mirrors a selected source nor lives
-in an integration folder or `specs/`. The gate demands a 100% kill rate, so the
-cost stays bounded to the source files you actually changed. Run
-`deno task precommit:mutation` before merging a branch that changes `src/`
+As a manual tool it is **targeted** (run `deno task mutation` on the module you
+are hardening) — running it across the whole tree would be far too slow.
+`deno task precommit:mutation` runs it automatically, but only over the files
+this branch changed (its committed diff against `origin/main`/`main`), and
+demands a 100% kill rate. Run it before merging a branch that changes `src/`
 files; the standard `deno task precommit` no longer runs it (it was too slow for
-every commit). Known-equivalent survivors recorded in
-`scripts/mutation/equivalent-mutants/` are suppressed, as with a manual run.
-Never record `=== → ==`/`!== → !=` mutants: Biome's `noDoubleEquals` rule is
-configured to reject loose comparisons even against `null`, and the runner
-counts that lint failure as killed before tests run. Use
-`deno task mutation:audit-equivalents` to check the whole equivalent list with
-lint and type-check only; pass `--write` to remove entries those static gates
-now kill. The audit never runs tests and refuses to rewrite stale or malformed
-entries. Like `deno task mutation`, it works in a copy of the checkout under
-`.mutation-runs/`, so the live source files are never left mutated and a commit
-made while it runs cannot pick up a mutant. With `--write`, the pruned
-`equivalent-mutants/` registry files are copied back when the run ends — unless
-one was edited meanwhile, which fails the run instead of overwriting the edit.
-
-Before it runs the mapped tests, the runner puts every mutant through two cheap
-**static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
-`deno check` **type-check**. Static gates run concurrently in isolated sibling
-copies, with a CPU-aware limit capped at four (`MUTATION_STATIC_JOBS` can lower
-it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
-keep their separate `--jobs` limit and still run only after static results are
-reported in mutant order. **No mutant is ever judged by a clock**: gates and
-tests run to completion, so a mutant is killed only when a gate rejects it or a
-test fails, and survives otherwise. A slow type-check or a long queue wait can
-no longer be mistaken for a mutant being caught. The one clock left is
-`--deadline`, a whole-run guard (default one hour) against a mutant that hangs
-the tests: when it fires the run fails with no score and no summary, printing
-only how far it got and where to look. It fires the same way during the
-baseline, where nothing has been tested yet — a run the guard stopped is a
-failure to report, never an operator's interrupt. Keep the Biome calls one-shot
-unless a new benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm
-one-file runs measured a 17.3 ms standalone median and a 51.2 ms `--use-server`
-median. Either gate exiting non-zero kills the mutant without spending a full
-`deno test` on it — both a forbidden lint diagnostic and a type error are build
-failures, so the mutant can never ship, and static checks are far faster than
-the suite. The type-check gate catches the mutants that turn valid code into a
-type error — for example a `+ → *` swap on a string concatenation (`"a" * "b"`
-does not type-check), or any operator change that violates a parameter/return
-type. Each gate is only trusted after the runner confirms the _unmutated_ target
-passes it (the baseline probe): a standalone `deno task mutation` does not run
-`lint:ci`/`typecheck` first, so if the target is not already clean the run
-aborts loudly rather than scoring a bogus 100%. This means a mutant recorded in
-`equivalent-mutants/` must be one that survives _both_ gates _and_ the tests; a
-mutation that produces a type error never reaches the ignore-list because the
-type-check gate kills it first.
+every commit).
 
 When a manual mutation run (or the precommit gate) surfaces survivors on a file
 you are touching — even on lines you did not change in this PR — they are yours
@@ -2149,7 +1439,7 @@ the person best placed to close. Either write the assertion that kills it, or
 record the mutant in `scripts/mutation/equivalent-mutants/` with a proof that no
 input can distinguish it. "It was already there" is not a resolution; leaving it
 just guarantees the next person trips over the same survivor. This is the
-[Good citizen](#preferences) rule applied to mutation testing. It is a
+[Good citizen](#preferences) rule applied to mutation testing. The gate is a
 best-effort check with two documented blind spots (see the header of
 `scripts/precommit/mutation-step.ts`): it scopes to the _committed_ diff, so
 uncommitted work is not checked until committed. It also diffs against your
@@ -2267,7 +1557,9 @@ the report:
   whole app module graph, so an import-time SDK evaluation is paid once per
   isolate, dozens of times per run. Dynamically import heavy dependencies on
   first use; `stripe.ts` and `sentry.ts` are the references (this is the
-  [cold-start rule](#built-for-cold-starts) applied to tests).
+  cold-start rule from
+  [Designing new systems](docs/designing-systems.md#built-for-cold-starts)
+  applied to tests).
 - **`expect(bigHtml).toContain(...)` is safe here** because `#test-utils`
   overrides the matcher (`test/test-utils/fast-expect.ts`): the @std/expect
   built-in pretty-prints the entire searched value even when the assertion

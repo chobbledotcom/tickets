@@ -18,6 +18,7 @@ import {
   map,
   mapBy,
   mapById,
+  notCoveredBy,
   partition,
   pipe,
   requiredMapValue,
@@ -242,6 +243,34 @@ describe("fp collections", () => {
         { amount: 2, key: "a" },
       ]);
       expect(totals.get("a")).toBe(Number.NaN);
+    });
+  });
+
+  describe("notCoveredBy", () => {
+    type File = { path: string };
+
+    const pathsOf = (files: File[]) =>
+      notCoveredBy((file: File) => file.path, files);
+
+    test("keeps the keys no known item carries", () => {
+      expect(
+        pathsOf([{ path: "a.md" }, { path: "b.md" }])([
+          "a.md",
+          "c.md",
+          "b.md",
+          "d.md",
+        ]),
+      ).toEqual(["c.md", "d.md"]);
+    });
+
+    test("answers an empty list when every key is covered", () => {
+      expect(pathsOf([{ path: "a.md" }])(["a.md"])).toEqual([]);
+    });
+
+    test("screens many lists against one known list", () => {
+      const known = [{ path: "a.md" }];
+      expect(pathsOf(known)(["b.md"])).toEqual(["b.md"]);
+      expect(pathsOf(known)(["c.md"])).toEqual(["c.md"]);
     });
   });
 

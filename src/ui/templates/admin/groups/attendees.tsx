@@ -4,7 +4,7 @@ import {
   AttendeeTableBlock,
   attendeeTableOptions,
 } from "#templates/admin/attendee-table-block.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import type {
   Attendee,
   AttendeeTableRow,
@@ -40,7 +40,7 @@ export const GroupAttendeesPanel = ({
   attendees: Attendee[];
   allowedDomain: string;
   phonePrefix?: string;
-  questionData?: TableQuestionData;
+  questionData?: AttendeeQuestionData;
 }): JSX.Element => (
   <article>
     <h2 id="attendees">{t("terms.attendees")}</h2>

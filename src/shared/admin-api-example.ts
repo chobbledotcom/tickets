@@ -6,15 +6,13 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import { type DeleteListingBody, toAdminListing } from "#routes/admin/api.ts";
+import { toAdminListing } from "#routes/admin/api.ts";
 import type {
   CreateGroupBody,
-  DeleteGroupBody,
   UpdateGroupBody,
 } from "#routes/admin/api-groups.ts";
 import type {
   CreateHolidayBody,
-  DeleteHolidayBody,
   UpdateHolidayBody,
 } from "#routes/admin/api-holidays.ts";
 import type {
@@ -24,6 +22,7 @@ import type {
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing } from "#types";
 import { type EndpointDoc, json } from "./admin-api-example/endpoint-doc.ts";
 
@@ -75,7 +74,7 @@ const ADMIN_API_UPDATE_BODY = {
 /** Example delete request body */
 const ADMIN_API_DELETE_BODY = {
   confirm_identifier: "Summer Workshop",
-} satisfies DeleteListingBody;
+} satisfies DeleteBody;
 
 // =============================================================================
 // Group examples
@@ -107,7 +106,7 @@ const ADMIN_API_GROUP_UPDATE_BODY = {
 
 const ADMIN_API_GROUP_DELETE_BODY = {
   confirm_identifier: "Summer Series",
-} satisfies DeleteGroupBody;
+} satisfies DeleteBody;
 
 // =============================================================================
 // Holiday examples (owner only)
@@ -133,7 +132,7 @@ const ADMIN_API_HOLIDAY_UPDATE_BODY = {
 
 const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",
-} satisfies DeleteHolidayBody;
+} satisfies DeleteBody;
 
 /** The booking window a listing gets when its create body says nothing. */
 const LISTING_DEFAULT_DAYS_AFTER =

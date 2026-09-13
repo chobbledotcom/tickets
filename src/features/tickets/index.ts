@@ -14,9 +14,9 @@ import {
   lookupAttendees,
   resolveEntries,
   type TokenEntry,
-  type TokenRouteFn,
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
+import type { PathMethodRoute } from "#routes/types.ts";
 /* jscpd:ignore-end */
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
@@ -114,7 +114,7 @@ const matchSvgPath = (path: string): string | null => {
 const tokenRoute = createTokenRoute("t", { GET: handleTicketView });
 
 /** Route ticket view and SVG requests */
-export const routeTicketView: TokenRouteFn = (
+export const routeTicketView: PathMethodRoute = (
   request,
   path,
   method,

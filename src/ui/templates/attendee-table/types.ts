@@ -4,8 +4,7 @@ import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import type { AttendeeTableRow } from "#types";
 
-/** Question data for displaying answers in the attendee table. */
-export type TableQuestionData = AttendeeQuestionData;
+export type { AttendeeQuestionData };
 
 /** Values shared by attendee column renderers during one table render. */
 export type AttendeeColumnOpts = {
@@ -15,7 +14,7 @@ export type AttendeeColumnOpts = {
   renderStatus: (row: AttendeeTableRow) => Child;
   answerTextMap: Map<number, string>;
   answerQuestionMap: Map<number, string>;
-  questionData?: TableQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
 };
 
 /** Options for the unified attendee table. */
@@ -34,6 +33,6 @@ export type AttendeeTableOptions = {
   showCheckin?: boolean | undefined;
   /** Skip default sort and use rows as-is (default: false). */
   presorted?: boolean | undefined;
-  questionData?: TableQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
   columnLayout?: TableLayout<AttendeeColumnKey> | undefined;
 };

@@ -18,9 +18,10 @@ export const withVirtualBackoff = async <T>(
       state.settled = true;
     });
     // Attach a no-op handler so an early rejection can't surface as an
-    // unhandled rejection while the clock is still being advanced; the real
-    // rejection re-surfaces at the final await.
-    pending.catch(() => {});
+    // unhandled rejection while the clock is still being advanced.
+    pending.catch(() => {
+      // The real rejection re-surfaces at the final await below.
+    });
     while (!state.settled) {
       await time.nextAsync();
     }

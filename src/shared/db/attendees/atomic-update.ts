@@ -50,9 +50,8 @@ const CAPACITY_GUARD = {
         SELECT NULL, NULL, 1 WHERE changes() = 0`,
 };
 
-/** A desired final-state line for the atomic update path. Re-exported from
- * the shared types module so callers can keep importing it from here. */
-export type AtomicDesiredLine = DesiredListingLine;
+/** A desired final-state line for the atomic update path — the shared
+ * DesiredListingLine the listings types module exports. */
 
 /**
  * Extra SET columns when a line is saved as the no-quantity sentinel (quantity
@@ -72,14 +71,14 @@ const noQuantityResetColumns = (quantity: number): string =>
 
 /** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
  * expect, projected from a desired line. */
-const lineBooking = (line: AtomicDesiredLine) => ({
+const lineBooking = (line: DesiredListingLine) => ({
   date: line.date,
   durationDays: line.durationDays,
   listingId: line.listingId,
   packageGroupId: line.packageGroupId ?? 0,
   quantity: line.quantity,
 });
-const lineRange = (line: AtomicDesiredLine) =>
+const lineRange = (line: DesiredListingLine) =>
   dateToStartEnd(line.date, line.durationDays);
 
 /** Result of an atomic attendee update. Every failure carries `listingIds` —
@@ -139,7 +138,7 @@ export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
  */
 const unfitLineListingIds = (
   attendeeId: number,
-  desired: AtomicDesiredLine[],
+  desired: DesiredListingLine[],
 ): Promise<number[]> => unfitListingIds(desired.map(lineBooking), attendeeId);
 
 /** The preflight capacity rejection, or null when every *changed* line fits
@@ -148,7 +147,7 @@ const unfitLineListingIds = (
  *  applyAttendeeAtomicEdit} to keep that function's branching flat. */
 const preflightCapacityFailure = async (
   attendeeId: number,
-  desired: AtomicDesiredLine[],
+  desired: DesiredListingLine[],
   existingByKey: Map<string, ListingAttendeeRow>,
   allowOverbook: boolean,
 ): Promise<{
@@ -171,7 +170,7 @@ const preflightCapacityFailure = async (
  *  A line that keeps the same key but moves its date or changes quantity IS
  *  changed and must be capacity-checked. */
 const isUnchangedLine = (
-  line: AtomicDesiredLine,
+  line: DesiredListingLine,
   existingByKey: Map<string, ListingAttendeeRow>,
 ): boolean => {
   const existing = existingByKey.get(line.key);
@@ -183,9 +182,9 @@ const isUnchangedLine = (
 /** The lines whose capacity impact must be preflight-checked: new or
  *  quantity-changed lines, excluding unchanged preserves. */
 const changedLinesForPreflight = (
-  desired: AtomicDesiredLine[],
+  desired: DesiredListingLine[],
   existingByKey: Map<string, ListingAttendeeRow>,
-): AtomicDesiredLine[] =>
+): DesiredListingLine[] =>
   desired.filter((line) => !isUnchangedLine(line, existingByKey));
 
 /** The existing row's start_at, parent_listing_id, and package_group_id for
@@ -193,7 +192,7 @@ const changedLinesForPreflight = (
  *  on different dates, under different parents, or through different packages
  *  updates only the target row. */
 const oldPinOf = (
-  line: AtomicDesiredLine,
+  line: DesiredListingLine,
   existingByKey: Map<string, ListingAttendeeRow>,
 ): {
   startAt: string | null;
@@ -212,7 +211,7 @@ const oldPinOf = (
  *  guard) when the caller opted into overbooking OR the line is an unchanged
  *  no-op preserve; capacity-checked + guarded otherwise. */
 const updateStatementFor = (
-  line: AtomicDesiredLine,
+  line: DesiredListingLine,
   attendeeId: number,
   oldPin: {
     startAt: string | null;
@@ -251,7 +250,7 @@ const updateStatementFor = (
 export const applyAttendeeAtomicEdit = async (
   attendeeId: number,
   pii: UpdateAttendeePIIInput,
-  desired: AtomicDesiredLine[],
+  desired: DesiredListingLine[],
   allowOverbook = false,
 ): Promise<UpdateAttendeeAtomicResult> => {
   if (desired.length === 0) {
@@ -283,8 +282,8 @@ export const applyAttendeeAtomicEdit = async (
   const removed: ExistingLine[] = existing.filter(
     (row) => !desiredKeys.has(row.key),
   );
-  const updates: AtomicDesiredLine[] = desired.filter((line) => line.exists);
-  const inserts: AtomicDesiredLine[] = desired.filter((line) => !line.exists);
+  const updates: DesiredListingLine[] = desired.filter((line) => line.exists);
+  const inserts: DesiredListingLine[] = desired.filter((line) => !line.exists);
 
   // Build one batch that runs as a single ACID transaction. Each
   // capacity-checked write is immediately followed by CAPACITY_GUARD, which

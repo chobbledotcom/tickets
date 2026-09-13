@@ -23,7 +23,7 @@ import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
 } from "#templates/admin/share-rows.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
@@ -174,7 +174,7 @@ export const GroupOverviewPanel = ({
   ledgerHref?: string | undefined;
   money: ListingMoneyTotals;
   shareable: boolean;
-  questionData?: TableQuestionData;
+  questionData?: AttendeeQuestionData;
 }): JSX.Element => {
   const { columnKeys, filters } = settings.listingColumnLayout;
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;

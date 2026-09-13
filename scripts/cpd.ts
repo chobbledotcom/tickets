@@ -39,6 +39,12 @@ Do NOT reach for ${bold("/* jscpd:ignore */")} to silence this. Fix the duplicat
      boilerplate/infrastructure we have no control over). If the duplicated
      code is not an import block, you almost certainly want option 1 or 2 — an
      ignore tag anywhere else is a code smell, not a fix.
+
+  ${yellow("Never restructure the code just to break the token match")} (a
+     config object, a rename, reordering) while two parallel implementations
+     stay standing. That hides the signal and keeps the duplication. The
+     question is "how do I make these two things one thing", not "how do I
+     make jscpd stop flagging this".
 `);
 }
 

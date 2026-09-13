@@ -1,5 +1,5 @@
 import type { SnapshotRequest } from "#scripts/database-snapshot-lib.ts";
-import type { MigrateTursoCliDeps } from "#scripts/turso-migration-lib.ts";
+import type { TursoMigrationDeps } from "#scripts/turso-migration-lib.ts";
 import type {
   CreateTursoDatabaseRequest,
   TursoApi,
@@ -8,7 +8,7 @@ import { fakeTursoApi } from "#test-utils/turso-api.ts";
 
 export interface TursoMigrationCliOptions {
   api?: Partial<TursoApi>;
-  deps?: Partial<MigrateTursoCliDeps>;
+  deps?: Partial<TursoMigrationDeps>;
   env?: Record<string, string>;
   promptAnswers?: (string | null)[];
   secretAnswers?: (string | null)[];
@@ -18,7 +18,7 @@ export interface TursoMigrationCliState {
   apiTokens: string[];
   createRequests: CreateTursoDatabaseRequest[];
   deleted: string[];
-  deps: MigrateTursoCliDeps;
+  deps: TursoMigrationDeps;
   events: string[];
   promptMessages: string[];
   removed: string[];
@@ -77,7 +77,7 @@ export const tursoMigrationCliState = (
       return apiBehavior.deleteDatabase(organization, name);
     },
   };
-  const deps: MigrateTursoCliDeps = {
+  const deps: TursoMigrationDeps = {
     args: [],
     createApi: (token, _signal) => {
       state.apiTokens.push(token);
