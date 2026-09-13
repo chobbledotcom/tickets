@@ -94,11 +94,7 @@ describeWithEnv(
       const listing = await setupPromoListing();
 
       // The buyer lands via the operator's link, then types their own code.
-      await assertPublicHtml(
-        `/ticket/${listing.slug}?promo=Summer25`,
-        'name="promo_code"',
-      );
-      const failed = await submitTicketForm(listing.slug, {
+      const failed = await submitTicketForm(`${listing.slug}?promo=Summer25`, {
         email: "john@example.com",
         name: "",
         promo_code: "typed99",

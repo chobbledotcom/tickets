@@ -7,6 +7,8 @@ import {
   clearSavedFormData,
   getSavedFormData,
   runWithSavedFormContext,
+  savedFormValue,
+  savedFormValueOrNull,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
@@ -205,6 +207,25 @@ describe("saved form data", () => {
     setSavedFormData(new FormParams("name=Alice"));
     clearSavedFormData();
     expect(getSavedFormData()).toBeNull();
+  });
+
+  test("savedFormValueOrNull tells an absent field from an empty one", () => {
+    setSavedFormData(new FormParams("promo_code=&name=Ada"));
+    expect(savedFormValueOrNull("name")).toBe("Ada");
+    // An explicitly cleared field is the buyer's choice, not an absence.
+    expect(savedFormValueOrNull("promo_code")).toBe("");
+    expect(savedFormValueOrNull("phone")).toBeNull();
+  });
+
+  test("savedFormValueOrNull answers null with no saved form", () => {
+    expect(savedFormValueOrNull("name")).toBeNull();
+  });
+
+  test("savedFormValue answers the trimmed value, or empty with no form", () => {
+    setSavedFormData(new FormParams("name=%20Ada%20"));
+    expect(savedFormValue("name")).toBe("Ada");
+    clearSavedFormData();
+    expect(savedFormValue("name")).toBe("");
   });
 
   test("saved data set inside a scope stays within that scope", async () => {

@@ -13,7 +13,10 @@ import { formatDatetimeLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Field } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import { savedFormValue } from "#shared/forms/saved-data.ts";
+import {
+  savedFormValue,
+  savedFormValueOrNull,
+} from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
@@ -117,8 +120,9 @@ const AddOnsFieldset = ({ addOns }: { addOns: AddOnOption[] }): JSX.Element => (
 );
 
 /** Promo-code text input, shown when any active modifier is unlocked by a code.
- * The entered value is restored on a validation-error re-render; a `?promo=`
- * link value fills the box only when nothing was entered. */
+ * A submitted value wins — even an empty one, so a buyer who cleared the box
+ * does not get the URL code back on a validation re-render; a `?promo=` link
+ * value fills the box only when nothing was submitted. */
 const PromoCodeField = ({
   prefilled,
 }: {
@@ -131,7 +135,7 @@ const PromoCodeField = ({
         name="promo_code"
         placeholder={t("public.promo.placeholder")}
         type="text"
-        value={savedFormValue("promo_code") || prefilled || ""}
+        value={savedFormValueOrNull("promo_code") ?? prefilled ?? ""}
       />
     </label>
   </div>

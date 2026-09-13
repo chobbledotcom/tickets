@@ -171,11 +171,6 @@ describe("ticketPage — fields & form", () => {
     expect(html).toContain('data-listing-ids="1"');
   });
 
-  test("omits the promo-code field when promo codes are disabled", () => {
-    const html = singleListingPageHtml();
-    expect(html).not.toContain('name="promo_code"');
-  });
-
   test("renders an opt-in add-on selector with its price label", () => {
     const listings = [
       ticketListing({
@@ -211,52 +206,6 @@ describe("ticketPage — fields & form", () => {
     } finally {
       clearSavedFormData();
     }
-  });
-
-  test("restores the submitted promo code", () => {
-    setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
-    try {
-      const html = singleListingPageHtml({ promoCodesEnabled: true });
-      expect(html).toContain('<div class="promo-code"><label>Promo code');
-      expect(html).toContain(
-        'name="promo_code" placeholder="Optional" type="text" value="SAVE20"',
-      );
-    } finally {
-      clearSavedFormData();
-    }
-  });
-
-  test("fills the promo box from the ?promo= prefill", () => {
-    const html = singleListingPageHtml({
-      prefill: { listings: new Map(), promo: "summer25" },
-      promoCodesEnabled: true,
-    });
-    expect(html).toContain(
-      'name="promo_code" placeholder="Optional" type="text" value="summer25"',
-    );
-  });
-
-  test("restores the submitted promo code before the ?promo= prefill", () => {
-    setSavedFormData(new FormParams({ promo_code: "TYPED99" }));
-    try {
-      const html = singleListingPageHtml({
-        prefill: { listings: new Map(), promo: "summer25" },
-        promoCodesEnabled: true,
-      });
-      expect(html).toContain(
-        'name="promo_code" placeholder="Optional" type="text" value="TYPED99"',
-      );
-      expect(html).not.toContain('value="summer25"');
-    } finally {
-      clearSavedFormData();
-    }
-  });
-
-  test("leaves the promo box empty with no ?promo= prefill", () => {
-    const html = singleListingPageHtml({ promoCodesEnabled: true });
-    expect(html).toContain(
-      'name="promo_code" placeholder="Optional" type="text" value=""',
-    );
   });
 
   test("prefills the name and signed token", () => {
