@@ -145,6 +145,37 @@ describe("sumup createCheckout", () => {
     });
   });
 
+  test("keeps each line's unit in a mixed plan-and-ticket order", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_mixed",
+      url: "https://pay.sumup.com/mixed",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [
+            {
+              initialSiteMonths: 1,
+              listingId: 3,
+              name: "(1 Month)",
+              quantity: 2,
+              slug: "one-month",
+              unitPrice: 500,
+            },
+            { ...intent.items[0]! },
+          ],
+        },
+        "http://localhost",
+      );
+      // The plan's units are months, the plain listing's are tickets: one
+      // description, each segment carrying its own unit.
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 2 months + Evt (x2)",
+      );
+    });
+  });
+
   test("logs the created checkout's own id", async () => {
     // The payment-sandbox story reads this line to deliver the callback for
     // the checkout it just made, so the id has to be in it.

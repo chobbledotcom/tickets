@@ -76,6 +76,31 @@ describe("monthLabelsForListing", () => {
       }),
     ).toBeUndefined();
   });
+
+  test("a retired plan keeps the plain count", () => {
+    // Disabling site assignment retains the stored month term; the count is
+    // plain tickets again from the moment the flag is off.
+    expect(
+      monthLabelsForListing({
+        assign_built_site: false,
+        initial_site_months: 3,
+        months_per_unit: 0,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("a one-month renewal tier still prices its counts in months", () => {
+    expect(
+      monthLabelsForListing(
+        {
+          assign_built_site: false,
+          initial_site_months: 0,
+          months_per_unit: 1,
+        },
+        true,
+      )?.(4),
+    ).toBe("4 months");
+  });
 });
 
 describe("quantityOptions", () => {

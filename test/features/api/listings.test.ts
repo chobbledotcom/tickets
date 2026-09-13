@@ -25,6 +25,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { makeParent } from "#test-utils/parents.ts";
 
 describePublicApi(() => {
@@ -60,6 +61,25 @@ describePublicApi(() => {
       // rejects any internal one (id, max_attendees, hidden, …), so a leak —
       // or a missing/mistyped public field — fails the parse.
       expect(() => v.parse(PublicListingSchema, listings[0])).not.toThrow();
+    });
+
+    test("states what a plan listing's quantity buys", async () => {
+      using _builder = withEnv({ CAN_BUILD_SITES: "true" });
+      await createTestListing({
+        assignBuiltSite: true,
+        initialSiteMonths: 3,
+        name: "Hosting",
+      });
+      const { listings } = await fetchListingsList();
+      expect(listings[0]!.assignBuiltSite).toBe(true);
+      expect(listings[0]!.initialSiteMonths).toBe(3);
+    });
+
+    test("an ordinary listing exposes no plan term", async () => {
+      await createTestListing({ name: "Gala" });
+      const { listings } = await fetchListingsList();
+      expect(listings[0]!.assignBuiltSite).toBe(false);
+      expect(Object.hasOwn(listings[0]!, "initialSiteMonths")).toBe(false);
     });
 
     test("sets isSoldOut when listing is at capacity", async () => {

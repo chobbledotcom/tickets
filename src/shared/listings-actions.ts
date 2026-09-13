@@ -193,6 +193,12 @@ const validateRenewalConfig = (input: ListingInput): string | null => {
   if (input.assignBuiltSite && (input.initialSiteMonths ?? 0) <= 0) {
     return t("error.initial_site_months_required");
   }
+  // Renewal completion both assigns sites and extends tokens, so one listing
+  // cannot sell through both mechanisms — a dual-role listing would grant a
+  // renewal payment a new site AND an extended one.
+  if (input.assignBuiltSite && (input.monthsPerUnit ?? 0) > 0) {
+    return t("error.assign_built_site_not_tier");
+  }
   return null;
 };
 

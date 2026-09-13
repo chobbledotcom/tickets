@@ -102,13 +102,27 @@ describeWithEnv("validateListingInput", { db: true }, () => {
     );
   });
 
-  test("accepts assignBuiltSite when initial site months is positive", async () => {
+  test("rejects a built-site plan that is also a renewal tier", async () => {
     const input: ListingInput = sluggedInput({
       assignBuiltSite: true,
       hidden: true,
       initialSiteMonths: 1,
       monthsPerUnit: 1,
       purchaseOnly: true,
+    });
+    const error = await validateListingInput(input);
+    expect(error).toBe(
+      "A built-site plan cannot also be a renewal tier. Turn off months per unit or stop assigning a site.",
+    );
+  });
+
+  test("accepts assignBuiltSite when its only selling rule is the plan", async () => {
+    // monthsPerUnit stays unstated: a plan is not a renewal tier.
+    const input: ListingInput = sluggedInput({
+      assignBuiltSite: true,
+      hidden: false,
+      initialSiteMonths: 1,
+      purchaseOnly: false,
     });
     await expect(validateListingInput(input)).resolves.toBeNull();
   });

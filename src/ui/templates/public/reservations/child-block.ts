@@ -28,6 +28,7 @@ import {
 import { renderPayMoreInput } from "./controls.ts";
 import {
   monthLabelsForListing,
+  pricedMonthsForListing,
   quantityOptions,
   restoredChildQty,
 } from "./quantities.ts";
@@ -169,7 +170,17 @@ const renderSoleChildOption = (input: ChildOptionInput): string => {
   const { dateAttrs, listing, namedLabel, parentId, priceHtml } =
     childOptionParts(input);
   const visible = !listing.hidden;
-  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${visible ? namedLabel : ""}</p>${priceHtml}${visible ? input.attributesHtml : ""}`;
+  // Nothing posts a quantity for a sole auto-selected child, so a plan child
+  // never shows its term in a labelled option — state it beside the marker.
+  const soleTerm = pricedMonthsForListing(listing);
+  const termNote =
+    visible && soleTerm !== undefined
+      ? `<small>${escapeHtml(
+          t("public.ticket.sole_plan_term", { count: soleTerm }),
+        )}</small>`
+      : "";
+  const content = termNote === "" ? namedLabel : `${namedLabel} ${termNote}`;
+  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${visible ? content : ""}</p>${priceHtml}${visible ? input.attributesHtml : ""}`;
 };
 
 /**

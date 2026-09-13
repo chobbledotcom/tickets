@@ -29,6 +29,13 @@ export type PublicListing = CoreListingFields & {
   maxPrice: number;
   nonTransferable: boolean;
   purchaseOnly: boolean;
+  /** True when each booked unit provisions a built site whose quantity buys
+   *  months of service (`initialSiteMonths` per unit), not extra sites. Lets an
+   *  API client know what its `quantity` will buy before it POSTs a booking. */
+  assignBuiltSite: boolean;
+  /** The months of service one purchased unit of an assigned-site plan buys.
+   *  Present only when `assignBuiltSite` is true. */
+  initialSiteMonths?: number;
   fields: string;
   listingType: string;
   /** True when visitors choose how many days to book; price comes from
@@ -72,6 +79,7 @@ export const resolvedToPublicListing = (
 ): PublicListing => {
   const { isClosed: closed, isSoldOut, listing, maxPurchasable } = resolved;
   const result: PublicListing = {
+    assignBuiltSite: listing.assign_built_site,
     canPayMore: listing.can_pay_more,
     customisableDays: listing.customisable_days,
     date: listing.date || null,
@@ -91,6 +99,9 @@ export const resolvedToPublicListing = (
     slug: listing.slug,
     unitPrice: listing.unit_price,
   };
+  if (listing.assign_built_site) {
+    result.initialSiteMonths = listing.initial_site_months;
+  }
 
   if (availableDates) {
     result.availableDates = availableDates;

@@ -67,8 +67,8 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
-    hint: "Maximum tickets a customer can buy in one transaction",
-    label: "Max tickets per purchase",
+    hint: "Maximum units a customer can buy in one transaction — months on a built-site plan, tickets otherwise",
+    label: "Max quantity per purchase",
     min: 1,
     name: "max_quantity",
     required: true,
@@ -177,7 +177,7 @@ export const LISTING_FIELDS = [
   },
   {
     inputmode: "decimal",
-    label: "Ticket price (leave empty for free)",
+    label: "Price per unit (leave empty for free)",
     name: "unit_price",
     pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 10.00",

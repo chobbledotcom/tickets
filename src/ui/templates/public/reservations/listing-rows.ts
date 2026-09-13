@@ -26,6 +26,7 @@ import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
 import {
   monthLabelsForListing,
+  pricedMonthsForListing,
   quantityOptions,
   restoredPackageQuantity,
   restoredQuantity,
@@ -62,15 +63,27 @@ const listingControls = (
   prefill: TicketPrefill | undefined,
   childCtx: ChildRenderCtx | undefined,
   renewal?: boolean | undefined,
-): { childBlock: string; priceHtml: string; quantityHtml: string } => {
+): {
+  childBlock: string;
+  priceHtml: string;
+  quantityHtml: string;
+  termNote: string;
+} => {
   const { listing } = info;
   const maxPurchasable = childLimitedMax(info, childCtx);
   const fieldName = nodeQuantityFieldName(node)!;
   const priceFieldName = nodePriceFieldName(node)!;
+  const fixedTerm = pricedMonthsForListing(listing, renewal);
   return {
     childBlock: childCtx ? renderChildBlock(info, childCtx) : "",
     priceHtml: listing.can_pay_more
-      ? renderPayMoreInput(listing, priceFieldName, prefill?.customPriceMinor)
+      ? renderPayMoreInput(
+          listing,
+          priceFieldName,
+          prefill?.customPriceMinor,
+          true,
+          renewal,
+        )
       : "",
     quantityHtml: hideQuantity
       ? `<input type="hidden" name="${fieldName}" value="1" />`
@@ -79,6 +92,14 @@ const listingControls = (
           restoredQuantity(listing.id, prefill, maxPurchasable),
           monthLabelsForListing(listing, renewal),
         )}</select>`,
+    // A hidden selector buys exactly one unit; a plan hides its term there,
+    // so the fixed purchase still states the months it grants.
+    termNote:
+      hideQuantity && fixedTerm !== undefined
+        ? `<p class="child-total-note">${escapeHtml(
+            t("public.ticket.fixed_term_granted", { count: fixedTerm }),
+          )}</p>`
+        : "",
   };
 };
 
@@ -129,7 +150,7 @@ const renderListingRow: RenderListingControls = (
     `;
   }
 
-  const { childBlock, priceHtml, quantityHtml } = listingControls(
+  const { childBlock, priceHtml, quantityHtml, termNote } = listingControls(
     info,
     node,
     hideQuantity,
@@ -145,6 +166,7 @@ const renderListingRow: RenderListingControls = (
       ${renderListingDescription(listing.description)}
       ${attributesHtml}
       ${priceHtml}
+      ${termNote}
       ${childBlock}
     </div>
   `;
@@ -277,7 +299,7 @@ const renderSingleListingControls: RenderListingControls = (
   const labelledQuantity = hideQuantity
     ? controls.quantityHtml
     : `<label>${monthsQuantity(info.listing, renewal)}${controls.quantityHtml}</label>`;
-  return `${labelledQuantity}${controls.priceHtml}${controls.childBlock}`;
+  return `${labelledQuantity}${controls.priceHtml}${controls.termNote}${controls.childBlock}`;
 };
 
 /** Render the per-listing rows (with their child blocks). A single-listing page

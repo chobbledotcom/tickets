@@ -72,20 +72,33 @@ export type SumupConnectionTestResult = {
 type SumupClient = SumupTransport;
 
 /** The SumUp checkout description: ×N beside a site plan buys N terms of one
- *  site, not N sites, so a one-line plan order names the plan and states the
- *  months its units buy; every other order keeps the listing's name with its
- *  count. */
+ *  site, not N sites, so a plan line names the plan and states the months its
+ *  units buy; plain ticket lines keep the listing's name with its count, and a
+ *  mixed order joins the two so every unit keeps its own meaning. */
 const sumupDescription = (order: PricedOrder): string => {
-  const [only] = order.lines;
-  const months = only?.item.initialSiteMonths;
-  if (order.lines.length === 1 && months !== undefined) {
-    const item = only!.item;
-    return `Site plan: ${item.name} — ${item.quantity * months} months`;
-  }
-  return countedText(
-    orderLabel(order.lines),
-    sumOf((line: PricedLine) => line.quantity)(order.lines),
+  const plans = order.lines.filter(
+    (line) => line.item.initialSiteMonths !== undefined,
   );
+  const tickets = order.lines.filter(
+    (line) => line.item.initialSiteMonths === undefined,
+  );
+  const descriptions = [
+    ...plans.map((line) => {
+      const item = line.item;
+      return `Site plan: ${item.name} — ${
+        item.quantity * item.initialSiteMonths!
+      } months`;
+    }),
+    ...(tickets.length > 0
+      ? [
+          countedText(
+            orderLabel(tickets),
+            sumOf((line: PricedLine) => line.quantity)(tickets),
+          ),
+        ]
+      : []),
+  ];
+  return descriptions.join(" + ");
 };
 
 /** Internal getSumupClient implementation — reads the current API key. */

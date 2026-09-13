@@ -35,6 +35,10 @@ const publicListingEntries = {
     ["canPayMore", "isClosed", "isSoldOut", "nonTransferable", "purchaseOnly"],
     v.boolean(),
   ),
+  /** An assigned-site plan names the term its quantity buys; other listings
+   *  carry neither field. */
+  assignBuiltSite: v.boolean(),
+  initialSiteMonths: v.optional(v.number()),
   ...v.entriesFromList(
     ["date", "imageAltText", "imageUrl", "location"],
     v.nullable(v.string()),

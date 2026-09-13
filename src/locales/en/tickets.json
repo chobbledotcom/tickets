@@ -23,6 +23,8 @@
   "public.ticket.select_placeholder": "— Select —",
   "public.ticket.day_option": "{count, plural, one {# day} other {# days}}",
   "public.ticket.month_option": "{count, plural, one {# month} other {# months}}",
+  "public.ticket.fixed_term_granted": "Fixed quantity — each purchase grants {count, plural, one {# month} other {# months}}.",
+  "public.ticket.sole_plan_term": "Each ticket booked adds {count, plural, one {# month} other {# months}} to this add-on.",
   "public.ticket.days_ago": "{count, plural, one {# day ago} other {# days ago}}",
   "public.ticket.date_label": "Date:",
   "public.ticket.location_label": "Location:",
