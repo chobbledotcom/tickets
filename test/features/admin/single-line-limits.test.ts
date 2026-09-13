@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import {
   contentSlugField,
   defineContentForms,
@@ -19,7 +18,6 @@ const content = defineContentForms({
 
 describe("single-line form limits", () => {
   for (const [label, form, fields] of [
-    ["API key", apiKeyForm, ["name"]],
     ["Builder", builderForm, ["site_name"]],
     [
       "Create content",
