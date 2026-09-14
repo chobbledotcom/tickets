@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { TEST_FILE_BATCH_SIZE } from "#scripts/mutation/batch.ts";
 import {
+  type BatchRunResult,
   createStaticGates,
   mutantTestEnv,
   runTests,
@@ -21,6 +22,8 @@ const config = {
   testFiles: ["test/shared/example.test.ts"],
 };
 
+const passingBatch = (): BatchRunResult => ({ code: 0, output: "" });
+
 const testFilesAcrossBatches = Array.from(
   { length: TEST_FILE_BATCH_SIZE * 2 + 1 },
   (_, index) => `test/${index}.ts`,
@@ -35,7 +38,7 @@ const runCapturedMutation = async (
   output?: Deno.CommandOutput,
 ): Promise<{
   captured: ReturnType<typeof captureCommands>;
-  outcome: string;
+  result: Awaited<ReturnType<typeof runTests>>;
 }> => {
   const captured = captureCommands(output);
   const commandNamespace = Deno as unknown as {
@@ -46,11 +49,11 @@ const runCapturedMutation = async (
     { ...config, testFiles: mixedMutationFiles },
     new AbortController().signal,
   );
-  return { captured, outcome: result.outcome };
+  return { captured, result };
 };
 
 const runConcurrentFailure = async (
-  firstBatch: (signal: AbortSignal) => Promise<number>,
+  firstBatch: (signal: AbortSignal) => Promise<BatchRunResult>,
 ): Promise<{ calls: number; outcome: string }> => {
   let calls = 0;
   const result = await runTests(
@@ -59,7 +62,9 @@ const runConcurrentFailure = async (
     {
       runBatch: (_batch, signal) => {
         calls += 1;
-        return calls === 2 ? Promise.resolve(1) : firstBatch(signal);
+        return calls === 2
+          ? Promise.resolve({ code: 1, output: "" })
+          : firstBatch(signal);
       },
     },
   );
@@ -195,29 +200,27 @@ describe("mutation test execution", () => {
   });
 
   test("runs Cucumber Features after direct mutation tests", async () => {
-    const result = await runCapturedMutation();
+    const { captured, result } = await runCapturedMutation();
     expect(result.outcome).toBe("passed");
-    expect(result.captured.commands.map(({ options }) => options.args)).toEqual(
+    expect(captured.commands.map(({ options }) => options.args)).toEqual([
       [
-        [
-          "test",
-          "--no-check",
-          "--allow-all",
-          "--parallel",
-          "--preload",
-          "./test/test-utils/preload.ts",
-          "--v8-flags=--expose-gc",
-          "test/shared/example.test.ts",
-        ],
-        [
-          "run",
-          "--v8-flags=--expose-gc",
-          "-A",
-          "./scripts/run-specs.ts",
-          "specs/payments/example.feature",
-        ],
+        "test",
+        "--no-check",
+        "--allow-all",
+        "--parallel",
+        "--preload",
+        "./test/test-utils/preload.ts",
+        "--v8-flags=--expose-gc",
+        "test/shared/example.test.ts",
       ],
-    );
+      [
+        "run",
+        "--v8-flags=--expose-gc",
+        "-A",
+        "./scripts/run-specs.ts",
+        "specs/payments/example.feature",
+      ],
+    ]);
   });
 
   test("runs all Features once after concurrent direct batches", async () => {
@@ -233,7 +236,7 @@ describe("mutation test execution", () => {
       {
         runBatch: (batch) => {
           batches.push(batch);
-          return Promise.resolve(0);
+          return Promise.resolve(passingBatch());
         },
       },
     );
@@ -244,7 +247,7 @@ describe("mutation test execution", () => {
   });
 
   test("does not run Cucumber after a direct mutation test fails", async () => {
-    const result = await runCapturedMutation({
+    const { captured, result } = await runCapturedMutation({
       code: 1,
       signal: null,
       stderr: new Uint8Array(),
@@ -252,7 +255,22 @@ describe("mutation test execution", () => {
       success: false,
     });
     expect(result.outcome).toBe("failed");
-    expect(result.captured.commands).toHaveLength(1);
+    expect(captured.commands).toHaveLength(1);
+  });
+
+  test("keeps the failing batch with its captured output", async () => {
+    const { result } = await runCapturedMutation({
+      code: 1,
+      signal: null,
+      stderr: new TextEncoder().encode("error: import failed"),
+      stdout: new TextEncoder().encode("not ok 1 a test\n"),
+      success: false,
+    });
+    expect(result.outcome).toBe("failed");
+    expect(result.failure).toEqual({
+      batch: ["test/shared/example.test.ts"],
+      output: "not ok 1 a test\nerror: import failed",
+    });
   });
 
   test("surfaces subprocess infrastructure failures", async () => {
@@ -295,7 +313,7 @@ describe("mutation test execution", () => {
         runBatch: () => {
           calls += 1;
           controller.abort();
-          return Promise.resolve(0);
+          return Promise.resolve(passingBatch());
         },
       },
     );
@@ -305,18 +323,18 @@ describe("mutation test execution", () => {
 
   test("stops before another batch after a non-zero test exit", async () => {
     let calls = 0;
-    expect(
-      await runTests(
-        { ...config, testFiles: testFilesAcrossBatches },
-        new AbortController().signal,
-        {
-          runBatch: () => {
-            calls += 1;
-            return Promise.resolve(1);
-          },
+    const result = await runTests(
+      { ...config, testFiles: testFilesAcrossBatches },
+      new AbortController().signal,
+      {
+        runBatch: () => {
+          calls += 1;
+          return Promise.resolve({ code: 1, output: "boom" });
         },
-      ),
-    ).toEqual({ durationMs: expect.any(Number), outcome: "failed" });
+      },
+    );
+    expect(result.outcome).toBe("failed");
+    expect(result.failure?.output).toBe("boom");
     expect(calls).toBe(1);
   });
 
@@ -338,7 +356,9 @@ describe("mutation test execution", () => {
     const result = await runConcurrentFailure(
       (signal) =>
         new Promise((resolve) =>
-          signal.addEventListener("abort", () => resolve(0), { once: true }),
+          signal.addEventListener("abort", () => resolve(passingBatch()), {
+            once: true,
+          }),
         ),
     );
     expect(result).toEqual({ calls: 2, outcome: "failed" });

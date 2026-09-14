@@ -9,7 +9,7 @@ import { isFeaturePath } from "#scripts/specs/paths.ts";
 import { stripeMockEnv, stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
-import { denoExitCode, envWith } from "./child-process.ts";
+import { denoExitCode, denoExitDetail, envWith } from "./child-process.ts";
 import { planIsolateEntries } from "./isolate-entry.ts";
 import type { EvaluationStatus } from "./summary.ts";
 
@@ -28,11 +28,30 @@ export interface TestRunConfig {
   testFiles: string[];
 }
 
+/** One `deno test` batch: its exit code and captured output. */
+export interface BatchRunResult {
+  code: number;
+  output: string;
+}
+
+/** The batch that failed a run, kept so the caller can say which one and
+ *  what it printed. */
+export interface BatchFailure {
+  batch: string[];
+  output: string;
+}
+
+export interface TestRunResult {
+  durationMs: number;
+  failure?: BatchFailure;
+  outcome: Outcome;
+}
+
 export type TestBatchRunner = (
   batch: string[],
   signal: AbortSignal,
   env: Record<string, string>,
-) => Promise<number>;
+) => Promise<BatchRunResult>;
 
 /** The environment a mutation run's child test process inherits. The stripe-mock
  * port is a parameter rather than a read of this process's own environment, so
@@ -118,13 +137,12 @@ const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
     cwd: projectRoot,
     env,
     signal,
-    stderr: "null",
-    stdout: "null",
   } as const;
+  const emptyOutput = (): BatchRunResult => ({ code: 0, output: "" });
   if (direct.length > 0) {
     const entries = await planIsolateEntries(direct);
     try {
-      const code = await denoExitCode(
+      const result = await denoExitDetail(
         [
           "test",
           "--no-check",
@@ -137,14 +155,14 @@ const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
         ],
         options,
       );
-      if (code !== 0) return code;
+      if (result.code !== 0) return result;
     } finally {
       await entries.cleanup();
     }
   }
   return features.length === 0
-    ? 0
-    : await denoExitCode(
+    ? emptyOutput()
+    : await denoExitDetail(
         [
           "run",
           "--v8-flags=--expose-gc",
@@ -171,16 +189,19 @@ interface BatchRunContext {
   controller: AbortController;
   deps: TestExecutionDeps;
   env: Record<string, string>;
+  /** First failing batch, kept for the run's report. */
+  failure: { current: BatchFailure | null };
   signal: AbortSignal;
 }
 
 const runOneBatch = async (
   batch: string[],
-  { controller, deps, env, signal }: BatchRunContext,
+  { controller, deps, env, failure, signal }: BatchRunContext,
 ): Promise<Outcome | null> => {
   try {
-    const code = await deps.runBatch(batch, controller.signal, env);
-    if (code === 0) return null;
+    const result = await deps.runBatch(batch, controller.signal, env);
+    if (result.code === 0) return null;
+    failure.current ??= { batch, output: result.output };
     controller.abort();
     return "failed";
   } catch (error) {
@@ -209,7 +230,7 @@ export const runTests = async (
   { batchJobs, env, testFiles }: TestRunConfig,
   signal: AbortSignal,
   deps: TestExecutionDeps = realTestDeps,
-): Promise<{ durationMs: number; outcome: Outcome }> => {
+): Promise<TestRunResult> => {
   const controller = new AbortController();
   const forwardAbort = (): void => controller.abort(signal.reason);
   if (signal.aborted) forwardAbort();
@@ -218,7 +239,8 @@ export const runTests = async (
   try {
     const [features, direct] = partition(isFeaturePath)(testFiles);
     const cursor = { batches: batchTestFiles(direct), next: 0 };
-    const context = { controller, deps, env, signal };
+    const failure = { current: null as BatchFailure | null };
+    const context = { controller, deps, env, failure, signal };
     const jobs = Math.min(
       Math.max(1, batchJobs),
       Math.max(1, cursor.batches.length),
@@ -234,7 +256,10 @@ export const runTests = async (
     if (outcome === "passed" && features.length > 0) {
       outcome = (await runOneBatch(features, context)) ?? "passed";
     }
-    return { durationMs: performance.now() - startedAt, outcome };
+    const durationMs = performance.now() - startedAt;
+    return failure.current === null
+      ? { durationMs, outcome }
+      : { durationMs, failure: failure.current, outcome };
   } finally {
     signal.removeEventListener("abort", forwardAbort);
   }

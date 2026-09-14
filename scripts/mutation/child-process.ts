@@ -1,5 +1,5 @@
 import { extendedBy } from "#fp";
-import { commandExitCode } from "#scripts/deno-command.ts";
+import { commandDetail, commandExitCode } from "#scripts/deno-command.ts";
 
 /** Run `deno <args>` to completion and return its exit code. An explicit env
  * is the child's complete environment, so removing a parent variable works. */
@@ -8,6 +8,18 @@ export const denoExitCode = (
   options: Omit<Deno.CommandOptions, "args" | "clearEnv"> = {},
 ): Promise<number> =>
   commandExitCode(Deno.execPath(), {
+    args,
+    ...options,
+    clearEnv: options.env !== undefined,
+  });
+
+/** Run `deno <args>` capturing its exit code and output text, so a failed
+ *  test batch can report what the child printed. */
+export const denoExitDetail = (
+  args: string[],
+  options: Omit<Deno.CommandOptions, "args" | "clearEnv"> = {},
+): Promise<{ code: number; output: string }> =>
+  commandDetail(Deno.execPath(), {
     args,
     ...options,
     clearEnv: options.env !== undefined,
