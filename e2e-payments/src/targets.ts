@@ -28,6 +28,7 @@ export type LiveCaseId =
   | "live-payments.complex-free"
   | "live-payments.stripe-refund-recovers"
   | "live-payments.stripe-invalidated-checkout-refunded"
+  | "live-payments.stripe-plan-months"
   | "live-payments.complex-stripe"
   | "live-payments.square-refund-safe"
   | "live-payments.complex-square"
@@ -42,6 +43,7 @@ export const TARGET_CASES: Record<LiveTarget, readonly LiveCaseId[]> = {
   stripe: [
     "live-payments.stripe-refund-recovers",
     "live-payments.stripe-invalidated-checkout-refunded",
+    "live-payments.stripe-plan-months",
     "live-payments.complex-stripe",
   ],
   sumup: [

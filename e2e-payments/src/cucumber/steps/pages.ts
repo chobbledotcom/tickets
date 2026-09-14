@@ -13,7 +13,6 @@ import { config } from "#e2e/config.ts";
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import {
-  type BookingIdentity,
   countOnRoster,
   openListing,
   requireNoRecognisedIncome,
@@ -50,13 +49,6 @@ export const requireNoExactLink = async (
   what: string,
 ): Promise<void> =>
   requireExactly(await exactLinkCount(session, text), 0, what);
-
-/** The booking this scenario is about, for every admin-side assertion. */
-export const bookingIdentity = (world: LiveWorld): BookingIdentity => ({
-  booker: world.scenario.booker,
-  listingName: world.scenario.listingName,
-  priceMinor: config.unitPrice,
-});
 
 /** Open this scenario's listing admin page and return its body text. */
 export const openScenarioListing = (

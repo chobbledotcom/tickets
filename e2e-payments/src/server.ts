@@ -107,6 +107,11 @@ export const startAppServer = async (): Promise<AppServer> => {
         // green run look like an incident. The harness's own failure
         // notification is the only one a run should send.
         ...appServerEnv(process.env),
+        // The plan scenario publishes a built-site plan, which the write path
+        // only accepts on a builder-enabled install. The sandbox has no build
+        // infrastructure, so the plan's post-payment build fails cleanly —
+        // the documented per-entry continue the scenario asserts.
+        CAN_BUILD_SITES: "true",
         DB_ENCRYPTION_KEY: config.dbEncryptionKey,
         DB_URL: dbUrl,
         PORT: String(port),

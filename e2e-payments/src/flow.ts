@@ -83,15 +83,29 @@ export const login = async (
   log("  logged in");
 };
 
+/** The fields one published listing is created with. */
+export type ListingFields = {
+  name: string;
+  priceMinor: number;
+  sitePlanMonths?: number;
+};
+
 /**
  * Create a listing that collects an email and (when priced > 0) requires
- * payment. Returns the public `/ticket/<slug>` path for booking.
+ * payment. `sitePlanMonths` additionally sells the listing as a built-site
+ * plan buying that many months per unit (the app only offers those fields
+ * while the builder is enabled, which the harness's app server is). Returns
+ * the public `/ticket/<slug>` path for booking.
  */
 export const createListing = async (
   session: BrowserSession,
-  { priceMinor, name }: { name: string; priceMinor: number },
+  { priceMinor, name, sitePlanMonths }: ListingFields,
 ): Promise<string> => {
-  step(`Creating listing "${name}" (price=${priceMinor} minor units)`);
+  step(
+    sitePlanMonths === undefined
+      ? `Creating listing "${name}" (price=${priceMinor} minor units)`
+      : `Creating site-plan listing "${name}" (price=${priceMinor}, ${sitePlanMonths} months per unit)`,
+  );
   await session.goto("/admin/listing/new?template=custom");
   await session.fill("name", name);
   // The description is a rich markdown editor whose backing textarea is
@@ -105,6 +119,10 @@ export const createListing = async (
   await session.check("fields", "email");
   // The price field is entered in major units (e.g. "1.00"), not minor.
   await session.fill("unit_price", (priceMinor / 100).toFixed(2));
+  if (sitePlanMonths !== undefined) {
+    await session.check("assign_built_site", "1");
+    await session.fill("initial_site_months", String(sitePlanMonths));
+  }
   await session.clickButton(
     await catalogWords("listings-table", "listings_table.create_listing"),
   );
@@ -181,12 +199,14 @@ export const totalIncomeEarnedMinor = (ledger: string): number | null => {
 /**
  * Fill and submit the public booking form. For a free listing this lands on the
  * app's thank-you page; for a paid listing the browser is redirected to the
- * provider's hosted checkout (a different origin).
+ * provider's hosted checkout (a different origin). `quantity` is the units the
+ * visitor buys — one, unless stated.
  */
 export const submitBooking = async (
   session: BrowserSession,
   ticketPath: string,
   booker: BookerIdentity,
+  quantity = "1",
 ): Promise<void> => {
   step("Submitting booking");
   await session.goto(ticketPath);
@@ -199,7 +219,7 @@ export const submitBooking = async (
   const qty = page
     .locator('input[name^="quantity"], select[name^="quantity"]')
     .first();
-  if (await qty.count()) await setSelectOrInput(qty, "1");
+  if (await qty.count()) await setSelectOrInput(qty, quantity);
 
   // The reservations form's own submit control (see form.tsx: its label is
   // the catalog's Continue), so a rename follows the spec.
