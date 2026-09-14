@@ -11,11 +11,11 @@ import { stub } from "@std/testing/mock";
 import { projectRoot } from "#scripts/project-root.ts";
 import { startStripeMock } from "#scripts/stripe-mock.ts";
 import {
-  keepPortOpenCommand,
   makeExecutable,
   type StartOptions,
   shellQuote,
   type TestStripeMockPaths,
+  writeDenoMock,
 } from "#test-utils/stripe-mock/helpers.ts";
 
 /** A mock that opens its port, then does whatever the given perl says next. */
@@ -66,13 +66,18 @@ export const writeDiesWhileConfirmingMock = async (
 export const writeSlowToListenMock = async (
   paths: TestStripeMockPaths,
   quietMs = 300,
-): Promise<void> => {
-  await Deno.writeTextFile(
-    paths.binaryPath,
-    ["#!/bin/sh", `sleep ${quietMs / 1000}`, keepPortOpenCommand].join("\n"),
+): Promise<void> =>
+  writeDenoMock(
+    paths,
+    "--allow-net",
+    [
+      `await new Promise((resolve) => setTimeout(resolve, ${quietMs}));`,
+      'const listener = Deno.listen({ hostname: "127.0.0.1", port: Number(Deno.args[1]) });',
+      "for (;;) {",
+      "  (await listener.accept()).close();",
+      "}",
+    ].join("\n"),
   );
-  await makeExecutable(paths.binaryPath);
-};
 
 /**
  * A mock that takes a moment to shut down when asked politely, and leaves a
@@ -129,16 +134,17 @@ export const startCount = async (countPath: string): Promise<number> => {
 export const writeWrongPortMock = async (
   paths: TestStripeMockPaths,
   decoyPort: number,
-): Promise<void> => {
-  await Deno.writeTextFile(
-    paths.binaryPath,
+): Promise<void> =>
+  writeDenoMock(
+    paths,
+    "--allow-net",
     [
-      "#!/bin/sh",
-      `exec nc -l -p ${decoyPort} -s 127.0.0.1 >/dev/null 2>&1`,
+      `const listener = Deno.listen({ hostname: "127.0.0.1", port: ${decoyPort} });`,
+      "for (;;) {",
+      "  (await listener.accept()).close();",
+      "}",
     ].join("\n"),
   );
-  await makeExecutable(paths.binaryPath);
-};
 
 /** The exact message a failed start threw, for tests that need the whole text. */
 export const startFailureMessage = async (

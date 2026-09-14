@@ -9,11 +9,11 @@ import {
 } from "#scripts/stripe-mock.ts";
 import { stripeMock } from "#shared/stripe/mock.ts";
 import {
-  keepPortOpenCommand,
   testEnv,
   withTempStripeMockPaths,
+  writeExitingMock,
+  writeExitingThenHoldingMock,
   writeFailingMock,
-  writePortThief,
   writeTermIgnoringMock,
 } from "#test-utils/stripe-mock/helpers.ts";
 import {
@@ -167,7 +167,7 @@ describe("startStripeMock ports", () => {
 
   test("does not accept another listener when the spawned mock exits", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      await writePortThief(paths);
+      await writeExitingMock(paths);
       await expectStripeMockFails({
         budgetMs: 200,
         confirmDelayMs: 20,
@@ -193,7 +193,7 @@ describe("startStripeMock ports", () => {
 
   test("retries an auto-selected port when the spawned mock exits", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      await writePortThief(paths, false, keepPortOpenCommand);
+      await writeExitingThenHoldingMock(paths);
       const stripeMock = await startStripeMock({
         budgetMs: 2000,
         confirmDelayMs: 100,

@@ -282,25 +282,53 @@ export const createFakeArchive = async (): Promise<{
 export const shellQuote = (value: string): string =>
   `'${value.replaceAll("'", "'\\''")}'`;
 
-export const writePortThief = async (
+/**
+ * Write a stand-in mock that runs as Deno. The harness starts the real mock
+ * as `<binary> -http-port <port>`, so the port is the second argument, and a
+ * Deno body behaves the same on every machine the suite runs on — the shell
+ * `nc` hold it replaces answered to different flags on different machines.
+ */
+export const writeDenoMock = async (
   paths: TestStripeMockPaths,
-  repeat = true,
-  fallbackCommand = "exit 1",
+  flags: string,
+  body: string,
 ): Promise<void> => {
-  const countPath = join(paths.binDir, "started-once");
-  await Deno.writeTextFile(
-    paths.binaryPath,
+  const shebang = `#!/usr/bin/env -S deno run --quiet ${flags}`.trimEnd();
+  await Deno.writeTextFile(paths.binaryPath, [shebang, body].join("\n"));
+  await makeExecutable(paths.binaryPath);
+};
+
+/** A mock that dies as soon as it is started, so the starter must refuse it
+ * and spend another try. */
+export const writeExitingMock = async (
+  paths: TestStripeMockPaths,
+): Promise<void> => {
+  await writeDenoMock(paths, "", "Deno.exit(1);");
+};
+
+/** A mock whose first run dies and whose later runs hold the port they were
+ * given until killed, so the starter's next try can succeed. */
+export const writeExitingThenHoldingMock = async (
+  paths: TestStripeMockPaths,
+): Promise<void> => {
+  const marker = join(paths.binDir, "started-once");
+  await writeDenoMock(
+    paths,
+    `--allow-net --allow-read=${paths.binDir} --allow-write=${paths.binDir}`,
     [
-      "#!/bin/sh",
-      `if ${repeat ? "true" : `[ ! -f ${shellQuote(countPath)} ]`}; then`,
-      `  touch ${shellQuote(countPath)}`,
-      '  nc -l -p "$2" -s 127.0.0.1 -w 1 >/dev/null 2>&1 &',
-      "  exit 1",
-      "fi",
-      fallbackCommand,
+      `const marker = ${JSON.stringify(marker)};`,
+      "try {",
+      "  Deno.statSync(marker);",
+      "} catch {",
+      '  Deno.writeTextFileSync(marker, "");',
+      "  Deno.exit(1);",
+      "}",
+      'const listener = Deno.listen({ hostname: "127.0.0.1", port: Number(Deno.args[1]) });',
+      "for (;;) {",
+      "  (await listener.accept()).close();",
+      "}",
     ].join("\n"),
   );
-  await makeExecutable(paths.binaryPath);
 };
 
 export const writeFailingMock = async (
@@ -318,15 +346,6 @@ export const writeFailingMock = async (
   );
   await makeExecutable(paths.binaryPath);
 };
-
-export const keepPortOpenCommand = [
-  "trap 'kill \"$child\" 2>/dev/null; exit 0' TERM INT",
-  "while true; do",
-  '  nc -l -p "$2" -s 127.0.0.1 >/dev/null 2>&1 &',
-  "  child=$!",
-  '  wait "$child"',
-  "done",
-].join("\n");
 
 export const writeTermIgnoringMock = async (
   paths: TestStripeMockPaths,
