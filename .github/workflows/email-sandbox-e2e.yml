@@ -35,7 +35,9 @@
 #   SENDGRID_API_KEY        — SendGrid API key (the on-switch)
 #   SENDGRID_FROM           — a verified sender identity
 #   SENDGRID_TO             — optional; default e2e@sink.sendgrid.net
-#   NTFY_URL                — optional; ntfy topic URL pinged on failure
+#   SENTRY_URL              — optional; Sentry DSN. A harness crash reports the
+#                            code error there. Planned leg failures stay in
+#                            the job log only.
 
 name: Email sandbox e2e
 
@@ -95,7 +97,7 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           SENDGRID_FROM: ${{ secrets.SENDGRID_FROM }}
           SENDGRID_TO: ${{ secrets.SENDGRID_TO }}
-          NTFY_URL: ${{ secrets.NTFY_URL }}
+          SENTRY_URL: ${{ secrets.SENTRY_URL }}
         run: deno task e2e:email
 
       - name: Verify email run execution

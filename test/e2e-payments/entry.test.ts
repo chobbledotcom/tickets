@@ -22,64 +22,63 @@ const loggedErrors = (errors: Stub): string =>
   errors.calls.map((call) => String(call.args[0])).join("\n");
 
 describe("failRun", () => {
-  test("reports the message, notifies, and sets the failure status", async () => {
+  test("reports the message and sets the failure status", async () => {
     using errors = stub(console, "error");
-    const notified = { count: 0 };
     const code = await withExitCode(() =>
-      failRun("FAIL — resend: the provider said no", async () => {
-        notified.count += 1;
-      }),
+      failRun("FAIL — resend: the provider said no"),
     );
     expect(code).toBe(1);
-    expect(notified.count).toBe(1);
     expect(loggedErrors(errors)).toContain(
       "FAIL — resend: the provider said no",
     );
-  });
-
-  test("still fails the run when the notifier itself rejects", async () => {
-    using _errors = stub(console, "error");
-    const code = await withExitCode(() =>
-      failRun("FAIL — ntfy is down too", () =>
-        Promise.reject(new Error("ntfy unreachable")),
-      ),
-    );
-    expect(code).toBe(1);
   });
 });
 
 describe("runHarness", () => {
   test("leaves a passing main alone", async () => {
     using errors = stub(console, "error");
-    const notified = { count: 0 };
+    const crashes: unknown[] = [];
     const code = await withExitCode(() =>
       runHarness(
         () => Promise.resolve(),
-        async () => {
-          notified.count += 1;
+        async (error) => {
+          crashes.push(error);
         },
       ),
     );
     expect(code).toBeUndefined();
-    expect(notified.count).toBe(0);
+    expect(crashes).toHaveLength(0);
     expect(errors.calls).toHaveLength(0);
   });
 
-  test("reports a crash's stack and notifies", async () => {
+  test("reports a crash, with the exception itself, and fails the run", async () => {
     using errors = stub(console, "error");
-    const notified = { count: 0 };
+    const crashes: unknown[] = [];
+    const crash = new Error("the tunnel never came up");
     const code = await withExitCode(() =>
       runHarness(
-        () => Promise.reject(new Error("the tunnel never came up")),
-        async () => {
-          notified.count += 1;
+        () => Promise.reject(crash),
+        async (error) => {
+          crashes.push(error);
         },
       ),
     );
     expect(code).toBe(1);
-    expect(notified.count).toBe(1);
+    expect(crashes).toHaveLength(1);
+    expect(crashes[0]).toBe(crash);
     expect(loggedErrors(errors)).toContain("the tunnel never came up");
     expect(loggedErrors(errors)).toContain("entry.test.ts");
+  });
+
+  test("still fails the run when the crash report itself rejects", async () => {
+    using _errors = stub(console, "error");
+    const code = await withExitCode(() =>
+      runHarness(
+        () => Promise.reject(new Error("the tunnel never came up")),
+        () => Promise.reject(new Error("bug catcher unreachable")),
+      ),
+    );
+    expect(code).toBe(1);
   });
 
   test("falls back to the message when the error carries no stack", async () => {

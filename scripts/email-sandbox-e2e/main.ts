@@ -15,7 +15,7 @@
 
 import { failRun, runHarness } from "#e2e/entry.ts";
 import { log, step, warn } from "#e2e/log.ts";
-import { failureNotifier } from "#e2e/notify.ts";
+import { reportCrash } from "#e2e/sentry.ts";
 import {
   appendStepSummary,
   publishExecutedResult,
@@ -31,8 +31,6 @@ import {
 import { type EmailLegOutcome, runEmailLeg } from "./run.ts";
 
 const requestedTarget = (): string => process.argv[2] ?? "all";
-
-const notifyEmailFailure = failureNotifier("email sandbox e2e");
 
 const run = async (): Promise<void> => {
   const providers = parseEmailTarget(requestedTarget());
@@ -53,9 +51,7 @@ const run = async (): Promise<void> => {
 
   const failed = failedProviders(outcomes);
   if (failed.length > 0) {
-    await failRun(`FAIL — ${failed.join(", ")}: see the leg lines above`, () =>
-      notifyEmailFailure(requestedTarget()),
-    );
+    await failRun(`FAIL — ${failed.join(", ")}: see the leg lines above`);
     return;
   }
   log("RESULT: executed");
@@ -67,7 +63,9 @@ const run = async (): Promise<void> => {
   );
 };
 
-runHarness(run, () => notifyEmailFailure(requestedTarget())).then(() =>
+runHarness(run, (error) =>
+  reportCrash("email sandbox e2e", requestedTarget(), error),
+).then(() =>
   // A provider socket a timed-out leg left stalled must not hold the
   // finished process open, so leave explicitly once the report is out.
   process.exit(),

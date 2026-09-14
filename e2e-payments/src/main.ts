@@ -30,7 +30,7 @@ import { runSpecs } from "#scripts/specs/run.ts";
 import { providerSecrets } from "./config.ts";
 import { failRun, runHarness } from "./entry.ts";
 import { log, step } from "./log.ts";
-import { notifyFailure } from "./notify.ts";
+import { reportCrash } from "./sentry.ts";
 import { artifactsRoot, buildStaticAssets } from "./server.ts";
 import {
   caseExpression,
@@ -122,13 +122,13 @@ const run = async (): Promise<void> => {
 
   writeStepSummary(target);
   if (!summary.success) {
-    await failRun(`FAIL — ${target}: the Cucumber run reported failures`, () =>
-      notifyFailure(target),
-    );
+    await failRun(`FAIL — ${target}: the Cucumber run reported failures`);
     return;
   }
   publishResult();
   step(`PASS — ${target}: ${cases.length} case(s) executed`);
 };
 
-runHarness(run, () => notifyFailure(requestedTarget()));
+runHarness(run, (error) =>
+  reportCrash("payment sandbox e2e", requestedTarget(), error),
+);
