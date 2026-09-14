@@ -40,8 +40,12 @@ export const reportCrash = async (
       tags: { harness, target },
       transactionName: undefined,
     });
-    await sentrySdk.flush(SENTRY_FLUSH_TIMEOUT_MS);
-    log("  reported the crash to the bug catcher");
+    const delivered = await sentrySdk.flush(SENTRY_FLUSH_TIMEOUT_MS);
+    if (delivered) {
+      log("  reported the crash to the bug catcher");
+    } else {
+      warn("the bug catcher did not confirm the crash report");
+    }
   } catch (err) {
     warn(`failed to report to the bug catcher: ${errorMessage(err)}`);
   }

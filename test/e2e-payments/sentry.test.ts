@@ -26,6 +26,8 @@ const withSentryUrl = (value: string | undefined): Disposable => {
 type SdkAnswers = {
   alreadyUp?: boolean;
   refused?: boolean;
+  /** flush resolves false: the queue did not drain before the timeout. */
+  unconfirmed?: boolean;
 };
 
 /** The four SDK seams reportCrash touches, stubbed for one call scope. */
@@ -40,7 +42,9 @@ const withStubbedSdk = (answers: SdkAnswers = {}) => {
           }
         : () => "stub-event-id",
     ),
-    flush: stub(sentrySdk, "flush", () => Promise.resolve(true)),
+    flush: stub(sentrySdk, "flush", () =>
+      Promise.resolve(answers.unconfirmed !== true),
+    ),
     init: stub(sentrySdk, "init", noopInit),
     initialized: stub(
       sentrySdk,
@@ -71,6 +75,7 @@ describe("reportCrash", () => {
   it("initializes the SDK and captures the exception itself", async () => {
     using _url = withSentryUrl(DSN);
     using sdk = withStubbedSdk();
+    using logs = stub(console, "log");
 
     const crash = new Error("the tunnel never came up");
     await reportCrash("payment sandbox e2e", "stripe", crash);
@@ -89,6 +94,8 @@ describe("reportCrash", () => {
       harness: "payment sandbox e2e",
       target: "stripe",
     });
+    const lines = logs.calls.map((call) => String(call.args[0])).join("\n");
+    expect(lines).toContain("reported the crash to the bug catcher");
   });
 
   it("does not re-initialize when the SDK is already up", async () => {
@@ -110,5 +117,24 @@ describe("reportCrash", () => {
 
     const lines = warns.calls.map((call) => String(call.args[0])).join("\n");
     expect(lines).toContain("failed to report to the bug catcher");
+  });
+
+  it("never claims delivery when the bug catcher does not confirm it", async () => {
+    using _url = withSentryUrl(DSN);
+    using sdk = withStubbedSdk({ unconfirmed: true });
+    using warns = stub(console, "warn");
+    using logs = stub(console, "log");
+
+    await reportCrash("payment sandbox e2e", "sumup", new Error("boom"));
+
+    expect(sdk.flush.calls).toHaveLength(1);
+    const warnLines = warns.calls
+      .map((call) => String(call.args[0]))
+      .join("\n");
+    expect(warnLines).toContain(
+      "the bug catcher did not confirm the crash report",
+    );
+    const logLines = logs.calls.map((call) => String(call.args[0])).join("\n");
+    expect(logLines).not.toContain("reported the crash to the bug catcher");
   });
 });
