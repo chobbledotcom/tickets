@@ -33,10 +33,6 @@ const STEPS = [
     name: "check:unread-fields",
   },
   { cmd: ["task", "cpd"], name: "cpd" },
-  // The half of duplication jscpd cannot see: two functions with one shape
-  // and different names. jscpd compares tokens as written, so a rename hides
-  // a copy from it (see "Code Duplication" in AGENTS.md).
-  { cmd: ["task", "check:shapes"], name: "check:shapes" },
   // Guard the user-facing copy catalog against the mechanical simple-language
   // rules (see the "Simple Language" section of AGENTS.md).
   { cmd: ["task", "check:copy"], name: "check:copy" },

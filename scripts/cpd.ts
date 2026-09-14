@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
+
 /**
  * jscpd runner that prints actionable guidance when duplication is found.
  *
@@ -11,11 +12,22 @@
  * Usage: deno run -A scripts/cpd.ts <jscpd args...>
  */
 
-import { denoNpmArgs } from "./deno-command.ts";
+import { ensureJscpd } from "./jscpd/install.ts";
 import { bold, red, yellow } from "./precommit/colors.ts";
 
-const { code } = await new Deno.Command(Deno.execPath(), {
-  args: denoNpmArgs("jscpd@5.0.12", Deno.args),
+// `--update` records the current clones into the committed baseline instead
+// of checking for new ones, so translate it for jscpd and drop the check.
+const args = Deno.args.includes("--update")
+  ? [
+      ...Deno.args.filter(
+        (arg) => arg !== "--update" && arg !== "--fail-on-new-clones",
+      ),
+      "--update-baseline",
+    ]
+  : Deno.args;
+
+const { code } = await new Deno.Command(await ensureJscpd(), {
+  args,
 }).spawn().status;
 
 if (code !== 0) {

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
   expiresIn,
+  isoAfter,
   isoBefore,
   nowIso,
   nowSeconds,
@@ -34,6 +35,18 @@ describe("isoBefore", () => {
   test("returns an ISO instant the given duration before now", () => {
     using _time = new FakeTime(1_700_000_000_000);
     expect(isoBefore(60_000)).toBe("2023-11-14T22:12:20.000Z");
+  });
+});
+
+describe("isoAfter", () => {
+  test("returns an ISO instant the given duration after now", () => {
+    using _time = new FakeTime(1_700_000_000_000);
+    expect(isoAfter(60_000)).toBe("2023-11-14T22:14:20.000Z");
+  });
+
+  test("a zero duration sits on the current instant either way", () => {
+    using _time = new FakeTime(1_700_000_000_000);
+    expect(isoBefore(0)).toBe(isoAfter(0));
   });
 });
 

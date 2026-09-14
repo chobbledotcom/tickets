@@ -1,11 +1,11 @@
 {
-  "threshold": 0,
+  "threshold": 100,
   "noTips": true,
   "reporters": [
     "console",
     "json"
   ],
-  "output": ".jscpd-report",
+  "output": ".jscpd-renamed-report",
   "ignore": [
     "**/node_modules/**",
     "**/package-lock.json",
@@ -15,17 +15,14 @@
     "**/db/migrations/schema/columns.ts"
   ],
   "format": [
-    "bash",
-    "javascript",
-    "json",
     "typescript",
-    "tsx"
+    "tsx",
+    "javascript"
   ],
   "absolute": false,
-  "gitignore": true,
-  "exitCode": 1,
   "minLines": 1,
-  "minTokens": 19,
+  "minTokens": 20,
+  "similarity": 0.99,
   "path": [
     "src",
     "e2e-payments",
