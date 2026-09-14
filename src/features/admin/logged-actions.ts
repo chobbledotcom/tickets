@@ -23,11 +23,7 @@ export const confirmDeleteWithLog =
 /** The in-transaction create hook: append the new row to its ordered
  * collection, then log the creation with the same transaction. */
 export const appendWithCreationLog =
-  (
-    order: OrderedCollection<"id", undefined>,
-    label: string,
-    name: string,
-  ) =>
+  (order: OrderedCollection<"id", undefined>, label: string, name: string) =>
   async (transaction: TxScope, id: number): Promise<void> => {
     await order.append({ key: id, transaction });
     await logActivity(
