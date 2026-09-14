@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
+import { ItemCheckboxList } from "#templates/components/aggregate-sections.tsx";
 import type { Group } from "#types";
 
 interface ListingGroupSelectProps {
@@ -24,14 +24,7 @@ export const ListingGroupSelect = ({
   return (
     <fieldset class="checkboxes">
       <legend>{t("terms.group")}</legend>
-      {groups.map((g) => (
-        <CheckboxLabel
-          checked={selected.has(g.id) || undefined}
-          label={` ${g.name}`}
-          name="group_ids"
-          value={String(g.id)}
-        />
-      ))}
+      <ItemCheckboxList checkedIds={selected} items={groups} name="group_ids" />
     </fieldset>
   );
 };

@@ -30,35 +30,25 @@ const getGroupMaxAttendeesField = () =>
 const getGroupDescriptionField = () =>
   buildDescriptionField(t("fields.group.description_hint"), formattingHint());
 
-/** "Is a package" checkbox for group forms. Toggling it reveals the per-listing
- * price override table on the edit page via the CSS sibling trick. */
-const getIsPackageField = (): ChoiceField<
-  "checkbox-group",
-  "1",
-  "is_package"
-> => ({
-  hint: t("fields.group.is_package_hint"),
-  label: t("fields.group.is_package"),
-  name: "is_package",
-  options: [{ label: t("fields.group.is_package_label"), value: "1" }],
-  type: "checkbox-group",
-});
+/** A single "is" checkbox for a group form field. The label, hint, and option
+ * copy all live under `fields.group.<name>` in the message catalog. Toggling
+ * the box reveals companion UI on the edit page via the CSS sibling trick. */
+const getGroupCheckboxField =
+  <Name extends GroupToggleName>(name: Name) =>
+  (): ChoiceField<"checkbox-group", "1", Name> => ({
+    hint: t(`fields.group.${name}_hint`),
+    label: t(`fields.group.${name}`),
+    name,
+    options: [{ label: t(`fields.group.${name}_label`), value: "1" }],
+    type: "checkbox-group",
+  });
 
-/** "Hide listings within package" checkbox. Only meaningful for packages, so the
+/** The toggles a group form offers, in display order. "Is a package"
+ * Toggling it reveals the per-listing price override table on the edit page.
+ * "Hide listings within package" is only meaningful for packages, so the
  * edit page reveals it via the same CSS trick as the price table. */
-const getHidePackageListingsField = (): ChoiceField<
-  "checkbox-group",
-  "1",
-  "hide_package_listings"
-> => ({
-  hint: t("fields.group.hide_package_listings_hint"),
-  label: t("fields.group.hide_package_listings"),
-  name: "hide_package_listings",
-  options: [
-    { label: t("fields.group.hide_package_listings_label"), value: "1" },
-  ],
-  type: "checkbox-group",
-});
+const groupToggleNames = ["is_package", "hide_package_listings"] as const;
+type GroupToggleName = (typeof groupToggleNames)[number];
 
 /** Group form fields for creation (no slug - auto-generated) */
 const groupCreateFields = () => {
@@ -87,8 +77,7 @@ const groupCreateFields = () => {
           : null,
     },
     groupHiddenField,
-    getIsPackageField(),
-    getHidePackageListingsField(),
+    ...groupToggleNames.map((name) => getGroupCheckboxField(name)()),
   ] as const satisfies readonly Field[];
 };
 

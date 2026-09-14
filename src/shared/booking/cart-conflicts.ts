@@ -41,6 +41,21 @@ const nothingShared = <T>(offers: readonly (readonly T[])[]): boolean =>
   offers.every((offer) => offer.length > 0) &&
   intersect(...offers).length === 0;
 
+/** A "nothing shared" rule: every item offers choices of its own, but no
+ * single choice works for all of them. */
+const nothingSharedRule =
+  <Item, Offer>(
+    itemsOf: (facts: CartFacts) => readonly Item[],
+    offersOf: (item: Item) => readonly Offer[],
+    message: (names: string) => string,
+  ): Reason<[CartFacts]> =>
+  (facts) => {
+    const items = itemsOf(facts);
+    return nothingShared(items.map(offersOf))
+      ? message(quotedNames(items))
+      : null;
+  };
+
 /** The conflict rules, in display order. Each speaks only when it can name the
  * clash; anything else falls back to the selectors' plain empty copy. */
 const CART_CONFLICT_REASONS: readonly Reason<[CartFacts]>[] = [
@@ -59,19 +74,17 @@ const CART_CONFLICT_REASONS: readonly Reason<[CartFacts]>[] = [
       : null;
   },
   // Every item has dates, but no single date works for all of them.
-  ({ dateItems }) =>
-    nothingShared(dateItems.map((item) => item.dates))
-      ? t("public.ticket.cart_no_shared_date", {
-          names: quotedNames(dateItems),
-        })
-      : null,
+  nothingSharedRule(
+    (facts) => facts.dateItems,
+    (item) => item.dates,
+    (names) => t("public.ticket.cart_no_shared_date", { names }),
+  ),
   // Every customisable item has lengths, but no length works for all of them.
-  ({ lengthItems }) =>
-    nothingShared(lengthItems.map((item) => item.dayCounts))
-      ? t("public.ticket.cart_no_shared_length", {
-          names: quotedNames(lengthItems),
-        })
-      : null,
+  nothingSharedRule(
+    (facts) => facts.lengthItems,
+    (item) => item.dayCounts,
+    (names) => t("public.ticket.cart_no_shared_length", { names }),
+  ),
 ];
 
 /** Every conflict stopping these items being booked together, in display
