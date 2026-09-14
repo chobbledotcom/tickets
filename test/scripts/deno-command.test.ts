@@ -8,20 +8,20 @@ import {
 
 describe("denoNpmArgs", () => {
   test("builds the deno run -A npm:<pkg> arg list with the extra args", () => {
-    expect(denoNpmArgs("jscpd@5.0.12", ["--config", ".jscpd.json"])).toEqual([
+    expect(denoNpmArgs("biome@2.4.16", ["check", "--write"])).toEqual([
       "run",
       "-A",
-      "npm:jscpd@5.0.12",
-      "--config",
-      ".jscpd.json",
+      "npm:biome@2.4.16",
+      "check",
+      "--write",
     ]);
   });
 
   test("keeps just the scaffold when there are no extra args", () => {
-    expect(denoNpmArgs("jscpd@5.0.12", [])).toEqual([
+    expect(denoNpmArgs("biome@2.4.16", [])).toEqual([
       "run",
       "-A",
-      "npm:jscpd@5.0.12",
+      "npm:biome@2.4.16",
     ]);
   });
 });

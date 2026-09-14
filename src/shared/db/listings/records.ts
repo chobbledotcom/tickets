@@ -12,7 +12,7 @@ import {
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
 import { envNameSource } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
-import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
+import { slugTakenIn } from "#db/slug-registry.ts";
 /* jscpd:ignore-start */
 import { byId, mapParallel } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
@@ -156,14 +156,7 @@ export const listingsTable: typeof rawTable = {
 };
 
 /** Check whether a slug is already used, optionally excluding one listing. */
-export const isSlugTaken = (
-  slug: string,
-  excludeListingId?: number,
-): Promise<boolean> =>
-  isSlugTakenAnywhere(
-    slug,
-    excludeListingId ? { id: excludeListingId, table: "listings" } : undefined,
-  );
+export const isSlugTaken = slugTakenIn("listings");
 
 /** Clear the listing entity cache. */
 export const invalidateListingsCache = (): void => listingsCache.invalidate();

@@ -70,6 +70,10 @@ import {
   optionListingCounts,
 } from "./attribute-page-data.ts";
 import { createListingChoicePost } from "./listing-choice-post.ts";
+import {
+  appendWithCreationLog,
+  confirmDeleteWithLog,
+} from "./logged-actions.ts";
 
 /* jscpd:ignore-end */
 
@@ -92,15 +96,7 @@ const handleAttributesPost = createAuthedFormRoute({
     const attributeId = await writeRowInTransaction(
       await attributesTable.insertStatement({ name }),
       null,
-      async (transaction, id) => {
-        await attributesOrder.append({ key: id, transaction });
-        await logActivity(
-          `Attribute '${name}' created`,
-          undefined,
-          undefined,
-          transaction,
-        );
-      },
+      appendWithCreationLog(attributesOrder, "Attribute", name),
     );
     return redirect(
       `/admin/attributes/${attributeId}`,
@@ -217,10 +213,11 @@ const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
   identifier: (attribute) => attributeNameFlat(attribute.name),
   identifierLabel: "Attribute name",
   load: (id) => getAttributeWithOptions(id),
-  onConfirm: async (attribute) => {
-    await deleteAttribute(attribute.id);
-    await logActivity(`Attribute '${attribute.name}' deleted`);
-  },
+  onConfirm: confirmDeleteWithLog(
+    deleteAttribute,
+    "Attribute",
+    (attribute) => attribute.name,
+  ),
   path: "/admin/attributes/:id/delete",
   render: (attribute, session, error) =>
     adminAttributeDeletePage(attribute, session, error),

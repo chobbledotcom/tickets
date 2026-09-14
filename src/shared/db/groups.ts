@@ -37,7 +37,7 @@ import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
-import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
+import { slugTakenIn } from "#db/slug-registry.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { equals, inList } from "#db/where-clauses.ts";
 import {
@@ -151,18 +151,8 @@ export const getGroupById = async (id: number): Promise<Group | null> =>
 export const getGroupBySlugIndex = (slugIndex: string): Promise<Group | null> =>
   groups.cache.getByKey(slugIndex);
 
-/**
- * Check if a group slug is already in use.
- * Checks both listings and groups for cross-table uniqueness.
- */
-export const isGroupSlugTaken = (
-  slug: string,
-  excludeGroupId?: number,
-): Promise<boolean> =>
-  isSlugTakenAnywhere(
-    slug,
-    excludeGroupId ? { id: excludeGroupId, table: "groups" } : undefined,
-  );
+/** Check if a group slug is already in use — across listings and groups. */
+export const isGroupSlugTaken = slugTakenIn("groups");
 
 /** Generate a unique group slug, retrying on collision. */
 export const generateUniqueGroupSlug = (): Promise<SlugWithIndex<BlindIndex>> =>

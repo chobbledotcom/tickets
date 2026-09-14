@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import { join } from "node:path";
+import { ensureInstalled, withTempDir } from "#scripts/bin-tools.ts";
 import type { LockBody } from "#scripts/lock-file.ts";
 import { removeTree } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -94,17 +95,6 @@ const runCommand = async (
   return output;
 };
 
-const stripeMockBinaryExists = async (
-  paths: StripeMockPaths,
-): Promise<boolean> => {
-  try {
-    const stat = await Deno.stat(paths.binaryPath);
-    return stat.isFile;
-  } catch {
-    return false;
-  }
-};
-
 export const installLockPath = (paths: StripeMockPaths): string =>
   join(paths.binDir, "stripe-mock.install.lock");
 
@@ -152,14 +142,10 @@ const installStripeMock = async (
   commands: StripeMockCommands,
 ): Promise<void> => {
   await removeStaleInstallTempDirs(paths.binDir);
-  const tempDir = await Deno.makeTempDir({
-    dir: paths.binDir,
-    prefix: INSTALL_TEMP_PREFIX,
-  });
-  const tarPath = join(tempDir, "stripe-mock.tar.gz");
-  const tempBinaryPath = join(tempDir, "stripe-mock");
+  await withTempDir(paths.binDir, INSTALL_TEMP_PREFIX, async (tempDir) => {
+    const tarPath = join(tempDir, "stripe-mock.tar.gz");
+    const tempBinaryPath = join(tempDir, "stripe-mock");
 
-  try {
     const curlResult = await runCommand(
       new Deno.Command(commands.curl, {
         args: ["--fail", "-sL", stripeMockDownloadUrl(), "-o", "-"],
@@ -190,9 +176,7 @@ const installStripeMock = async (
     );
 
     await Deno.rename(tempBinaryPath, paths.binaryPath);
-  } finally {
-    await removeTree(tempDir);
-  }
+  });
 };
 
 /**
@@ -203,10 +187,10 @@ export const downloadStripeMock = async (
   options: StripeMockInstallOptions,
 ): Promise<void> => {
   const { paths = defaultStripeMockPaths } = options;
-  if (await stripeMockBinaryExists(paths)) return;
-
-  await installLockHolder(options)(paths, async () => {
-    if (await stripeMockBinaryExists(paths)) return;
-    await installStripeMock(paths, commandsWithDefaults(options.commands));
+  await ensureInstalled({
+    binaryPath: paths.binaryPath,
+    install: () =>
+      installStripeMock(paths, commandsWithDefaults(options.commands)),
+    lock: (body) => installLockHolder(options)(paths, body),
   });
 };
