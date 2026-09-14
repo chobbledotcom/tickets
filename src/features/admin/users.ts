@@ -65,6 +65,7 @@ import {
   type InviteUserFormValues,
 } from "#templates/fields/admin.ts";
 import type { LogisticsAgent, User } from "#types";
+import { confirmDeleteWithLog } from "./logged-actions.ts";
 
 /* jscpd:ignore-end */
 
@@ -374,10 +375,11 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
     if (!user) return null;
     return toDisplayUser(user);
   },
-  onConfirm: async (displayUser) => {
-    await deleteUser(displayUser.id);
-    await logActivity(`User '${displayUser.username}' deleted`);
-  },
+  onConfirm: confirmDeleteWithLog(
+    deleteUser,
+    "User",
+    (displayUser) => displayUser.username,
+  ),
   onNotFound: (_id, session) =>
     usersErrorResponse(session, t("error.user_not_found"), 404),
   path: "/admin/users/:id/delete",

@@ -351,21 +351,6 @@ export function* commentSpans(content: string): Generator<LexicalSpan> {
   }
 }
 
-/** Replace each lexical span while source outside every span stays unchanged. */
-export const mapLexicalSpans = (
-  content: string,
-  replace: (run: string, span: LexicalSpan) => string,
-): string => {
-  let result = "";
-  let cursor = 0;
-  for (const span of lexicalSpans(content)) {
-    result += content.slice(cursor, span.start);
-    result += replace(content.slice(span.start, span.end), span);
-    cursor = span.end;
-  }
-  return result + content.slice(cursor);
-};
-
 /** Replace lexical spans with spaces while every line offset stays fixed. */
 export const blankSpans = (content: string, blankStrings: boolean): string => {
   const characters = content.split("");
