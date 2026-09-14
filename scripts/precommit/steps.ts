@@ -44,7 +44,7 @@ const STEPS = [
   // no import spelling a module longer than its own alias allows (see
   // "Imports name a module one way" in AGENTS.md).
   { cmd: ["task", "check:imports"], name: "check:imports" },
-  // No exported name may only rename an imported one (see "No alias
+  // An exported name must do more than rename an imported one (see "No alias
   // exports" in AGENTS.md).
   {
     cmd: ["task", "check:alias-exports"],

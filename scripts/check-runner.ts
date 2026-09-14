@@ -35,13 +35,13 @@ export interface UpdateMode {
   update: boolean;
 }
 
-/** The removed reset flag, named for the error a contributor meets. */
+/** The error a contributor meets for the retired `--seed` flag. */
 const SEED_ERROR =
   "The --seed flag is gone. A registry only falls. Use --update after a fix, " +
   "or change the registry in a reviewed commit.";
 
 /** Read the recording flag from a command line: `--update` records a step
- * and refuses a rise. A removed registry can no longer be recorded anew. */
+ * and refuses a rise. The retired `--seed` is refused loudly. */
 export const updateMode = (args: readonly string[]): UpdateMode => {
   if (args.includes("--seed")) throw new Error(SEED_ERROR);
   return { update: args.includes("--update") };
@@ -97,9 +97,8 @@ export const fileFindingLines = (
   findings.map((issue) => formatFinding(`${file}:${issue.line}`, issue));
 
 /**
- * Every registry entry whose key names nothing the check now reads: the
- * lists only shrink, so a stale entry reports itself instead of quietly
- * holding its allowance.
+ * Every registry entry whose key names nothing the check now reads. The
+ * lists only shrink, so a stale entry reports itself.
  */
 export const staleEntryLines = (
   read: readonly string[],

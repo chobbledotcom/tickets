@@ -1,5 +1,5 @@
 /**
- * Reading a JSON file that may not be there, or may be half written.
+ * Reads and writes the JSON files the repository's checks keep.
  */
 
 import * as v from "valibot";
@@ -35,7 +35,7 @@ const torn = Symbol("torn text");
  *
  * A file that holds valid JSON `null` for a schema that accepts it is
  * refused loudly: this API uses `null` as its unread marker, so a null value
- * would read as missing. A torn text is checked before the schema ever sees
+ * reads as missing. A torn text is checked before the schema ever sees
  * it, so a half-written file still reads as `null` even for null-accepting
  * schemas.
  */
@@ -57,10 +57,10 @@ export const readJsonOrNull: SchemaRead<null> = async (path, schema) => {
 /**
  * What the file at `path` holds, checked against `schema`. A file that is
  * not there, or is half written, or is the wrong shape, fails loudly: a
- * required registry that reads as empty would read as a clean run.
+ * required registry that reads as empty reads as a clean run.
  *
  * The file must not hold valid JSON `null` for a schema that accepts it:
- * this API uses `null` as its unread marker, so a null value would read as
+ * this API uses `null` as its unread marker, so a null value reads as
  * missing. Schemas like `v.null()` are refused here rather than conflated.
  */
 export const readJsonOrThrow: SchemaRead = async (path, schema) => {
@@ -74,8 +74,8 @@ export const readJsonOrThrow: SchemaRead = async (path, schema) => {
 /**
  * Write `value` at `path` as JSON a person reviews: indented, sorted by
  * insertion, and newline-terminated. A value that does not serialize —
- * `undefined`, a function, a symbol — fails here rather than writing
- * invalid JSON.
+ * `undefined`, a function, a symbol — fails here. It never writes invalid
+ * JSON.
  */
 export const writeJsonFile = async (
   path: string,

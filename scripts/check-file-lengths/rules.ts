@@ -6,8 +6,8 @@
  * backstop. This module is the ratchet between the two: a file over the
  * limit must be on the accepted list, an entry records the count its file
  * carried when the list was last lowered, and a file that shrank must have
- * its entry lowered too. The list only shrinks — a file is split, its entry
- * goes; a file grows, the check fails.
+ * its entry lowered too. The list only shrinks. A file that is split drops
+ * its entry. A file that grows fails the check.
  */
 
 import type { PerFileFinding } from "#scripts/check-runner.ts";

@@ -3,7 +3,7 @@ import { proseBlocks } from "./prose.ts";
 
 export interface SteIssue extends PerFileFinding {
   column: number;
-  /** Normalized prose block, independent of source wraps and exempt span lengths. */
+  /** Normalised prose block, independent of source wraps and exempt span lengths. */
   context: string;
 }
 

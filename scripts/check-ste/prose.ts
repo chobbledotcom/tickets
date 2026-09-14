@@ -65,9 +65,8 @@ const POLICY: Record<MarkdownToken["type"], Policy> = {
   text: "text",
 };
 
-/** A token's policy. Marked only emits the types above for the documents
- * this check reads; a new one crashes loudly at the reader that is not
- * there. */
+/** Marked only emits the types `POLICY` names for the documents this check
+ * reads. A type outside that record crashes loudly. */
 const policyOf = (token: Token): Policy =>
   POLICY[token.type as MarkdownToken["type"]];
 
@@ -175,7 +174,7 @@ const inlineText = (tokens: Token[], source: ProseBlock): ProseBlock =>
   );
 
 /** One shared reader for paragraph prose and a list item's text: the same
- * inline children, read and normalized. */
+ * inline children, read and normalised. */
 const readAsProse = (
   token: MarkdownToken,
   locate: (text: string) => ProseBlock,
@@ -204,7 +203,7 @@ const blocksFrom = (tokens: Token[], source: ProseBlock): ProseBlock[] =>
   ).flat();
 
 /** Quoted examples are prose only after Markdown excludes code and
- * destinations; blank each one, and collapse whitespace, so the block's
+ * destinations. Blank each one, and collapse whitespace, so the block's
  * identity is stable under rewrapping and exempt-span length changes. */
 const normalizeInBlock = (source: ProseBlock): ProseBlock => {
   const parts: ProseBlock[] = [];

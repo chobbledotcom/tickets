@@ -2,8 +2,8 @@ import { join } from "@std/path";
 
 /**
  * What `directory` holds, as a list. A directory that is not there fails here,
- * loudly: a caller asking to walk somewhere that has gone is asking about a
- * root it believes in, and answering "nothing" would read as "nothing to do".
+ * loudly: the caller asks about a root it believes in, and an empty answer
+ * reads as "nothing to do".
  */
 export const directoryEntries = async (
   directory: string,
@@ -75,8 +75,8 @@ export const collectGateScriptFiles = scriptsSkipping(isGeneratedFile);
 
 /** Every file a rule gate reads: the gate scripts, the authored stylesheets,
  * and the shell scripts. The `.scss` under `ui/static` is written by hand
- * even though the bundles beside it are built, so it joins this collector;
- * the built `style.css` and the vendored Leaflet stylesheet stay out. */
+ * even though the bundles beside it are built, so it joins this collector.
+ * The built `style.css` and the vendored Leaflet stylesheet stay out. */
 export const collectGateFiles = async (
   directory: string,
 ): Promise<string[]> => {
