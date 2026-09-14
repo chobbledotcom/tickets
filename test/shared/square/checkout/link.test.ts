@@ -60,8 +60,8 @@ describeSquare(() => {
             checkoutIntent({
               items: [
                 checkoutItem({
-                  initialSiteMonths: 3,
                   name: "(3 Months)",
+                  purchaseUnit: { kind: "months", monthsPerUnit: 3 },
                   quantity: 2,
                   unitPrice: 4500,
                 }),

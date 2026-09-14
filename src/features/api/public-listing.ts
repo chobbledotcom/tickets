@@ -29,9 +29,10 @@ export type PublicListing = CoreListingFields & {
   maxPrice: number;
   nonTransferable: boolean;
   purchaseOnly: boolean;
-  /** True when each booked unit provisions a built site whose quantity buys
-   *  months of service (`initialSiteMonths` per unit), not extra sites. Lets an
-   *  API client know what its `quantity` will buy before it POSTs a booking. */
+  /** True when this listing's purchase provisions ONE built site whose
+   *  quantity buys months of service (`initialSiteMonths` per unit) on that
+   *  site, not extra sites. Lets an API client know what its `quantity` will
+   *  buy before it POSTs a booking. */
   assignBuiltSite: boolean;
   /** The months of service one purchased unit of an assigned-site plan buys.
    *  Present only when `assignBuiltSite` is true. */

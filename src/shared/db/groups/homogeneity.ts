@@ -77,6 +77,15 @@ export const groupCandidateBlockedError = (
     : t("groups.candidate_days_blocked_customisable");
 };
 
+/** Why a built-site plan candidate cannot join ANY group — it is booked on
+ *  its own, so the add-listings picker offers no group for it. Checked
+ *  before {@link groupCandidateBlockedError} because it blocks every group,
+ *  not just an incompatible one. */
+export const sitePlanCandidateBlockedError = (
+  assignsBuiltSite: boolean,
+): string | null =>
+  assignsBuiltSite ? t("groups.candidate_site_plan_blocked") : null;
+
 export type GroupListingCheck<Group> =
   | { group: Group; ok: true }
   | { error: string; group: null; ok: false };

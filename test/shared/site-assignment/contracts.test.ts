@@ -50,6 +50,7 @@ const tierFields = (
   overrides: Partial<Parameters<typeof isQualifyingTierListing>[0]> = {},
 ) => ({
   active: true,
+  assign_built_site: false,
   hidden: true,
   months_per_unit: 1,
   purchase_only: true,
@@ -100,11 +101,12 @@ describe("site assignment configuration contracts", () => {
   test("requires every renewal-tier condition", () => {
     expect([
       isQualifyingTierListing(tierFields()),
+      isQualifyingTierListing(tierFields({ assign_built_site: true })),
       isQualifyingTierListing(tierFields({ purchase_only: false })),
       isQualifyingTierListing(tierFields({ hidden: false })),
       isQualifyingTierListing(tierFields({ months_per_unit: 0 })),
       isQualifyingTierListing(tierFields({ active: false })),
-    ]).toEqual([true, false, false, false, false]);
+    ]).toEqual([true, false, false, false, false, false]);
   });
 
   test("returns the complete builder-disabled error", async () => {

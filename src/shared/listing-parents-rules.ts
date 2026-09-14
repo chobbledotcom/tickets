@@ -3,11 +3,11 @@
  * admin edge editor and the listing-save re-validation.
  *
  * A child has no date/duration controls of its own — it inherits the parent's —
- * so an edge is only honourable when neither side is a renewal tier, a daily
- * child sits under a daily parent, and the child's booking span can match the
- * duration it inherits from the parent. (Structural nesting checks — a child
- * that is also a parent — live with the editor, since a field edit can't create
- * them.)
+ * so an edge is only honourable when neither side is a renewal tier or a
+ * built-site plan (both are sold alone), a daily child sits under a daily
+ * parent, and the child's booking span can match the duration it inherits from
+ * the parent. (Structural nesting checks — a child that is also a parent —
+ * live with the editor, since a field edit can't create them.)
  */
 
 /* jscpd:ignore-start */
@@ -30,6 +30,9 @@ export type EdgeListing = {
   customisable_days: boolean;
   duration_days: number;
   day_prices: DayPrices;
+  /** Whether the listing assigns a built site on booking — such a listing is
+   *  sold on its own, so it can join no parent/child relation either. */
+  assign_built_site: boolean;
 };
 
 /** One directed parent-to-child listing relationship. */
@@ -109,8 +112,9 @@ const offeredLengths = (listing: EdgeListing): string =>
 /** Every parent→child field rule as data, most fundamental first — the order IS
  *  the precedence: the first rule a pairing breaks decides the error, so a
  *  pairing that breaks several reports the deepest one. A renewal tier can't be
- *  a parent, then can't be a child, then a daily child needs a daily parent,
- *  then the child's span must match the one it inherits. Adding a rule is one
+ *  a parent, then can't be a child; a built-site plan can't be a parent, then
+ *  can't be a child; a daily child then needs a daily parent, and last the
+ *  child's span must match the one it inherits. Adding a rule is one
  *  new entry in its precedence slot, never another `if` arm. The duration rule
  *  builds its message inline so it can name the exact clash it found. */
 const EDGE_ERROR_RULES: readonly EdgeReason[] = [
@@ -122,6 +126,15 @@ const EDGE_ERROR_RULES: readonly EdgeReason[] = [
   childReason(
     "children_err_child_renewal",
     (_parent, child) => child.months_per_unit > 0,
+  ),
+  reason(
+    (parent) => parent.assign_built_site,
+    (parent) =>
+      t("listings_table.children_err_parent_site_plan", { name: parent.name }),
+  ),
+  childReason(
+    "children_err_child_site_plan",
+    (_parent, child) => child.assign_built_site,
   ),
   childReason(
     "children_err_child_daily",

@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { TicketListing } from "#booking/model.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { renderChildBlock } from "#templates/public/reservations/child-block.ts";
@@ -46,24 +45,6 @@ const giveAdultsAudience = async (childId: number): Promise<void> => {
   const audience = await createTestAttributeWithOptions("Audience", ["Adults"]);
   await assignTestAttributeOptions(childId, audience.options);
 };
-
-/** Render a parent's child block against exactly the given children, with
- *  every other context empty — the shape the pure month-labelling tests need. */
-const renderChildBlockForChildren = (
-  parent: ReturnType<typeof ticketListing>,
-  children: ReturnType<typeof ticketListing>[],
-): string =>
-  renderChildBlock(parent, {
-    attributesByListing: new Map(),
-    childDatesById: new Map(),
-    children: new Map([[parent.listing.id, children]]),
-    foldReserveByChildId: new Map(),
-    groupIdsByListingId: new Map(),
-    groupRemainingByGroupId: new Map(),
-    questionListingMap: new Map(),
-    questions: [],
-    rendered: new Set(),
-  });
 
 const renderHidingChildName = async (
   parent: Listing,
@@ -339,50 +320,6 @@ describeWithEnv(
       expect(html).toContain("Paid B");
       expect(html).toContain("(£0");
       expect(html).toContain("(£10");
-    });
-
-    const planChildListing = (id: number, name: string): TicketListing =>
-      ticketListing({
-        assign_built_site: true,
-        id,
-        initial_site_months: 3,
-        max_quantity: 3,
-        name,
-      });
-
-    test("a plan child prices its options in months, an ordinary child in counts", () => {
-      const parent = ticketListing({ id: 7, max_quantity: 3, name: "Parent" });
-      const planChild = planChildListing(10, "Add-on A");
-      const ordinaryChild = ticketListing({
-        id: 11,
-        max_quantity: 3,
-        name: "Add-on B",
-      });
-
-      const html = renderChildBlockForChildren(parent, [
-        planChild,
-        ordinaryChild,
-      ]);
-
-      expect(html).toContain('<option value="1">3 months</option>');
-      expect(html).toContain('<option value="2">6 months</option>');
-      expect(html).toContain('<option value="3">9 months</option>');
-      expect(html).toContain('<option value="1">1</option>');
-      expect(html).toContain('<option value="3">3</option>');
-      expect(html).not.toContain('value="1">1 month</option>');
-    });
-
-    test("a sole plan child states the months each booked ticket adds", () => {
-      const parent = ticketListing({ id: 7, max_quantity: 3, name: "Parent" });
-
-      const html = renderChildBlockForChildren(parent, [
-        planChildListing(10, "Hosting"),
-      ]);
-
-      expect(html).toContain(`data-sole-child="10"`);
-      expect(html).toContain(
-        "Each ticket booked adds 3 months to this add-on.",
-      );
     });
   },
 );

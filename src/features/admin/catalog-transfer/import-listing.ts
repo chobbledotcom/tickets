@@ -24,7 +24,6 @@ import {
 } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
 import {
   dayPriceFieldsFromInput,
   generateUniqueListingSlug,
@@ -184,10 +183,6 @@ const applyImportPolicy = (
     policed.webhookUrl = "";
     policed.useDefaults = false;
   }
-  if (!isBuilderEnabled()) {
-    policed.assignBuiltSite = false;
-    policed.initialSiteMonths = 0;
-  }
   if (!settings.features.logistics) policed.usesLogistics = false;
   return policed;
 };
@@ -197,6 +192,16 @@ export const importListing = async (
   adminLevel: AdminLevel | undefined,
 ): Promise<Result<ImportedEntity>> => {
   const { groups: memberships, listing, parents } = transfer;
+  // A built-site plan never imports: its site assignment is bound to the
+  // exporting install, and such a listing can carry no relationships, which
+  // the memberships and parent references below would recreate.
+  if (listing.assignBuiltSite) {
+    return fail(
+      t("catalog_transfer.site_plan_listing_refused", {
+        name: listing.name,
+      }),
+    );
+  }
   if (await isNameTakenAnywhere(listing.name))
     return fail(nameTakenError(listing.name));
 

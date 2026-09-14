@@ -17,6 +17,7 @@ import {
   packageMemberCapError,
   packageMemberCapExceeded,
   packageMemberMessage,
+  sitePlanMemberError,
 } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { ListingType } from "#types";
@@ -99,6 +100,7 @@ export const packageGroupIdsTx = (
 
 type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   name: EnvKeyEncrypted;
+  assign_built_site: number;
   customisable_days: number;
   can_pay_more: number;
   has_children: number;
@@ -106,8 +108,9 @@ type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   max_quantity: number;
 };
 
-type ListingState = GroupListingSettings & {
+export type ListingState = GroupListingSettings & {
   name: EnvKeyEncrypted;
+  assignsBuiltSite: boolean;
   canPayMore: boolean;
   hasChildren: boolean;
   hasParents: boolean;
@@ -125,17 +128,18 @@ export const listingStatesTx = async (
     await tx.execute({
       args: ids,
       sql: `SELECT listing.id, listing.name, listing.listing_type,
-                   listing.customisable_days, listing.can_pay_more,
-                   listing.max_quantity,
-                   EXISTS(SELECT 1 FROM listing_parents AS listingParent
-                            WHERE listingParent.parent_listing_id = listing.id) AS has_children,
-                   EXISTS(SELECT 1 FROM listing_parents AS listingParent
-                            WHERE listingParent.child_listing_id = listing.id) AS has_parents
-              FROM listings AS listing
-             WHERE listing.id IN (${inPlaceholders(ids)})`,
+                    listing.customisable_days, listing.can_pay_more,
+                    listing.max_quantity, listing.assign_built_site,
+                    EXISTS(SELECT 1 FROM listing_parents AS listingParent
+                             WHERE listingParent.parent_listing_id = listing.id) AS has_children,
+                    EXISTS(SELECT 1 FROM listing_parents AS listingParent
+                             WHERE listingParent.child_listing_id = listing.id) AS has_parents
+               FROM listings AS listing
+              WHERE listing.id IN (${inPlaceholders(ids)})`,
     }),
   );
   const states: ListingState[] = rows.map((row) => ({
+    assignsBuiltSite: row.assign_built_site === 1,
     canPayMore: row.can_pay_more === 1,
     customisable_days: row.customisable_days === 1,
     hasChildren: row.has_children === 1,
@@ -173,11 +177,21 @@ export const packageMembersErrorTx = async (
   return null;
 };
 
+/** The all-group built-site plan refusal for listings a write wants inside a
+ *  group — ordinary or package: the first plan's message, or null. Decrypts
+ *  only the name of the listing that fails. */
+export const sitePlanMemberErrorTx = async (
+  listings: readonly ListingState[],
+): Promise<string | null> => {
+  const sitePlan = listings.find((listing) => listing.assignsBuiltSite);
+  return sitePlan ? sitePlanMemberError(await decrypt(sitePlan.name)) : null;
+};
+
 /** The pick-count refusal for one listing against one membership quantity —
  *  the package must never demand more units of a member than the member
  *  sells in one order. Decrypts the name only for a member that fails. */
 const memberCapErrorTx = async (
-  listing: { maxQuantity: number; name: EnvKeyEncrypted },
+  listing: ListingState,
   quantity?: number,
 ): Promise<string | null> =>
   packageMemberCapExceeded({ max_quantity: listing.maxQuantity, quantity })
@@ -228,13 +242,18 @@ type MembershipsChecker<Result> = (
 ) => Promise<Result>;
 
 /** One (listing, group) membership pair judged inside the write transaction:
- *  the group must exist, its members must stay homogeneous, the listing must
- *  obey the package rules, and the member's pick count must fit its cap. */
+ *  the group must exist, the listing must not be a built-site plan (it is
+ *  booked on its own, so this holds for ordinary groups too, not just
+ *  packages), its members must stay homogeneous, the listing must obey the
+ *  package rules, and the member's pick count must fit its cap. */
 const oneMembershipErrorTx = async (
   listing: ListingState,
   states: Map<number, GroupState>,
   groupId: number,
 ): Promise<string | null> => {
+  if (listing.assignsBuiltSite) {
+    return sitePlanMemberError(await decrypt(listing.name));
+  }
   const checked = checkGroupListingSettings(
     states.get(groupId),
     (group) => group.members,

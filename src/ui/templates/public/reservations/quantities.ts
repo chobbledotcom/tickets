@@ -11,6 +11,7 @@ import {
 } from "#booking/tree.ts";
 import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
+import { monthsPerUnitOf, resolvePurchaseUnit } from "#shared/purchase-unit.ts";
 import type { ListingWithCount } from "#types";
 import type { TicketPrefill } from "./types.ts";
 
@@ -23,20 +24,14 @@ type MonthsListing = Pick<
   "assign_built_site" | "initial_site_months" | "months_per_unit"
 >;
 
-/** The months one priced unit buys, or undefined when a count is plain:
- *  one unit of a plan prices its whole initial term (`initial_site_months`);
+/** The months one priced unit buys, or undefined when a count is plain. The
+ *  shared resolver decides: one unit of a plan prices its whole initial term;
  *  a renewal page prices the same listings by their months per unit. */
 export const pricedMonthsForListing = (
   listing: MonthsListing,
   renewal?: boolean | undefined,
 ): number | undefined =>
-  renewal
-    ? listing.months_per_unit > 0
-      ? listing.months_per_unit
-      : undefined
-    : listing.assign_built_site && listing.initial_site_months > 0
-      ? listing.initial_site_months
-      : undefined;
+  monthsPerUnitOf(resolvePurchaseUnit(listing, { renewal: renewal === true }));
 
 /** Labels each count with the months it buys; undefined keeps the plain count.
  *  One unit of a plan prices its whole initial term (`initial_site_months`); a

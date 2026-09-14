@@ -25,6 +25,7 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
 
     expect(await getListingOfferFlags(listing.id)).toEqual({
       active: true,
+      assign_built_site: false,
       hidden: true,
       months_per_unit: 3,
       purchase_only: true,
@@ -36,6 +37,7 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
           listing.id,
           {
             active: true,
+            assign_built_site: false,
             hidden: true,
             months_per_unit: 3,
             name: "Picker listing",

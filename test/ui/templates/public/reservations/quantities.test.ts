@@ -1,10 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { FormParams } from "#shared/form-data.ts";
-import {
-  runWithSavedFormContext,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
 import {
   monthLabelsForListing,
   quantityOptions,
@@ -12,13 +7,7 @@ import {
   restoredPackageQuantity,
   restoredQuantity,
 } from "#templates/public/reservations/quantities.ts";
-
-/** Read restores under the just-submitted values a re-render sees. */
-const withSaved = (saved: Record<string, string>, read: () => number): number =>
-  runWithSavedFormContext(() => {
-    setSavedFormData(new FormParams(saved));
-    return read();
-  });
+import { withSubmittedValues } from "#test-utils/saved-form.ts";
 
 describe("monthLabelsForListing", () => {
   test("names the months each count buys on a plan", () => {
@@ -32,15 +21,17 @@ describe("monthLabelsForListing", () => {
   });
 
   test("prices a renewal page's counts by months per unit", () => {
-    const labels = monthLabelsForListing(
-      {
-        assign_built_site: true,
-        initial_site_months: 3,
-        months_per_unit: 1,
-      },
-      true,
-    );
-    expect(labels?.(2)).toBe("2 months");
+    // A real renewal tier: purchase-only, hidden, priced by months per unit.
+    expect(
+      monthLabelsForListing(
+        {
+          assign_built_site: false,
+          initial_site_months: 0,
+          months_per_unit: 1,
+        },
+        true,
+      )?.(2),
+    ).toBe("2 months");
     // Every renewal tier prices by its months per unit, plan or not.
     expect(
       monthLabelsForListing(
@@ -54,12 +45,15 @@ describe("monthLabelsForListing", () => {
     ).toBe("6 months");
   });
 
-  test("stays silent on a renewal page when the tier prices no months", () => {
+  test("keeps the plain count on a renewal page for a non-tier listing", () => {
+    // A renewal page only offers qualifying tiers, so a listing that prices
+    // no months per unit never reaches one; outside a renewal its units stay
+    // plain tickets.
     expect(
       monthLabelsForListing(
         {
-          assign_built_site: true,
-          initial_site_months: 3,
+          assign_built_site: false,
+          initial_site_months: 0,
           months_per_unit: 0,
         },
         true,
@@ -145,19 +139,23 @@ describe("restoredQuantity", () => {
 
   test("restores the just-submitted count", () => {
     expect(
-      withSaved({ quantity_1: "5" }, () => restoredQuantity(1, undefined, 10)),
+      withSubmittedValues({ quantity_1: "5" }, () =>
+        restoredQuantity(1, undefined, 10),
+      ),
     ).toBe(5);
   });
 
   test("clamps a too-large submitted count", () => {
     expect(
-      withSaved({ quantity_1: "30" }, () => restoredQuantity(1, undefined, 10)),
+      withSubmittedValues({ quantity_1: "30" }, () =>
+        restoredQuantity(1, undefined, 10),
+      ),
     ).toBe(10);
   });
 
   test("keeps zero for a non-numeric submitted count", () => {
     expect(
-      withSaved({ quantity_1: "abc" }, () =>
+      withSubmittedValues({ quantity_1: "abc" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(0);
@@ -165,7 +163,7 @@ describe("restoredQuantity", () => {
 
   test("keeps zero for a hex-looking submitted count", () => {
     expect(
-      withSaved({ quantity_1: "0x10" }, () =>
+      withSubmittedValues({ quantity_1: "0x10" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(0);
@@ -173,7 +171,9 @@ describe("restoredQuantity", () => {
 
   test("clamps a negative submitted count to zero", () => {
     expect(
-      withSaved({ quantity_1: "-3" }, () => restoredQuantity(1, undefined, 10)),
+      withSubmittedValues({ quantity_1: "-3" }, () =>
+        restoredQuantity(1, undefined, 10),
+      ),
     ).toBe(0);
   });
 });
@@ -185,7 +185,9 @@ describe("restoredChildQty", () => {
 
   test("restores a submitted child count, clamped high", () => {
     expect(
-      withSaved({ child_qty_7_10: "3" }, () => restoredChildQty(7, 10, 2)),
+      withSubmittedValues({ child_qty_7_10: "3" }, () =>
+        restoredChildQty(7, 10, 2),
+      ),
     ).toBe(2);
   });
 });

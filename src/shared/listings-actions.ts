@@ -41,7 +41,10 @@ import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
-import { packageMemberError } from "#shared/package-membership.ts";
+import {
+  packageMemberError,
+  sitePlanMemberError,
+} from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
@@ -126,6 +129,9 @@ const packageMembershipError = async (
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   const groupIds = input.groupIds ?? [];
   if (groupIds.length === 0) return null;
+  // A built-site plan is booked on its own, so no final group set may keep
+  // it — an empty set stays valid so removal is always possible.
+  if (input.assignBuiltSite) return sitePlanMemberError(input.name);
   // Only pay-what-you-want pricing is package-incompatible: a package needs an
   // operator-set price per member. Daily/customisable members are packageable
   // (the group keeps members homogeneous, sharing one date/day-count selector).
@@ -214,13 +220,14 @@ export const dayPriceFieldsFromInput = (
 });
 
 /** Project a (possibly partial) listing form input onto the edge-compatibility
- * shape for the row it would become, defaulting each optional field as the form
- * layer does. */
+ *  shape for the row it would become, defaulting each optional field as the form
+ *  layer does. */
 export const listingInputToEdge = (
   input: ListingInput,
   id: number,
 ): EdgeListing => ({
   ...dayPriceFieldsFromInput(input),
+  assign_built_site: input.assignBuiltSite ?? false,
   id,
   listing_type: input.listingType ?? "standard",
   months_per_unit: input.monthsPerUnit ?? 0,

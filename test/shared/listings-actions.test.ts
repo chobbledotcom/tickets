@@ -29,6 +29,7 @@ describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
     const sparse = { name: "Bare" } as unknown as ListingInput;
     expect(listingInputToEdge(sparse, 7)).toEqual({
+      assign_built_site: false,
       customisable_days: false,
       day_prices: {},
       duration_days: 1,
@@ -41,6 +42,7 @@ describe("listingInputToEdge", () => {
 
   test("carries through populated fields", () => {
     const input = {
+      assignBuiltSite: true,
       customisableDays: true,
       dayPrices: { 1: 100, 2: 200 },
       durationDays: 2,
@@ -49,6 +51,7 @@ describe("listingInputToEdge", () => {
       name: "Full",
     } as unknown as ListingInput;
     expect(listingInputToEdge(input, 3)).toEqual({
+      assign_built_site: true,
       customisable_days: true,
       day_prices: { 1: 100, 2: 200 },
       duration_days: 2,

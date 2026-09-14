@@ -25,6 +25,7 @@ const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b);
 
 /** A minimal would-be listing row for edge re-validation. */
 const edge = (id: number, over: Partial<EdgeListing> = {}): EdgeListing => ({
+  assign_built_site: false,
   customisable_days: false,
   day_prices: {},
   duration_days: 1,

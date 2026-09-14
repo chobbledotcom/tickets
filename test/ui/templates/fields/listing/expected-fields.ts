@@ -67,7 +67,7 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
-    hint: "Maximum units a customer can buy in one transaction — months on a built-site plan, tickets otherwise",
+    hint: "Maximum units a customer can buy in one transaction — each unit of a built-site plan buys its configured months",
     label: "Max quantity per purchase",
     min: 1,
     name: "max_quantity",

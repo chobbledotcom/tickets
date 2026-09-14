@@ -7,17 +7,22 @@ import { notInSubquery } from "#db/where-clauses.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import type { SortableListing } from "#types";
 
-/** A candidate listing for the form: enough to sort it, name it, and show
- * whether it is active. The form shows nothing else, so this read skips the
- * whole listing record — no money, day-price or image subqueries, and no
- * encrypted columns beyond the name. Its availability values are the effective
- * ones, so it sorts the same way a full listing record does. */
-export type GroupListingCandidate = SortableListing & { active: boolean };
+/** A candidate listing for the form: enough to sort it, name it, show
+ *  whether it is active, and grey it out when it is a built-site plan (it can
+ *  join no group). The form shows nothing else, so this read skips the whole
+ *  listing record — no money, day-price or image subqueries, and no encrypted
+ *  columns beyond the name. Its availability values are the effective ones,
+ *  so it sorts the same way a full listing record does. */
+export type GroupListingCandidate = SortableListing & {
+  active: boolean;
+  assign_built_site: boolean;
+};
 
 const candidateColumns = rawListingsTable.read.pick([
   "id",
   "name",
   "active",
+  "assign_built_site",
   "date",
   "listing_type",
   "bookable_days",

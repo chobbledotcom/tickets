@@ -7,6 +7,7 @@ import * as v from "valibot";
 import { signedEdgeFor } from "#booking/signed-metadata.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { lazyRef, map } from "#fp";
+import { t } from "#i18n";
 import { checkoutFailure } from "#payment/checkout-failure.ts";
 import type {
   BookingIntent,
@@ -42,6 +43,7 @@ import type {
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { monthsPerUnitOf } from "#shared/purchase-unit.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 
 /**
@@ -180,25 +182,25 @@ export const buildProviderLineItems = <Item>(
 ];
 
 /** The name and one-unit description a provider checkout shows a priced line
- *  as. A built-site plan is priced per term, not per ticket — ×3 beside a
- *  "(1 Month)" plan buys three months of one site, not three sites — so its
- *  line names the plan and states what one unit grants. */
+ *  as. A line that counts months states the PER-UNIT term — the provider's
+ *  quantity stays the number of units bought, so ×2 beside a "(3 Months)"
+ *  plan shows quantity 2 with a "3 months" description — while a plain
+ *  ticket line keeps its listing name with its count. */
 export const providerLineCopy = (
   item: CheckoutItem,
   quantity: number,
-): { description: string; name: string } =>
-  item.initialSiteMonths === undefined
+): { description: string; name: string } => {
+  const monthsEach = monthsPerUnitOf(item.purchaseUnit);
+  return monthsEach === undefined
     ? {
-        description: countedText("Tickets", quantity),
-        name: `Ticket: ${item.name}`,
+        description: countedText(t("payment.provider.tickets"), quantity),
+        name: t("payment.provider.ticket_name", { name: item.name }),
       }
     : {
-        description:
-          item.initialSiteMonths === 1
-            ? "1 month"
-            : `${item.initialSiteMonths} months`,
-        name: `Site plan: ${item.name}`,
+        description: t("payment.provider.months", { count: monthsEach }),
+        name: t("payment.provider.plan_name", { name: item.name }),
       };
+};
 
 /** Run an operation with the lazily-resolved client. Returns null when the
  * client is unconfigured or the operation fails (unless the error should

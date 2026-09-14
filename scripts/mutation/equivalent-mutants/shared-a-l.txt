@@ -309,4 +309,3 @@ src/shared/booking/order-lines.ts::aggregateNodeQuantities.booked.quantity~1s0ld
 src/shared/booking/order-lines.ts::buildOrderLines.pathLines.quantity~1s0ldgs  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
 src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
 src/shared/booking/order-lines.ts::buildOrderLines.childLines.quantity~1r5rdx3  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/payments.ts::checkoutItem~130jz05  ?? → ||   # the operand is the configured integer (initial_site_months); 0 falls back to the same 0, any other number is returned by both, and the types agree on every input

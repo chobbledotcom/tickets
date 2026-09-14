@@ -32,9 +32,9 @@ const unwrapExport = <T>(blob: T | CatalogExportError | null): T => {
   return blob;
 };
 
-/** Import a listing that asks for a built site, returning the persisted
- * `assign_built_site` flag — true only where the builder is configured. */
-const importBuiltSiteListing = async (name: string): Promise<boolean> => {
+/** Import a listing that asks for a built site, asserting the refusal it now
+ *  receives — such listings never import, whatever the builder configuration. */
+const importBuiltSiteListing = async (name: string): Promise<string> => {
   const result = await importCatalog({
     kind: "listing",
     listing: {
@@ -45,8 +45,8 @@ const importBuiltSiteListing = async (name: string): Promise<boolean> => {
     },
     version: 1,
   });
-  if (!result.ok) throw new Error(result.error);
-  return (await getListingWithCount(result.value.id))!.assign_built_site;
+  if (result.ok) throw new Error("the built-site plan import should refuse");
+  return result.error;
 };
 
 const importLogisticsListing = async (name: string): Promise<boolean> => {
@@ -545,8 +545,12 @@ describeWithEnv(
       expect(imported.webhook_url).toBe("https://example.com/hook");
     });
 
-    test("clears assign-built-site when the builder is not configured", async () => {
-      expect(await importBuiltSiteListing("No Builder")).toBe(false);
+    test("refuses a built-site plan listing where the builder is not configured", async () => {
+      expect(await importBuiltSiteListing("No Builder")).toBe(
+        t("catalog_transfer.site_plan_listing_refused", {
+          name: "No Builder",
+        }),
+      );
     });
 
     test("clears uses-logistics when logistics is disabled", async () => {
@@ -734,8 +738,12 @@ describeWithEnv(
   "catalog-transfer with the builder enabled",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    test("keeps assign-built-site when the builder is configured", async () => {
-      expect(await importBuiltSiteListing("Builder On")).toBe(true);
+    test("refuses a built-site plan listing even with the builder configured", async () => {
+      expect(await importBuiltSiteListing("Builder On")).toBe(
+        t("catalog_transfer.site_plan_listing_refused", {
+          name: "Builder On",
+        }),
+      );
     });
   },
 );

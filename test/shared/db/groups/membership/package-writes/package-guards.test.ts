@@ -15,6 +15,7 @@ import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
+import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -22,6 +23,7 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 /** Runs writePackageMembersTx inside a transaction and returns the resulting
  *  package price for the group's first member, so each allow-path test shares
@@ -202,5 +204,62 @@ describeWithEnv(
         ),
       ).resolves.toBeUndefined();
     });
+
+    test("writePackageMembersTx rechecks final members for an ordinary group", async () => {
+      const group = await createTestGroup({ name: "Ordinary Plan Guard" });
+      await createPlanMemberWithGroup(group.id, "Ordinary Guard Plan");
+
+      await expect(
+        withTransaction(async (tx) => {
+          await writePackageMembersTx(
+            tx,
+            group.id,
+            { hide_package_listings: false, is_package: false },
+            { isPackage: false },
+            [],
+          );
+        }),
+      ).rejects.toMatchObject({
+        message: sitePlanMemberError("Ordinary Guard Plan"),
+        name: "TransactionValidationError",
+      });
+    });
+
+    test("writePackageMembersTx rechecks final members for a package conversion", async () => {
+      const group = await createTestGroup({ name: "Conversion Plan Guard" });
+      await createPlanMemberWithGroup(group.id, "Conversion Guard Plan");
+
+      await expect(
+        withTransaction(async (tx) => {
+          await writePackageMembersTx(
+            tx,
+            group.id,
+            { hide_package_listings: false, is_package: false },
+            { isPackage: true },
+            [],
+          );
+        }),
+      ).rejects.toMatchObject({
+        message: sitePlanMemberError("Conversion Guard Plan"),
+        name: "TransactionValidationError",
+      });
+    });
   },
 );
+
+/** A built-site plan listing placed in `groupId` directly — no save path can
+ *  create that membership any more, so the historical row is staged raw to
+ *  prove the group-side guards still refuse writes touching it. */
+async function createPlanMemberWithGroup(
+  groupId: number,
+  name: string,
+): Promise<void> {
+  using _env = withEnv({ CAN_BUILD_SITES: "true" });
+  const plan = await createTestListing({
+    assignBuiltSite: true,
+    initialSiteMonths: 1,
+    name,
+  });
+  const { setListingGroups } = await import("#db/groups.ts");
+  await setListingGroups(plan.id, [groupId]);
+}

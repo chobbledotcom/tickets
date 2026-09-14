@@ -34,7 +34,6 @@ import {
 import type { BookingPrefill, ChildRenderCtx, TicketPrefill } from "./types.ts";
 
 /* jscpd:ignore-end */
-
 /** Description HTML for a listing row. */
 export const renderListingDescription = (description: string): string =>
   description
@@ -173,34 +172,26 @@ const renderListingRow: RenderListingControls = (
 };
 
 /** A package member row: name + fixed per-package quantity, read-only — the
- * buyer chooses the package count, not per-member quantities. A member that is
- * itself a parent renders its child selector under the row, exactly like a
- * standalone parent (only VISIBLE packages may contain parents, so a hidden
- * package never reaches the child block). */
+ *  buyer chooses the package count, not per-member quantities. A member that is
+ *  itself a parent renders its child selector under the row, exactly like a
+ *  standalone parent (only VISIBLE packages may contain parents, so a hidden
+ *  package never reaches the child block). */
 const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
   attributes?: AttributeWithOptions[],
-): string => {
-  // A plan member's fixed count buys months, so the row says what it grants:
-  // ×2 beside a "(1 Month)" plan is two months per package, not two sites.
-  const monthsLabel = monthLabelsForListing(info.listing);
-  const quantity = monthsLabel
-    ? `&times;${fixedQty} (${monthsLabel(fixedQty)})`
-    : `&times;${fixedQty}`;
-  return `
+): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(
         info.listing.name,
-      )} <span class="package-member-qty">${quantity}</span></label>
+      )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
       ${renderListingAttributes(attributes)}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
-};
 
 /** One package's booking controls: its "number of packages" selector, then each
  * member row (each showing its fixed quantity) — unless the package hides its
@@ -269,13 +260,14 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
-/** A built-site plan sells months of service, not tickets — and a renewal page
- *  prices every tier by its months per unit. */
+/** A built-site plan sells months of service, not tickets — and a renewal
+ *  page prices every tier by its months per unit. The shared resolver decides
+ *  which, so the label above the selector can never disagree with the price. */
 const monthsQuantity = (
   listing: TicketListing["listing"],
   renewal?: boolean,
-) =>
-  renewal || listing.assign_built_site
+): string =>
+  pricedMonthsForListing(listing, renewal) !== undefined
     ? t("public.ticket.number_of_months")
     : t("public.ticket.number_of_tickets");
 

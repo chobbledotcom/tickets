@@ -9,6 +9,7 @@ import {
   scopeIsChildDeadEnd,
   scopeReachesPage,
 } from "#shared/listing-parents-rules.ts";
+import { edgeListing as listing } from "./listing-parents-rules/helpers.ts";
 
 /** The i18n message a broken edge rule reports for the named listing — the
  * same key production formats, so tests assert WHICH rule won (and whose name
@@ -56,17 +57,6 @@ describe("scopeIsChildDeadEnd", () => {
   test("one live page in the scope rescues the hidden child", () => {
     expect(scopeIsChildDeadEnd([5, 6], new Set([5]), new Set([6]))).toBe(false);
   });
-});
-
-const listing = (over: Partial<EdgeListing> = {}): EdgeListing => ({
-  customisable_days: false,
-  day_prices: {},
-  duration_days: 1,
-  id: 1,
-  listing_type: "standard",
-  months_per_unit: 0,
-  name: "Test",
-  ...over,
 });
 
 describe("durationsCompatible", () => {

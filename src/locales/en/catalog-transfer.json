@@ -13,5 +13,6 @@
   "catalog_transfer.imported_group": "Imported group {name}",
   "catalog_transfer.member_missing": "A listing used by this import no longer exists. Please import again.",
   "catalog_transfer.parent_missing": "A parent listing used by this import no longer exists. Please import again.",
+  "catalog_transfer.site_plan_listing_refused": "Built-site plans can't be imported. Create ''{name}'' on this site instead.",
   "catalog_transfer.demo_disabled": "Catalog import is disabled in demo mode."
 }

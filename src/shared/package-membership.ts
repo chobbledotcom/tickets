@@ -70,6 +70,13 @@ export const packageMemberMessage = (
   name: string,
 ): string => t(`error.package_member_${key}`, { name });
 
+/** The user-facing error naming a built-site plan listing that can belong to
+ *  no group or package — it books its own site, one buyer per order. Shared
+ *  by every membership write boundary: the listing save, the group saves, the
+ *  catalog import, and the group duplication. */
+export const sitePlanMemberError = (name: string): string =>
+  t("error.group_member_site_plan", { name });
+
 /**
  * The user-facing error naming the listing and the specific reason it can't be
  * a package member, or null when it can. Pure: the caller supplies the

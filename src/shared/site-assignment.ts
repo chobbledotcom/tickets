@@ -15,7 +15,7 @@ import {
 } from "#db/built-sites.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-import { sort } from "#fp";
+import { sort, sumOf, unique } from "#fp";
 import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
@@ -52,14 +52,23 @@ type SiteAssignment = {
 
 type AssignmentContext = {
   attendee: SiteAssignmentEntry["attendee"];
-  listing: SiteAssignmentEntry["listing"];
+  /** The booked plan the site is recorded against: the buyer's first line. */
+  listingId: number;
+  /** Every plan name the buyer bought, joined for the site's email. */
+  listingName: string;
+  /** The months the buyer's plans bought together on this one site. */
+  months: number;
   site: BuiltSite;
 };
 
 export type TierListing = Awaited<ReturnType<typeof getAllListings>>[number];
 export type RenewalTierListing = Pick<
   TierListing,
-  "active" | "hidden" | "months_per_unit" | "purchase_only"
+  | "active"
+  | "assign_built_site"
+  | "hidden"
+  | "months_per_unit"
+  | "purchase_only"
 >;
 export type CdnPushResult = { ok: true } | { ok: false; error: string };
 type RenewalTokenData = { token: string; index: string };
@@ -71,13 +80,15 @@ type SiteAssignmentConfigEntry = {
     name: string;
   };
 };
-/** A tier listing qualifies when it is purchase-only, hidden, active, and
- * priced by the month. */
+/** A tier listing qualifies when it is purchase-only, hidden, active, priced
+ *  by the month, and not itself a site plan — a dual-role listing would assign
+ *  a new site and extend a renewal. */
 export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
   listing.purchase_only &&
   listing.hidden &&
   listing.months_per_unit > 0 &&
-  listing.active;
+  listing.active &&
+  !listing.assign_built_site;
 
 /** All listings that qualify as renewal tiers. */
 export const getQualifyingTierListings = async (): Promise<TierListing[]> => {
@@ -276,20 +287,21 @@ export const rotateRenewalToken = async (
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
-/** Assign a site and provision its renewal. On a site plan the quantity the
- *  buyer chose is months of service on one site, not extra sites. */
+/** Assign a site and provision its renewal for the months the buyer bought. */
 const assignSiteWithRenewal = async ({
   attendee,
-  listing,
+  listingId,
+  listingName,
+  months,
   site,
 }: AssignmentContext): Promise<SiteAssignment> => {
-  await assignBuiltSite(site.id, attendee.id, listing.id);
+  await assignBuiltSite(site.id, attendee.id, listingId);
   await provisionSiteRenewal(
     site,
-    listing.initial_site_months * attendee.quantity,
+    months,
     `Failed to push initial renewal secrets for site ${site.id}`,
   );
-  return { listingName: listing.name, siteUrl: site.siteUrl };
+  return { listingName, siteUrl: site.siteUrl };
 };
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
@@ -313,14 +325,30 @@ const assignSitesForEntries = async (
   // reindexing the array on every take.
   const available = [...(await getAssignableBuiltSites())].reverse();
 
-  for (const { listing, attendee } of needsSite) {
-    // A no-quantity line buys nothing, so it books no site.
-    if (attendee.quantity < 1) continue;
+  // One buyer's plan listings combine into one site: a 12-month listing plus
+  // a 3-month listing buy one site with 15 months, never two sites.
+  const plansByBuyer = Map.groupBy(needsSite, (e) => e.attendee.id);
+  for (const buyerPlans of plansByBuyer.values()) {
+    // A no-quantity line buys nothing, so it books no site and no months.
+    const booked = buyerPlans.filter((e) => e.attendee.quantity >= 1);
+    if (booked.length === 0) continue;
     const site = available.pop() ?? (await buildAssignableSite());
-    // A failed build must not cost later entries their own attempt.
+    // A failed build must not cost later buyers their own attempt.
     if (!site) continue;
 
-    assignments.push(await assignSiteWithRenewal({ attendee, listing, site }));
+    const first = booked[0]!;
+    assignments.push(
+      await assignSiteWithRenewal({
+        attendee: first.attendee,
+        listingId: first.listing.id,
+        listingName: unique(booked.map((e) => e.listing.name)).join(" + "),
+        months: sumOf(
+          (e: SiteAssignmentEntry) =>
+            e.listing.initial_site_months * e.attendee.quantity,
+        )(booked),
+        site,
+      }),
+    );
   }
 
   return assignments;

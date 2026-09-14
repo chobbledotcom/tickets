@@ -6,6 +6,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   checkGroupListingSettings,
   groupCandidateBlockedError,
+  sitePlanCandidateBlockedError,
 } from "#db/groups/homogeneity.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
@@ -109,6 +110,13 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
         listing_type: "standard",
       }),
     ).toBeNull();
+  });
+
+  test("a built-site plan candidate is blocked for every group", () => {
+    expect(sitePlanCandidateBlockedError(true)).toBe(
+      t("groups.candidate_site_plan_blocked"),
+    );
+    expect(sitePlanCandidateBlockedError(false)).toBeNull();
   });
 
   test("a customisable-days clash says which way the candidates differ", () => {

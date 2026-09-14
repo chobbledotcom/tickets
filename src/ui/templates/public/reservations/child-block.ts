@@ -26,12 +26,7 @@ import {
   childQuestionsToRender,
 } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
-import {
-  monthLabelsForListing,
-  pricedMonthsForListing,
-  quantityOptions,
-  restoredChildQty,
-} from "./quantities.ts";
+import { quantityOptions, restoredChildQty } from "./quantities.ts";
 import { renderQuestion } from "./questions.tsx";
 import type { ChildRenderCtx } from "./types.ts";
 
@@ -130,12 +125,12 @@ const childOptionParts = ({
 };
 
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
- * select over `0..childLimit`, plus — for a bookable pay-more child — its
- * non-required price input. A sold-out/closed/inactive child renders a disabled
- * select fixed at 0, never selectable. The select is non-required in
- * markup; the server fold validates the per-parent total. A bookable
- * child also carries its date/span compatibility attributes ({@link
- * childDateAttrs}) for the client compatibility script. */
+ *  select over `0..childLimit`, plus — for a bookable pay-more child — its
+ *  non-required price input. A sold-out/closed/inactive child renders a disabled
+ *  select fixed at 0, never selectable. The select is non-required in
+ *  markup; the server fold validates the per-parent total. A bookable
+ *  child also carries its date/span compatibility attributes ({@link
+ *  childDateAttrs}) for the client compatibility script. */
 const renderChildOption = (
   input: ChildOptionInput,
   childLimit: number,
@@ -150,17 +145,16 @@ const renderChildOption = (
     ? `<select name="${selectName}" data-child-qty="${listing.id}"${dateAttrs}>${quantityOptions(
         childLimit,
         restoredChildQty(parentId, listing.id, childLimit),
-        monthLabelsForListing(listing),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
   return `<label class="child-option">${select} ${label}</label>${priceHtml}${input.attributesHtml}`;
 };
 
 /** Render a sole bookable child as informational, and keep the auto-select. It
- * submits no `child_qty_<parentId>_<childId>` field at all: the server fold
- * auto-fills a sole child to the parent's quantity, so a fixed quantity
- * over-submits and is rejected as "too many". Nothing posts a quantity, so it
- * is safe without JS.
+ *  submits no `child_qty_<parentId>_<childId>` field at all: the server fold
+ *  auto-fills a sole child to the parent's quantity, so a fixed quantity
+ *  over-submits and is rejected as "too many". Nothing posts a quantity, so it
+ *  is safe without JS.
  *
  * The informational marker still carries the date and span attributes a
  * selectable child option does ({@link childDateAttrs}). A group page's client
@@ -170,17 +164,7 @@ const renderSoleChildOption = (input: ChildOptionInput): string => {
   const { dateAttrs, listing, namedLabel, parentId, priceHtml } =
     childOptionParts(input);
   const visible = !listing.hidden;
-  // Nothing posts a quantity for a sole auto-selected child, so a plan child
-  // never shows its term in a labelled option — state it beside the marker.
-  const soleTerm = pricedMonthsForListing(listing);
-  const termNote =
-    visible && soleTerm !== undefined
-      ? `<small>${escapeHtml(
-          t("public.ticket.sole_plan_term", { count: soleTerm }),
-        )}</small>`
-      : "";
-  const content = termNote === "" ? namedLabel : `${namedLabel} ${termNote}`;
-  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${visible ? content : ""}</p>${priceHtml}${visible ? input.attributesHtml : ""}`;
+  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${visible ? namedLabel : ""}</p>${priceHtml}${visible ? input.attributesHtml : ""}`;
 };
 
 /**

@@ -1,6 +1,9 @@
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { GroupListingCandidate } from "#db/groups/candidates.ts";
-import { groupCandidateBlockedError } from "#db/groups/homogeneity.ts";
+import {
+  groupCandidateBlockedError,
+  sitePlanCandidateBlockedError,
+} from "#db/groups/homogeneity.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
@@ -270,15 +273,19 @@ export const GroupOverviewPanel = ({
                 label: t("terms.listings"),
                 // The save's own homogeneity rules read the same blocks, so a
                 // candidate the save must refuse is greyed out here with the
-                // why, before the operator saves.
+                // why, before the operator saves. A built-site plan is
+                // blocked for every group, so its why comes first.
                 options: toLinkedItemOptions(ungroupedListings, []).map(
-                  (option, index) => ({
-                    ...option,
-                    blocked: groupCandidateBlockedError(
-                      listings,
-                      ungroupedListings[index]!,
-                    ),
-                  }),
+                  (option, index) => {
+                    const candidate = ungroupedListings[index]!;
+                    return {
+                      ...option,
+                      blocked:
+                        sitePlanCandidateBlockedError(
+                          candidate.assign_built_site,
+                        ) ?? groupCandidateBlockedError(listings, candidate),
+                    };
+                  },
                 ),
               },
             ]}

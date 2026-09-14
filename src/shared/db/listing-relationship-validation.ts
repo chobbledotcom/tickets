@@ -12,7 +12,8 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import type { DayPrices } from "#types";
 
-type EdgeListingRow = Omit<EdgeListing, "day_prices"> & {
+type EdgeListingRow = Omit<EdgeListing, "assign_built_site" | "day_prices"> & {
+  assign_built_site: number;
   bookable_alone: number;
 };
 
@@ -37,11 +38,12 @@ const listingById = async (
   return new Map(
     await Promise.all(
       rows.map(
-        async ({ bookable_alone, ...listing }) =>
+        async ({ assign_built_site, bookable_alone, ...listing }) =>
           [
             listing.id,
             {
               ...listing,
+              assign_built_site: assign_built_site === 1,
               bookableAlone: bookable_alone === 1,
               day_prices: dayPrices.get(listing.id) ?? {},
               name: await rawListingsTable.readColumn(
@@ -108,7 +110,8 @@ export const relationshipErrorTx = async (
       args: listingIds,
       sql: `SELECT listing.id, listing.name, listing.listing_type,
                    listing.months_per_unit, listing.customisable_days,
-                   listing.duration_days, listing.bookable_alone
+                   listing.duration_days, listing.bookable_alone,
+                   listing.assign_built_site
               FROM listings AS listing
              WHERE listing.id IN (${placeholders})`,
     },

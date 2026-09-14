@@ -228,21 +228,21 @@ describe("buildPageListingRows", () => {
   });
 
   test("a renewal page prices every tier by its months per unit", () => {
-    const plan = tl(1, 5, {
-      assign_built_site: true,
-      initial_site_months: 3,
+    const tier = tl(1, 5, {
+      assign_built_site: false,
+      initial_site_months: 0,
       months_per_unit: 1,
-      name: "(3 Months)",
+      name: "Monthly",
       slug: "ab12c",
     });
     const html = renderRows({
       isSingleListing: true,
-      listings: [plan],
+      listings: [tier],
       renewal: true,
     });
     expect(html).toContain('<label>Number of months<select name="quantity_1">');
     // Fulfillment extends the site by months per unit: two units of a
-    // one-month-per-unit tier are two months, not the plan's initial three.
+    // one-month-per-unit tier are two months.
     expect(html).toContain('<option value="2">2 months</option>');
     expect(html).not.toContain("6 months");
   });
@@ -259,23 +259,6 @@ describe("buildPageListingRows", () => {
     expect(html).toContain('<option value="1" selected>');
     expect(html).not.toContain('name="quantity_7"');
     expect(html).not.toContain("mutated");
-  });
-
-  test("a plan member's fixed count reads as the months it grants", () => {
-    const planMember = tl(7, 5, {
-      assign_built_site: true,
-      initial_site_months: 1,
-      name: "Listing A",
-      slug: "ab12c",
-    });
-    const html = renderRows({
-      listings: [planMember],
-      packages: [pagePackage(3, [7], { quantities: new Map([[7, 2]]) })],
-      singlePackagePage: true,
-    });
-    // Two units of a one-month plan are two months per package, not two sites.
-    expect(html).toContain("&times;2 (2 months)");
-    expect(html).toContain('data-package-members="7:2"');
   });
 
   test("a member missing from the quantity map counts one per package", () => {

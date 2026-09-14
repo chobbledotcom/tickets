@@ -7,13 +7,18 @@ import { rawListingsTable } from "./table.ts";
 
 export type ListingOfferFlags = Pick<
   Listing,
-  "active" | "hidden" | "months_per_unit" | "purchase_only"
+  | "active"
+  | "assign_built_site"
+  | "hidden"
+  | "months_per_unit"
+  | "purchase_only"
 >;
 
 type ListingPickerRow = ListingOfferFlags & { name: string };
 
 const listingOfferFlagsColumns = rawListingsTable.read.pick([
   "active",
+  "assign_built_site",
   "hidden",
   "months_per_unit",
   "purchase_only",

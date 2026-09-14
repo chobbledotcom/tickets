@@ -407,6 +407,23 @@ describe("group admin panels", () => {
       });
       expect(html).not.toMatch(/<input disabled[^>]*value="5"/);
     });
+
+    test("greys out a built-site plan candidate, and says why", () => {
+      const group = testGroup({ name: "Picker" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ id: 1, listing_type: "daily" })],
+        ungroupedListings: [
+          testListingWithCount({
+            assign_built_site: true,
+            id: 6,
+            listing_type: "daily",
+          }),
+        ],
+      });
+      expect(html).toMatch(/<input disabled[^>]*value="6"/);
+      expect(html).toContain(t("groups.candidate_site_plan_blocked"));
+    });
   });
 
   describe("GroupAttendeesPanel", () => {

@@ -8,9 +8,12 @@ import {
   groupListingSettingsError,
 } from "#db/groups/homogeneity.ts";
 import {
+  type GroupState,
   groupStatesTx,
+  type ListingState,
   listingStatesTx,
   packageMembersErrorTx,
+  sitePlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
@@ -22,7 +25,9 @@ import {
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 
-/** Rechecks every member after a group becomes a package or hides its members. */
+/** Rechecks every member after a group becomes a package or hides its members.
+ *  A built-site plan can be no group's final member — ordinary or package —
+ *  so that check runs before the package-only rules. */
 const packageGroupMembersErrorTx = async (
   tx: TxScope,
   groupId: number,
@@ -30,12 +35,13 @@ const packageGroupMembersErrorTx = async (
   const state = (await groupStatesTx(tx, [groupId])).get(groupId);
   // The row write can lose a race to a delete; its normal read-back reports 404.
   if (!state) return null;
-  return packageMembersErrorTx(
-    await listingStatesTx(
-      tx,
-      state.members.map((listing) => listing.id),
-    ),
-    state,
+  const listings = await listingStatesTx(
+    tx,
+    state.members.map((listing) => listing.id),
+  );
+  return (
+    (await sitePlanMemberErrorTx(listings)) ??
+    packageMembersErrorTx(listings, state)
   );
 };
 
@@ -165,17 +171,29 @@ export const assignListingsToGroup = async (
     if (listings.length !== ids.length) {
       return t("error.selected_listing_deleted");
     }
-    const siblings: GroupListingSettings[] = [...state.members];
-    for (const checked of listings) {
-      const typeError = groupListingSettingsError(siblings, checked);
-      if (typeError) return typeError;
-      siblings.push(checked);
-    }
-    const packageError = await packageMembersErrorTx(listings, state);
-    if (packageError) return packageError;
+    const batchError = await addListingsBatchError(listings, state);
+    if (batchError) return batchError;
     // New members join with the default pick count of one, so their own cap
     // always fits; the group-edit fence judges every saved quantity.
     await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
   });
+};
+
+/** The rejection reasons for one add-listings batch: a built-site plan joins
+ *  no group (ordinary or package), every joiner must match the group's
+ *  settings, and package rules hold for every joiner. */
+const addListingsBatchError = async (
+  listings: readonly ListingState[],
+  state: GroupState,
+): Promise<string | null> => {
+  const sitePlanError = await sitePlanMemberErrorTx(listings);
+  if (sitePlanError) return sitePlanError;
+  const siblings: GroupListingSettings[] = [...state.members];
+  for (const checked of listings) {
+    const typeError = groupListingSettingsError(siblings, checked);
+    if (typeError) return typeError;
+    siblings.push(checked);
+  }
+  return packageMembersErrorTx(listings, state);
 };

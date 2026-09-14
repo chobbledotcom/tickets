@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { getSumupCheckout } from "#db/sumup-checkouts.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
+import type { ModifierSpec } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   expectClosedCheckoutFailure,
@@ -25,6 +26,28 @@ const intent = {
   phone: "",
   special_instructions: "",
 };
+
+/** A £0.01 discount on the given listings — an amount no per-unit price
+ *  divides evenly, so the charge splits into differently-priced lines. */
+const pennyOff = (listingIds: number[]): ModifierSpec => ({
+  id: 9,
+  kind: "fixed",
+  listingIds,
+  name: "Penny off",
+  quantity: 1,
+  trigger: "code",
+  value: -1,
+});
+
+/** A one-month site-plan line of the given quantity at £5 per unit. */
+const oneMonthPlan = (quantity: number) => ({
+  listingId: 3,
+  name: "(1 Month)",
+  purchaseUnit: { kind: "months" as const, monthsPerUnit: 1 },
+  quantity,
+  slug: "one-month",
+  unitPrice: 500,
+});
 
 /** A fake SumUp client that answers creates as the given checkout and hands
  *  back the last body it was sent, so a test can read what went over the wire. */
@@ -125,16 +148,7 @@ describe("sumup createCheckout", () => {
       await sumupApi.createCheckout(
         {
           ...intent,
-          items: [
-            {
-              initialSiteMonths: 1,
-              listingId: 3,
-              name: "(1 Month)",
-              quantity: 3,
-              slug: "one-month",
-              unitPrice: 500,
-            },
-          ],
+          items: [oneMonthPlan(3)],
         },
         "http://localhost",
       );
@@ -154,17 +168,7 @@ describe("sumup createCheckout", () => {
       await sumupApi.createCheckout(
         {
           ...intent,
-          items: [
-            {
-              initialSiteMonths: 1,
-              listingId: 3,
-              name: "(1 Month)",
-              quantity: 2,
-              slug: "one-month",
-              unitPrice: 500,
-            },
-            { ...intent.items[0]! },
-          ],
+          items: [oneMonthPlan(2), { ...intent.items[0]! }],
         },
         "http://localhost",
       );
@@ -173,6 +177,52 @@ describe("sumup createCheckout", () => {
       expect(capture.sent().description).toBe(
         "Site plan: (1 Month) — 2 months + Evt (x2)",
       );
+    });
+  });
+
+  test("states a plan's term once when a discount splits the charge", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_split",
+      url: "https://pay.sumup.com/split",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [oneMonthPlan(3)],
+          modifiers: [pennyOff([3])],
+        },
+        "http://localhost",
+      );
+      // The £0.01 discount splits the charge into 2× £5.00 and 1× £4.99
+      // lines. Each fragment repeats the item's whole quantity, so the
+      // description must state the term once: three months, not six.
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 3 months",
+      );
+      // The charged amount still reflects the discount.
+      expect(capture.sent().amount).toBe(14.99);
+    });
+  });
+
+  test("states each unit once in a split plan-and-ticket order", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_split_mixed",
+      url: "https://pay.sumup.com/split-mixed",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [oneMonthPlan(2), { ...intent.items[0]! }],
+          modifiers: [pennyOff([3])],
+        },
+        "http://localhost",
+      );
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 2 months + Evt (x2)",
+      );
+      expect(capture.sent().amount).toBe(29.99);
     });
   });
 

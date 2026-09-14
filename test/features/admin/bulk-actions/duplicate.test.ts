@@ -8,14 +8,16 @@ import {
 } from "#db/groups.ts";
 import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { adminFormPost, getBulkActionForm } from "#test-utils/session.ts";
 
 const getDuplicateForm = getBulkActionForm("duplicate");
@@ -298,6 +300,34 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         { new_name: "Orphan" },
       );
       expect(response.status).toBe(404);
+    });
+
+    test("refuses to duplicate a group that contains a built-site plan", async () => {
+      using _env = withEnv({ CAN_BUILD_SITES: "true" });
+      const group = await createTestGroup({ name: "Plan Source" });
+      const plan = await createTestListing({
+        assignBuiltSite: true,
+        initialSiteMonths: 1,
+        name: "Duplicated Plan",
+      });
+      const { setListingGroups } = await import("#db/groups.ts");
+      await setListingGroups(plan.id, [group.id]);
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          name_find: "Duplicated",
+          name_replace: "Cloned",
+          new_name: "Plan Copy",
+        },
+      );
+
+      // The whole duplication is rejected: the clone would be a built-site
+      // plan inside a group, which no save path may write.
+      expectErrorFlash(response, sitePlanMemberError("Cloned Plan"));
+      expect(
+        (await groups.cache.getAll()).find((g) => g.name === "Plan Copy"),
+      ).toBeUndefined();
     });
   });
 });

@@ -86,8 +86,8 @@ describeStripe("what Stripe is asked to charge for", () => {
       checkoutIntent({
         items: [
           checkoutItem({
-            initialSiteMonths: 1,
             name: "(1 Month)",
+            purchaseUnit: { kind: "months", monthsPerUnit: 1 },
             quantity: 3,
           }),
         ],
@@ -105,7 +105,12 @@ describeStripe("what Stripe is asked to charge for", () => {
       describedAs(
         await createdWith(
           checkoutIntent({
-            items: [checkoutItem({ initialSiteMonths: 3, name: "(3 Months)" })],
+            items: [
+              checkoutItem({
+                name: "(3 Months)",
+                purchaseUnit: { kind: "months", monthsPerUnit: 3 },
+              }),
+            ],
           }),
         ),
       ),

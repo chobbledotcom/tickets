@@ -1,10 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { FormParams } from "#shared/form-data.ts";
-import {
-  runWithSavedFormContext,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
 import {
   renderDateSelector,
   renderDayCountSelector,
@@ -12,17 +7,7 @@ import {
   renderTermsAndCheckbox,
 } from "#templates/public/reservations/controls.ts";
 import { reservesHint, reservesHintStart } from "#test-utils/duration-hint.ts";
-
-/** Render with the given just-submitted values stashed, the way a validation
- *  re-render sees them. */
-const renderedWithSaved = (
-  saved: Record<string, string>,
-  render: () => string,
-): string =>
-  runWithSavedFormContext(() => {
-    setSavedFormData(new FormParams(saved));
-    return render();
-  });
+import { withSubmittedValues } from "#test-utils/saved-form.ts";
 
 describe("renderDateSelector", () => {
   test("escapes date values in the option value attribute", () => {
@@ -71,7 +56,7 @@ describe("renderDateSelector", () => {
 
 describe("renderDayCountSelector", () => {
   test("restores the submitted day count on a re-render", () => {
-    const html = renderedWithSaved({ day_count: "2" }, () =>
+    const html = withSubmittedValues({ day_count: "2" }, () =>
       renderDayCountSelector([1, 2, 3]),
     );
     expect(html).toContain('<option value="2" selected>');
@@ -105,7 +90,7 @@ describe("renderPayMoreInput", () => {
   };
 
   test("restores the submitted price on a re-render", () => {
-    const html = renderedWithSaved({ custom_price: "25.00" }, () =>
+    const html = withSubmittedValues({ custom_price: "25.00" }, () =>
       renderPayMoreInput(listing),
     );
     expect(html).toContain('value="25.00"');
@@ -186,7 +171,7 @@ describe("renderPayMoreInput", () => {
 
 describe("renderTermsAndCheckbox", () => {
   test("keeps the box ticked when the buyer had agreed", () => {
-    const html = renderedWithSaved({ agree_terms: "1" }, () =>
+    const html = withSubmittedValues({ agree_terms: "1" }, () =>
       renderTermsAndCheckbox("Be kind."),
     );
     expect(html).toContain('name="agree_terms" value="1" checked required');

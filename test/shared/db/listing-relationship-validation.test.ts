@@ -5,6 +5,7 @@ import { relationshipErrorTx } from "#db/listing-relationship-validation.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   allAddOnWithStaleChildLink,
   groupAddOnWithStaleParentLink,
@@ -61,6 +62,34 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
     await optInAddOnForListings("Child extra", [child.id]);
 
     expect(await check(parent.id, child.id)).toContain("Child extra");
+  });
+
+  test("refuses an edge whose parent assigns a built site", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const parent = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "Plan parent",
+    });
+    const child = await createTestListing({ name: "Plan child" });
+
+    expect(await check(parent.id, child.id)).toBe(
+      t("listings_table.children_err_parent_site_plan", { name: parent.name }),
+    );
+  });
+
+  test("refuses an edge whose child assigns a built site", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const parent = await createTestListing({ name: "Plain parent" });
+    const child = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "Plan child",
+    });
+
+    expect(await check(parent.id, child.id)).toBe(
+      t("listings_table.children_err_child_site_plan", { name: child.name }),
+    );
   });
 
   test("allows a standalone child to keep its own add-on", async () => {

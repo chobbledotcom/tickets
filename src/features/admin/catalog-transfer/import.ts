@@ -29,6 +29,7 @@ import {
 import { identity, mapById } from "#fp";
 import { t } from "#i18n";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
+import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import {
   type AdminLevel,
@@ -88,6 +89,10 @@ const importedGroupMembersError = async (
 ): Promise<string | null> => {
   const listingById = mapById(identity<ListingWithCount>)(listings);
   const memberListings = memberIds.map((id) => listingById.get(id)!);
+  // A built-site plan member joins no group — ordinary or package — so the
+  // whole import refuses the same way a direct membership write would.
+  const sitePlan = memberListings.find((listing) => listing.assign_built_site);
+  if (sitePlan) return sitePlanMemberError(sitePlan.name);
   const homogeneityError = membersHomogeneous(memberListings);
   if (homogeneityError) return homogeneityError;
   if (!group.isPackage) return null;

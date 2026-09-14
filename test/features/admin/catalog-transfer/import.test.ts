@@ -4,8 +4,10 @@ import { execute } from "#db/client.ts";
 import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("catalog group import", { db: true }, () => {
   test("creates a group with its named member", async () => {
@@ -117,4 +119,59 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
       }),
     ).toEqual({ error: t("catalog_transfer.member_missing"), ok: false });
   });
+
+  test("rejects a group import naming a built-site plan member", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const member = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "Plan Group Member",
+    });
+
+    await refusePlanMemberImport({ name: "Plan Member Group" }, member);
+  });
+
+  test("rejects a group import when the member gains its plan inside the transaction", async () => {
+    // The request-level read sees a plain listing; a write between that read
+    // and the transaction flips it into a built-site plan, so only the
+    // in-transaction member recheck can roll the whole import back.
+    const member = await createTestListing({ name: "Tx flipped member" });
+    await execute(
+      `CREATE TRIGGER plan_member_after_group_insert
+         AFTER INSERT ON groups
+         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}; END`,
+    );
+
+    try {
+      await refusePlanMemberImport(
+        { isPackage: true, name: "Tx flipped member group" },
+        member,
+      );
+    } finally {
+      await execute("DROP TRIGGER plan_member_after_group_insert");
+    }
+  });
 });
+
+/** Run a group import naming one member and assert the shared built-site plan
+ *  refusal plus that no group was created — nothing partially imports. */
+async function refusePlanMemberImport(
+  group: { isPackage?: boolean; name: string },
+  member: { name: string },
+): Promise<void> {
+  expect(
+    await importCatalog({
+      group,
+      kind: "group",
+      members: [{ listing: member.name }],
+      version: 1,
+    }),
+  ).toEqual({
+    error: sitePlanMemberError(member.name),
+    ok: false,
+  });
+  const { groups } = await import("#db/groups.ts");
+  expect(
+    (await groups.cache.getAll()).find((row) => row.name === group.name),
+  ).toBeUndefined();
+}

@@ -21,13 +21,23 @@ describe("checkoutItem terms", () => {
       slug: "p3m",
     });
     expect(checkoutItem(plan, 2, 4500)).toEqual({
-      initialSiteMonths: 3,
       listingId: plan.id,
       name: "(3 Months)",
+      purchaseUnit: { kind: "months", monthsPerUnit: 3 },
       quantity: 2,
       slug: "p3m",
       unitPrice: 4500,
     });
+  });
+
+  test("carries no unit when an ordinary listing lacks the flags entirely", () => {
+    const listing = testListing({ name: "Gala", slug: "gala" });
+    delete (listing as { assign_built_site?: unknown }).assign_built_site;
+    delete (listing as { initial_site_months?: number }).initial_site_months;
+    delete (listing as { months_per_unit?: number }).months_per_unit;
+    expect(Object.hasOwn(checkoutItem(listing, 1, 1000), "purchaseUnit")).toBe(
+      false,
+    );
   });
 
   test("keeps an ordinary listing a ticket line", () => {
@@ -39,33 +49,61 @@ describe("checkoutItem terms", () => {
       slug: "gala",
       unitPrice: 1000,
     });
-    expect(
-      Object.hasOwn(checkoutItem(listing, 3, 1000), "initialSiteMonths"),
-    ).toBe(false);
   });
 
-  test("carries no term when the stated initial months are zero", () => {
+  test("prices a renewal purchase by the tier's months per unit", () => {
+    const tier = testListing({
+      hidden: true,
+      months_per_unit: 2,
+      name: "Renew",
+      purchase_only: true,
+      slug: "renew",
+    });
+    expect(checkoutItem(tier, 4, 800, { renewal: true })).toEqual({
+      listingId: tier.id,
+      name: "Renew",
+      purchaseUnit: { kind: "months", monthsPerUnit: 2 },
+      quantity: 4,
+      slug: "renew",
+      unitPrice: 800,
+    });
+  });
+
+  test("keeps a tier-priced listing on tickets outside a renewal", () => {
+    const tier = testListing({
+      hidden: true,
+      months_per_unit: 2,
+      name: "Renew",
+      purchase_only: true,
+      slug: "renew",
+    });
+    expect(Object.hasOwn(checkoutItem(tier, 1, 500), "purchaseUnit")).toBe(
+      false,
+    );
+  });
+
+  test("throws when the stated initial months are zero", () => {
     const listing = testListing({
       assign_built_site: true,
       initial_site_months: 0,
       name: "Zero",
       slug: "zero",
     });
-    expect(
-      Object.hasOwn(checkoutItem(listing, 1, 0), "initialSiteMonths"),
-    ).toBe(false);
+    expect(() => checkoutItem(listing, 1, 0)).toThrow(
+      "assigned-site plan states no initial months",
+    );
   });
 
-  test("carries no term when the initial months are unstated", () => {
+  test("throws when the initial months are unstated", () => {
     const listing = testListing({
       assign_built_site: true,
       name: "Unstated",
       slug: "unst",
     });
     delete (listing as { initial_site_months?: number }).initial_site_months;
-    expect(
-      Object.hasOwn(checkoutItem(listing, 1, 0), "initialSiteMonths"),
-    ).toBe(false);
+    expect(() => checkoutItem(listing, 1, 0)).toThrow(
+      "assigned-site plan states no initial months",
+    );
   });
 });
 

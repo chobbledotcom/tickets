@@ -234,19 +234,69 @@ describeWithEnv(
         expect(fetchStub.calls.length).toBe(0);
       });
 
-      test("assigns sites independently per listing", async () => {
-        await insertSitesAAndB();
+      test("combines one buyer's plan listings into one site with summed months", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2005");
+        await insertBuiltSite("Site B", "b.test.net", "", "", true, "2006");
 
         await assignAndNotifyBuiltSites([
-          siteEntry({ attendeeId: 10, listingId: 1, listingName: "Listing 1" }),
-          siteEntry({ attendeeId: 10, listingId: 2, listingName: "Listing 2" }),
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 12,
+            listingId: 1,
+            listingName: "12 Month Plan",
+          }),
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            listingId: 2,
+            listingName: "3 Month Plan",
+          }),
         ]);
 
         const sites = await builtSites.getAll();
-        const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-        expect(assigned).toHaveLength(2);
-        expect(assigned[0]!.assignedListingId).toBe(1);
-        expect(assigned[1]!.assignedListingId).toBe(2);
+        expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(
+          1,
+        );
+        // 12 + 3: the buyer's two plans buy 15 months on their one site.
+        const assigned = await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 15).slice(0, 10),
+        );
+        expect(assigned.assignedAttendeeId).toBe(10);
+        expect(assigned.assignedListingId).toBe(1);
+        const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+        expect(body.subject).toBe("Your new site is ready");
+        expect(body.html).toContain("12 Month Plan + 3 Month Plan");
+        expect(body.html).toContain("https://a.test.net/setup/");
+      });
+
+      test("a no-quantity plan line beside a booked one adds no site and no months", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2007");
+
+        await assignAndNotifyBuiltSites([
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            listingId: 1,
+            quantity: 0,
+          }),
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            listingId: 2,
+            quantity: 2,
+          }),
+        ]);
+
+        const remaining = await builtSites.getAll();
+        expect(
+          remaining.filter((s) => s.assignedAttendeeId !== null),
+        ).toHaveLength(1);
+        // 2 units of the 3-month plan: the 0-quantity line adds nothing.
+        await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 6).slice(0, 10),
+        );
       });
 
       test("does not assign when no sites available and buildSite fails", async () => {
@@ -362,9 +412,18 @@ describeWithEnv(
       test("sends email with plural subject for multiple sites", async () => {
         await insertSitesAAndB();
 
+        // Two buyers in one order, each with their own site.
         await assignAndNotifyBuiltSites([
-          siteEntry({ listingId: 1, listingName: "Listing 1" }),
-          siteEntry({ listingId: 2, listingName: "Listing 2" }),
+          siteEntry({
+            attendeeId: 10,
+            listingId: 1,
+            listingName: "Listing 1",
+          }),
+          siteEntry({
+            attendeeId: 11,
+            listingId: 2,
+            listingName: "Listing 2",
+          }),
         ]);
 
         expect(fetchStub.calls.length).toBe(1);
