@@ -79,6 +79,5 @@
   "groups.candidate_type_blocked": "Every listing in this group is {type}. This listing is {candidate}.",
   "groups.candidate_days_blocked_fixed": "Every listing in this group has a fixed number of days. This listing lets visitors choose theirs.",
   "groups.candidate_days_blocked_customisable": "Every listing in this group lets visitors choose the number of days. This listing cannot.",
-  "groups.candidate_site_plan_blocked": "This listing is a built-site plan. It is booked on its own.",
   "success.listings_added_to_group": "Listings added to group"
 }

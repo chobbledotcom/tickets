@@ -67,8 +67,8 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
-    hint: "Maximum units a customer can buy in one transaction — each unit of a built-site plan buys its configured months",
-    label: "Max quantity per purchase",
+    hint: "Maximum tickets a customer can buy in one transaction",
+    label: "Max tickets per purchase",
     min: 1,
     name: "max_quantity",
     required: true,
@@ -177,7 +177,7 @@ export const LISTING_FIELDS = [
   },
   {
     inputmode: "decimal",
-    label: "Price per unit (leave empty for free)",
+    label: "Ticket price (leave empty for free)",
     name: "unit_price",
     pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 10.00",
@@ -186,7 +186,7 @@ export const LISTING_FIELDS = [
     type: "text",
   },
   {
-    hint: "Let attendees pay more than the price per unit (the price above becomes a minimum)",
+    hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
     label: "Allow pay more",
     name: "can_pay_more",
     options: [
@@ -200,7 +200,7 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "100.00",
-    hint: "The maximum price attendees can pay. Must be at least £1 more than the price per unit.",
+    hint: "The maximum price attendees can pay. Must be at least £1 more than the ticket price.",
     inputmode: "decimal",
     label: "Maximum price (for pay more)",
     name: "max_price",
