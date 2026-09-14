@@ -18,6 +18,7 @@ import {
 } from "#shared/listing-fields.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import {
+  CONTACT_TEXTAREA_LIMIT,
   PHONE_FIELD_LENGTH,
   validateAddress,
   validateEmail,
@@ -93,7 +94,7 @@ const phoneField: Field = {
 const addressField: Field = {
   autocomplete: "street-address",
   label: "Your Address",
-  maxlength: MAX_INPUT_LENGTH,
+  maxlength: CONTACT_TEXTAREA_LIMIT,
   name: "address",
   required: true,
   type: "textarea",
@@ -103,7 +104,7 @@ const addressField: Field = {
 /** Special instructions field for ticket forms (textarea) */
 const specialInstructionsField: Field = {
   label: "Special Instructions",
-  maxlength: MAX_INPUT_LENGTH,
+  maxlength: CONTACT_TEXTAREA_LIMIT,
   name: "special_instructions",
   required: true,
   type: "textarea",

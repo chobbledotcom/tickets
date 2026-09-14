@@ -251,9 +251,21 @@ export const getSlugField = (): InputField<"slug"> => ({
   hint: t("fields.listing.slug_hint_field"),
 });
 
+/** The limit the two contact textareas (address and special instructions)
+ *  answer to. They declare the 250-character contact budget, but like every
+ *  textarea their limit is bounded by the configured textarea ceiling — a
+ *  smaller ceiling must tighten the public form and the admin attendee
+ *  editor the same amount, or the two paths for the same stored value would
+ *  accept different lengths. Both renderers and both validators read this
+ *  one constant. */
+export const CONTACT_TEXTAREA_LIMIT = Math.min(
+  MAX_INPUT_LENGTH,
+  MAX_TEXTAREA_LENGTH,
+);
+
 /** Validate address length */
 export const validateAddress = atMostLong(
-  MAX_INPUT_LENGTH,
+  CONTACT_TEXTAREA_LIMIT,
   "fields.validation.address_max",
 );
 
@@ -265,6 +277,6 @@ export const validateName = atMostLong(
 
 /** Validate special instructions length */
 export const validateSpecialInstructions = atMostLong(
-  MAX_INPUT_LENGTH,
+  CONTACT_TEXTAREA_LIMIT,
   "fields.validation.special_instructions_max",
 );

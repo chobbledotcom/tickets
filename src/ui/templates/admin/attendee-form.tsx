@@ -42,7 +42,10 @@ import {
   type SelectOption,
 } from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
-import { PHONE_FIELD_LENGTH } from "#templates/fields/validators.ts";
+import {
+  CONTACT_TEXTAREA_LIMIT,
+  PHONE_FIELD_LENGTH,
+} from "#templates/fields/validators.ts";
 import { type AdminSession, MAX_DURATION_DAYS } from "#types";
 
 /* jscpd:ignore-end */
@@ -209,7 +212,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
       <textarea
         autocomplete="off"
         id="special_instructions"
-        maxlength={MAX_INPUT_LENGTH}
+        maxlength={CONTACT_TEXTAREA_LIMIT}
         name="special_instructions"
         rows={3}
       >

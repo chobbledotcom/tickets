@@ -14,7 +14,10 @@ import {
 } from "#templates/fields/admin.ts";
 import { builderForm } from "#templates/fields/builder.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
-import { PHONE_FIELD_LENGTH } from "#templates/fields/validators.ts";
+import {
+  CONTACT_TEXTAREA_LIMIT,
+  PHONE_FIELD_LENGTH,
+} from "#templates/fields/validators.ts";
 
 describe("form length boundaries", () => {
   const contactFields = "email,phone,address,special_instructions";
@@ -23,24 +26,22 @@ describe("form length boundaries", () => {
       validateForm(new FormParams({ [field.name]: value }), [field]),
     ).toEqual({ valid: true, values: { [field.name]: value } });
   };
+  const CONTACT_RULES: Record<string, { label: string; max: number }> = {
+    address: { label: "Address", max: CONTACT_TEXTAREA_LIMIT },
+    email: { label: "Email address", max: MAX_INPUT_LENGTH },
+    name: { label: "Name", max: MAX_INPUT_LENGTH },
+    phone: { label: "Phone number", max: PHONE_FIELD_LENGTH },
+    special_instructions: {
+      label: "Special instructions",
+      max: CONTACT_TEXTAREA_LIMIT,
+    },
+  };
   for (const [label, fields] of [
     ["public", getTicketFields(contactFields, false)],
     ["admin", getAddAttendeeFields(contactFields, false)],
   ] as const) {
-    for (const field of fields.filter((field) =>
-      ["name", "email", "phone", "address", "special_instructions"].includes(
-        field.name,
-      ),
-    )) {
-      const max =
-        field.name === "phone" ? PHONE_FIELD_LENGTH : MAX_INPUT_LENGTH;
-      const labels: Record<string, string> = {
-        address: "Address",
-        email: "Email address",
-        name: "Name",
-        phone: "Phone number",
-        special_instructions: "Special instructions",
-      };
+    for (const field of fields.filter((field) => field.name in CONTACT_RULES)) {
+      const { label: fieldLabel, max } = CONTACT_RULES[field.name]!;
       const valueAt = (length: number): string =>
         field.name === "email"
           ? `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(length - 197)}.com`
@@ -58,7 +59,7 @@ describe("form length boundaries", () => {
             field,
           ]),
         ).toEqual({
-          error: `${labels[field.name]} must be ${max} characters or fewer`,
+          error: `${fieldLabel} must be ${max} characters or fewer`,
           valid: false,
         });
       });
