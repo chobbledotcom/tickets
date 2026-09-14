@@ -7,7 +7,11 @@
 import { t } from "#i18n";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
-import { MAX_INPUT_LENGTH, PASSWORD_MIN_LENGTH } from "#shared/limits.ts";
+import {
+  MAX_INPUT_LENGTH,
+  MAX_TEXTAREA_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
@@ -140,7 +144,12 @@ const getBuiltSiteFields = () =>
       validate: validateHttpsDomainUrl,
     },
     builtSiteBox("db_url", "db_url", "url" as const),
-    builtSiteBox("db_token", "db_token", "password" as const),
+    {
+      ...builtSiteBox("db_token", "db_token", "password" as const),
+      // A libsql auth token is a pasted machine credential, like the wallet
+      // PEM keys: a real one runs past the single-line cap.
+      maxlength: MAX_TEXTAREA_LENGTH,
+    },
     builtSiteBox("hosting_id", "hosting_id", "text" as const),
     ...providerChoices({
       db: [

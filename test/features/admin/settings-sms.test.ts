@@ -68,12 +68,19 @@ describeWithEnv("settings (sms gateway form)", { db: true }, () => {
     ["sms_gateway_username", "Phone app username"],
     ["sms_gateway_password", "Phone app password"],
     ["sms_gateway_webhook_secret", "Webhook signing secret (optional)"],
+    ["sms_gateway_passphrase", "End-to-end key (passphrase)"],
   ] as const) {
     test(`refuses an over-long ${field} before the save`, async () => {
-      const response = await post({
+      const data: Record<string, string> = {
         [field]: "x".repeat(MAX_INPUT_LENGTH + 1),
-        sms_gateway_passphrase: "p".repeat(SMS_PASSPHRASE_MIN_LENGTH),
-      });
+      };
+      // The passphrase field is what the loop is over-long this round; the
+      // other rounds need a valid passphrase so only the studied refusal
+      // can answer.
+      if (field !== "sms_gateway_passphrase") {
+        data.sms_gateway_passphrase = "p".repeat(SMS_PASSPHRASE_MIN_LENGTH);
+      }
+      const response = await post(data);
 
       expect(response.status).toBe(302);
       expectFlash(

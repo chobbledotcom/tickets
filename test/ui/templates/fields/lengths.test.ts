@@ -4,13 +4,15 @@ import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderField } from "#shared/forms/rendering.tsx";
 import { validateForm } from "#shared/forms/validation.ts";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
+  getBuiltSiteForm,
   getChangePasswordForm,
   getLoginForm,
   getSetupForm,
 } from "#templates/fields/admin.ts";
+import { builderForm } from "#templates/fields/builder.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { PHONE_FIELD_LENGTH } from "#templates/fields/validators.ts";
 
@@ -112,6 +114,37 @@ describe("form length boundaries", () => {
         ]),
       ).toEqual({
         error: `Body must be ${maximum} characters or fewer`,
+        valid: false,
+      });
+    });
+  }
+
+  // The db_token is the one password-type field that declares its own cap:
+  // it chooses a pasted machine credential (a libsql auth token), not a
+  // login check, and a real token runs past the single-line limit.
+  for (const [label, form] of [
+    ["builder", builderForm],
+    ["built-site", getBuiltSiteForm()],
+  ] as const) {
+    const token = form.fields.find(
+      (field) => field.name === "db_token",
+    ) as Field;
+    test(`${label} db_token renders the machine-credential cap`, () => {
+      expect(renderField(token, "")).toContain(
+        `maxlength="${MAX_TEXTAREA_LENGTH}"`,
+      );
+    });
+    test(`${label} db_token accepts a real-sized token`, () => {
+      expectAccepts(token, "t".repeat(MAX_TEXTAREA_LENGTH));
+    });
+    test(`${label} db_token rejects one character past the cap`, () => {
+      expect(
+        validateForm(
+          new FormParams({ db_token: "t".repeat(MAX_TEXTAREA_LENGTH + 1) }),
+          [token],
+        ),
+      ).toEqual({
+        error: `Database token must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
         valid: false,
       });
     });
