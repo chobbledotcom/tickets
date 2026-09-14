@@ -1,13 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bodyFingerprint } from "#scripts/check-shapes/rules.ts";
 import {
   commentSpans,
   lexicalSpans,
   shapeOf,
   skipString,
 } from "#scripts/typescript-lex.ts";
-import { interpolated, template } from "#test/scripts/check-shapes/samples.ts";
+import { interpolated, template } from "./samples.ts";
 
 describe("shape scanner review regressions", () => {
   test("skips a line comment before a for-await header", () => {
@@ -58,11 +57,14 @@ describe("shape scanner review regressions", () => {
     ]);
   });
 
-  test("ignores a backtick in a line comment when it fingerprints code", () => {
-    const shallow = "one(); // `\nif (ready) {\n  two();\n}";
-    const deep = "    one(); // `\n    if (ready) {\n      two();\n    }";
-
-    expect(bodyFingerprint(shallow)).toBe(bodyFingerprint(deep));
+  test("ignores a backtick in a line comment instead of opening a template", () => {
+    const source = "one(); // `\nif (ready) {\n  two();\n}";
+    const spans = [...lexicalSpans(source)];
+    const backtickAt = source.indexOf("`");
+    expect(backtickAt).toBeGreaterThan(0);
+    expect(spans.some((span) => span.start === backtickAt)).toBe(false);
+    const comment = spans.find((span) => span.kind === "comment");
+    expect(source.slice(comment?.start, comment?.end)).toBe("// `");
   });
 
   test("keeps a regex class inside a template interpolation", () => {
@@ -70,13 +72,18 @@ describe("shape scanner review regressions", () => {
     const shallow = `const found = ${value};\nafter();`;
     const deep = `    const found = ${value};\n    after();`;
 
-    expect(bodyFingerprint(shallow)).toBe(bodyFingerprint(deep));
+    expect(shapeOf(shallow)).toEqual(shapeOf(deep));
   });
 
-  test("still keeps real template whitespace in a fingerprint", () => {
-    expect(bodyFingerprint("return `a\n b`")).not.toBe(
-      bodyFingerprint("return `a\nb`"),
-    );
+  test("keeps the whitespace inside a template literal", () => {
+    const templateSpanOf = (source: string): string => {
+      const span = [...lexicalSpans(source)].find(
+        (entry) => entry.kind === "string",
+      );
+      return source.slice(span?.start, span?.end);
+    };
+    expect(templateSpanOf("return `a\n b`")).toBe("`a\n b`");
+    expect(templateSpanOf("return `a\nb`")).toBe("`a\nb`");
   });
 
   test("ends a template after JSX closing tags", () => {

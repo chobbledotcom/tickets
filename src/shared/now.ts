@@ -29,14 +29,17 @@ export const nowIso = (): string => new Date().toISOString();
 /** Epoch milliseconds for numeric comparisons */
 export const nowMs = (): number => Date.now();
 
+/** ISO timestamp `durationMs` from the current time — negative before, positive
+ * after. */
+const isoOffset = (durationMs: number): string =>
+  new Date(nowMs() + durationMs).toISOString();
+
 /** ISO timestamp a fixed duration before the current time. */
-export const isoBefore = (durationMs: number): string =>
-  new Date(nowMs() - durationMs).toISOString();
+export const isoBefore = (durationMs: number): string => isoOffset(-durationMs);
 
 /** ISO timestamp a fixed duration after the current time — for a column that
  * says when to do something next, rather than when something happened. */
-export const isoAfter = (durationMs: number): string =>
-  new Date(nowMs() + durationMs).toISOString();
+export const isoAfter = (durationMs: number): string => isoOffset(durationMs);
 
 /** Current time in whole epoch seconds — the unit signed-token expiry uses. */
 export const nowSeconds = (): number => Math.floor(nowMs() / 1000);

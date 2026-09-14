@@ -69,16 +69,8 @@ export const isGeneratedFile = (file: string): boolean =>
   /(^|\/)migrations\/schema\/columns\.ts$/.test(file) ||
   /(^|\/)ui\/static\//.test(file);
 
-/**
- * A migration that shipped: history that must never change. A duplication scan
- * skips these because a migration repeats by design. The rule gates still read
- * every one, so a migration added on a branch is checked like any new file.
- */
-export const isShippedMigration = (file: string): boolean =>
-  /(^|\/)migrations\/2\d/.test(file);
-
 /** Every script the rule gates read: all TypeScript and JavaScript beneath
- * `directory`, built output left out — shipped migrations included. */
+ * `directory`, built output left out. */
 export const collectGateScriptFiles = scriptsSkipping(isGeneratedFile);
 
 /** Every file a rule gate reads: the gate scripts, the authored stylesheets,
@@ -96,18 +88,11 @@ export const collectGateFiles = async (
   return [...gateScripts, ...stylesheets, ...shellScripts].sort();
 };
 
-/** Every script a duplication scan reads: gate-checked files minus the
- * shipped migrations, sorted. */
-export const collectAuthoredScriptFiles = scriptsSkipping(
-  (file) => isGeneratedFile(file) || isShippedMigration(file),
-);
-
 /**
  * Read every file the collector gathers under each root, and collect what one
  * reader derives from a file's path and text. The reader returns its items
  * for that file. A reader with nothing to say about a file returns an empty
- * list for it.
- */
+ * list for it. */
 export const collectFromFiles = async <Item>(
   roots: readonly string[],
   collect: (root: string) => Promise<string[]>,

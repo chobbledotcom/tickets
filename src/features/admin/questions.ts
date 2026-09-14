@@ -47,6 +47,10 @@ import {
 /* jscpd:ignore-end */
 import { createListingChoicePost } from "./listing-choice-post.ts";
 import {
+  appendWithCreationLog,
+  confirmDeleteWithLog,
+} from "./logged-actions.ts";
+import {
   answerOrder,
   handleAddAnswer,
   handleAnswerRecalculateGet,
@@ -101,15 +105,7 @@ const handleQuestionsPost = createAuthedFormRoute({
     const questionId = await writeRowInTransaction(
       await questionsTable.insertStatement({ displayType, text }),
       null,
-      async (transaction, id) => {
-        await questionsOrder.append({ key: id, transaction });
-        await logActivity(
-          `Question '${text}' created`,
-          undefined,
-          undefined,
-          transaction,
-        );
-      },
+      appendWithCreationLog(questionsOrder, "Question", text),
     );
     return redirect(`/admin/questions/${questionId}`, "Question created", true);
   },
@@ -193,10 +189,7 @@ const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
   identifier: (q) => questionTextFlat(q.text),
   identifierLabel: "Question text",
   load: (id) => getQuestionWithAnswers(id),
-  onConfirm: async (q) => {
-    await deleteQuestion(q.id);
-    await logActivity(`Question '${q.text}' deleted`);
-  },
+  onConfirm: confirmDeleteWithLog(deleteQuestion, "Question", (q) => q.text),
   path: "/admin/questions/:id/delete",
   render: (q, session, error) => adminQuestionDeletePage(q, session, error),
   successMessage: "Question deleted",

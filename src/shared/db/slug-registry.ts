@@ -167,3 +167,10 @@ export const isSlugTakenAnywhere = async (
   const available = unclaimedSiteSlugCondition(slugIndex, exclude);
   return !(await rowExists(`SELECT 1 WHERE ${available.sql}`, available.args));
 };
+
+/** `isSlugTakenAnywhere` for the rows one entity can edit — a listing edit must
+ * not trip on its own group's slug, and vice-versa. */
+export const slugTakenIn =
+  (table: SlugTable) =>
+  (slug: string, excludeId?: number): Promise<boolean> =>
+    isSlugTakenAnywhere(slug, excludeId ? { id: excludeId, table } : undefined);

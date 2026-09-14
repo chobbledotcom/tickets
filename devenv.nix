@@ -78,6 +78,19 @@ in
       pass_filenames = false;
     };
 
+    # The devenv task `devenv:git-hooks:run` executes `prek run -a` — the
+    # whole `deno task precommit` — on every shell entry, which takes up to
+    # 24 minutes on this tree. The commit-time Git hook and CI already run
+    # the precommit, so shell entry never needs it. A `status` command that
+    # exits 0 tells the task runner the hook run is already satisfied, so the
+    # entry task skips without disabling the hooks themselves. The check runs
+    # only where the git-hooks module defines the task: the ci profile turns
+    # the module off, and a status-only leftover task there would fail to
+    # evaluate.
+    tasks = lib.mkIf config.git-hooks.enable {
+      "devenv:git-hooks:run".status = "exit 0";
+    };
+
     enterShell = "source ${shellSetup}";
   };
 }

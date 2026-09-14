@@ -1016,26 +1016,81 @@ exercise:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-Two further scans catch what literal token matching cannot, because a rename
-hides a copy from jscpd:
+### The renamed copy jscpd finds natively
 
-- `deno task check:shapes` reduces each named function's body to its _shape_ —
-  every name, number and string becomes one symbol — and reports two functions
-  that share one. It reports whole named functions, not token runs, so a config
-  object handed to a shared factory never looks like a function body. The
-  accepted list at `scripts/check-shapes/accepted/` records why each allowed
-  match stands; `merges-to-make.txt` must stay empty. The list only shrinks: a
-  match not on it fails the check, and an entry that matches nothing any more
-  fails too. `MIN_TOKENS` in the run script ratchets downward.
-- `deno task cpd:renamed` runs at a tighter token count and keeps only the pairs
-  whose two sides are the same code with different words. Every kept pair must
-  be merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`.
-  The registry only shrinks: merge a pair, delete its entry, and a new word-only
-  copy anywhere fails the gate.
+jscpd 5.2.0 detects renamed copies itself. `--similarity 0.99` compares whole
+functions, methods and arrow functions by AST shape, with names and literals
+left out: a renamed copy scores 1.0. This replaced both hand-rolled scans —
+`scripts/cpd-renamed.ts` and `scripts/check-shapes.ts` are gone. The gate scans
+`src`, `e2e-payments` and `scripts` through `.jscpd.renamed.json`, and holds the
+accepted matches in the committed baseline `.jscpd.renamed-baseline.json`.
 
-**Every helper number ratchets downward.** `docs/test-duplication.md` measures
-what each remaining step costs. Read its counts as work to do, not as a floor:
-the counts fall as the curries land.
+`deno task cpd` runs the renamed scan last, with `--baseline` and
+`--fail-on-new-clones`. A clone the baseline does not carry fails the task and
+prints with a `[NEW]` mark, so a new renamed copy is a build error. Add a pair
+to the baseline only after you try the curry, with
+`deno task cpd:renamed --update`. Merge the pair instead, and the next
+`--update` drops it. The baseline records no written reason, so let the merge
+history carry that.
+
+The native gate covers whole functions only. The older scans also caught
+word-identical runs inside a function and bodies under a 20-token minimum. The
+exact-token scans still cover the byte-identical class. A renamed block inside a
+larger function is the one gap the change accepts.
+
+Imports remain the one sanctioned repeat, so the `jscpd:ignore-start` /
+`jscpd:ignore-end` markers around an import block stay the mechanism for it.
+
+### Where jscpd itself lives
+
+jscpd v5 is a Rust binary shipped through npm. The platform package Deno picks
+on a glibc Linux (`jscpd-linux-x64-gnu`) is dynamically linked, so a NixOS
+machine cannot start it. The repo self-hosts the fully static
+`jscpd-linux-x64-musl` binary at `.bin/jscpd`, fetched from the npm registry on
+first use and verified against a pinned SHA-256 (`scripts/jscpd/install.ts`).
+The installer mirrors `.bin/stripe-mock` and shares its temp-folder and
+ensure-under-lock helpers (`scripts/bin-tools.ts`), so no machine needs its own
+jscpd install.
+
+### The seven scans, and how hard each looks
+
+The 0% threshold is not the number that decides how hard jscpd looks.
+`minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
+lower number is a tighter net. Six configs divide the tree, because helper code,
+test bodies and stylesheets each deserve a different net. The seventh matches
+whole functions by AST shape and holds accepted matches in a committed baseline.
+
+| Config                | Scans                            | minTokens                                               |
+| --------------------- | -------------------------------- | ------------------------------------------------------- |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19                                                      |
+| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19                                                      |
+| `.jscpd.support.json` | `test/specs/support`             | 18                                                      |
+| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40                                                      |
+| `.jscpd.test.json`    | `test`                           | 48                                                      |
+| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50                                                      |
+| `.jscpd.renamed.json` | `src`, `e2e-payments`, `scripts` | 20, whole functions by shape, plus a committed baseline |
+
+Both helper trees are scanned **alongside `src/`**, so a helper that
+reimplements production logic is flagged against the source it copied. A
+separate run never sees that pair. Where a helper tree can be held tighter than
+`src/` can, it gets a second scan of its own — the support helpers are at 18
+that way, because the scan they share with `src/` cannot go below 19 without
+dragging `src/` down too. A test body is different: it repeats by design, and
+the shared mechanism is the test framework itself, so the whole of `test/` stays
+at the loose 48.
+
+The renamed scan (`deno task cpd:renamed`) catches copies that renamed words
+hide from the token scanners: jscpd matches literal token runs, so two copies of
+one operation with different names sit below `minTokens` 19, while their AST
+shapes still match at `--similarity 0.99`. A new copy fails the check. A copy
+that is by design is recorded in the baseline with `--update`. The check never
+fails on a pair the baseline carries.
+
+**Every helper number ratchets downward** — lower it, bring the tree to it,
+repeat — the same way `check:comments` works. The renamed scan's baseline
+absorbs the current matches. When it shrinks, the merges a pair needs are made.
+`docs/test-duplication.md` measures what each remaining step costs. Read its
+counts as work to do, not as a floor: the counts fall as the curries land.
 
 ## Database Queries
 
@@ -1188,12 +1243,17 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task migrate:turso` - Interactive copy of a remote libSQL database into
   a new Turso database, through Turso's native SQLite file upload.
 - `deno task migrate:sites` - Interactive menu for moving built sites off Bunny
-  databases: reads the master site's site-credentials endpoint, migrates the
-  chosen site to a new Turso database, and updates its Bunny secrets. Confirms
-  by typed site name before changing anything.
-- `deno task check:shapes` - Report two named functions that share a shape under
-  different names — the duplication jscpd cannot see (see
-  [Code Duplication](#code-duplication))
+- `deno task migrate:sites` - Interactive menu for moving built sites off Bunny
+  databases. Reads the live master site's `POST /instance/site-credentials`
+  endpoint to list every built site and which company runs its database,
+  migrates the chosen site to a new Turso database through a temporary SQLite
+  file, then sets that site's `DB_URL` and `DB_TOKEN` secrets through the Bunny
+  API so it uses the new database. Reads `MAIN_INSTANCE_URL`,
+  `MAIN_INSTANCE_KEY`, `BUNNY_API_KEY`, `TURSO_API_TOKEN`, `TURSO_ORGANIZATION`,
+  and `TURSO_GROUP` from `.env` when set, and asks for anything missing. It
+  confirms by typed site name before changing anything, and prints the new
+  `DB_URL`/`DB_TOKEN` so they can be set by hand if the secret update fails. The
+  site keeps its existing `DB_ENCRYPTION_KEY`.
 - `deno task check:alias-exports` - Report an exported name that only renames an
   imported one (see "No alias exports" above)
 - `deno task check:empty-catch` - Report a catch block that holds no statement
@@ -1204,8 +1264,8 @@ query logging and table-scoped cache invalidation stay automatic.
   file to re-record the list. The update refuses a rise, so growth must be split
   first (see "Keep code and test files under ~400 lines" above)
 - `deno task check:ste` - Hold the repository Markdown to the mechanical
-  Simplified Technical English rules, against per-document, per-rule baselines
-  that only fall. Pass `--update` after fixing prose to re-record them. The
+  Simplified Technical English rules, against a committed per-document baseline
+  that only falls. Pass `--update` after fixing prose to record the step. The
   update refuses a rise, so new findings must be fixed first (see
   [Simplified Technical English](#simplified-technical-english--how-we-write-documentation))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
