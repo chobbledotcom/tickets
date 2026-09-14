@@ -231,39 +231,40 @@ describe("ensureJscpd", () => {
     }
   });
 
-  test("keeps a cached binary that matches the checksum", async () => {
+  /** Write a cached binary, run ensureJscpd over it, and read back what
+   * sits at the binary path afterwards: the kept cache or its replacement. */
+  const reconcileCachedBinary = async (
+    cached: Uint8Array,
+    download: () => Promise<Uint8Array>,
+  ): Promise<Uint8Array> => {
     const paths = await tempPaths();
     try {
-      await Deno.writeFile(paths.binaryPath, knownBytes);
+      await Deno.writeFile(paths.binaryPath, cached);
       const binaryPath = await ensureJscpd({
-        download: () => {
-          throw new Error("must not download");
-        },
+        download,
         expectedSha256: await sha256Hex(knownBytes),
         paths,
       });
       expect(binaryPath).toBe(paths.binaryPath);
-      expect(await Deno.readFile(paths.binaryPath)).toEqual(knownBytes);
+      return await Deno.readFile(paths.binaryPath);
     } finally {
       await paths.cleanup();
     }
+  };
+
+  test("keeps a cached binary that matches the checksum", async () => {
+    expect(
+      await reconcileCachedBinary(knownBytes, () => {
+        throw new Error("must not download");
+      }),
+    ).toEqual(knownBytes);
   });
 
   test("replaces a cached binary whose checksum does not match", async () => {
-    const paths = await tempPaths();
-    try {
-      await Deno.writeTextFile(paths.binaryPath, "truncated stale bytes");
-      const tar = await tarWithJscpd();
-      const binaryPath = await ensureJscpd({
-        download: async () => tar,
-        expectedSha256: await sha256Hex(knownBytes),
-        paths,
-      });
-      expect(binaryPath).toBe(paths.binaryPath);
-      expect(await Deno.readFile(paths.binaryPath)).toEqual(knownBytes);
-    } finally {
-      await paths.cleanup();
-    }
+    const stale = new TextEncoder().encode("truncated stale bytes");
+    expect(
+      await reconcileCachedBinary(stale, async () => await tarWithJscpd()),
+    ).toEqual(knownBytes);
   });
 
   test("lets a failed download propagate", async () => {
