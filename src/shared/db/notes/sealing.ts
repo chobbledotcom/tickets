@@ -5,11 +5,13 @@
  * is named once here and everything else works in terms of a sealed note.
  */
 
+/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { openEach } from "#crypto/open-each.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+/* jscpd:ignore-end */
 import { settings } from "#db/settings.ts";
-import { mapParallel } from "#fp";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 
 type SealedNote = OwnerKeyEncrypted | EnvKeyEncrypted;
@@ -49,8 +51,4 @@ const openText = (
     : decrypt(row.note);
 
 /** Open a batch of note rows, keeping their order. */
-export const openNotes = (
-  rows: SystemNoteRow[],
-  privateKey: CryptoKey,
-): Promise<SystemNote[]> =>
-  mapParallel((row: SystemNoteRow) => openNote(row, privateKey))(rows);
+export const openNotes = openEach(openNote);
