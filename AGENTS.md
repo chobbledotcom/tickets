@@ -1408,70 +1408,59 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The renamed copy jscpd cannot see
+### The renamed copy jscpd finds natively
 
-jscpd compares the tokens as written, so **renaming one copy hides it**. Two
-functions that do the same job under different names, over differently named
-values, match no token run and pass every jscpd config at 0%. The wrapper scan
-below catches the renamed token run; `deno task check:shapes` reads the other
-half. It reduces each named function's body to its _shape_ — every name, number
-and string becomes one symbol — and reports two functions that share one.
+jscpd 5.2.0 detects renamed copies itself. `--similarity 0.99` compares whole
+functions, methods and arrow functions by AST shape, with names and literals
+left out: a renamed copy scores 1.0. This replaced both hand-rolled scans —
+`scripts/cpd-renamed.ts` and `scripts/check-shapes.ts` are gone. The gate scans
+`src`, `e2e-payments` and `scripts` through `.jscpd.renamed.json`, and holds the
+accepted matches in the committed baseline `.jscpd.renamed-baseline.json`.
 
-It reports whole named functions, not runs of tokens inside them. That is what
-keeps it readable: a config object handed to a shared factory is the shape this
-codebase wants more of, and it never looks like a function body.
+`deno task cpd` runs the renamed scan last, with `--baseline` and
+`--fail-on-new-clones`. A clone the baseline does not carry fails the task and
+prints with a `[NEW]` mark, so a new renamed copy is a build error. Add a pair
+to the baseline only after the curry has been tried, with
+`deno task cpd:renamed --update`; merge the pair instead and the next `--update`
+drops it. The baseline records no written reason, so let the merge history carry
+that.
 
-It reads every `.ts`, `.tsx` and `.js` file under the trees `.jscpd.json` scans,
-so a browser script we ship as plain JavaScript is compared too. Words a
-component renders become one string, so two components that differ only in their
-wording share a shape, and rewrapped markup does not change one. `#fp` is
-compared like anything else, and only a group whose every site is inside it is
-dropped: its curried pairs match each other by design, but a body elsewhere that
-copies one of them is a real merge to make — call the helper.
+The native gate covers whole functions only. The older scans also caught
+word-identical runs inside a function and bodies under a 20-token minimum; the
+exact-token scans still cover the byte-identical class, and a renamed block
+inside a larger function is the one gap the change accepts.
 
-The accepted list at `scripts/check-shapes/accepted/` records every match this
-tree already carries, one per line with the reason it stands, split in two:
+Imports remain the one sanctioned repeat, so the `jscpd:ignore-start` /
+`jscpd:ignore-end` markers around an import block stay the mechanism for it.
 
-- `merges-to-make.txt` — the same thing written twice. Every line is work
-  somebody still has to do. Make the merge, delete the line. **This file is
-  empty**, and that is the state to keep it in: a line added here is a merge
-  somebody owes.
-- `coincidences.txt` — two functions with one shape and no shared step to lift.
-  A line earns this file only after somebody tried writing the curry.
+### Where jscpd itself lives
 
-**The list only shrinks.** A match that is not on it fails the check, and an
-entry that matches nothing any more fails too, so a merge has to take its entry
-with it. `MIN_TOKENS` in `scripts/check-shapes/run.ts` ratchets downward the
-same way the numbers in `check:comments` do.
+jscpd v5 is a Rust binary shipped through npm. The platform package Deno picks
+on a glibc Linux (`jscpd-linux-x64-gnu`) is dynamically linked, so a NixOS
+machine cannot start it. The repo self-hosts the fully static
+`jscpd-linux-x64-musl` binary at `.bin/jscpd`, fetched from the npm registry on
+first use and verified against a pinned SHA-256 (`scripts/jscpd/install.ts`).
+The installer mirrors `.bin/stripe-mock` and shares its temp-folder and
+ensure-under-lock helpers (`scripts/bin-tools.ts`), so no machine needs its own
+jscpd install.
 
-A key is every site as `path::name~fingerprint`, sorted. The fingerprint is
-seven characters over the body's text, read line-trimmed so a deeper nesting
-that only re-indents a listed function changes nothing. Any other edit to the
-body changes it, so the entry goes stale and the check says so — re-read the
-note, then refresh the fingerprints, or delete the entry if the pair no longer
-stands. A rename, a move, or a deletion stales an entry the same way. The report
-prints the `to accept:` line to paste, because no one writes a fingerprint by
-hand.
-
-### The eight scans, and how hard each looks
+### The seven scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
 lower number is a tighter net. Six configs divide the tree, because helper code,
-test bodies and stylesheets each deserve a different net. The seventh is a
-wrapper scan that catches what renamed words hide from all of them. The eighth
-matches whole named functions by shape.
+test bodies and stylesheets each deserve a different net. The seventh matches
+whole functions by AST shape and holds accepted matches in a committed baseline.
 
-| Config                    | Scans                            | minTokens             |
-| ------------------------- | -------------------------------- | --------------------- |
-| `.jscpd.json`             | `src`, `e2e-payments`, `scripts` | 19                    |
-| `.jscpd.specs.json`       | `src` + `test/specs/support`     | 19                    |
-| `.jscpd.support.json`     | `test/specs/support`             | 18                    |
-| `.jscpd.helpers.json`     | `src` + `test/test-utils`        | 40                    |
-| `.jscpd.test.json`        | `test`                           | 48                    |
-| `.jscpd.css.json`         | `src/ui/static/style.scss`       | 50                    |
-| `scripts/cpd-renamed.ts`  | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
-| `scripts/check-shapes.ts` | `src`, `e2e-payments`, `scripts` | 20, whole functions   |
+| Config                | Scans                            | minTokens                                               |
+| --------------------- | -------------------------------- | ------------------------------------------------------- |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19                                                      |
+| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19                                                      |
+| `.jscpd.support.json` | `test/specs/support`             | 18                                                      |
+| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40                                                      |
+| `.jscpd.test.json`    | `test`                           | 48                                                      |
+| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50                                                      |
+| `.jscpd.renamed.json` | `src`, `e2e-payments`, `scripts` | 20, whole functions by shape, plus a committed baseline |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
@@ -1482,19 +1471,18 @@ dragging `src/` down too. A test body is different: it repeats by design, and
 the shared mechanism is the test framework itself, so the whole of `test/` stays
 at the loose 48.
 
-The seventh scan (`deno task cpd:renamed`) catches copies that renamed words
-hide. jscpd matches literal token runs, so two copies of one operation with
-different names sit below `minTokens` 19: every renamed word breaks the run. The
-scan runs jscpd at 17 and keeps only the pairs whose two sides share their whole
-punctuation shape — the same code with different words. Every kept pair must be
-merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`. The
-registry only shrinks: merge a pair, delete its entry, and a new word-only copy
-anywhere fails the gate.
+The renamed scan (`deno task cpd:renamed`) catches copies that renamed words
+hide from the token scanners: jscpd matches literal token runs, so two copies of
+one operation with different names sit below `minTokens` 19, while their AST
+shapes still match at `--similarity 0.99`. A new copy fails the check; a copy
+that is by design is recorded in the baseline with `--update`, and the check
+never fails on a pair the baseline carries.
 
 **Every helper number ratchets downward** — lower it, bring the tree to it,
-repeat — the same way `check:comments` works. `docs/test-duplication.md`
-measures what each remaining step costs. Read its counts as work to do, not as a
-floor: the counts fall as the curries land.
+repeat — the same way `check:comments` works. The renamed scan's baseline
+absorbs the current matches: when it shrinks, the merges a pair needs have been
+made. `docs/test-duplication.md` measures what each remaining step costs. Read
+its counts as work to do, not as a floor: the counts fall as the curries land.
 
 ## Database Queries
 
@@ -1667,9 +1655,6 @@ query logging and table-scoped cache invalidation stay automatic.
   confirms by typed site name before changing anything, and prints the new
   `DB_URL`/`DB_TOKEN` so they can be set by hand if the secret update fails. The
   site keeps its existing `DB_ENCRYPTION_KEY`.
-- `deno task check:shapes` - Report two named functions that share a shape under
-  different names — the duplication jscpd cannot see (see
-  [The renamed copy jscpd cannot see](#the-renamed-copy-jscpd-cannot-see))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The precommit mutation gate, runnable on its
   own: mutation-test every `src/` file this branch changed and demand a 100%

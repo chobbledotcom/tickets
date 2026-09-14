@@ -1,12 +1,8 @@
 /**
- * The syntax words both duplication gates keep as themselves: JavaScript's and
+ * The syntax words the lexer keeps as themselves: JavaScript's and
  * TypeScript's reserved words, plus its literal words. A rename never touches
- * one, so both the shape check and the rename-blind copy scan let these words
- * keep their own token while every chosen name is masked.
- *
- * `check-shapes` reaches a word here only as a genuine keyword, because the
- * parser masked every identifier first. `cpd-renamed` walks raw text, so it
- * keeps a word only in keyword position (see its own member-name rule).
+ * one, so `typescript-lex` keeps these words while every chosen name is
+ * masked to one symbol.
  */
 
 /** Sorted alphabetically; keep it that way. */

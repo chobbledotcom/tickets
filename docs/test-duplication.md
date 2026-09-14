@@ -224,7 +224,7 @@ Each step down is a separate job. Take the number in `.jscpd.helpers.json` down,
 bring the tree to it, and repeat, the way the comment caps in
 `scripts/check-comments/run.ts` come down.
 
-## The renamed-clone scan: same code with different words
+## The renamed-clone gate: same code with different words
 
 jscpd matches literal token runs, so a rename hides a copy: every renamed word
 breaks the run, and two spellings of one operation sit below `minTokens` 19. The
@@ -233,32 +233,29 @@ worked example was the slug-index family — `computeGroupSlugIndex`,
 four spellings of `(slug) => hmacHash(slug)`, each one identifier short of
 detection. All four were deleted and every caller now uses `hmacHash` directly.
 
-`deno task cpd:renamed` (`scripts/cpd-renamed.ts`) catches that class. It runs
-jscpd at 17 tokens over `src`, `e2e-payments`, and `scripts`, then keeps only
-the pairs whose two sides share their whole punctuation shape — identical text,
-or the same shape with different words. Import spans are skipped (the one
-sanctioned repeat), and the registry itself is excluded from its own input.
+Since jscpd 5.2.0 the gate is jscpd's own. `deno task cpd:renamed` runs
+`.jscpd.renamed.json`, which passes `--similarity 0.99`: whole functions,
+methods and arrow functions are compared by AST shape, with names and literals
+left out, so a renamed copy scores 1.0 and is reported with kind `similar`. This
+replaced both hand-rolled scans (`scripts/cpd-renamed.ts` and
+`scripts/check-shapes.ts`). The accepted matches live in the committed baseline
+`.jscpd.renamed-baseline.json`; `--fail-on-new-clones` fails the build on a pair
+the baseline does not carry, and `deno task cpd:renamed --update` rewrites the
+baseline after a merge. The baseline records no written reason — the merge
+history carries it.
 
-The scan holds 99 pairs today, recorded in `scripts/cpd-renamed/allowed.json`:
+A pair changes status one way: merge it (extract a helper, or curry the parts
+that differ), then refresh the baseline. A new renamed copy anywhere in the
+scanned trees fails the gate, which is the point: the slug-index class of drift
+cannot regrow silently.
 
-| Kind          | Pairs | Meaning                                                                   |
-| ------------- | ----- | ------------------------------------------------------------------------- |
-| declared data | 28    | schema columns, machine edges, nav rows — one row per kind, by design     |
-| by design     | 5     | deliberate API pairs and factory-call twins, each with its reason written |
-| pending merge | 66    | the same code with different words — unify, then delete the entry         |
-
-A pair leaves the registry one way: merge it (extract a helper, or curry the
-parts that differ) and delete the entry. A registry entry is allowed to stay
-only for a repeat that is by design, with the reason written in the entry. A new
-word-only copy anywhere in the scanned trees fails the gate, which is the point:
-the slug-index class of drift cannot regrow silently.
-
-**Every count ratchets downward** — merge a family, run
-`deno task cpd:renamed --update` to drop its entries, and repeat. The
-`pending merge` list is the work order; the largest families at the time of
-writing are the CSV export pair (`attendees-csv.ts` vs `calendar-csv.ts`),
-`downloadRaw`/`downloadImage` in `src/shared/storage.ts`, and the `entity-pages`
-tab strip row pair.
+**The baseline shrinks as merges land** — merge a family, run
+`deno task cpd:renamed --update`, and its fingerprints drop out. The larger
+families at the time of writing are the field-picking map pairs across the admin
+pages and the table `getXById` wrappers, which are the coincidence class from
+the old shape check: enough code builds an object from another object's fields
+for unrelated functions to match, and the baseline absorbs them while the real
+merges proceed.
 
 ## What was measured and rejected
 

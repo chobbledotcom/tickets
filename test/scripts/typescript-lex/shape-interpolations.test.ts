@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { shapeOf } from "#scripts/typescript-lex.ts";
-import { interpolated, template } from "#test/scripts/check-shapes/samples.ts";
+import { interpolated, template } from "./samples.ts";
 
 describe("shapeOf slash decisions inside template interpolations", () => {
   test("keeps a pattern whole after a header", () => {
