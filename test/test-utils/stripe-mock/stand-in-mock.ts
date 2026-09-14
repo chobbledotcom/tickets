@@ -68,7 +68,8 @@ const MODES: Record<
 };
 
 const portFromArgs = (args: readonly string[]): number => {
-  const value = args[args.indexOf(PORT_FLAG) + 1];
+  const flagAt = args.indexOf(PORT_FLAG);
+  const value = flagAt === -1 ? undefined : args[flagAt + 1];
   if (value === undefined) {
     throw new Error(
       `The stand-in mock was started without a ${PORT_FLAG} value.`,

@@ -293,7 +293,9 @@ const STAND_IN_PATH = fileURLToPath(
 const MODE_PERMISSIONS: Record<StandInMode, (binDir: string) => string> = {
   exit: () => "",
   "exit-then-hold": (binDir) =>
-    `--allow-net --allow-read=${binDir} --allow-write=${binDir}`,
+    `--allow-net --allow-read=${shellQuote(binDir)} --allow-write=${shellQuote(
+      binDir,
+    )}`,
   "hold-after": () => "--allow-net",
   "hold-port": () => "--allow-net",
 };

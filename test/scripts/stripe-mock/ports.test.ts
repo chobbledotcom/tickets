@@ -216,6 +216,49 @@ describe("startStripeMock ports", () => {
     });
   });
 
+  test("starts a stand-in whose folder path has a space in it", async () => {
+    const binDir = await Deno.makeTempDir({ prefix: "stripe mock " });
+    try {
+      const paths = { binaryPath: join(binDir, "stripe-mock"), binDir };
+      await writeStandInMock(
+        paths,
+        "exit-then-hold",
+        join(binDir, "started-once"),
+      );
+      const stripeMock = await startStripeMock({
+        budgetMs: 2000,
+        confirmDelayMs: 100,
+        delayMs: 20,
+        env: testEnv({}),
+        paths,
+        startAttempts: 2,
+      });
+
+      try {
+        expect(stripeMock.port).toBeGreaterThan(0);
+        await expectPortOpen(stripeMock.port);
+      } finally {
+        await stripeMock.stop();
+      }
+    } finally {
+      await Deno.remove(binDir, { recursive: true });
+    }
+  });
+
+  test("says what is missing when started without a port flag", async () => {
+    await withTempStripeMockPaths(async (paths) => {
+      await writeStandInMock(paths, "exit");
+      const { success, stderr } = await new Deno.Command(paths.binaryPath, {
+        stderr: "piped",
+        stdout: "null",
+      }).output();
+      expect(success).toBe(false);
+      expect(new TextDecoder().decode(stderr)).toContain(
+        "without a -http-port value",
+      );
+    });
+  });
+
   test("kills an unresponsive managed mock on stop", async () => {
     await withTempStripeMockPaths(async (paths) => {
       await writeTermIgnoringMock(paths);
