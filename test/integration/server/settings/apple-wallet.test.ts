@@ -287,6 +287,35 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     )(response);
   });
 
+  test("rejects a short-id field past the input length", async () => {
+    // The wallet's id fields are short single-line values, so the server
+    // carries the single-line cap past any crafted POST.
+    const response = await submitWalletSettingsForm({
+      apple_wallet_pass_type_id: "p".repeat(251),
+      apple_wallet_team_id: "TEAM123456",
+    });
+    await expectFlashRedirect(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      "Pass Type ID must be 250 characters or fewer",
+      false,
+    )(response);
+  });
+
+  test("rejects a provided secret past the textarea length", async () => {
+    // A secret longer than the textarea cap cannot be a real PEM upload, so
+    // the wallet refuses it rather than storing the paste error.
+    const response = await submitWalletSettingsForm({
+      apple_wallet_pass_type_id: "pass.com.test",
+      apple_wallet_signing_cert: "c".repeat(10_241),
+      apple_wallet_team_id: "TEAM123456",
+    });
+    await expectFlashRedirect(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      "Signing Certificate (PEM) must be 10240 characters or fewer",
+      false,
+    )(response);
+  });
+
   test("does not clear the config when only Pass Type ID is empty", async () => {
     await configureAppleWallet();
     const response = await submitWalletSettingsForm({

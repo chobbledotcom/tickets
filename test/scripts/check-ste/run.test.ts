@@ -173,6 +173,26 @@ describe("check-ste runner", () => {
     expect(errors[0]).toContain("a.md [improved]");
   });
 
+  test("reports findings in path order, whatever order the files arrive in", () => {
+    const files = [
+      file("z.md", "Write z; one.\n"),
+      file("a.md", "Write a; one.\n"),
+    ];
+    const errors: string[] = [];
+    const code = runSteCheck(
+      files,
+      {},
+      {},
+      {
+        ...output,
+        logError: (line) => errors.push(line),
+      },
+    );
+    expect(code).toBe(1);
+    expect(errors[0]!.startsWith("a.md:")).toBe(true);
+    expect(errors[1]!.startsWith("z.md:")).toBe(true);
+  });
+
   test("a document with no entry must be clean", () => {
     const files = [file("new.md", "Write it; then stop.\n")];
     expect(runSteCheck(files, {}, {}, output)).toBe(1);

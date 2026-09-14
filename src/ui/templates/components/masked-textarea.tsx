@@ -9,6 +9,7 @@
 
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { t } from "#i18n";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
 export type MaskedTextareaProps = {
   /** i18n key for the field label. */
@@ -19,6 +20,7 @@ export type MaskedTextareaProps = {
   placeholder: string;
   /** Whether the field is already configured (renders the mask sentinel). */
   configured: boolean;
+  maxlength?: number | undefined;
 };
 
 export const MaskedTextarea = ({
@@ -26,10 +28,16 @@ export const MaskedTextarea = ({
   name,
   placeholder,
   configured,
+  maxlength = MAX_TEXTAREA_LENGTH,
 }: MaskedTextareaProps): JSX.Element => (
   <label>
     {t(labelKey)}
-    <textarea name={name} placeholder={placeholder} rows={4}>
+    <textarea
+      maxlength={maxlength}
+      name={name}
+      placeholder={placeholder}
+      rows={4}
+    >
       {configured ? MASK_SENTINEL : ""}
     </textarea>
   </label>

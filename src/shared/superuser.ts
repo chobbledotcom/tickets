@@ -12,6 +12,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
 import { getEnv } from "#shared/env.ts";
+import { MAX_ADMIN_EMAIL_LOCAL_PART } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -52,7 +53,12 @@ export const getAdminEmailAddress = (): ValidEmail | null => {
 
 export const getSuperuserUsername = (email: ValidEmail): string | null => {
   const username = emailLocalPart(email).toLowerCase();
-  const error = validateUsername(username);
+  // SMTP refuses a local part past MAX_ADMIN_EMAIL_LOCAL_PART, so a longer
+  // address parses as an email but cannot receive the recovery email.
+  const error =
+    username.length > MAX_ADMIN_EMAIL_LOCAL_PART
+      ? `must be at most ${MAX_ADMIN_EMAIL_LOCAL_PART} characters (the SMTP limit for an email local part)`
+      : validateUsername(username);
   if (error) {
     logError({
       code: ErrorCode.DATA_INVALID,

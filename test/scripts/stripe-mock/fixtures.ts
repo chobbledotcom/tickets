@@ -11,8 +11,10 @@ import { stub } from "@std/testing/mock";
 import { projectRoot } from "#scripts/project-root.ts";
 import { startStripeMock } from "#scripts/stripe-mock.ts";
 import {
+  acceptForever,
   keepPortOpenCommand,
   makeExecutable,
+  perlListener,
   type StartOptions,
   shellQuote,
   type TestStripeMockPaths,
@@ -134,7 +136,7 @@ export const writeWrongPortMock = async (
     paths.binaryPath,
     [
       "#!/bin/sh",
-      `exec nc -l -p ${decoyPort} -s 127.0.0.1 >/dev/null 2>&1`,
+      `exec ${perlListener(acceptForever, shellQuote(String(decoyPort)))} >/dev/null 2>&1`,
     ].join("\n"),
   );
   await makeExecutable(paths.binaryPath);

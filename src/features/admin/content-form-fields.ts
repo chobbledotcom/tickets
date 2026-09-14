@@ -10,7 +10,7 @@ import { pick } from "@std/collections";
 import { t } from "#i18n";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { slugFieldBase } from "#templates/fields/validators.ts";
 
@@ -22,9 +22,12 @@ import { slugFieldBase } from "#templates/fields/validators.ts";
  */
 export const CONTENT_FIELD_LIMITS = {
   content: MAX_TEXTAREA_LENGTH,
+  // The SEO caps are display limits, not storage limits: search engines
+  // truncate a title past ~64 characters and a description past ~160, so a
+  // longer value never shows however much the form accepts.
   meta_description: 160,
   meta_title: 64,
-  name: 128,
+  name: MAX_INPUT_LENGTH,
 } as const;
 
 /** The required display-name field (each editor supplies its own label). */

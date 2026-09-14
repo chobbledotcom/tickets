@@ -116,6 +116,7 @@ export type SelectFieldSpec = FieldSpecBase & {
 /** A stored secret edited through a masked password input. */
 export type SecretFieldSpec = {
   kind: "secret";
+  maxlength: number;
   fieldName: string;
   labelKey: string;
   placeholderKey: string;

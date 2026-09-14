@@ -19,6 +19,7 @@ import {
 } from "#db/groups.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
 import {
+  catalogNameLengthError,
   isNameTakenAnywhere,
   loadCatalogNameIndex,
 } from "#db/name-registry.ts";
@@ -151,6 +152,8 @@ const importGroup = async (
   const { group, members } = transfer;
   if (await isNameTakenAnywhere(group.name))
     return fail(nameTakenError(group.name));
+  const groupLengthError = catalogNameLengthError(group.name);
+  if (groupLengthError) return fail(groupLengthError);
 
   const index = await loadCatalogNameIndex();
   const memberResolve = resolveNames(

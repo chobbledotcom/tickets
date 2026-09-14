@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { settingsFieldAttributes } from "#shared/settings/fields.ts";
 import type {
   BooleanSettingsFormConfig,
   CheckboxFieldSpec,
@@ -16,6 +16,7 @@ import type {
   TextareaSettingsFormConfig,
   TextSettingsFormConfig,
 } from "#shared/settings/form-schema.ts";
+import { settingsDefinitionFields } from "#shared/settings/forms.ts";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
@@ -113,6 +114,16 @@ const labelHint = (copy: FieldFormCopy): JSX.Element | undefined =>
 const placeholderFor = (copy: FieldFormCopy): string | undefined =>
   resolveCopy(copy.placeholderKey, copy.placeholderText);
 
+const fieldAttributes = (
+  definition: TextSettingsFormConfig | TextareaSettingsFormConfig,
+) => ({
+  ...settingsFieldAttributes(
+    settingsDefinitionFields(definition),
+    definition.fieldName,
+  ),
+  placeholder: placeholderFor(definition.copy),
+});
+
 /** The saved value; a form with a "placeholder" fallback shows its
  *  placeholder instead when nothing is saved yet. */
 const textValue = (
@@ -135,8 +146,7 @@ const textForm = (
       max={definition.max}
       min={definition.min}
       minlength={definition.minlength}
-      name={definition.fieldName}
-      placeholder={placeholderFor(definition.copy)}
+      {...fieldAttributes(definition)}
       required={definition.required}
       step={definition.step}
       type={definition.inputType}
@@ -156,9 +166,7 @@ const textareaForm = (
       {labelHint(definition.copy)}
       <textarea
         data-markdown-preview={definition.markdownPreview}
-        maxlength={MAX_TEXTAREA_LENGTH}
-        name={definition.fieldName}
-        placeholder={placeholderFor(definition.copy)}
+        {...fieldAttributes(definition)}
       >
         {stringState(state, definition.stateField)}
       </textarea>
@@ -228,6 +236,7 @@ const secretField = (spec: SecretFieldSpec, state: object): JSX.Element => (
   <MaskedInput
     configured={booleanState(state, spec.configuredStateField)}
     label={t(spec.labelKey)}
+    maxlength={spec.maxlength}
     name={spec.fieldName}
     placeholder={t(spec.placeholderKey)}
   />

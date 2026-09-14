@@ -203,6 +203,12 @@ export const errorRedirect = (
   formId?: string,
 ): Response => redirect(url, message, false, formId ? { formId } : undefined);
 
+/** The `onInvalid` handler that returns to one row's own detail page. */
+export const redirectToDetail =
+  (detailPath: string) =>
+  (args: { error: string; params: { id: number } }): Response =>
+    errorRedirect(`${detailPath}/${args.params.id}`, args.error);
+
 /**
  * Redirect with a neutral informational message (PRG pattern), e.g. confirming
  * an opt-out. Rendered in the info style rather than success or error.

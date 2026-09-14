@@ -82,7 +82,10 @@ Every message goes to a safe recipient, so no person receives nightly mail:
 - **SendGrid** documents the `sink.sendgrid.net` domain: messages are accepted,
   then discarded. `SENDGRID_FROM` must be a verified sender identity.
 
-`NTFY_URL` is optional; a failed run pings it, as the payment harness does.
+`SENTRY_URL` is optional. A harness crash reports the code error to that bug
+catcher, as the payment harness does. A planned leg failure (a provider refusal)
+stays in the job log: it is the run's normal way to fail, so only the red CI job
+reports it.
 
 ## Reporting
 
@@ -101,6 +104,6 @@ scripts/email-sandbox-e2e/
 ```
 
 The shared harness pieces live in `e2e-payments/src`: `log.ts` (output),
-`notify.ts` (ntfy), `entry.ts` (the crash boundary), and `randomId`
-(`config.ts`). `scripts/github-actions.ts` writes the step summary and the job
-output for both harnesses and the mutation runner.
+`sentry.ts` (the crash report to the bug catcher), `entry.ts` (the crash
+boundary), and `randomId` (`config.ts`). `scripts/github-actions.ts` writes the
+step summary and the job output for both harnesses and the mutation runner.

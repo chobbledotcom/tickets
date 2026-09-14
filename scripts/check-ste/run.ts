@@ -112,9 +112,10 @@ export const freshBaseline = async (
       .map((file) => [file.path, freshEntry(file.content)]),
   );
 
-/** Sorts documents the way a reader meets them: by path. */
+/** Sorts documents the way a reader meets them: by path. Paths are unique,
+ * so the comparison never holds equal. */
 const byPath = (left: DocumentFile, right: DocumentFile): number =>
-  left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+  left.path < right.path ? -1 : 1;
 
 /**
  * Compare every document against its baseline, finding by finding. An
@@ -134,6 +135,7 @@ export const runSteCheck = (
   const paths = files.map((file) => file.path);
   const found = [
     ...[...files]
+
       .sort(byPath)
       .flatMap((file) => findingsFor(file, records, baseline)),
     ...staleEntryLines(

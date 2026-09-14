@@ -84,7 +84,7 @@ test("builder form defines every field and option exactly", () => {
   expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
     {
       label: "Site name",
-      maxlength: 64,
+      maxlength: 250,
       minlength: 1,
       name: "site_name",
       placeholder: "My Ticket Site",
@@ -120,6 +120,9 @@ test("builder form defines every field and option exactly", () => {
     {
       hint: "Leave blank to auto-provision a database.",
       label: "Database token",
+      // A pasted machine credential: the shared textarea cap, not the
+      // single-line rule.
+      maxlength: 10240,
       name: "db_token",
       placeholder: "Database auth token",
       type: "password",

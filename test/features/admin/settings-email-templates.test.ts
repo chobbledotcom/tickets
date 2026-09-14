@@ -135,7 +135,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     expect(response.status).toBe(302);
     expectFlash(
       response,
-      expect.stringContaining("Template html exceeds maximum length"),
+      expect.stringContaining(
+        `HTML Body must be ${MAX_EMAIL_TEMPLATE_LENGTH} characters or fewer`,
+      ),
       false,
     );
     expect(await storedTemplate()).toEqual(NOTHING_KEPT);

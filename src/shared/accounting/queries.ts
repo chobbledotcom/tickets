@@ -363,31 +363,23 @@ const readProjectedFigureTx = async (
   return Number(rows[0]!.figure);
 };
 
+/** A figure read by turning one id into its subquery. */
+const figureBySubqueryTx =
+  (subquery: (id: string) => string) =>
+  (tx: TxScope, id: number): Promise<number> =>
+    readProjectedFigureTx(tx, subquery(String(id)));
+
 /** What an attendee currently owes (−balanceOf(attendee)) read in-transaction. */
-export const attendeeOwedTx = (
-  tx: TxScope,
-  attendeeId: number,
-): Promise<number> =>
-  readProjectedFigureTx(tx, attendeeOwedSubquery(String(attendeeId)));
+export const attendeeOwedTx = figureBySubqueryTx(attendeeOwedSubquery);
 
 /** A listing's currently projected income (gross credits less write-off debits)
  *  read in-transaction — the figure {@link adjustListingIncome} corrects. */
-export const listingIncomeTx = (
-  tx: TxScope,
-  listingId: number,
-): Promise<number> =>
-  readProjectedFigureTx(
-    tx,
-    creditsLessWriteoffDebits(REVENUE, String(listingId)),
-  );
+export const listingIncomeTx = figureBySubqueryTx((id) =>
+  creditsLessWriteoffDebits(REVENUE, id),
+);
 
 /** A modifier's currently projected net revenue (balanceOf(modifier)) read
  *  in-transaction — the figure {@link adjustModifierRevenue} corrects. */
-export const modifierRevenueTx = (
-  tx: TxScope,
-  modifierId: number,
-): Promise<number> =>
-  readProjectedFigureTx(
-    tx,
-    accountBalanceSubquery(MODIFIER, String(modifierId)),
-  );
+export const modifierRevenueTx = figureBySubqueryTx((id) =>
+  accountBalanceSubquery(MODIFIER, id),
+);

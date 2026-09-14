@@ -9,6 +9,10 @@
  */
 
 import { t } from "#i18n";
+import {
+  emailTemplateSettingsFields,
+  settingsFieldAttributes,
+} from "#shared/settings/fields.ts";
 import { TextField } from "#templates/components/text-field.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
 import type { EmailTemplateType } from "#types";
@@ -35,7 +39,7 @@ const BodyField = ({
       <textarea
         data-default-tpl={defaultValue}
         id={id}
-        name={bodyKind}
+        {...settingsFieldAttributes(emailTemplateSettingsFields(), bodyKind)}
         placeholder={t("settings.advanced.leave_blank_default")}
         rows={`${rows}`}
       >
@@ -58,7 +62,7 @@ export const emailTemplateFields =
     <>
       <TextField
         label={t("settings.advanced.subject")}
-        name="subject"
+        {...settingsFieldAttributes(emailTemplateSettingsFields(), "subject")}
         placeholder={defaults.subject}
         type="text"
         value={templates.subject}

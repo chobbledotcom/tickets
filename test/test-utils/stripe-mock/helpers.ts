@@ -294,7 +294,7 @@ export const writePortThief = async (
       "#!/bin/sh",
       `if ${repeat ? "true" : `[ ! -f ${shellQuote(countPath)} ]`}; then`,
       `  touch ${shellQuote(countPath)}`,
-      '  nc -l -p "$2" -s 127.0.0.1 -w 1 >/dev/null 2>&1 &',
+      `  ${perlListener(`alarm 1; ${acceptForever}`)} >/dev/null 2>&1 &`,
       "  exit 1",
       "fi",
       fallbackCommand,
@@ -319,10 +319,22 @@ export const writeFailingMock = async (
   await makeExecutable(paths.binaryPath);
 };
 
+/**
+ * A perl one-liner that listens on the port named by its first argument and
+ * runs `body` until killed. It stands in for `nc -l`, whose flags differ
+ * between the netcats hosts ship.
+ */
+export const perlListener = (body: string, portWord = '"$2"'): string =>
+  `perl -MIO::Socket::INET -e 'my $socket=IO::Socket::INET->new(LocalAddr=>"127.0.0.1", LocalPort=>$ARGV[0], Proto=>"tcp", Listen=>5, Reuse=>1) or die $!; ${body}' ${portWord}`;
+
+/** Accepts and immediately closes connections, forever. */
+export const acceptForever =
+  "while (1) { my $client=$socket->accept(); close $client if $client; }";
+
 export const keepPortOpenCommand = [
   "trap 'kill \"$child\" 2>/dev/null; exit 0' TERM INT",
   "while true; do",
-  '  nc -l -p "$2" -s 127.0.0.1 >/dev/null 2>&1 &',
+  `  ${perlListener(acceptForever)} >/dev/null 2>&1 &`,
   "  child=$!",
   '  wait "$child"',
   "done",

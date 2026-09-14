@@ -323,9 +323,7 @@
     "semicolon \";\" in stripe-invalidated-checkout-refunded — the owner changes the price while a visitor is paying; the webhook processes the later charge, retains the booking at quantity 0, and automatically refunds.": 1,
     "semicolon \";\" in The app is driven the way a person drives it: fill fields by their accessible name, click buttons and links by their visible text, and submit through the visible submit control (%) — never force, never %. Some headless Chromium builds stop scheduling compositor frames after a form POST, which stalls Playwright's stability wait; the harness detects that and falls back to % / a scripted click, which still runs browser validation and the app's own event handlers. A failed ordinary action is only replayed through that fallback when a page-side witness proves the click never dispatched — a post-dispatch failure rethrows, so a live refund form can never be submitted twice by the fallback.": 1
   },
-  "scripts/email-sandbox-e2e/README.md": {
-    "semicolon \";\" in % is optional; a failed run pings it, as the payment harness does.": 1
-  },
+  "scripts/email-sandbox-e2e/README.md": {},
   "scripts/unread-fields/README.md": {
     "banned-modal \"would\" in % and % are two fields. A static belongs to the class object, and the report calls that object %, which is what TypeScript calls it. One line for both would call a field on a value read because the class side is.": 1,
     "banned-modal \"would\" in A % block does not count either. It adds its shapes to the global scope rather than to what the file exports. The one in % holds the JSX contract, and the compiler reads those fields rather than any code here, so the scan would call them unread.": 1,

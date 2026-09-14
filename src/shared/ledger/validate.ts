@@ -31,6 +31,15 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
 
 type TransferCheck = (transfer: TransferInput) => LedgerError | null;
 
+/** A rule that fails the transfer when either account side trips it. */
+const eitherAccountFails =
+  (
+    code: LedgerError["code"],
+    fails: (a: AccountRef) => boolean,
+  ): TransferCheck =>
+  ({ destination, source }) =>
+    fails(source) || fails(destination) ? { code } : null;
+
 /** Every transfer rule in the order its error is reported. Each rule owns one
  * error code, so adding a rule cannot change the validation control flow. */
 const transferChecks: readonly TransferCheck[] = [
@@ -44,14 +53,8 @@ const transferChecks: readonly TransferCheck[] = [
   (t) => (hasInvalidReversesId(t) ? { code: "invalid_reverses_id" } : null),
   (t) =>
     sameAccount(t.source, t.destination) ? { code: "self_transfer" } : null,
-  (t) =>
-    isEmptyAccount(t.source) || isEmptyAccount(t.destination)
-      ? { code: "empty_account" }
-      : null,
-  (t) =>
-    hasReservedChar(t.source) || hasReservedChar(t.destination)
-      ? { code: "reserved_char_in_account" }
-      : null,
+  eitherAccountFails("empty_account", isEmptyAccount),
+  eitherAccountFails("reserved_char_in_account", hasReservedChar),
   (t) => (t.reference ? null : { code: "empty_reference" }),
   (t) => (t.eventGroup ? null : { code: "empty_event_group" }),
 ];

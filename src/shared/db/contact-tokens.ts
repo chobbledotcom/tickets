@@ -8,11 +8,11 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { openEach } from "#crypto/open-each.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
-import { mapParallel } from "#fp";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is
@@ -207,13 +207,7 @@ const loadTokenLines = async (hash: string): Promise<StoredTokenLine[]> =>
   tokenLinesFrom(await loadTokenBlob(hash));
 
 /** Decrypt loaded token lines into source + ticket token pairs. */
-const bookingTokensFrom = (
-  lines: OwnerKeyEncrypted[],
-  privateKey: CryptoKey,
-): Promise<BookingToken[]> =>
-  mapParallel((line: OwnerKeyEncrypted) => parseTokenEntry(line, privateKey))(
-    lines,
-  );
+const bookingTokensFrom = openEach(parseTokenEntry);
 
 /** Read only the newest booked ticket tokens, decrypting no older entries. */
 export const getRecentBookingTokens = async (

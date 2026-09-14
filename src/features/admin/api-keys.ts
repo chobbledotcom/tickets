@@ -31,6 +31,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   type ApiKeyDisplay,
   adminApiDocsPage,
@@ -78,8 +79,13 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
       if (!name) {
         throw new Error(t("error.name_required"));
       }
-      if (name.length > 100) {
-        throw new Error("Name must be under 100 characters");
+      if (name.length > MAX_INPUT_LENGTH) {
+        throw new Error(
+          t("fields.validation.max_length", {
+            label: "Name",
+            max: MAX_INPUT_LENGTH,
+          }),
+        );
       }
 
       // Unwrap the DATA_KEY from the current session

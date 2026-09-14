@@ -112,10 +112,11 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   verify contact form submissions when Botpoison is enabled. Never sent to the
   browser.
 - `ADMIN_EMAIL_ADDRESS` - Enables a superuser recovery option in owner settings.
-  The local-part (before `@`) must be a valid app username (2–32 characters,
-  letters, numbers, hyphens, underscores). Email delivery must be configured
-  before the superuser can be enabled. Also enables the owner-only **Support**
-  page (`/admin/support`), where the operator can message this address.
+  The local-part (before `@`) must be a valid app username (letters, numbers,
+  hyphens, underscores). SMTP caps a local-part at 64 characters, so this one
+  can use 1–64 characters. Email delivery must be configured before the
+  superuser can be enabled. Also enables the owner-only **Support** page
+  (`/admin/support`), where the operator can message this address.
 - `HOST_EMAIL_PROVIDER` - The host machine's email provider: `mailgun-eu`,
   `mailgun-us`, `postmark`, `resend`, or `sendgrid`. Set with
   `HOST_EMAIL_API_KEY` and `HOST_EMAIL_FROM_ADDRESS`. Email sends fall back to

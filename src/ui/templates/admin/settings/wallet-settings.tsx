@@ -9,6 +9,7 @@
  */
 
 import { t } from "#i18n";
+import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
 import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
 import {
   type SettingsSectionDetails,
@@ -47,6 +48,7 @@ export const WalletSettingsForm = (
   config: SettingsSectionDetails & {
     /** Whether the site has its own credentials saved (masks the secrets). */
     configured: boolean;
+    formId: string;
     textFields: readonly WalletTextField[];
     secretFields: readonly WalletSecretField[];
   },
@@ -57,6 +59,7 @@ export const WalletSettingsForm = (
       <TextFields
         fields={config.textFields.map((field) => ({
           ...field,
+          ...settingsFormFieldAttributes(config.formId, field.name),
           label: t(field.labelKey),
         }))}
       />
@@ -64,7 +67,7 @@ export const WalletSettingsForm = (
         <MaskedTextarea
           configured={config.configured}
           labelKey={field.labelKey}
-          name={field.name}
+          {...settingsFormFieldAttributes(config.formId, field.name)}
           placeholder={field.placeholder}
         />
       ))}

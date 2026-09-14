@@ -5,10 +5,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
-import {
-  type BulkEmailDraft,
-  MAX_BULK_EMAIL_SUBJECT_LENGTH,
-} from "#shared/bulk-email.ts";
+import type { BulkEmailDraft } from "#shared/bulk-email.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import type {
   ComposeControl,
@@ -16,7 +13,7 @@ import type {
 } from "#shared/bulk-email-targets/types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
@@ -206,7 +203,7 @@ export const bulkEmailComposePage = (
           {t("bulk_email.subject_label")}
           <input
             autocomplete="off"
-            maxlength={MAX_BULK_EMAIL_SUBJECT_LENGTH}
+            maxlength={MAX_INPUT_LENGTH}
             name="subject"
             required
             type="text"

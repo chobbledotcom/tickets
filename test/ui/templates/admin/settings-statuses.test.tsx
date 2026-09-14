@@ -118,7 +118,9 @@ describe("attendee status templates", () => {
   test("gives every field the shape the browser needs", () => {
     const html = statusPages.newPage(OWNER_SESSION);
 
-    expect(html).toContain('<input name="name" required type="text"');
+    expect(html).toContain(
+      '<input maxlength="250" name="name" required type="text"',
+    );
     expect(html).toContain('<input name="reservation_amount" type="text"');
     expect(html).toContain('<fieldset class="checkboxes">');
     expect(html).toContain('<label class="checkbox">');
