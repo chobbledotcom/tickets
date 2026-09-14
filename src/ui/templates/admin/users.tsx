@@ -10,7 +10,7 @@ import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
-  CheckboxLabel,
+  ItemCheckboxList,
 } from "#templates/components/aggregate-sections.tsx";
 import { linkCell } from "#templates/components/link-cell.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
@@ -49,14 +49,7 @@ const AgentSelector = ({
     hint={t("users.agents.hint")}
     legend={t("users.agents.legend")}
   >
-    {agents.map((agent) => (
-      <CheckboxLabel
-        checked={selected.has(agent.id) || undefined}
-        label={` ${agent.name}`}
-        name="agent_ids"
-        value={String(agent.id)}
-      />
-    ))}
+    <ItemCheckboxList checkedIds={selected} items={agents} name="agent_ids" />
   </CheckboxFieldset>
 );
 
