@@ -38,6 +38,18 @@ const dualPathTree = () =>
     standaloneListingIds: new Set([1]),
   });
 
+/** The (listing id, quantity) lines a plain one-day purchase books, with no
+ *  custom prices and no renewal — the tail every ordinary-order assertion
+ *  reduces to. */
+const plainOrderLinePairs = (
+  tree: ReturnType<typeof buildBookingTree>,
+  nodeQuantities: ReadonlyMap<string, number>,
+  foldedQuantities: ReadonlyMap<number, number>,
+): [number, number][] =>
+  buildOrderLines(tree, nodeQuantities, foldedQuantities, new Map(), 1, {
+    renewal: false,
+  }).map((line) => [line.listingId, line.quantity]);
+
 describe("nodeQuantitiesFor", () => {
   test("a member node books its fixed quantity times the package count", () => {
     const quantities = nodeQuantitiesFor(
@@ -174,18 +186,16 @@ describe("buildOrderLines", () => {
       slug: "wrist",
       unit_price: 250,
     });
-    const lines = buildOrderLines(
-      tree,
-      new Map([["listing:1", 1]]),
-      new Map([
-        [1, 1],
-        [11, 1],
-      ]),
-      new Map(),
-      1,
-      { renewal: false },
-    );
-    expect(lines.map((line) => [line.listingId, line.quantity])).toEqual([
+    expect(
+      plainOrderLinePairs(
+        tree,
+        new Map([["listing:1", 1]]),
+        new Map([
+          [1, 1],
+          [11, 1],
+        ]),
+      ),
+    ).toEqual([
       [1, 1],
       [11, 1],
     ]);
@@ -195,20 +205,16 @@ describe("buildOrderLines", () => {
     const tree = dualPathTree();
     // The member path is explicitly zero and listing:2 is absent — only the
     // standalone path of listing 1 books.
-    const lines = buildOrderLines(
-      tree,
-      new Map([
-        ["listing:1", 1],
-        ["package:7/member:1", 0],
-      ]),
-      new Map(),
-      new Map(),
-      1,
-      { renewal: false },
-    );
-    expect(lines.map((line) => [line.listingId, line.quantity])).toEqual([
-      [1, 1],
-    ]);
+    expect(
+      plainOrderLinePairs(
+        tree,
+        new Map([
+          ["listing:1", 1],
+          ["package:7/member:1", 0],
+        ]),
+        new Map(),
+      ),
+    ).toEqual([[1, 1]]);
   });
 
   test("reads buyer-chosen prices for pay-more listings", () => {
