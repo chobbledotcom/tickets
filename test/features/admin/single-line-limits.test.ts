@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  CONTENT_FIELD_LIMITS,
   contentSlugField,
   defineContentForms,
 } from "#routes/admin/content-form-fields.ts";
@@ -16,26 +17,24 @@ const content = defineContentForms({
   publicLinkPath: (slug) => `/page/${slug}`,
 });
 
+const contentCaps = {
+  meta_description: CONTENT_FIELD_LIMITS.meta_description,
+  meta_title: CONTENT_FIELD_LIMITS.meta_title,
+  name: MAX_INPUT_LENGTH,
+};
+
 describe("single-line form limits", () => {
-  for (const [label, form, fields] of [
-    ["Builder", builderForm, ["site_name"]],
-    [
-      "Create content",
-      content.createForm,
-      ["name", "meta_title", "meta_description"],
-    ],
-    [
-      "Edit content",
-      content.editForm,
-      ["name", "meta_title", "meta_description"],
-    ],
+  for (const [label, form, caps] of [
+    ["Builder", builderForm, { site_name: MAX_INPUT_LENGTH }],
+    ["Create content", content.createForm, contentCaps],
+    ["Edit content", content.editForm, contentCaps],
   ] as const) {
-    for (const field of fields) {
-      test(`${label} accepts ${field} at the shared limit`, () => {
+    for (const [field, cap] of Object.entries(caps)) {
+      test(`${label} accepts ${field} at its declared cap`, () => {
         const values = {
           name: "Name",
           slug: "page",
-          [field]: "x".repeat(MAX_INPUT_LENGTH),
+          [field]: "x".repeat(cap),
         };
         const result = form.validate(new FormParams(values));
         expect(result).toMatchObject({
@@ -44,20 +43,20 @@ describe("single-line form limits", () => {
         });
       });
 
-      test(`${label} rejects ${field} above the shared limit`, () => {
+      test(`${label} rejects ${field} above its declared cap`, () => {
         const result = form.validate(
           new FormParams({
             name: "Name",
             slug: "page",
-            [field]: "x".repeat(MAX_INPUT_LENGTH + 1),
+            [field]: "x".repeat(cap + 1),
           }),
         );
         expect(result).toMatchObject({ valid: false });
       });
 
-      test(`${label} renders the shared limit for ${field}`, () => {
+      test(`${label} renders the declared cap for ${field}`, () => {
         expect(inputNamed(form.render(), field)).toContain(
-          `maxlength="${MAX_INPUT_LENGTH}"`,
+          `maxlength="${cap}"`,
         );
       });
     }
