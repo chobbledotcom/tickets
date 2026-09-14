@@ -24,7 +24,10 @@
 #   SUMUP_API_KEY              — SumUp sandbox secret API key
 #   SUMUP_MERCHANT_CODE        — SumUp sandbox merchant code
 # Optional repository secret:
-#   NTFY_URL                   — ntfy topic URL pinged if a leg fails
+#   SENTRY_URL                 — Sentry DSN; a harness crash reports the code
+#                                error there. Planned leg failures stay in the
+#                                job log only — they are the run's normal way
+#                                to fail, and carry no stack to group by.
 # The "free" leg needs no secrets — it is a harness/app self-test.
 
 name: Payment sandbox e2e
@@ -101,7 +104,7 @@ jobs:
           SQUARE_SANDBOX: "true"
           SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
-          NTFY_URL: ${{ secrets.NTFY_URL }}
+          SENTRY_URL: ${{ secrets.SENTRY_URL }}
         run: deno task e2e ${{ matrix.target }}
 
       - name: Verify payment leg execution
