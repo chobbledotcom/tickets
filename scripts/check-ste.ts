@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write=scripts/check-ste/baseline.json
+#!/usr/bin/env -S deno run --allow-read=. --allow-write=scripts/check-ste/baseline.json
 /**
  * Check the policy Markdown against the mechanical simplified-technical-
  * english rules (see the "Simplified Technical English" section of AGENTS.md).

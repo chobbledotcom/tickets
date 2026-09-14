@@ -6,11 +6,18 @@
 import * as v from "valibot";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
+import { SOURCE_DIRS as EVERY_SOURCE_TREE } from "#scripts/source-dirs.ts";
 import { collectFromFiles, collectSourceFiles } from "#scripts/walk-files.ts";
 import { type Alias, findImportIssues, formatIssue } from "./rules.ts";
 
-/** The trees whose imports resolve through the root `deno.json` alias table. */
-export const SOURCE_DIRS = ["src", "test", "scripts", "cli"];
+/**
+ * The trees whose imports resolve through the root `deno.json` alias table
+ * — every source tree except the OpenCode plugin, whose imports stay
+ * relative because its Bun host does not read the import map.
+ */
+export const SOURCE_DIRS = EVERY_SOURCE_TREE.filter(
+  (dir) => dir !== ".opencode/plugins",
+);
 
 export const CONFIG_PATH = "deno.json";
 

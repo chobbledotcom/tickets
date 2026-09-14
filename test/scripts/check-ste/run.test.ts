@@ -137,10 +137,10 @@ describe("check-ste runner", () => {
     expect(code).toBe(1);
     // Editing the line makes new prose of every finding on it, so the
     // semicolon's old identity no longer covers it either.
-    expect(errors[0]).toBe(
+    expect(errors[0]).toBe('a.md:1:6 [semicolon]: ";" — write two sentences');
+    expect(errors[1]).toBe(
       'a.md:1:16 [banned-modal]: "may" — use can, will, or must',
     );
-    expect(errors[1]).toBe('a.md:1:6 [semicolon]: ";" — write two sentences');
     expect(errors[2]).toContain("2 technical-english issue(s) found");
   });
 
@@ -215,10 +215,10 @@ describe("check-ste runner", () => {
       },
     );
     expect(code).toBe(1);
-    expect(errors[0]).toContain("also-gone.md");
-    expect(errors[0]).toContain("baseline.json");
-    expect(errors[1]).toContain("gone.md");
-    expect(errors[1]).toContain("records.json");
+    expect(errors[0]).toContain("gone.md");
+    expect(errors[0]).toContain("records.json");
+    expect(errors[1]).toContain("also-gone.md");
+    expect(errors[1]).toContain("baseline.json");
   });
 
   test("logs the success line when everything matches", () => {

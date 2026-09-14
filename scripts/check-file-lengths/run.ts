@@ -5,16 +5,10 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { notCoveredBy } from "#fp";
-import {
-  type CheckOutput,
-  formatFinding,
-  reportCheck,
-} from "#scripts/check-report.ts";
-import { fileFindingLines } from "#scripts/check-runner.ts";
+import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
+import { fileFindingLines, staleEntryLines } from "#scripts/check-runner.ts";
 import { collectFromFiles, collectGateFiles } from "#scripts/walk-files.ts";
 import { countLines, findIssues, LINE_LIMIT, type OverLimit } from "./rules.ts";
-
 /* jscpd:ignore-end */
 
 /**
@@ -36,15 +30,11 @@ export const runFileLengthCheck = (
       findIssues(file, content, LINE_LIMIT, accepted),
     );
   }).then((found) => {
-    const stale = notCoveredBy(
-      (path: string) => path,
+    const stale = staleEntryLines(
       paths,
-    )(Object.keys(accepted)).map((path) =>
-      formatFinding(path, {
-        fix: "delete the entry in scripts/check-file-lengths/over-limit.json",
-        problem: "entry names a file the check no longer reads",
-        rule: "stale-entry",
-      }),
+      Object.keys(accepted),
+      "scripts/check-file-lengths/over-limit.json",
+      "delete the entry",
     );
     return reportCheck({
       ...output,

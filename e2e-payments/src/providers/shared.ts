@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
 import { catalogWords } from "#e2e/catalog-words.ts";
-import type { ProviderName } from "#e2e/config.ts";
-import { config } from "#e2e/config.ts";
+import { config, type ProviderName } from "#e2e/config.ts";
+
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
 import { mapNotNullish } from "#fp";

@@ -220,6 +220,8 @@ const fileExports = (
         ),
       ];
     }
+    // `export *` names no single name, so it cannot rename one. The empty
+    // answer also covers plain statements, which export nothing.
     return statement.type === "ExportDefaultDeclaration"
       ? [
           {

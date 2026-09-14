@@ -5,7 +5,9 @@
  * `formatFinding` prints.
  */
 
+/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
+import { notCoveredBy } from "#fp";
 import {
   type CheckOutput,
   formatFinding,
@@ -13,6 +15,7 @@ import {
 } from "./check-report.ts";
 import { readJsonOrThrow, writeJsonFile } from "./read-json.ts";
 import { collectFromFiles } from "./walk-files.ts";
+/* jscpd:ignore-end */
 
 /** A registry of `{ path: count }`. */
 export type Counts = Record<string, number>;
@@ -92,6 +95,30 @@ export const fileFindingLines = (
   findings: readonly PerFileFinding[],
 ): string[] =>
   findings.map((issue) => formatFinding(`${file}:${issue.line}`, issue));
+
+/**
+ * Every registry entry whose key names nothing the check now reads: the
+ * lists only shrink, so a stale entry reports itself instead of quietly
+ * holding its allowance.
+ */
+export const staleEntryLines = (
+  read: readonly string[],
+  keys: readonly string[],
+  registry: string,
+  fix: string,
+): string[] =>
+  notCoveredBy(
+    (path: string) => path,
+    read,
+  )(keys)
+    .sort()
+    .map((path) =>
+      formatFinding(path, {
+        fix,
+        problem: `entry names nothing the check reads (${registry})`,
+        rule: "stale-entry",
+      }),
+    );
 
 /** Build a whole-tree check from one per-file rule over one collector. */
 export const perFileCheck =

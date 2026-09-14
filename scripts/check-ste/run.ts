@@ -1,13 +1,12 @@
 /** Compare repository prose with its accepted findings. Each allowance can only fall. */
 
 import { join } from "@std/path";
-import { notCoveredBy } from "#fp";
 import {
   type CheckOutput,
   formatFinding,
   reportCheck,
 } from "#scripts/check-report.ts";
-import { countsRose } from "#scripts/check-runner.ts";
+import { countsRose, staleEntryLines } from "#scripts/check-runner.ts";
 import { collectFiles, directoryEntries } from "#scripts/walk-files.ts";
 import { findIssues, type SteIssue } from "./rules.ts";
 
@@ -113,13 +112,18 @@ export const freshBaseline = async (
       .map((file) => [file.path, freshEntry(file.content)]),
   );
 
+/** Sorts documents the way a reader meets them: by path. */
+const byPath = (left: DocumentFile, right: DocumentFile): number =>
+  left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+
 /**
  * Compare every document against its baseline, finding by finding. An
  * identity above its recorded count reports that finding. An entry that now
  * counts fewer asks for the baseline to record the step, so an improvement
  * lands together with its ratchet step. A records entry or a baseline entry
- * whose document no longer exists fails, because both lists only shrink. Logs
- * a line per finding (or a success line) and returns the process exit code.
+ * whose document no longer exists fails, because both lists only shrink.
+ * Findings report in the order a reader reads the document. Logs a line per
+ * finding (or a success line) and returns the process exit code.
  */
 export const runSteCheck = (
   files: readonly DocumentFile[],
@@ -127,22 +131,24 @@ export const runSteCheck = (
   baseline: Baseline,
   output: CheckOutput,
 ): number => {
-  const entriesNotRead = notCoveredBy((file: DocumentFile) => file.path, files);
-  const staleEntry = (registry: string, fix: string) => (path: string) =>
-    formatFinding(path, {
-      fix,
-      problem: `entry names no document the check reads (${registry})`,
-      rule: "stale-entry",
-    });
+  const paths = files.map((file) => file.path);
   const found = [
-    ...files.flatMap((file) => findingsFor(file, records, baseline)),
-    ...entriesNotRead(Object.keys(records)).map(
-      staleEntry("records.json", "delete the entry"),
+    ...[...files]
+      .sort(byPath)
+      .flatMap((file) => findingsFor(file, records, baseline)),
+    ...staleEntryLines(
+      paths,
+      Object.keys(records),
+      "records.json",
+      "delete the entry",
     ),
-    ...entriesNotRead(Object.keys(baseline)).map(
-      staleEntry("baseline.json", "delete the entry"),
+    ...staleEntryLines(
+      paths,
+      Object.keys(baseline),
+      "baseline.json",
+      "delete the entry",
     ),
-  ].sort();
+  ];
   return reportCheck({
     ...output,
     found,
