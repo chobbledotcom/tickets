@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { TicketListing } from "#booking/model.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
+import { t } from "#i18n";
 import { buildPageTree } from "#templates/public/reservations/availability.ts";
 import {
   buildPageListingRows,
@@ -193,6 +194,24 @@ describe("buildPageListingRows", () => {
     );
     expect(html).not.toContain("Number of");
     expect(html).not.toContain('<select name="quantity_1">');
+  });
+
+  test("a hidden quantity still states the term a plan grants", () => {
+    const plan = tl(1, 1, {
+      assign_built_site: true,
+      initial_site_months: 3,
+      name: "Listing A",
+      slug: "ab12c",
+    });
+    const html = renderRows({
+      hideQuantity: true,
+      isSingleListing: true,
+      listings: [plan],
+    });
+    expect(html).toContain(
+      '<input type="hidden" name="quantity_1" value="1" />',
+    );
+    expect(html).toContain(t("public.ticket.fixed_term_granted", { count: 3 }));
   });
 
   test("a built-site plan is sold in months, an ordinary listing in tickets", () => {

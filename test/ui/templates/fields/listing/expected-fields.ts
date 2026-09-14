@@ -186,7 +186,7 @@ export const LISTING_FIELDS = [
     type: "text",
   },
   {
-    hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
+    hint: "Let attendees pay more than the price per unit (the price above becomes a minimum)",
     label: "Allow pay more",
     name: "can_pay_more",
     options: [
@@ -200,7 +200,7 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "100.00",
-    hint: "The maximum price attendees can pay. Must be at least £1 more than the ticket price.",
+    hint: "The maximum price attendees can pay. Must be at least £1 more than the price per unit.",
     inputmode: "decimal",
     label: "Maximum price (for pay more)",
     name: "max_price",
