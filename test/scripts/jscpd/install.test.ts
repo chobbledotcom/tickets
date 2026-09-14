@@ -113,7 +113,7 @@ const tarWithJscpd = async (): Promise<Uint8Array> =>
 
 describe("defaultJscpdPaths", () => {
   test("keeps the binary at .bin/jscpd under the project root", () => {
-    const paths = defaultJscpdPaths();
+    const paths = defaultJscpdPaths;
     expect(paths.binDir.endsWith("/.bin")).toBe(true);
     expect(paths.binaryPath.endsWith("bin/jscpd")).toBe(true);
   });

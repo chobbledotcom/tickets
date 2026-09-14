@@ -26,10 +26,10 @@ export type JscpdPaths = {
   binaryPath: string;
 };
 
-export const defaultJscpdPaths = (): JscpdPaths => ({
-  binaryPath: join(projectRoot, ".bin", "jscpd"),
+export const defaultJscpdPaths: JscpdPaths = {
   binDir: join(projectRoot, ".bin"),
-});
+  binaryPath: join(projectRoot, ".bin", "jscpd"),
+};
 
 export type JscpdInstallOptions = {
   /** Fetches the decompressed tarball. Tests replace this with a local source. */
@@ -99,7 +99,7 @@ const installBinary = async (
 export const ensureJscpd = async (
   options: JscpdInstallOptions = {},
 ): Promise<string> => {
-  const paths = options.paths ?? defaultJscpdPaths();
+  const { paths = defaultJscpdPaths } = options;
   const expectedSha256 = options.expectedSha256 ?? JSCPD_SHA256;
   await ensureInstalled({
     binaryPath: paths.binaryPath,
