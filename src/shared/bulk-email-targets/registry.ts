@@ -11,6 +11,7 @@
  */
 
 import { firstMatch } from "#fp";
+import type { FormParams } from "#shared/form-data.ts";
 import { attendeeSpec } from "./attendee.ts";
 import { audienceSpec } from "./audience.ts";
 import { listingDaySpec, listingSpec } from "./listings.ts";
@@ -20,7 +21,6 @@ import type {
   ComposeCopy,
   Parsed,
   TargetDescription,
-  TargetForm,
   TargetPiiBlobs,
   TargetSpec,
 } from "./types.ts";
@@ -88,7 +88,7 @@ const QUERY_PARSERS: ReadonlyArray<
 ];
 
 const FORM_PARSERS: ReadonlyArray<
-  (form: TargetForm) => Parsed<BulkEmailTarget>
+  (form: FormParams) => Parsed<BulkEmailTarget>
 > = [
   attendeeSpec.fromForm,
   listingDaySpec.fromForm,
@@ -112,5 +112,5 @@ export const targetFromQuery = (
 
 /** Resolve a target from posted form fields, or null if a named target is gone. */
 export const targetFromForm = (
-  form: TargetForm,
+  form: FormParams,
 ): Promise<BulkEmailTarget | null> => firstTarget(FORM_PARSERS, form);

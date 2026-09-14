@@ -18,7 +18,7 @@ export {
   buildWebhookPayload,
   type RegistrationEntry,
   type WebhookAttendee,
-  type WebhookListing as WebhookPayloadListing,
+  type WebhookListing,
   type WebhookPayload,
   type WebhookTicket,
 } from "#shared/webhook.ts";

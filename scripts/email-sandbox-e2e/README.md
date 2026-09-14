@@ -82,7 +82,7 @@ Every message goes to a safe recipient, so no person receives nightly mail:
 - **SendGrid** documents the `sink.sendgrid.net` domain: messages are accepted,
   then discarded. `SENDGRID_FROM` must be a verified sender identity.
 
-`SENTRY_URL` is optional; a harness crash reports the code error to that bug
+`SENTRY_URL` is optional. A harness crash reports the code error to that bug
 catcher, as the payment harness does. A planned leg failure (a provider refusal)
 stays in the job log: it is the run's normal way to fail, so only the red CI job
 reports it.

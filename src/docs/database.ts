@@ -37,7 +37,6 @@ export type {
 } from "#db/attendee-types.ts";
 export * from "#db/attendees/api.ts";
 export {
-  type AtomicDesiredLine,
   type ExistingLine,
   lineKeyFromBooking,
   loadExistingLines,

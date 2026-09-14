@@ -109,7 +109,9 @@ describe("taking a claim", () => {
         options?: Deno.RemoveOptions,
       ) => {
         // Another taker clears the stale claim first; ours must carry on.
-        await remove(target, options).catch(() => {});
+        await remove(target, options).catch(() => {
+          // Either taker can remove it; the throw below is the case tested.
+        });
         throw new Deno.errors.NotFound("already gone");
       }) as typeof Deno.remove);
 

@@ -7,11 +7,7 @@ import { isNotNullish } from "#fp";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import {
-  type DeleteBody,
-  parseUpdateName,
-  requireStrings,
-} from "#shared/rest/crud-parsers.ts";
+import { parseUpdateName, requireStrings } from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
 import type { Holiday } from "#types";
 
@@ -25,8 +21,8 @@ export type CreateHolidayBody = {
 /** JSON body accepted by PUT /api/admin/holidays/:holidayId */
 export type UpdateHolidayBody = Partial<CreateHolidayBody>;
 
-/** JSON body accepted by DELETE /api/admin/holidays/:holidayId */
-export type DeleteHolidayBody = DeleteBody;
+// DELETE /api/admin/holidays/:holidayId takes the shared DeleteBody the
+// crud-parsers module exports.
 
 export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   getAll: holidays.getAll,

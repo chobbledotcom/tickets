@@ -24,7 +24,9 @@ export const runHarness = (
   reportCrash: (error: unknown) => Promise<void>,
 ): Promise<void> =>
   main().catch(async (err) => {
-    await reportCrash(err).catch(() => {});
+    await reportCrash(err).catch(() => {
+      // The run already failed; a failed report must not mask the crash.
+    });
     await failRun(
       err instanceof Error ? (err.stack ?? err.message) : String(err),
     );

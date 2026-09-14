@@ -32,7 +32,6 @@ import {
 import { packageGroups } from "#shared/package-membership.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
-  type DeleteBody,
   parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
@@ -74,8 +73,8 @@ export type CreateGroupBody = {
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
 export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
 
-/** JSON body accepted by DELETE /api/admin/groups/:groupId */
-export type DeleteGroupBody = DeleteBody;
+// DELETE /api/admin/groups/:groupId takes the shared DeleteBody the
+// crud-parsers module exports.
 
 /** Parse one JSON package-member entry, failing closed on anything malformed.
  * `price` is minor units: `null` (or absent) means no override, `0` means free

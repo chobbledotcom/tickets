@@ -2,68 +2,18 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
-import {
-  adminCalendarPage,
-  type CalendarAttendeeRow,
-} from "#templates/admin/calendar.tsx";
+import { adminCalendarPage } from "#templates/admin/calendar.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import type { DatePickerDate } from "#templates/date-picker.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { selectOptionLabels } from "#test-utils/assertions.ts";
-import { testAttendee } from "#test-utils/factories.ts";
-
-const calendarAttendee = (
-  overrides: Partial<CalendarAttendeeRow> = {},
-): CalendarAttendeeRow => ({
-  ...testAttendee(),
-  date: "2026-03-15",
-  listingDate: "",
-  listingId: 1,
-  listingLocation: "",
-  listingName: "Daily Listing",
-  ...overrides,
-});
-
-/** Factory for a {@link DatePickerDate} option in the day dropdown. `selectable`
- *  defaults to `true`; pass `false` for a date whose option is rendered
- *  disabled (e.g. a day with no bookings). */
-const calendarDate = (
-  label: string,
-  value: string,
-  selectable = true,
-): DatePickerDate => ({ label, selectable, value });
-
-/** Render the admin calendar page with the test constants (`"localhost"`,
- *  owner {@link OWNER_SESSION}, today `2026-03-10`) baked in, so each test
- *  only spells out the inputs it actually varies. Optional fields default
- *  to "no attendees, no selected date, no available dates, no availability
- *  checker" — the common empty-calendar case. */
-const calendarHtml = (
-  overrides: {
-    attendees?: CalendarAttendeeRow[];
-    dateFilter?: string | null;
-    availableDates?: DatePickerDate[];
-    today?: string;
-    viewMonth?: string | null;
-    availabilityRows?: AvailabilityRow[];
-  } = {},
-): string =>
-  adminCalendarPage(
-    overrides.attendees ?? [],
-    "localhost",
-    OWNER_SESSION,
-    overrides.dateFilter ?? null,
-    overrides.availableDates ?? [],
-    overrides.today ?? "2026-03-10",
-    overrides.viewMonth ?? null,
-    undefined,
-    undefined,
-    false,
-    overrides.availabilityRows ?? [],
-  );
+import {
+  calendarAttendee,
+  calendarDate,
+  calendarHtml,
+} from "./calendar/helpers.ts";
 
 describe("adminCalendarPage", () => {
   beforeAll(setupAdminPageTest);
@@ -71,11 +21,8 @@ describe("adminCalendarPage", () => {
   test("renders Calendar title", () => {
     const html = calendarHtml();
     expect(html).toContain("Calendar");
-    // The redundant "Attendees by Date" heading was removed (you reached this
-    // page via the Calendar nav link); the #attendees anchor moves to the
-    // <article> so in-page links still resolve.
     expect(html).not.toContain("Attendees by Date");
-    expect(html).toContain('id="attendees"');
+    expect(html).toContain('<article id="attendees">');
   });
 
   test("renders date selector dropdown", () => {
@@ -140,8 +87,26 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    expect(html).toContain('href="/admin/calendar/export?date=2026-03-15"');
+    expect(html).toContain(
+      '<div class="table-actions"><a href="/admin/calendar/export?date=2026-03-15">',
+    );
     expect(html).toContain("Export CSV");
+  });
+
+  test("renders the roster with no date column, plain count, no revenue", () => {
+    // The day is already chosen and listings carry their own dates, so the
+    // roster omits the Date column, and a day holds no capacity or revenue.
+    const html = adminCalendarPage(
+      [calendarAttendee()],
+      "localhost",
+      OWNER_SESSION,
+      "2026-03-15",
+      [],
+      "2026-03-10",
+    );
+    expect(html).not.toContain("<th>Date</th>");
+    expect(html).toContain("Attendees</th><td>1</td>");
+    expect(html).not.toContain("Total Revenue");
   });
 
   test("does not show CSV export when date has no attendees", () => {
@@ -157,6 +122,30 @@ describe("adminCalendarPage", () => {
   test("includes Calendar link in admin nav", () => {
     const html = calendarHtml();
     expect(html).toContain('href="/admin/calendar"');
+  });
+
+  test("marks the calendar link as the page the operator is on", () => {
+    const html = calendarHtml();
+    expect(html).toContain('class="active" href="/admin/calendar"');
+  });
+
+  test("renders the shared detail rows only for a day with attendees", () => {
+    const html = calendarHtml({
+      attendees: [calendarAttendee()],
+      dateFilter: "2026-03-15",
+    });
+    expect(html).toContain("listing-details-table");
+    expect(html).toContain("Checked In");
+    // No capacity is set for a day, so the count is a plain number and the
+    // calendar page never claims revenue (the roster does not know it).
+    expect(html).toContain("Attendees</");
+    expect(html).not.toContain("Total Revenue");
+  });
+
+  test("omits the shared detail rows when the day has no attendees", () => {
+    const html = calendarHtml({ dateFilter: "2026-03-15" });
+    expect(html).not.toContain("listing-details-table");
+    expect(calendarHtml()).not.toContain("listing-details-table");
   });
 
   test("renders empty string for attendee without email", () => {
@@ -254,6 +243,21 @@ describe("adminCalendarPage", () => {
     // The selected date rides along on the month-paging links so paging
     // months never clears the current selection.
     expect(html).toContain("date=2026-03-15&amp;cal=");
+  });
+
+  test("every in-page link returns to the calendar's attendee list", () => {
+    const html = calendarHtml({
+      attendees: [calendarAttendee()],
+      dateFilter: "2026-03-15",
+    });
+    expect(html).toContain(
+      'name="return_url" type="hidden" value="/admin/calendar?date=2026-03-15#attendees"',
+    );
+    expect(html).toContain('value="/admin/calendar#attendees"');
+    expect(html).toMatch(
+      /#calendar">(?:January|February|March) 2026<\/option>/,
+    );
+    expect(html).toContain('href="/admin/guide#calendar"');
   });
 });
 

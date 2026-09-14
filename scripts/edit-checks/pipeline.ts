@@ -142,7 +142,9 @@ export const createPipeline = ({
   let tail: Promise<unknown> = Promise.resolve();
   const queued = <T>(task: () => Promise<T>): Promise<T> => {
     const next = tail.then(task);
-    tail = next.catch(() => {});
+    tail = next.catch(() => {
+      // The task's rejection is returned to its caller, not to the queue.
+    });
     return next;
   };
 

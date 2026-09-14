@@ -29,6 +29,16 @@ export interface LineIssue {
 export const byLine = (left: LineIssue, right: LineIssue): number =>
   left.line - right.line;
 
+/**
+ * One finding line in the format every repo-wide check uses:
+ * `where [rule]: problem — fix`. `where` names the file (and the line or
+ * key inside it) the finding sits at.
+ */
+export const formatFinding = (
+  where: string,
+  finding: { fix: string; problem: string; rule: string },
+): string => `${where} [${finding.rule}]: ${finding.problem} — ${finding.fix}`;
+
 /** The console, which is where both entry scripts send their output. */
 export const consoleOutput: CheckOutput = {
   log: console.log,

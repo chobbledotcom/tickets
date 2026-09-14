@@ -8,7 +8,7 @@ import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import {
   CapacityMeter,
   capacityLevel,
@@ -145,7 +145,7 @@ const formatAnswerSummary = (
 
 /** Build answer count summary as DetailRows */
 const buildAnswerSummaryRows = (
-  questionData: TableQuestionData | undefined,
+  questionData: AttendeeQuestionData | undefined,
 ): DetailRow[] => {
   if (!questionData || questionData.questions.length === 0) return [];
   const counts = countAnswers(questionData.attendeeAnswerMap);
@@ -168,7 +168,7 @@ export type SharedDetailInput = {
   maxCapacity: number;
   /** Calculate attendee revenue when no authoritative total is supplied. */
   hasPaidListing: boolean;
-  questionData?: TableQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
   labelSuffix?: string;
   /** Skip the attendees row (when the caller renders its own complex version) */
   skipAttendees?: boolean;
@@ -210,7 +210,7 @@ export type StatDetailInput = {
   checkedInStats: CheckedInStats;
   /** Received revenue in minor units. Omit this row when no total applies. */
   revenue?: number | undefined;
-  questionData?: TableQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
   labelSuffix: string;
 };
 

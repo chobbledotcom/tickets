@@ -31,7 +31,7 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import { type DeleteBody, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import { withApiEntity } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
 
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
@@ -43,8 +43,8 @@ import {
 
 /* jscpd:ignore-end */
 
-/** JSON body accepted by DELETE /api/admin/listings/:listingId */
-export type DeleteListingBody = DeleteBody;
+// DELETE /api/admin/listings/:listingId takes the shared DeleteBody the
+// crud-parsers module exports.
 
 // =============================================================================
 // Custom routes (delete with cleanup, activate/deactivate)
