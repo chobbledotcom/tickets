@@ -187,6 +187,20 @@ export const sitePlanMemberErrorTx = async (
   return sitePlan ? sitePlanMemberError(await decrypt(sitePlan.name)) : null;
 };
 
+/** The refusal for any join into a group that already holds a stored
+ *  built-site plan member: such a group can only lose members, never gain
+ *  them, so no join can mix the plan with normal listings. */
+export const storedPlanMemberErrorTx = async (
+  tx: TxScope,
+  groups: readonly GroupState[],
+): Promise<string | null> => {
+  const memberIds = groups.flatMap((group) =>
+    group.members.map((member) => member.id),
+  );
+  if (memberIds.length === 0) return null;
+  return sitePlanMemberErrorTx(await listingStatesTx(tx, memberIds));
+};
+
 /** The pick-count refusal for one listing against one membership quantity —
  *  the package must never demand more units of a member than the member
  *  sells in one order. Decrypts the name only for a member that fails. */
@@ -278,6 +292,10 @@ const listingGroupMembershipErrorTx = async (
   groupIds: readonly number[],
 ): Promise<string | null> => {
   const states = await groupStatesTx(tx, groupIds);
+  const storedPlanError = await storedPlanMemberErrorTx(tx, [
+    ...states.values(),
+  ]);
+  if (storedPlanError) return storedPlanError;
   for (const listing of listings) {
     for (const groupId of groupIds) {
       const error = await oneMembershipErrorTx(listing, states, groupId);

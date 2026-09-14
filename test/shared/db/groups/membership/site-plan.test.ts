@@ -87,5 +87,34 @@ describeWithEnv(
 
       expect(await listingGroupIdsOf(plan.id)).toEqual([]);
     });
+
+    test("a group holding a stored plan refuses the batch add of a normal listing", async () => {
+      const group = await createTestGroup({ name: "Stored Plan Hold" });
+      const plan = await createPlanListing("Held Plan");
+      // No save path can create this membership, so stage it raw.
+      await setListingGroups(plan.id, [group.id]);
+
+      const normal = await createTestListing({ name: "Held Group Joiner" });
+
+      expect(await assignListingsToGroup([normal.id], group.id)).toBe(
+        sitePlanMemberError(plan.name),
+      );
+      expect(await listingGroupIdsOf(normal.id)).toEqual([]);
+    });
+
+    test("a group holding a stored plan refuses a normal listing's own save", async () => {
+      const group = await createTestGroup({ name: "Stored Plan Save Hold" });
+      const plan = await createPlanListing("Saved Beside Plan");
+      await setListingGroups(plan.id, [group.id]);
+
+      const normal = await createTestListing({ name: "Save Held Joiner" });
+
+      await expect(
+        withTransaction((tx) => setListingGroupsTx(tx, normal.id, [group.id])),
+      ).rejects.toMatchObject({
+        message: sitePlanMemberError(plan.name),
+      });
+      expect(await listingGroupIdsOf(normal.id)).toEqual([]);
+    });
   },
 );

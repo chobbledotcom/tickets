@@ -14,6 +14,7 @@ import {
   listingStatesTx,
   packageMembersErrorTx,
   sitePlanMemberErrorTx,
+  storedPlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
@@ -171,7 +172,7 @@ export const assignListingsToGroup = async (
     if (listings.length !== ids.length) {
       return t("error.selected_listing_deleted");
     }
-    const batchError = await addListingsBatchError(listings, state);
+    const batchError = await addListingsBatchError(tx, listings, state);
     if (batchError) return batchError;
     // New members join with the default pick count of one, so their own cap
     // always fits; the group-edit fence judges every saved quantity.
@@ -181,14 +182,18 @@ export const assignListingsToGroup = async (
 };
 
 /** The rejection reasons for one add-listings batch: a built-site plan joins
- *  no group (ordinary or package), every joiner must match the group's
- *  settings, and package rules hold for every joiner. */
+ *  no group (ordinary or package), a stored plan member holds every joiner
+ *  out, every joiner must match the group's settings, and package rules hold
+ *  for every joiner. */
 const addListingsBatchError = async (
+  tx: TxScope,
   listings: readonly ListingState[],
   state: GroupState,
 ): Promise<string | null> => {
   const sitePlanError = await sitePlanMemberErrorTx(listings);
   if (sitePlanError) return sitePlanError;
+  const storedPlanError = await storedPlanMemberErrorTx(tx, [state]);
+  if (storedPlanError) return storedPlanError;
   const siblings: GroupListingSettings[] = [...state.members];
   for (const checked of listings) {
     const typeError = groupListingSettingsError(siblings, checked);
