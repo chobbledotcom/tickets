@@ -32,7 +32,14 @@ describe("admin group form templates", () => {
         ),
       );
     }
-    expect(html).not.toContain('value="1" checked');
+    // A fresh group's page offers its hidden listings until the operator
+    // unticks the box, so that box alone starts checked.
+    expect(html).toMatch(
+      /<input(?=[^>]*name="show_hidden_listings")(?=[^>]*value="1")[^>]*checked[^>]*>/,
+    );
+    expect(html).toMatch(
+      /<input(?=[^>]*name="hidden")(?=[^>]*value="1")(?![^>]*checked)[^>]*>/,
+    );
     expect(html).not.toContain('name="slug"');
     expect(html).toContain("Create Group");
   });
@@ -46,6 +53,7 @@ describe("admin group form templates", () => {
       is_package: true,
       max_attendees: 25,
       name: 'Family "Bundle"',
+      show_hidden_listings: false,
       slug: "family-bundle",
       terms_and_conditions: "Be kind.",
     });
@@ -62,6 +70,10 @@ describe("admin group form templates", () => {
     for (const name of ["hidden", "is_package", "hide_package_listings"]) {
       expect(html).toContain(`name="${name}" value="1" checked`);
     }
+    // The group opted out of hidden listings, so its box holds no tick.
+    expect(html).toMatch(
+      /<input(?=[^>]*name="show_hidden_listings")(?![^>]*checked)[^>]*>/,
+    );
   });
 
   test("renders package member overrides and defaults without losing a free price", () => {

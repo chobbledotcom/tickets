@@ -417,6 +417,10 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-09-11_refund_order_link",
     () => import("./2026-09-11_refund_order_link.ts"),
   ),
+  entry(
+    "2026-09-14_group_show_hidden_listings",
+    () => import("./2026-09-14_group_show_hidden_listings.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

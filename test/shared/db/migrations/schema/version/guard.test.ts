@@ -106,8 +106,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-10_refund_authority_records",
         "2026-08-18_sumup_recovery_state",
         "2026-09-11_refund_order_link",
+        "2026-09-14_group_show_hidden_listings",
       ],
-      schemaHash: "10kf51e",
+      schemaHash: "1e1hygy",
     });
   });
 
@@ -122,7 +123,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Name the booking order each refund reverses, so one returned order no longer marks a person's other orders refunded.",
+        "Let a group's booking page keep its hidden member listings off the page, one group at a time.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

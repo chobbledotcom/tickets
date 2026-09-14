@@ -686,6 +686,12 @@ export interface Group {
   is_package: boolean;
   max_attendees: number;
   name: string;
+  /** When true the group's public booking page also offers member listings
+   * marked Hidden (the long-standing behaviour). When false a hidden member
+   * stays off that page — internal to admin and capacity, bookable only
+   * through its direct link. Ignored for packages: a bundle is one product
+   * built from its members, so they always stay. */
+  show_hidden_listings: boolean;
   slug: string;
   slug_index: BlindIndex;
   terms_and_conditions: string;

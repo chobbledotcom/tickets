@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageEnabled } from "#test-utils/mocks.ts";
 import { adminGet, createTestEditorSession } from "#test-utils/session.ts";
 
@@ -131,6 +132,27 @@ describeWithEnv("the group page", { db: true }, () => {
     );
     expect(beforeZone).not.toContain(`href="/admin/groups/${group.id}/delete"`);
     expect(insideZone).toContain(`href="/admin/groups/${group.id}/delete"`);
+  });
+
+  test("keeps a hidden member in the roster while its group withholds the public share links", async () => {
+    // The group opted out of hidden listings and has no public tier, so its
+    // public page 404s — the overview must not offer a dead share link, but
+    // the roster still names the hidden member for the operator.
+    const group = await createTestGroup({
+      name: "Fan Club",
+      showHiddenListings: false,
+    });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Fan Club Tier",
+    });
+
+    const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+
+    expect(html).toContain("Fan Club Tier");
+    expect(html).not.toContain(`href="/ticket/${group.slug}"`);
+    expect(html).toContain("404s");
   });
 
   test("answers 404 for a group that is not there", async () => {

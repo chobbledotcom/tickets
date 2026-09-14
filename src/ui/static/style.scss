@@ -1967,6 +1967,11 @@ label.terms-agree {
   );
 }
 
+// Hide $target while the checkbox named $name is ticked.
+@mixin hide-when-checked($name, $target) {
+  @include hidden-in-form(':has(input[name="#{$name}"]:checked)', $target);
+}
+
 // Reveal $target only while the <select> named $name has $value chosen.
 @mixin reveal-when-selected($name, $value, $target) {
   @include hidden-in-form(
@@ -2086,6 +2091,14 @@ form.listing-form--templated.listing-form--no-daily:not(
 @include reveal-when-checked(
   "is_package",
   'label:has(input[name="hide_package_listings"])',
+);
+
+// "Show hidden listings" decides what a REGULAR group's public page offers, so
+// the package form hides it: a package's members stay in the bundle whatever
+// this box would say.
+@include hide-when-checked(
+  "is_package",
+  'label:has(input[name="show_hidden_listings"])',
 );
 
 // Hide the reservation amount field unless "This is a reservation" is checked.

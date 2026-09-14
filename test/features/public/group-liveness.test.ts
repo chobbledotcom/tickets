@@ -223,6 +223,40 @@ describeWithEnv("public regular group liveness", { db: true }, () => {
     expect(await loadBookableGroupIds([group])).toEqual(new Set([group.id]));
   });
 
+  test("a group that opts out drops a hidden member from its buyer-visible members", async () => {
+    const group = await createTestGroup({
+      name: "Surf Society",
+      showHiddenListings: false,
+    });
+    const publicTier = await createTestListing({
+      groupId: group.id,
+      name: "Surf Beach Trip",
+    });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Surf Society Tier",
+    });
+
+    const members = await getVisibleGroupMembers(group);
+    expect(members.map((member) => member.id)).toEqual([publicTier.id]);
+  });
+
+  test("a group that opts out stays live on its public tiers", async () => {
+    const group = await createTestGroup({
+      name: "Mixed group",
+      showHiddenListings: false,
+    });
+    await createTestListing({ groupId: group.id, name: "Public tier" });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Hidden tier",
+    });
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set([group.id]));
+  });
+
   test("a group with only an inactive listing has no booking page", async () => {
     const group = await createTestGroup({ name: "Inactive group" });
     const listing = await createTestListing({
@@ -230,6 +264,20 @@ describeWithEnv("public regular group liveness", { db: true }, () => {
       name: "Inactive listing",
     });
     await deactivateTestListing(listing.id);
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+
+  test("a group that opts out and holds only hidden listings has no booking page", async () => {
+    const group = await createTestGroup({
+      name: "Hidden-only group",
+      showHiddenListings: false,
+    });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Hidden-only listing",
+    });
 
     expect(await loadBookableGroupIds([group])).toEqual(new Set());
   });
@@ -276,6 +324,23 @@ describeWithEnv("public package liveness", { db: true }, () => {
     });
 
     expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+
+  test("a package keeps a hidden member in its bundle", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Backstage package",
+      showHiddenListings: false,
+    });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Backstage tour",
+    });
+
+    const members = await getVisibleGroupMembers(group);
+    expect(members.map((member) => member.name)).toEqual(["Backstage tour"]);
+    expect(await loadBookableGroupIds([group])).toEqual(new Set([group.id]));
   });
 
   test("a package with an inactive member has no booking page", async () => {

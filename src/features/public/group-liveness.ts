@@ -63,6 +63,26 @@ const activeMembersByGroup: LoadGroupMembers = (groupList) =>
     true,
   );
 
+/** Whether `member` appears on this group's public booking page. A package is
+ * one product built from every member, so a hidden member stays in the bundle.
+ * A regular group offers a hidden member only when it ticked the group's
+ * "Show hidden listings" box. */
+const buyerSeesMember = (group: Group, member: ListingWithCount): boolean =>
+  group.is_package || group.show_hidden_listings || !member.hidden;
+
+/** Each group's active members as its public booking page shows them. */
+const publicMembersByGroup: LoadGroupMembers = async (groupList) => {
+  const membersByGroup = await activeMembersByGroup(groupList);
+  return new Map(
+    groupList.map((group) => [
+      group.id,
+      membersOf(group, membersByGroup).filter((member) =>
+        buyerSeesMember(group, member),
+      ),
+    ]),
+  );
+};
+
 const groupKinds = (
   groupList: readonly Group[],
 ): { packages: Group[]; regular: Group[] } => ({
@@ -80,14 +100,8 @@ const uniqueMembersFor = (
 
 /** Buyer-visible active members of several groups, loaded in a bounded number
  * of reads rather than one query per group. */
-export const getVisibleGroupMembersByGroupIds: LoadGroupMembers = async (
-  groupList,
-) => {
-  const membersByGroup = await activeMembersByGroup(groupList);
-  return new Map(
-    groupList.map((group) => [group.id, [...membersOf(group, membersByGroup)]]),
-  );
-};
+export const getVisibleGroupMembersByGroupIds: LoadGroupMembers =
+  publicMembersByGroup;
 
 /** Load one group's buyer-visible active members through the batch path. */
 export const getVisibleGroupMembers = async (
@@ -235,15 +249,10 @@ type LoadedBookableGroups = {
 const loadBookableGroups = async (
   groupList: readonly Group[],
 ): Promise<LoadedBookableGroups> => {
-  const membersByGroup = await activeMembersByGroup(groupList);
+  const membersByGroup = await publicMembersByGroup(groupList);
   return {
     ids: await getBookableGroupIds(groupList, membersByGroup),
-    membersByGroup: new Map(
-      groupList.map((group) => [
-        group.id,
-        membersOf(group, membersByGroup).slice(),
-      ]),
-    ),
+    membersByGroup,
   };
 };
 

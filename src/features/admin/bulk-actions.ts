@@ -250,6 +250,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     isPackage: group.is_package,
     maxAttendees: group.max_attendees,
     name: newName,
+    showHiddenListings: group.show_hidden_listings,
     slug,
     slugIndex,
     termsAndConditions: group.terms_and_conditions,

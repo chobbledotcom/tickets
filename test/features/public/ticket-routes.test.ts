@@ -1,6 +1,7 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -8,9 +9,12 @@ import {
   handleTicketQrGet,
 } from "#routes/public/ticket-routes.ts";
 import { hostEmail } from "#shared/email.ts";
-import { submitTicketForm } from "#test-utils/csrf.ts";
+import { submitMultiTicketForm, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestGroup,
+  updateTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -18,6 +22,7 @@ import {
   connectResendProvider,
   enablePublicSite,
 } from "#test-utils/settings.ts";
+import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -80,6 +85,131 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("Stargazing");
+  });
+
+  /** An opted-out group with two public tiers and one hidden tier — the group
+   * page's placement of the hidden tier is what these tests assert. */
+  const optedOutGroup = async (
+    name: string,
+  ): Promise<{
+    group: Awaited<ReturnType<typeof createTestGroup>>;
+    hiddenTier: ListingWithCount;
+    publicTier: ListingWithCount;
+  }> => {
+    const group = await createTestGroup({ name, showHiddenListings: false });
+    // Two public tiers: the group page then renders one named row per tier,
+    // which the hidden member's row must not join (with a single public tier
+    // the page is single-listing and shows no row names at all).
+    const publicTier = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 5,
+      name: `${name} Lesson 0`,
+      purchaseOnly: true,
+      thankYouUrl: "",
+    });
+    await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: `${name} Lesson 1`,
+      purchaseOnly: true,
+      thankYouUrl: "",
+    });
+    const hiddenTier = await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      maxAttendees: 10,
+      name: `${name} Secret Tier`,
+      purchaseOnly: true,
+      thankYouUrl: "",
+    });
+    return { group, hiddenTier, publicTier };
+  };
+
+  test("a group page omits a hidden tier the group opted out of, on render and on submission", async () => {
+    await enablePublicSite();
+    const { group, hiddenTier, publicTier } =
+      await optedOutGroup("Surf Society");
+
+    const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Surf Society Lesson 0");
+    expect(html).toContain("Surf Society Lesson 1");
+    expect(html).not.toContain("Surf Society Secret Tier");
+
+    // A crafted quantity field cannot book the hidden tier either: the
+    // submission prices the page's own listing set, which no longer has it.
+    const booking = await submitMultiTicketForm(group.slug, {
+      email: "buyer@example.com",
+      name: "Jane Doe",
+      [`quantity_${publicTier.id}`]: "1",
+      [`quantity_${hiddenTier.id}`]: "3",
+    });
+    expect(booking.status).toBe(302);
+    expect(booking.headers.get("location")).toContain("/ticket/reserved");
+    const [publicRows, hiddenRows] = await Promise.all([
+      getAttendeesByListingIds([publicTier.id], true),
+      getAttendeesByListingIds([hiddenTier.id], true),
+    ]);
+    expect(publicRows).toHaveLength(1);
+    expect(hiddenRows).toHaveLength(0);
+
+    // The hidden tier keeps its own direct page.
+    const direct = await handleRequest(
+      mockRequest(`/ticket/${hiddenTier.slug}`),
+    );
+    expect(direct.status).toBe(200);
+  });
+
+  test("a group whose only tier is hidden and opted out has no public page", async () => {
+    await enablePublicSite();
+    const group = await createTestGroup({
+      name: "Fan Club",
+      showHiddenListings: false,
+    });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      maxAttendees: 10,
+      name: "Fan Club Secret Tier",
+      purchaseOnly: true,
+      thankYouUrl: "",
+    });
+
+    const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    expect(response.status).toBe(404);
+    const listings = await handleRequest(mockRequest("/listings"));
+    expect(await listings.text()).not.toContain("Fan Club");
+  });
+
+  test("a group that unticks the box stops showing its hidden tier", async () => {
+    await enablePublicSite();
+    const group = await createTestGroup({ name: "Board Game Club" });
+    const publicTier = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 5,
+      name: "Board Game Club Lesson",
+      purchaseOnly: true,
+      thankYouUrl: "",
+    });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      maxAttendees: 10,
+      name: "Board Game Club Secret Tier",
+      purchaseOnly: true,
+      thankYouUrl: "",
+    });
+
+    const shown = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    expect(await shown.text()).toContain("Board Game Club Secret Tier");
+
+    await updateTestGroup(group.id, { showHiddenListings: false });
+    const cleared = await handleRequest(
+      mockRequest(`/ticket/${group.slug}?q_${publicTier.id}=1`),
+    );
+    expect(cleared.status).toBe(200);
+    expect(await cleared.text()).not.toContain("Board Game Club Secret Tier");
   });
 
   /** Book one purchase-only listing and read its reserved page. */

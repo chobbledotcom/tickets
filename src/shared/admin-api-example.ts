@@ -90,6 +90,7 @@ const ADMIN_API_EXAMPLE_GROUP = {
   is_package: false,
   max_attendees: 50,
   name: "Summer Series",
+  show_hidden_listings: true,
   slug: "summer-series",
   terms_and_conditions: "",
 };

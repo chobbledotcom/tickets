@@ -16,6 +16,7 @@ export const createTestGroup = async (
     isPackage: overrides.isPackage ?? false,
     maxAttendees: overrides.maxAttendees ?? 0,
     name: overrides.name ?? "Test Group",
+    showHiddenListings: overrides.showHiddenListings ?? true,
     termsAndConditions: overrides.termsAndConditions ?? "",
   };
 
@@ -28,6 +29,7 @@ export const createTestGroup = async (
       terms_and_conditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
       ...(input.isPackage ? { is_package: "1" } : {}),
+      ...(input.showHiddenListings ? { show_hidden_listings: "1" } : {}),
     },
     async () => {
       const { groups } = await import("#db/groups.ts");
@@ -43,6 +45,7 @@ export const createTestGroup = async (
       hidden: group.hidden,
       maxAttendees: group.max_attendees,
       name: group.name,
+      showHiddenListings: group.show_hidden_listings,
       slug: overrides.slug,
       termsAndConditions: group.terms_and_conditions,
     });
@@ -73,6 +76,8 @@ export const updateTestGroup = async (
 
   const hidden = updates.hidden ?? existing.hidden;
   const isPackage = updates.isPackage ?? existing.is_package;
+  const showHiddenListings =
+    updates.showHiddenListings ?? existing.show_hidden_listings;
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
@@ -84,6 +89,7 @@ export const updateTestGroup = async (
         updates.termsAndConditions ?? existing.terms_and_conditions,
       ...(hidden ? { hidden: "1" } : {}),
       ...(isPackage ? { is_package: "1" } : {}),
+      ...(showHiddenListings ? { show_hidden_listings: "1" } : {}),
     },
     async () => {
       const updated = await groups.table.read.one({ id: groupId });

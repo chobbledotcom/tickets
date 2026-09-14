@@ -319,7 +319,10 @@ export const PackageBookRequestSchema = v.strictObject({
 
 const groupEntries = {
   description: v.string(),
-  ...v.entriesFromList(["hidden", "hide_package_listings"], v.boolean()),
+  ...v.entriesFromList(
+    ["hidden", "hide_package_listings", "show_hidden_listings"],
+    v.boolean(),
+  ),
   id: AtLeastOne,
   // Zero is a real setting here: a group with no cap of its own.
   max_attendees: v.pipe(v.number(), v.integer(), v.minValue(0)),
