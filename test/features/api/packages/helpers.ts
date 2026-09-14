@@ -113,7 +113,6 @@ export const withAddonGetPackage = async (
   memberId: number,
   childId: number,
   slug: string,
-  // deno-lint-ignore no-explicit-any
 ): Promise<any> => {
   await listingChildren.setIds(memberId, [childId]);
   return (await (await apiGet(`/api/packages/${slug}`)).json()).package;

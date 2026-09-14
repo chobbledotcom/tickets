@@ -59,20 +59,26 @@ describe("readComments", () => {
     const source = [
       "/* jscpd:ignore-start */",
       '/// <reference lib="dom" />',
-      "// deno-lint-ignore no-explicit-any",
       "// biome-ignore lint: needed",
       "// @ts-expect-error deliberate",
       "// test-groups: run-alone",
       "// kept",
     ].join("\n");
     expect(readComments(source)).toEqual([
-      { column: 0, line: 7, text: "// kept" },
+      { column: 0, line: 6, text: "// kept" },
     ]);
   });
 
   test("keeps a comment that merely mentions a directive-like word", () => {
     const found = readComments("// prefer a named type over a cast\n");
     expect(found).toHaveLength(1);
+  });
+
+  // The directive family retired with deno lint, so its comments are prose.
+  test("keeps a deno-lint-ignore comment as prose", () => {
+    expect(readComments("// deno-lint-ignore no-explicit-any\n")).toEqual([
+      { column: 0, line: 1, text: "// deno-lint-ignore no-explicit-any" },
+    ]);
   });
 });
 

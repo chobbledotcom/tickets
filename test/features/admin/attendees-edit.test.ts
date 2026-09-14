@@ -115,7 +115,6 @@ const setupTaggedRefresh = async (
 const submitRefreshPayment = async (
   attendee: Attendee,
   refundedPredicate: (reference: string) => Promise<boolean>,
-  // deno-lint-ignore no-explicit-any
   expectedFlash: string | any = expect.stringContaining("refunded"),
   succeeded = true,
 ): Promise<string[]> => {

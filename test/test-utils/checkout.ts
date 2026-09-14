@@ -125,10 +125,10 @@ export const johnCheckoutSession = (
       });
 
 /** Find the captured intent's line item for `listing` and assert its
- *  `unitPrice` — the shared "this folded line was charged X" check behind
- *  every test that inspects the outgoing intent's per-line prices. Pass the
- *  captured intent (`getCaptured()`), the listing whose price to check, and the
- *  expected unit price in the smallest currency unit (e.g. pence). */
+ * `unitPrice` — the shared "this folded line was charged X" check behind
+ * every test that inspects the outgoing intent's per-line prices. Pass the
+ * captured intent (`getCaptured()`), the listing whose price to check, and the
+ * expected unit price in the smallest currency unit (e.g. pence). */
 export const expectCapturedItemPriced = (
   intent: CheckoutIntent | undefined,
   listing: { id: number },
@@ -137,3 +137,11 @@ export const expectCapturedItemPriced = (
   const item = intent?.items.find((i) => i.listingId === listing.id);
   expect(item?.unitPrice).toBe(unitPrice);
 };
+
+/** The quantity the captured intent applied to the given modifier — the
+ * shared "was this modifier applied, and how many times" check. */
+export const capturedModifierQuantity = (
+  intent: CheckoutIntent | undefined,
+  modifierId: number,
+): number | undefined =>
+  intent?.modifiers?.find((m) => m.id === modifierId)?.quantity;

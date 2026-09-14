@@ -52,7 +52,12 @@ in
   };
 
   config = {
-    profiles.ci.module.ticketsBrowserTools = false;
+    # CI runs each check itself, so the commit-time Git hook must not run. Every
+    # shell entry otherwise runs `deno task precommit` before the command.
+    profiles.ci.module = {
+      ticketsBrowserTools = false;
+      git-hooks.enable = false;
+    };
 
     languages.deno = {
       enable = true;

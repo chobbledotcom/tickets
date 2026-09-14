@@ -52,7 +52,6 @@ const makeRenewalEntry = (
     { quantity },
   );
 
-// deno-lint-ignore no-explicit-any
 type SecretStub = any;
 
 type StubResult = { ok: true } | { ok: false; error: string };
