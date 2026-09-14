@@ -44,7 +44,7 @@ const nothingShared = <T>(offers: readonly (readonly T[])[]): boolean =>
 /** A "nothing shared" rule: every item offers choices of its own, but no
  * single choice works for all of them. */
 const nothingSharedRule =
-  <Item, Offer>(
+  <Item extends { name: string }, Offer>(
     itemsOf: (facts: CartFacts) => readonly Item[],
     offersOf: (item: Item) => readonly Offer[],
     message: (names: string) => string,
