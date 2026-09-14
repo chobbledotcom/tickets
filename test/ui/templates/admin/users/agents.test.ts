@@ -34,10 +34,19 @@ describe("adminUserNewPage agent selector", () => {
   test("renders the agent checkboxes when agents exist", () => {
     const html = adminUserNewPage(OWNER_SESSION, AGENTS);
     expect(html).toContain("Assigned logistics agents");
+    expect(html).toContain('<fieldset class="checkboxes">');
     expect(html).toContain('name="agent_ids"');
     expect(html).toContain("Van 1");
     expect(html).toContain('value="2"');
     expect(html).toContain("Delivery agent");
+    expect(html).toContain('action="/admin/users"');
+    expect(html).toContain('<a class="active" href="/admin/user/new">');
+  });
+
+  test("renders the agent checkboxes for a single agent", () => {
+    const html = adminUserNewPage(OWNER_SESSION, [{ id: 1, name: "Van 1" }]);
+    expect(html).toContain('name="agent_ids"');
+    expect(html).toContain("Van 1");
   });
 
   test("omits the selector when there are no agents", () => {
@@ -90,6 +99,10 @@ describe("UserAgentsPanel", () => {
       }),
     );
     expect(html).toContain("No logistics agents exist yet");
+    // The link and its leading space stay glued to the sentence that offers it.
+    expect(html).toContain(
+      'Add some under <a href="/admin/logistics">Logistics</a>.',
+    );
   });
 });
 
