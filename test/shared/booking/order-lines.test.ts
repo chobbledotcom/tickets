@@ -165,6 +165,32 @@ describe("buildOrderLines", () => {
     expect(Object.hasOwn(lines[2]!, "packageGroupId")).toBe(false);
   });
 
+  test("keeps a single folded child unit as its own line", () => {
+    // One booked add-on is still a line: dropping quantity-1 child lines
+    // would silently lose a paid unit from the order.
+    const tree = childLineTree({
+      id: 11,
+      name: "Wristband",
+      slug: "wrist",
+      unit_price: 250,
+    });
+    const lines = buildOrderLines(
+      tree,
+      new Map([["listing:1", 1]]),
+      new Map([
+        [1, 1],
+        [11, 1],
+      ]),
+      new Map(),
+      1,
+      { renewal: false },
+    );
+    expect(lines.map((line) => [line.listingId, line.quantity])).toEqual([
+      [1, 1],
+      [11, 1],
+    ]);
+  });
+
   test("skips paths booked zero times or missing from the map entirely", () => {
     const tree = dualPathTree();
     // The member path is explicitly zero and listing:2 is absent — only the

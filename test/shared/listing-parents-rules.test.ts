@@ -350,6 +350,18 @@ describe("edgeFieldError", () => {
       "2 days",
     ],
     [
+      "a fixed standard parent offers its single 1-day span",
+      listing({ listing_type: "standard", name: "Quick Stop" }),
+      listing({
+        customisable_days: true,
+        day_prices: { 2: 200 },
+        duration_days: 5,
+        name: "Cabin",
+      }),
+      "1 day",
+      "2 days",
+    ],
+    [
       "sorts and counts the parent's offered lengths, including one day",
       listing({
         customisable_days: true,

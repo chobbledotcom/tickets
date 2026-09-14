@@ -2,7 +2,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { resolvedToPublicListing } from "#routes/api/public-listing.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import {
+  buildChildPublicListings,
+  mapParentChildren,
+  resolvedToPublicListing,
+} from "#routes/api/public-listing.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import type { ListingWithCount } from "#types";
 
 const listing = (overrides: Partial<ListingWithCount> = {}): ListingWithCount =>
@@ -58,5 +69,72 @@ describe("resolvedToPublicListing plan facts", () => {
     const result = resolvedToPublicListing(resolved(), undefined);
     expect(result.assignBuiltSite).toBe(false);
     expect(Object.hasOwn(result, "initialSiteMonths")).toBe(false);
+  });
+});
+
+describe("resolvedToPublicListing boundary values", () => {
+  test("renders an empty date, location, and image as null", () => {
+    const result = resolvedToPublicListing(resolved(), undefined);
+    expect(result.date).toBeNull();
+    expect(result.imageUrl).toBeNull();
+    expect(result.imageAltText).toBeNull();
+    expect(result.location).toBeNull();
+  });
+
+  test("keeps a set date, location, and image value", () => {
+    const result = resolvedToPublicListing(
+      resolved({
+        date: "2026-06-01",
+        image_alt_text: "A poster",
+        image_url: "poster.webp",
+        location: "Village Hall",
+      }),
+      undefined,
+    );
+    expect(result.date).toBe("2026-06-01");
+    expect(result.imageUrl).toBe("poster.webp");
+    expect(result.imageAltText).toBe("A poster");
+    expect(result.location).toBe("Village Hall");
+  });
+});
+
+describeWithEnv("public listing children", { db: true }, () => {
+  test("a parent with one child publishes it", async () => {
+    const parent = await createTestListing({ name: "Solo Parent" });
+    const child = await createTestListing({ name: "Only Child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    expect(await mapParentChildren(parent, (c) => c.id)).toEqual([child.id]);
+  });
+
+  test("a listing with no children maps to null, not an empty array", async () => {
+    const listing = await createTestListing({ name: "Loner" });
+
+    expect(await mapParentChildren(listing, (c) => c.id)).toBeNull();
+  });
+
+  test("publishes an active daily child with its dates, never an inactive one", async () => {
+    const parent = await createTestListing({ name: "Daily Parent" });
+    const daily = await createDailyTestListing({ name: "Daily Child" });
+    const inactive = await createTestListing({ name: "Inactive Child" });
+    await deactivateTestListing(inactive.id);
+    await listingChildren.setIds(parent.id, [daily.id, inactive.id]);
+
+    const children = await buildChildPublicListings(parent);
+
+    expect(children.map((c) => c.slug)).toEqual([daily.slug]);
+    expect(children[0]!.listingType).toBe("daily");
+    expect(Array.isArray(children[0]!.availableDates)).toBe(true);
+  });
+
+  test("an active standard child carries no availableDates", async () => {
+    const parent = await createTestListing({ name: "Plain Parent" });
+    const child = await createTestListing({ name: "Plain Child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    const children = await buildChildPublicListings(parent);
+
+    expect(children.map((c) => c.slug)).toEqual([child.slug]);
+    expect("availableDates" in children[0]!).toBe(false);
   });
 });

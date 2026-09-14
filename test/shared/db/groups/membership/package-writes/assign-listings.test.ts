@@ -46,6 +46,15 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await listingGroupIdsOf(remaining.id)).toEqual([]);
   });
 
+  test("a vanished group rejects the batch with its own message", async () => {
+    const listing = await createTestListing({ name: "Groupless Member" });
+
+    expect(await assignListingsToGroup([listing.id], 999_999)).toBe(
+      t("error.selected_group_deleted"),
+    );
+    expect(await listingGroupIdsOf(listing.id)).toEqual([]);
+  });
+
   test("an incompatible batch adds none of its listings", async () => {
     const group = await createTestGroup({ name: "Mixed Batch Group" });
     const standard = await createTestListing({ name: "Standard Member" });

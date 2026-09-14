@@ -5,66 +5,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, withTransaction } from "#db/client.ts";
-import { writePackageMembersTx } from "#db/groups/membership/package-writes.ts";
+import { withTransaction } from "#db/client.ts";
 import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
-import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
+import { getGroupPackagePrices } from "#db/groups.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-
-/** A hidden package with one member, with the group write asked to save the
- *  member at `submitted` pick counts against a `maxQuantity` per-order cap. */
-const arrangeGroupWrite = async (
-  name: string,
-  submitted: number,
-  maxQuantity: number,
-) => {
-  const group = await createHiddenPackageGroup(`${name} group`);
-  const member = await createTestListing({
-    groupId: group.id,
-    maxQuantity,
-    name,
-  });
-  return {
-    group,
-    run: () =>
-      withTransaction((tx) =>
-        writePackageMembersTx(
-          tx,
-          group.id,
-          { hide_package_listings: false, is_package: true },
-          { isPackage: true },
-          [{ listingId: member.id, price: 0, quantity: submitted }],
-        ),
-      ),
-  };
-};
-
-/** A hidden package with one stored member at `quantity` pick counts, whose
- *  per-order cap the operator then lowers to `maxQuantity` — the state a
- *  listing save must judge. */
-const arrangeStoredMember = async (
-  name: string,
-  quantity: number,
-  maxQuantity: number,
-) => {
-  const group = await createHiddenPackageGroup(`${name} group`);
-  const member = await createTestListing({
-    groupId: group.id,
-    maxQuantity: 2,
-    name,
-  });
-  await setGroupPackageMembers(group.id, [
-    { listingId: member.id, price: 0, quantity },
-  ]);
-  await execute("UPDATE listings SET max_quantity = ? WHERE id = ?", [
-    maxQuantity,
-    member.id,
-  ]);
-  return { group, member };
-};
+import { arrangeGroupWrite, arrangeStoredMember } from "./arrange.ts";
 
 describeWithEnv("db > groups > package member caps", { db: true }, () => {
   test("the group write refuses a pick count above the member's cap", async () => {
