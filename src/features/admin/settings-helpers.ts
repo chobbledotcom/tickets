@@ -204,9 +204,9 @@ const createSettingsHandler = <T = string>(
 ): SettingsFormHandler => validatedSettings(settingsValueHandler<T>)(cfg);
 
 /** Convenience: createSettingsHandler + route wrapping */
-const settingsHandler = <T = string>(
+const settingsHandler: <T = string>(
   cfg: SettingsHandlerConfig<T>,
-): RequestRoute => routedSettings(createSettingsHandler<T>)(cfg);
+) => RequestRoute = routedSettings(createSettingsHandler);
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 
