@@ -147,4 +147,24 @@ describe("ensureInstalled", () => {
       await removeTree(dir);
     }
   });
+
+  test("trusts the usefulness test over the file on disk", async () => {
+    const dir = await tempBase();
+    try {
+      // Nothing lands on disk; the checksum test the caller passes decides.
+      const binaryPath = join(dir, "never-created");
+      await expect(
+        ensureInstalled({
+          binaryPath,
+          install: () => {
+            throw new Error("install must not run");
+          },
+          isUsable: async () => true,
+          lock: async (body) => body(),
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await removeTree(dir);
+    }
+  });
 });

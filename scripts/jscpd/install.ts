@@ -10,7 +10,7 @@
 
 import { join } from "node:path";
 import { UntarStream } from "@std/tar";
-import { ensureInstalled, withTempDir } from "#scripts/bin-tools.ts";
+import { ensureInstalled, isFileAt, withTempDir } from "#scripts/bin-tools.ts";
 import { sha256Hex } from "#scripts/checksum.ts";
 import { withFileLock } from "#scripts/lock-file.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -27,8 +27,8 @@ export type JscpdPaths = {
 };
 
 export const defaultJscpdPaths: JscpdPaths = {
-  binDir: join(projectRoot, ".bin"),
   binaryPath: join(projectRoot, ".bin", "jscpd"),
+  binDir: join(projectRoot, ".bin"),
 };
 
 export type JscpdInstallOptions = {
@@ -95,6 +95,15 @@ const installBinary = async (
   });
 };
 
+/** The cached binary at `path` matches the pinned checksum. A stale or
+ * truncated file from an earlier install fails the test, so the next call
+ * replaces it instead of reusing it. */
+const matchesExpected =
+  (expectedSha256: string) =>
+  async (path: string): Promise<boolean> =>
+    (await isFileAt(path)) &&
+    (await sha256Hex(await Deno.readFile(path))) === expectedSha256;
+
 /** The path of a usable jscpd binary, installing one when it is missing. */
 export const ensureJscpd = async (
   options: JscpdInstallOptions = {},
@@ -105,6 +114,7 @@ export const ensureJscpd = async (
     binaryPath: paths.binaryPath,
     install: () =>
       installBinary(paths, options.download ?? fetchTarball, expectedSha256),
+    isUsable: matchesExpected(expectedSha256),
     lock: (body) =>
       withFileLock(join(paths.binDir, "jscpd.install.lock"), body),
   });

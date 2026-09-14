@@ -231,17 +231,36 @@ describe("ensureJscpd", () => {
     }
   });
 
-  test("returns the existing binary without downloading", async () => {
+  test("keeps a cached binary that matches the checksum", async () => {
     const paths = await tempPaths();
     try {
-      await Deno.writeTextFile(paths.binaryPath, "present");
+      await Deno.writeFile(paths.binaryPath, knownBytes);
       const binaryPath = await ensureJscpd({
         download: () => {
           throw new Error("must not download");
         },
+        expectedSha256: await sha256Hex(knownBytes),
         paths,
       });
       expect(binaryPath).toBe(paths.binaryPath);
+      expect(await Deno.readFile(paths.binaryPath)).toEqual(knownBytes);
+    } finally {
+      await paths.cleanup();
+    }
+  });
+
+  test("replaces a cached binary whose checksum does not match", async () => {
+    const paths = await tempPaths();
+    try {
+      await Deno.writeTextFile(paths.binaryPath, "truncated stale bytes");
+      const tar = await tarWithJscpd();
+      const binaryPath = await ensureJscpd({
+        download: async () => tar,
+        expectedSha256: await sha256Hex(knownBytes),
+        paths,
+      });
+      expect(binaryPath).toBe(paths.binaryPath);
+      expect(await Deno.readFile(paths.binaryPath)).toEqual(knownBytes);
     } finally {
       await paths.cleanup();
     }

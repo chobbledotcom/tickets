@@ -33,22 +33,27 @@ export const withTempDir = async <Result>(
 };
 
 /**
- * Always-install-once: run `install` when no binary sits at `binaryPath`,
- * serializing the check against other processes through `lock`. Both
- * installers check again inside the lock, so two of them cannot both install.
+ * Always-install-once: run `install` when no usable binary sits at
+ * `binaryPath`, serializing the check against other processes through `lock`.
+ * `isUsable` decides whether the file already there can be kept — the plain
+ * regular-file check by default, or a checksum test when the binary is
+ * pinned. Both installers check again inside the lock, so two of them cannot
+ * both install.
  */
 export const ensureInstalled = async ({
   binaryPath,
   install,
+  isUsable = isFileAt,
   lock,
 }: {
   binaryPath: string;
   install: () => Promise<void>;
+  isUsable?: (path: string) => Promise<boolean>;
   lock: <Result>(body: () => Promise<Result>) => Promise<Result>;
 }): Promise<void> => {
-  if (await isFileAt(binaryPath)) return;
+  if (await isUsable(binaryPath)) return;
   await lock(async () => {
-    if (await isFileAt(binaryPath)) return;
+    if (await isUsable(binaryPath)) return;
     await install();
   });
 };
