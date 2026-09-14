@@ -113,26 +113,61 @@ attendeeTableSuite(() => {
     test("preserves input order when all sort keys match", () => {
       const first = namedListingRow(
         "Gala",
-        testAttendee({ email: "first@example.com", id: 1, name: "Sam" }),
+        testAttendee({ email: "second@example.com", id: 1, name: "Sam" }),
       );
       const second = namedListingRow(
         "Gala",
-        testAttendee({ email: "second@example.com", id: 1, name: "Sam" }),
+        testAttendee({ email: "first@example.com", id: 1, name: "Sam" }),
       );
 
       expect(
         sortAttendeeRows([first, second]).map((row) => row.attendee.email),
-      ).toEqual(["first@example.com", "second@example.com"]);
+      ).toEqual(["second@example.com", "first@example.com"]);
     });
 
     test("preserves input order for a longer run of matching keys", () => {
-      const rows = ["a@x", "b@x", "c@x"].map((email) =>
+      // A hundred rows cross V8's small-array sort threshold, so its TimSort
+      // run handling is what must keep these equal rows in input order.
+      // The emails stay deliberately out of alphabet order.
+      const emails = [
+        "sam@x",
+        "kim@x",
+        "ale@x",
+        "rowan@x",
+        "pia@x",
+        "noor@x",
+        "evan@x",
+        "jules@x",
+        "mira@x",
+        "theo@x",
+      ].flatMap((name) =>
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `${name}${n}`),
+      );
+      const rows = emails.map((email) =>
         namedListingRow("Gala", testAttendee({ email, id: 1, name: "Sam" })),
       );
+      expect(sortAttendeeRows(rows).map((row) => row.attendee.email)).toEqual(
+        emails,
+      );
+    });
+
+    test("keeps a matching pair together between rows with other ids", () => {
+      // One pair matches on every key (both id 5, differing only by email)
+      // and sits apart in the input; the rows with ids 1 and 9 must sort
+      // around it without splitting or flipping the pair.
+      const row = (email: string, id: number) =>
+        namedListingRow("Gala", testAttendee({ email, id, name: "Sam" }));
+      const rows = [
+        row("tie-one@x", 5),
+        row("small@x", 1),
+        row("tie-two@x", 5),
+        row("big@x", 9),
+      ];
       expect(sortAttendeeRows(rows).map((row) => row.attendee.email)).toEqual([
-        "a@x",
-        "b@x",
-        "c@x",
+        "small@x",
+        "tie-one@x",
+        "tie-two@x",
+        "big@x",
       ]);
     });
 
