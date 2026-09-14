@@ -11,11 +11,11 @@ import { stub } from "@std/testing/mock";
 import { projectRoot } from "#scripts/project-root.ts";
 import { startStripeMock } from "#scripts/stripe-mock.ts";
 import {
-  keepPortOpenCommand,
   makeExecutable,
   type StartOptions,
   shellQuote,
   type TestStripeMockPaths,
+  writeStandInMock,
 } from "#test-utils/stripe-mock/helpers.ts";
 
 /** A mock that opens its port, then does whatever the given perl says next. */
@@ -66,13 +66,7 @@ export const writeDiesWhileConfirmingMock = async (
 export const writeSlowToListenMock = async (
   paths: TestStripeMockPaths,
   quietMs = 300,
-): Promise<void> => {
-  await Deno.writeTextFile(
-    paths.binaryPath,
-    ["#!/bin/sh", `sleep ${quietMs / 1000}`, keepPortOpenCommand].join("\n"),
-  );
-  await makeExecutable(paths.binaryPath);
-};
+): Promise<void> => writeStandInMock(paths, "hold-after", String(quietMs));
 
 /**
  * A mock that takes a moment to shut down when asked politely, and leaves a
@@ -129,16 +123,7 @@ export const startCount = async (countPath: string): Promise<number> => {
 export const writeWrongPortMock = async (
   paths: TestStripeMockPaths,
   decoyPort: number,
-): Promise<void> => {
-  await Deno.writeTextFile(
-    paths.binaryPath,
-    [
-      "#!/bin/sh",
-      `exec nc -l -p ${decoyPort} -s 127.0.0.1 >/dev/null 2>&1`,
-    ].join("\n"),
-  );
-  await makeExecutable(paths.binaryPath);
-};
+): Promise<void> => writeStandInMock(paths, "hold-port", String(decoyPort));
 
 /** The exact message a failed start threw, for tests that need the whole text. */
 export const startFailureMessage = async (
