@@ -55,19 +55,13 @@ const listing = (overrides: Partial<ListingWithCount> = {}): ListingWithCount =>
 const resolved = (overrides: Partial<ListingWithCount> = {}) =>
   buildTicketListing(listing(overrides), false, undefined);
 
-describe("resolvedToPublicListing plan facts", () => {
-  test("a plan exposes its flag and the term each unit buys", () => {
+describe("resolvedToPublicListing built-site fields", () => {
+  test("a built-site plan's response names no built-site fields", () => {
     const result = resolvedToPublicListing(
       resolved({ assign_built_site: true, initial_site_months: 3 }),
       undefined,
     );
-    expect(result.assignBuiltSite).toBe(true);
-    expect(result.initialSiteMonths).toBe(3);
-  });
-
-  test("an ordinary listing carries the flag and no term", () => {
-    const result = resolvedToPublicListing(resolved(), undefined);
-    expect(result.assignBuiltSite).toBe(false);
+    expect(Object.hasOwn(result, "assignBuiltSite")).toBe(false);
     expect(Object.hasOwn(result, "initialSiteMonths")).toBe(false);
   });
 });

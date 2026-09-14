@@ -19,7 +19,6 @@ import { type EndpointDoc, json } from "./endpoint-doc.ts";
  * that offers a child is published with it, so the booking example can choose
  * it by slug. */
 const PACKAGE_EXAMPLE_CHILD = {
-  assignBuiltSite: false,
   canPayMore: false,
   customisableDays: false,
   date: null,

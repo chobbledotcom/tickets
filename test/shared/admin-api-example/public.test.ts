@@ -90,7 +90,6 @@ describe("documented public endpoints", () => {
           {
             children: [
               {
-                assignBuiltSite: false,
                 canPayMore: false,
                 customisableDays: false,
                 date: null,

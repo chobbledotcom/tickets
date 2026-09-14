@@ -63,7 +63,7 @@ describePublicApi(() => {
       expect(() => v.parse(PublicListingSchema, listings[0])).not.toThrow();
     });
 
-    test("states what a plan listing's quantity buys", async () => {
+    test("a built-site plan's API entry names no built-site fields", async () => {
       using _builder = withEnv({ CAN_BUILD_SITES: "true" });
       await createTestListing({
         assignBuiltSite: true,
@@ -71,14 +71,7 @@ describePublicApi(() => {
         name: "Hosting",
       });
       const { listings } = await fetchListingsList();
-      expect(listings[0]!.assignBuiltSite).toBe(true);
-      expect(listings[0]!.initialSiteMonths).toBe(3);
-    });
-
-    test("an ordinary listing exposes no plan term", async () => {
-      await createTestListing({ name: "Gala" });
-      const { listings } = await fetchListingsList();
-      expect(listings[0]!.assignBuiltSite).toBe(false);
+      expect(Object.hasOwn(listings[0]!, "assignBuiltSite")).toBe(false);
       expect(Object.hasOwn(listings[0]!, "initialSiteMonths")).toBe(false);
     });
 

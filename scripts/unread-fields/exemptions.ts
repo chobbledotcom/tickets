@@ -22,7 +22,6 @@ const publicListings = exemptFieldsAt<PublicListing>(
     kind: "external-output",
   },
 )({
-  assignBuiltSite: "exempt",
   availableDates: "exempt",
   canPayMore: "exempt",
   children: "exempt",
@@ -33,7 +32,6 @@ const publicListings = exemptFieldsAt<PublicListing>(
   fields: "exempt",
   imageAltText: "exempt",
   imageUrl: "exempt",
-  initialSiteMonths: "exempt",
   isClosed: "exempt",
   isSoldOut: "exempt",
   listingType: "exempt",
