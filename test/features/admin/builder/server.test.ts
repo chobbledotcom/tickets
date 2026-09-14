@@ -120,6 +120,9 @@ test("builder form defines every field and option exactly", () => {
     {
       hint: "Leave blank to auto-provision a database.",
       label: "Database token",
+      // A pasted machine credential: the shared textarea cap, not the
+      // single-line rule.
+      maxlength: 10240,
       name: "db_token",
       placeholder: "Database auth token",
       type: "password",

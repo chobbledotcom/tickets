@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { denoExitCode } from "#scripts/mutation/child-process.ts";
+import { denoExitDetail } from "#scripts/mutation/child-process.ts";
 
 const PARENT_KEY = "TICKETS_MUTATION_PARENT_ONLY";
 
@@ -24,7 +24,7 @@ test("an explicit child environment does not inherit removed parent values", () 
       clearEnv: false,
       env: { TICKETS_MUTATION_CHILD_ONLY: "present" },
     };
-    const code = await denoExitCode(
+    const { code } = await denoExitDetail(
       [
         "eval",
         `Deno.exit(Deno.env.get("${PARENT_KEY}") === undefined && Deno.env.get("TICKETS_MUTATION_CHILD_ONLY") === "present" ? 0 : 1)`,
@@ -37,7 +37,7 @@ test("an explicit child environment does not inherit removed parent values", () 
 
 test("a child without an explicit environment inherits parent values", () =>
   withParentVariable("must inherit", async () => {
-    const code = await denoExitCode([
+    const { code } = await denoExitDetail([
       "eval",
       `Deno.exit(Deno.env.get("${PARENT_KEY}") === "must inherit" ? 0 : 1)`,
     ]);

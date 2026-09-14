@@ -14,12 +14,6 @@ export const denoExitDetail = (
     clearEnv: options.env !== undefined,
   });
 
-/** Run `deno <args>` to completion and return its exit code. */
-export const denoExitCode = (
-  args: string[],
-  options: Omit<Deno.CommandOptions, "args" | "clearEnv"> = {},
-): Promise<number> => denoExitDetail(args, options).then(({ code }) => code);
-
 /** The current process env plus the given extra variables — the env handed to
  * a spawned child process. */
 export const envWith = (

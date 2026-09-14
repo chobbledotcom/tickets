@@ -9,7 +9,7 @@ import { isFeaturePath } from "#scripts/specs/paths.ts";
 import { stripeMockEnv, stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
-import { denoExitCode, denoExitDetail, envWith } from "./child-process.ts";
+import { denoExitDetail, envWith } from "./child-process.ts";
 import { planIsolateEntries } from "./isolate-entry.ts";
 import type { EvaluationStatus } from "./summary.ts";
 
@@ -77,7 +77,8 @@ export interface StaticGateDeps {
 
 const realGateDeps: StaticGateDeps = {
   commandExit: commandExitCode,
-  denoExit: denoExitCode,
+  denoExit: (args, options) =>
+    denoExitDetail(args, options).then(({ code }) => code),
   resolveBiome: resolveBiomeCommand,
 };
 
