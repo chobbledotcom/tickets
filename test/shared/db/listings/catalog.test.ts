@@ -115,3 +115,21 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
     ]);
   });
 });
+
+describeWithEnv(
+  "db > listing catalog > built-site plan",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("never offers a built-site plan to the external order widget", async () => {
+      await createTestListing({
+        assignBuiltSite: true,
+        initialSiteMonths: 3,
+        name: "Site plan",
+      });
+
+      expect(
+        (await getCatalogListings()).map((listing) => listing.name),
+      ).toEqual([]);
+    });
+  },
+);

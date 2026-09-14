@@ -76,6 +76,9 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
       alias: "listing",
       where: [
         { args: [], clause: "listing.active = 1" },
+        // A built-site plan is booked on its own checkout page, so the external
+        // order widget — which cannot carry the site-setup flow — never lists it.
+        { args: [], clause: "listing.assign_built_site = 0" },
         {
           args: [],
           clause: catalogVisibleSql(settings.listingDefaults.hidden),
