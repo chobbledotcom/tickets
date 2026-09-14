@@ -1,7 +1,10 @@
 /** Site builder form fields. */
 
+/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+/* jscpd:ignore-end */
 import {
   builtSiteBox,
   denoDeployOption,
@@ -12,7 +15,7 @@ export const builderForm = defineForm({
   fields: [
     {
       ...builtSiteBox("site_name", "name", "text" as const),
-      maxlength: 64,
+      maxlength: MAX_INPUT_LENGTH,
       minlength: 1,
       required: true,
     },
@@ -37,6 +40,9 @@ export const builderForm = defineForm({
     {
       ...builtSiteBox("db_token", "db_token", "password" as const),
       hint: t("fields.built_site.auto_provision_hint"),
+      // A libsql auth token is a pasted machine credential, like the wallet
+      // PEM keys: a real one runs past the single-line cap.
+      maxlength: MAX_TEXTAREA_LENGTH,
     },
   ] as const,
 });

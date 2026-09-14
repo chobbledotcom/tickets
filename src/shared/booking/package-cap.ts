@@ -130,19 +130,16 @@ type GroupNeed = {
   ticketsNeeded: number;
 };
 
-const usesParentGroup = (
-  part: ChildLimitPart,
-): part is Extract<ChildLimitPart, { kind: "parentGroup" }> =>
-  part.kind === "parentGroup";
+/** A type guard for one part kind, so each variant gets its narrowing without
+ * * restating the guard shape. */
+const isPartOfKind =
+  <Kind extends ChildLimitPart["kind"]>(kind: Kind) =>
+  (part: ChildLimitPart): part is Extract<ChildLimitPart, { kind: Kind }> =>
+    part.kind === kind;
 
-const usesChildGroup = (
-  part: ChildLimitPart,
-): part is Extract<ChildLimitPart, { kind: "childGroup" }> =>
-  part.kind === "childGroup";
-
-const usesOnlyChildLimit = (
-  part: ChildLimitPart,
-): part is Extract<ChildLimitPart, { kind: "own" }> => part.kind === "own";
+const usesParentGroup = isPartOfKind("parentGroup");
+const usesChildGroup = isPartOfKind("childGroup");
+const usesOnlyChildLimit = isPartOfKind("own");
 
 /** A capacity group this child belongs to, with the spots it still has free. */
 type LimitedGroup = { groupId: number; remaining: number };

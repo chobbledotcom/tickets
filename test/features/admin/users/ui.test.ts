@@ -92,21 +92,19 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("fields.ts (username validation)", () => {
-    test("validateUsername rejects short username", async () => {
+    test("validateUsername accepts a one-character username", async () => {
       const { validateUsername } = await import(
         "#templates/fields/validators.ts"
       );
-      expect(validateUsername("a")).toBe(
-        "Username must be at least 2 characters",
-      );
+      expect(validateUsername("a")).toBeNull();
     });
 
-    test("validateUsername rejects long username", async () => {
+    test("validateUsername rejects a long username", async () => {
       const { validateUsername } = await import(
         "#templates/fields/validators.ts"
       );
-      expect(validateUsername("a".repeat(33))).toBe(
-        "Username must be 32 characters or fewer",
+      expect(validateUsername("a".repeat(251))).toBe(
+        "Username must be 250 characters or fewer",
       );
     });
 

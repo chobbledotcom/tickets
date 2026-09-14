@@ -6,6 +6,7 @@ import { MASK_SENTINEL } from "#db/settings/mask.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
@@ -22,7 +23,10 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
   >
     <TextField
       label={t("sms.settings.username")}
-      name="sms_gateway_username"
+      {...settingsFormFieldAttributes(
+        "settings-sms-gateway",
+        "sms_gateway_username",
+      )}
       placeholder={t("sms.settings.username_placeholder")}
       type="text"
       value={s.smsGatewayUsername}
@@ -30,7 +34,10 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
     <MaskedInput
       configured={s.smsGatewayPasswordConfigured}
       label={t("sms.settings.password")}
-      name="sms_gateway_password"
+      {...settingsFormFieldAttributes(
+        "settings-sms-gateway",
+        "sms_gateway_password",
+      )}
       placeholder={t("sms.settings.password_placeholder")}
     />
     <label>
@@ -38,7 +45,10 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       <input
         autocomplete="off"
         minlength={SMS_PASSPHRASE_MIN_LENGTH}
-        name="sms_gateway_passphrase"
+        {...settingsFormFieldAttributes(
+          "settings-sms-gateway",
+          "sms_gateway_passphrase",
+        )}
         placeholder={t("sms.settings.passphrase_placeholder")}
         type="password"
         value={s.smsGatewayPassphraseConfigured ? MASK_SENTINEL : undefined}
@@ -47,7 +57,10 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
     </label>
     <TextField
       label={t("sms.settings.base_url")}
-      name="sms_gateway_base_url"
+      {...settingsFormFieldAttributes(
+        "settings-sms-gateway",
+        "sms_gateway_base_url",
+      )}
       placeholder={t("sms.settings.base_url_placeholder")}
       type="url"
       value={s.smsGatewayBaseUrl}
@@ -55,7 +68,10 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
     <MaskedInput
       configured={s.smsGatewayWebhookConfigured}
       label={t("sms.settings.webhook_secret")}
-      name="sms_gateway_webhook_secret"
+      {...settingsFormFieldAttributes(
+        "settings-sms-gateway",
+        "sms_gateway_webhook_secret",
+      )}
       placeholder={t("sms.settings.webhook_secret_placeholder")}
     />
     <Raw html={t("sms.settings.webhook_note")} />

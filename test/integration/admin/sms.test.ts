@@ -21,6 +21,7 @@ import {
   countSmsMessages,
   getSmsMessageByProviderId,
 } from "#db/sms-messages.ts";
+import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -110,6 +111,21 @@ describeWithEnv("admin sms", { db: true }, () => {
       message: "   ",
     });
     expect(response.status).toBe(302);
+    await expectNothingSent(attendee.id);
+  });
+
+  it("POST rejects a message past the composed limit", async () => {
+    // The compose box caps at SMS_MESSAGE_MAX_LENGTH, so a longer send is one
+    // no browser could have made; the route must refuse it unread.
+    await configureGateway();
+    const { attendee, form } = await setup();
+    using fetchStub = stubFetch(new Response('{"id":"msg-9"}'));
+    const { response } = await adminFormPost("/admin/sms", {
+      ...form,
+      message: "x".repeat(SMS_MESSAGE_MAX_LENGTH + 1),
+    });
+    expect(response.status).toBe(302);
+    expect(fetchStub.calls).toHaveLength(0);
     await expectNothingSent(attendee.id);
   });
 

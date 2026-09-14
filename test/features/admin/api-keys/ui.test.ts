@@ -57,7 +57,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const html = apiKeyForm.render();
       expect(html).toContain("Name");
       const input = inputNamed(html, "name");
-      expect(input).toContain('maxlength="100"');
+      expect(input).toContain('maxlength="250"');
       expect(input).toContain('placeholder="e.g. CI Pipeline"');
       expect(input).toContain("required");
     });
@@ -224,15 +224,15 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       expectFlash(response, "Name is required", false);
     });
 
-    test("POST /admin/api-keys rejects name over 100 characters", async () => {
+    test("POST /admin/api-keys rejects name over 250 characters", async () => {
       const response = (
         await adminFormPost("/admin/api-keys", {
-          name: "x".repeat(101),
+          name: "x".repeat(251),
         })
       ).response;
 
       expect(response.status).toBe(302);
-      expectFlash(response, "Name must be under 100 characters", false);
+      expectFlash(response, "Name must be 250 characters or fewer", false);
     });
 
     test("POST /admin/api-keys redirects when session has no wrapped data key", async () => {

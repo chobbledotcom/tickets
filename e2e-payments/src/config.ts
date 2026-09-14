@@ -85,10 +85,10 @@ export const config = {
   /** The one step allowance big enough for the slow hosted-payment step. */
   hostedPaymentStepTimeoutMs: num("E2E_HOSTED_PAYMENT_TIMEOUT_MS", 240_000),
   navTimeoutMs: num("E2E_NAV_TIMEOUT_MS", 45_000),
-
-  /** Ntfy endpoint pinged on failure (e.g. `https://ntfy.sh/your-topic`). Unset ⇒ no notification. */
-  ntfyUrl: env("NTFY_URL"),
   paymentConfirmTimeoutMs: num("E2E_PAYMENT_CONFIRM_TIMEOUT_MS", 90_000),
+
+  /** Sentry DSN for the operator's bug catcher; a harness crash reports there. */
+  sentryUrl: env("SENTRY_URL"),
 
   /** Timeouts (ms). Hosted checkout pages can be slow, so keep these generous. */
   serverBootTimeoutMs: num("E2E_SERVER_BOOT_TIMEOUT_MS", 60_000),

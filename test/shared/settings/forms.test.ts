@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   SETTINGS_FORM_DEFINITIONS,
   SETTINGS_FORMS,
+  settingsFormFieldAttributes,
 } from "#shared/settings/forms.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
@@ -304,6 +305,15 @@ describe("settings form schema", () => {
     expect(SETTINGS_FORMS.bookingFee.max).toBe("10");
     expect(SETTINGS_FORMS.bookingFee.min).toBe("0");
     expect(SETTINGS_FORMS.bookingFee.step).toBe("0.1");
+  });
+
+  test("answers a field's browser limits from its declaration", () => {
+    expect(
+      settingsFormFieldAttributes("settings-business-email", "business_email"),
+    ).toEqual({ maxlength: 250, name: "business_email" });
+    expect(() =>
+      settingsFormFieldAttributes("settings-business-email", "not_a_field"),
+    ).toThrow("Settings field does not exist: not_a_field");
   });
 
   test("spells out the tags a column order can use", () => {

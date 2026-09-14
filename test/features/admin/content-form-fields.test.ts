@@ -7,7 +7,7 @@ import {
   defineContentForms,
   seoContentInput,
 } from "#routes/admin/content-form-fields.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
 await allEnglishMessages();
@@ -69,9 +69,10 @@ describe("content form fields", () => {
   test("every shared limit is declared once in CONTENT_FIELD_LIMITS", () => {
     // The table is the one place a new content editor imports its limits
     // from, so each shared field's maxlength must read from it.
+    // The SEO caps stay at the search-engine display limits.
     expect(CONTENT_FIELD_LIMITS.meta_description).toBe(160);
     expect(CONTENT_FIELD_LIMITS.meta_title).toBe(64);
-    expect(CONTENT_FIELD_LIMITS.name).toBe(128);
+    expect(CONTENT_FIELD_LIMITS.name).toBe(MAX_INPUT_LENGTH);
     // The body rides the shared textarea limit.
     expect(CONTENT_FIELD_LIMITS.content).toBe(MAX_TEXTAREA_LENGTH);
   });

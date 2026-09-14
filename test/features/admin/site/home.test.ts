@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MAX_WEBSITE_TITLE_LENGTH } from "#db/settings/constants.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -26,7 +25,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       const html = siteHomeForm.render();
       expect(html).toContain("Website title");
       expect(html).toContain(
-        "Displayed as the main heading on all public pages (max 128 characters).",
+        `Displayed as the main heading on all public pages (max ${MAX_INPUT_LENGTH} characters).`,
       );
       expect(inputNamed(html, "website_title")).toContain('autocomplete="off"');
       // The id ties the label to the field; an emptied id breaks that link.
@@ -150,13 +149,11 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     test("rejects title exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site", {
         homepage_text: "",
-        website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
+        website_title: "x".repeat(MAX_INPUT_LENGTH + 1),
       });
       await expectFlashRedirect(
         "/admin/site",
-        expect.stringContaining(
-          `${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`,
-        ),
+        expect.stringContaining(`${MAX_INPUT_LENGTH} characters or fewer`),
         false,
       )(response);
     });
@@ -171,6 +168,15 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
         false,
       )(response);
+    });
+
+    test("saves the complete website title at the shared limit", async () => {
+      const title = "x".repeat(MAX_INPUT_LENGTH);
+      const { response } = await adminFormPost("/admin/site", {
+        website_title: title,
+      });
+      expectRedirectWithFlash("/admin/site", "Homepage updated")(response);
+      expect(settings.websiteTitle).toBe(title);
     });
 
     test("handles missing fields gracefully", async () => {

@@ -11,16 +11,18 @@ import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { validateForm } from "#shared/forms/validation.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   parseListingFields,
   withRequiredEmail,
 } from "#shared/listing-fields.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import {
-  MAX_ADDRESS_LENGTH,
-  MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  CONTACT_TEXTAREA_LIMIT,
+  PHONE_FIELD_LENGTH,
   validateAddress,
   validateEmail,
+  validateName,
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
@@ -42,15 +44,18 @@ export type { ContactInfo };
 const nameField: Field = {
   autocomplete: "name",
   label: "Your Name",
+  maxlength: MAX_INPUT_LENGTH,
   name: "name",
   required: true,
   type: "text",
+  validate: validateName,
 };
 
 /** Email field for ticket forms */
 const emailField: Field = {
   autocomplete: "email",
   label: "Your Email",
+  maxlength: MAX_INPUT_LENGTH,
   name: "email",
   required: true,
   type: "email",
@@ -75,6 +80,7 @@ export const SUBDOMAIN_INPUT_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?";
 const phoneField: Field = {
   autocomplete: "tel",
   label: "Your Phone Number",
+  maxlength: PHONE_FIELD_LENGTH,
   name: "phone",
   pattern: PHONE_INPUT_PATTERN,
   required: true,
@@ -88,7 +94,7 @@ const phoneField: Field = {
 const addressField: Field = {
   autocomplete: "street-address",
   label: "Your Address",
-  maxlength: MAX_ADDRESS_LENGTH,
+  maxlength: CONTACT_TEXTAREA_LIMIT,
   name: "address",
   required: true,
   type: "textarea",
@@ -98,7 +104,7 @@ const addressField: Field = {
 /** Special instructions field for ticket forms (textarea) */
 const specialInstructionsField: Field = {
   label: "Special Instructions",
-  maxlength: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  maxlength: CONTACT_TEXTAREA_LIMIT,
   name: "special_instructions",
   required: true,
   type: "textarea",

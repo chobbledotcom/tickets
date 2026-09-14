@@ -48,6 +48,49 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   });
 
   describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
+    test("refuses a duplicate whose generated names pass the catalog length cap", async () => {
+      // Regression: the batch insert bypasses the create-path validators, so
+      // the duplicate flow re-checks the catalog-name rules itself. Without
+      // the length leg, an over-long new group name or find/replace result
+      // was stored, and its Square line later failed at the name cap.
+      const group = await createTestGroup({ name: "Lengthy Source" });
+      await createTestListing({
+        groupId: group.id,
+        name: "Lengthy Member",
+      });
+
+      const overLongGroup = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          name_find: "Lengthy",
+          name_replace: "Long",
+          new_name: "N".repeat(251),
+        },
+      );
+      expectFlash(
+        overLongGroup.response,
+        "Name must be 250 characters or fewer",
+        false,
+      );
+
+      const overLongClone = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          name_find: "Lengthy",
+          name_replace: "L".repeat(251),
+          new_name: "Short Copy",
+        },
+      );
+      expectFlash(
+        overLongClone.response,
+        "Name must be 250 characters or fewer",
+        false,
+      );
+      expect(
+        (await groups.cache.getAll()).some((g) => g.name === "Short Copy"),
+      ).toBe(false);
+    });
+
     test("syncs listing_prices for cloned listings", async () => {
       // Clones are inserted via insertStatement in a batch (bypassing the
       // listingsTable wrapper), so the duplicate flow must sync their price rows.

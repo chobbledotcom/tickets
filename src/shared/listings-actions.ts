@@ -35,7 +35,10 @@ import {
   type ListingGroupMembership,
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
-import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import {
+  catalogNameLengthError,
+  isNameTakenAnywhere,
+} from "#db/name-registry.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
@@ -408,18 +411,29 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   return lostPageOrphanedAddOn(input, existingId);
 };
 
+/** The listing name's own checks. It must be unique across BOTH listings and
+ *  groups (create and edit alike), so the catalog can be referenced by name
+ *  for import/export. Its length is capped by the shared catalog-name rule —
+ *  see {@link catalogNameLengthError}. */
+const listingNameError = async (
+  name: string,
+  existingId?: number,
+): Promise<string | null> => {
+  const nameTaken = await isNameTakenAnywhere(
+    name,
+    existingId === undefined ? undefined : { id: existingId, kind: "listing" },
+  );
+  if (nameTaken) return t("error.name_in_use");
+  return catalogNameLengthError(name);
+};
+
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (
   input: ListingInput,
   existingId?: number,
 ): Promise<string | null> => {
-  // A listing name must be unique across BOTH listings and groups (create and
-  // edit alike), so the catalog can be referenced by name for import/export.
-  const nameTaken = await isNameTakenAnywhere(
-    input.name,
-    existingId === undefined ? undefined : { id: existingId, kind: "listing" },
-  );
-  if (nameTaken) return t("error.name_in_use");
+  const nameError = await listingNameError(input.name, existingId);
+  if (nameError) return nameError;
   if (existingId !== undefined) {
     const taken = await isSlugTaken(input.slug, existingId);
     if (taken) return t("error.slug_in_use");

@@ -11,6 +11,7 @@ import {
   type SecretFieldResult,
   settingsRoute,
   testRoute,
+  withSettingsFields,
 } from "#routes/admin/settings-helpers.ts";
 import { redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -90,51 +91,53 @@ export const defineProviderCredentialsRoute = <T>(
 } => {
   // The same id the form carries on the page, so the flash lands on it.
   const formId = `settings-${cfg.provider}`;
-  const save = settingsRoute(async (form, errorPage) => {
-    const activateFromMissing = !paymentProviderHasCredentials(cfg.provider);
-    const secret = processSecretField(
-      form,
-      PAYMENT_PROVIDERS[cfg.provider].secretField,
-    );
-    const fields = cfg.extraFields
-      ? cfg.extraFields(form)
-      : (undefined as unknown as T);
+  const save = settingsRoute(
+    withSettingsFields(formId, async (form, errorPage) => {
+      const activateFromMissing = !paymentProviderHasCredentials(cfg.provider);
+      const secret = processSecretField(
+        form,
+        PAYMENT_PROVIDERS[cfg.provider].secretField,
+      );
+      const fields = cfg.extraFields
+        ? cfg.extraFields(form)
+        : (undefined as unknown as T);
 
-    const settingsFlash = (message: string): Response =>
-      redirect(SETTINGS_PATH, message, true, { formId });
+      const settingsFlash = (message: string): Response =>
+        redirect(SETTINGS_PATH, message, true, { formId });
 
-    // Provider validation + the "secret required unless already stored" guard.
-    const invalid = await cfg.validate(fields, secret);
-    if (invalid) return errorPage(invalid, formId);
-    if (
-      secret.action === "cleared" &&
-      !paymentProviderHasCredentials(cfg.provider)
-    ) {
-      return errorPage(cfg.secretRequiredError, formId);
-    }
+      // Provider validation + the "secret required unless already stored" guard.
+      const invalid = await cfg.validate(fields, secret);
+      if (invalid) return errorPage(invalid, formId);
+      if (
+        secret.action === "cleared" &&
+        !paymentProviderHasCredentials(cfg.provider)
+      ) {
+        return errorPage(cfg.secretRequiredError, formId);
+      }
 
-    // A secret-only provider with no new secret is a genuine no-op.
-    if (cfg.unchangedMessage && secret.action !== "provided") {
-      return settingsFlash(cfg.unchangedMessage);
-    }
+      // A secret-only provider with no new secret is a genuine no-op.
+      if (cfg.unchangedMessage && secret.action !== "provided") {
+        return settingsFlash(cfg.unchangedMessage);
+      }
 
-    const task = await settings.withCurrentTask(
-      `payment-provider-${cfg.provider}`,
-      async () => {
-        const saveError = await persistProviderCredentials(
-          cfg,
-          fields,
-          secret,
-          activateFromMissing,
-        );
-        if (saveError) return errorPage(saveError, formId);
-        await logActivity(cfg.logMessage);
-        return settingsFlash(cfg.successMessage);
-      },
-      form.getOptionalInt("settings_version"),
-    );
-    return task.ok ? task.value : errorPage(task.error, formId);
-  });
+      const task = await settings.withCurrentTask(
+        `payment-provider-${cfg.provider}`,
+        async () => {
+          const saveError = await persistProviderCredentials(
+            cfg,
+            fields,
+            secret,
+            activateFromMissing,
+          );
+          if (saveError) return errorPage(saveError, formId);
+          await logActivity(cfg.logMessage);
+          return settingsFlash(cfg.successMessage);
+        },
+        form.getOptionalInt("settings_version"),
+      );
+      return task.ok ? task.value : errorPage(task.error, formId);
+    }),
+  );
 
   return { save, test: testRoute(cfg.testFn) };
 };

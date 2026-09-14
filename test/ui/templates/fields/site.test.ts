@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MAX_WEBSITE_TITLE_LENGTH } from "#db/settings/constants.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   siteContactForm,
   siteHomeForm,
@@ -19,7 +18,7 @@ describe("site editor forms", () => {
       "homepage_text",
     ]);
     const title = siteHomeForm.fields[0]!;
-    expect(title.maxlength).toBe(MAX_WEBSITE_TITLE_LENGTH);
+    expect(title.maxlength).toBe(MAX_INPUT_LENGTH);
     const html = siteHomeForm.render();
     expect(html).toContain("Website title");
     // The id ties the label to the box, and the browser must not offer

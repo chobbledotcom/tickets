@@ -10,6 +10,7 @@ import { t } from "#i18n";
 import {
   advancedSettingsRoute,
   type ErrorPageFn,
+  withSettingsFields,
 } from "#routes/admin/settings-helpers.ts";
 /* jscpd:ignore-end */
 import {
@@ -61,7 +62,7 @@ const runGuardedTask = async (
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
-  async (form, errorPage) => {
+  withSettingsFields("settings-custom-domain", async (form, errorPage) => {
     const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
     if (cdnError) return cdnError;
     const raw = form.getString("custom_domain").toLowerCase();
@@ -113,7 +114,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
         );
       },
     );
-  },
+  }),
 );
 
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
@@ -169,7 +170,7 @@ const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
 
 /** Handle POST /admin/settings/host-subdomain - preview or register subdomain */
 export const handleHostSubdomainPost = advancedSettingsRoute(
-  async (form, errorPage) => {
+  withSettingsFields("settings-host-subdomain", async (form, errorPage) => {
     if (!isBunnyDnsEnabled()) {
       return errorPage("Not configured", FORM_ID_HOST_SUBDOMAIN);
     }
@@ -235,5 +236,5 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
         );
       },
     );
-  },
+  }),
 );

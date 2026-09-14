@@ -12,6 +12,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { smsPage } from "#templates/admin/sms.tsx";
 import {
   OWNER_SESSION,
@@ -79,11 +80,12 @@ describe("admin sms page", () => {
     expect(html).toContain('href="/admin/attendees/3"');
     expect(html).toContain(COMPOSE_FORM);
     expect(html).toContain("Send a text message");
-    // The box's own limit: the route trims and refuses an empty message but
-    // sets no maximum, so this attribute is the only length guard a normal
-    // send meets.
+    // The box's own limit: the route refuses the same count, so a send past
+    // it fails even from a crafted POST.
     expect(html).toMatch(
-      /name="message"[^>]*maxlength="1000"|maxlength="1000"[^>]*name="message"/,
+      new RegExp(
+        `name="message"[^>]*maxlength="${SMS_MESSAGE_MAX_LENGTH}"|maxlength="${SMS_MESSAGE_MAX_LENGTH}"[^>]*name="message"`,
+      ),
     );
     // Each hidden value bound to its own field: two loose values would pass
     // just as well with the listing and the attendee swapped.

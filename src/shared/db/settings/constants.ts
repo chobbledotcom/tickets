@@ -4,7 +4,6 @@
  * form field's `maxlength`) don't pull in the whole settings namespace.
  */
 
-export const MAX_WEBSITE_TITLE_LENGTH = 128;
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
 /**

@@ -27,7 +27,7 @@
   "setup.complete.dashboard_link": "Go to admin dashboard",
   "setup.complete.login_link": "Log in",
   "fields.setup.username": "Admin username *",
-  "fields.setup.username_hint": "Letters, numbers, hyphens, underscores (2-32 chars)",
+  "fields.setup.username_hint": "Letters, numbers, hyphens, underscores (1-250 characters)",
   "fields.setup.password": "Admin password *",
   "fields.setup.password_hint": "Minimum 8 characters",
   "fields.setup.confirm_password": "Confirm admin password *",

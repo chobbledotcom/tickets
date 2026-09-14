@@ -485,12 +485,11 @@ The task writes a versioned `reports/evidence/manifest.json` and PNG files under
 `reports/evidence/assets/`. The manifest uses the authored story, rule, case,
 and capture IDs. It includes the app commit, image hash and dimensions, browser
 profile, viewport, and presentation type. Raw Cucumber messages and reports are
-not part of this evidence folder. Main pushes and a monthly refresh check the
-captures and upload this folder as the stable `tickets-evidence` artifact with
-GitHub's 35-day retention. Nothing checks the captures before a merge, so a
-broken capture shows up on `main` rather than on the branch that caused it. The
-Tickets website imports that artifact into a reviewed pull request and keeps its
-ordinary site build offline.
+not part of this evidence folder. The `spec-evidence` workflow is manual: an
+operator starts it from the Actions tab. It checks the captures and uploads this
+folder as the stable `tickets-evidence` artifact with GitHub's 35-day retention.
+The Tickets website imports that artifact into a reviewed pull request and keeps
+its ordinary site build offline.
 
 ```bash
 # Enter the development shell (installs the pinned Deno and the other tools),
@@ -548,7 +547,7 @@ Optional:
 
 | Variable                       | Description                                                                                                                                                                                                                                                                                                       |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ADMIN_EMAIL_ADDRESS`          | Enables a superuser recovery account and the owner-only Support page (`/admin/support`). The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled.                     |
+| `ADMIN_EMAIL_ADDRESS`          | Enables a superuser recovery account and the owner-only Support page (`/admin/support`). The email local-part (before `@`) must be a valid username: 1–64 characters (the SMTP limit), letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled.    |
 | `SUPPORT_PAGE_TEXT`            | Optional markdown for the Support page (requires `ADMIN_EMAIL_ADDRESS`). Use literal `\n` for line breaks. The form beneath it delivers to `ADMIN_EMAIL_ADDRESS` and needs a business email, like the contact form.                                                                                               |
 | `SUPPORT_FORM_NAG_DAYS`        | Optional positive integer (default `7`): how long the Support page shows a "you last submitted this form …" notice after a submission, to discourage duplicates.                                                                                                                                                  |
 | `BOTPOISON_PUBLIC_KEY`         | Optional [Botpoison](https://botpoison.com) public key. When set with `BOTPOISON_SECRET_KEY`, adds proof-of-work spam protection to the contact form (which otherwise works without it).                                                                                                                          |
