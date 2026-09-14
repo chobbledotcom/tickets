@@ -416,7 +416,7 @@ export const expectRedirectWithFlash =
     const actualLocation = expectRedirect(response);
     const url = new URL(actualLocation, "http://localhost");
     const flashId = url.searchParams.get("flash");
-    expect(flashId).toBeDefined();
+    expect(flashId, actualLocation).not.toBeNull();
     url.searchParams.delete("flash");
     const clean = url.pathname + url.search + url.hash;
     expect(clean).toBe(location);

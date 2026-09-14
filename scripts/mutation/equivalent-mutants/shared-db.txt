@@ -260,3 +260,6 @@ src/shared/db/settings/cache.ts::getCurrentSettingsVersion~07k086m  ?? → ||  #
 # parseInt treats radix 0 exactly like radix 10, by the ECMAScript spec, so
 # no input distinguishes the two literals.
 src/shared/db/settings/cache.ts::getCurrentSettingsVersion~18tvevh  10 → 0  # spec: radix 0 and 10 parse identically
+
+# Contact token split (contact-tokens.ts) — the legacy (markerless) branch.
+src/shared/db/contact-tokens.ts::splitTokenBlob~05rrw2z  -→+   # separatorAt === -1 distinguishes a legacy line with no tab; the mutant only relabels such lines to carry `raw.slice(0, -1)` as their marker while keeping the encrypted value identical (slice(0)). Every marker consumer (removeBookingToken, ensureBookingToken) compares that label against an HMAC blind marker computed from the token, which a ciphertext-derived prefix string can never equal through a production write — legacy rows store an AEAD ciphertext and marked rows name their marker behind a tab, and no writer emits the hybrid a distinguishing input would need
