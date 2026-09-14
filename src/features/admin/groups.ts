@@ -44,6 +44,7 @@ import {
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
+import { xCount } from "#shared/count-text.ts";
 import {
   GROUP_DEMO_FIELDS,
   wrapResourceForDemo,
@@ -377,7 +378,7 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
       return redirect(target, typeError, false);
     }
     await logActivity(
-      `${existingListingIds.length} listing(s) added to group '${group.name}'`,
+      `${xCount(existingListingIds.length)} listings added to group '${group.name}'`,
     );
   }
   return redirect(groupPath, t("success.listings_added_to_group"), true);

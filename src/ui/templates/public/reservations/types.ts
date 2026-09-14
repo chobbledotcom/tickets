@@ -61,6 +61,8 @@ export type BookingPrefill = {
   name?: string;
   /** Pre-fill date selector (for daily listings) */
   date?: string;
+  /** Pre-fill the promo-code box from `?promo=` (already normalized) */
+  promo?: string;
   /** Opaque signed token re-submitted via a hidden input to verify a price
    * override. Only signed QR booking links set this. */
   token?: string;

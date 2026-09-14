@@ -161,6 +161,33 @@ export const submitMultiTicketForm = async (
   });
 };
 
+/** GET the booking page for `pageSlug` to mint a CSRF token, then POST the
+ *  given inputs to `/calculate/<postSlug>` exactly as the running total
+ *  would. */
+export const postRunningTotal = async (
+  pageSlug: string,
+  postSlug: string,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const { mockFormRequest, sendToApp } = await import("#test-utils/mocks.ts");
+  const { csrfToken } = await getPageWithCsrf(`/ticket/${pageSlug}`);
+  return sendToApp(
+    mockFormRequest(`/calculate/${postSlug}`, {
+      ...data,
+      csrf_token: csrfToken,
+    }),
+  );
+};
+
+/** Quote a single-slug booking page and return just its summary HTML. */
+export const quoteTicketHtml = async (
+  slug: string,
+  data: Record<string, string>,
+): Promise<string> => {
+  const response = await postRunningTotal(slug, slug, data);
+  return response.text();
+};
+
 /** Submits the joint ticket form as "John Doe", booking `quantity1` of
  *  listing1 and `quantity2` of listing2 — the generic two-listing booking
  *  shape reused by almost every multi-listing test scenario that doesn't

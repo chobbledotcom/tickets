@@ -9,7 +9,10 @@ import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
-import { stubCheckout } from "#test-utils/checkout.ts";
+import {
+  capturedModifierQuantity,
+  stubCheckout,
+} from "#test-utils/checkout.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -244,14 +247,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         });
 
         expect(response.status).toBe(302);
-        const byId = new Map(
-          (getCaptured()?.modifiers ?? []).map((m) => [m.id, m]),
-        );
+        const intent = getCaptured();
         // The add-on is applied at the chosen quantity, the promo at quantity 1,
         // and the unselected add-on is absent.
-        expect(byId.get(addOn.id)?.quantity).toBe(2);
-        expect(byId.get(promo.id)?.quantity).toBe(1);
-        expect(byId.has(skippedAddOn.id)).toBe(false);
+        expect(capturedModifierQuantity(intent, addOn.id)).toBe(2);
+        expect(capturedModifierQuantity(intent, promo.id)).toBe(1);
+        expect(capturedModifierQuantity(intent, skippedAddOn.id)).toBe(
+          undefined,
+        );
       } finally {
         checkout.restore();
       }

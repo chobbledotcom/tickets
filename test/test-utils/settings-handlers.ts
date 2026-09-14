@@ -10,7 +10,6 @@ export const formFrom = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));
 
 /** A null AuthSession for handlers that never read the session. */
-// deno-lint-ignore no-explicit-any
 export const nullSession = null as any as AuthSession;
 
 /** The most recent activity-log message, or "" when the log is empty. */

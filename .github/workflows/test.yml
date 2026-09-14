@@ -24,8 +24,9 @@ env:
 permissions:
   contents: read
 
-# Every run step executes inside the same devenv environment developers use
-# (`devenv shell`), evaluated by the setup-devenv action. The deno task
+# Every run step executes inside the `ci` devenv profile, evaluated by the
+# setup-devenv action. The profile gives the same tools developers get from
+# `devenv shell`, and leaves out the commit-time Git hook. The deno task
 # commands stay byte-identical to the local ones.
 defaults:
   run:

@@ -81,9 +81,9 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       expect(response.status).toBe(302);
       // The success flash and the activity row both name the action, and every
       // member comes back.
-      expectFlash(response, "Group reactivated (2 listing(s))");
+      expectFlash(response, "Group reactivated (x2 listings)");
       expect(await activityMessages()).toContain(
-        "Group 'Bring Back' reactivated (2 listing(s))",
+        "Group 'Bring Back' reactivated (x2 listings)",
       );
       expect((await getListingWithCount(a.id))?.active).toBe(true);
       expect((await getListingWithCount(b.id))?.active).toBe(true);

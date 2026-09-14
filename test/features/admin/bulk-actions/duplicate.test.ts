@@ -71,10 +71,10 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       // and logs the copy against the source group.
       expectFlash(
         response,
-        "Duplicated 'Priced Source' to 'Priced Copy' (1 listing(s))",
+        "Duplicated 'Priced Source' to 'Priced Copy' (x1 listings)",
       );
       expect(await activityMessages()).toContain(
-        "Group 'Priced Source' duplicated to 'Priced Copy' with 1 listing(s)",
+        "Group 'Priced Source' duplicated to 'Priced Copy' with x1 listings",
       );
 
       const newGroup = (await groups.cache.getAll()).find(

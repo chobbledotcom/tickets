@@ -32,7 +32,7 @@ const checkoutBody = {
   amount: 12.5,
   checkout_reference: "ref-1",
   currency: "GBP",
-  description: "Tickets (1 listing(s))",
+  description: "Tickets (x2)",
   hosted_checkout: { enabled: true },
   merchant_code: "MC1",
   redirect_url: "https://example.com/payment/success",

@@ -49,6 +49,23 @@ export const configureTestEmail = async (
   await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
+/** Decode a base64 SVG attachment back to its UTF-8 source. */
+export const decodeSvgAttachment = (content: string): string => {
+  const binary = atob(content);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+};
+
+/** Assert the email body carries exactly one `ticket.svg` attachment and return
+ * its decoded SVG source. */
+export const expectSingleTicketSvg = (body: {
+  attachments: { filename: string; content: string }[];
+}): string => {
+  expect(body.attachments).toHaveLength(1);
+  expect(body.attachments[0]!.filename).toBe("ticket.svg");
+  return decodeSvgAttachment(body.attachments[0]!.content);
+};
+
 /**
  * The per-describe state shared by the contact-form and support-message unit
  * tests: a `fetch` stub installed on demand, an env scope the tests

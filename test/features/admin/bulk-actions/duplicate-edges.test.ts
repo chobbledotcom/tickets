@@ -72,7 +72,7 @@ describeWithEnv(
         response,
         t("listings_table.group_duplicate_children_dropped", {
           reason,
-          success: "Duplicated 'Gated' to 'Gated Copy' (1 listing(s))",
+          success: "Duplicated 'Gated' to 'Gated Copy' (x1 listings)",
         }),
         false,
       );
@@ -90,7 +90,7 @@ describeWithEnv(
       const dropWarning = (reason: string): string =>
         t("listings_table.group_duplicate_children_dropped", {
           reason,
-          success: "Duplicated 'Dual gate' to 'Dual gate Copy' (2 listing(s))",
+          success: "Duplicated 'Dual gate' to 'Dual gate Copy' (x2 listings)",
         });
 
       await gatedGroupWithExternalNest("Dual gate", "First gated parent");

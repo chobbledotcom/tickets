@@ -103,4 +103,37 @@ describe("parseQuantityPrefill", () => {
       ),
     ).toEqual({ date: "2026-09-12", listings: new Map() });
   });
+
+  test("reads a promo code without case or surrounding spaces", () => {
+    expect(
+      parseQuantityPrefill(
+        new Request("https://example.com/ticket/a?promo=%20Summer25%20"),
+        listings,
+      ),
+    ).toEqual({ listings: new Map(), promo: "summer25" });
+  });
+
+  test("keeps the promo code beside quantities and the date", () => {
+    expect(
+      parseQuantityPrefill(
+        new Request(
+          "https://example.com/ticket/a?q_7=2&date=2026-09-12&promo=Summer25",
+        ),
+        listings,
+      ),
+    ).toEqual({
+      date: "2026-09-12",
+      listings: new Map([[7, { quantity: 2 }]]),
+      promo: "summer25",
+    });
+  });
+
+  test("ignores a promo code that is only spaces", () => {
+    expect(
+      parseQuantityPrefill(
+        new Request("https://example.com/ticket/a?promo=%20%20"),
+        listings,
+      ),
+    ).toBeUndefined();
+  });
 });
