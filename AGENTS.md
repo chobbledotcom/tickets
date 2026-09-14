@@ -1243,7 +1243,6 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task migrate:turso` - Interactive copy of a remote libSQL database into
   a new Turso database, through Turso's native SQLite file upload.
 - `deno task migrate:sites` - Interactive menu for moving built sites off Bunny
-- `deno task migrate:sites` - Interactive menu for moving built sites off Bunny
   databases. Reads the live master site's `POST /instance/site-credentials`
   endpoint to list every built site and which company runs its database,
   migrates the chosen site to a new Turso database through a temporary SQLite
