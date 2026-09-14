@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { getContactEmailForm } from "#shared/forms/contact.ts";
+import { runWithSavedFormContext } from "#shared/forms/saved-data.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 
 const invalidEmailMessage = "Please enter a valid email address.";
@@ -19,7 +20,9 @@ describe("getContactEmailForm", () => {
   });
 
   test("renders the catalogued label onto an email input", () => {
-    expect(getContactEmailForm().render()).toBe(
+    // A fresh saved-form scope: another suite's contact POST can leave the
+    // ambient store holding an "email" value, and the echo would appear here.
+    expect(runWithSavedFormContext(() => getContactEmailForm().render())).toBe(
       '<label>Your email address<input autocomplete="email" maxlength="250" name="email" required type="email"></label>',
     );
   });

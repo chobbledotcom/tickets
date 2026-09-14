@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { runWithSavedFormContext } from "#shared/forms/saved-data.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { contactPage, publicSitePage } from "#templates/public/basic-pages.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
@@ -25,12 +26,16 @@ describe("the public contact page", () => {
   registerPublicTemplateHooks();
 
   test("renders the shared contact email field and message box", () => {
-    const html = contactPage({
-      botpoisonPublicKey: "",
-      formActive: true,
-      nav: nav(),
-      websiteTitle: "Teeside Walks",
-    });
+    // A fresh saved-form scope: another suite's contact POST can leave the
+    // ambient store holding an "email" value, and the echo would appear here.
+    const html = runWithSavedFormContext(() =>
+      contactPage({
+        botpoisonPublicKey: "",
+        formActive: true,
+        nav: nav(),
+        websiteTitle: "Teeside Walks",
+      }),
+    );
 
     expect(html).toContain("<title>Contact - Teeside Walks</title>");
     expect(html).toContain("<h2>Send us a message</h2>");
