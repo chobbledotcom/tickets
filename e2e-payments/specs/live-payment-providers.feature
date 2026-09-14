@@ -167,7 +167,7 @@ Feature: Real sandbox payments finish safely
     build costs no later entry its attempt, and the system map answers clean.
 
     @case:live-payments.stripe-plan-months
-    Scenario: A visitor buys three months of a site plan
+    Scenario: A visitor buys three units of a three-month site plan
       Given Stripe is configured with dedicated test credentials
       And the owner has published a three-month site plan
       When a separate visitor pays for three units through Stripe Checkout
