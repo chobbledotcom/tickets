@@ -200,6 +200,9 @@ const runOneBatch = async (
 ): Promise<Outcome | null> => {
   try {
     const result = await deps.runBatch(batch, controller.signal, env);
+    // An aborted run terminated this child, so its exit status says nothing
+    // about the tests; report the cancellation, never a bogus failure.
+    if (signal.aborted) return "cancelled";
     if (result.code === 0) return null;
     failure.current ??= { batch, output: result.output };
     controller.abort();

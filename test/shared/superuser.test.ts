@@ -261,10 +261,14 @@ describe("getSuperuserUsername", () => {
     expectUsernameFromEmail("a@example.com")("a");
   });
 
-  test("returns local parts between one and 250 characters", () => {
+  test("returns local parts between one and 64 characters", () => {
     expectUsernameFromEmail("ab@example.com")("ab");
-    const longest = `a${"b".repeat(249)}`;
+    const longest = `a${"b".repeat(63)}`;
     expectUsernameFromEmail(`${longest}@example.com`)(longest);
+  });
+
+  test("returns null and logs when local part is 65 characters", () => {
+    expectUsernameFromEmail(`${"a".repeat(65)}@example.com`)(null);
   });
 
   test("returns null and logs when local part is 251 characters", () => {
@@ -326,7 +330,7 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
   });
 
   test("returns { available: false, reason: 'invalid-username' } when derived username is too long", async () => {
-    await expectStateForEmail(`${"a".repeat(251)}@example.com`)(
+    await expectStateForEmail(`${"a".repeat(65)}@example.com`)(
       expectedUnavailableSuperuserState("invalid-username"),
     );
   });

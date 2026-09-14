@@ -18,6 +18,7 @@ import {
   CONTACT_TEXTAREA_LIMIT,
   PHONE_FIELD_LENGTH,
 } from "#templates/fields/validators.ts";
+import { byName } from "#test-utils/fields.ts";
 
 describe("form length boundaries", () => {
   const contactFields = "email,phone,address,special_instructions";
@@ -127,9 +128,7 @@ describe("form length boundaries", () => {
     ["builder", builderForm],
     ["built-site", getBuiltSiteForm()],
   ] as const) {
-    const token = form.fields.find(
-      (field) => field.name === "db_token",
-    ) as Field;
+    const token = byName(form.fields, "db_token");
     test(`${label} db_token renders the machine-credential cap`, () => {
       expect(renderField(token, "")).toContain(
         `maxlength="${MAX_TEXTAREA_LENGTH}"`,

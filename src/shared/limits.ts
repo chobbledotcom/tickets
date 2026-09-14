@@ -132,6 +132,11 @@ export const PASSWORD_MIN_LENGTH = 8;
 /** Fixed text limit that fits payment metadata. Environment variables cannot change it. */
 export const MAX_INPUT_LENGTH = 250;
 
+/** SMTP refuses an email local part past 64 octets (RFC 5321). The superuser
+ * address is derived from one, so its username stops there too; the username
+ * charset is ASCII, so characters and octets match. */
+export const MAX_ADMIN_EMAIL_LOCAL_PART = 64;
+
 /**
  * Maximum number of line items one attendee-form submission may declare
  * (default: 1000).

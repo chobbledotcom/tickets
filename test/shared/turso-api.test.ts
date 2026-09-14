@@ -3,6 +3,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { Stub } from "@std/testing/mock";
 import { createTursoApi } from "#shared/turso-api.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -15,6 +16,9 @@ const createRequest = {
   organization: "org",
 };
 
+const DATABASE_URL =
+  "https://api.turso.tech/v1/organizations/org/databases/direct-test";
+
 const goodDatabase = {
   DbId: "db_direct",
   Hostname: "example.turso.io",
@@ -26,21 +30,46 @@ const createReply = (database: Record<string, string>): Response =>
 
 const deleteOk = (): Response => new Response(null, { status: 200 });
 
-/** Run one create against scripted replies: it must fail, naming `part`. */
+/** The fetch calls a stub took that asked the platform to remove a database. */
+const deleteCalls = (fetchStub: Stub | undefined) =>
+  (fetchStub?.calls ?? []).filter((call) => {
+    const init = call.args[1];
+    return (
+      typeof init === "object" &&
+      init !== null &&
+      "method" in init &&
+      init.method === "DELETE"
+    );
+  });
+
+/** Run one create against scripted replies: it must fail, naming `part`. When
+ * cleanup replies are scripted, exactly one removal DELETE must go out with
+ * the expected URL; a single-reply refusal must issue none. */
 const expectCreateRefusal = async (
   name: string,
   part: string,
   first: FetchReply,
   ...rest: FetchReply[]
-): Promise<void> =>
+): Promise<void> => {
+  let fetchStub: Stub | undefined;
   await withMocks(
-    () => stubFetch(first, ...rest),
+    () => (fetchStub = stubFetch(first, ...rest)),
     async () => {
       const result = await client().createDatabase(createRequest);
       expect(result.ok, name).toBe(false);
       if (!result.ok) expect(result.error).toContain(part);
+      const deletes = deleteCalls(fetchStub);
+      if (rest.length === 0) {
+        expect(deletes, "the database must stay").toEqual([]);
+      } else {
+        expect(
+          deletes.map((call) => call.args[0]),
+          "the removal request",
+        ).toEqual([DATABASE_URL]);
+      }
     },
   );
+};
 
 describe("turso-api", () => {
   test("refuses a platform row with a blank id or name", async () => {

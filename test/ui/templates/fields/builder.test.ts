@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { builderForm } from "#templates/fields/builder.ts";
+import { byName } from "#test-utils/fields.ts";
 
 describe("builder form", () => {
   test("offers the site name, provider choices, and both db boxes", () => {
@@ -9,16 +10,14 @@ describe("builder form", () => {
     expect(names).toContain("site_name");
     expect(names).toContain("db_url");
     expect(names).toContain("db_token");
-    const name = builderForm.fields[0]!;
+    const name = byName(builderForm.fields, "site_name");
     expect(name.required).toBe(true);
     expect(name.maxlength).toBe(MAX_INPUT_LENGTH);
     expect(name.minlength).toBe(1);
   });
 
   test("caps the pasted database token at the machine-credential limit", () => {
-    const token = builderForm.fields.find(
-      (field) => field.name === "db_token",
-    )!;
+    const token = byName(builderForm.fields, "db_token");
     // A libsql auth token is pasted, like the wallet PEM keys — its cap is
     // the shared textarea one, not the single-line rule.
     expect(token.maxlength).toBe(MAX_TEXTAREA_LENGTH);

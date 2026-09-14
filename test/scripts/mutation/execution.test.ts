@@ -303,6 +303,18 @@ describe("mutation test execution", () => {
     expect(result.outcome).toBe("cancelled");
   });
 
+  test("classifies a terminated child as cancelled, not failed, after its deadline aborts", async () => {
+    const controller = new AbortController();
+    const result = await runTests(config, controller.signal, {
+      runBatch: () => {
+        controller.abort();
+        return Promise.resolve({ code: 1, output: "killed by SIGTERM" });
+      },
+    });
+    expect(result.outcome).toBe("cancelled");
+    expect(result.failure).toBeUndefined();
+  });
+
   test("stops before another batch when the deadline expires", async () => {
     const controller = new AbortController();
     let calls = 0;
