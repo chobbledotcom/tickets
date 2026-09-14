@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type BulkEmailDraft,
   contactFrequencySummary,
-  MAX_BULK_EMAIL_SUBJECT_LENGTH,
   parseDraft,
   serializeDraft,
   validateDraftInput,
@@ -18,7 +17,7 @@ import {
   DEFAULT_AUDIENCE_ID,
   isAudienceId,
 } from "#shared/bulk-email-targets/types.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
 const audienceTarget = (audience: BulkEmailDraft["target"]) => audience;
 
@@ -107,10 +106,20 @@ describe("bulk-email draft validation and serialization", () => {
     const result = validateDraftInput({
       body: "Body",
       marketing: false,
-      subject: "x".repeat(MAX_BULK_EMAIL_SUBJECT_LENGTH + 1),
+      subject: "x".repeat(MAX_INPUT_LENGTH + 1),
       target,
     });
     expect(result.valid).toBe(false);
+  });
+
+  test("accepts a subject at the shared single-line limit", () => {
+    const draft = {
+      body: "Body",
+      marketing: false,
+      subject: "x".repeat(MAX_INPUT_LENGTH),
+      target,
+    };
+    expect(validateDraftInput(draft)).toEqual({ draft, valid: true });
   });
 
   test("rejects an empty body", () => {

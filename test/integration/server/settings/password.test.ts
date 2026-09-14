@@ -89,6 +89,42 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
+    test("rejects a new password past the input length", async () => {
+      // The chosen credential is capped at the input length server-side, the
+      // same limit the browser's maxlength rule offers.
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "p".repeat(251),
+        new_password_confirm: "p".repeat(251),
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("250 characters or fewer"),
+        false,
+      );
+    });
+
+    test("checks an over-long current password instead of refusing it by length", async () => {
+      // Regression: when the free-text default capped password inputs, a
+      // current password longer than 250 characters failed FIELD validation
+      // with the length message, so an owner whose existing credential ran
+      // long could never reach the real check — locking the account out of
+      // the change form. The credential being CHECKED stays uncapped, so the
+      // wrong-password refusal (not a length message) is what surfaces here.
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: "x".repeat(501),
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Current password is incorrect"),
+        false,
+      );
+    });
+
     test("rejects incorrect current password", async () => {
       const { response } = await adminFormPost("/admin/settings", {
         current_password: "wrongpassword",

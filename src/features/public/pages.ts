@@ -21,12 +21,12 @@ import {
 import { signCsrfToken } from "#shared/csrf.ts";
 import { parseIsoDateParam } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { getContactEmailForm } from "#shared/forms/contact.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
-import { parseEmail } from "#shared/validation/email.ts";
 import {
   contactPage,
   type PublicPageType,
@@ -199,9 +199,9 @@ export const handlePublicContact: ResponseHandler<[request: Request]> = () =>
 const processContactSubmission = async (
   form: FormParams,
 ): Promise<Response> => {
-  const submitter = parseEmail(form.getString("email"));
-  if (!submitter) {
-    return errorRedirect("/contact", "Please enter a valid email address.");
+  const result = getContactEmailForm().validate(form);
+  if (!result.valid) {
+    return errorRedirect("/contact", result.error);
   }
   const message = requireMessageField(form, "/contact");
   if (message instanceof Response) return message;
@@ -220,7 +220,7 @@ const processContactSubmission = async (
     }
   }
 
-  const sent = await sendContactMessage(submitter, message);
+  const sent = await sendContactMessage(result.values.email, message);
   if (!sent) return errorRedirect("/contact", MESSAGE_SEND_FAILED);
   return redirect("/contact", "Message sent", true);
 };

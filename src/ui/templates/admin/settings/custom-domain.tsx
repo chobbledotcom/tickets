@@ -5,6 +5,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -33,7 +34,10 @@ export const CustomDomainForm = (
         </div>
         <TextField
           label={t("settings.advanced.domain_label")}
-          name="custom_domain"
+          {...settingsFormFieldAttributes(
+            "settings-custom-domain",
+            "custom_domain",
+          )}
           placeholder="tickets.yourdomain.com"
           type="text"
           value={s.customDomain}

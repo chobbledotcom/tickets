@@ -12,6 +12,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 
 export const TextField = ({
   label,
@@ -24,6 +25,7 @@ export const TextField = ({
   duplicate,
   min,
   max,
+  maxlength,
   minlength,
   step,
 }: {
@@ -38,6 +40,10 @@ export const TextField = ({
   /** Numeric bounds for `type="number"` fields (omitted otherwise). */
   min?: string | undefined;
   max?: string | undefined;
+  /** Longest value the browser accepts: short single-line values are this
+   *  component's norm, so the input cap is the default. Browsers ignore
+   *  maxlength on the numeric/date types some callers use. */
+  maxlength?: number | undefined;
   /** Shortest value the browser accepts (omitted for no minimum). */
   minlength?: number | undefined;
   step?: string | undefined;
@@ -49,6 +55,7 @@ export const TextField = ({
       autofocus={autofocus}
       data-duplicate-field={duplicate ? name : undefined}
       max={max}
+      maxlength={maxlength ?? MAX_INPUT_LENGTH}
       min={min}
       minlength={minlength}
       name={name}

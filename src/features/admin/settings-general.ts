@@ -28,7 +28,6 @@ import {
 } from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   PAYMENT_PROVIDERS,
   providerCurrencyBlock,
@@ -146,10 +145,6 @@ export const handleTermsPost = settingsHandler({
   log: (v) =>
     v === "" ? t("success.terms_removed") : t("success.terms_updated"),
   save: (v) => settings.update.terms(v),
-  validate: (v) =>
-    v.length > MAX_TEXTAREA_LENGTH
-      ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
-      : null,
 });
 
 /**
@@ -160,10 +155,6 @@ export const handleCustomCssPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.customCss),
   log: (v) => (v === "" ? "Custom CSS removed" : "Custom CSS updated"),
   save: (v) => settings.update.customCss(v),
-  validate: (v) =>
-    v.length > MAX_TEXTAREA_LENGTH
-      ? `Custom CSS must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
-      : null,
 });
 
 /** Handle POST /admin/settings/business-email - owner only */

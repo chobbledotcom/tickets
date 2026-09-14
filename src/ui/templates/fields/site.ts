@@ -1,9 +1,8 @@
 /** Site page editor form fields (home, contact, order intro). */
 
-import { MAX_WEBSITE_TITLE_LENGTH } from "#db/settings/constants.ts";
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 
 /** A markdown text box for one site page, worded by the catalog keys under
@@ -24,10 +23,10 @@ export const siteHomeForm = defineForm({
   fields: [
     {
       autocomplete: "off" as const,
-      hint: t("site.home.title_hint", { max: `${MAX_WEBSITE_TITLE_LENGTH}` }),
+      hint: t("site.home.title_hint", { max: `${MAX_INPUT_LENGTH}` }),
       id: "website_title",
       label: t("site.home.title_label"),
-      maxlength: MAX_WEBSITE_TITLE_LENGTH,
+      maxlength: MAX_INPUT_LENGTH,
       name: "website_title",
       type: "text" as const,
     },

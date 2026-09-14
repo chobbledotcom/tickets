@@ -21,8 +21,10 @@ import {
   MAX_BACKUPS,
   MAX_EMAIL_TEMPLATES,
   MAX_IMAGE_SIZE,
+  MAX_INPUT_LENGTH,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
+  PASSWORD_MIN_LENGTH,
   PRUNE_CONTACTS_RETENTION_DAYS,
   PRUNE_INTERVAL_HOURS,
   PRUNE_INTERVAL_MS,
@@ -125,6 +127,25 @@ describe("limits", () => {
       expect(PRUNE_PAYMENTS_RETENTION_DAYS).toBeGreaterThanOrEqual(
         WEBHOOK_RETRY_WINDOW_DAYS,
       );
+    });
+  });
+
+  describe("fixed input limit", () => {
+    test("uses the new-password minimum as its floor", () => {
+      expect(PASSWORD_MIN_LENGTH).toBe(8);
+    });
+
+    test("uses 250 characters", () => {
+      expect(MAX_INPUT_LENGTH).toBe(250);
+    });
+
+    test("is not configurable through the environment", () => {
+      // A tunable constant reads its env var through the registry, so the
+      // fixed limit must stay out of it — this fails if MAX_INPUT_LENGTH is
+      // ever wired back to readLimit.
+      expect(
+        LIMIT_ENTRIES.some((entry) => entry.envKey === "MAX_INPUT_LENGTH"),
+      ).toBe(false);
     });
   });
 

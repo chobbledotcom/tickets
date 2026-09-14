@@ -444,6 +444,17 @@ describe("validateParsedForm", () => {
     if (!result.valid) expect(result.attendeeError?.field).toBe("name");
   });
 
+  test("fails when the name is too long for checkout metadata", () => {
+    const result = validateParsedForm(parsedBase({ name: "n".repeat(251) }));
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.attendeeError?.field).toBe("name");
+      expect(result.attendeeError?.message).toBe(
+        "Name must be 250 characters or fewer",
+      );
+    }
+  });
+
   test("passes for a booked standard listing with no date", () => {
     const result = validateParsedForm(parsedBase({ lines: [line()] }));
     expect(result.valid).toBe(true);

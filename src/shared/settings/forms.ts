@@ -4,6 +4,13 @@ import {
   ADDRESS_LOOKUP_SETTINGS,
   type AddressLookupSetting,
 } from "#shared/address-lookup/types.ts";
+import type { Field } from "#shared/forms/field.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import {
+  CUSTOM_SETTINGS_FIELDS,
+  emailTemplateSettingsFields,
+  settingsFieldAttributes,
+} from "#shared/settings/fields.ts";
 import type { SettingsFormConfig } from "#shared/settings/form-schema.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
@@ -282,6 +289,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
         fieldName: "address_lookup_api_key",
         kind: "secret",
         labelKey: "address_lookup.settings.api_key",
+        maxlength: MAX_INPUT_LENGTH,
         placeholderKey: "address_lookup.settings.api_key_placeholder",
       },
     ],
@@ -323,3 +331,47 @@ type SettingsFormsByName = {
 export const SETTINGS_FORMS = Object.fromEntries(
   SETTINGS_FORM_DEFINITIONS.map((definition) => [definition.name, definition]),
 ) as SettingsFormsByName;
+
+/** The field contract also covers forms with custom page layouts. */
+export const settingsFormFields = (formId: string): readonly Field[] => {
+  if (formId.startsWith("settings-email-tpl-"))
+    return emailTemplateSettingsFields();
+  const custom = CUSTOM_SETTINGS_FIELDS[formId];
+  if (custom) return custom();
+  const definition: SettingsFormConfig | undefined =
+    SETTINGS_FORM_DEFINITIONS.find((form) => form.formId === formId);
+  return definition ? settingsDefinitionFields(definition) : [];
+};
+
+export const settingsDefinitionFields = (
+  definition: SettingsFormConfig,
+): readonly Field[] => {
+  if (definition.kind === "boolean") return [];
+  if (definition.kind === "fields") {
+    return definition.fields.flatMap((field): Field[] =>
+      field.kind === "secret"
+        ? [
+            {
+              label: t(field.labelKey),
+              maxlength: field.maxlength,
+              name: field.fieldName,
+              type: "password",
+            },
+          ]
+        : [],
+    );
+  }
+  return [
+    {
+      label: t(definition.copy.labelKey),
+      name: definition.fieldName,
+      type: definition.kind === "textarea" ? "textarea" : definition.inputType,
+    },
+  ];
+};
+
+export const settingsFormFieldAttributes = (
+  formId: string,
+  name: string,
+): ReturnType<typeof settingsFieldAttributes> =>
+  settingsFieldAttributes(settingsFormFields(formId), name);

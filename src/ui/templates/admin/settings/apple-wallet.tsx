@@ -23,6 +23,7 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
         {hostOverrideHint(s.hostAppleWalletLabel, s.appleWalletConfigured)}
       </p>
     ),
+    formId: "settings-apple-wallet",
     secretFields: [
       {
         labelKey: "settings.advanced.apple_signing_cert",

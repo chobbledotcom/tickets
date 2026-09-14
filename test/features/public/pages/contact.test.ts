@@ -3,10 +3,12 @@ import { it as test } from "@std/testing/bdd";
 import { handlePublicContactSubmit } from "#routes/public/pages.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
+  inputNamed,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -56,6 +58,28 @@ describeWithEnv(
   "public contact submission",
   { db: true, env: BOTPOISON_ENV },
   () => {
+    for (const extra of [0, 1]) {
+      test(`contact email ${extra === 0 ? "at" : "above"} the single-line limit`, async () => {
+        await activateContactForm();
+        await withContactProvider(true, 200, async () => {
+          const response = await submitContact({
+            _botpoison: "solved",
+            email: `${"a".repeat(64)}@${"b".repeat(60)}.${"c".repeat(60)}.${"d".repeat(59 + extra)}.com`,
+            message: "Hello!",
+          });
+          expectRedirectWithFlash(
+            "/contact",
+            extra === 0
+              ? "Message sent"
+              : expect.stringContaining(
+                  `${MAX_INPUT_LENGTH} characters or fewer`,
+                ),
+            extra === 0,
+          )(response);
+        });
+      });
+    }
+
     test("rejects an invalid email at the contact page", async () => {
       await activateContactForm();
       const response = await submitContact({
@@ -167,7 +191,11 @@ describeWithEnv(
       await activateContactForm();
       const response = await awaitTestRequest("/contact");
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain('action="/contact"');
+      const html = await response.text();
+      expect(html).toContain('action="/contact"');
+      expect(inputNamed(html, "email")).toContain(
+        `maxlength="${MAX_INPUT_LENGTH}"`,
+      );
     });
 
     test("shows success and error messages after redirects", async () => {

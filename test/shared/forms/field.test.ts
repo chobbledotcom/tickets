@@ -4,9 +4,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  effectiveMaxLength,
   requireCheckboxOptions,
   requireChoiceOptions,
 } from "#shared/forms/field.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
 describe("requireChoiceOptions", () => {
   test("keeps the options as authored", () => {
@@ -60,5 +62,90 @@ describe("requireCheckboxOptions", () => {
     expect(() => requireCheckboxOptions("Tags", options)).toThrow(
       "Tags checkbox option values must be trimmed, non-empty, and contain no commas",
     );
+  });
+});
+
+describe("effectiveMaxLength", () => {
+  for (const type of ["text", "email", "url"] as const) {
+    test(`defaults a ${type} input to the input length`, () => {
+      expect(effectiveMaxLength({ label: "X", name: "x", type })).toBe(
+        MAX_INPUT_LENGTH,
+      );
+    });
+  }
+
+  test("leaves a password uncapped so existing credentials can be entered", () => {
+    // A site created before the cap let an owner set any password length, so
+    // capping the login/current-password controls would lock that owner out.
+    // Fields that choose a NEW password declare their own maxlength instead.
+    expect(
+      effectiveMaxLength({
+        label: "Password",
+        name: "password",
+        type: "password",
+      }),
+    ).toBeUndefined();
+  });
+
+  test("defaults a textarea to the textarea length", () => {
+    expect(
+      effectiveMaxLength({ label: "X", name: "x", type: "textarea" }),
+    ).toBe(MAX_TEXTAREA_LENGTH);
+  });
+
+  test("keeps a declared limit on every kind of field", () => {
+    expect(
+      effectiveMaxLength({ label: "X", maxlength: 9, name: "x", type: "text" }),
+    ).toBe(9);
+    expect(
+      effectiveMaxLength({
+        label: "X",
+        maxlength: 9,
+        name: "x",
+        type: "textarea",
+      }),
+    ).toBe(9);
+  });
+
+  test("bounds a declared input limit by the fixed maximum", () => {
+    expect(
+      effectiveMaxLength({
+        label: "X",
+        maxlength: 500,
+        name: "x",
+        type: "text",
+      }),
+    ).toBe(250);
+  });
+
+  test("preserves the explicit email template textarea maximum", () => {
+    expect(
+      effectiveMaxLength({
+        label: "X",
+        maxlength: 51_200,
+        name: "x",
+        type: "textarea",
+      }),
+    ).toBe(51_200);
+  });
+
+  test("keeps a declared limit of zero rather than swapping in the default", () => {
+    expect(
+      effectiveMaxLength({ label: "X", maxlength: 0, name: "x", type: "text" }),
+    ).toBe(0);
+    expect(
+      effectiveMaxLength({
+        label: "X",
+        maxlength: 0,
+        name: "x",
+        type: "textarea",
+      }),
+    ).toBe(0);
+  });
+
+  test("leaves a parsed input without its own limit uncapped", () => {
+    expect(
+      effectiveMaxLength({ label: "Qty", name: "qty", type: "number" }),
+    ).toBeUndefined();
   });
 });

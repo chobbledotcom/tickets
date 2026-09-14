@@ -15,6 +15,7 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 import type { User } from "#types";
@@ -25,6 +26,7 @@ export const joinForm = defineForm({
       autocomplete: "new-password" as const,
       hint: t("join.set_password.min_chars"),
       label: t("join.set_password.password"),
+      maxlength: MAX_INPUT_LENGTH,
       minlength: 8,
       name: "password" as const,
       required: true,
@@ -34,6 +36,7 @@ export const joinForm = defineForm({
     {
       autocomplete: "new-password" as const,
       label: t("join.set_password.confirm_password"),
+      maxlength: MAX_INPUT_LENGTH,
       minlength: 8,
       name: "password_confirm" as const,
       required: true,

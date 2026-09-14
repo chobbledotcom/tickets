@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   buildDescriptionField,
   buildHiddenField,
   getSlugField,
   getUsernameFieldBase,
+  PHONE_FIELD_LENGTH,
   slugFieldBase,
   validateAddress,
   validateBookableDays,
@@ -16,6 +17,7 @@ import {
   validateEmail,
   validateHttpsDomainUrl,
   validateListingFields,
+  validateName,
   validateNonNegativeInteger,
   validateNonNegativePrice,
   validatePhone,
@@ -70,6 +72,11 @@ describe("fields validators", () => {
     for (const bad of ["", "notanemail", "missing@domain", "@example.com"]) {
       test(`rejects ${JSON.stringify(bad)}`, () => rejects(validateEmail, bad));
     }
+    test("rejects an address past the contact length, naming the limit", () => {
+      expect(validateEmail(`${"e".repeat(MAX_INPUT_LENGTH)}@example.com`)).toBe(
+        "Email address must be 250 characters or fewer",
+      );
+    });
   });
 
   describe("validatePhone", () => {
@@ -89,20 +96,33 @@ describe("fields validators", () => {
     for (const bad of ["", "abcdef", "phone!!"]) {
       test(`rejects ${JSON.stringify(bad)}`, () => rejects(validatePhone, bad));
     }
+    test("rejects a number past the phone length, naming the limit", () => {
+      // Square packs the phone (with other small fields) into one 255-char
+      // metadata entry, so the number must stay short; a length past the cap
+      // is refused by count, not by format.
+      expect(validatePhone("2".repeat(PHONE_FIELD_LENGTH + 1))).toBe(
+        "Phone number must be 32 characters or fewer",
+      );
+    });
   });
 
   describe("validateUsername", () => {
-    test("rejects a single character (below the 2-char minimum)", () => {
-      rejects(validateUsername, "a");
+    test("rejects an empty username", () => {
+      rejects(validateUsername, "");
+    });
+    test("accepts a single character", () => {
+      accepts(validateUsername, "a");
     });
     test("accepts exactly two characters", () => {
       accepts(validateUsername, "ab");
     });
-    test("accepts exactly thirty-two characters", () => {
-      accepts(validateUsername, "a".repeat(32));
+    test("accepts exactly 250 characters", () => {
+      accepts(validateUsername, "a".repeat(250));
     });
-    test("rejects thirty-three characters (above the 32-char maximum)", () => {
-      rejects(validateUsername, "a".repeat(33));
+    test("rejects 251 characters", () => {
+      expect(validateUsername("a".repeat(251))).toBe(
+        "Username must be 250 characters or fewer",
+      );
     });
     test("accepts letters, digits, hyphens and underscores together", () => {
       accepts(validateUsername, "Ab-9_z");
@@ -123,8 +143,8 @@ describe("fields validators", () => {
 
   test("defines the exact username field contract", () => {
     expect(getUsernameFieldBase()).toMatchObject({
-      maxlength: 32,
-      minlength: 2,
+      maxlength: 250,
+      minlength: 1,
       name: "username",
       pattern: "[a-zA-Z0-9_\\-]+",
       required: true,
@@ -236,6 +256,14 @@ describe("fields validators", () => {
     });
     test("validateSpecialInstructions rejects an over-long note", () => {
       rejects(validateSpecialInstructions, "x".repeat(1000));
+    });
+    test("validateName accepts a normal name", () => {
+      accepts(validateName, "Ada Lovelace");
+    });
+    test("validateName rejects an over-long buyer name, naming the limit", () => {
+      expect(validateName("n".repeat(MAX_INPUT_LENGTH + 1))).toBe(
+        "Name must be 250 characters or fewer",
+      );
     });
   });
 });

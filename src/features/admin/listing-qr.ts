@@ -39,6 +39,7 @@ import {
   type AdminListingQrValues,
   adminListingQrPage,
 } from "#templates/admin/listing-qr.tsx";
+import { validateName } from "#templates/fields/validators.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 import { loadListingOr } from "./load-listing.ts";
 
@@ -193,6 +194,12 @@ const createQrFormValidator = (
         valid: false,
       };
     }
+
+    // The signed name pre-fills a booking or rides direct-checkout metadata,
+    // so it answers to the same contact-name rule the booking form runs —
+    // an unchecked name only fails later, at the buyer's form or at Square.
+    const nameError = validateName(values.customer_name);
+    if (nameError) return { error: nameError, valid: false };
 
     const error =
       qrPriceError(listing, values.value) ??

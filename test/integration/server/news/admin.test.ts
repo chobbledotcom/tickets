@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -47,9 +48,15 @@ describeWithEnv("server (admin news)", { db: true }, () => {
 
     test("the shared content fields render their input limits", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
-      expect(html).toContain('maxlength="128" name="name"');
-      expect(html).toContain('maxlength="64" name="meta_title"');
-      expect(html).toContain('maxlength="160" name="meta_description"');
+      expect(html).toContain(
+        `maxlength="${CONTENT_FIELD_LIMITS.name}" name="name"`,
+      );
+      expect(html).toContain(
+        `maxlength="${CONTENT_FIELD_LIMITS.meta_title}" name="meta_title"`,
+      );
+      expect(html).toContain(
+        `maxlength="${CONTENT_FIELD_LIMITS.meta_description}" name="meta_description"`,
+      );
     });
 
     test("the list shows each post's name and published date, newest first", async () => {

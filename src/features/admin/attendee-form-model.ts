@@ -28,6 +28,7 @@ import { isIsoDate } from "#shared/validation/date.ts";
 import {
   validateAddress,
   validateEmail,
+  validateName,
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
@@ -317,6 +318,8 @@ export const validateAttendeeBlock = (
   if (!parsed.name.trim()) {
     return { field: "name", message: t("error.name_required") };
   }
+  const nameError = validateName(parsed.name);
+  if (nameError) return { field: "name", message: nameError };
   if (parsed.email) {
     const emailError = validateEmail(parsed.email);
     if (emailError) return { field: "email", message: emailError };

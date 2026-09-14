@@ -1,3 +1,5 @@
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+
 /** One value offered by a select or checkbox group. */
 export interface FieldOption<TValue extends string = string> {
   hint?: string;
@@ -166,3 +168,22 @@ export type Field<
   | ChoiceField<"select", string, TName, TSection>
   | ChoiceField<"checkbox-group", string, TName, TSection>
   | FileField<TName, TSection>;
+
+/** Inputs that take free text entered fresh. Nothing else bounds their
+ *  length, so they answer to the default input limit. The other input types
+ *  (number, money, date, datetime) parse what they accept and already reject
+ *  unusable values, and a browser ignores maxlength on them anyway. Passwords
+ *  are excluded: a login or current-password control must accept a credential
+ *  of any length an older site let its owner set, so capping it locks that
+ *  owner out. Fields that CHOOSE a new password declare their own maxlength. */
+const FREE_TEXT_INPUT_TYPES: readonly string[] = ["text", "email", "url"];
+
+/** Text inputs obey the fixed ceiling. Textareas can declare a larger content budget. */
+export const effectiveMaxLength = (field: Field): number | undefined => {
+  if (field.type === "textarea") {
+    return field.maxlength ?? MAX_TEXTAREA_LENGTH;
+  }
+  return FREE_TEXT_INPUT_TYPES.includes(field.type)
+    ? Math.min(field.maxlength ?? MAX_INPUT_LENGTH, MAX_INPUT_LENGTH)
+    : field.maxlength;
+};
