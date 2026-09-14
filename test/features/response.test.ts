@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   databaseBusyResponse,
   downloadResponse,
+  errorRedirect,
   htmlResponse,
   icsResponse,
   jsonResponse,
@@ -46,6 +47,10 @@ describeWithEnv("route responses", { db: true }, () => {
         expect(await response.text()).toBe(body);
       });
     }
+
+    test("returns HTML with its default 200 status", () => {
+      expect(htmlResponse("<p>Hello</p>").status).toBe(200);
+    });
 
     test("returns JSON with the default status and content type", async () => {
       const response = jsonResponse({ saved: true });
@@ -149,6 +154,12 @@ describeWithEnv("route responses", { db: true }, () => {
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Failed", false);
         expectRedirectWithFlash("/admin/settings", "Failed", false)(response);
+      }));
+
+    test("errorRedirect stores an error flash on the target page", () =>
+      withRequestContext(() => {
+        const response = errorRedirect("/admin/settings", "No good");
+        expectRedirectWithFlash("/admin/settings", "No good", false)(response);
       }));
 
     test("keeps a caller-provided cookie beside the flash cookie", () =>

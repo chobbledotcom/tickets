@@ -93,9 +93,39 @@ describe("adminUsersPage", () => {
       success: "Invite created",
     });
     expect(html).toContain("Invite link (share this with the new user)");
+    // The invite alert is its own banner, not the page frame's flash copy.
+    expect(html).toMatch(
+      /class="success" role="alert">\s*<p>Invite link \(share this with the new user\)/,
+    );
     expect(html).toContain("https://example.com/join/abc123");
     expect(html).toContain("Invite created");
     expect(html).toContain("Something went wrong");
+  });
+
+  test("marks the Users nav link active and links to the roles guide", () => {
+    const html = adminUsersPage([displayUser()], OWNER_SESSION, {
+      currentUserId: 1,
+      inviteLink: "",
+    });
+    expect(html).toContain('<a class="active" href="/admin/users">');
+    expect(html).toContain('href="/admin/guide#user-classes"');
+  });
+
+  test("shows an agent user's single assigned agent name", () => {
+    const html = adminUsersPage(
+      [
+        displayUser({
+          adminLevel: "agent",
+          agentNames: ["Solo Van"],
+          id: 4,
+          username: "driver",
+        }),
+      ],
+      OWNER_SESSION,
+      { currentUserId: 1, inviteLink: "" },
+    );
+    expect(html).toContain("Solo Van");
+    expect(html).not.toContain("No agents assigned");
   });
 });
 
@@ -113,6 +143,7 @@ describe("adminUserDeletePage", () => {
     const html = adminUserDeletePage(user, OWNER_SESSION);
     expect(html).toContain("Delete User");
     expect(html).toContain("targetuser");
+    expect(html).toContain('<a class="active" href="/admin/users">');
     expect(html).toContain('name="confirm_identifier"');
     expect(html).toContain('action="/admin/users/5/delete"');
     expect(html).toContain("permanently delete");
