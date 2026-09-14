@@ -1,10 +1,12 @@
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import type { startStripeMock } from "#scripts/stripe-mock.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import { wait } from "#test-utils/mocks.ts";
+import type { StandInMode } from "#test-utils/stripe-mock/stand-in-mock.ts";
 
 export type TestStripeMockPaths = { binDir: string; binaryPath: string };
 export type StartOptions = NonNullable<Parameters<typeof startStripeMock>[0]>;
@@ -282,53 +284,48 @@ export const createFakeArchive = async (): Promise<{
 export const shellQuote = (value: string): string =>
   `'${value.replaceAll("'", "'\\''")}'`;
 
+const STAND_IN_PATH = fileURLToPath(
+  new URL("./stand-in-mock.ts", import.meta.url),
+);
+
+/** The permissions each stand-in mode needs: the network for a hold, and the
+ * marker folder for the mode that notes its first start. */
+const MODE_PERMISSIONS: Record<StandInMode, (binDir: string) => string> = {
+  exit: () => "",
+  "exit-then-hold": (binDir) =>
+    `--allow-net --allow-read=${binDir} --allow-write=${binDir}`,
+  "hold-after": () => "--allow-net",
+  "hold-port": () => "--allow-net",
+};
+
 /**
- * Write a stand-in mock that runs as Deno. The harness starts the real mock
- * as `<binary> -http-port <port>`, so the port is the second argument, and a
- * Deno body behaves the same on every machine the suite runs on — the shell
- * `nc` hold it replaces answered to different flags on different machines.
+ * Write a stand-in mock: a two-line executable that runs one mode of the
+ * stand-in module, with the mode in front of the harness's own arguments.
+ * A Deno body behaves the same on every machine the suite runs on — the
+ * shell `nc` hold it replaces answered to different flags on different
+ * machines.
  */
-export const writeDenoMock = async (
+export const writeStandInMock = async (
   paths: TestStripeMockPaths,
-  flags: string,
-  body: string,
+  mode: StandInMode,
+  argument?: string,
 ): Promise<void> => {
-  const shebang = `#!/usr/bin/env -S deno run --quiet ${flags}`.trimEnd();
-  await Deno.writeTextFile(paths.binaryPath, [shebang, body].join("\n"));
-  await makeExecutable(paths.binaryPath);
-};
-
-/** A mock that dies as soon as it is started, so the starter must refuse it
- * and spend another try. */
-export const writeExitingMock = async (
-  paths: TestStripeMockPaths,
-): Promise<void> => {
-  await writeDenoMock(paths, "", "Deno.exit(1);");
-};
-
-/** A mock whose first run dies and whose later runs hold the port they were
- * given until killed, so the starter's next try can succeed. */
-export const writeExitingThenHoldingMock = async (
-  paths: TestStripeMockPaths,
-): Promise<void> => {
-  const marker = join(paths.binDir, "started-once");
-  await writeDenoMock(
-    paths,
-    `--allow-net --allow-read=${paths.binDir} --allow-write=${paths.binDir}`,
-    [
-      `const marker = ${JSON.stringify(marker)};`,
-      "try {",
-      "  Deno.statSync(marker);",
-      "} catch {",
-      '  Deno.writeTextFileSync(marker, "");',
-      "  Deno.exit(1);",
-      "}",
-      'const listener = Deno.listen({ hostname: "127.0.0.1", port: Number(Deno.args[1]) });',
-      "for (;;) {",
-      "  (await listener.accept()).close();",
-      "}",
-    ].join("\n"),
+  const flags = ["run", "--quiet", MODE_PERMISSIONS[mode](paths.binDir)].filter(
+    (flag) => flag !== "",
   );
+  const words = [
+    "exec deno",
+    flags.join(" "),
+    shellQuote(STAND_IN_PATH),
+    mode,
+    ...(argument !== undefined ? [shellQuote(argument)] : []),
+    '"$@"',
+  ];
+  await Deno.writeTextFile(
+    paths.binaryPath,
+    ["#!/bin/sh", words.join(" ")].join("\n"),
+  );
+  await makeExecutable(paths.binaryPath);
 };
 
 export const writeFailingMock = async (

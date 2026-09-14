@@ -15,7 +15,7 @@ import {
   type StartOptions,
   shellQuote,
   type TestStripeMockPaths,
-  writeDenoMock,
+  writeStandInMock,
 } from "#test-utils/stripe-mock/helpers.ts";
 
 /** A mock that opens its port, then does whatever the given perl says next. */
@@ -66,18 +66,7 @@ export const writeDiesWhileConfirmingMock = async (
 export const writeSlowToListenMock = async (
   paths: TestStripeMockPaths,
   quietMs = 300,
-): Promise<void> =>
-  writeDenoMock(
-    paths,
-    "--allow-net",
-    [
-      `await new Promise((resolve) => setTimeout(resolve, ${quietMs}));`,
-      'const listener = Deno.listen({ hostname: "127.0.0.1", port: Number(Deno.args[1]) });',
-      "for (;;) {",
-      "  (await listener.accept()).close();",
-      "}",
-    ].join("\n"),
-  );
+): Promise<void> => writeStandInMock(paths, "hold-after", String(quietMs));
 
 /**
  * A mock that takes a moment to shut down when asked politely, and leaves a
@@ -134,17 +123,7 @@ export const startCount = async (countPath: string): Promise<number> => {
 export const writeWrongPortMock = async (
   paths: TestStripeMockPaths,
   decoyPort: number,
-): Promise<void> =>
-  writeDenoMock(
-    paths,
-    "--allow-net",
-    [
-      `const listener = Deno.listen({ hostname: "127.0.0.1", port: ${decoyPort} });`,
-      "for (;;) {",
-      "  (await listener.accept()).close();",
-      "}",
-    ].join("\n"),
-  );
+): Promise<void> => writeStandInMock(paths, "hold-port", String(decoyPort));
 
 /** The exact message a failed start threw, for tests that need the whole text. */
 export const startFailureMessage = async (

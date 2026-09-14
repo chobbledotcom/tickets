@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,9 +12,8 @@ import { stripeMock } from "#shared/stripe/mock.ts";
 import {
   testEnv,
   withTempStripeMockPaths,
-  writeExitingMock,
-  writeExitingThenHoldingMock,
   writeFailingMock,
+  writeStandInMock,
   writeTermIgnoringMock,
 } from "#test-utils/stripe-mock/helpers.ts";
 import {
@@ -167,7 +167,7 @@ describe("startStripeMock ports", () => {
 
   test("does not accept another listener when the spawned mock exits", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      await writeExitingMock(paths);
+      await writeStandInMock(paths, "exit");
       await expectStripeMockFails({
         budgetMs: 200,
         confirmDelayMs: 20,
@@ -193,7 +193,11 @@ describe("startStripeMock ports", () => {
 
   test("retries an auto-selected port when the spawned mock exits", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      await writeExitingThenHoldingMock(paths);
+      await writeStandInMock(
+        paths,
+        "exit-then-hold",
+        join(paths.binDir, "started-once"),
+      );
       const stripeMock = await startStripeMock({
         budgetMs: 2000,
         confirmDelayMs: 100,
