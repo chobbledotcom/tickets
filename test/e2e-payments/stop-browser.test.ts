@@ -20,12 +20,16 @@ const stages = [
   },
 ] as const;
 const completed = { kind: "completed" } as const;
-const failed = {
+/** What the close rejection says, as the final error reports it. */
+const closeSaid = " (the graceful close said: operation failed)";
+const closeFailure = (
+  closeWords: string,
+): { error: Error; kind: "failed" } => ({
   error: new Error(
-    "Chromium did not close after the bounded graceful close and CDP Browser.close",
+    `Chromium did not close after the bounded graceful close and CDP Browser.close${closeWords}`,
   ),
   kind: "failed",
-};
+});
 
 const advance = async (time: FakeTime, ms: number): Promise<void> => {
   await time.tickAsync(ms);
@@ -41,6 +45,7 @@ const startAt = async (time: FakeTime, stage: Stage) => {
     connected: true,
     outcome: { kind: "pending" },
   };
+  let closeRejected = false;
   const cdp = {
     send: (method: string) => {
       calls.push(method);
@@ -75,6 +80,7 @@ const startAt = async (time: FakeTime, stage: Stage) => {
   const operations = { close, send, session };
   const settle = (target: Stage, settlement: Settlement): void => {
     if (settlement === "reject") {
+      if (target === "close") closeRejected = true;
       operations[target].reject(new Error("operation failed"));
     } else if (target === "session") {
       session.resolve(cdp);
@@ -82,12 +88,18 @@ const startAt = async (time: FakeTime, stage: Stage) => {
       operations[target].resolve();
     }
   };
+  // The expectation freezes at the first assertion, so a late close
+  // rejection cannot rewrite an outcome that settled before it.
+  let expectedFailure: { error: Error; kind: "failed" } | undefined;
   const expectFinished = (): void => {
     // A state assertion fails without a hang if shutdown never settles.
-    expect(state.outcome).toEqual(state.connected ? failed : completed);
+    expectedFailure ??= closeFailure(closeRejected ? closeSaid : "");
+    expect(state.outcome).toEqual(
+      state.connected ? expectedFailure : completed,
+    );
     expect(time.next()).toBe(false);
   };
-  return { calls, cdp, expectFinished, send, session, settle, state };
+  return { calls, cdp, close, expectFinished, send, session, settle, state };
 };
 
 describe("stopScratchBrowser", () => {
@@ -184,4 +196,21 @@ describe("stopScratchBrowser", () => {
       browser.expectFinished();
     });
   }
+
+  test("a close rejection that is no Error still names what it said", async () => {
+    using time = new FakeTime();
+    const browser = await startAt(time, "close");
+    browser.close.reject("gone");
+    await advance(time, 0);
+    browser.session.resolve(browser.cdp);
+    browser.send.resolve();
+    await advance(time, 0);
+    expect(browser.state.outcome).toEqual({
+      error: new Error(
+        "Chromium did not close after the bounded graceful close and CDP Browser.close (the graceful close said: gone)",
+      ),
+      kind: "failed",
+    });
+    expect(time.next()).toBe(false);
+  });
 });

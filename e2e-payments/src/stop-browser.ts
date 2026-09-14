@@ -2,7 +2,7 @@ import type { Browser } from "playwright";
 
 type Outcome<T> =
   | { kind: "completed"; value: T }
-  | { kind: "failed" }
+  | { kind: "failed"; reason: unknown }
   | { kind: "timed-out" };
 
 const bounded = async <T>(
@@ -17,7 +17,7 @@ const bounded = async <T>(
     // Keep the rejection handler attached even after the deadline wins.
     const operation = wait.then(
       (value): Outcome<T> => ({ kind: "completed", value }),
-      (): Outcome<T> => ({ kind: "failed" }),
+      (reason): Outcome<T> => ({ kind: "failed", reason }),
     );
     return await Promise.race([operation, timeout]);
   } finally {
@@ -25,10 +25,20 @@ const bounded = async <T>(
   }
 };
 
+/** What a failed graceful close said, for the error that reports it. */
+const closeSaid = (graceful: Outcome<unknown>): string => {
+  if (graceful.kind !== "failed") return "";
+  const message =
+    graceful.reason instanceof Error
+      ? graceful.reason.message
+      : String(graceful.reason);
+  return ` (the graceful close said: ${message})`;
+};
+
 /** Playwright exposes no process handle.
  * A browser that survives must fail cleanup. */
 export const stopScratchBrowser = async (browser: Browser): Promise<void> => {
-  await bounded(browser.close(), 10_000);
+  const graceful = await bounded(browser.close(), 10_000);
   if (browser.isConnected()) {
     const cdp = await bounded(browser.newBrowserCDPSession(), 5_000);
     if (cdp.kind === "completed" && browser.isConnected()) {
@@ -36,7 +46,7 @@ export const stopScratchBrowser = async (browser: Browser): Promise<void> => {
     }
     if (browser.isConnected()) {
       throw new Error(
-        "Chromium did not close after the bounded graceful close and CDP Browser.close",
+        `Chromium did not close after the bounded graceful close and CDP Browser.close${closeSaid(graceful)}`,
       );
     }
   }
