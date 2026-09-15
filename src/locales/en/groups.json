@@ -60,7 +60,7 @@
   "fields.group.hide_package_listings_hint": "Package bookings, tickets, and confirmation emails show only the package name. A listing's own page and visibility do not change.",
   "fields.group.hide_package_listings_label": "Hide listing names within package",
   "fields.group.show_hidden_listings": "Hidden listings",
-  "fields.group.show_hidden_listings_hint": "Hidden listings stay off the public listings page. Tick this box to sell them on this group's booking page. Leave it empty to keep them off the page. Their direct links always work.",
+  "fields.group.show_hidden_listings_hint": "Hidden listings stay off the public listings page. Tick this box to sell them on this group's booking page. Leave it empty to keep them off the page. Their direct links keep working while the listings are active.",
   "fields.group.show_hidden_listings_label": "Show hidden listings on this group's booking page",
   "fields.group.package_day_price": "{count}-day price",
   "fields.group.package_price": "Per-unit price",
