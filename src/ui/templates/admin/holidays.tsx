@@ -7,6 +7,7 @@
  * dashboard renders it outside the resource list shell.
  */
 
+import type { Holiday } from "#db/holidays.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -24,7 +25,7 @@ import {
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
-import type { AdminSession, Holiday } from "#types";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

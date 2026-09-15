@@ -17,6 +17,7 @@ describe("group fields", () => {
       "hidden",
       "is_package",
       "hide_package_listings",
+      "show_hidden_listings",
     ]);
   });
 
@@ -31,6 +32,7 @@ describe("group fields", () => {
       "hidden",
       "is_package",
       "hide_package_listings",
+      "show_hidden_listings",
     ]);
   });
 
@@ -53,6 +55,9 @@ describe("group fields", () => {
     const hideListings = form.fields.find(
       (f) => f.name === "hide_package_listings",
     );
+    const showHidden = form.fields.find(
+      (f) => f.name === "show_hidden_listings",
+    );
     expect(isPackage).toMatchObject({
       options: [{ label: "Sell this group as a package", value: "1" }],
       type: "checkbox-group",
@@ -60,6 +65,9 @@ describe("group fields", () => {
     expect(hideListings).toMatchObject({
       options: [{ value: "1" }],
       type: "checkbox-group",
+    });
+    expect(showHidden).toMatchObject({
+      options: [{ label: "Show hidden listings on this group's booking page" }],
     });
   });
 

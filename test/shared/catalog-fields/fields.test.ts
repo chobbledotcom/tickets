@@ -61,6 +61,7 @@ describe("catalog fields", () => {
       hidden: false,
       hide_package_listings: false,
       is_package: false,
+      show_hidden_listings: true,
       terms_and_conditions: "",
     });
   });
@@ -237,6 +238,7 @@ describe("catalog fields", () => {
       isPackage: names.boolean,
       maxAttendees: names.nonNegativeInt,
       name: names.name,
+      showHiddenListings: names.boolean,
       termsAndConditions: names.string,
     });
   });

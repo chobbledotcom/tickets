@@ -53,6 +53,7 @@ const packageGroup = (member: unknown) => ({
   max_attendees: 50,
   name: "Camping Weekend",
   package_members: [member],
+  show_hidden_listings: true,
   slug: "camping-weekend",
   terms_and_conditions: "",
 });

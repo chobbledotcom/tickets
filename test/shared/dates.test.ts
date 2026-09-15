@@ -26,10 +26,10 @@ import {
 } from "#shared/dates.ts";
 import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { testHoliday, testListing } from "#test-utils/factories.ts";
+import { today } from "#test-utils/booking-model-fixtures.ts";
+import { testHoliday } from "#test-utils/db-helpers/holidays.ts";
+import { testListing } from "#test-utils/factories.ts";
 import { testWithSetting, useSetting } from "#test-utils/settings.ts";
-
-const today = () => todayInTz("UTC");
 
 describe("dates", () => {
   useSetting({ timezone: "UTC" });

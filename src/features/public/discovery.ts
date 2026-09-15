@@ -20,7 +20,7 @@ import {
   getSharedGroupCapacities,
 } from "#db/attendees/capacity/groups.ts";
 import { listingGroups } from "#db/groups.ts";
-import { getActiveHolidays } from "#db/holidays.ts";
+import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import {
   getNonStandaloneChildIds,
   listingIdsWithLinks,
@@ -32,7 +32,6 @@ import { childIdsMatching } from "#shared/child-parents.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   availableDayCounts,
-  type Holiday,
   type ListingWithCount,
   sharedGroupCapacity,
 } from "#types";

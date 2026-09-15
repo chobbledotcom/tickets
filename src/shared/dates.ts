@@ -2,6 +2,7 @@
  * Date computation for daily listings
  */
 
+import type { Holiday } from "#db/holidays.ts";
 import { settings } from "#db/settings.ts";
 import { filter, once } from "#fp";
 import { DAY_NAMES } from "#shared/day-names.ts";
@@ -14,12 +15,7 @@ import {
   utcToZoned,
 } from "#shared/timezone.ts";
 import { isRealCalendarDay } from "#shared/validation/date.ts";
-import {
-  clampDurationDays,
-  type Holiday,
-  type Listing,
-  type SortableListing,
-} from "#types";
+import { clampDurationDays, type Listing, type SortableListing } from "#types";
 
 /** Month names for display */
 const MONTH_NAMES = [

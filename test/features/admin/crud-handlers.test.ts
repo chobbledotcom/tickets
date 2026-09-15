@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { type HolidayInput, holidays } from "#db/holidays.ts";
+import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type NamedOperations } from "#shared/rest/resource.ts";
@@ -11,7 +11,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
-import type { Holiday } from "#types";
 
 type HolidayFormValues = FormValues<ReturnType<typeof getHolidayForm>>;
 

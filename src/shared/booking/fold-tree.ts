@@ -18,12 +18,12 @@ import {
   type PriceRule,
 } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
+import type { Holiday } from "#db/holidays.ts";
 import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import type { StandInName } from "#shared/package-privacy.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
-import type { Holiday } from "#types";
 
 /**
  * The **unified fold** — one recursive walk over the {@link BookingTree} that

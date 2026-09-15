@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { Holiday } from "#db/holidays.ts";
 import { addDays } from "#shared/dates.ts";
 import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListing, testListingWithCount } from "#test-utils/factories.ts";
-import type { Holiday, ListingWithCount } from "#types";
+import type { ListingWithCount } from "#types";
 
 const today = () => todayInTz("UTC");
 

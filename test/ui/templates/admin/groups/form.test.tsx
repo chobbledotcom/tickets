@@ -32,7 +32,16 @@ describe("admin group form templates", () => {
         ),
       );
     }
-    expect(html).not.toContain('value="1" checked');
+    // A fresh group's page offers its hidden listings until the operator
+    // unticks the box, so that box alone starts checked.
+    expect(html).toMatch(
+      /<input(?=[^>]*name="show_hidden_listings")(?=[^>]*value="1")[^>]*checked[^>]*>/,
+    );
+    expect(html).toMatch(
+      /<input(?=[^>]*name="hidden")(?=[^>]*value="1")(?![^>]*checked)[^>]*>/,
+    );
+    // The page's own address marks the Add entry as where you are.
+    expect(html).toContain('<a class="active" href="/admin/groups/new">');
     expect(html).not.toContain('name="slug"');
     expect(html).toContain("Create Group");
   });
@@ -46,6 +55,7 @@ describe("admin group form templates", () => {
       is_package: true,
       max_attendees: 25,
       name: 'Family "Bundle"',
+      show_hidden_listings: false,
       slug: "family-bundle",
       terms_and_conditions: "Be kind.",
     });
@@ -62,6 +72,10 @@ describe("admin group form templates", () => {
     for (const name of ["hidden", "is_package", "hide_package_listings"]) {
       expect(html).toContain(`name="${name}" value="1" checked`);
     }
+    // The group opted out of hidden listings, so its box holds no tick.
+    expect(html).toMatch(
+      /<input(?=[^>]*name="show_hidden_listings")(?![^>]*checked)[^>]*>/,
+    );
   });
 
   test("renders package member overrides and defaults without losing a free price", () => {
@@ -85,11 +99,17 @@ describe("admin group form templates", () => {
     ]);
     const html = String(GroupEditPanel({ group, listings, members }));
 
+    expect(html).toContain('<div class="package-prices">');
     expect(html).toMatch(
       /<input(?=[^>]*name="package_price_8")(?=[^>]*placeholder="12.50")(?=[^>]*value="0.00")[^>]*>/,
     );
+    // The price box takes decimal money text; the quantity box takes whole
+    // numbers, each on its own keyboard.
     expect(html).toMatch(
-      /<input(?=[^>]*name="package_qty_8")(?=[^>]*min="1")(?=[^>]*value="4")[^>]*>/,
+      /<input(?=[^>]*name="package_price_8")(?=[^>]*inputmode="decimal")(?=[^>]*type="text")[^>]*>/,
+    );
+    expect(html).toMatch(
+      /<input(?=[^>]*name="package_qty_8")(?=[^>]*inputmode="numeric")(?=[^>]*type="number")(?=[^>]*min="1")(?=[^>]*value="4")[^>]*>/,
     );
     expect(html).toMatch(
       /<input(?=[^>]*name="package_price_9")(?=[^>]*placeholder="34.00")(?=[^>]*value="")[^>]*>/,
@@ -102,6 +122,24 @@ describe("admin group form templates", () => {
     );
     expect(html).toMatch(
       /<input(?=[^>]*name="package_qty_10")(?=[^>]*value="2")[^>]*>/,
+    );
+  });
+
+  test("shows a member's stored quantity as it is rather than lifting it to one", () => {
+    // The fallback serves the member row that is not there; a stored quantity
+    // is shown as stored, so a zero stays visible for the operator to fix.
+    const group = testGroup({ is_package: true });
+    const listing = testListingWithCount({ id: 12, name: "Zeroed" });
+    const html = String(
+      GroupEditPanel({
+        group,
+        listings: [listing],
+        members: new Map([[12, { price: null, quantity: 0 }]]),
+      }),
+    );
+
+    expect(html).toMatch(
+      /<input(?=[^>]*name="package_qty_12")(?=[^>]*value="0")[^>]*>/,
     );
   });
 
@@ -128,8 +166,12 @@ describe("admin group form templates", () => {
       GroupEditPanel({ group, listings: [listing], members }),
     );
 
+    expect(html).toContain('<div class="package-day-prices">');
     expect(html).toMatch(
       /<input(?=[^>]*name="package_day_price_6_1")(?=[^>]*placeholder="12.00")(?=[^>]*value="0.00")[^>]*>/,
+    );
+    expect(html).toMatch(
+      /<input(?=[^>]*name="package_day_price_6_1")(?=[^>]*inputmode="decimal")(?=[^>]*type="text")[^>]*>/,
     );
     expect(html).toMatch(
       /<input(?=[^>]*name="package_day_price_6_3")(?=[^>]*placeholder="30.00")(?=[^>]*value="")[^>]*>/,

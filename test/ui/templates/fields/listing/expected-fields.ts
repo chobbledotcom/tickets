@@ -252,7 +252,7 @@ export const LISTING_FIELDS = [
     type: "select",
   },
   {
-    hint: "Hide from the public listings page and search engines. The listing is still bookable via its direct link.",
+    hint: "Hide from the public listings page and search engines. The listing is still bookable via its direct link. A group page can still show it when that group allows hidden listings.",
     label: "Hidden listing",
     name: "hidden",
     options: [

@@ -13,9 +13,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestHoliday,
   deleteTestHoliday,
+  testHoliday,
   updateTestHoliday,
 } from "#test-utils/db-helpers/holidays.ts";
-import { testHoliday } from "#test-utils/factories.ts";
 import {
   awaitTestRequest,
   mockAdminLoginRequest,

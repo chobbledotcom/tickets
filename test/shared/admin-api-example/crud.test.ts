@@ -57,6 +57,49 @@ describe("documented admin CRUD endpoints", () => {
     expect(request.can_pay_more).toBe(true);
   });
 
+  test("the documented listing bodies teach with real values", () => {
+    // These bodies are what a caller copies. An example that hides the
+    // listing, charges nothing, books nobody, or lets names transfer teaches
+    // nothing, so each teaching value is pinned exactly.
+    const create = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/listings").request!,
+    );
+    const update = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "PUT", "/api/admin/listings/:listingId")
+        .request!,
+    );
+
+    expect(create).toMatchObject({
+      hidden: false,
+      max_attendees: 20,
+      max_price: 3000,
+      non_transferable: true,
+      unit_price: 1500,
+    });
+    expect(update.max_attendees).toBe(30);
+  });
+
+  test("the documented group record keeps the values the guide teaches", () => {
+    const group = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "GET", "/api/admin/groups/:groupId")
+        .response,
+    ).group;
+    const create = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/groups").request!,
+    );
+
+    // The group stays a plain, named, 50-cap series that shows its listings;
+    // the create body asks for that same cap.
+    expect(group).toMatchObject({
+      description: "Workshops running through the summer.",
+      hide_package_listings: false,
+      max_attendees: 50,
+      show_hidden_listings: true,
+      terms_and_conditions: "",
+    });
+    expect(create.max_attendees).toBe(50);
+  });
+
   /** The example a resource's endpoints show, paired with the delete body a
    * caller would have to send for it. */
   const documentedResources = (): {

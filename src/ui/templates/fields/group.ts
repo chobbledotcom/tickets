@@ -45,9 +45,14 @@ const getGroupCheckboxField =
 
 /** The toggles a group form offers, in display order. "Is a package"
  * Toggling it reveals the per-listing price override table on the edit page.
- * "Hide listings within package" is only meaningful for packages, so the
- * edit page reveals it via the same CSS trick as the price table. */
-const groupToggleNames = ["is_package", "hide_package_listings"] as const;
+ * "Hide listings within package" and "Show hidden listings" each apply to one
+ * group kind, so the edit page reveals/hides them via the same CSS trick;
+ * see the form-visibility section of the stylesheet. */
+const groupToggleNames = [
+  "is_package",
+  "hide_package_listings",
+  "show_hidden_listings",
+] as const;
 type GroupToggleName = (typeof groupToggleNames)[number];
 
 /** Group form fields for creation (no slug - auto-generated) */

@@ -7,12 +7,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { map } from "#fp";
 import {
   dropChildListings,
   keepParentDailyDatesChildrenCanServe,
   lacksStandalonePublicPage,
+  listingPublicPageState,
   withActiveListings,
 } from "#routes/public/ticket-payment.ts";
 import { addDays } from "#shared/dates.ts";
@@ -89,6 +90,24 @@ describeWithEnv("booking page guards", { db: true }, () => {
     const listing = await createTestListing({ name: "Public listing" });
 
     expect(await lacksStandalonePublicPage(listing.id)).toBe(false);
+  });
+
+  test("names each reason a listing's page does or does not serve", async () => {
+    const available = await createTestListing({ name: "Live listing" });
+    const withdrawn = await createTestListing({ name: "Withdrawn listing" });
+    await listingsTable.update(withdrawn.id, { active: false });
+    const { child } = await parentWithChild("State");
+
+    expect(await listingPublicPageState(available)).toBe("available");
+    expect(
+      await listingPublicPageState(
+        requireValue(
+          await getListingWithCount(withdrawn.id),
+          "The withdrawn listing row",
+        ),
+      ),
+    ).toBe("inactive");
+    expect(await listingPublicPageState(child)).toBe("child");
   });
 
   test("renders a page for a single active slug", async () => {

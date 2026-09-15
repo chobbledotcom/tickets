@@ -10,26 +10,18 @@ import {
   resolvedByNodeKey,
 } from "#booking/fold-tree.ts";
 import { formatAtomicError } from "#booking/form.ts";
-import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import type { TicketListing } from "#booking/model.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
+import type { Holiday } from "#db/holidays.ts";
 import { t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import { resolved } from "#test-utils/booking-model-fixtures.ts";
 import { treePackage } from "#test-utils/package-cap-fixtures.ts";
-import type { Holiday, ListingWithCount } from "#types";
+import type { ListingWithCount } from "#types";
 
 /** A cart line resolved against availability (the shape the fold reads). */
-const tl = (
-  id: number,
-  over: Partial<ListingWithCount> = {},
-  closed = false,
-  groupRemaining?: number,
-): TicketListing =>
-  buildTicketListing(
-    testListingWithCount({ id, ...over }),
-    closed,
-    groupRemaining,
-  );
+const tl = (id: number, over: Partial<ListingWithCount> = {}): TicketListing =>
+  resolved({ id, ...over });
 
 const formFrom = (record: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(record));
