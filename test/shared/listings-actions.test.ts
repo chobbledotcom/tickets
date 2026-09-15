@@ -115,7 +115,7 @@ describeWithEnv("validateListingInput", { db: true }, () => {
     });
     const error = await validateListingInput(input);
     expect(error).toBe(
-      "A built-site plan cannot also be a renewal tier. Turn off months per unit or stop assigning a site.",
+      "A listing that assigns a site cannot also be a renewal tier. Turn off months per unit or stop assigning a site.",
     );
   });
 
