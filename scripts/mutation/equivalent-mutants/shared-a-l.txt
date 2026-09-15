@@ -297,9 +297,6 @@ src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → ||   # the s
 
 src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1   # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
 
-src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||   # newRecordDefaults is an optional record shape, so every present value is a truthy object — ?? and || differ only on falsy non-null values, which cannot occur
-src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||   # freshRecord is an optional record shape, so every present value is a truthy object — ?? and || differ only on falsy non-null values, which cannot occur
-
 # The historical backfill's leg choice is invisible: every backfilled
 # attendee's order posts a sale and a payment leg sharing one event group, so
 # legs[1] carries the same group as legs[0].

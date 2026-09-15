@@ -111,6 +111,7 @@ describe("edit-checks pipeline", () => {
       "--config",
       ".jscpd.css.json",
       "src/ui/static/style.scss",
+      "src/ui/static/_field-visibility.scss",
       "--reporters",
       "ai",
       "--format",
@@ -223,14 +224,17 @@ describe("edit-checks file classification", () => {
     expect(configsFor("README.md")).toEqual([]);
   });
 
-  test("scans the stylesheet with the css config and its file path", () => {
-    expect(scansFor("src/ui/static/style.scss")).toEqual([
-      {
-        config: ".jscpd.css.json",
-        format: "scss",
-        paths: ["src/ui/static/style.scss"],
-      },
-    ]);
+  test("scans either stylesheet with the css config and both file paths", () => {
+    const cssScan = {
+      config: ".jscpd.css.json",
+      format: "scss",
+      paths: [
+        "src/ui/static/style.scss",
+        "src/ui/static/_field-visibility.scss",
+      ],
+    };
+    expect(scansFor("src/ui/static/style.scss")).toEqual([cssScan]);
+    expect(scansFor("src/ui/static/_field-visibility.scss")).toEqual([cssScan]);
   });
 });
 

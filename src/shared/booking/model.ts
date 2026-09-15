@@ -1,12 +1,12 @@
 import { intersect } from "@std/collections";
 import type { CartLengthItem } from "#booking/cart-conflicts.ts";
+import type { Holiday } from "#db/holidays.ts";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
   ascending,
   availableDayCounts,
   clampDurationDays,
-  type Holiday,
   type ListingWithCount,
   PARENT_CHILD_GROUP_UNITS,
   type SharedGroupCapacity,

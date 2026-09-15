@@ -665,13 +665,6 @@ export interface ApiKey {
   wrapped_data_key: WrappedKey; // DATA_KEY wrapped with the API key token
 }
 
-export interface Holiday {
-  end_date: string;
-  id: number;
-  name: string;
-  start_date: string;
-}
-
 export interface Group {
   description: string;
   hidden: boolean;

@@ -41,9 +41,15 @@ export type ScanRun = { config: string; format: string; paths?: string[] };
 export const scansFor = (relPath: string): ScanRun[] => {
   // The scss config needs the file path positionally: jscpd v5 does not
   // scan directories when scss is the only format. The code configs do
-  // not list scss, so this file gets no other scan.
-  if (relPath === "src/ui/static/style.scss") {
-    return [{ config: ".jscpd.css.json", format: "scss", paths: [relPath] }];
+  // not list scss, so these files get no other scan.
+  const stylesheetFiles = [
+    "src/ui/static/style.scss",
+    "src/ui/static/_field-visibility.scss",
+  ];
+  if (stylesheetFiles.includes(relPath)) {
+    return [
+      { config: ".jscpd.css.json", format: "scss", paths: stylesheetFiles },
+    ];
   }
   const format = FORMAT_FOR_EXTENSION[extname(relPath).slice(1)];
   if (format === undefined) return [];

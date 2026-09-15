@@ -36,7 +36,7 @@ import {
   listingGroups,
   loadPackageMemberPricingByGroupIds,
 } from "#db/groups.ts";
-import { getActiveHolidays } from "#db/holidays.ts";
+import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { getImageFilenamesForItem } from "#db/images.ts";
 import {
   anyNonStandaloneChild,
@@ -84,7 +84,6 @@ import {
   type ContactInfo,
   dayPriceFor,
   type Group,
-  type Holiday,
   type ListingWithCount,
 } from "#types";
 /* jscpd:ignore-start */
