@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { providerLineCopy } from "#shared/payment-helpers.ts";
+import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 
 describe("providerLineCopy", () => {

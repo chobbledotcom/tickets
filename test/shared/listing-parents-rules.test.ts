@@ -17,6 +17,16 @@ import { edgeListing as listing } from "./listing-parents-rules/helpers.ts";
 const ruleError = (messageKey: string, name: string): string =>
   t(`listings_table.children_err_${messageKey}`, { name });
 
+/** The customisable child every duration-compatibility case pairs with. */
+const cabin = (over: Partial<EdgeListing> = {}): EdgeListing =>
+  listing({
+    customisable_days: true,
+    day_prices: { 2: 200 },
+    duration_days: 5,
+    name: "Cabin",
+    ...over,
+  });
+
 describe("childAddOnError", () => {
   test("resolves to real copy naming the add-on and the child, not a raw key", () => {
     const message = childAddOnError("Face Paint", "Bouncy Castle");
@@ -323,12 +333,7 @@ describe("edgeFieldError", () => {
     [
       "names the customisable child's priced lengths",
       listing({ duration_days: 3, listing_type: "daily", name: "Week" }),
-      listing({
-        customisable_days: true,
-        day_prices: { 2: 200 },
-        duration_days: 5,
-        name: "Cabin",
-      }),
+      cabin(),
       "3 days",
       "2 days",
     ],
@@ -340,24 +345,14 @@ describe("edgeFieldError", () => {
         duration_days: 3,
         name: "Empty",
       }),
-      listing({
-        customisable_days: true,
-        day_prices: { 2: 200 },
-        duration_days: 5,
-        name: "Cabin",
-      }),
+      cabin(),
       "",
       "2 days",
     ],
     [
       "a fixed standard parent offers its single 1-day span",
       listing({ listing_type: "standard", name: "Quick Stop" }),
-      listing({
-        customisable_days: true,
-        day_prices: { 2: 200 },
-        duration_days: 5,
-        name: "Cabin",
-      }),
+      cabin(),
       "1 day",
       "2 days",
     ],

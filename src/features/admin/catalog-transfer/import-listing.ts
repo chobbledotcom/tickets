@@ -24,8 +24,8 @@ import {
 } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import {
-  dayPriceFieldsFromInput,
   generateUniqueListingSlug,
   validateListingInput,
 } from "#shared/listings-actions.ts";

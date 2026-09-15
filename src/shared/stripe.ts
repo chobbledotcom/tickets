@@ -8,6 +8,7 @@ import {
   requireProviderFailure,
   withExactRefundMoney,
 } from "#payment/provider-failures.ts";
+import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   judgedBy,
@@ -27,7 +28,6 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
-  providerLineCopy,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {

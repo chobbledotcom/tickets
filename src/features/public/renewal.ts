@@ -10,7 +10,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { formatDateLabel, listingDateToCalendarDate } from "#shared/dates.ts";
-import { getQualifyingTierListings } from "#shared/site-assignment.ts";
+import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
 import { renewalErrorPage } from "#templates/public/renewal.tsx";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import { applyNoindex } from "./types.ts";

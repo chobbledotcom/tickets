@@ -18,9 +18,9 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
+import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import {
   addMonthsToRenewalDeadline,
-  isQualifyingTierListing,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";

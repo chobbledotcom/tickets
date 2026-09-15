@@ -9,12 +9,8 @@ import { config } from "#e2e/config.ts";
 // jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
-import {
-  assertFreeThankYou,
-  createListing,
-  type ListingFields,
-  waitForHostedCheckout,
-} from "#e2e/flow.ts";
+import { assertFreeThankYou, waitForHostedCheckout } from "#e2e/flow.ts";
+import { createListing, type ListingFields } from "#e2e/listing-flow.ts";
 import { buildOrderCatalog, type OrderCatalog } from "#e2e/order-flow.ts";
 import { refuseOtherProvider } from "#e2e/providers/shared.ts";
 import type { ProviderName } from "#e2e/providers/types.ts";

@@ -18,23 +18,15 @@ import {
 } from "#db/query-log.ts";
 import { t } from "#i18n";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
+import { edgeListing } from "#test/shared/listing-parents-rules/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b);
 
 /** A minimal would-be listing row for edge re-validation. */
-const edge = (id: number, over: Partial<EdgeListing> = {}): EdgeListing => ({
-  assign_built_site: false,
-  customisable_days: false,
-  day_prices: {},
-  duration_days: 1,
-  id,
-  listing_type: "standard",
-  months_per_unit: 0,
-  name: "Listing",
-  ...over,
-});
+const edge = (id: number, over: Partial<EdgeListing> = {}): EdgeListing =>
+  edgeListing({ id, name: "Listing", ...over });
 
 describeWithEnv("db > listing-parents", { db: true }, () => {
   const threeListings = async () => {

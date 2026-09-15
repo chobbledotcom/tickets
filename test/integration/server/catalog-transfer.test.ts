@@ -22,6 +22,7 @@ import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
 /** Unwrap a successful export, failing if it returned null or an
@@ -32,9 +33,8 @@ const unwrapExport = <T>(blob: T | CatalogExportError | null): T => {
   return blob;
 };
 
-/** Import a listing that asks for a built site, asserting the refusal it now
- *  receives — such listings never import, whatever the builder configuration. */
-const importBuiltSiteListing = async (name: string): Promise<string> => {
+/** Import a listing that asks for a built site, and assert the refusal names it. */
+const refusePlanImport = async (name: string): Promise<void> => {
   const result = await importCatalog({
     kind: "listing",
     listing: {
@@ -45,8 +45,10 @@ const importBuiltSiteListing = async (name: string): Promise<string> => {
     },
     version: 1,
   });
-  if (result.ok) throw new Error("the built-site plan import should refuse");
-  return result.error;
+  expect(result).toMatchObject({
+    error: t("catalog_transfer.site_plan_listing_refused", { name }),
+    ok: false,
+  });
 };
 
 const importLogisticsListing = async (name: string): Promise<boolean> => {
@@ -545,12 +547,10 @@ describeWithEnv(
       expect(imported.webhook_url).toBe("https://example.com/hook");
     });
 
-    test("refuses a built-site plan listing where the builder is not configured", async () => {
-      expect(await importBuiltSiteListing("No Builder")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", {
-          name: "No Builder",
-        }),
-      );
+    test("refuses a built-site plan listing whatever the builder configuration", async () => {
+      await refusePlanImport("No Builder");
+      using _builderOn = withEnv({ CAN_BUILD_SITES: "true" });
+      await refusePlanImport("Builder On");
     });
 
     test("clears uses-logistics when logistics is disabled", async () => {
@@ -730,20 +730,6 @@ describeWithEnv(
       // group_id, listing_id, quantity — the flat price override, when present,
       // lives in the separate listing_prices insert).
       expect(statements[0]!.args.length).toBe(40 * 3);
-    });
-  },
-);
-
-describeWithEnv(
-  "catalog-transfer with the builder enabled",
-  { db: true, env: { CAN_BUILD_SITES: "true" } },
-  () => {
-    test("refuses a built-site plan listing even with the builder configured", async () => {
-      expect(await importBuiltSiteListing("Builder On")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", {
-          name: "Builder On",
-        }),
-      );
     });
   },
 );

@@ -6,8 +6,8 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
-  listingInputToEdge,
   performListingDelete,
   toggleListingActive,
   validateListingInput,

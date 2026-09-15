@@ -1,10 +1,11 @@
 /**
- * App-level journey, driven through a real browser exactly as a customer would:
- * first-run setup → admin login → create a priced listing → open its public
- * booking page → book → (paid) hosted checkout → land on the return URL →
- * confirm the booking is recorded as paid. Every value that must be unique to
- * one scenario (owner credentials, booker identity, listing name) is passed in
- * by the caller rather than shared globally.
+ * App-level journey helpers, driven through a real browser exactly as a
+ * customer would: first-run setup and admin login, then the steps after a
+ * listing exists — open its public booking page, book, pass the (paid)
+ * hosted checkout, land back on the app, and confirm the booking is recorded
+ * as paid. Creating the listing itself lives in listing-flow.ts. Every value
+ * that must be unique to one scenario (owner credentials, booker identity,
+ * listing name) is passed in by the caller rather than shared globally.
  */
 
 /* jscpd:ignore-start */
@@ -81,62 +82,6 @@ export const login = async (
     });
   }
   log("  logged in");
-};
-
-/** The fields one published listing is created with. */
-export type ListingFields = {
-  name: string;
-  priceMinor: number;
-  sitePlanMonths?: number;
-};
-
-/**
- * Create a listing that collects an email and (when priced > 0) requires
- * payment. `sitePlanMonths` additionally sells the listing as a built-site
- * plan buying that many months per unit (the app only offers those fields
- * while the builder is enabled, which the harness's app server is). Returns
- * the public `/ticket/<slug>` path for booking.
- */
-export const createListing = async (
-  session: BrowserSession,
-  { priceMinor, name, sitePlanMonths }: ListingFields,
-): Promise<string> => {
-  step(
-    sitePlanMonths === undefined
-      ? `Creating listing "${name}" (price=${priceMinor} minor units)`
-      : `Creating site-plan listing "${name}" (price=${priceMinor}, ${sitePlanMonths} months per unit)`,
-  );
-  await session.goto("/admin/listing/new?template=custom");
-  await session.fill("name", name);
-  // The description is a rich markdown editor whose backing textarea is
-  // hidden — type into the visible editing surface like a person.
-  await session.typeInto(
-    ".md-editor .ProseMirror",
-    "End-to-end payment test listing",
-  );
-  await session.fill("max_attendees", "100");
-  await session.fill("max_quantity", "5");
-  await session.check("fields", "email");
-  // The price field is entered in major units (e.g. "1.00"), not minor.
-  await session.fill("unit_price", (priceMinor / 100).toFixed(2));
-  if (sitePlanMonths !== undefined) {
-    await session.check("assign_built_site", "1");
-    await session.fill("initial_site_months", String(sitePlanMonths));
-  }
-  await session.clickButton(
-    await catalogWords("listings-table", "listings_table.create_listing"),
-  );
-
-  // Open the new listing and read its public booking link.
-  await session.goto("/admin/");
-  await session.clickLink(name);
-  const href = await hrefOf(
-    session.page.locator('a[href*="/ticket/"]').first(),
-    "no public /ticket/ link found on the listing page",
-  );
-  const path = href.startsWith("http") ? new URL(href).pathname : href;
-  log(`  public booking path: ${path}`);
-  return path;
 };
 
 /** Wait for the browser to come back onto an app page whose URL or body

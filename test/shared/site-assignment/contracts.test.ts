@@ -8,10 +8,12 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
-  assignAndNotifyBuiltSites,
   isQualifyingTierListing,
-  parseReadOnlyFromMs,
   pickTierListing,
+} from "#shared/renewal-tier.ts";
+import {
+  assignAndNotifyBuiltSites,
+  parseReadOnlyFromMs,
   renewalDeadlineBaseMs,
   rotateRenewalToken,
   syncReadOnlyFrom,

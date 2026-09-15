@@ -24,9 +24,9 @@ import { renderListingImage } from "#templates/public/shared.tsx";
 import { renderChildBlock } from "./child-block.ts";
 import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
+import { monthsQuantity, termNoteFor } from "./plan-term.ts";
 import {
   monthLabelsForListing,
-  pricedMonthsForListing,
   quantityOptions,
   restoredPackageQuantity,
   restoredQuantity,
@@ -72,7 +72,6 @@ const listingControls = (
   const maxPurchasable = childLimitedMax(info, childCtx);
   const fieldName = nodeQuantityFieldName(node)!;
   const priceFieldName = nodePriceFieldName(node)!;
-  const fixedTerm = pricedMonthsForListing(listing, renewal);
   return {
     childBlock: childCtx ? renderChildBlock(info, childCtx) : "",
     priceHtml: listing.can_pay_more
@@ -91,14 +90,7 @@ const listingControls = (
           restoredQuantity(listing.id, prefill, maxPurchasable),
           monthLabelsForListing(listing, renewal),
         )}</select>`,
-    // A hidden selector buys exactly one unit; a plan hides its term there,
-    // so the fixed purchase still states the months it grants.
-    termNote:
-      hideQuantity && fixedTerm !== undefined
-        ? `<p class="child-total-note">${escapeHtml(
-            t("public.ticket.fixed_term_granted", { count: fixedTerm }),
-          )}</p>`
-        : "",
+    termNote: termNoteFor(listing, hideQuantity, renewal),
   };
 };
 
@@ -259,17 +251,6 @@ const renderPackageSection = (input: PackageRenderInput): string => {
     limit < 1 ? " sold-out" : ""
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
-
-/** A built-site plan sells months of service, not tickets — and a renewal
- *  page prices every tier by its months per unit. The shared resolver decides
- *  which, so the label above the selector can never disagree with the price. */
-const monthsQuantity = (
-  listing: TicketListing["listing"],
-  renewal?: boolean,
-): string =>
-  pricedMonthsForListing(listing, renewal) !== undefined
-    ? t("public.ticket.number_of_months")
-    : t("public.ticket.number_of_tickets");
 
 const renderSingleListingControls: RenderListingControls = (
   info,

@@ -2,6 +2,7 @@
 
 import { settings } from "#db/settings.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
+import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import {
   ProviderTransportError,
   type RejectedBuyerField,
@@ -15,7 +16,6 @@ import {
   buildProviderLineItems,
   createWithClient,
   PaymentUserError,
-  providerLineCopy,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";

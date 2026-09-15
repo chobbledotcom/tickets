@@ -20,7 +20,6 @@ import {
   assertBookedInAdmin,
   countOnRoster,
   requireNoRecognisedIncome,
-  submitBooking,
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
@@ -79,10 +78,11 @@ const payHosted = async (world: LiveWorld): Promise<void> => {
   world.recordPhase("checkout-paid");
 };
 
-/** Pay through Stripe while holding the first browser return, so only the
- * signed webhook can create the booking; the exact intercepted URL is kept
- * for the replay step. */
-const payStripeWithHeldReturn = async (world: LiveWorld): Promise<void> => {
+/** Pay through Stripe holding the first browser return, so only the signed
+ * webhook can create the booking; the replay step reuses the held URL. */
+export const payStripeWithHeldReturn = async (
+  world: LiveWorld,
+): Promise<void> => {
   const held = holdFirstAppReturn(world.resources.visitor);
   await payHosted(world);
   world.rememberHeldReturn(await held.capturedUrl());
@@ -259,42 +259,6 @@ When(
   async function (this: LiveWorld): Promise<void> {
     await sendVisitorToCheckout(this);
     this.recordPhase("visitor-on-hosted-checkout");
-  },
-);
-
-When(
-  "a separate visitor pays for three units through Stripe Checkout",
-  { timeout: config.hostedPaymentStepTimeoutMs },
-  async function (this: LiveWorld): Promise<void> {
-    // The plan's months pricing is asserted while the visitor still has the
-    // page: the checkout selector names months, and each count states what
-    // it buys — three units of this three-month plan read "9 months". The
-    // words come from the catalog, so a rename travels with the app.
-    const buyer = this.resources.visitor;
-    await buyer.goto(this.bookingPath);
-    const body = await buyer.bodyText();
-    const numberOfMonths = await catalogWords(
-      "tickets",
-      "public.ticket.number_of_months",
-    );
-    const threeUnitsBuy = await catalogWords(
-      "tickets",
-      "public.ticket.month_option",
-      {
-        count: 9,
-      },
-    );
-    if (!body.includes(numberOfMonths) || !body.includes(threeUnitsBuy)) {
-      await buyer.dumpPage("plan-page-not-priced-in-months");
-      throw new Error(
-        `the plan's booking page must price it in months (expected ` +
-          `"${numberOfMonths}" and "${threeUnitsBuy}"); got:\n${body.slice(0, 600)}`,
-      );
-    }
-    this.recordPhase("plan-prices-in-months");
-    await submitBooking(buyer, this.bookingPath, this.scenario.booker, "3");
-    await waitForHostedCheckout(buyer);
-    await payStripeWithHeldReturn(this);
   },
 );
 

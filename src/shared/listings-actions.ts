@@ -43,10 +43,14 @@ import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { EdgeListing } from "#shared/listing-parents-rules.ts";
+import {
+  dayPriceFieldsFromInput,
+  listingInputToEdge,
+} from "#shared/listing-edge.ts";
 import {
   packageMemberError,
-  sitePlanMemberError,
+  planInGroupError,
+  planRuleError,
 } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
@@ -54,8 +58,6 @@ import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
-  clampDurationDays,
-  type DayPricedListing,
   type Group,
   type Listing,
   type ListingWithCount,
@@ -132,9 +134,8 @@ const packageMembershipError = async (
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   const groupIds = input.groupIds ?? [];
   if (groupIds.length === 0) return null;
-  // A built-site plan is booked on its own, so no final group set may keep
-  // it — an empty set stays valid so removal is always possible.
-  if (input.assignBuiltSite) return sitePlanMemberError(input.name);
+  const planRule = planInGroupError(input.assignBuiltSite, input.name);
+  if (planRule) return planRule;
   // Only pay-what-you-want pricing is package-incompatible: a package needs an
   // operator-set price per member. Daily/customisable members are packageable
   // (the group keeps members homogeneous, sharing one date/day-count selector).
@@ -199,43 +200,12 @@ const validateRenewalConfig = (input: ListingInput): string | null => {
   if ((input.monthsPerUnit ?? 0) > 0 && !(input.purchaseOnly && input.hidden)) {
     return t("error.months_per_unit_needs_flags");
   }
-  if (input.assignBuiltSite && (input.initialSiteMonths ?? 0) <= 0) {
-    return t("error.initial_site_months_required");
-  }
-  // Renewal completion both assigns sites and extends tokens, so one listing
-  // cannot sell through both mechanisms — a dual-role listing would grant a
-  // renewal payment a new site AND an extended one.
-  if (input.assignBuiltSite && (input.monthsPerUnit ?? 0) > 0) {
-    return t("error.assign_built_site_not_tier");
-  }
-  return null;
+  // A plan is never also a renewal tier — renewal completion would double-grant.
+  return planRuleError(input.assignBuiltSite, [
+    [(input.initialSiteMonths ?? 0) <= 0, "error.initial_site_months_required"],
+    [(input.monthsPerUnit ?? 0) > 0, "error.assign_built_site_not_tier"],
+  ]);
 };
-
-/** The day-count pricing fields of a listing form input, each optional field
- * defaulted the way the form layer does. Shared by the edge-compatibility shape
- * and the catalog import's member-price check so the defaults never drift. */
-export const dayPriceFieldsFromInput = (
-  input: ListingInput,
-): DayPricedListing => ({
-  customisable_days: input.customisableDays ?? false,
-  day_prices: input.dayPrices ?? {},
-  duration_days: clampDurationDays(input.durationDays ?? 1),
-});
-
-/** Project a (possibly partial) listing form input onto the edge-compatibility
- *  shape for the row it would become, defaulting each optional field as the form
- *  layer does. */
-export const listingInputToEdge = (
-  input: ListingInput,
-  id: number,
-): EdgeListing => ({
-  ...dayPriceFieldsFromInput(input),
-  assign_built_site: input.assignBuiltSite ?? false,
-  id,
-  listing_type: input.listingType ?? "standard",
-  months_per_unit: input.monthsPerUnit ?? 0,
-  name: input.name,
-});
 
 /** The first child-only add-on the listing's edges would orphan under its
  * would-be `group_id`, or null. Reuses the same reachability helper the edge/
