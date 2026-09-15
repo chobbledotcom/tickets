@@ -12,7 +12,7 @@
  */
 
 /* jscpd:ignore-start */
-import { sortedByString } from "#fp-strings";
+import { sort } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
@@ -114,7 +114,9 @@ export const AvailabilityChecker = ({
           {date && <input name={START_DATE_FIELD} type="hidden" value={date} />}
           {renderTable(
             availabilityTable,
-            sortedByString((row: AvailabilityRow) => row.name)(rows),
+            sort((a: AvailabilityRow, b: AvailabilityRow) =>
+              a.name.localeCompare(b.name),
+            )(rows),
             { tableClass: "availability-table" },
           )}
           <div class="order-actions">

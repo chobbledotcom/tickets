@@ -156,28 +156,28 @@ const collectUniqueOptions = (
   return option && !acc.has(option.id) ? acc.set(option.id, option) : acc;
 };
 
-/** Decrypt one collector's unique [id, stored value] entries through their
- * table's `fromDb`, preserving the map's first-occurrence order. */
-const decryptUniqueEntries = async <T>(
-  collect: (acc: Map<number, T>, row: JoinedAttributeRow) => Map<number, T>,
-  fromDb: (value: T) => Promise<T>,
-  rows: JoinedAttributeRow[],
-): Promise<readonly (readonly [number, T])[]> =>
-  Promise.all(
-    map(async ([id, value]: [number, T]) => [id, await fromDb(value)] as const)(
-      [...reduce(collect, new Map<number, T>())(rows)],
-    ),
-  );
-
 const decryptAttributeRows = async (
   rows: JoinedAttributeRow[],
 ): Promise<DecryptedAttributeRows> => {
   const [attributes, options] = await Promise.all([
-    decryptUniqueEntries(collectUniqueAttributes, attributesTable.fromDb, rows),
-    decryptUniqueEntries(
-      collectUniqueOptions,
-      attributeOptionsTable.fromDb,
-      rows,
+    Promise.all(
+      map(
+        async ([id, attribute]: [number, Attribute]) =>
+          [id, await attributesTable.fromDb(attribute)] as const,
+      )([
+        ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
+      ]),
+    ),
+    Promise.all(
+      map(
+        async ([id, option]: [number, AttributeOption]) =>
+          [id, await attributeOptionsTable.fromDb(option)] as const,
+      )([
+        ...reduce(
+          collectUniqueOptions,
+          new Map<number, AttributeOption>(),
+        )(rows),
+      ]),
     ),
   ]);
   return {

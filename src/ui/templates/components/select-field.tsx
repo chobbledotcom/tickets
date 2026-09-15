@@ -20,13 +20,6 @@ export const choiceOptions = (
 ): SelectOption[] =>
   choices.map((choice) => ({ label: t(choice.labelKey), value: choice.value }));
 
-/** Turn records that carry an id into options, with `labelOf` naming each. */
-export const idOptions = <T extends { id: number }>(
-  items: readonly T[],
-  labelOf: (item: T) => string,
-): SelectOption[] =>
-  items.map((item) => ({ label: labelOf(item), value: String(item.id) }));
-
 export const SelectField = ({
   name,
   id,

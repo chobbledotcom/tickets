@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { readCustomAuthorization } from "#shared/uptime-kuma/authorization.ts";
+import {
+  authorizationForOrNull,
+  readCustomAuthorization,
+} from "#shared/uptime-kuma/authorization.ts";
 
 describe("readCustomAuthorization", () => {
   test("answers no authorization, valid, for a missing header string", () => {
@@ -50,5 +53,33 @@ describe("readCustomAuthorization", () => {
       authorization: null,
       valid: false,
     });
+  });
+});
+
+describe("authorizationForOrNull", () => {
+  test("ignores an invalid stored headers string entirely", () => {
+    expect(authorizationForOrNull("{", "bearer", "tok")).toBeNull();
+  });
+
+  test("prefers a custom header over the monitor's built-in token", () => {
+    expect(
+      authorizationForOrNull(
+        '{"Authorization": "Bearer custom"}',
+        "bearer",
+        "built-in",
+      ),
+    ).toBe("Bearer custom");
+  });
+
+  test("falls back to the monitor's built-in bearer token", () => {
+    expect(authorizationForOrNull(null, "bearer", "tok")).toBe("Bearer tok");
+  });
+
+  test("answers null when neither a custom header nor a bearer token exists", () => {
+    expect(authorizationForOrNull(null, "bearer", null)).toBeNull();
+  });
+
+  test("answers null without the bearer auth method", () => {
+    expect(authorizationForOrNull(null, "none", "tok")).toBeNull();
   });
 });

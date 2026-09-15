@@ -180,6 +180,11 @@ describe("fields validators", () => {
     test("accepts valid, comma-separated day names", () => {
       accepts(validateBookableDays, "Monday, Wednesday, Friday");
     });
+    test("names the valid days, comma-and-space separated", () => {
+      // The join separator of the valid-day list itself must survive the
+      // copy: a message that runs the names together is not readable.
+      expect(validateBookableDays("Funday")).toContain("Use: Monday, Tuesday");
+    });
     test("VALID_DAY_NAMES lists all seven days, Monday first", () => {
       expect(VALID_DAY_NAMES).toHaveLength(7);
       expect(VALID_DAY_NAMES[0]).toBe("Monday");
@@ -227,6 +232,18 @@ describe("fields validators", () => {
       expect(listing.options).toEqual([
         { label: "Hide from public listings list", value: "1" },
       ]);
+    });
+    test("gives each visibility kind its own wording, not the other kind's", () => {
+      // A swapped hint or label would still make the two kinds distinct,
+      // so the exact copy of each is pinned here on its own.
+      expect(buildHiddenField("Listing").label).toBe("Hidden listing");
+      expect(buildHiddenField("Listing").hint).toContain(
+        "The listing is still bookable",
+      );
+      expect(buildHiddenField("Group").label).toBe("Hidden Group");
+      expect(buildHiddenField("Group").hint).toContain(
+        "The group is still bookable",
+      );
     });
   });
 

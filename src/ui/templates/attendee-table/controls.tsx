@@ -7,8 +7,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { map, unique } from "#fp";
-import { sortedByString } from "#fp-strings";
+import { map, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
@@ -76,9 +75,9 @@ const categoriesOf = (view: AttendeeListView): ListingFilter[] =>
 /** Listing options sorted by name, deactivated listings flagged inline, with a
  * leading "all listings" entry. */
 const listingOptions = (listings: ListingWithCount[]): SelectOption[] => {
-  const sorted = sortedByString((listing: ListingWithCount) => listing.name)(
-    listings,
-  );
+  const sorted = sort((a: ListingWithCount, b: ListingWithCount) =>
+    a.name.localeCompare(b.name),
+  )(listings);
   return [
     { label: t("attendees_list.all_listings"), value: "" },
     ...sorted.map((e) => ({
