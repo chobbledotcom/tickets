@@ -312,3 +312,12 @@ src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  ?? → ||   # same p
 src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  0 → 1   # the emitted map only feeds child-line subtraction, and a listing with emitted lines is never a child, so its folded total equals its emission and its child line skips on 0 or −1 alike; a child listing gets no emission at all, so the fallback is never read for it
 src/shared/booking/order-lines.ts::buildOrderLines.childLines.quantity~1r5rdx3  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
 src/shared/listing-parents-rules.ts::describedDayCounts.sorted~1uom1op  - → /   # day counts are positive integers, so a / b is positive for every distinct pair; V8's toSorted with an always-positive comparator returns the input order unchanged (probed on ascending and non-ascending inputs), so the sorted sequence is identical
+
+# firstMatch only yields undefined | null | a target object; null fails both
+# arms of the coalescing the same way, so ?? and || read identically.
+src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → ||  # the awaited value is undefined, null, or an object: ?? and || agree on all three
+
+# The optional parameters are Record<string, unknown> | undefined: undefined
+# is the only absent value, so ?? and || read identically over the type.
+src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecordDefaults is undefined or a truthy record object
+src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object

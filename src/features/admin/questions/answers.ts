@@ -36,6 +36,7 @@ import {
   htmlResponse,
   notFoundResponse,
   redirect,
+  redirectToDetail,
 } from "#routes/response.ts";
 import {
   createAuthedFormRoute,
@@ -57,10 +58,7 @@ import { answerTextForm } from "./forms.ts";
 
 export type QuestionIdParams = { id: number };
 
-export const redirectToQuestion = (args: {
-  error: string;
-  params: QuestionIdParams;
-}): Response => errorRedirect(`/admin/questions/${args.params.id}`, args.error);
+export const redirectToQuestion = redirectToDetail("/admin/questions");
 
 /** Handle POST /admin/questions/:id/answers (add answer) */
 export const handleAddAnswer: ParamsRoute<QuestionIdParams> =

@@ -81,6 +81,9 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).toContain('name="customer_name"');
+      // The customer name input carries the contact-field cap, like every
+      // other hand-rendered contact input.
+      expect(body).toContain('maxlength="250"');
       expect(body).toContain('name="value"');
       expect(body).toContain('name="quantity"');
       expect(body).toContain('value="1"');
@@ -214,6 +217,25 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       );
       const body = await response.text();
       expect(body).toContain("Date is required");
+    });
+
+    test("refuses a customer name the booking form would reject", async () => {
+      // Regression: the signed name pre-fills the booking form (or rides
+      // direct-checkout metadata), so it answers to the same contact-name
+      // rule BEFORE it is signed — an unchecked name only failed later, at
+      // the buyer's form ("x1" prefill refuses) or at Square's metadata cap.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/qr`,
+        { customer_name: "A".repeat(251), quantity: "1", value: "5.00" },
+      );
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("Name must be 250 characters or fewer");
+      expect(body).not.toContain("/qr-book?t=");
     });
 
     test("returns 404 when the listing does not exist", async () => {

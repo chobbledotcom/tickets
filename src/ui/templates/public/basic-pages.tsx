@@ -1,6 +1,7 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
+import { getContactEmailForm } from "#shared/forms/contact.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { MessageFields } from "#shared/forms/message-fields.tsx";
@@ -63,10 +64,7 @@ const ContactForm = ({
   return (
     <CsrfForm action="/contact" {...botpoisonAttr}>
       <h2>{t("public.send_us_a_message")}</h2>
-      <label>
-        {t("public.contact_email_label")}
-        <input autocomplete="email" name="email" required type="email" />
-      </label>
+      <Raw html={getContactEmailForm().render()} />
       <MessageFields />
     </CsrfForm>
   );

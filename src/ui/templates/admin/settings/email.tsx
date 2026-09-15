@@ -5,6 +5,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
+import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -48,12 +49,12 @@ export const EmailNotificationsForm = (
       <MaskedInput
         configured={s.emailApiKeyConfigured}
         label={t("settings.advanced.api_key")}
-        name="email_api_key"
+        {...settingsFormFieldAttributes("settings-email", "email_api_key")}
         placeholder={t("settings.advanced.api_key_placeholder")}
       />
       <TextField
         label={t("settings.advanced.from_address")}
-        name="email_from_address"
+        {...settingsFormFieldAttributes("settings-email", "email_from_address")}
         placeholder={s.businessEmail || "tickets@yourdomain.com"}
         type="email"
         value={s.emailFromAddress}

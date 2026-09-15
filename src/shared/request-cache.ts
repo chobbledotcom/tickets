@@ -63,7 +63,11 @@ const cacheSlot = <S>() => {
  * promise may be handed to nobody — a fire-and-forget prefetch, or a shared
  * batch fetch answering ids this caller never asked for. */
 const ignoreUnobserved = (promise: Promise<unknown>): void => {
-  promise.catch(() => {});
+  promise.catch(() => {
+    // No caller may observe this pending promise, so this handler keeps an
+    // early rejection from surfacing as unhandled. A caller that does observe
+    // the promise still sees the rejection itself.
+  });
 };
 
 /**

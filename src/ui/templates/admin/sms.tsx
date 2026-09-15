@@ -7,6 +7,7 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
@@ -90,7 +91,7 @@ const ComposeForm = ({
             <label for="sms-message">{t("sms.contact.message_label")}</label>
             <textarea
               id="sms-message"
-              maxlength="1000"
+              maxlength={SMS_MESSAGE_MAX_LENGTH}
               name="message"
               required
               rows="4"

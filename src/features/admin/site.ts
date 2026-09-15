@@ -5,14 +5,16 @@ import { defineRoutes } from "#routes/router.ts";
  * Access: owner + editor (managers stay excluded — see SITE_ADMIN_LEVELS).
  */
 
+import { logActivity } from "#db/activity-log.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import { MAX_WEBSITE_TITLE_LENGTH } from "#db/settings/constants.ts";
 import { settings } from "#db/settings.ts";
 import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import { type AuthSession, SITE_FORM, sitePage } from "#routes/auth.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
 import {
   applyDemoOverrides,
@@ -27,6 +29,7 @@ import {
   adminSiteHomePage,
   adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
+import { siteHomeForm } from "#templates/fields/site.ts";
 
 /** Count active, visible listings — every one appears on the order page. */
 const countOrderListings = async (): Promise<number> => {
@@ -71,29 +74,20 @@ const renderContactPage: PageRenderer = (session, error, success) =>
   );
 
 /** Handle POST /admin/site - save homepage */
-const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
+const handleSiteHomePost = createAuthedFormRoute({
   auth: SITE_FORM,
-  extract: (form) => {
-    applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
-    return {
-      text: form.getString("homepage_text"),
-      title: form.getString("website_title"),
-    };
+  form: {
+    validate: (form) => {
+      applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
+      return siteHomeForm.validate(form);
+    },
   },
-  log: () => "Homepage updated",
-  redirectTo: "/admin/site",
-  save: async ({ title, text }) => {
-    await settings.update.websiteTitle(title);
-    await settings.update.homepageText(text);
-  },
-  validate: ({ title, text }) => {
-    if (title.length > MAX_WEBSITE_TITLE_LENGTH) {
-      return `Website title must be ${MAX_WEBSITE_TITLE_LENGTH} characters or fewer (currently ${title.length})`;
-    }
-    if (text.length > MAX_TEXTAREA_LENGTH) {
-      return `Homepage text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${text.length})`;
-    }
-    return null;
+  onInvalid: ({ error }) => errorRedirect("/admin/site", error),
+  onValid: async ({ values }) => {
+    await settings.update.websiteTitle(values.website_title);
+    await settings.update.homepageText(values.homepage_text);
+    await logActivity("Homepage updated");
+    return redirect("/admin/site", "Homepage updated", true);
   },
 });
 

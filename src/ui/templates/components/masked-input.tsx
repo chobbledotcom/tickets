@@ -15,15 +15,18 @@ export const MaskedInput = ({
   label,
   name,
   placeholder,
+  maxlength,
 }: {
   /** Whether a secret is already stored (renders the mask sentinel). */
   configured: boolean;
   label: string;
   name: string;
   placeholder?: string | undefined;
+  maxlength?: number | undefined;
 }): JSX.Element => (
   <TextField
     label={label}
+    maxlength={maxlength}
     name={name}
     placeholder={placeholder}
     type="password"

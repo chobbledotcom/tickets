@@ -6,11 +6,18 @@
 import * as v from "valibot";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
-import { collectSourceFiles } from "#scripts/walk-files.ts";
+import { SOURCE_DIRS as EVERY_SOURCE_TREE } from "#scripts/source-dirs.ts";
+import { collectFromFiles, collectSourceFiles } from "#scripts/walk-files.ts";
 import { type Alias, findImportIssues, formatIssue } from "./rules.ts";
 
-/** The trees whose imports resolve through the root `deno.json` alias table. */
-export const SOURCE_DIRS = ["src", "test", "scripts", "cli"];
+/**
+ * The trees whose imports resolve through the root `deno.json` alias table
+ * — every source tree except the OpenCode plugin, whose imports stay
+ * relative because its Bun host does not read the import map.
+ */
+export const SOURCE_DIRS = EVERY_SOURCE_TREE.filter(
+  (dir) => dir !== ".opencode/plugins",
+);
 
 export const CONFIG_PATH = "deno.json";
 
@@ -43,16 +50,14 @@ export const runImportCheck = async (
     output.logError(`Cannot read the import aliases in ${configPath}.`);
     return 1;
   }
-  const found: string[] = [];
-  for (const root of roots) {
-    const files = await collectSourceFiles(root);
-    for (const file of files) {
-      const content = await Deno.readTextFile(file);
-      for (const issue of findImportIssues(file, content, aliases)) {
-        found.push(formatIssue(file, issue));
-      }
-    }
-  }
+  const found = await collectFromFiles(
+    roots,
+    collectSourceFiles,
+    (file, content) =>
+      findImportIssues(file, content, aliases).map((issue) =>
+        formatIssue(file, issue),
+      ),
+  );
   return reportCheck({
     ...output,
     found,

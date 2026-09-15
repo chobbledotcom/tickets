@@ -287,8 +287,8 @@ Rules:
   cannot supply, so a final price can't be shown. The conditions are direct
   `Listing` fields, each confirmed against the booking form:
   - `listing_type === "daily"` — requires a date (`listing_type` is
-    `"standard" | "daily"`; the date selector is gated on `"daily"`, not on a
-    date merely existing — `src/features/public/ticket-payment.ts`).
+    `"standard" | "daily"`, and the date selector is gated on `"daily"` even
+    when a date merely exists. See `src/features/public/ticket-payment.ts`).
   - `customisable_days` — requires a day-count choice (`resolveDayCount`).
   - `can_pay_more` — pay-what-you-want; `unit_price` is the minimum, shown as a
     "from" price. For these the cart shows "Price set at checkout" and excludes
@@ -298,9 +298,9 @@ Rules:
     listing — including assign-all questions, which have no per-listing
     `listing_questions` rows — on every public module fetch. Since the subtotal
     is already an explicit lower-bound estimate (modifiers and fees are
-    excluded), such a listing simply shows its base `unitPrice` as a "from"
-    price and the checkout caveat covers the rest. This is a v1 scope choice,
-    not an oversight.
+    excluded), such a listing shows its base `unitPrice` as a "from" price and
+    the checkout caveat covers the rest. This is a v1 scope choice, not an
+    oversight.
 - Every entry carries `bookable` (= the listing's `active` flag). Bookable
   entries also carry `unitPrice` and `variablePrice`; closed (`bookable: false`)
   entries carry only `slug` and `name` — enough to intercept the click with a

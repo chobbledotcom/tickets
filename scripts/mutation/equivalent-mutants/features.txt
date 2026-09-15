@@ -306,3 +306,7 @@ src/ui/client/admin/paired-controls.ts::initPairedControls.whyHolder.holder%2ete
 src/ui/client/admin/paired-controls.ts::initPairedControls.whyHolder.holder%2etextContent~094dnre  ?? → ||   # dataset.exclusiveWhy is a string or undefined; undefined falls to "" under both operators, and the only falsy string is "" itself
 src/shared/db/groups/membership.ts::requireMembershipValidation~1ukeje0 catalog_transfer.member_missing→""   # the listingMissing arm can never fire: every caller revalidates a listing it just created or resolved in the same transaction (the duplicate afterWrite, both catalog import paths), so no input reaches the refusal message
 src/features/admin/bulk-actions.ts::handleDuplicateGroupPost.cloneInputs.input.closesAt~1577opp  ?? → ||   # closes_at is string|null in the stored listing row, so the only falsy value it can hold is "" — the same value the ?? fallback supplies
+
+# The regex captures [^/+]+ (one or more characters), so the captured group
+# is never "" and the only nullish value is undefined, where ?? and || agree.
+src/features/tickets/index.ts::matchSvgPath~0ma4ttp  ?? → ||  # match?.[1] is a non-empty string or undefined; ?? and || read identically

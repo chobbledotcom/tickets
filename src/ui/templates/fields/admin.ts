@@ -7,6 +7,11 @@
 import { t } from "#i18n";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
+import {
+  MAX_INPUT_LENGTH,
+  MAX_TEXTAREA_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
@@ -139,7 +144,12 @@ const getBuiltSiteFields = () =>
       validate: validateHttpsDomainUrl,
     },
     builtSiteBox("db_url", "db_url", "url" as const),
-    builtSiteBox("db_token", "db_token", "password" as const),
+    {
+      ...builtSiteBox("db_token", "db_token", "password" as const),
+      // A libsql auth token is a pasted machine credential, like the wallet
+      // PEM keys: a real one runs past the single-line cap.
+      maxlength: MAX_TEXTAREA_LENGTH,
+    },
     builtSiteBox("hosting_id", "hosting_id", "text" as const),
     ...providerChoices({
       db: [
@@ -180,7 +190,10 @@ const getBuiltSiteFields = () =>
 
 export const getBuiltSiteForm = defineFieldsForm(getBuiltSiteFields);
 
-/** Password field telling the browser to offer a new password, not a saved one. */
+/** Password field telling the browser to offer a new password, not a saved one.
+ *  The length cap applies to the credential being CHOSEN here, never to a
+ *  login/current-password field, which must accept an existing credential of
+ *  any length an older site allowed. */
 const newPasswordField = <TName extends string>(
   name: TName,
   label: string,
@@ -188,10 +201,14 @@ const newPasswordField = <TName extends string>(
 ): InputField<TName> & { required: true } => ({
   autocomplete: "new-password",
   label,
+  maxlength: MAX_INPUT_LENGTH,
   name,
   required: true,
   type: "password",
-  ...(!confirm && { hint: t("fields.setup.password_hint"), minlength: 8 }),
+  ...(!confirm && {
+    hint: t("fields.setup.password_hint"),
+    minlength: PASSWORD_MIN_LENGTH,
+  }),
 });
 
 const newPasswordFields = <TName extends string, TConfirmName extends string>(
@@ -255,7 +272,8 @@ export const getChangePasswordForm = defineFieldsForm(getChangePasswordFields);
 /** A required payment-provider credential field: never autofilled, always
  * carries a hint, and (when given) a placeholder. `type` is "password" for
  * secret keys/tokens and "text" for public ids like a location or merchant
- * code. */
+ * code. Password-type fields declare their own cap because the free-text
+ * default no longer covers password inputs. */
 const secretField = ({
   hint,
   label,
@@ -272,6 +290,7 @@ const secretField = ({
   autocomplete: "off",
   hint,
   label,
+  maxlength: MAX_INPUT_LENGTH,
   name,
   ...(placeholder !== undefined && { placeholder }),
   required: true,
@@ -295,6 +314,22 @@ const credentialField = (
     ...(extra.type && { type: extra.type }),
   });
 
+/** The key + id pair a credentials form asks for: the provider's secret or
+ * key field first, then one plain-text id field. */
+const providerCredentialFields = (
+  provider: keyof typeof PAYMENT_PROVIDERS,
+  secretKeyLabel: string,
+  idField: { keyLabel: string; name: string },
+): Field[] => [
+  credentialField(
+    `fields.${provider}.${secretKeyLabel}`,
+    PAYMENT_PROVIDERS[provider].secretField,
+  ),
+  credentialField(`fields.${provider}.${idField.keyLabel}`, idField.name, {
+    type: "text",
+  }),
+];
+
 /**
  * Stripe key settings form field definitions (per-request builder)
  */
@@ -308,15 +343,11 @@ export const getStripeKeyFields = (): Field[] => [
 /**
  * Square access token and location form field definitions (per-request builder)
  */
-export const getSquareAccessTokenFields = (): Field[] => [
-  credentialField(
-    "fields.square.access_token",
-    PAYMENT_PROVIDERS.square.secretField,
-  ),
-  credentialField("fields.square.location_id", "square_location_id", {
-    type: "text",
-  }),
-];
+export const getSquareAccessTokenFields = (): Field[] =>
+  providerCredentialFields("square", "access_token", {
+    keyLabel: "location_id",
+    name: "square_location_id",
+  });
 
 /**
  * Square webhook settings form field definitions (per-request builder)
@@ -330,12 +361,11 @@ export const getSquareWebhookFields = (): Field[] => [
 /**
  * SumUp API key and merchant code form field definitions (per-request builder)
  */
-export const getSumupFields = (): Field[] => [
-  credentialField("fields.sumup.api_key", PAYMENT_PROVIDERS.sumup.secretField),
-  credentialField("fields.sumup.merchant_code", "sumup_merchant_code", {
-    type: "text",
-  }),
-];
+export const getSumupFields = (): Field[] =>
+  providerCredentialFields("sumup", "api_key", {
+    keyLabel: "merchant_code",
+    name: "sumup_merchant_code",
+  });
 
 /**
  * Invite user form field definitions (per-request builder)

@@ -14,9 +14,10 @@ import {
   saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
-/* jscpd:ignore-end */
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
+
+/* jscpd:ignore-end */
 
 type SmsGatewayFormData = {
   username: string;

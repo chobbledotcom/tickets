@@ -32,6 +32,7 @@ import {
   getSmsGatewayConfig,
   sendEncryptedMessage,
 } from "#shared/sms/gateway.ts";
+import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import { type SmsHistoryItem, smsPage } from "#templates/admin/sms.tsx";
@@ -106,6 +107,13 @@ const sendSms = (
     const message = form.getString("message").trim();
     if (!message) {
       return redirect(backUrl, "Message cannot be empty", false);
+    }
+    if (message.length > SMS_MESSAGE_MAX_LENGTH) {
+      return redirect(
+        backUrl,
+        `Message must be ${SMS_MESSAGE_MAX_LENGTH} characters or fewer`,
+        false,
+      );
     }
 
     const phone = data.attendee.phone.trim();

@@ -165,8 +165,6 @@ export const BULK_COMPOSE_COPY: ComposeCopy = {
 export type ParseOutcome<T> = T | null | undefined;
 export type Parsed<T> = ParseOutcome<T> | Promise<ParseOutcome<T>>;
 
-/** The posted fields a target is parsed from. */
-export type TargetForm = FormParams;
 /** A target's recipients, still encrypted — what `loadPiiBlobs` yields. */
 export type TargetPiiBlobs = Promise<OwnerKeyEncrypted[]>;
 
@@ -175,7 +173,7 @@ export type TargetSpec<T extends BulkEmailTarget> = {
   /** Parse from compose-page query params. */
   readonly fromQuery: (params: URLSearchParams) => Parsed<T>;
   /** Parse from posted form fields. */
-  readonly fromForm: (form: TargetForm) => Parsed<T>;
+  readonly fromForm: (form: FormParams) => Parsed<T>;
   /** Serialise back to a `?…` compose-page query string. */
   readonly toQuery: (target: T) => string;
   /** How the compose form shows/edits this target. */

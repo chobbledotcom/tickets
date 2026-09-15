@@ -16,9 +16,6 @@ import type { AttendeeTableRow } from "#types";
 import { messagePublicPage } from "./public/prose-page.tsx";
 import { SubmitWithHidden } from "./public/unsubscribe.tsx";
 
-/** Alias export used by check-in templates */
-export type { TokenEntry as CheckinEntry };
-
 /**
  * Admin check-in page - shows attendee details with check-in/check-out button
  */

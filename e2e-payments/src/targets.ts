@@ -8,7 +8,10 @@
  */
 
 import type { Envelope } from "@cucumber/messages";
-import type { SpecCatalog } from "#scripts/specs/types.ts";
+import {
+  type SpecCatalog,
+  specCasesWithContext,
+} from "#scripts/specs/types.ts";
 
 export type LiveTarget = "free" | "stripe" | "square" | "sumup";
 
@@ -67,8 +70,6 @@ export const parseLiveTarget = (raw: string | undefined): LiveTarget => {
 /** The `@case:… or @case:…` expression selecting one target's cases. */
 export const caseExpression = (ids: readonly LiveCaseId[]): string =>
   ids.map((id) => `@case:${id}`).join(" or ");
-
-import { specCasesWithContext } from "#scripts/specs/types.ts";
 
 /** Every case id the catalog carries, in catalog order. */
 export const catalogCaseIds = (catalog: SpecCatalog): string[] =>

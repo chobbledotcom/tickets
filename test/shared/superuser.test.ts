@@ -257,25 +257,22 @@ describe("getSuperuserUsername", () => {
     expectUsernameFromEmail(ADMIN_EMAIL_ADDRESS)("admin");
   });
 
-  test("returns null and logs when local part is too short (1 character)", () => {
-    expectNullWithErrors(() =>
-      getSuperuserUsername(validEmail("a@example.com")),
-    )([
-      `[Error] ${ErrorCode.DATA_INVALID} detail="Derived superuser username "a" is invalid: Username must be at least 2 characters"`,
-    ]);
+  test("returns a one-character local part", () => {
+    expectUsernameFromEmail("a@example.com")("a");
   });
 
-  test("returns the minimum valid 2-character local part", () => {
+  test("returns local parts between one and 64 characters", () => {
     expectUsernameFromEmail("ab@example.com")("ab");
+    const longest = `a${"b".repeat(63)}`;
+    expectUsernameFromEmail(`${longest}@example.com`)(longest);
   });
 
-  test("returns the maximum valid 32-character local part", () => {
-    const local = `a${"b".repeat(31)}`;
-    expectUsernameFromEmail(`${local}@example.com`)(local);
+  test("returns null and logs when local part is 65 characters", () => {
+    expectUsernameFromEmail(`${"a".repeat(65)}@example.com`)(null);
   });
 
-  test("returns null and logs when local part is 33 characters", () => {
-    expectUsernameFromEmail(`${"a".repeat(33)}@example.com`)(null);
+  test("returns null and logs when local part is 251 characters", () => {
+    expectUsernameFromEmail(`${"a".repeat(251)}@example.com`)(null);
   });
 
   test("returns null and logs when local part contains a dot (john.doe)", () => {
@@ -332,8 +329,8 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
     );
   });
 
-  test("returns { available: false, reason: 'invalid-username' } when derived username is too short", async () => {
-    await expectStateForEmail("a@example.com")(
+  test("returns { available: false, reason: 'invalid-username' } when derived username is too long", async () => {
+    await expectStateForEmail(`${"a".repeat(65)}@example.com`)(
       expectedUnavailableSuperuserState("invalid-username"),
     );
   });

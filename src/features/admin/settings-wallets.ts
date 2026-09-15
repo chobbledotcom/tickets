@@ -20,16 +20,18 @@ import {
 import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 
-/** One credential on a wallet form: the form field it comes from, the error
- * shown when the operator leaves it blank, and where it is stored. */
+/** One credential on a wallet form: the form field it comes from, its label
+ *  (for length refusals naming the field), the error shown when the operator
+ *  leaves it blank, and where it is stored. */
 type WalletTextField = {
+  labelKey: string;
   missingKey: string;
   name: string;
   save: (value: string) => Promise<void>;
 };
 
 /** One uploaded secret on a wallet form: a credential that also knows how to
- * read its stored value back, and how to tell it is the right kind of file. */
+ *  read its stored value back, and how to tell it is the right kind of file. */
 type WalletSecretField = WalletTextField & {
   invalidKey: string;
   looksValid: (value: string) => boolean | Promise<boolean>;
@@ -163,9 +165,10 @@ const walletSettingsHandler = (wallet: WalletForm): RequestRoute =>
   });
 
 /** The three secret uploads on the Apple Wallet form. The signing pair is named
- * because the pair check needs to read both back. */
+ *  because the pair check needs to read both back. */
 const APPLE_SIGNING_CERT: WalletSecretField = {
   invalidKey: "error.apple_signing_cert_invalid",
+  labelKey: "settings.advanced.apple_signing_cert",
   looksValid: isValidAppleCertificate,
   missingKey: "error.apple_signing_cert_required",
   name: "apple_wallet_signing_cert",
@@ -175,6 +178,7 @@ const APPLE_SIGNING_CERT: WalletSecretField = {
 
 const APPLE_SIGNING_KEY: WalletSecretField = {
   invalidKey: "error.apple_signing_key_invalid",
+  labelKey: "settings.advanced.apple_signing_key",
   looksValid: isValidRsaPrivateKey,
   missingKey: "error.apple_signing_key_required",
   name: "apple_wallet_signing_key",
@@ -184,6 +188,7 @@ const APPLE_SIGNING_KEY: WalletSecretField = {
 
 const APPLE_WWDR_CERT: WalletSecretField = {
   invalidKey: "error.apple_wwdr_cert_invalid",
+  labelKey: "settings.advanced.apple_wwdr_cert",
   looksValid: isValidCertificate,
   missingKey: "error.apple_wwdr_cert_required",
   name: "apple_wallet_wwdr_cert",
@@ -208,11 +213,13 @@ export const handleAppleWalletPost = walletSettingsHandler({
   secrets: [APPLE_SIGNING_CERT, APPLE_SIGNING_KEY, APPLE_WWDR_CERT],
   texts: [
     {
+      labelKey: "settings.advanced.apple_pass_type_id",
       missingKey: "error.apple_pass_type_id_required",
       name: "apple_wallet_pass_type_id",
       save: (value) => settings.update.appleWallet.passTypeId(value),
     },
     {
+      labelKey: "settings.advanced.apple_team_id",
       missingKey: "error.apple_team_id_required",
       name: "apple_wallet_team_id",
       save: (value) => settings.update.appleWallet.teamId(value),
@@ -231,6 +238,7 @@ export const handleGoogleWalletPost = walletSettingsHandler({
   secrets: [
     {
       invalidKey: "error.google_service_key_invalid",
+      labelKey: "settings.advanced.google_service_key",
       looksValid: isValidRsaPrivateKey,
       missingKey: "error.google_service_key_required",
       name: "google_wallet_service_account_key",
@@ -240,11 +248,13 @@ export const handleGoogleWalletPost = walletSettingsHandler({
   ],
   texts: [
     {
+      labelKey: "settings.advanced.google_issuer_id",
       missingKey: "error.google_issuer_id_required",
       name: "google_wallet_issuer_id",
       save: (value) => settings.update.googleWallet.issuerId(value),
     },
     {
+      labelKey: "settings.advanced.google_service_email",
       missingKey: "error.google_service_email_required",
       name: "google_wallet_service_account_email",
       save: (value) => settings.update.googleWallet.serviceAccountEmail(value),

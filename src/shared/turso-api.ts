@@ -21,14 +21,14 @@ import type {
   DatabaseProviderApi,
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 /* jscpd:ignore-end */
 
 const TURSO_API_BASE = "https://api.turso.tech";
 
-const NonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
 const TursoHostnameSchema = v.pipe(
-  NonEmptyStringSchema,
+  NonEmptyTextSchema,
   v.check((value) => {
     try {
       const url = new URL(`https://${value}`);
@@ -39,17 +39,17 @@ const TursoHostnameSchema = v.pipe(
   }),
 );
 const TursoDatabaseSchema = v.object({
-  DbId: NonEmptyStringSchema,
+  DbId: NonEmptyTextSchema,
   Hostname: TursoHostnameSchema,
-  Name: NonEmptyStringSchema,
+  Name: NonEmptyTextSchema,
 });
 const CreateTursoDatabaseSchema = v.object({ database: TursoDatabaseSchema });
-const TursoTokenSchema = v.object({ jwt: NonEmptyStringSchema });
+const TursoTokenSchema = v.object({ jwt: NonEmptyTextSchema });
 const TursoOrganizationsSchema = v.array(
-  v.object({ slug: NonEmptyStringSchema }),
+  v.object({ slug: NonEmptyTextSchema }),
 );
 const TursoGroupsSchema = v.object({
-  groups: v.array(v.object({ name: NonEmptyStringSchema })),
+  groups: v.array(v.object({ name: NonEmptyTextSchema })),
 });
 
 export interface CreateTursoDatabaseRequest {

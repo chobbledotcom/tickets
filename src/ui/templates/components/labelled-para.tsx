@@ -7,6 +7,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
+import { mappedItems } from "#templates/components/item-list.tsx";
 
 /** One "bold label, then value" line. */
 export type LabelledLine = {
@@ -18,12 +19,9 @@ export const LabelledParas = ({
   items,
 }: {
   items: LabelledLine[];
-}): JSX.Element => (
-  <>
-    {items.map((item) => (
-      <p>
-        <strong>{item.label}</strong> {item.value}
-      </p>
-    ))}
-  </>
-);
+}): JSX.Element =>
+  mappedItems(items, (item) => (
+    <p>
+      <strong>{item.label}</strong> {item.value}
+    </p>
+  ));

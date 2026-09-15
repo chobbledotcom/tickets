@@ -16,6 +16,21 @@ export const commandExitCode = async (
   return code;
 };
 
+/** Run `command` to completion, capturing its exit code and its stdout plus
+ *  stderr text, so a failed child can say what broke. */
+export const commandDetail = async (
+  command: string,
+  options: Deno.CommandOptions,
+): Promise<{ code: number; output: string }> => {
+  const { code, stdout, stderr } = await new Deno.Command(command, {
+    ...options,
+    stderr: "piped",
+    stdout: "piped",
+  }).output();
+  const decoded = new TextDecoder();
+  return { code, output: `${decoded.decode(stdout)}${decoded.decode(stderr)}` };
+};
+
 /** The `deno run -A npm:<pkg> …` argument list, ready to hand to a Deno
  * command's `args`. */
 export const denoNpmArgs = (pkg: string, extraArgs: string[]): string[] => [

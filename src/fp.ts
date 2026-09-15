@@ -283,6 +283,17 @@ export const compact = <T>(array: (T | null | undefined)[]): T[] =>
   array.filter(isNotNullish);
 
 /**
+ * The keys of `all` that no listed item carries. The second argument list is
+ * curried so a caller reads "these keys, not covered by that list".
+ */
+export const notCoveredBy =
+  <T, K>(keyOf: (item: T) => K, knowns: readonly T[]) =>
+  (all: readonly K[]): K[] => {
+    const carried = new Set(knowns.map(keyOf));
+    return all.filter((key) => !carried.has(key));
+  };
+
+/**
  * Alternative combinator: try a sequence of producers in order and return the
  * first that yields a defined value, or undefined if every one declines.
  *

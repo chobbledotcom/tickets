@@ -172,7 +172,7 @@ describe("admin field schemas", () => {
     expect(getSetupForm().fields.map(shape)).toEqual([
       {
         autocomplete: "username",
-        hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+        hint: "Letters, numbers, hyphens, underscores (1-250 characters)",
         label: "Admin username *",
         name: "admin_username",
         required: true,
@@ -299,7 +299,7 @@ describe("admin field schemas", () => {
   test("the invite-user form serves exactly its declared fields", () => {
     expect(getInviteUserForm().fields.map(shape)).toEqual([
       {
-        hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+        hint: "Letters, numbers, hyphens, underscores (1-250 characters)",
         label: "Username",
         name: "username",
         pattern: "[a-zA-Z0-9_\\-]+",

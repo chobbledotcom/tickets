@@ -147,6 +147,14 @@ const establishBaseline = async (
   const stopped = unfinishedRunExit(opts, 0, plans);
   if (stopped !== null) return { code: stopped };
   if (baseline.outcome !== "passed") {
+    if (baseline.failure) {
+      console.error(
+        dim(`\nFailing test batch: ${baseline.failure.batch.join(" ")}`),
+      );
+      if (baseline.failure.output.trim() !== "") {
+        console.error(dim(baseline.failure.output));
+      }
+    }
     console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
     console.error(
       "Mutation testing needs a green baseline. Fix the tests, or add --harness",

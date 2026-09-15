@@ -2,6 +2,7 @@
 
 import * as v from "valibot";
 import { kindObject } from "#shared/validation/kind.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 export const PaymentReviewReasonSchema = v.variant("kind", [
   kindObject("shared_reference"),
@@ -23,8 +24,8 @@ export const PAYMENT_REVIEW_RETIREMENT = {
 /** One exact disagreement, kept after acknowledgement until evidence retires
  * it. A later disagreement receives a new id, so an old form cannot act on it. */
 export const PaymentReviewCaseSchema = v.strictObject({
-  acknowledgedAt: v.optional(v.pipe(v.string(), v.minLength(1))),
-  caseId: v.pipe(v.string(), v.minLength(1)),
+  acknowledgedAt: v.optional(NonEmptyTextSchema),
+  caseId: NonEmptyTextSchema,
   reason: PaymentReviewReasonSchema,
 });
 export type PaymentReviewCase = v.InferOutput<typeof PaymentReviewCaseSchema>;

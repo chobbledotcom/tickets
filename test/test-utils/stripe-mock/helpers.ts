@@ -1,10 +1,12 @@
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import type { startStripeMock } from "#scripts/stripe-mock.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import { wait } from "#test-utils/mocks.ts";
+import type { StandInMode } from "#test-utils/stripe-mock/stand-in-mock.ts";
 
 export type TestStripeMockPaths = { binDir: string; binaryPath: string };
 export type StartOptions = NonNullable<Parameters<typeof startStripeMock>[0]>;
@@ -282,23 +284,48 @@ export const createFakeArchive = async (): Promise<{
 export const shellQuote = (value: string): string =>
   `'${value.replaceAll("'", "'\\''")}'`;
 
-export const writePortThief = async (
+const STAND_IN_PATH = fileURLToPath(
+  new URL("./stand-in-mock.ts", import.meta.url),
+);
+
+/** The permissions each stand-in mode needs: the network for a hold, and the
+ * marker folder for the mode that notes its first start. */
+const MODE_PERMISSIONS: Record<StandInMode, (binDir: string) => string> = {
+  exit: () => "",
+  "exit-then-hold": (binDir) =>
+    `--allow-net --allow-read=${shellQuote(binDir)} --allow-write=${shellQuote(
+      binDir,
+    )}`,
+  "hold-after": () => "--allow-net",
+  "hold-port": () => "--allow-net",
+};
+
+/**
+ * Write a stand-in mock: a two-line executable that runs one mode of the
+ * stand-in module, with the mode in front of the harness's own arguments.
+ * A Deno body behaves the same on every machine the suite runs on — the
+ * shell `nc` hold it replaces answered to different flags on different
+ * machines.
+ */
+export const writeStandInMock = async (
   paths: TestStripeMockPaths,
-  repeat = true,
-  fallbackCommand = "exit 1",
+  mode: StandInMode,
+  argument?: string,
 ): Promise<void> => {
-  const countPath = join(paths.binDir, "started-once");
+  const flags = ["run", "--quiet", MODE_PERMISSIONS[mode](paths.binDir)].filter(
+    (flag) => flag !== "",
+  );
+  const words = [
+    "exec deno",
+    flags.join(" "),
+    shellQuote(STAND_IN_PATH),
+    mode,
+    ...(argument !== undefined ? [shellQuote(argument)] : []),
+    '"$@"',
+  ];
   await Deno.writeTextFile(
     paths.binaryPath,
-    [
-      "#!/bin/sh",
-      `if ${repeat ? "true" : `[ ! -f ${shellQuote(countPath)} ]`}; then`,
-      `  touch ${shellQuote(countPath)}`,
-      '  nc -l -p "$2" -s 127.0.0.1 -w 1 >/dev/null 2>&1 &',
-      "  exit 1",
-      "fi",
-      fallbackCommand,
-    ].join("\n"),
+    ["#!/bin/sh", words.join(" ")].join("\n"),
   );
   await makeExecutable(paths.binaryPath);
 };
@@ -318,15 +345,6 @@ export const writeFailingMock = async (
   );
   await makeExecutable(paths.binaryPath);
 };
-
-export const keepPortOpenCommand = [
-  "trap 'kill \"$child\" 2>/dev/null; exit 0' TERM INT",
-  "while true; do",
-  '  nc -l -p "$2" -s 127.0.0.1 >/dev/null 2>&1 &',
-  "  child=$!",
-  '  wait "$child"',
-  "done",
-].join("\n");
 
 export const writeTermIgnoringMock = async (
   paths: TestStripeMockPaths,

@@ -41,15 +41,17 @@ export interface AppServer {
 /** Pick a port in a high range; the OS will reject a genuine clash on bind. */
 const pickPort = (): number => 34_000 + Math.floor(Math.random() * 4_000);
 
-/** The child's env without NTFY_URL (the app under test must never notify)
- * and without TEST_SUPPRESS_DEBUG_LOGS — the harness reads the app's debug
- * log lines as evidence (provider ids, webhook processing, refusal counts),
- * so an inherited suppression flag would blind those assertions. */
+/** The child's env without NTFY_URL and SENTRY_URL (the app under test must
+ * never notify) and without TEST_SUPPRESS_DEBUG_LOGS — the harness reads the
+ * app's debug log lines as evidence (provider ids, webhook processing,
+ * refusal counts), so an inherited suppression flag would blind those
+ * assertions. */
 const appServerEnv = (
   env: Record<string, string | undefined>,
 ): Record<string, string | undefined> => {
   const {
     NTFY_URL: _droppedNtfy,
+    SENTRY_URL: _droppedSentry,
     TEST_SUPPRESS_DEBUG_LOGS: _droppedSuppress,
     ...rest
   } = env;
@@ -101,11 +103,12 @@ export const startAppServer = async (): Promise<AppServer> => {
     {
       cwd: repoRoot,
       env: {
-        // Drop NTFY_URL: the scenarios deliberately cause real server errors
-        // (the Money fault, the SumUp refusals, the price-change refund), and
-        // the app under test would faithfully ping ntfy for each — making a
-        // green run look like an incident. The harness's own failure
-        // notification is the only one a run should send.
+        // Drop the error-reporting env (appServerEnv): the scenarios
+        // deliberately cause real server errors (the Money fault, the SumUp
+        // refusals, the price-change refund), and the app under test would
+        // faithfully report each one — making a green run look like an
+        // incident in ntfy or the bug catcher. The harness's own crash
+        // report is the only one a run should send.
         ...appServerEnv(process.env),
         // The plan scenario publishes a built-site plan, which the write path
         // only accepts on a builder-enabled install. The sandbox has no build

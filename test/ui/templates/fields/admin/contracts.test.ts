@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms/field.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
   getChangePasswordForm,
@@ -113,6 +114,16 @@ describe("fields contracts", () => {
       expect(byName(fields, "new_password").minlength).toBe(8);
       expect(byName(fields, "new_password_confirm").minlength).toBeUndefined();
     });
+
+    test("caps chosen passwords but not the credential being checked", () => {
+      const login = byName(getLoginForm().fields, "password");
+      expect(login.maxlength).toBeUndefined();
+      const change = getChangePasswordForm().fields;
+      expect(byName(change, "current_password").maxlength).toBeUndefined();
+      expect(byName(change, "new_password").maxlength).toBe(MAX_INPUT_LENGTH);
+      const setup = getSetupForm().fields;
+      expect(byName(setup, "admin_password").maxlength).toBe(MAX_INPUT_LENGTH);
+    });
   });
 
   describe("required flags across the settings/auth factories", () => {
@@ -136,10 +147,10 @@ describe("fields contracts", () => {
       });
     }
 
-    test("the login username field keeps its 2–32 length bounds", () => {
+    test("the login username field uses 1-250 length bounds", () => {
       const username = byName(getLoginForm().fields, "username");
-      expect(username.minlength).toBe(2);
-      expect(username.maxlength).toBe(32);
+      expect(username.minlength).toBe(1);
+      expect(username.maxlength).toBe(MAX_INPUT_LENGTH);
     });
 
     test("the invite-user role is a required select", () => {

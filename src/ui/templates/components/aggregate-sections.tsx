@@ -5,6 +5,7 @@ import { renderFields } from "#shared/forms/rendering.tsx";
 import type { FlashPageRenderer } from "#templates/admin/admin-page.tsx";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
+import { mappedItems } from "#templates/components/item-list.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
 import type { AdminSession } from "#types";
@@ -159,6 +160,26 @@ export const IdCheckboxLabel = ({
   </CheckboxLabel>
 );
 
+/** One tick box per {id, name} item, all submitting under the one repeated
+ * form field name. Wrappers stay with the caller: this is only the list. */
+export const ItemCheckboxList = <T extends { id: number; name: string }>({
+  checkedIds,
+  items,
+  name,
+}: {
+  checkedIds: ReadonlySet<number>;
+  items: readonly T[];
+  name: string;
+}): JSX.Element =>
+  mappedItems(items, (item) => (
+    <CheckboxLabel
+      checked={checkedIds.has(item.id) || undefined}
+      label={` ${item.name}`}
+      name={name}
+      value={String(item.id)}
+    />
+  ));
+
 export const CheckboxesFieldset = <T extends { id: number; name: string }>({
   fieldName,
   noneMessage,
@@ -174,14 +195,11 @@ export const CheckboxesFieldset = <T extends { id: number; name: string }>({
     <p>{noneMessage}</p>
   ) : (
     <fieldset class="checkboxes">
-      {options.map((o) => (
-        <CheckboxLabel
-          checked={selected.includes(o.id) || undefined}
-          label={` ${o.name}`}
-          name={fieldName}
-          value={String(o.id)}
-        />
-      ))}
+      <ItemCheckboxList
+        checkedIds={new Set(selected)}
+        items={options}
+        name={fieldName}
+      />
     </fieldset>
   );
 

@@ -47,7 +47,12 @@ import {
   ownerGetById,
   throughParent,
 } from "#routes/entity.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  redirect,
+  redirectToDetail,
+} from "#routes/response.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -141,11 +146,7 @@ type AttributeOptionContext = {
   option: AttributeOption;
 };
 
-const redirectToAttribute = (args: {
-  error: string;
-  params: AttributeParams;
-}): Response =>
-  errorRedirect(`/admin/attributes/${args.params.id}`, args.error);
+const redirectToAttribute = redirectToDetail("/admin/attributes");
 
 const logAttributeOptionActivity = (
   optionText: string,

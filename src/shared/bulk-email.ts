@@ -37,7 +37,7 @@ import {
   type BulkRecipient,
 } from "#shared/email/bulk.ts";
 import { cappedReply } from "#shared/email.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import { isRecord } from "#types";
@@ -70,8 +70,6 @@ export const resolveRecipientEmails = async (
 };
 
 // ── Drafts ──────────────────────────────────────────────────────────
-
-export const MAX_BULK_EMAIL_SUBJECT_LENGTH = 255;
 
 /** A composed-but-not-yet-sent bulk email, persisted between compose → preview → send. */
 export type BulkEmailDraft = {
@@ -117,9 +115,9 @@ export const validateDraftInput = (input: {
 }): DraftValidation => {
   const subject = input.subject.trim();
   if (!subject) return { error: "Subject is required", valid: false };
-  if (subject.length > MAX_BULK_EMAIL_SUBJECT_LENGTH) {
+  if (subject.length > MAX_INPUT_LENGTH) {
     return {
-      error: `Subject must be ${MAX_BULK_EMAIL_SUBJECT_LENGTH} characters or fewer`,
+      error: `Subject must be ${MAX_INPUT_LENGTH} characters or fewer`,
       valid: false,
     };
   }

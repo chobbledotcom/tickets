@@ -36,7 +36,11 @@ import {
   getStoredListingsWithCountsByIds,
   listingsTable,
 } from "#db/listings/records.ts";
-import { isNameTakenAnywhere, normalizeEntityName } from "#db/name-registry.ts";
+import {
+  catalogNameLengthError,
+  isNameTakenAnywhere,
+  normalizeEntityName,
+} from "#db/name-registry.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
@@ -154,8 +158,8 @@ const handleReactivateGroupPost = groupTogglePost({
 /** The first generated name — the new group or one of the clones — that would
  * break the cross-entity name invariant (already used by another listing/group,
  * or duplicated within this batch), or null when every name is unique. The batch
- * insert below bypasses the create-path validators, so the rule the form/API
- * enforce is re-checked here; otherwise a blank find/replace would clone names
+ * insert below bypasses the create-path validators, so the rules the form/API
+ * enforce are re-checked here; otherwise a blank find/replace would clone names
  * verbatim and later make name-based catalog imports ambiguous. */
 const firstDuplicateNameError = async (
   newGroupName: string,
@@ -164,6 +168,11 @@ const firstDuplicateNameError = async (
   const seen = new Set<string>();
   const names = [newGroupName, ...cloneInputs.map(({ input }) => input.name)];
   for (const name of names) {
+    // The length rule is re-checked for the same reason as the uniqueness
+    // rule: the batch insert bypasses the validators the form and API run,
+    // and one over-long clone name breaks Square checkouts like any other.
+    const lengthError = catalogNameLengthError(name);
+    if (lengthError) return lengthError;
     const key = normalizeEntityName(name);
     if (seen.has(key)) {
       return `More than one duplicated listing or group would be named "${name}" — set a find/replace so each name is unique.`;

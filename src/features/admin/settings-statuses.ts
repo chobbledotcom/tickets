@@ -26,17 +26,18 @@ import {
   heldAttendeeCount,
   statusDeleteBlocker,
 } from "#db/attendee-statuses.ts";
+import { catalogNameLengthError } from "#db/name-registry.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { NamedOperations } from "#shared/rest/resource.ts";
+/* jscpd:ignore-start */
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   retireStatusDeletePage,
@@ -64,6 +65,8 @@ const parseStatusForm = (
       : "0",
   };
   if (!input.name) return { error: "Please enter a name", ok: false };
+  const nameLengthError = catalogNameLengthError(input.name);
+  if (nameLengthError) return { error: nameLengthError, ok: false };
   if (input.isReservation && input.isPaidDefault) {
     return {
       error: t("statuses.error_paid_default_reservation"),

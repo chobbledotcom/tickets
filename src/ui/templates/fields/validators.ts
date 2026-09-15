@@ -18,7 +18,7 @@ import type {
   InputField,
   TextareaField,
 } from "#shared/forms/field.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   firstIssueMessage,
   normalizeSlug,
@@ -59,47 +59,74 @@ export const validateNonNegativeInteger =
       : `${label} must be 0 or greater`;
   };
 
+/** One field's answer to a submitted value: why it was refused, or null. */
+type ValueCheck = (value: string) => string | null;
+
 /** Refuses a value the schema turns down, with the message that says why. */
 const checkedBy =
   <TSchema extends v.GenericSchema>(
     schema: TSchema,
     messageKey: string,
     values?: Record<string, number>,
-  ): ((value: string) => string | null) =>
+  ): ValueCheck =>
   (value) =>
     v.is(schema, value) ? null : t(messageKey, values);
 
 /** Refuses text longer than a field allows, naming the limit in the message. */
-const atMostLong = (
-  max: number,
-  messageKey: string,
-): ((value: string) => string | null) =>
+const atMostLong = (max: number, messageKey: string): ValueCheck =>
   checkedBy(v.pipe(v.string(), v.maxLength(max)), messageKey, { max });
 
 /**
- * Validate email format
+ * Max length for a buyer's phone number. Square packs the phone into one
+ * 255-character metadata entry TOGETHER with the other small fields (see
+ * PACKED_KEYS), so the number must stay short enough that the mounted JSON
+ * fits — well under the 250 the top-level contact entries allow.
  */
-export const validateEmail = checkedBy(
+export const PHONE_FIELD_LENGTH = 32;
+
+/** The phone's format: a digit (or plus) first, then digits, spaces, hyphens,
+ *  parentheses, at least six characters in total. */
+const PhoneSchema = v.pipe(v.string(), v.regex(/^[+\d][\d\s\-()]{5,}$/));
+
+/** A contact-field validator: refuse a value past its length limit with the
+ *  message that names the limit, then check the value's format — a too-long
+ *  value answered by the format message would misname its own problem. */
+const lengthThenFormat =
+  (
+    maxLength: number,
+    lengthMessageKey: string,
+    formatSchema: v.GenericSchema<string>,
+    formatMessageKey: string,
+  ): ValueCheck =>
+  (value) =>
+    value.length > maxLength
+      ? t(lengthMessageKey, { max: maxLength })
+      : checkedBy(formatSchema, formatMessageKey)(value);
+
+/** Checks the email's format and keeps it inside the metadata entry budget. */
+export const validateEmail = lengthThenFormat(
+  MAX_INPUT_LENGTH,
+  "fields.validation.email_length",
   EmailFormatSchema,
   "fields.validation.email",
 );
 
-/**
- * Validate phone number format
- */
-const PhoneSchema = v.pipe(
-  v.string(),
-  // Allow digits, spaces, hyphens, parentheses, plus sign
-  v.regex(/^[+\d][\d\s\-()]{5,}$/),
+/** Checks the phone number's format and keeps it inside the packed metadata
+ *  entry it rides at Square. */
+export const validatePhone = lengthThenFormat(
+  PHONE_FIELD_LENGTH,
+  "fields.validation.phone_length",
+  PhoneSchema,
+  "fields.validation.phone",
 );
 
-export const validatePhone = checkedBy(PhoneSchema, "fields.validation.phone");
-
-/** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
+/** Usernames permit letters, digits, hyphens, and underscores, but no initial punctuation. */
 const UsernameSchema = v.pipe(
   v.string(),
-  v.minLength(2, () => t("fields.validation.username_min")),
-  v.maxLength(32, () => t("fields.validation.username_max")),
+  v.nonEmpty(() => t("fields.validation.username_min")),
+  v.maxLength(MAX_INPUT_LENGTH, () =>
+    t("fields.validation.username_max", { max: MAX_INPUT_LENGTH }),
+  ),
   v.regex(/^[a-zA-Z0-9_-]+$/, () => t("fields.validation.username_chars")),
   v.check(
     (s) => !s.startsWith("-") && !s.startsWith("_"),
@@ -115,8 +142,8 @@ export const getUsernameFieldBase = (): InputField<"username"> & {
   required: true;
 } => ({
   label: t("common.username"),
-  maxlength: 32,
-  minlength: 2,
+  maxlength: MAX_INPUT_LENGTH,
+  minlength: 1,
   name: "username",
   pattern: "[a-zA-Z0-9_\\-]+",
   required: true,
@@ -224,20 +251,32 @@ export const getSlugField = (): InputField<"slug"> => ({
   hint: t("fields.listing.slug_hint_field"),
 });
 
-/** Max length for address field (must fit in payment metadata) */
-export const MAX_ADDRESS_LENGTH = 250;
+/** The limit the two contact textareas (address and special instructions)
+ *  answer to. They declare the 250-character contact budget, but like every
+ *  textarea their limit is bounded by the configured textarea ceiling — a
+ *  smaller ceiling must tighten the public form and the admin attendee
+ *  editor the same amount, or the two paths for the same stored value would
+ *  accept different lengths. Both renderers and both validators read this
+ *  one constant. */
+export const CONTACT_TEXTAREA_LIMIT = Math.min(
+  MAX_INPUT_LENGTH,
+  MAX_TEXTAREA_LENGTH,
+);
 
 /** Validate address length */
 export const validateAddress = atMostLong(
-  MAX_ADDRESS_LENGTH,
+  CONTACT_TEXTAREA_LIMIT,
   "fields.validation.address_max",
 );
 
-/** Max length for special instructions field (must fit in payment metadata) */
-export const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
+/** Validate a buyer's contact name (must fit in payment metadata) */
+export const validateName = atMostLong(
+  MAX_INPUT_LENGTH,
+  "fields.validation.name_max",
+);
 
 /** Validate special instructions length */
 export const validateSpecialInstructions = atMostLong(
-  MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  CONTACT_TEXTAREA_LIMIT,
   "fields.validation.special_instructions_max",
 );

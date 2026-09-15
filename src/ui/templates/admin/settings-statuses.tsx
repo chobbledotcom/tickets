@@ -13,6 +13,7 @@ import { t } from "#i18n";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ExclusivePair } from "#shared/forms/field.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
@@ -92,6 +93,7 @@ const renderStatusFields = (
     <label>
       {t("common.name")}
       <input
+        maxlength={MAX_INPUT_LENGTH}
         name="name"
         required
         type="text"

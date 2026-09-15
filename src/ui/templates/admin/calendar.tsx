@@ -22,7 +22,7 @@ import {
 } from "#templates/admin/availability-checker.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { AttendeeTable } from "#templates/attendee-table/component.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
@@ -78,7 +78,7 @@ export const adminCalendarPage = (
   today: string,
   viewMonth: string | null = null,
   phonePrefix?: string,
-  questionData?: TableQuestionData,
+  questionData?: AttendeeQuestionData,
   hasPaidListing = false,
   availabilityRows: AvailabilityRow[] = [],
   agents: LogisticsAgent[] = [],

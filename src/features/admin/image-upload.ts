@@ -11,6 +11,7 @@ import {
   FULL_IMAGE_TARGET,
   THUMB_IMAGE_TARGET,
 } from "#shared/images/targets.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -36,9 +37,23 @@ export const imageMetadataFromForm = (
   form: FormParams,
 ): Result<ImageMetadata> => {
   const name = form.getString("name");
-  return name === ""
-    ? errorResult(t("images.error.name_required"))
-    : okResult({ altText: form.getString("alt_text"), name });
+  if (name === "") return errorResult(t("images.error.name_required"));
+  const altText = form.getString("alt_text");
+  // The rendered inputs cap length in the browser, but a crafted POST skips
+  // the browser, so the parser carries the same limit for both fields.
+  const overLong = [
+    { label: t("images.field.name"), value: name },
+    { label: t("images.field.alt_text"), value: altText },
+  ].find((field) => field.value.length > MAX_INPUT_LENGTH);
+  if (overLong) {
+    return errorResult(
+      t("fields.validation.max_length", {
+        label: overLong.label,
+        max: MAX_INPUT_LENGTH,
+      }),
+    );
+  }
+  return okResult({ altText, name });
 };
 
 const imageFileFromForm = (formData: FormData): Result<File> => {
