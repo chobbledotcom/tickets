@@ -185,6 +185,9 @@ export const prepareOrder = async (
       fold.quantities,
       fold.customPrices,
       dayCount,
+      // A renewal page carries its token on the page ctx, and prices each
+      // tier by its months per unit rather than by tickets.
+      { renewal: ctx.siteToken !== undefined },
     ),
     selectedStandIns,
     namedListingIds,

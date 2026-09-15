@@ -140,6 +140,41 @@ describe("checkoutIntentForSession", () => {
 
     expect(value.items).toEqual([checkoutItem()]);
   });
+
+  test("carries a renewal tier's months per unit when the session renews", () => {
+    // siteTokenIndex is the renewal context a paid session carries; the same
+    // tier outside a renewal would price as plain tickets.
+    const tier = { e: 8, p: 1400, q: 2 } as const;
+    const value = checkoutIntentForSession(
+      bookingIntent({ items: [tier], siteTokenIndex: "idx-token" }),
+      [
+        validated({
+          expectedPrice: 1400,
+          item: tier,
+          listing: testListingWithCount({
+            id: 8,
+            months_per_unit: 2,
+            name: "Monthly",
+            slug: "monthly",
+            unit_price: 1400,
+          }),
+          name: "Monthly",
+        }),
+      ],
+      [],
+    );
+
+    expect(value.items).toEqual([
+      {
+        listingId: 8,
+        name: "Monthly",
+        purchaseUnit: { kind: "months", monthsPerUnit: 2 },
+        quantity: 2,
+        slug: "monthly",
+        unitPrice: 700,
+      },
+    ]);
+  });
 });
 
 describe("payment item totals", () => {

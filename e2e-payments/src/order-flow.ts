@@ -22,13 +22,13 @@ import {
   type OwnerCredentials,
 } from "./config.ts";
 import {
-  createListing,
   incomeLedgerText,
   setSelectOrInput,
   totalIncomeEarnedMinor,
   waitForAppReturn,
   waitForHostedCheckout,
 } from "./flow.ts";
+import { createListing } from "./listing-flow.ts";
 import { log, step } from "./log.ts";
 
 /* jscpd:ignore-end */

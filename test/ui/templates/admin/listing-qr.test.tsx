@@ -87,7 +87,7 @@ describe("the listing booking-QR page", () => {
     expect(priceInput).toContain('min="0"');
     expect(priceInput).not.toContain('max="');
     expect(html).toContain(
-      "Overrides the ticket price of £12 for this booking",
+      "Overrides the listed per-unit price of £12 for this booking",
     );
   });
 

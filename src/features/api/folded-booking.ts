@@ -183,12 +183,15 @@ export const foldAndBuildOrderLines = async (
 > => {
   const fold = await foldSelectedChildren(ctx, form, base, tree);
   if (!fold.ok) return apiError(fold.error);
+  // The JSON API sells ordinary purchases: the web renewal page is the only
+  // surface that carries a renewal context.
   const items = buildOrderLines(
     tree,
     nodeQuantities,
     fold.quantities,
     fold.customPrices,
     fold.dayCount,
+    { renewal: false },
   );
   return { fold, items };
 };

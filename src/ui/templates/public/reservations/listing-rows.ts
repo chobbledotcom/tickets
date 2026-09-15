@@ -24,7 +24,9 @@ import { renderListingImage } from "#templates/public/shared.tsx";
 import { renderChildBlock } from "./child-block.ts";
 import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
+import { monthsQuantity, termNoteFor } from "./plan-term.ts";
 import {
+  monthLabelsForListing,
   quantityOptions,
   restoredPackageQuantity,
   restoredQuantity,
@@ -32,7 +34,6 @@ import {
 import type { BookingPrefill, ChildRenderCtx, TicketPrefill } from "./types.ts";
 
 /* jscpd:ignore-end */
-
 /** Description HTML for a listing row. */
 export const renderListingDescription = (description: string): string =>
   description
@@ -52,14 +53,21 @@ const joinRenderedRows = <T>(
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
- * available range) — used by multi-listing scenarios such as the order cart. */
+ * available range) — used by multi-listing scenarios such as the order cart.
+ * A renewal page prices its counts by the listings' months per unit. */
 const listingControls = (
   info: TicketListing,
   node: BookingNode,
   hideQuantity: boolean,
   prefill: TicketPrefill | undefined,
   childCtx: ChildRenderCtx | undefined,
-): { childBlock: string; priceHtml: string; quantityHtml: string } => {
+  renewal?: boolean | undefined,
+): {
+  childBlock: string;
+  priceHtml: string;
+  quantityHtml: string;
+  termNote: string;
+} => {
   const { listing } = info;
   const maxPurchasable = childLimitedMax(info, childCtx);
   const fieldName = nodeQuantityFieldName(node)!;
@@ -67,24 +75,44 @@ const listingControls = (
   return {
     childBlock: childCtx ? renderChildBlock(info, childCtx) : "",
     priceHtml: listing.can_pay_more
-      ? renderPayMoreInput(listing, priceFieldName, prefill?.customPriceMinor)
+      ? renderPayMoreInput(
+          listing,
+          priceFieldName,
+          prefill?.customPriceMinor,
+          true,
+          renewal,
+        )
       : "",
     quantityHtml: hideQuantity
       ? `<input type="hidden" name="${fieldName}" value="1" />`
       : `<select name="${fieldName}">${quantityOptions(
           maxPurchasable,
           restoredQuantity(listing.id, prefill, maxPurchasable),
+          monthLabelsForListing(listing, renewal),
         )}</select>`,
+    termNote: termNoteFor(listing, hideQuantity, renewal),
   };
 };
 
-const renderListingRow = (
+/** Renders one listing's controls: bare on a single-listing page, in its own
+ *  row on multi-listing pages. */
+type RenderListingControls = (
   info: TicketListing,
   node: BookingNode,
-  hideQuantity = false,
+  hideQuantity: boolean,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
   attributes?: AttributeWithOptions[],
+  renewal?: boolean,
+) => string;
+const renderListingRow: RenderListingControls = (
+  info,
+  node,
+  hideQuantity,
+  prefill,
+  childCtx,
+  attributes,
+  renewal,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -113,12 +141,13 @@ const renderListingRow = (
     `;
   }
 
-  const { childBlock, priceHtml, quantityHtml } = listingControls(
+  const { childBlock, priceHtml, quantityHtml, termNote } = listingControls(
     info,
     node,
     hideQuantity,
     prefill,
     childCtx,
+    renewal,
   );
 
   return `
@@ -128,16 +157,17 @@ const renderListingRow = (
       ${renderListingDescription(listing.description)}
       ${attributesHtml}
       ${priceHtml}
+      ${termNote}
       ${childBlock}
     </div>
   `;
 };
 
 /** A package member row: name + fixed per-package quantity, read-only — the
- * buyer chooses the package count, not per-member quantities. A member that is
- * itself a parent renders its child selector under the row, exactly like a
- * standalone parent (only VISIBLE packages may contain parents, so a hidden
- * package never reaches the child block). */
+ *  buyer chooses the package count, not per-member quantities. A member that is
+ *  itself a parent renders its child selector under the row, exactly like a
+ *  standalone parent (only VISIBLE packages may contain parents, so a hidden
+ *  package never reaches the child block). */
 const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
@@ -222,19 +252,27 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
-/** Controls for one listing — quantity and pay-more — without its details. */
-const renderSingleListingControls = (
-  info: TicketListing,
-  node: BookingNode,
-  hideQuantity: boolean,
-  prefill?: TicketPrefill,
-  childCtx?: ChildRenderCtx,
+const renderSingleListingControls: RenderListingControls = (
+  info,
+  node,
+  hideQuantity,
+  prefill,
+  childCtx,
+  _attributes,
+  renewal,
 ): string => {
-  const controls = listingControls(info, node, hideQuantity, prefill, childCtx);
+  const controls = listingControls(
+    info,
+    node,
+    hideQuantity,
+    prefill,
+    childCtx,
+    renewal,
+  );
   const labelledQuantity = hideQuantity
     ? controls.quantityHtml
-    : `<label>${t("public.ticket.number_of_tickets")}${controls.quantityHtml}</label>`;
-  return `${labelledQuantity}${controls.priceHtml}${controls.childBlock}`;
+    : `<label>${monthsQuantity(info.listing, renewal)}${controls.quantityHtml}</label>`;
+  return `${labelledQuantity}${controls.priceHtml}${controls.termNote}${controls.childBlock}`;
 };
 
 /** Render the per-listing rows (with their child blocks). A single-listing page
@@ -250,6 +288,7 @@ const buildListingRows = (
   prefill: BookingPrefill | undefined,
   childCtxFor: (info: TicketListing) => ChildRenderCtx | undefined,
   attributesByListing: ListingAttributesById = new Map(),
+  renewal?: boolean,
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
@@ -258,6 +297,8 @@ const buildListingRows = (
         hideQuantity,
         prefill?.listings.get(listings[0]!.listing.id),
         childCtxFor(listings[0]!),
+        undefined,
+        renewal,
       )
     : joinRenderedRows(listings, (e) =>
         renderListingRow(
@@ -267,6 +308,7 @@ const buildListingRows = (
           prefill?.listings.get(e.listing.id),
           childCtxFor(e),
           attributesByListing.get(e.listing.id),
+          renewal,
         ),
       );
 
@@ -288,6 +330,7 @@ export const buildPageListingRows = (opts: {
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
   attributesByListing: ListingAttributesById;
+  renewal?: boolean | undefined;
 }): string => {
   const { attributesByListing } = opts;
   const membersOf = (pkg: PagePackage): TicketListing[] => {
@@ -349,6 +392,7 @@ export const buildPageListingRows = (opts: {
       (info) =>
         claimedChildParents.has(info.listing.id) ? undefined : opts.childCtx,
       attributesByListing,
+      opts.renewal,
     )
   );
 };

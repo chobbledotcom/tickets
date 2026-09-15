@@ -10,6 +10,7 @@
 import { settings } from "#db/settings.ts";
 import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import { sumOf } from "#fp";
+import { t } from "#i18n";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
 import { askProvider } from "#payment/provider-call.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -20,7 +21,7 @@ import {
 import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 /* jscpd:ignore-start */
-import { type PricedLine, priceCheckout } from "#shared/checkout-pricing.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { countedText, orderLabel } from "#shared/count-text.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -32,7 +33,8 @@ import {
 } from "#shared/payment-helpers.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import { monthsPerUnitOf } from "#shared/purchase-unit.ts";
 import {
   type SumupRefundSubmission,
   sumupReadFailure,
@@ -66,6 +68,46 @@ export type SumupConnectionTestResult = {
 };
 
 type SumupClient = SumupTransport;
+
+/** The SumUp checkout description, built from the intent's own items: ×N
+ *  beside a site plan or renewal tier buys N terms of one site, so such a
+ *  line names the listing and states the months its units buy; plain ticket
+ *  lines keep the listing's name with its count, and a mixed order joins the
+ *  two so every unit keeps its own meaning. Describing the intent items —
+ *  not the charged lines — keeps each item's term stated exactly once: a
+ *  discount or deposit split breaks one item into several priced lines that
+ *  each repeat the item's whole quantity. */
+const sumupDescription = (intent: CheckoutIntent): string => {
+  const plans = intent.items.flatMap((item): string[] => {
+    const monthsEach = monthsPerUnitOf(item.purchaseUnit);
+    return monthsEach === undefined
+      ? []
+      : [
+          t("payment.provider.plan_segment", {
+            months: item.quantity * monthsEach,
+            name: item.name,
+          }),
+        ];
+  });
+  const tickets = intent.items.filter(
+    (item: CheckoutItem) => monthsPerUnitOf(item.purchaseUnit) === undefined,
+  );
+  const descriptions = [
+    ...plans,
+    ...(tickets.length > 0
+      ? [
+          countedText(
+            orderLabel(
+              tickets.map((item) => item.name),
+              t("payment.provider.tickets"),
+            ),
+            sumOf((item: CheckoutItem) => item.quantity)(tickets),
+          ),
+        ]
+      : []),
+  ];
+  return descriptions.join(t("payment.provider.description_join"));
+};
 
 /** Internal getSumupClient implementation — reads the current API key. */
 const getClientImpl = (): SumupClient | null => {
@@ -163,8 +205,6 @@ export const sumupApi: {
     const order = priceCheckout(intent);
     const totalMinor = order.total;
 
-    // Persist metadata before creating the checkout so it is present when the
-    // webhook or redirect arrives. An orphaned row (if create fails) is pruned.
     const reference = crypto.randomUUID();
     // SumUp carries no provider metadata: the booking fields are stored locally
     // (db/sumup-checkouts.ts), so its registry caps are unbounded and the
@@ -180,10 +220,7 @@ export const sumupApi: {
           amount: Number(toMajorUnits(totalMinor)),
           checkout_reference: reference,
           currency: settings.currency.toUpperCase(),
-          description: countedText(
-            orderLabel(order.lines),
-            sumOf((line: PricedLine) => line.quantity)(order.lines),
-          ),
+          description: sumupDescription(intent),
           hosted_checkout: { enabled: true },
           merchant_code: merchantCode,
           redirect_url: `${baseUrl}/payment/success?session_id=${reference}`,

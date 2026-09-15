@@ -7,7 +7,8 @@ import {
 } from "#booking/tree.ts";
 import { sumByKey } from "#fp";
 /* jscpd:ignore-end */
-import type { CheckoutItem } from "#shared/payments.ts";
+import { type CheckoutItem, checkoutItem } from "#shared/payments.ts";
+import type { PurchaseContext } from "#shared/purchase-unit.ts";
 
 /**
  * Build an order's checkout lines from the booking tree: **one line per booked
@@ -82,23 +83,22 @@ const childNodesByListingId = (tree: BookingTree): Map<number, BookingNode> => {
 };
 
 /** Build the order's checkout lines. `nodeQuantities` carries each top-level
- * node's booked quantity by nodeKey; `foldedQuantities` is the fold's
- * per-listing aggregate (top-level paths plus folded children), so each child
- * line's quantity is whatever the other lines don't cover. A CHILD listing
- * keeps ONE line for all its units — folded plus any of its own standalone row
- * (a `bookable_alone` child beside its parent) — because the create paths
- * split a child's line by the fold's allocations, and would mistake a second
- * same-listing line for more folded units. One line loses nothing: a child is
- * never a package member, so both its paths price by the same rule.
- * `customPrices` carries pay-more inputs and QR overrides by listing id (a
- * pay-more listing is never a package member, so one price per listing id
- * stays sound). */
+ *  node's booked quantity by nodeKey; `foldedQuantities` is the fold's
+ *  per-listing aggregate (top-level paths plus folded children), so each child
+ *  line's quantity is whatever the other lines don't cover. A CHILD listing
+ *  keeps ONE line for all its units — folded plus any of its own standalone row
+ *  (a `bookable_alone` child beside its parent) — because the create paths
+ *  split a child's line by the fold's allocations, and would mistake a second
+ *  same-listing line for more folded units. `customPrices` carries pay-more
+ *  inputs and QR overrides by listing id. `purchase` decides what one booked
+ *  unit buys, so the lines state the term the buyer chose. */
 export const buildOrderLines = (
   tree: BookingTree,
   nodeQuantities: ReadonlyMap<string, number>,
   foldedQuantities: ReadonlyMap<number, number>,
   customPrices: ReadonlyMap<number, number>,
   dayCount: number,
+  purchase: PurchaseContext,
 ): CheckoutItem[] => {
   const childById = childNodesByListingId(tree);
   const pathLines = tree.nodes.flatMap((node): CheckoutItem[] => {
@@ -107,17 +107,13 @@ export const buildOrderLines = (
     const packageGroupId = nodePackageGroupId(node);
     return [
       {
-        listingId: node.listingId,
-        name: node.listing.name,
-        ...(packageGroupId === undefined ? {} : { packageGroupId }),
-        quantity,
-        slug: node.listing.slug,
-        unitPrice: effectivePrice(
-          node.priceRule,
+        ...checkoutItem(
           node.listing,
-          customPrices,
-          dayCount,
+          quantity,
+          effectivePrice(node.priceRule, node.listing, customPrices, dayCount),
+          purchase,
         ),
+        ...(packageGroupId === undefined ? {} : { packageGroupId }),
       },
     ];
   });
@@ -137,18 +133,17 @@ export const buildOrderLines = (
       // child, so its node is always present here.
       const child = childById.get(listingId)!;
       return [
-        {
-          listingId,
-          name: child.listing.name,
+        checkoutItem(
+          child.listing,
           quantity,
-          slug: child.listing.slug,
-          unitPrice: effectivePrice(
+          effectivePrice(
             child.priceRule,
             child.listing,
             customPrices,
             dayCount,
           ),
-        },
+          purchase,
+        ),
       ];
     },
   );

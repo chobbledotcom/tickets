@@ -2,13 +2,14 @@
 
 import { settings } from "#db/settings.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
+import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import {
   ProviderTransportError,
   type RejectedBuyerField,
   rejectedBuyerFieldOf,
 } from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { countedText, xCount } from "#shared/count-text.ts";
+import { xCount } from "#shared/count-text.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
@@ -131,15 +132,18 @@ export const createSquarePaymentLink = async (
         note: extra.name,
         quantity: String(extra.quantity),
       }),
-      line: (line, currency) => ({
-        basePriceMoney: {
-          amount: BigInt(line.chargedUnitAmount),
-          currency,
-        },
-        name: `Ticket: ${line.item.name}`,
-        note: countedText("Tickets", line.quantity),
-        quantity: String(line.quantity),
-      }),
+      line: (line, currency) => {
+        const copy = providerLineCopy(line.item, line.quantity);
+        return {
+          basePriceMoney: {
+            amount: BigInt(line.chargedUnitAmount),
+            currency,
+          },
+          name: copy.name,
+          note: copy.description,
+          quantity: String(line.quantity),
+        };
+      },
     },
   );
   const label = "Payment link";

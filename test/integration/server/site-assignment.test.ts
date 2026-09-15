@@ -10,16 +10,14 @@ import {
 import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
+import { pickTierListing } from "#shared/renewal-tier.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 /* jscpd:ignore-start -- imports */
 import {
   assignAndNotifyBuiltSites,
-  parseReadOnlyFromMs,
-  pickTierListing,
   syncReadOnlyFrom,
   validateSiteAssignmentConfig,
 } from "#shared/site-assignment.ts";
@@ -122,8 +120,14 @@ describeWithEnv(
     let fetchStub: Stub;
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
 
+    /** Three entries that each need one site — the mixed-order case. One
+     *  attendee takes quantity 2 to pin that quantity buys months, not sites. */
     const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
-      await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+      await assignAndNotifyBuiltSites([
+        siteEntry({ attendeeId: 11 }),
+        siteEntry({ attendeeId: 12, quantity: 2 }),
+        siteEntry({ attendeeId: 13 }),
+      ]);
       const sites = await builtSites.getAll();
       const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
       expect(assigned).toHaveLength(3);
@@ -203,14 +207,14 @@ describeWithEnv(
     const silencedErrors = () => stub(console, "error", () => {});
 
     describe("assignAndNotifyBuiltSites", () => {
-      test("assigns one site per ticket and sends email", async () => {
+      test("assigns one site per booking and sends email", async () => {
         await insertSitesAAndB();
 
         await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
 
         const sites = await builtSites.getAll();
         const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-        expect(assigned).toHaveLength(2);
+        expect(assigned).toHaveLength(1);
         expect(assigned.every((s) => !s.assignable)).toBe(true);
         expect(fetchStub.calls.length).toBe(1);
       });
@@ -228,19 +232,69 @@ describeWithEnv(
         expect(fetchStub.calls.length).toBe(0);
       });
 
-      test("assigns sites independently per listing", async () => {
-        await insertSitesAAndB();
+      test("combines one buyer's plan listings into one site with summed months", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2005");
+        await insertBuiltSite("Site B", "b.test.net", "", "", true, "2006");
 
         await assignAndNotifyBuiltSites([
-          siteEntry({ attendeeId: 10, listingId: 1, listingName: "Listing 1" }),
-          siteEntry({ attendeeId: 10, listingId: 2, listingName: "Listing 2" }),
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 12,
+            listingId: 1,
+            listingName: "12 Month Plan",
+          }),
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            listingId: 2,
+            listingName: "3 Month Plan",
+          }),
         ]);
 
         const sites = await builtSites.getAll();
-        const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-        expect(assigned).toHaveLength(2);
-        expect(assigned[0]!.assignedListingId).toBe(1);
-        expect(assigned[1]!.assignedListingId).toBe(2);
+        expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(
+          1,
+        );
+        // 12 + 3: the buyer's two plans buy 15 months on their one site.
+        const assigned = await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 15).slice(0, 10),
+        );
+        expect(assigned.assignedAttendeeId).toBe(10);
+        expect(assigned.assignedListingId).toBe(1);
+        const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+        expect(body.subject).toBe("Your new site is ready");
+        expect(body.html).toContain("12 Month Plan + 3 Month Plan");
+        expect(body.html).toContain("https://a.test.net/setup/");
+      });
+
+      test("a no-quantity plan line beside a booked one adds no site and no months", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2007");
+
+        await assignAndNotifyBuiltSites([
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            listingId: 1,
+            quantity: 0,
+          }),
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            listingId: 2,
+            quantity: 2,
+          }),
+        ]);
+
+        const remaining = await builtSites.getAll();
+        expect(
+          remaining.filter((s) => s.assignedAttendeeId !== null),
+        ).toHaveLength(1);
+        // 2 units of the 3-month plan: the 0-quantity line adds nothing.
+        await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 6).slice(0, 10),
+        );
       });
 
       test("does not assign when no sites available and buildSite fails", async () => {
@@ -253,6 +307,24 @@ describeWithEnv(
           const existing = sites.find((s) => s.name === "Site A")!;
           expect(existing.assignedAttendeeId).toBeNull();
           expect(buildStub.calls.length).toBe(1);
+          expect(fetchStub.calls.length).toBe(0);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
+      test("each entry still attempts its own build after one build fails", async () => {
+        const buildStub = stubBuildSiteFailure();
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11, quantity: 2 }),
+            siteEntry({ attendeeId: 12 }),
+          ]);
+
+          expect(buildStub.calls.length).toBe(2);
+          const sites = await builtSites.getAll();
+          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(0);
           expect(fetchStub.calls.length).toBe(0);
         } finally {
           buildStub.restore();
@@ -324,7 +396,10 @@ describeWithEnv(
           builtNames.push(input.siteName);
         });
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11 }),
+            siteEntry({ attendeeId: 12 }),
+          ]);
 
           expect(builtNames).toEqual(["00002", "00003"]);
         } finally {
@@ -335,9 +410,18 @@ describeWithEnv(
       test("sends email with plural subject for multiple sites", async () => {
         await insertSitesAAndB();
 
+        // Two buyers in one order, each with their own site.
         await assignAndNotifyBuiltSites([
-          siteEntry({ listingId: 1, listingName: "Listing 1" }),
-          siteEntry({ listingId: 2, listingName: "Listing 2" }),
+          siteEntry({
+            attendeeId: 10,
+            listingId: 1,
+            listingName: "Listing 1",
+          }),
+          siteEntry({
+            attendeeId: 11,
+            listingId: 2,
+            listingName: "Listing 2",
+          }),
         ]);
 
         expect(fetchStub.calls.length).toBe(1);
@@ -543,34 +627,37 @@ describeWithEnv(
         );
       });
 
-      test("with quantity=3, three independent tokens and secret pushes are created", async () => {
+      test("with quantity=3, one site is assigned with months = initial x quantity", async () => {
         await createTierListing();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2003");
-        await insertBuiltSite("Site B", "b.test.net", "", "", true, "2004");
 
-        const buildStub = stubBuildSiteSuccess();
-        try {
-          const assigned = await assignAndCollectThreeSites();
+        await assignAndNotifyBuiltSites([
+          siteEntry({ initialSiteMonths: 3, quantity: 3 }),
+        ]);
 
-          const tokens = assigned.map((s) => s.renewalToken);
-          const nonNullTokens = tokens.filter((t): t is string => t !== null);
-          expect(nonNullTokens).toHaveLength(3);
+        const all = await builtSites.getAll();
+        const assigned = all.filter((s) => s.assignedAttendeeId !== null);
+        expect(assigned).toHaveLength(1);
+        await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 9).slice(0, 10),
+        );
+        // One site means the singular "Your new site is ready" email.
+        expectLastEmailBody({ subject: "Your new site is ready" });
+        expect(
+          secretStub.calls.filter((c) => c.args[1] === "READ_ONLY_FROM"),
+        ).toHaveLength(1);
+      });
 
-          const uniqueTokens = new Set(nonNullTokens);
-          expect(uniqueTokens.size).toBe(3);
+      test("a no-quantity line books no site and sends no email", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-          const rofCalls = secretStub.calls.filter(
-            (c) => c.args[1] === "READ_ONLY_FROM",
-          );
-          expect(rofCalls).toHaveLength(3);
-          const renewalUrlCalls = secretStub.calls.filter(
-            (c) => c.args[1] === "RENEWAL_URL",
-          );
-          expect(renewalUrlCalls).toHaveLength(3);
-        } finally {
-          buildStub.restore();
-        }
+        await assignAndNotifyBuiltSites([siteEntry({ quantity: 0 })]);
+
+        const sites = await builtSites.getAll();
+        expect(sites[0]!.assignedAttendeeId).toBeNull();
+        expect(fetchStub.calls.length).toBe(0);
       });
 
       test("Bunny push failure on one site of three leaves that site's readOnlyFrom empty, others persist", async () => {
@@ -598,7 +685,11 @@ describeWithEnv(
         );
         const buildStub = stubBuildSiteSuccess();
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+          await assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 11 }),
+            siteEntry({ attendeeId: 12 }),
+            siteEntry({ attendeeId: 13 }),
+          ]);
 
           const allSites = await builtSites.getAll();
           const assigned = allSites.filter(
@@ -741,113 +832,5 @@ describe("validateSiteAssignmentConfig without builder", () => {
     const result = await validateSiteAssignmentConfig([siteEntry()]);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("builder_disabled");
-  });
-});
-
-describeWithEnv(
-  "syncReadOnlyFrom (Deno site)",
-  { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
-  () => {
-    type SetEnvVarsStub = Pick<ReturnType<typeof stub>, "calls" | "restore">;
-
-    const expectSetEnvVarIncludes = (
-      setStub: SetEnvVarsStub,
-      key: string,
-    ): void => {
-      const pairs = setStub.calls[0]!.args[1] as [string, string][];
-      expect(pairs.some(([k]) => k === key)).toBe(true);
-    };
-
-    const withStubbedSetEnvVars = async <T>(
-      body: (setStub: SetEnvVarsStub) => Promise<T>,
-    ): Promise<T> => {
-      const setStub = stub(denoDeployApi, "setEnvVars", () =>
-        Promise.resolve({ ok: true as const, value: undefined }),
-      );
-      try {
-        return await body(setStub);
-      } finally {
-        setStub.restore();
-      }
-    };
-
-    test("pushes secrets via denoDeployApi.setEnvVars for a Deno site", async () => {
-      await insertBuiltSite(
-        "Deno Sync",
-        "https://app.deno.dev",
-        "",
-        "",
-        false,
-        "app_deno_123",
-        "release",
-        "deno",
-      );
-      const site = (await builtSites.getAll()).find(
-        (s) => s.name === "Deno Sync",
-      )!;
-
-      await withStubbedSetEnvVars(async (setStub) => {
-        const result = await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
-        expect(result.ok).toBe(true);
-        expect(setStub.calls).toHaveLength(1);
-        expectSetEnvVarIncludes(setStub, "READ_ONLY_FROM");
-      });
-    });
-
-    test("pushes both READ_ONLY_FROM and RENEWAL_URL when renewalUrl is provided", async () => {
-      await insertBuiltSite(
-        "Deno Sync Both",
-        "https://app.deno.dev",
-        "",
-        "",
-        false,
-        "app_deno_456",
-        "release",
-        "deno",
-      );
-      const site = (await builtSites.getAll()).find(
-        (s) => s.name === "Deno Sync Both",
-      )!;
-
-      await withStubbedSetEnvVars(async (setStub) => {
-        const result = await syncReadOnlyFrom(
-          site,
-          addMonthsIso(nowIso(), 3),
-          "https://example.com/renew/token123",
-        );
-        expect(result.ok).toBe(true);
-        expectSetEnvVarIncludes(setStub, "READ_ONLY_FROM");
-        expectSetEnvVarIncludes(setStub, "RENEWAL_URL");
-      });
-    });
-  },
-);
-
-describe("syncReadOnlyFrom with non-numeric bunny hostingId", () => {
-  test("returns error when bunny hostingId is not a valid number", async () => {
-    const { testBuiltSite } = await import("#test-utils/factories.ts");
-    const site = testBuiltSite({
-      hostingId: "not-a-number",
-      hostingProvider: "bunny",
-    });
-    const result = await syncReadOnlyFrom(site, "2099-01-01T00:00:00Z");
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("No hostingId");
-  });
-});
-
-describe("parseReadOnlyFromMs", () => {
-  test("returns null for invalid date string", () => {
-    expect(parseReadOnlyFromMs({ readOnlyFrom: "not-a-date" })).toBeNull();
-  });
-
-  test("returns null for empty string", () => {
-    expect(parseReadOnlyFromMs({ readOnlyFrom: "" })).toBeNull();
-  });
-
-  test("returns ms for valid date", () => {
-    const ms = parseReadOnlyFromMs({ readOnlyFrom: "2026-06-01T00:00:00Z" });
-    expect(ms).not.toBeNull();
-    expect(ms).toBeGreaterThan(0);
   });
 });

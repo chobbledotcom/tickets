@@ -25,6 +25,7 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
 
     expect(await getListingOfferFlags(listing.id)).toEqual({
       active: true,
+      assign_built_site: false,
       hidden: true,
       months_per_unit: 3,
       purchase_only: true,
@@ -36,6 +37,7 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
           listing.id,
           {
             active: true,
+            assign_built_site: false,
             hidden: true,
             months_per_unit: 3,
             name: "Picker listing",
@@ -113,3 +115,21 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
     ]);
   });
 });
+
+describeWithEnv(
+  "db > listing catalog > built-site plan",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("never offers a built-site plan to the external order widget", async () => {
+      await createTestListing({
+        assignBuiltSite: true,
+        initialSiteMonths: 3,
+        name: "Site plan",
+      });
+
+      expect(
+        (await getCatalogListings()).map((listing) => listing.name),
+      ).toEqual([]);
+    });
+  },
+);

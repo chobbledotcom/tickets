@@ -125,12 +125,12 @@ const childOptionParts = ({
 };
 
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
- * select over `0..childLimit`, plus — for a bookable pay-more child — its
- * non-required price input. A sold-out/closed/inactive child renders a disabled
- * select fixed at 0, never selectable. The select is non-required in
- * markup; the server fold validates the per-parent total. A bookable
- * child also carries its date/span compatibility attributes ({@link
- * childDateAttrs}) for the client compatibility script. */
+ *  select over `0..childLimit`, plus — for a bookable pay-more child — its
+ *  non-required price input. A sold-out/closed/inactive child renders a disabled
+ *  select fixed at 0, never selectable. The select is non-required in
+ *  markup; the server fold validates the per-parent total. A bookable
+ *  child also carries its date/span compatibility attributes ({@link
+ *  childDateAttrs}) for the client compatibility script. */
 const renderChildOption = (
   input: ChildOptionInput,
   childLimit: number,
@@ -151,10 +151,10 @@ const renderChildOption = (
 };
 
 /** Render a sole bookable child as informational, and keep the auto-select. It
- * submits no `child_qty_<parentId>_<childId>` field at all: the server fold
- * auto-fills a sole child to the parent's quantity, so a fixed quantity
- * over-submits and is rejected as "too many". Nothing posts a quantity, so it
- * is safe without JS.
+ *  submits no `child_qty_<parentId>_<childId>` field at all: the server fold
+ *  auto-fills a sole child to the parent's quantity, so a fixed quantity
+ *  over-submits and is rejected as "too many". Nothing posts a quantity, so it
+ *  is safe without JS.
  *
  * The informational marker still carries the date and span attributes a
  * selectable child option does ({@link childDateAttrs}). A group page's client

@@ -70,6 +70,32 @@ export const packageMemberMessage = (
   name: string,
 ): string => t(`error.package_member_${key}`, { name });
 
+/** The user-facing error naming a built-site plan listing that can belong to
+ *  no group or package — it books its own site, one buyer per order. Shared
+ *  by every membership write boundary: the listing save, the group saves, the
+ *  catalog import, and the group duplication. */
+export const sitePlanMemberError = (name: string): string =>
+  t("error.group_member_site_plan", { name });
+
+/** A built-site plan is booked on its own, so no final group set may keep it —
+ *  an empty set stays valid so removal is always possible. Pure: the caller
+ *  supplies the would-be plan flag and the listing's name. */
+export const planInGroupError = (
+  isPlan: boolean | undefined,
+  name: string,
+): string | null => (isPlan ? sitePlanMemberError(name) : null);
+
+/** The refusal every plan-save facet rule shares: a non-plan listing never
+ *  trips one, and the first broken facet of a planned one gives the message. */
+export const planRuleError = (
+  isPlan: boolean | undefined,
+  facets: readonly [boolean, string][],
+): string | null => {
+  if (!isPlan) return null;
+  const key = facets.find(([violates]) => violates)?.[1];
+  return key === undefined ? null : t(key);
+};
+
 /**
  * The user-facing error naming the listing and the specific reason it can't be
  * a package member, or null when it can. Pure: the caller supplies the

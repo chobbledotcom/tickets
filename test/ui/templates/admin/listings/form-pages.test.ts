@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
@@ -35,7 +36,8 @@ describe("adminListingNewPage", () => {
     expect(html).toContain('name="max_attendees"');
     expect(html).toContain('name="thank_you_url"');
     expect(html).toContain('name="unit_price"');
-    expect(html).toContain("Ticket price");
+    // The shared form keeps the site's own ticket wording on every install.
+    expect(html).toContain(t("fields.listing.price"));
   });
 
   test("renders breadcrumb back link", () => {

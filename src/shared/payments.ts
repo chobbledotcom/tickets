@@ -14,6 +14,12 @@ import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
+import {
+  type PurchaseContext,
+  type PurchaseUnit,
+  type PurchaseUnitFacts,
+  resolvePurchaseUnit,
+} from "#shared/purchase-unit.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 /* jscpd:ignore-end */
 
@@ -39,16 +45,33 @@ export type CheckoutItem = {
    * Signed per line as the item's `k`/`r` edge tag and stamped onto the line's
    * booking row. */
   packageGroupId?: number | undefined;
+  /** What one purchased unit buys. Absent = plain tickets; a months unit
+   *  names the term the provider checkout and the order summary state — ×3
+   *  beside a "(1 Month)" plan buys three months of one site, not three
+   *  sites. Display only: fulfilment reads its own facts. */
+  purchaseUnit?: PurchaseUnit | undefined;
 };
 
-/** Build a standalone-line {@link CheckoutItem} for one listing — the shared
- * shape every single-listing checkout (direct-to-provider QR booking, the
- * plain public booking form) builds its one-item `items` array from. */
+/** Only a months unit adds a field; the plain unit is the absent default. */
+const unitFields = (unit: PurchaseUnit): Partial<CheckoutItem> =>
+  unit.kind === "months" ? { purchaseUnit: unit } : {};
+
+/** Build a {@link CheckoutItem} for one listing — the one constructor every
+ *  real-listing checkout line is built from. `purchase` carries the purchase
+ *  context that decides the unit (a renewal prices the same tier by its
+ *  months per unit); absent means an ordinary purchase. Package provenance
+ *  is not a listing fact, so a member line spreads its `packageGroupId` over
+ *  the result. */
 export const checkoutItem = (
-  listing: Pick<CheckoutItem, "name" | "slug"> & { id: number },
+  listing: PurchaseUnitFacts &
+    Pick<CheckoutItem, "name" | "slug"> & {
+      id: number;
+    },
   quantity: number,
   unitPrice: number,
+  purchase: PurchaseContext = { renewal: false },
 ): CheckoutItem => ({
+  ...unitFields(resolvePurchaseUnit(listing, purchase)),
   listingId: listing.id,
   name: listing.name,
   quantity,

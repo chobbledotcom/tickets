@@ -28,11 +28,13 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
+import {
+  getQualifyingTierListings,
+  pickTierListing,
+} from "#shared/renewal-tier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import {
   addMonthsToRenewalDeadline,
-  getQualifyingTierListings,
-  pickTierListing,
   provisionSiteRenewal,
   renewalUrlFor,
   rotateRenewalToken,

@@ -222,14 +222,16 @@ src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → 
 src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1   # checkGroupListingSettings never reads the candidate's id — sibling self-exclusion uses the separate excludeListingId argument
 src/shared/listings-actions.ts::validateListingGroup.checked.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/listings-actions.ts::validateListingGroup.checked~1o94tt5  ?? → ||   # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → ||   # input.initialSiteMonths is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # input.customisableDays is boolean when present; false stays false with either operator
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → ||   # input.dayPrices is an object when present, and objects are always truthy
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → ||   # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
-src/shared/listings-actions.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
-src/shared/listings-actions.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@1  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@2  ?? → ||   # same proof, second monthsPerUnit fallback in the dual-role guard
+src/shared/listing-edge.ts::listingInputToEdge.assign_built_site~1lirfge  ?? → ||   # the operand is boolean|undefined: false passes through both operators' non-nullish path, so every input yields the same result
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → ||   # input.dayPrices is an object when present, and objects are always truthy
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → ||   # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
+src/shared/listing-edge.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listing-edge.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? → ||   # input.groupIds is an array when present, and arrays are always truthy
 src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → ||   # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
 
@@ -301,6 +303,15 @@ src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1   # the placeh
 # attendee's order posts a sale and a payment leg sharing one event group, so
 # legs[1] carries the same group as legs[0].
 src/shared/accounting/backfill.ts::attendeeStatements~0lgaj8m  0 → 1   # every backfilled attendee's order posts a sale and a payment leg sharing one event group, so legs[1] carries the same group as legs[0]
+
+src/shared/booking/order-lines.ts::nodeQuantitiesFor~1w4mmrr  ?? → ||   # the operand is a ReadonlyMap.get() result (number|undefined); undefined falls back to the same 0 both operators supply, and any number — including the falsy 0 — is returned by both
+src/shared/booking/order-lines.ts::nodeQuantitiesFor~1r0yjn6  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::aggregateNodeQuantities.booked.quantity~1s0ldgs  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::buildOrderLines.pathLines.quantity~1s0ldgs  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  0 → 1   # the emitted map only feeds child-line subtraction, and a listing with emitted lines is never a child, so its folded total equals its emission and its child line skips on 0 or −1 alike; a child listing gets no emission at all, so the fallback is never read for it
+src/shared/booking/order-lines.ts::buildOrderLines.childLines.quantity~1r5rdx3  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/listing-parents-rules.ts::describedDayCounts.sorted~1uom1op  - → /   # day counts are positive integers, so a / b is positive for every distinct pair; V8's toSorted with an always-positive comparator returns the input order unchanged (probed on ascending and non-ascending inputs), so the sorted sequence is identical
 
 # firstMatch only yields undefined | null | a target object; null fails both
 # arms of the coalescing the same way, so ?? and || read identically.

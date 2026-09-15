@@ -8,6 +8,7 @@ import {
   packageGroups,
   packageMemberCapError,
   packageMemberError,
+  sitePlanMemberError,
 } from "#shared/package-membership.ts";
 
 /** Build the edge set the member rules read (empty by default). */
@@ -28,6 +29,12 @@ const listing = (
 });
 
 describe("packageMemberError", () => {
+  test("the built-site plan refusal names the listing with the groups copy", () => {
+    expect(sitePlanMemberError("Website Plan")).toBe(
+      t("error.group_member_site_plan", { name: "Website Plan" }),
+    );
+  });
+
   // Each blocking case asserts the complete localized message: which rule won
   // AND that the listing name interpolates into it.
   test("blocks a pay-what-you-want listing regardless of edges or hide flag", () => {

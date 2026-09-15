@@ -9,12 +9,23 @@ import {
   scopeIsChildDeadEnd,
   scopeReachesPage,
 } from "#shared/listing-parents-rules.ts";
+import { edgeListing as listing } from "./listing-parents-rules/helpers.ts";
 
 /** The i18n message a broken edge rule reports for the named listing — the
  * same key production formats, so tests assert WHICH rule won (and whose name
  * it blames) without re-typing the English copy. */
 const ruleError = (messageKey: string, name: string): string =>
   t(`listings_table.children_err_${messageKey}`, { name });
+
+/** The customisable child every duration-compatibility case pairs with. */
+const cabin = (over: Partial<EdgeListing> = {}): EdgeListing =>
+  listing({
+    customisable_days: true,
+    day_prices: { 2: 200 },
+    duration_days: 5,
+    name: "Cabin",
+    ...over,
+  });
 
 describe("childAddOnError", () => {
   test("resolves to real copy naming the add-on and the child, not a raw key", () => {
@@ -56,17 +67,6 @@ describe("scopeIsChildDeadEnd", () => {
   test("one live page in the scope rescues the hidden child", () => {
     expect(scopeIsChildDeadEnd([5, 6], new Set([5]), new Set([6]))).toBe(false);
   });
-});
-
-const listing = (over: Partial<EdgeListing> = {}): EdgeListing => ({
-  customisable_days: false,
-  day_prices: {},
-  duration_days: 1,
-  id: 1,
-  listing_type: "standard",
-  months_per_unit: 0,
-  name: "Test",
-  ...over,
 });
 
 describe("durationsCompatible", () => {
@@ -333,12 +333,7 @@ describe("edgeFieldError", () => {
     [
       "names the customisable child's priced lengths",
       listing({ duration_days: 3, listing_type: "daily", name: "Week" }),
-      listing({
-        customisable_days: true,
-        day_prices: { 2: 200 },
-        duration_days: 5,
-        name: "Cabin",
-      }),
+      cabin(),
       "3 days",
       "2 days",
     ],
@@ -350,13 +345,15 @@ describe("edgeFieldError", () => {
         duration_days: 3,
         name: "Empty",
       }),
-      listing({
-        customisable_days: true,
-        day_prices: { 2: 200 },
-        duration_days: 5,
-        name: "Cabin",
-      }),
+      cabin(),
       "",
+      "2 days",
+    ],
+    [
+      "a fixed standard parent offers its single 1-day span",
+      listing({ listing_type: "standard", name: "Quick Stop" }),
+      cabin(),
+      "1 day",
       "2 days",
     ],
     [

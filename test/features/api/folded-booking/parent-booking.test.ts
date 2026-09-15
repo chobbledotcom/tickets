@@ -2,10 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { setListingGroups } from "#db/groups.ts";
 import {
   finishFoldedBooking,
   processParentApiBooking,
 } from "#routes/api/folded-booking.ts";
+import { handleBookPackage } from "#routes/api/packages.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import type { BookResponseBody } from "#test-utils/api/helpers.ts";
@@ -15,6 +17,7 @@ import {
   stubCheckout,
 } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   bookableStartDates,
   createTestListing,
@@ -282,5 +285,46 @@ describeWithEnv("processParentApiBooking", { db: true, triggers: true }, () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as BookResponseBody;
     expect(body.booking?.ticketUrl).toMatch(/^\/t\//);
+  });
+
+  test("sells a monthly package member as ordinary tickets", async () => {
+    // The JSON API sells ordinary purchases: a member that counts months per
+    // unit still checks out as tickets — renewal months belong to the site's
+    // /renew page, which is the only surface carrying a renewal context.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Monthly Pkg",
+    });
+    const member = await createTestListing({
+      hidden: true,
+      monthsPerUnit: 3,
+      name: "Quarter Member",
+      purchaseOnly: true,
+      unitPrice: 900,
+    });
+    await setListingGroups(member.id, [group.id]);
+
+    await setupStripe();
+    const { checkout, getCaptured } = stubCheckout("sess_pkg_month");
+    try {
+      const response = await handleBookPackage(
+        new Request(`http://localhost/api/packages/${group.slug}/book`, {
+          body: JSON.stringify({ email: "a@b.com", name: "Ada", quantity: 1 }),
+          headers: {
+            "content-type": "application/json",
+            host: "localhost",
+          },
+          method: "POST",
+        }),
+        { slug: group.slug },
+      );
+      expect(response.status).toBe(200);
+      const item = getCaptured()?.items.find((i) => i.listingId === member.id);
+      expect(item?.quantity).toBe(1);
+      expect(item?.unitPrice).toBe(900);
+      expect("purchaseUnit" in (item ?? {})).toBe(false);
+    } finally {
+      checkout.restore();
+    }
   });
 });

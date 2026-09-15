@@ -1,10 +1,11 @@
 /**
- * App-level journey, driven through a real browser exactly as a customer would:
- * first-run setup → admin login → create a priced listing → open its public
- * booking page → book → (paid) hosted checkout → land on the return URL →
- * confirm the booking is recorded as paid. Every value that must be unique to
- * one scenario (owner credentials, booker identity, listing name) is passed in
- * by the caller rather than shared globally.
+ * App-level journey helpers, driven through a real browser exactly as a
+ * customer would: first-run setup and admin login, then the steps after a
+ * listing exists — open its public booking page, book, pass the (paid)
+ * hosted checkout, land back on the app, and confirm the booking is recorded
+ * as paid. Creating the listing itself lives in listing-flow.ts. Every value
+ * that must be unique to one scenario (owner credentials, booker identity,
+ * listing name) is passed in by the caller rather than shared globally.
  */
 
 /* jscpd:ignore-start */
@@ -83,44 +84,6 @@ export const login = async (
   log("  logged in");
 };
 
-/**
- * Create a listing that collects an email and (when priced > 0) requires
- * payment. Returns the public `/ticket/<slug>` path for booking.
- */
-export const createListing = async (
-  session: BrowserSession,
-  { priceMinor, name }: { name: string; priceMinor: number },
-): Promise<string> => {
-  step(`Creating listing "${name}" (price=${priceMinor} minor units)`);
-  await session.goto("/admin/listing/new?template=custom");
-  await session.fill("name", name);
-  // The description is a rich markdown editor whose backing textarea is
-  // hidden — type into the visible editing surface like a person.
-  await session.typeInto(
-    ".md-editor .ProseMirror",
-    "End-to-end payment test listing",
-  );
-  await session.fill("max_attendees", "100");
-  await session.fill("max_quantity", "5");
-  await session.check("fields", "email");
-  // The price field is entered in major units (e.g. "1.00"), not minor.
-  await session.fill("unit_price", (priceMinor / 100).toFixed(2));
-  await session.clickButton(
-    await catalogWords("listings-table", "listings_table.create_listing"),
-  );
-
-  // Open the new listing and read its public booking link.
-  await session.goto("/admin/");
-  await session.clickLink(name);
-  const href = await hrefOf(
-    session.page.locator('a[href*="/ticket/"]').first(),
-    "no public /ticket/ link found on the listing page",
-  );
-  const path = href.startsWith("http") ? new URL(href).pathname : href;
-  log(`  public booking path: ${path}`);
-  return path;
-};
-
 /** Wait for the browser to come back onto an app page whose URL or body
  * matches `success` (a hosted checkout hands control back via the return
  * URL). Throws with a page dump when the deadline passes. */
@@ -181,12 +144,14 @@ export const totalIncomeEarnedMinor = (ledger: string): number | null => {
 /**
  * Fill and submit the public booking form. For a free listing this lands on the
  * app's thank-you page; for a paid listing the browser is redirected to the
- * provider's hosted checkout (a different origin).
+ * provider's hosted checkout (a different origin). `quantity` is the units the
+ * visitor buys — one, unless stated.
  */
 export const submitBooking = async (
   session: BrowserSession,
   ticketPath: string,
   booker: BookerIdentity,
+  quantity = "1",
 ): Promise<void> => {
   step("Submitting booking");
   await session.goto(ticketPath);
@@ -199,7 +164,7 @@ export const submitBooking = async (
   const qty = page
     .locator('input[name^="quantity"], select[name^="quantity"]')
     .first();
-  if (await qty.count()) await setSelectOrInput(qty, "1");
+  if (await qty.count()) await setSelectOrInput(qty, quantity);
 
   // The reservations form's own submit control (see form.tsx: its label is
   // the catalog's Continue), so a rename follows the spec.

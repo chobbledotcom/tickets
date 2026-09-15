@@ -8,6 +8,7 @@ import {
   requireProviderFailure,
   withExactRefundMoney,
 } from "#payment/provider-failures.ts";
+import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   judgedBy,
@@ -23,7 +24,6 @@ import {
 import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { countedText } from "#shared/count-text.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
@@ -87,10 +87,7 @@ const createCheckoutSession = async (
       line: (line, cur) => ({
         price_data: {
           currency: cur,
-          product_data: {
-            description: countedText("Tickets", line.quantity),
-            name: `Ticket: ${line.item.name}`,
-          },
+          product_data: providerLineCopy(line.item, line.quantity),
           unit_amount: line.chargedUnitAmount,
         },
         quantity: line.quantity,

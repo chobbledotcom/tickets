@@ -11,7 +11,7 @@ import {
   randomOwnerCredentials,
 } from "#e2e/config.ts";
 import type { InstalledFault } from "#e2e/db-fault.ts";
-import { login, runSetup } from "#e2e/flow.ts";
+import { type BookingIdentity, login, runSetup } from "#e2e/flow.ts";
 import type {
   BuiltOrderCatalog,
   OrderCatalog,
@@ -82,6 +82,7 @@ export class LiveWorld extends World {
   private pendingReturnTarget: string | null = null;
   private refusalProbeReport: RefusalProbeReport | null = null;
   private orderNames: OrderCatalog | null = null;
+  private bookingPriceMinor: number | null = null;
 
   /** Which provider this run targets ("free" for no provider). */
   readonly target = parseLiveTarget(process.env.E2E_PROVIDER);
@@ -155,6 +156,22 @@ export class LiveWorld extends World {
 
   rememberListing(path: string): void {
     this.listingPath = path;
+  }
+
+  /** What the scenario's booking cost in total, for the admin income
+   *  assertion: the configured unit price, unless a step states the plan's
+   *  multiple. */
+  rememberBookingPrice(minor: number): void {
+    this.bookingPriceMinor = minor;
+  }
+
+  /** The booking this scenario is about, for every admin-side assertion. */
+  get bookingIdentity(): BookingIdentity {
+    return {
+      booker: this.scenario.booker,
+      listingName: this.scenario.listingName,
+      priceMinor: this.bookingPriceMinor ?? config.unitPrice,
+    };
   }
 
   attachInfra(infra: ScenarioInfra): void {

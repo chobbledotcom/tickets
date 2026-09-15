@@ -6,8 +6,8 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
-  listingInputToEdge,
   performListingDelete,
   toggleListingActive,
   validateListingInput,
@@ -29,6 +29,7 @@ describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
     const sparse = { name: "Bare" } as unknown as ListingInput;
     expect(listingInputToEdge(sparse, 7)).toEqual({
+      assign_built_site: false,
       customisable_days: false,
       day_prices: {},
       duration_days: 1,
@@ -41,6 +42,7 @@ describe("listingInputToEdge", () => {
 
   test("carries through populated fields", () => {
     const input = {
+      assignBuiltSite: true,
       customisableDays: true,
       dayPrices: { 1: 100, 2: 200 },
       durationDays: 2,
@@ -49,6 +51,7 @@ describe("listingInputToEdge", () => {
       name: "Full",
     } as unknown as ListingInput;
     expect(listingInputToEdge(input, 3)).toEqual({
+      assign_built_site: true,
       customisable_days: true,
       day_prices: { 1: 100, 2: 200 },
       duration_days: 2,
@@ -102,13 +105,27 @@ describeWithEnv("validateListingInput", { db: true }, () => {
     );
   });
 
-  test("accepts assignBuiltSite when initial site months is positive", async () => {
+  test("rejects a built-site plan that is also a renewal tier", async () => {
     const input: ListingInput = sluggedInput({
       assignBuiltSite: true,
       hidden: true,
       initialSiteMonths: 1,
       monthsPerUnit: 1,
       purchaseOnly: true,
+    });
+    const error = await validateListingInput(input);
+    expect(error).toBe(
+      "A listing that assigns a site cannot also be a renewal tier. Turn off months per unit or stop assigning a site.",
+    );
+  });
+
+  test("accepts assignBuiltSite when its only selling rule is the plan", async () => {
+    // monthsPerUnit stays unstated: a plan is not a renewal tier.
+    const input: ListingInput = sluggedInput({
+      assignBuiltSite: true,
+      hidden: false,
+      initialSiteMonths: 1,
+      purchaseOnly: false,
     });
     await expect(validateListingInput(input)).resolves.toBeNull();
   });

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { getSumupCheckout } from "#db/sumup-checkouts.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
+import type { ModifierSpec } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   expectClosedCheckoutFailure,
@@ -25,6 +26,28 @@ const intent = {
   phone: "",
   special_instructions: "",
 };
+
+/** A £0.01 discount on the given listings — an amount no per-unit price
+ *  divides evenly, so the charge splits into differently-priced lines. */
+const pennyOff = (listingIds: number[]): ModifierSpec => ({
+  id: 9,
+  kind: "fixed",
+  listingIds,
+  name: "Penny off",
+  quantity: 1,
+  trigger: "code",
+  value: -1,
+});
+
+/** A one-month site-plan line of the given quantity at £5 per unit. */
+const oneMonthPlan = (quantity: number) => ({
+  listingId: 3,
+  name: "(1 Month)",
+  purchaseUnit: { kind: "months" as const, monthsPerUnit: 1 },
+  quantity,
+  slug: "one-month",
+  unitPrice: 500,
+});
 
 /** A fake SumUp client that answers creates as the given checkout and hands
  *  back the last body it was sent, so a test can read what went over the wire. */
@@ -113,6 +136,93 @@ describe("sumup createCheckout", () => {
       // 2 tickets on the first listing + 3 on the second = 5 tickets: the
       // mixed order keeps the plain Tickets label with the ticket count.
       expect(capture.sent().description).toBe("Tickets (x5)");
+    });
+  });
+
+  test("says what a site plan order's units buy in months", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_plan",
+      url: "https://pay.sumup.com/plan",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [oneMonthPlan(3)],
+        },
+        "http://localhost",
+      );
+      // ×3 beside a plan buys three months of one site, not three sites.
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 3 months",
+      );
+    });
+  });
+
+  test("keeps each line's unit in a mixed plan-and-ticket order", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_mixed",
+      url: "https://pay.sumup.com/mixed",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [oneMonthPlan(2), { ...intent.items[0]! }],
+        },
+        "http://localhost",
+      );
+      // The plan's units are months, the plain listing's are tickets: one
+      // description, each segment carrying its own unit.
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 2 months + Evt (x2)",
+      );
+    });
+  });
+
+  test("states a plan's term once when a discount splits the charge", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_split",
+      url: "https://pay.sumup.com/split",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [oneMonthPlan(3)],
+          modifiers: [pennyOff([3])],
+        },
+        "http://localhost",
+      );
+      // The £0.01 discount splits the charge into 2× £5.00 and 1× £4.99
+      // lines. Each fragment repeats the item's whole quantity, so the
+      // description must state the term once: three months, not six.
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 3 months",
+      );
+      // The charged amount still reflects the discount.
+      expect(capture.sent().amount).toBe(14.99);
+    });
+  });
+
+  test("states each unit once in a split plan-and-ticket order", async () => {
+    const capture = bodyCapturingClient({
+      id: "co_split_mixed",
+      url: "https://pay.sumup.com/split-mixed",
+    });
+    await withSumupClient(capture.client, async () => {
+      await sumupApi.createCheckout(
+        {
+          ...intent,
+          items: [oneMonthPlan(2), { ...intent.items[0]! }],
+          modifiers: [pennyOff([3])],
+        },
+        "http://localhost",
+      );
+      expect(capture.sent().description).toBe(
+        "Site plan: (1 Month) — 2 months + Evt (x2)",
+      );
+      expect(capture.sent().amount).toBe(29.99);
     });
   });
 
