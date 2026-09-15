@@ -12,7 +12,7 @@ import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { attendeeTableOptions } from "#templates/admin/attendee-table-block.tsx";
 import { sumQuantity } from "#templates/admin/detail-rows.tsx";
 import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import { quantityHeader } from "#templates/components/header-row.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -153,7 +153,7 @@ export const AttendeesSection = ({
   emailDayHref: string | undefined;
   returnUrl: string;
   tableRows: AttendeeTableRow[];
-  questionData: TableQuestionData | undefined;
+  questionData: AttendeeQuestionData | undefined;
   phonePrefix: string | undefined;
 }): JSX.Element => (
   <ProseArticle heading={<h2 id="attendees">{t("terms.attendees")}</h2>}>

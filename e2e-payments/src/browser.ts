@@ -17,6 +17,7 @@ import { browserLaunchOptions } from "#scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
 import { artifactsRoot } from "./server.ts";
+import { stopScratchBrowser } from "./stop-browser.ts";
 import { pollUntil } from "./util.ts";
 
 export interface BrowserSession {
@@ -316,11 +317,15 @@ export const launchAppBrowser = async (
     const dumpPage = async (label: string): Promise<void> => {
       const png = join(artifactsRoot, `${artifactPrefix}-${label}.png`);
       const html = join(artifactsRoot, `${artifactPrefix}-${label}.html`);
-      await page.screenshot({ fullPage: true, path: png }).catch(() => {});
+      await page.screenshot({ fullPage: true, path: png }).catch(() => {
+        // Evidence only: one failed artifact must not stop the other.
+      });
       await page
         .content()
         .then((c) => writeFile(html, c))
-        .catch(() => {});
+        .catch(() => {
+          // Evidence only: one failed artifact must not stop the other.
+        });
       log(`  saved artifacts: ${png} (+ .html)`);
     };
 
@@ -342,7 +347,9 @@ export const launchAppBrowser = async (
             timeout: T,
             waitUntil: "domcontentloaded",
           })
-          .catch(() => {});
+          .catch(() => {
+            // A control that stays put keeps its old URL on purpose.
+          });
       }
     };
 
@@ -418,31 +425,7 @@ export const launchAppBrowser = async (
     baseUrl,
     browser,
     session,
-    stop: async () => {
-      // A frame-idle renderer can make graceful close hang, so bound it — the
-      // app under test is the thing that must shut down cleanly, not this
-      // scratch browser. When the graceful close really will not finish, ask
-      // the browser itself to exit over CDP (also bounded).
-      await Promise.race([
-        browser.close(),
-        new Promise((resolve) => setTimeout(resolve, 10_000)),
-      ]).catch(() => {});
-      if (browser.isConnected()) {
-        const cdp = await browser.newBrowserCDPSession().catch(() => null);
-        await Promise.race([
-          cdp?.send("Browser.close").catch(() => {}),
-          new Promise((resolve) => setTimeout(resolve, 5_000)),
-        ]);
-        if (browser.isConnected()) {
-          // Playwright exposes no process handle to kill, so a surviving
-          // browser is raised: the cleanup sweep fails the scenario rather
-          // than leave a zombie Chromium on the runner.
-          throw new Error(
-            "Chromium did not close after the bounded graceful close and CDP Browser.close",
-          );
-        }
-      }
-    },
+    stop: () => stopScratchBrowser(browser),
   };
 };
 

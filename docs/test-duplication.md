@@ -239,10 +239,10 @@ methods and arrow functions are compared by AST shape, with names and literals
 left out, so a renamed copy scores 1.0 and is reported with kind `similar`. This
 replaced both hand-rolled scans (`scripts/cpd-renamed.ts` and
 `scripts/check-shapes.ts`). The accepted matches live in the committed baseline
-`.jscpd.renamed-baseline.json`; `--fail-on-new-clones` fails the build on a pair
-the baseline does not carry, and `deno task cpd:renamed --update` rewrites the
-baseline after a merge. The baseline records no written reason — the merge
-history carries it.
+`.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the build
+on a pair the baseline does not carry, and `deno task cpd:renamed --update`
+rewrites the baseline after a merge. The baseline records no written reason —
+the merge history carries it.
 
 A pair changes status one way: merge it (extract a helper, or curry the parts
 that differ), then refresh the baseline. A new renamed copy anywhere in the

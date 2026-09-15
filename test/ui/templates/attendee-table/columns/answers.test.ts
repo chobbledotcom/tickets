@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import {
   attendeeTableSuite,
   makeOpts,
@@ -10,7 +10,7 @@ import {
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
 
 attendeeTableSuite(() => {
-  const questionData: TableQuestionData = {
+  const questionData: AttendeeQuestionData = {
     attendeeAnswerMap: new Map([
       [1, [10, 20]],
       [2, [11]],

@@ -13,6 +13,8 @@
  * needs a human eye.
  */
 
+import { formatFinding } from "#scripts/check-report.ts";
+
 /** One translatable string from the locale catalog. */
 export interface CopyEntry {
   file: string;
@@ -110,4 +112,4 @@ export const findIssues = (entries: CopyEntry[]): CopyIssue[] =>
 
 /** One human-readable line describing an issue. */
 export const formatIssue = (issue: CopyIssue): string =>
-  `${issue.file} ${issue.key} [${issue.rule}]: ${issue.problem} — ${issue.fix}`;
+  formatFinding(`${issue.file} ${issue.key}`, issue);

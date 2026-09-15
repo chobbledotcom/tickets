@@ -5,10 +5,44 @@ import {
   CheckboxForm,
   CheckboxLabel,
   FormSections,
+  IdCheckboxLabel,
+  RunningTotalsFieldset,
   SectionFieldset,
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
+
+describe("IdCheckboxLabel", () => {
+  test("ticks the box of an id inside the chosen set", () => {
+    const html = String(
+      IdCheckboxLabel({
+        checkedIds: new Set([7]),
+        id: 7,
+        label: "Pick me",
+        name: "choices",
+      }),
+    );
+    expect(html).toBe(
+      '<label><input checked name="choices" type="checkbox" value="7">Pick me</label>',
+    );
+  });
+
+  test("leaves the box of an id outside the chosen set unticked", () => {
+    const html = String(
+      IdCheckboxLabel({
+        checkedIds: new Set([7]),
+        id: 8,
+        label: "Leave me",
+        name: "choices",
+      }),
+    );
+    expect(html).toBe(
+      '<label><input name="choices" type="checkbox" value="8">Leave me</label>',
+    );
+    expect(html).not.toContain("checked");
+  });
+});
 
 describe("SectionFieldset", () => {
   test("puts its children directly in a legend fieldset", () => {
@@ -115,6 +149,32 @@ describe("CheckboxLabel", () => {
         '<input checked disabled name="choices" type="checkbox" value="8">' +
         "Locked in</label>",
     );
+  });
+});
+
+describe("RunningTotalsFieldset", () => {
+  const config = {
+    fields: [],
+    legend: "Running totals",
+    note: "Totals update as money moves.",
+    recalculateHref: "/admin/listing/1/recalculate",
+    recalculateLabel: "Recalculate",
+    values: {},
+  };
+
+  test("offers the recalculate step as a link while the site is writable", () => {
+    const html = String(RunningTotalsFieldset({ config }));
+    expect(html).toContain("<legend>Running totals</legend>");
+    expect(html).toContain(
+      '<a href="/admin/listing/1/recalculate">Recalculate</a>',
+    );
+  });
+
+  test("shows the recalculate label as plain text once the site is read-only", () => {
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = String(RunningTotalsFieldset({ config }));
+    expect(html).toContain("Recalculate");
+    expect(html).not.toContain("<a href=");
   });
 });
 

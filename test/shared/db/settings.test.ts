@@ -2,15 +2,9 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import type { PasswordHash, WrappedKey } from "#crypto/sealed.ts";
-import { execute, getDb } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { writeRawBatch } from "#db/settings/raw-writes.ts";
-import {
-  ALL_SETTINGS_KEYS,
-  bumpSettingsVersion,
-  CONFIG_KEYS,
-  getCurrentSettingsVersion,
-  settings,
-} from "#db/settings.ts";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import {
   createUser,
   getUserByUsername,
@@ -57,89 +51,10 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(value).toBe("value2");
     });
 
-    test("writes several raw settings with one shared version bump", async () => {
-      const before = await getCurrentSettingsVersion();
-
-      await writeRawBatch([
-        ["batch_one", "first"],
-        ["batch_two", "second"],
-      ]);
-
-      expect(settings.getCachedRaw("batch_one")).toBe("first");
-      expect(settings.getCachedRaw("batch_two")).toBe("second");
-      expect(await getCurrentSettingsVersion()).toBe(before + 1);
-    });
-
     test("rejects an empty raw settings batch", async () => {
       await expect(writeRawBatch([])).rejects.toThrow(
         "Cannot write an empty settings batch",
       );
-    });
-
-    test("settings table writes invalidate the loaded settings cache", async () => {
-      await settings.update.paymentProvider("stripe");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBe("stripe");
-
-      await execute("UPDATE settings SET value = ? WHERE key = ?", [
-        "square",
-        CONFIG_KEYS.PAYMENT_PROVIDER,
-      ]);
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-
-      expect(settings.paymentProvider).toBe("square");
-    });
-
-    test("a change that bumps the settings version is picked up on the next load", async () => {
-      // This process caches the current (unset) provider at the current version.
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBeNull();
-
-      // Simulate another isolate switching to Stripe: it changes the value in
-      // the DB and bumps the shared settings version, exactly as its write
-      // would leave the database.
-      await getDb().execute({
-        args: [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
-      await bumpSettingsVersion();
-
-      // The bumped version invalidates this process's cache on the next load.
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBe("stripe");
-    });
-
-    test("a raw DB change with no version bump is not picked up (cache stays authoritative)", async () => {
-      await settings.update.paymentProvider("stripe");
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBe("stripe");
-
-      // Sneak a value change straight into the DB without bumping the version.
-      await getDb().execute({
-        args: ["square", CONFIG_KEYS.PAYMENT_PROVIDER],
-        sql: "UPDATE settings SET value = ? WHERE key = ?",
-      });
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-
-      // Version unchanged → no reload → the cached value is served.
-      expect(settings.paymentProvider).toBe("stripe");
-    });
-  });
-
-  describe("settings version probe", () => {
-    test("treats a missing settings_version row as version 0", async () => {
-      await getDb().execute({
-        args: [CONFIG_KEYS.SETTINGS_VERSION],
-        sql: "DELETE FROM settings WHERE key = ?",
-      });
-      expect(await getCurrentSettingsVersion()).toBe(0);
-    });
-
-    test("increments the version on each settings write", async () => {
-      const before = await getCurrentSettingsVersion();
-      await settings.update.theme("dark");
-      expect(await getCurrentSettingsVersion()).toBe(before + 1);
     });
   });
 

@@ -72,7 +72,6 @@ import { confirmDeleteWithLog } from "./logged-actions.ts";
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * DAY_MS;
 
-/** Valid admin levels */
 /** The logistics agents an owner can assign — only when logistics is enabled. */
 const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
   settings.features.logistics ? logisticsAgents.getAll() : Promise.resolve([]);
@@ -393,7 +392,6 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
   successRedirect: "/admin/users",
 });
 
-/** User management routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/user/new": handleUserNewGet,
   "GET /admin/users": handleUsersGet,

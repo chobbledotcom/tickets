@@ -231,6 +231,46 @@ describe("documented admin CRUD endpoints", () => {
     }
   });
 
+  test("the documented example bodies say what they mean", () => {
+    const listingCreate = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/listings").request!,
+    );
+    // Each value is a deliberate choice the page teaches: a paid workshop
+    // (15.00 min, 30.00 cap, 20 places, non-transferable) that is listed
+    // publicly, not hidden.
+    expect(listingCreate).toMatchObject({
+      hidden: false,
+      max_attendees: 20,
+      max_price: 3000,
+      non_transferable: true,
+      unit_price: 1500,
+    });
+
+    const listingUpdate = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "PUT", "/api/admin/listings/:listingId")
+        .request!,
+    );
+    expect(listingUpdate.max_attendees).toBe(30);
+
+    const group = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "GET", "/api/admin/groups/:groupId")
+        .response,
+    ).group;
+    // The group documents a plain capped group: no hidden members, no
+    // terms — both empty on purpose so the page shows a real group.
+    expect(group).toMatchObject({
+      description: "Workshops running through the summer.",
+      hide_package_listings: false,
+      max_attendees: 50,
+      terms_and_conditions: "",
+    });
+
+    const groupCreate = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/groups").request!,
+    );
+    expect(groupCreate.max_attendees).toBe(50);
+  });
+
   test("every documented example is a real, named, stored record", () => {
     for (const { example } of documentedResources()) {
       expect(isBlank(example.name)).toBe(false);

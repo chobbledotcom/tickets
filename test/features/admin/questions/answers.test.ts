@@ -7,6 +7,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -56,12 +57,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/answers`,
         { text: "" },
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/questions/${id}`,
         expect.stringContaining("Answer text is required"),
         false,
-      );
+      )(response);
     });
 
     test("redirects with error when adding answer with empty text to non-existent question", async () => {
