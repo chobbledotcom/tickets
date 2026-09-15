@@ -82,6 +82,7 @@
     "#db/": "./src/shared/db/",
     "#e2e/": "./e2e-payments/src/",
     "#fp": "./src/fp.ts",
+    "#fp-strings": "./src/fp-strings.ts",
     "#i18n": "./src/shared/i18n.ts",
     "#jsx/": "./src/shared/jsx/",
     "#jsx/jsx-dev-runtime": "./src/shared/jsx/jsx-runtime.ts",

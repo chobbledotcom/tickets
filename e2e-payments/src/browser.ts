@@ -353,8 +353,8 @@ export const launchAppBrowser = async (
       }
     };
 
-    /** Click the first control with this role and visible name, then let the
-     * resulting navigation settle. */
+    /** Click the first control with this role and visible name, then settle.
+     * `namedClick` is the api-facing entry: announce `word`, then click. */
     const clickNamedControl = async (
       role: "button" | "link",
       text: string,
@@ -364,6 +364,12 @@ export const launchAppBrowser = async (
       );
       await logWhere(`${role} "${text}"`);
     };
+    const namedClick =
+      (role: "button" | "link", word: string) =>
+      async (text: string): Promise<void> => {
+        log(`  ${word} "${text}"`);
+        await clickNamedControl(role, text);
+      };
 
     return {
       baseUrl,
@@ -383,14 +389,8 @@ export const launchAppBrowser = async (
           onlyIfUnchecked: true,
         });
       },
-      clickButton: async (text) => {
-        log(`  submit "${text}"`);
-        await clickNamedControl("button", text);
-      },
-      clickLink: async (text) => {
-        log(`  link "${text}"`);
-        await clickNamedControl("link", text);
-      },
+      clickButton: namedClick("button", "submit"),
+      clickLink: namedClick("link", "link"),
       dumpPage,
       fill: async (name, value) => {
         log(`  fill ${name}`);

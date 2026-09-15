@@ -287,6 +287,13 @@ const getters = {
   ),
 };
 
+/** The provider choice written by one named background action. */
+const changeTo =
+  (action: "activate" | "recover") =>
+  async (v: PaymentProviderType): Promise<void> => {
+    await changePaymentProvider(action, v);
+  };
+
 /** Async writes — the provider choice, and each provider's credentials. */
 const updaters = {
   clearPaymentProvider: async (): Promise<void> => {
@@ -294,18 +301,14 @@ const updaters = {
     data.payment_provider = null;
     data.payment_provider_setting = null;
   },
-  paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-    await changePaymentProvider("activate", v);
-  },
+  paymentProvider: changeTo("activate"),
   paymentProviderAfterCredentialSave: async (
     provider: PaymentProviderType,
     activateFromMissing: boolean,
   ): Promise<void> => {
     await changePaymentProvider("credentials", provider, activateFromMissing);
   },
-  recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
-    await changePaymentProvider("recover", v);
-  },
+  recoverPaymentProvider: changeTo("recover"),
   setPaymentProviderNone: async (): Promise<void> => {
     await changePaymentProvider("disable");
   },

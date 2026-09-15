@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { refundAuthorityAtlas } from "#shared/schema-atlas/refund-authority.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
 
-const { byId, edgeIds, machine } = indexMachine(refundAuthorityAtlas());
+const { byId, edgeIds, machine } = indexMachine(refundAuthorityAtlas);
 
 /** Every state id reachable from the start, following declared edges. */
 const reachableFromStart = (): Set<string> => {

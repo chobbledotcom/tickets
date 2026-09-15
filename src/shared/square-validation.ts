@@ -27,6 +27,9 @@ const APP_CREDENTIAL_PREFIXES = [
  * prefixes (current, legacy, and JWT) with no length limit and only reject
  * values that look like nothing Square issues.
  */
+
+import { startsWithAny } from "#fp-strings";
+
 const ACCESS_TOKEN_PATTERN =
   /^(EAAA|sq0atp-|sandbox-sq0atp-|eyJ)[0-9A-Za-z._-]+$/;
 
@@ -34,8 +37,7 @@ const ACCESS_TOKEN_PATTERN =
 const EXAMPLE_LOCATION_ID = "LH182V1KBR6V2";
 
 /** True when the value looks like a Square application ID or secret. */
-const looksLikeAppCredential = (value: string): boolean =>
-  APP_CREDENTIAL_PREFIXES.some((prefix) => value.startsWith(prefix));
+const looksLikeAppCredential = startsWithAny(APP_CREDENTIAL_PREFIXES);
 
 /**
  * Validate a Square access token's format.

@@ -166,7 +166,7 @@
   "scripts/mutation/generate.ts": 465,
   "scripts/mutation/runner.ts": 454,
   "e2e-payments/src/browser.ts": 473,
-  "e2e-payments/src/cucumber/steps/booking.ts": 696,
+  "e2e-payments/src/cucumber/steps/booking.ts": 688,
   "e2e-payments/src/providers/shared.ts": 420,
   "e2e-payments/src/providers/sumup.ts": 404
 }

@@ -14,6 +14,7 @@
 import { Temporal } from "temporal-polyfill";
 import { lazyRef } from "#fp";
 import { formatIsoForPreview } from "#shared/bulk-replace.ts";
+import { succeeds } from "#shared/validation/succeeds.ts";
 
 /** Pad a number to two digits */
 const pad2 = (n: number): string => String(n).padStart(2, "0");
@@ -160,24 +161,12 @@ export const utcToLocalInput = (utcIso: string, tz: string): string => {
 /**
  * Validate that a string is a valid IANA timezone identifier.
  */
-export const isValidTimezone = (tz: string): boolean => {
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-};
+export const isValidTimezone = (tz: string): boolean =>
+  succeeds(() => Intl.DateTimeFormat(undefined, { timeZone: tz }));
 
 /**
  * Check if a naive datetime-local string is a parseable datetime.
  * Does not interpret timezone — purely a format check.
  */
-export const isValidDatetime = (value: string): boolean => {
-  try {
-    parseNaiveDateTime(value);
-    return true;
-  } catch {
-    return false;
-  }
-};
+export const isValidDatetime = (value: string): boolean =>
+  succeeds(() => parseNaiveDateTime(value));

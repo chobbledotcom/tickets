@@ -26,6 +26,7 @@
     "#fp": "../src/fp.ts",
     "#scripts/": "../scripts/",
     "#src/": "../src/",
+    "#shared/": "../src/shared/",
     "#e2e/": "./src/"
   },
   "compilerOptions": {

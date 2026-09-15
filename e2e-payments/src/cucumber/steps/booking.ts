@@ -14,7 +14,7 @@ import {
 // jscpd:ignore-start -- this #e2e import run is structural
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
+import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import {
   assertBookedInAdmin,
@@ -455,9 +455,7 @@ Then(
 
 Then(
   "the owner's system map answers clean",
-  async function (this: LiveWorld): Promise<void> {
-    await requireSystemMapAnswersClean(this);
-  },
+  worldStep(requireSystemMapAnswersClean),
 );
 
 When(
@@ -530,9 +528,7 @@ const changeListingPrice = async (world: LiveWorld): Promise<void> => {
 
 When(
   "the owner changes the listing price in another browser",
-  async function (this: LiveWorld): Promise<void> {
-    await changeListingPrice(this);
-  },
+  worldStep(changeListingPrice),
 );
 
 /** The stored terminal outcome is shown on the exact return URL — the visitor
@@ -549,9 +545,7 @@ const visitorSeesRefundNotice = async (world: LiveWorld): Promise<void> => {
 
 Then(
   "the visitor is told their details were saved and payment refunded",
-  async function (this: LiveWorld): Promise<void> {
-    await visitorSeesRefundNotice(this);
-  },
+  worldStep(visitorSeesRefundNotice),
 );
 
 /** Every "the provider shows the money back" Then: the step text, and the
@@ -604,9 +598,7 @@ const requireNoSaleForUnfulfilled = async (world: LiveWorld): Promise<void> => {
 
 Then(
   "Money shows no sale for the unfulfilled booking",
-  async function (this: LiveWorld): Promise<void> {
-    await requireNoSaleForUnfulfilled(this);
-  },
+  worldStep(requireNoSaleForUnfulfilled),
 );
 
 Then(

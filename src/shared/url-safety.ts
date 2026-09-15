@@ -8,13 +8,13 @@
  * "fetch an internal service" cases and forces TLS.
  */
 
+import { endsWithAny } from "#fp-strings";
+
 /** Internal hostname suffixes/names that must never be fetched server-side. */
 const isInternalHostname = (h: string): boolean =>
   h === "localhost" ||
-  h.endsWith(".localhost") ||
   h === "local" ||
-  h.endsWith(".local") ||
-  h.endsWith(".internal");
+  endsWithAny([".localhost", ".local", ".internal"])(h);
 
 /** True when the host is an IPv4 or IPv6 literal rather than a real domain. */
 const isIpLiteral = (host: string): boolean => {

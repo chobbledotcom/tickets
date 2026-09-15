@@ -6,7 +6,7 @@
  * timezone.
  */
 
-import { sort } from "#fp";
+import { sortedByString } from "#fp-strings";
 import { bold, dim, green, red, yellow } from "#scripts/precommit/colors.ts";
 import type { Bucket, PrSummary } from "./types.ts";
 
@@ -67,8 +67,9 @@ const groupLines =
     const display = BUCKET_DISPLAY[bucket];
     // Most recently touched first, so the active work surfaces at the top of
     // each group.
-    const ordered = sort((a: PrSummary, b: PrSummary) =>
-      b.updatedAt.localeCompare(a.updatedAt),
+    const ordered = sortedByString(
+      (summary: PrSummary) => summary.updatedAt,
+      "desc",
     )(summaries);
     return [
       "",

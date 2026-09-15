@@ -7,7 +7,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { config } from "#e2e/config.ts";
 // jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
-import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
+import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import { assertFreeThankYou, waitForHostedCheckout } from "#e2e/flow.ts";
 import { createListing, type ListingFields } from "#e2e/listing-flow.ts";
@@ -134,12 +134,7 @@ Given(
   },
 );
 
-When(
-  "a separate visitor books the listing",
-  async function (this: LiveWorld): Promise<void> {
-    await bookAsVisitor(this);
-  },
-);
+When("a separate visitor books the listing", worldStep(bookAsVisitor));
 
 Then(
   "the visitor sees the booking confirmation",

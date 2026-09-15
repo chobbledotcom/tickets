@@ -1,10 +1,7 @@
 /** Small process/timing helpers shared across the harness. */
 
 import type { ChildProcess } from "node:child_process";
-
-/** Resolve after `ms` milliseconds — for polling loops and retry backoff. */
-export const sleep = (ms: number): Promise<void> =>
-  new Promise((done) => setTimeout(done, ms));
+import { delay } from "#shared/now.ts";
 
 /** The allowance for one health probe while something starts up. */
 const HEALTH_PROBE_TIMEOUT_MS = 5_000;
@@ -29,7 +26,7 @@ export const pollUntil = async <Value>(
   while (Date.now() < deadline) {
     const value = await check();
     if (value !== null) return value;
-    await sleep(1_000);
+    await delay(1_000);
   }
   return null;
 };

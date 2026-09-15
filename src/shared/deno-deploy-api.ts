@@ -6,7 +6,6 @@
  * Auth: Authorization: Bearer {DENO_DEPLOY_TOKEN}
  */
 
-import * as v from "valibot";
 /* jscpd:ignore-start */
 import {
   denoDeployAppSlug,
@@ -28,6 +27,7 @@ import type {
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 
 /* jscpd:ignore-end */
 
@@ -40,7 +40,7 @@ const denoApiHeaders = (): Record<string, string> => ({
 });
 
 const parseDenoRevision = (text: string): DenoRevision =>
-  v.parse(DenoRevisionSchema, JSON.parse(text));
+  parseJson(DenoRevisionSchema, text);
 
 const getDenoApi = async <T>(
   path: string,
@@ -70,7 +70,7 @@ const createAppImpl = async (
 
   if (!res.ok) return parseApiError(res, "Create app");
 
-  const data = v.parse(DenoAppIdentitySchema, JSON.parse(res.text));
+  const data = parseJson(DenoAppIdentitySchema, res.text);
   return okResult({ appId: data.id, slug: data.slug });
 };
 
@@ -81,7 +81,7 @@ const fetchAppEnvVarNames = async (
   const result = await getDenoApi(
     `apps/${encodeURIComponent(appId)}`,
     "Get app",
-    (text) => v.parse(DenoAppEnvVarsSchema, JSON.parse(text)),
+    (text) => parseJson(DenoAppEnvVarsSchema, text),
   );
   if (!result.ok) return result;
   return okResult(result.value.env_vars.map(({ key }) => key));

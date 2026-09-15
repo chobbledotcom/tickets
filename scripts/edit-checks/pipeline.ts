@@ -3,6 +3,7 @@
 // .opencode/plugins/ wires this to the editor and to the tool runner.
 
 import { extname } from "node:path";
+import { startsWithAny } from "#fp-strings";
 
 export type CheckResult = { label: string; ok: boolean; text: string };
 export type ToolRun = { ok: boolean; text: string };
@@ -92,8 +93,7 @@ const cleanText = (text: string): string =>
       .join("\n"),
   );
 
-const isChatter = (line: string): boolean =>
-  line.startsWith("config file ") || line.startsWith("Using config from ");
+const isChatter = startsWithAny(["config file ", "Using config from "]);
 
 const cutBanner = (text: string): string => {
   const banner = text.indexOf("━");

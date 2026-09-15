@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { bearerAuthorization, bearerTokenOrNull } from "#shared/bearer.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 
 /**
  * Reading the effective Authorization header a Kuma monitor sends.
@@ -24,7 +25,7 @@ export const readCustomAuthorization = (
     return { authorization: null, valid: true };
   }
   try {
-    const values = v.parse(CustomHeadersSchema, JSON.parse(headers));
+    const values = parseJson(CustomHeadersSchema, headers);
     const entry = Object.entries(values).find(
       ([name]) => name.toLowerCase() === "authorization",
     );

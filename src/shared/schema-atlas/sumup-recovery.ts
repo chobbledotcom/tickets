@@ -33,25 +33,25 @@ const LAYOUTS: MachineLayouts<RecoveryNodeId> = {
   waiting: { x: 480, y: 240 },
 };
 
-/** The whole recovery machine, with each node's two operator-facing facts. */
-export const sumupRecoveryAtlas = (): AtlasMachine =>
-  atlasMachineFrom(
-    { events: RECOVERY_EVENTS, nodeOf: recoveryNodeOf, nodes: RECOVERY_NODES },
-    {
-      extraOf: factsFromNode(
-        (node) => [
-          {
-            labelKey: "schema.sumup_recovery.fact.owes_money",
-            value: node.owesMoney,
-          },
-          {
-            labelKey: "schema.sumup_recovery.fact.kept",
-            value: node.prunable ? "deleted once old" : "kept until answered",
-          },
-        ],
-        "staged",
-      ),
-      id: "sumup_recovery",
-      layouts: LAYOUTS,
-    },
-  );
+/** The whole recovery machine, with each node's two operator-facing facts.
+ * Drawn once when this module loads. */
+export const sumupRecoveryAtlas: AtlasMachine = atlasMachineFrom(
+  { events: RECOVERY_EVENTS, nodeOf: recoveryNodeOf, nodes: RECOVERY_NODES },
+  {
+    extraOf: factsFromNode(
+      (node) => [
+        {
+          labelKey: "schema.sumup_recovery.fact.owes_money",
+          value: node.owesMoney,
+        },
+        {
+          labelKey: "schema.sumup_recovery.fact.kept",
+          value: node.prunable ? "deleted once old" : "kept until answered",
+        },
+      ],
+      "staged",
+    ),
+    id: "sumup_recovery",
+    layouts: LAYOUTS,
+  },
+);

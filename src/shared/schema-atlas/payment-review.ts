@@ -30,13 +30,12 @@ const LAYOUTS: MachineLayouts<ReviewNodeId> = {
 };
 
 /** The whole review machine: slots from the spec's constructors, edges
- * from the real functions succeeding. */
-export const paymentReviewAtlas = (): AtlasMachine =>
-  atlasMachineFrom(
-    { events: REVIEW_EVENTS, nodeOf: reviewNodeOf, nodes: REVIEW_NODES },
-    {
-      extraOf: factsFromNode(() => [], "none"),
-      id: "review",
-      layouts: LAYOUTS,
-    },
-  );
+ * from the real functions succeeding. Drawn once when this module loads. */
+export const paymentReviewAtlas: AtlasMachine = atlasMachineFrom(
+  { events: REVIEW_EVENTS, nodeOf: reviewNodeOf, nodes: REVIEW_NODES },
+  {
+    extraOf: factsFromNode(() => [], "none"),
+    id: "review",
+    layouts: LAYOUTS,
+  },
+);

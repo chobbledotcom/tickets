@@ -26,8 +26,12 @@ export const requestFlash = (): JSX.Element | null => {
   return <Flash error={error} info={info} success={success} />;
 };
 
+/** Render one flash field as text, empty when there is no message. */
+const renderFlash = (fields: FlashFields, message?: string): string =>
+  message ? String(<Flash {...fields} />) : "";
+
 export const renderError = (error?: string): string =>
-  error ? String(<Flash error={error} />) : "";
+  renderFlash({ error }, error);
 
 export const renderSuccess = (message?: string): string =>
-  message ? String(<Flash success={message} />) : "";
+  renderFlash({ success: message }, message);

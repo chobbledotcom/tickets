@@ -14,6 +14,7 @@ import {
   parse,
 } from "@formatjs/icu-messageformat-parser";
 import { range } from "#fp";
+import { includesAny } from "#fp-strings";
 import { escapeRegExp } from "#shared/regexp.ts";
 
 /**
@@ -24,8 +25,7 @@ import { escapeRegExp } from "#shared/regexp.ts";
  * for it entirely. Every other syntax character (`}`, `#`, `|`) is already
  * literal outside a placeholder, so this test is exact, not a heuristic.
  */
-export const needsIcu = (msg: string): boolean =>
-  msg.includes("{") || msg.includes("'");
+export const needsIcu = includesAny(["{", "'"]);
 
 /**
  * Rewrites the translatable copy of a message template. An ICU template comes

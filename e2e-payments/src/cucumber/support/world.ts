@@ -62,6 +62,14 @@ const required = <T>(value: T | null | undefined, what: string): T => {
   return value;
 };
 
+/** The pass-through step body: hand Cucumber's `this` world to `run`. Cucumber
+ * calls a step function with the world as `this`, so an arrow loses it — this
+ * one function carries that for every step that only delegates to the world. */
+export const worldStep = (run: (world: LiveWorld) => Promise<void> | void) =>
+  async function (this: LiveWorld): Promise<void> {
+    await run(this);
+  };
+
 export class LiveWorld extends World {
   /** Set by the AfterStep hook so teardown knows the scenario's fate. */
   stepFailed = false;

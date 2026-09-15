@@ -1,5 +1,6 @@
 import type { InValue } from "@libsql/client";
 import { type ColumnDef, col, type TableSchema } from "#db/table.ts";
+import { mapNotNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";
 import {
   type BuiltSite,
@@ -167,28 +168,21 @@ type BuiltSiteFormMapping = {
 };
 
 export const builtSiteFormMappings: BuiltSiteFormMapping[] = [
-  ...builtSitePlainColumns.flatMap((column) =>
+  ...mapNotNullish((column: BuiltSitePlainColumn | BuiltSiteBlobColumn) =>
     "formDefault" in column
-      ? [
-          {
-            dbKey: column.dbKey,
-            defaultValue: column.formDefault,
-            siteKey: column.siteKey,
-          },
-        ]
-      : [],
-  ),
-  ...builtSiteBlobColumns.flatMap((column) =>
-    "formDbKey" in column
-      ? [
-          {
+      ? {
+          dbKey: column.dbKey,
+          defaultValue: column.formDefault,
+          siteKey: column.siteKey,
+        }
+      : "formDbKey" in column
+        ? {
             dbKey: column.formDbKey,
             defaultValue: column.defaultValue,
             siteKey: column.siteKey,
-          },
-        ]
-      : [],
-  ),
+          }
+        : null,
+  )([...builtSitePlainColumns, ...builtSiteBlobColumns]),
 ];
 
 export const builtSiteInputKeyMap = Object.fromEntries(
