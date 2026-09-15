@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { fieldById, map, pipe } from "#fp";
 import {
   attendeeListHref,
@@ -6,7 +7,11 @@ import {
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
-import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
+import {
+  buildStatDetailRows,
+  calculateTotalRevenue,
+  getCheckedInStats,
+} from "#templates/admin/detail-rows.tsx";
 import { type Attendee, type AttendeeTableRow, isPaidListing } from "#types";
 import {
   AddAttendeeSection,
@@ -22,6 +27,8 @@ import {
 } from "./capacity-rows.tsx";
 import { attendeeCountLabelSuffix } from "./helpers.ts";
 import type { ListingPanelOptions } from "./types.ts";
+
+/* jscpd:ignore-end */
 
 const listingRosterView = (opts: ListingPanelOptions) => {
   const {
@@ -50,14 +57,13 @@ const listingRosterView = (opts: ListingPanelOptions) => {
   // order, or the table's own date-and-name order.
   const orderedAttendees = attendeeListOrder(sort)(filteredAttendees);
   const dailySuffix = attendeeCountLabelSuffix(isDaily, dateFilter);
-  const sharedRows = buildSharedDetailRows({
-    attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,
-    attendees: completeAttendees,
-    hasPaidListing,
+  const sharedRows = buildStatDetailRows({
+    checkedInStats: getCheckedInStats(completeAttendees),
     labelSuffix: dailySuffix,
-    maxCapacity: isDaily && !dateFilter ? 0 : listing.max_attendees,
     questionData,
-    skipAttendees: true,
+    revenue: hasPaidListing
+      ? calculateTotalRevenue(completeAttendees)
+      : undefined,
   });
   const returnUrl = attendeeListHref(list.setup, list.state);
   const tableRows: AttendeeTableRow[] = pipe(
