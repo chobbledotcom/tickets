@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildSharedDetailRows,
+  buildStatDetailRows,
   calculateTotalRevenue,
   countCheckedIn,
   countCheckedInRows,
@@ -24,13 +25,16 @@ describe("detail-rows", () => {
   const answerSummaryRows = (
     questionData: SharedDetailInput["questionData"],
   ): DetailRow[] =>
-    buildSharedDetailRows({
-      attendeeCount: 0,
-      attendees: [],
-      hasPaidListing: false,
-      maxCapacity: 0,
+    buildStatDetailRows({
+      checkedInStats: {
+        hasMultiQuantity: false,
+        rowsCheckedIn: 0,
+        rowsTotal: 0,
+        ticketsCheckedIn: 0,
+        ticketsTotal: 0,
+      },
+      labelSuffix: "",
       questionData,
-      skipAttendees: true,
     }).slice(1);
 
   describe("DetailTable", () => {
@@ -217,17 +221,6 @@ describe("detail-rows", () => {
 
     test("does not show danger-text when no capacity set", () => {
       expect(attendeesRowValue(100, 0)).not.toContain("danger-text");
-    });
-
-    test("skips attendees row when skipAttendees is true", () => {
-      const rows = buildSharedDetailRows({
-        attendeeCount: 5,
-        attendees: [],
-        hasPaidListing: false,
-        maxCapacity: 0,
-        skipAttendees: true,
-      });
-      expect(rows.find((r) => r.key === "Attendees")).toBeUndefined();
     });
 
     test("shows single checked-in row when no multi-quantity", () => {

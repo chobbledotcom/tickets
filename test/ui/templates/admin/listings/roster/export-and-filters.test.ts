@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
   registerListingTemplateHooks,
+  type renderListingDetail as renderListingDetailType,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -266,5 +267,35 @@ describe("adminListingPage Renewal tag", () => {
       allowedDomain: "",
     });
     expect(html).not.toContain("Renewal");
+  });
+});
+
+describe("adminListingPage daily roster detail table", () => {
+  registerListingTemplateHooks();
+
+  // The roster renders its shared detail rows (including the revenue row) only
+  // when a daily listing is narrowed to one date.
+  const dailyHtml = (
+    unit_price: number,
+    attendees: Parameters<typeof renderListingDetailType>[0]["attendees"],
+  ) =>
+    detailHtml(
+      testListingWithCount({
+        attendee_count: attendees.length,
+        listing_type: "daily",
+        unit_price,
+      }),
+      { attendees, dateFilter: "2026-03-15" },
+    );
+
+  test("shows the revenue row for a paid listing", () => {
+    const html = dailyHtml(1000, [testAttendee({ price_paid: "1000" })]);
+    expect(html).toContain("Total Revenue");
+    expect(html).toContain("£10");
+  });
+
+  test("hides the revenue row for a free listing", () => {
+    const html = dailyHtml(0, [testAttendee({ price_paid: "0" })]);
+    expect(html).not.toContain("Total Revenue");
   });
 });

@@ -170,8 +170,6 @@ export type SharedDetailInput = {
   hasPaidListing: boolean;
   questionData?: AttendeeQuestionData | undefined;
   labelSuffix?: string;
-  /** Skip the attendees row (when the caller renders its own complex version) */
-  skipAttendees?: boolean;
   /** Total revenue (minor units) to show, when the caller has an authoritative
    * figure that doesn't depend on the loaded attendee rows — the group page
    * passes the ledger-projected income, which still counts revenue from bookings
@@ -236,12 +234,9 @@ export const buildSharedDetailRows = ({
   hasPaidListing,
   questionData,
   labelSuffix = "",
-  skipAttendees = false,
   revenue,
 }: SharedDetailInput): DetailRow[] => [
-  ...(skipAttendees
-    ? []
-    : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
+  buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix),
   ...buildStatDetailRows({
     checkedInStats: getCheckedInStats(attendees),
     labelSuffix,
