@@ -17,10 +17,9 @@ describeWithEnv(
         initialSiteMonths: 4,
       });
 
-      const result = await bodyToUpdateInput(
-        { max_attendees: 12 },
-        (await getListingWithCount(plan.id))!,
-      );
+      const storedPlan = await getListingWithCount(plan.id);
+      if (!storedPlan) throw new Error(`created plan ${plan.id} is missing`);
+      const result = await bodyToUpdateInput({ max_attendees: 12 }, storedPlan);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
