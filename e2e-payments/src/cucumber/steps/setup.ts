@@ -9,11 +9,8 @@ import { config } from "#e2e/config.ts";
 // jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
-import {
-  assertFreeThankYou,
-  createListing,
-  waitForHostedCheckout,
-} from "#e2e/flow.ts";
+import { assertFreeThankYou, waitForHostedCheckout } from "#e2e/flow.ts";
+import { createListing, type ListingFields } from "#e2e/listing-flow.ts";
 import { buildOrderCatalog, type OrderCatalog } from "#e2e/order-flow.ts";
 import { refuseOtherProvider } from "#e2e/providers/shared.ts";
 import type { ProviderName } from "#e2e/providers/types.ts";
@@ -37,19 +34,28 @@ const configureCurrentProvider = async (world: LiveWorld): Promise<void> => {
   world.recordPhase("provider-configured");
 };
 
+/** Publish this scenario's listing through the real admin form: create it,
+ *  remember its public booking path, and record the given phase. */
+const publishListing = async (
+  world: LiveWorld,
+  phase: string,
+  fields: ListingFields,
+): Promise<void> => {
+  await world.prepareOwner();
+  const path = await createListing(world.resources.owner, fields);
+  world.rememberListing(path);
+  world.recordPhase(phase);
+};
+
 /** Publish the scenario's single listing at the given price. */
 const publishPricedListing = async (
   world: LiveWorld,
   priceMinor: number,
-): Promise<void> => {
-  await world.prepareOwner();
-  const path = await createListing(world.resources.owner, {
+): Promise<void> =>
+  publishListing(world, "listing-published", {
     name: world.scenario.listingName,
     priceMinor,
   });
-  world.rememberListing(path);
-  world.recordPhase("listing-published");
-};
 
 Given(
   /^(Stripe|Square|SumUp) is configured with dedicated (?:test|sandbox) credentials$/,
@@ -70,6 +76,20 @@ for (const [text, priceMinor] of PUBLISHED_LISTING_STEPS) {
     await publishPricedListing(this, priceMinor);
   });
 }
+
+Given(
+  "the owner has published a three-month site plan",
+  async function (this: LiveWorld): Promise<void> {
+    await publishListing(this, "plan-listing-published", {
+      name: this.scenario.listingName,
+      priceMinor: config.unitPrice,
+      sitePlanMonths: 3,
+    });
+    // The plan sells three units on this scenario, so the expected income is
+    // the three-unit total.
+    this.rememberBookingPrice(config.unitPrice * 3);
+  },
+);
 
 Given(
   "a separate visitor has begun paying for a priced listing",

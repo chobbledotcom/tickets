@@ -38,7 +38,6 @@ import { pollUntil } from "#e2e/util.ts";
 import {
   attendeeTabOf,
   bookAsVisitor,
-  bookingIdentity,
   openScenarioListing,
   ownerOf,
   requireExactly,
@@ -79,10 +78,11 @@ const payHosted = async (world: LiveWorld): Promise<void> => {
   world.recordPhase("checkout-paid");
 };
 
-/** Pay through Stripe while holding the first browser return, so only the
- * signed webhook can create the booking; the exact intercepted URL is kept
- * for the replay step. */
-const payStripeWithHeldReturn = async (world: LiveWorld): Promise<void> => {
+/** Pay through Stripe holding the first browser return, so only the signed
+ * webhook can create the booking; the replay step reuses the held URL. */
+export const payStripeWithHeldReturn = async (
+  world: LiveWorld,
+): Promise<void> => {
   const held = holdFirstAppReturn(world.resources.visitor);
   await payHosted(world);
   world.rememberHeldReturn(await held.capturedUrl());
@@ -442,7 +442,7 @@ Then(
   async function (this: LiveWorld): Promise<void> {
     const attendees = await assertBookedInAdmin(
       this.resources.owner,
-      bookingIdentity(this),
+      this.bookingIdentity,
       this.scenario.owner,
     );
     requireExactly(

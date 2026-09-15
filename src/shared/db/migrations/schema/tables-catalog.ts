@@ -15,6 +15,7 @@ export const catalogTables: [name: string, table: Table][] = [
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
         ["is_package", "INTEGER NOT NULL DEFAULT 0"],
         ["hide_package_listings", "INTEGER NOT NULL DEFAULT 0"],
+        ["show_hidden_listings", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
         {

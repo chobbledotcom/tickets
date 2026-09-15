@@ -112,6 +112,7 @@ src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → ||   # Map.groupB
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → ||   # rowsByGroup has the same array-or-undefined domain
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds creates an entry for every requested group before it reads rows
 src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → ||   # validated package quantities are positive integers, so zero never reaches this default
+src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1ngldaa  ?? → ||   # both guards return a non-empty translated error string or null, so either operator returns the first error or null
 
 # Accounting batch reads return arrays. An empty listing filter skips its SQL
 # clause because matchesNothing answers the read before the query runs.

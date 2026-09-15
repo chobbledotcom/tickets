@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Name the booking order each refund reverses, so one returned order no longer marks a person's other orders refunded.";
+  "Let a group's booking page keep its hidden member listings off the page, one group at a time.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

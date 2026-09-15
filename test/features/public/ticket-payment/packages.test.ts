@@ -52,6 +52,7 @@ describeWithEnv(
           aggregateNodeQuantities(tree, nodeQuantities),
           new Map(),
           1,
+          { renewal: false },
         );
       };
 
@@ -97,6 +98,7 @@ describeWithEnv(
           aggregateNodeQuantities(tree, nodeQuantities),
           new Map(),
           1,
+          { renewal: false },
         );
         // The member line carries ITS package's id and ITS override price.
         expect(items).toEqual([

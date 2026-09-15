@@ -5,10 +5,12 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { bodyToCreateInput } from "#routes/admin/api-listing-body.ts";
+import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { rescuingPageSetup } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
@@ -267,5 +269,82 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       {},
       "Listing is already active",
     );
+  });
+
+  test("refuses group IDs for a listing that assigns a built site", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const group = await createTestGroup({ name: "API Plan Refusal Group" });
+    const plan = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "API Refused Plan",
+    });
+
+    await expectListingApiError(
+      `/api/admin/listings/${plan.id}`,
+      "PUT",
+      { group_ids: [group.id] },
+      sitePlanMemberError(plan.name),
+    );
+    expect(await listingGroups.getIds(plan.id)).toEqual([]);
+  });
+
+  test("refuses child listing IDs for a listing that assigns a built site", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const plan = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "API Childless Plan",
+    });
+    const child = await createTestListing({ name: "API Plan Child" });
+
+    await expectListingApiError(
+      `/api/admin/listings/${plan.id}`,
+      "PUT",
+      { child_listing_ids: [child.id] },
+      t("listings_table.children_err_parent_site_plan", { name: plan.name }),
+    );
+    expect(await listingChildren.getIds(plan.id)).toEqual([]);
+  });
+
+  test("refuses grouping a built-site plan even when the patch omits its flag", async () => {
+    // The API cannot set assign_built_site, so an earlier flag stored true
+    // must survive into the merged update input — not read as absent.
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const group = await createTestGroup({ name: "API Omitted Flag Group" });
+    const plan = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "API Omitted Flag Plan",
+    });
+
+    await expectListingApiError(
+      `/api/admin/listings/${plan.id}`,
+      "PUT",
+      { group_ids: [group.id], max_attendees: 12 },
+      sitePlanMemberError(plan.name),
+    );
+    expect(await listingGroups.getIds(plan.id)).toEqual([]);
+  });
+
+  test("accepts clearing the groups of a listing that assigns a built site", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const group = await createTestGroup({ name: "API Plan Removal Group" });
+    const plan = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "API Removal Plan",
+    });
+    const { setListingGroups } = await import("#db/groups.ts");
+    await setListingGroups(plan.id, [group.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${plan.id}`, {
+        body: { group_ids: [] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await listingGroups.getIds(plan.id)).toEqual([]);
   });
 });

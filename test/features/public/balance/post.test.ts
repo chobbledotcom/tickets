@@ -82,7 +82,9 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
       checkoutStub.restore();
     }
     // A single "Remaining balance" line at the outstanding amount, no booking
-    // fee, no PII — the exact contract the customer is charged against.
+    // fee, no PII — the exact contract the customer is charged against. The
+    // line states its tickets unit: a balance settles money already owed and
+    // buys no plan months whatever the referenced listing sells.
     expect(captured).toEqual({
       address: "",
       balanceAttendeeId: attendeeId,
@@ -93,6 +95,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
         {
           listingId,
           name: "Remaining balance",
+          purchaseUnit: { kind: "tickets" },
           quantity: 1,
           slug: "balance",
           unitPrice: 1500,

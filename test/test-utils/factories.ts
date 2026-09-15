@@ -17,7 +17,6 @@ import { generateTestListingName } from "#test-utils/internal.ts";
 import type {
   Attendee,
   Group,
-  Holiday,
   Listing,
   ListingWithCount,
   Modifier,
@@ -185,18 +184,11 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   is_package: false,
   max_attendees: 0,
   name: "Test Group",
+  show_hidden_listings: true,
   slug: "test-group",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   slug_index: "test-group-index" as BlindIndex,
   terms_and_conditions: "",
-  ...overrides,
-});
-
-export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
-  end_date: "2026-12-25",
-  id: 1,
-  name: "Test Holiday",
-  start_date: "2026-12-25",
   ...overrides,
 });
 

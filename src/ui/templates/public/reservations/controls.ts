@@ -12,13 +12,14 @@ import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import type { ListingWithCount } from "#types";
+import { pricedMonthsForListing } from "./quantities.ts";
 /* jscpd:ignore-end */
 
 /** A date-selector dropdown for daily listings. */
 export const renderDateSelector = (
   dates: string[],
-  selected = "",
-  durationDays = 1,
+  selected: string,
+  durationDays: number,
 ): string =>
   dates.length === 0
     ? `<div class="error">${t("public.ticket.no_dates_available")}</div>`
@@ -71,25 +72,45 @@ export const renderDayCountSelector = (
 };
 
 /** A price input for pay-more listings. `required` is the HTML constraint: page
- * listings emit a required input when the minimum price is above zero, but a
- * child's pay-more input renders non-required — the no-JS baseline emits one for
- * every pay-more child of a parent, so a `required` input would block submit
- * demanding a price for an UNSELECTED child; the server validates only the chosen
- * child's price. */
+ *  listings emit a required input when the minimum price is above zero, but a
+ *  child's pay-more input renders non-required — the no-JS baseline emits one for
+ *  every pay-more child of a parent, so a `required` input would block submit
+ *  demanding a price for an UNSELECTED child; the server validates only the chosen
+ *  child's price. A renewal page prices its tiers by their months per unit. */
 export const renderPayMoreInput = (
-  listing: Pick<ListingWithCount, "unit_price" | "max_price">,
+  listing: Pick<
+    ListingWithCount,
+    "assign_built_site" | "initial_site_months" | "max_price" | "unit_price"
+  > & { months_per_unit?: number | undefined },
   fieldName = "custom_price",
   prefillMinor?: number,
   required = true,
+  renewal?: boolean | undefined,
 ): string => {
   const minPrice = listing.unit_price;
   const maxPrice = listing.max_price;
+  // One priced unit of a site plan is its whole initial term, not one month;
+  // a renewal tier prices its count by months per unit.
+  const pricedMonths = pricedMonthsForListing(
+    { ...listing, months_per_unit: listing.months_per_unit ?? 0 },
+    renewal,
+  );
   const rangeHint =
     minPrice > 0
-      ? t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
-      : t("public.ticket.your_price_optional", {
-          max: formatCurrency(maxPrice),
-        });
+      ? pricedMonths
+        ? t("public.ticket.your_price_plan_min", {
+            count: pricedMonths,
+            min: formatCurrency(minPrice),
+          })
+        : t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
+      : pricedMonths
+        ? t("public.ticket.your_price_plan_optional", {
+            count: pricedMonths,
+            max: formatCurrency(maxPrice),
+          })
+        : t("public.ticket.your_price_optional", {
+            max: formatCurrency(maxPrice),
+          });
   const prefillValue =
     prefillMinor !== undefined && prefillMinor >= minPrice
       ? prefillMinor

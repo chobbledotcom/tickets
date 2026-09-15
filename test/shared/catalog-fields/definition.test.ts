@@ -37,6 +37,7 @@ describe("catalog field projection", () => {
         isPackage: schemas.boolean,
         maxAttendees: schemas.nonNegativeInt,
         name: schemas.name,
+        showHiddenListings: schemas.boolean,
         termsAndConditions: schemas.string,
       },
     );
@@ -61,6 +62,7 @@ describe("catalog field projection", () => {
         is_package: "",
         max_attendees: null,
         name: "Package",
+        show_hidden_listings: "1",
         terms_and_conditions: "Terms",
       }),
     ).toEqual({
@@ -70,6 +72,7 @@ describe("catalog field projection", () => {
       isPackage: false,
       maxAttendees: 0,
       name: "Package",
+      showHiddenListings: true,
       termsAndConditions: "Terms",
     });
   });
@@ -194,6 +197,7 @@ describe("catalog field projection", () => {
         hide_package_listings: false,
         is_package: false,
         max_attendees: 0,
+        show_hidden_listings: true,
         terms_and_conditions: "",
       }),
     ).toEqual({
@@ -202,6 +206,7 @@ describe("catalog field projection", () => {
       hidePackageListings: false,
       isPackage: false,
       maxAttendees: 0,
+      showHiddenListings: true,
       termsAndConditions: "",
     });
   });

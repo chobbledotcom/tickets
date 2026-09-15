@@ -8,7 +8,13 @@ import { settings } from "#db/settings.ts";
 import { col, defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
 import { todayInTz } from "#shared/timezone.ts";
-import type { Holiday } from "#types";
+
+export interface Holiday {
+  end_date: string;
+  id: number;
+  name: string;
+  start_date: string;
+}
 
 /** Holiday input fields for create/update (camelCase) */
 export type HolidayInput = {

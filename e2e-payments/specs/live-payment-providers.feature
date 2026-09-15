@@ -155,9 +155,26 @@ Feature: Real sandbox payments finish safely
       And Money shows the payment and one refund netting to zero
       And Money shows no sale for the unfulfilled booking
       And the retained booking shows the system reason
-      When the visitor retries the exact return
-      Then there is still one retained booking and one refund
-      And Stripe still shows only the original returned amount
+    When the visitor retries the exact return
+    Then there is still one retained booking and one refund
+    And Stripe still shows only the original returned amount
+
+  @rule:payments.live-plan-priced-in-months @surface:admin @surface:public @surface:return
+  Rule: A site plan is sold in months and paid once
+    Quantity on a built-site plan buys months of one site's service. The
+    sandbox has no build infrastructure, so the expected outcome is the
+    documented failure mode: the paid booking and its money stand, the failed
+    build costs no later entry its attempt, and the system map answers clean.
+
+    @case:live-payments.stripe-plan-months
+    Scenario: A visitor buys three units of a three-month site plan
+      Given Stripe is configured with dedicated test credentials
+      And the owner has published a three-month site plan
+      When a separate visitor pays for three units through Stripe Checkout
+      And Stripe's signed webhook confirms the payment
+      And the visitor retries the exact browser return
+      Then the owner sees one attendee and the captured income once
+      And the owner's system map answers clean
 
   @rule:payments.live-complex-order-keeps-every-path @surface:admin @surface:public
   Rule: A complex order records every booking path

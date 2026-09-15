@@ -1,6 +1,14 @@
-import type { HolidayInput } from "#db/holidays.ts";
-import type { Holiday } from "#types";
+import type { Holiday, HolidayInput } from "#db/holidays.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
+
+/** A hand-built holiday row, for tests that sort or fold without a database. */
+export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
+  end_date: "2026-12-25",
+  id: 1,
+  name: "Test Holiday",
+  start_date: "2026-12-25",
+  ...overrides,
+});
 
 export const createTestHoliday = (
   overrides: Partial<HolidayInput> = {},

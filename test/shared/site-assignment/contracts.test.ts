@@ -8,10 +8,12 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
-  assignAndNotifyBuiltSites,
   isQualifyingTierListing,
-  parseReadOnlyFromMs,
   pickTierListing,
+} from "#shared/renewal-tier.ts";
+import {
+  assignAndNotifyBuiltSites,
+  parseReadOnlyFromMs,
   renewalDeadlineBaseMs,
   rotateRenewalToken,
   syncReadOnlyFrom,
@@ -36,8 +38,8 @@ const configEntry = (initialSiteMonths = 3) => ({
   },
 });
 
-const assignmentEntry = (quantity: number) => ({
-  attendee: { email: "buyer@example.com", id: 81, quantity },
+const assignmentEntry = (attendeeId = 81) => ({
+  attendee: { email: "buyer@example.com", id: attendeeId, quantity: 1 },
   listing: {
     assign_built_site: true,
     id: 71,
@@ -50,6 +52,7 @@ const tierFields = (
   overrides: Partial<Parameters<typeof isQualifyingTierListing>[0]> = {},
 ) => ({
   active: true,
+  assign_built_site: false,
   hidden: true,
   months_per_unit: 1,
   purchase_only: true,
@@ -89,7 +92,9 @@ const sendSetupEmail = async (siteNames: readonly string[]) => {
     );
   }
 
-  await assignAndNotifyBuiltSites([assignmentEntry(siteNames.length)]);
+  await assignAndNotifyBuiltSites(
+    siteNames.map((_, index) => assignmentEntry(81 + index)),
+  );
 
   return JSON.parse(fetchStub.calls[0]!.args[1].body);
 };
@@ -98,11 +103,12 @@ describe("site assignment configuration contracts", () => {
   test("requires every renewal-tier condition", () => {
     expect([
       isQualifyingTierListing(tierFields()),
+      isQualifyingTierListing(tierFields({ assign_built_site: true })),
       isQualifyingTierListing(tierFields({ purchase_only: false })),
       isQualifyingTierListing(tierFields({ hidden: false })),
       isQualifyingTierListing(tierFields({ months_per_unit: 0 })),
       isQualifyingTierListing(tierFields({ active: false })),
-    ]).toEqual([true, false, false, false, false]);
+    ]).toEqual([true, false, false, false, false, false]);
   });
 
   test("returns the complete builder-disabled error", async () => {
@@ -254,7 +260,7 @@ describeWithEnv(
       );
       using _time = new FakeTime("2030-01-15T12:00:00.000Z");
 
-      await assignAndNotifyBuiltSites([assignmentEntry(1)]);
+      await assignAndNotifyBuiltSites([assignmentEntry()]);
 
       const site = (await builtSites.getAll()).find(
         ({ name }) => name === "Renewable site",

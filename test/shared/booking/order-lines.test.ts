@@ -38,6 +38,18 @@ const dualPathTree = () =>
     standaloneListingIds: new Set([1]),
   });
 
+/** The (listing id, quantity) lines a plain one-day purchase books, with no
+ *  custom prices and no renewal — the tail every ordinary-order assertion
+ *  reduces to. */
+const plainOrderLinePairs = (
+  tree: ReturnType<typeof buildBookingTree>,
+  nodeQuantities: ReadonlyMap<string, number>,
+  foldedQuantities: ReadonlyMap<number, number>,
+): [number, number][] =>
+  buildOrderLines(tree, nodeQuantities, foldedQuantities, new Map(), 1, {
+    renewal: false,
+  }).map((line) => [line.listingId, line.quantity]);
+
 describe("nodeQuantitiesFor", () => {
   test("a member node books its fixed quantity times the package count", () => {
     const quantities = nodeQuantitiesFor(
@@ -109,6 +121,15 @@ describe("aggregateNodeQuantities", () => {
 });
 
 describe("buildOrderLines", () => {
+  /** A parent (id 1, "Bouncy Castle") with one folded child the given spec
+   *  builds — the shape every child-line test asserts against. */
+  const childLineTree = (child: Partial<Parameters<typeof resolved>[0]>) =>
+    buildBookingTree({
+      childrenByParentId: new Map([[1, [resolved(child)]]]),
+      listings: [resolved({ id: 1, name: "Bouncy Castle", slug: "bounc" })],
+      slugs: ["bounc"],
+    });
+
   test("books one line per path, each priced by its own rule", () => {
     const tree = dualPathTree();
     const nodeQuantities = nodeQuantitiesFor(
@@ -125,6 +146,7 @@ describe("buildOrderLines", () => {
       aggregateNodeQuantities(tree, nodeQuantities),
       new Map(),
       1,
+      { renewal: false },
     );
     expect(lines).toEqual([
       {
@@ -155,23 +177,44 @@ describe("buildOrderLines", () => {
     expect(Object.hasOwn(lines[2]!, "packageGroupId")).toBe(false);
   });
 
+  test("keeps a single folded child unit as its own line", () => {
+    // One booked add-on is still a line: dropping quantity-1 child lines
+    // would silently lose a paid unit from the order.
+    const tree = childLineTree({
+      id: 11,
+      name: "Wristband",
+      slug: "wrist",
+      unit_price: 250,
+    });
+    expect(
+      plainOrderLinePairs(
+        tree,
+        new Map([["listing:1", 1]]),
+        new Map([
+          [1, 1],
+          [11, 1],
+        ]),
+      ),
+    ).toEqual([
+      [1, 1],
+      [11, 1],
+    ]);
+  });
+
   test("skips paths booked zero times or missing from the map entirely", () => {
     const tree = dualPathTree();
     // The member path is explicitly zero and listing:2 is absent — only the
     // standalone path of listing 1 books.
-    const lines = buildOrderLines(
-      tree,
-      new Map([
-        ["listing:1", 1],
-        ["package:7/member:1", 0],
-      ]),
-      new Map(),
-      new Map(),
-      1,
-    );
-    expect(lines.map((line) => [line.listingId, line.quantity])).toEqual([
-      [1, 1],
-    ]);
+    expect(
+      plainOrderLinePairs(
+        tree,
+        new Map([
+          ["listing:1", 1],
+          ["package:7/member:1", 0],
+        ]),
+        new Map(),
+      ),
+    ).toEqual([[1, 1]]);
   });
 
   test("reads buyer-chosen prices for pay-more listings", () => {
@@ -193,6 +236,7 @@ describe("buildOrderLines", () => {
       new Map([[2, 1]]),
       new Map([[2, 12345]]),
       1,
+      { renewal: false },
     );
     expect(lines[0]!.unitPrice).toBe(12345);
   });
@@ -220,18 +264,13 @@ describe("buildOrderLines", () => {
       new Map([[1, 1]]),
       new Map(),
       2,
+      { renewal: false },
     );
     expect(lines[0]!.unitPrice).toBe(777);
   });
 
   test("adds one line per folded child for units the top level does not cover", () => {
-    const tree = buildBookingTree({
-      childrenByParentId: new Map([
-        [1, [resolved({ id: 10, name: "Generator", slug: "genrt" })]],
-      ]),
-      listings: [resolved({ id: 1, name: "Bouncy Castle", slug: "bounc" })],
-      slugs: ["bounc"],
-    });
+    const tree = childLineTree({ id: 10, name: "Generator", slug: "genrt" });
     const lines = buildOrderLines(
       tree,
       new Map([["listing:1", 2]]),
@@ -241,6 +280,7 @@ describe("buildOrderLines", () => {
       ]),
       new Map([[10, 888]]),
       1,
+      { renewal: false },
     );
     expect(lines).toEqual([
       {
@@ -289,6 +329,7 @@ describe("buildOrderLines", () => {
       ]),
       new Map(),
       1,
+      { renewal: false },
     );
     expect(lines).toEqual([
       {
@@ -323,6 +364,7 @@ describe("buildOrderLines", () => {
       new Map([[1, 5]]),
       new Map(),
       1,
+      { renewal: false },
     );
     expect(lines.map((line) => line.quantity)).toEqual([4, 1]);
   });

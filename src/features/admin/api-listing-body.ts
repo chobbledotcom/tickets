@@ -177,6 +177,10 @@ export const bodyToUpdateInput = async (
     return okResult({
       ...projectCatalogFields(listingCatalogFields, "storedApi", existing),
       ...projectCatalogFields(listingCatalogFields, "api", body),
+      // The JSON API cannot set these four fields, so fold the stored ones in
+      // as the update's final facts — an update that adds groups or children
+      // must read them the way the validators do, not as absent-and-false.
+      assignBuiltSite: existing.assign_built_site,
       dayPrices:
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
@@ -185,9 +189,12 @@ export const bodyToUpdateInput = async (
         groupIds === undefined
           ? await listingGroups.getIds(existing.id)
           : groupIds,
+      initialSiteMonths: existing.initial_site_months,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
+      monthsPerUnit: existing.months_per_unit,
       name: parsedName.value,
+      purchaseOnly: existing.purchase_only,
       slug,
       slugIndex,
     } as ListingInput);

@@ -9,12 +9,12 @@ import {
   groups,
   readGroupMembersWith,
 } from "#db/groups.ts";
-import { getActiveHolidays } from "#db/holidays.ts";
+import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import type { Group, Holiday, ListingWithCount } from "#types";
+import type { Group, ListingWithCount } from "#types";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 

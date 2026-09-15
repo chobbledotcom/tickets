@@ -17,10 +17,11 @@ import type { ValidatedItem } from "#routes/api/payment-processing/package-prici
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import type {
-  CheckoutIntent,
-  CheckoutItem,
-  ModifierSpec,
+import {
+  type CheckoutIntent,
+  type CheckoutItem,
+  checkoutItem,
+  type ModifierSpec,
 } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
 
@@ -55,14 +56,18 @@ export const checkoutIntentForSession = (
   ...contactFields(intent),
   date: intent.date,
   items: validatedItems.map((v) => ({
-    listingId: v.item.e,
-    name: v.name,
+    // The signed name conceals a hidden package's member; the listing facts
+    // beneath it resolve what one unit buys.
+    ...checkoutItem(
+      { ...v.listing, name: v.name },
+      v.item.q,
+      v.item.p / v.item.q,
+      // A session that renews a site prices its lines by months per unit.
+      { renewal: intent.siteTokenIndex !== undefined },
+    ),
     ...(v.item.k === "p" && v.item.r !== undefined
       ? { packageGroupId: v.item.r }
       : {}),
-    quantity: v.item.q,
-    slug: v.listing.slug,
-    unitPrice: v.item.p / v.item.q,
   })),
   modifiers: modifierSpecs,
   ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),

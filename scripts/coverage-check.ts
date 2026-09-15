@@ -130,6 +130,7 @@ const COVERAGE_EXCLUSIONS = [
   // under normal coverage and are directly tested under test/e2e-payments/.
   "e2e-payments/src/browser.ts",
   "e2e-payments/src/flow.ts",
+  "e2e-payments/src/listing-flow.ts",
   "e2e-payments/src/order-flow.ts",
   "e2e-payments/src/server.ts",
   "e2e-payments/src/tunnel.ts",
@@ -147,6 +148,7 @@ const COVERAGE_EXCLUSIONS = [
   "e2e-payments/src/cucumber/steps/pages.ts",
   "e2e-payments/src/cucumber/steps/refund.ts",
   "e2e-payments/src/cucumber/steps/setup.ts",
+  "e2e-payments/src/cucumber/steps/site-plan.ts",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */

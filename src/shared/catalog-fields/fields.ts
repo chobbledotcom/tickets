@@ -18,6 +18,7 @@ import type { OptionalCatalogFieldValues } from "./definition.ts";
 const [CATALOG_API, CATALOG_FORM, CATALOG_API_FORM] = [1, 2, 3] as const;
 const encryptedTextColumn = col.encryptedText(encrypt, decrypt);
 const falseColumn = col.boolean(false);
+const trueColumn = col.boolean(true);
 const zeroColumn = col.withDefault(() => 0);
 const oneColumn = col.withDefault(() => 1);
 
@@ -166,6 +167,12 @@ export const groupCatalogFields = {
     0,
   ],
   name: ["name", undefined, "name", CATALOG_FORM],
+  showHiddenListings: [
+    "show_hidden_listings",
+    trueColumn,
+    "boolean",
+    CATALOG_API_FORM,
+  ],
   termsAndConditions: [
     "terms_and_conditions",
     encryptedTextColumn,

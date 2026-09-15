@@ -16,7 +16,7 @@ import { sitePages } from "#db/site-pages.ts";
 import { fieldById } from "#fp";
 import { t } from "#i18n";
 // jscpd:ignore-start
-import { isQualifyingTierListing } from "#shared/site-assignment.ts";
+import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import { buildForest, eligibleChildPages } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import {

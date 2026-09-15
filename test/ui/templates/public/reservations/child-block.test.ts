@@ -220,6 +220,7 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
       expect(html).toContain(`data-sole-child="${child.id}"`);
+      // An ordinary sole child shows its name alone — no plan term.
       expect(html).toContain(
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}">Add-on</p>`,
       );

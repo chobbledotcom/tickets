@@ -151,4 +151,10 @@ src/features/admin/servicing/page.tsx::servicingEventsTable~0rgbx6b  ?? → ||  
 src/features/admin/servicing/page.tsx::renderServicingPage.html.name~1q0cbpf  ?? → ||   # event?.name is undefined or a stored event name, and an event name is required, so the left side can never be the "" fallback's only falsy string
 src/features/admin/servicing/page.tsx::renderServicingPage.title~0y52sh9  ?? → ||   # event?.name is undefined or a stored event name, and an event name is required, so ?? and || pick the same title for every event
 
+# The group form's package member table — the column keys configure a
+# renderTable call that names no columns.
+src/ui/templates/admin/groups/form.tsx::packageMembersTable~1d0ja3s  name → ""   # renderTable draws packageMembersTable with no columnKeys, hiddenKeys, or filters, so the column key names no DOM output on that path
+src/ui/templates/admin/groups/form.tsx::packageMembersTable.key~0xky529  price → ""   # same as the name key — the members table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/groups/form.tsx::packageMembersTable.key~0obhtqh  quantity → ""   # same as the name key — the members table renders without columnKeys, hiddenKeys, or filters
+
 src/ui/templates/admin/listings/overview.tsx::overviewStatsFromAttendees~0so9vc9  ?? → ||   # the operand is a Set or undefined, and every Set object is truthy

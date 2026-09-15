@@ -4,6 +4,7 @@
 
 import type { ActiveListingStats } from "#db/attendee-types.ts";
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
+import type { Holiday } from "#db/holidays.ts";
 /* jscpd:ignore-start -- imports */
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
@@ -41,12 +42,7 @@ import {
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { openSection } from "#templates/components/open-section.tsx";
-import type {
-  AdminSession,
-  DisplayAttendee,
-  Holiday,
-  ListingWithCount,
-} from "#types";
+import type { AdminSession, DisplayAttendee, ListingWithCount } from "#types";
 
 /** Keeps only the listings that are still active. */
 const activeOnly = filter((e: ListingWithCount) => e.active);

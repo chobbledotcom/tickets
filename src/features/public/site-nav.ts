@@ -16,7 +16,7 @@ import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
 import { allPageItemsRead } from "#db/site-page-items.ts";
 import { sitePagesNavRead } from "#db/site-pages.ts";
 import { compact, filter, map, pipe, unique } from "#fp";
-import { isQualifyingTierListing } from "#shared/site-assignment.ts";
+import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import { buildNavModel } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";

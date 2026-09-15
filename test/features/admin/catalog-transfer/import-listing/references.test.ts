@@ -4,11 +4,13 @@ import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 const expectImportError = async (
   blob: unknown,
@@ -89,6 +91,31 @@ describeWithEnv("catalog import references", { db: true }, () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
     expect(result.error).toBe(t("error.parent_is_already_a_child"));
+  });
+
+  test("rejects a parent that is a built-site plan", async () => {
+    using _env = withEnv({ CAN_BUILD_SITES: "true" });
+    const parent = await createTestListing({
+      assignBuiltSite: true,
+      initialSiteMonths: 1,
+      name: "Site-plan parent",
+    });
+
+    await expectImportError(
+      {
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Plan-parent child" },
+        parents: [parent.name],
+        version: 1,
+      },
+      t("listings_table.children_err_parent_site_plan", {
+        name: parent.name,
+      }),
+    );
+    // Nothing partially imported: the child rolled back with its edges.
+    expect(
+      (await getAllListings()).some((row) => row.name === "Plan-parent child"),
+    ).toBe(false);
   });
 
   test("does not treat a visible ordinary-group member as a hidden-package parent", async () => {
