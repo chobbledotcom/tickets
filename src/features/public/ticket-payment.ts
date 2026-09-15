@@ -129,17 +129,18 @@ export const runCheckoutFlow = (
   onError: (msg: string, status: number) => Response,
 ): Promise<Response> => {
   logDebug("Payment", `Starting ${label} checkout`);
+  /** The 500 tail both checkout dead ends share: log the cause, answer the
+   * message. */
+  const checkoutFailureAt =
+    (message: string, cause: string) => (): Response => {
+      logDebug("Payment", cause);
+      return onError(message, 500);
+    };
   return withPaymentProvider(
-    () => {
-      logDebug(
-        "Payment",
-        `No payment provider configured for ${label} checkout`,
-      );
-      return onError(
-        "Payments are not configured. Please contact the administrator.",
-        500,
-      );
-    },
+    checkoutFailureAt(
+      "Payments are not configured. Please contact the administrator.",
+      `No payment provider configured for ${label} checkout`,
+    ),
     async (provider) => {
       logDebug("Payment", `Using provider=${provider.type} for ${label}`);
       const baseUrl = getBaseUrl(request);
@@ -158,16 +159,13 @@ export const runCheckoutFlow = (
           result ? `url=${result.checkoutUrl}` : "null"
         }`,
       );
-      return tryCheckoutRedirect(result?.checkoutUrl, () => {
-        logDebug(
-          "Payment",
-          `Checkout redirect failed for ${label}: no session URL`,
-        );
-        return onError(
+      return tryCheckoutRedirect(
+        result?.checkoutUrl,
+        checkoutFailureAt(
           "Failed to create payment session. Please try again.",
-          500,
-        );
-      });
+          `Checkout redirect failed for ${label}: no session URL`,
+        ),
+      );
     },
   );
 };

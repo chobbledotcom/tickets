@@ -72,6 +72,13 @@ const checkedBy =
   (value) =>
     v.is(schema, value) ? null : t(messageKey, values);
 
+/** Refuses a value a plain format check turns down, with the message that
+ * says why. The schema-free sibling of {@link checkedBy}. */
+const matchedBy =
+  (format: (value: string) => boolean, messageKey: string): ValueCheck =>
+  (value) =>
+    format(value) ? null : t(messageKey);
+
 /** Refuses text longer than a field allows, naming the limit in the message. */
 const atMostLong = (max: number, messageKey: string): ValueCheck =>
   checkedBy(v.pipe(v.string(), v.maxLength(max)), messageKey, { max });
@@ -162,8 +169,10 @@ export const validateListingFields = (value: string): string | null => {
 };
 
 /** Validate a built site's update channel (alpha/beta/release) */
-export const validateUpdateTier = (value: string): string | null =>
-  isUpdateTier(value) ? null : t("fields.validation.update_tier");
+export const validateUpdateTier = matchedBy(
+  isUpdateTier,
+  "fields.validation.update_tier",
+);
 
 /** Check if a string is a valid day name */
 const isValidDayName = (s: string): boolean =>
@@ -206,8 +215,10 @@ export const buildDescriptionField = (
 });
 
 /** Validate a datetime value is parseable */
-export const validateDatetime = (value: string): string | null =>
-  isValidDatetime(value) ? null : t("fields.validation.datetime");
+export const validateDatetime = matchedBy(
+  isValidDatetime,
+  "fields.validation.datetime",
+);
 
 /** Build a "hidden" visibility checkbox field for a listing or group. */
 export const buildHiddenField = (
@@ -227,8 +238,7 @@ export const buildHiddenField = (
 });
 
 /** Validate date format (YYYY-MM-DD) */
-export const validateDate = (value: string): string | null =>
-  isIsoDate(value) ? null : t("fields.validation.date");
+export const validateDate = matchedBy(isIsoDate, "fields.validation.date");
 
 /** Shared slug field skeleton: name, pattern, validation, label, title.
  * Callers spread this and add their own `hint` (or `publicLinkPath`) on top —

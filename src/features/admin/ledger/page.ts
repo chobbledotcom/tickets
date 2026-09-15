@@ -12,7 +12,7 @@ import type { LedgerRange } from "#accounting/range.ts";
 import { getAllGroupNames, groupListings } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-import { sort } from "#fp";
+import { sortedByString } from "#fp-strings";
 import { t } from "#i18n";
 import { loadLedgerNames } from "#routes/admin/ledger/names.ts";
 import { pickerDatesFromBounds } from "#routes/admin/ledger/picker-dates.ts";
@@ -69,11 +69,6 @@ const buildPickerDates = async (
   today: string,
 ): Promise<DatePickerDate[]> =>
   pickerDatesFromBounds(await transferActivityBounds(), today, tz);
-
-const sortScopeOptions = (options: LedgerScopeOption[]): LedgerScopeOption[] =>
-  sort((a: LedgerScopeOption, b: LedgerScopeOption) =>
-    a.name.localeCompare(b.name),
-  )(options);
 
 const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({
   key: t(key),
@@ -145,12 +140,12 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
       getAllListings(),
       getAllGroupNames(),
     ]);
-    const listingOptions = sortScopeOptions(
-      listings.map((listing) => ({ id: listing.id, name: listing.name })),
-    );
-    const groupOptions = sortScopeOptions(
-      [...groupNames].map(([id, name]) => ({ id, name })),
-    );
+    const listingOptions = sortedByString(
+      (option: LedgerScopeOption) => option.name,
+    )(listings.map((listing) => ({ id: listing.id, name: listing.name })));
+    const groupOptions = sortedByString(
+      (option: LedgerScopeOption) => option.name,
+    )([...groupNames].map(([id, name]) => ({ id, name })));
     const scope = resolveLedgerScope(params, listingOptions, groupOptions);
     const groupListingIds =
       scope.kind === "group" ? await groupListings.getIds(scope.id) : [];

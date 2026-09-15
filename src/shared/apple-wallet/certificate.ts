@@ -9,6 +9,7 @@ import {
 import { readPem } from "#crypto/pem.ts";
 import { isValidRsaPublicKey } from "#crypto/rsa-private-key.ts";
 import { sameOrder } from "#fp";
+import { succeeds } from "#shared/validation/succeeds.ts";
 
 /* jscpd:ignore-end */
 
@@ -82,14 +83,8 @@ export const readCertificateBytes = (pem: string): Uint8Array =>
   readCertificateParts(pem).bytes;
 
 /** Whether PEM contains one structurally valid X.509 certificate. */
-export const isValidCertificate = (pem: string): boolean => {
-  try {
-    readCertificateParts(pem);
-    return true;
-  } catch {
-    return false;
-  }
-};
+export const isValidCertificate = (pem: string): boolean =>
+  succeeds(() => readCertificateParts(pem));
 
 /**
  * Parse the RSA/X.509 fields needed by CMS. This does not validate the

@@ -37,6 +37,17 @@ import { isoBefore, nowIso } from "#shared/now.ts";
 /** Most sharing rows one claim accepts before refusing the payment history. */
 const MAX_SHARED_PAYMENT_ROWS_PER_CLAIM = 100;
 
+/** The session ids of each attendee's rows, from one attendee-keyed grouping. */
+const sessionIdsByAttendee = <Row extends { sessionId: string }>(
+  grouped: Map<number, Row[]>,
+): Map<number, string[]> =>
+  new Map(
+    [...grouped].map(([attendeeId, owned]) => [
+      attendeeId,
+      owned.map((row) => row.sessionId),
+    ]),
+  );
+
 /** What happened when a run asked for an attendee's rows. */
 export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
@@ -300,14 +311,7 @@ export const claimAttendeeRows = async (
     );
     return {
       commandId,
-      held: new Map(
-        [...Map.groupBy(rows, (row) => row.attendeeId)].map(
-          ([attendeeId, owned]) => [
-            attendeeId,
-            owned.map((row) => row.sessionId),
-          ],
-        ),
-      ),
+      held: sessionIdsByAttendee(Map.groupBy(rows, (row) => row.attendeeId)),
       heldSince: writtenAt,
       kind: "claimed",
       phases: new Map(
@@ -321,16 +325,11 @@ export const claimAttendeeRows = async (
         ]),
       ),
       shared: sharedRepresentations(attendees, storedRows),
-      unrecorded: new Map(
-        [
-          ...Map.groupBy(
-            rows.filter((row) => row.state.unrecorded !== undefined),
-            (row) => row.attendeeId,
-          ),
-        ].map(([attendeeId, behind]) => [
-          attendeeId,
-          behind.map((row) => row.sessionId),
-        ]),
+      unrecorded: sessionIdsByAttendee(
+        Map.groupBy(
+          rows.filter((row) => row.state.unrecorded !== undefined),
+          (row) => row.attendeeId,
+        ),
       ),
     };
   });

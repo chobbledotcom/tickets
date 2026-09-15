@@ -18,7 +18,7 @@ import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
-  contentEditPanel,
+  editPanelFor,
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -230,11 +230,11 @@ const ItemPicker = ({
 
 /** The Edit tab's panel: the page-fields form (name, editable slug + public
  * link, SEO meta, markdown body) posting to the update route. */
-export const sitePageEditPanel = (page: SitePage): JSX.Element =>
-  contentEditPanel(
-    `${LIST}/${page.id}/edit`,
-    sitePageEditForm.render(contentFieldValues(page)),
-  );
+export const sitePageEditPanel = editPanelFor(
+  LIST,
+  sitePageEditForm,
+  (page: SitePage) => contentFieldValues(page),
+);
 
 /** The Items tab's panel: the page's current contents (reorderable, each
  * removable) plus the add-item pickers. Pickers with nothing to offer are

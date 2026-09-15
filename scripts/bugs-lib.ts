@@ -5,7 +5,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import * as v from "valibot";
-import { sort } from "#fp";
+import { sortedByString } from "#fp-strings";
 import { fetchText } from "#scripts/fetch-text.ts";
 import { parseJsonWith } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
@@ -299,8 +299,9 @@ export const fetchIssueSummaries = async (
         .map(summarize(config.baseUrl, project)),
     );
   }
-  return sort((a: IssueSummary, b: IssueSummary) =>
-    b.last_seen.localeCompare(a.last_seen),
+  return sortedByString(
+    (issue: IssueSummary) => issue.last_seen,
+    "desc",
   )(summaries);
 };
 

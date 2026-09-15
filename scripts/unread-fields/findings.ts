@@ -2,6 +2,7 @@
  * What the scan concluded about one field, and how it reads on the console.
  */
 
+import { startsWithAny } from "#fp-strings";
 import {
   compareFindingIdentities,
   compareText,
@@ -26,8 +27,7 @@ export interface Finding extends FindingIdentity {
  * alive by a test like any other. */
 const TEST_FOLDERS = ["test/", "scripts/email-sandbox-e2e/", "e2e-payments/"];
 
-const isTest = (file: string): boolean =>
-  TEST_FOLDERS.some((folder) => file.startsWith(folder));
+const isTest = startsWithAny(TEST_FOLDERS);
 
 /** A field nothing reads is written for nobody. A field only its tests read
  * is kept alive by the tests themselves, which is the same thing in a

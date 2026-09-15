@@ -30,6 +30,7 @@ import { userAgents } from "#db/user-agents.ts";
 import { fieldById, unique } from "#fp";
 import { t } from "#i18n";
 import { getDateFilter, getMonthFilter } from "#routes/admin/actions.ts";
+import { selectablePickerDates } from "#routes/admin/ledger/picker-dates.ts";
 import {
   type AuthSession,
   DELIVERY_FORM,
@@ -47,7 +48,6 @@ import {
   type DeliveryBookingView,
   type DeliveryDayGroup,
 } from "#templates/admin/deliveries.tsx";
-import type { DatePickerDate } from "#templates/date-picker.tsx";
 import { type Attendee, isStaffRole } from "#types";
 
 /* jscpd:ignore-end */
@@ -171,11 +171,7 @@ const buildDateNav = async (
   viewMonth: string | null,
 ): Promise<DeliveriesDateNav> => {
   const deliveryDates = await getAgentRunSheetDates(agentIds);
-  const availableDates: DatePickerDate[] = deliveryDates.map((date) => ({
-    label: formatDateLabel(date),
-    selectable: true,
-    value: date,
-  }));
+  const availableDates = selectablePickerDates(deliveryDates);
   return { availableDates, selected, today, viewMonth };
 };
 

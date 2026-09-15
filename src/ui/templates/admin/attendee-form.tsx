@@ -38,6 +38,7 @@ import {
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
+  idOptions,
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
@@ -130,10 +131,7 @@ const StatusField = ({ data }: AttendeeFormProps): JSX.Element => {
           <SelectField
             id={STATUS_FIELD}
             name={STATUS_FIELD}
-            options={data.statuses.map((s) => ({
-              label: s.name,
-              value: String(s.id),
-            }))}
+            options={idOptions(data.statuses, (s) => s.name)}
             value={String(selectedId)}
           />
         </label>

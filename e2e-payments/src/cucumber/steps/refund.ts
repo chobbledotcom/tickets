@@ -10,7 +10,7 @@ import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
 // jscpd:ignore-start -- this #e2e import run is structural
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
+import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import { refuseRefundTransfers } from "#e2e/db-fault.ts";
 import { login } from "#e2e/flow.ts";
@@ -249,16 +249,12 @@ for (const [text, answers] of REFRESH_STEPS) {
 
 Then(
   "the booking says the payment was refunded",
-  async function (this: LiveWorld): Promise<void> {
-    await requireRefundStatus(this);
-  },
+  worldStep(requireRefundStatus),
 );
 
 Then(
   "Refund is unavailable while Delete is reachable",
-  async function (this: LiveWorld): Promise<void> {
-    await requireDeleteReachable(this);
-  },
+  worldStep(requireDeleteReachable),
 );
 
 /** The shared single-refund journey (Square and SumUp scenarios). */
@@ -273,9 +269,7 @@ const submitScenarioRefundForm = async (world: LiveWorld): Promise<void> => {
 
 When(
   "the owner submits its rendered refund form once",
-  async function (this: LiveWorld): Promise<void> {
-    await submitScenarioRefundForm(this);
-  },
+  worldStep(submitScenarioRefundForm),
 );
 
 Then(

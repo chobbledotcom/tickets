@@ -16,6 +16,7 @@ import {
   databaseCredentialsFromResponse,
 } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
 
@@ -74,7 +75,7 @@ const getAllRegions = async (): Promise<
     return parseBunnyError(res, "Get database config");
   }
 
-  const config = v.parse(DbConfigResponseSchema, JSON.parse(res.text));
+  const config = parseJson(DbConfigResponseSchema, res.text);
   return okResult({
     primaryRegions: regionIds(config.primary_regions),
     replicaRegions: regionIds(config.replica_regions),

@@ -15,6 +15,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { flatMap } from "#fp";
+import { endsWithAny } from "#fp-strings";
 
 const ROOT = path.resolve(import.meta.dirname!, "..");
 
@@ -59,8 +60,7 @@ function resolveImport(specifier: string, fromFile: string): string | null {
   return null;
 }
 
-const isTypeScriptFile = (name: string): boolean =>
-  name.endsWith(".ts") || name.endsWith(".tsx");
+const isTypeScriptFile = endsWithAny([".ts", ".tsx"]);
 
 /** Read a project-relative source file as UTF-8 text. */
 const readSource = (filePath: string): string =>

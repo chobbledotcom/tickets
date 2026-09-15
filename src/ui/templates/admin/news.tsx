@@ -21,7 +21,7 @@ import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
-  contentEditPanel,
+  editPanelFor,
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -93,10 +93,10 @@ export const adminNewsNewPage = (
 /** The Edit tab's panel: the pre-filled fields form (name, the editable slug
  * with its public link, SEO meta, snippet, markdown body) posting to the update
  * route. */
-export const newsEditPanel = (post: NewsPost): JSX.Element =>
-  contentEditPanel(
-    `${LIST}/${post.id}/edit`,
-    newsPostEditForm.render(newsPostToValues(post)),
-  );
+export const newsEditPanel = editPanelFor(
+  LIST,
+  newsPostEditForm,
+  (post: NewsPost) => newsPostToValues(post),
+);
 
 export const adminNewsDeletePage = prefixedDeletePage("news", LIST);

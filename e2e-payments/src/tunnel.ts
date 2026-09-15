@@ -9,9 +9,10 @@
 
 /* jscpd:ignore-start */
 import { type ChildProcess, spawn } from "node:child_process";
+import { delay } from "#shared/now.ts";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
-import { probeSignal, sleep, stopChild } from "./util.ts";
+import { probeSignal, stopChild } from "./util.ts";
 /* jscpd:ignore-end */
 
 export interface Tunnel {
@@ -63,7 +64,7 @@ const attemptTunnel = async (localPort: number): Promise<Tunnel | null> => {
         // tunnel edge not ready yet
       }
     }
-    await sleep(1_000);
+    await delay(1_000);
   }
   // This attempt failed — tear it down so it doesn't linger.
   await stop();
@@ -86,7 +87,7 @@ export const startTunnel = async (localPort: number): Promise<Tunnel> => {
       warn(
         `  tunnel not reachable within ${config.tunnelTimeoutMs}ms; retrying…`,
       );
-      await sleep(2_000);
+      await delay(2_000);
     }
   }
   throw new Error(

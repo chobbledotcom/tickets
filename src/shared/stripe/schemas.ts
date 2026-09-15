@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import * as v from "valibot";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 import {
   NonEmptyTextSchema,
   OptionalNullableStringSchema,
@@ -201,4 +202,4 @@ const StripeErrorBodySchema: v.GenericSchema<unknown, StripeErrorFields> =
   });
 
 export const parseStripeErrorBody = (body: string): StripeErrorFields =>
-  v.parse(StripeErrorBodySchema, JSON.parse(body));
+  parseJson(StripeErrorBodySchema, body);

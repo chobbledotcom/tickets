@@ -27,7 +27,7 @@ import {
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-import { now, nowMs } from "#shared/now.ts";
+import { isoBefore, now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
@@ -52,11 +52,8 @@ const boundedDelete = (
          )`,
 });
 
-const isoCutoff = (retentionMs: number): string =>
-  new Date(nowMs() - retentionMs).toISOString();
-
 const paymentStatement = (): PruneStatement => ({
-  args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
+  args: [isoBefore(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
   sql: `DELETE FROM processed_payments
          WHERE rowid IN (
            SELECT payment.rowid
@@ -120,10 +117,10 @@ const pruneStatements = (): PruneStatement[] => [
   boundedDelete(
     "sumup_checkouts",
     `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
-    [isoCutoff(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
+    [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
-    isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),
+    isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),
   addressCachePruneStatement(),
   boundedDelete("sessions", "expires < ?", [

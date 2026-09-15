@@ -24,3 +24,11 @@ export const parseOrThrow = <TSchema extends v.GenericSchema>(
   if (!result.success) throw invalid();
   return result.output;
 };
+
+/** Read a JSON document's text and check it against the schema — for response
+ * bodies and other JSON text that must be both parseable and well-shaped. A
+ * torn text or a wrong shape throws loudly. */
+export const parseJson = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  text: string,
+): v.InferOutput<TSchema> => v.parse(schema, JSON.parse(text));

@@ -29,6 +29,7 @@
  */
 
 import { filter, map, pipe, sort, sumOf } from "#fp";
+import { endsWithAny } from "#fp-strings";
 
 /** A source or test file paired with its line count. */
 export type FileLines = {
@@ -103,13 +104,15 @@ export const hasExemptPrefix = (path: string, prefixes: string[]): boolean =>
 export const countLines = (text: string): number =>
   text.split("\n").filter((line) => line.trim() !== "").length;
 
+/** A `.ts`/`.tsx` file of any kind, including declaration files. */
+const isTypeScriptPath = endsWithAny([".ts", ".tsx"]);
+
 /** A `.ts`/`.tsx` file that isn't a type-declaration file. */
 export const isSourcePath = (path: string): boolean =>
-  (path.endsWith(".ts") || path.endsWith(".tsx")) && !path.endsWith(".d.ts");
+  isTypeScriptPath(path) && !path.endsWith(".d.ts");
 
 /** A `.test.ts`/`.test.tsx` test file. */
-export const isTestPath = (path: string): boolean =>
-  path.endsWith(".test.ts") || path.endsWith(".test.tsx");
+export const isTestPath = endsWithAny([".test.ts", ".test.tsx"]);
 
 /** Whether a source file is one we expect to carry its own unit test. Type
  *  declaration files and anything on an exempt prefix are left out. */

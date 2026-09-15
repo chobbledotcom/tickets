@@ -51,9 +51,8 @@ const rowFacts = (state: PaymentRowState): AtlasState["facts"] => {
 };
 
 /** The whole row machine: shapes from the spec's constructors, edges from
- * the real transitions succeeding. */
-export const rowLifecycleAtlas = (): AtlasMachine =>
-  atlasMachineFrom(
-    { events: ROW_EVENTS, nodeOf: rowNodeOf, nodes: ROW_NODES },
-    { extraOf: factsAndStart(rowFacts, "free"), id: "row", layouts: LAYOUTS },
-  );
+ * the real transitions succeeding. Drawn once when this module loads. */
+export const rowLifecycleAtlas: AtlasMachine = atlasMachineFrom(
+  { events: ROW_EVENTS, nodeOf: rowNodeOf, nodes: ROW_NODES },
+  { extraOf: factsAndStart(rowFacts, "free"), id: "row", layouts: LAYOUTS },
+);

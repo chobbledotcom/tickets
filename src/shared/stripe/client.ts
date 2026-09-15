@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import type * as v from "valibot";
 import type { StripeFormValue } from "./form.ts";
 import {
   createStripeRequest,
@@ -123,6 +124,16 @@ export const createStripeClient = (
   const call = createStripeRequest(secretKey, config);
   const idPath = (resource: string, id: string): string =>
     `/v1/${resource}/${encodeURIComponent(id)}`;
+  /** One resource's read (or delete) by id: `GET` or `DELETE` on the
+   * resource's id path, shaped by the schema. */
+  const oneById =
+    <Schema extends v.GenericSchema>(
+      method: "GET" | "DELETE",
+      resource: string,
+      schema: Schema,
+    ) =>
+    (id: string): Promise<v.InferOutput<Schema>> =>
+      call(method, idPath(resource, id), {}, schema);
 
   return {
     balance: {
@@ -137,13 +148,11 @@ export const createStripeClient = (
             { ...params },
             StripeCheckoutSessionSchema,
           ),
-        retrieve: (id) =>
-          call(
-            "GET",
-            idPath("checkout/sessions", id),
-            {},
-            StripeCheckoutSessionSchema,
-          ),
+        retrieve: oneById(
+          "GET",
+          "checkout/sessions",
+          StripeCheckoutSessionSchema,
+        ),
       },
     },
     paymentIntents: {
@@ -171,13 +180,11 @@ export const createStripeClient = (
           { ...params },
           StripeCreatedWebhookEndpointSchema,
         ),
-      del: (id) =>
-        call(
-          "DELETE",
-          idPath("webhook_endpoints", id),
-          {},
-          StripeDeletedWebhookEndpointSchema,
-        ),
+      del: oneById(
+        "DELETE",
+        "webhook_endpoints",
+        StripeDeletedWebhookEndpointSchema,
+      ),
       list: (startingAfter) =>
         call(
           "GET",

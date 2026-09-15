@@ -9,7 +9,7 @@ import { PAYMENT_ROW_LIFECYCLE } from "#payment/admit-move.ts";
 import { rowLifecycleAtlas } from "#shared/schema-atlas/row-lifecycle.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
 
-const { byId, edgeIds, machine } = indexMachine(rowLifecycleAtlas());
+const { byId, edgeIds, machine } = indexMachine(rowLifecycleAtlas);
 
 describe("the payment row atlas", () => {
   test("declares its identity, keys, and every node's place on the map", () => {

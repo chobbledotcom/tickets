@@ -245,3 +245,13 @@ export const GuideFooter = ({
       <GuideLink href={href}>{children}</GuideLink>
     </p>
   );
+
+/** One admin section's guide footer, for pages that always show it: the
+ * `GuideFooter` pointing at the guide's `#anchor` section, labelled with that
+ * section's own "…guide" message. Staff-only pages can render the returned
+ * component directly; pages editors also reach keep passing `adminLevel` to
+ * `GuideFooter` itself. */
+export const guideFooterFor =
+  (anchor: string, labelKey: string) => (): SafeHtml => (
+    <GuideFooter href={`/admin/guide#${anchor}`}>{t(labelKey)}</GuideFooter>
+  );

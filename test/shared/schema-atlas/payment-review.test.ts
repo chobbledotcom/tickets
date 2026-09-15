@@ -4,7 +4,7 @@ import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import { paymentReviewAtlas } from "#shared/schema-atlas/payment-review.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
 
-const { byId, edgeIds, machine } = indexMachine(paymentReviewAtlas());
+const { byId, edgeIds, machine } = indexMachine(paymentReviewAtlas);
 
 describe("the payment review atlas", () => {
   test("declares its identity, keys, and every node's place on the map", () => {

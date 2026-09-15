@@ -15,7 +15,7 @@ import {
 } from "#templates/admin/ledger/statement.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
-import { GuideFooter } from "#templates/components/actions.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import {
   SaveForm,
@@ -47,10 +47,9 @@ const renderModifierFormFields = (
   return form.render(values ?? modifierToFieldValues(modifier, form.fields));
 };
 
-export const ModifiersGuideFooter = (): JSX.Element => (
-  <GuideFooter href="/admin/guide#modifiers">
-    {t("modifiers.guide_link")}
-  </GuideFooter>
+export const ModifiersGuideFooter = guideFooterFor(
+  "modifiers",
+  "modifiers.guide_link",
 );
 
 const ModifierRevenueAdjustSection = ({

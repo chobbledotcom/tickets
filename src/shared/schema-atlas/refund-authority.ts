@@ -48,13 +48,12 @@ const lifecycleFacts = (state: RefundAuthorityState): AtlasState["facts"] => {
 };
 
 /** The whole refund machine: states from the spec's constructors, edges from
- * the real transitions succeeding. */
-export const refundAuthorityAtlas = (): AtlasMachine =>
-  atlasMachineFrom(
-    { events: REFUND_EVENTS, nodeOf: refundNodeOf, nodes: REFUND_NODES },
-    {
-      extraOf: factsAndStart(lifecycleFacts, "ready"),
-      id: "refund",
-      layouts: LAYOUTS,
-    },
-  );
+ * the real transitions succeeding. Drawn once when this module loads. */
+export const refundAuthorityAtlas: AtlasMachine = atlasMachineFrom(
+  { events: REFUND_EVENTS, nodeOf: refundNodeOf, nodes: REFUND_NODES },
+  {
+    extraOf: factsAndStart(lifecycleFacts, "ready"),
+    id: "refund",
+    layouts: LAYOUTS,
+  },
+);

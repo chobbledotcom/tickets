@@ -6,11 +6,10 @@ import {
   type RecoveryNodeId,
 } from "#payment/sumup-recovery-machine-spec.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
-import { sumupRecoveryAtlas } from "#shared/schema-atlas/sumup-recovery.ts";
+import { sumupRecoveryAtlas as atlas } from "#shared/schema-atlas/sumup-recovery.ts";
 
 /* jscpd:ignore-end */
 
-const atlas = sumupRecoveryAtlas();
 const stateById = (id: RecoveryNodeId) => {
   const state = atlas.states.find((one) => one.id === id);
   if (!state) throw new Error(`The map has no ${id} state`);

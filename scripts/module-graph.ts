@@ -14,6 +14,7 @@ import { fromFileUrl } from "@std/path";
 import * as v from "valibot";
 import { requiredMapValue } from "#fp";
 import { runCommand } from "#scripts/precommit/git.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 
 // `deno info --json` emits a richer per-module object; only the fields used
 // here are declared, the rest is ignored by valibot's strip behaviour.
@@ -69,7 +70,7 @@ export const readModuleGraph = async (
       `deno info --json ${entry} failed (exit ${result.code}): ${result.stderr.trim()}`,
     );
   }
-  const graph = v.parse(ModuleGraphSchema, JSON.parse(result.stdout));
+  const graph = parseJson(ModuleGraphSchema, result.stdout);
   // `deno info` exits 0 even when a module fails to resolve, reporting the
   // failure per module instead. A module that failed to resolve has an
   // unwalked dependency tree, so treating it as absent would silently

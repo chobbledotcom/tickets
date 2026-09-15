@@ -8,8 +8,8 @@ import { sumupRecoveryAtlas } from "#shared/schema-atlas/sumup-recovery.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
 
 export const SCHEMA_ATLAS_MACHINES: readonly AtlasMachine[] = [
-  refundAuthorityAtlas(),
-  paymentReviewAtlas(),
-  rowLifecycleAtlas(),
-  sumupRecoveryAtlas(),
+  refundAuthorityAtlas,
+  paymentReviewAtlas,
+  rowLifecycleAtlas,
+  sumupRecoveryAtlas,
 ];

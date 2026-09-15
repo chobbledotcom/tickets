@@ -10,6 +10,7 @@
  */
 
 import { importRsaPrivateKey } from "#crypto/rsa-private-key.ts";
+import { toBase64Url } from "#crypto/utils.ts";
 import { t } from "#i18n";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
@@ -32,13 +33,9 @@ type WalletPartBuilder = (
   creds: GoogleWalletCredentials,
 ) => Record<string, unknown>;
 
-/** Base64url-encode a Uint8Array (no padding) */
-const base64url = (data: Uint8Array): string =>
-  data.toBase64({ alphabet: "base64url", omitPadding: true });
-
 /** Base64url-encode a UTF-8 string */
 const base64urlStr = (str: string): string =>
-  base64url(new TextEncoder().encode(str));
+  toBase64Url(new TextEncoder().encode(str));
 
 /** A Google Wallet localized string holding a single en-US value. */
 const localizedString = (
@@ -142,7 +139,7 @@ export const signJwt = async (
     new TextEncoder().encode(signingInput),
   );
 
-  return `${signingInput}.${base64url(new Uint8Array(signature))}`;
+  return `${signingInput}.${toBase64Url(new Uint8Array(signature))}`;
 };
 
 /** Google Wallet save link base URL */

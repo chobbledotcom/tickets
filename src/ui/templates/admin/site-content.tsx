@@ -55,6 +55,20 @@ export const contentEditPanel: RenderedFieldsSaveForm = renderedFieldsSaveForm(
   t("common.save_changes"),
 );
 
+/** One content editor's Edit-tab panel builder: the loaded record's id picks
+ * the update route, and `valuesOf` pre-fills the form from the record. */
+export const editPanelFor =
+  <Entity extends { id: number }, Values>(
+    listPath: string,
+    form: { render: (values: Values) => string },
+    valuesOf: (entity: Entity) => Values,
+  ): ((entity: Entity) => JSX.Element) =>
+  (entity) =>
+    contentEditPanel(
+      `${listPath}/${entity.id}/edit`,
+      form.render(valuesOf(entity)),
+    );
+
 /** The "Guide: …" help link for a Site content page, rendered as a
  * `GuideFooter` at the bottom of the body (matching every other admin page)
  * and jumping to the given guide section anchor. The site editors are

@@ -23,7 +23,7 @@ import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
-import { SelectField } from "#templates/components/select-field.tsx";
+import { idOptions, SelectField } from "#templates/components/select-field.tsx";
 import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
@@ -269,10 +269,7 @@ export const bulkEmailComposePage = (
               {t("bulk_email.template_to_update_label")}
               <SelectField
                 name="template_id"
-                options={state.templates.map((tpl) => ({
-                  label: tpl.subject,
-                  value: String(tpl.id),
-                }))}
+                options={idOptions(state.templates, (tpl) => tpl.subject)}
                 value={String(state.selectedTemplateId)}
               />
             </label>

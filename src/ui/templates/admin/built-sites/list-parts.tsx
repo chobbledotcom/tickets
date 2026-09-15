@@ -8,7 +8,10 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
-import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  guideFooterFor,
+} from "#templates/components/actions.tsx";
 import { linkCell } from "#templates/components/link-cell.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -17,10 +20,9 @@ import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** The "read more" footer link shared by the built-sites list and builder pages. */
-export const BuiltSitesGuideFooter = (): JSX.Element => (
-  <GuideFooter href="/admin/guide#built-sites">
-    {t("built_sites.guide_link")}
-  </GuideFooter>
+export const BuiltSitesGuideFooter = guideFooterFor(
+  "built-sites",
+  "built_sites.guide_link",
 );
 
 export const BuiltSitesListActions = (): JSX.Element | null =>

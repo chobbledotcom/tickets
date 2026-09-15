@@ -9,9 +9,10 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createWriteStream, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { delay } from "#shared/now.ts";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
-import { probeSignal, sleep, stopChild } from "./util.ts";
+import { probeSignal, stopChild } from "./util.ts";
 
 /* jscpd:ignore-end */
 
@@ -146,7 +147,7 @@ export const startAppServer = async (): Promise<AppServer> => {
     } catch {
       // not up yet
     }
-    await sleep(500);
+    await delay(500);
   }
   child.kill("SIGKILL");
   throw new Error(

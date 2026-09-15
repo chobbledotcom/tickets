@@ -83,8 +83,8 @@ export const bookingKey = (
 ): string =>
   `${listingId}:${startAt ?? "null"}:${parentListingId}:${packageGroupId}`;
 
-/** Booking key for a diff item */
-const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
+/** The diff item's row-slot key, shared with the merge tables' decision naming. */
+export const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
   bookingKey(
     item.listingId,
     item.startAt,
