@@ -111,9 +111,10 @@ group's catalog record, so exports, imports, and the admin API carry it.
 | POST `/admin/groups/:id/scanner` | Save the checkbox, then redirect back to the scanner page.          |
 | Group page render                | Show a Scanner tab for staff, linking the scanner route.            |
 
-Each admission writes one `UPDATE listing_attendees` per admitted listing in one
-batch, then one `logActivities` batch with one row per admitted listing. The
-scanner's existing message names each row's own listing.
+Each admission runs in one transaction: the `UPDATE listing_attendees` that
+covers every admitted listing, then one activity-log row per admitted listing.
+The scanner's existing message names each row's own listing. A failure in either
+write rolls both back, so a check-in never lands without its activity record.
 
 ## Failure table
 
@@ -183,16 +184,17 @@ Recorded 15 September 2026.
 
 ## Module and test map
 
-| Responsibility               | Source                                                                                                                                              | Tests                                                                                          |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Scope-aware scan decision    | `src/features/admin/scanner.ts`, one core for both route pairs                                                                                      | `test/integration/server/scanner.test.ts`, new `test/integration/server/group-scanner.test.ts` |
-| Group roster and checkbox    | `src/features/admin/scanner.ts`                                                                                                                     | The group scanner suite                                                                        |
-| Setting column and migration | `src/shared/db/migrations/2026-09-15_*.ts`, `tables-catalog.ts`, `src/shared/catalog-fields/fields.ts`, `src/shared/types.ts`                       | Migration suite picks it up; group form tests                                                  |
-| Group form checkbox          | `src/ui/templates/fields/group.ts`                                                                                                                  | Group form field tests                                                                         |
-| Scanner client               | `src/ui/client/scanner.js`, `src/ui/client/admin/manual-checkin.ts` read `data-scan-path`; template `src/ui/templates/admin/scanner.tsx` carries it | Template assertions in scanner suites                                                          |
-| Group page tab and areas     | `src/features/admin/group-page.ts`, `src/shared/admin-surface/areas.ts`                                                                             | Group page tab tests, `test/integration/admin-role-matrix.test.ts` counts                      |
-| Read-only and JSON API       | `src/features/app/read-only.ts`, `src/features/middleware.ts`                                                                                       | Read-only matrix tests                                                                         |
-| Copy                         | `src/locales/en/check-in.json`, `groups.json`                                                                                                       | `i18n-coverage` test                                                                           |
+| Responsibility               | Source                                                                                                                                                        | Tests                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Scope-aware scan decision    | `src/features/admin/scan-decision.ts`, the pure rule; `src/features/admin/scanner.ts`, the routes over it                                                     | `test/features/admin/scan-decision.test.ts`, the group door suites below, `test/integration/server/scanner.test.ts`          |
+| Group door page and scans    | `src/features/admin/scanner.ts`, both group routes                                                                                                            | `test/features/admin/scanner/group-door-page.test.ts`, `test/features/admin/scanner/group-door-scan.test.ts`                 |
+| Group roster and checkbox    | `src/features/admin/scanner.ts`, `src/ui/templates/admin/scanner.tsx`                                                                                         | The group door page suite                                                                                                    |
+| Setting column and migration | `src/shared/db/migrations/2026-09-15_group_scan_checks_in_all_listings.ts`, `tables-catalog.ts`, `src/shared/catalog-fields/fields.ts`, `src/shared/types.ts` | The migration's own suite; group form tests                                                                                  |
+| Group form checkbox          | `src/ui/templates/fields/group.ts`                                                                                                                            | Group form field tests                                                                                                       |
+| Scanner client               | `src/ui/client/scanner.js`, `src/ui/client/admin/manual-checkin.ts` read `data-scan-path`; template `src/ui/templates/admin/scanner.tsx` carries it           | `test/ui/client/scanner.test.ts` through the built bundle, template assertions in `test/ui/templates/admin/scanner.test.tsx` |
+| Group page tab and areas     | `src/features/admin/group-page.ts`, `src/shared/admin-surface/areas.ts`                                                                                       | Group page tab tests, `test/integration/admin-role-matrix.test.ts` counts                                                    |
+| Read-only and JSON API       | `src/features/app/read-only.ts`, `src/features/middleware.ts`                                                                                                 | Read-only matrix tests                                                                                                       |
+| Copy                         | `src/locales/en/check-in.json`, `groups.json`                                                                                                                 | `i18n-coverage` test                                                                                                         |
 
 ### Tests that prove the contract
 

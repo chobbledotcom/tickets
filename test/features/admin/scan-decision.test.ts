@@ -159,6 +159,20 @@ describe("decideScan", () => {
     });
   });
 
+  test("force widened onto several outside listings stays one at a time", () => {
+    // The group's own checkbox must not widen a forced override with it: the
+    // door the organiser stands at decides one listing at a time.
+    const results = scanAt([rowOn(9, "Quiz"), rowOn(10, "Talk")], {
+      checkEvery: true,
+      force: true,
+    });
+    expect(results).toEqual({
+      kind: "admit",
+      remaining: 1,
+      rows: [rowOn(9, "Quiz")],
+    });
+  });
+
   test("force never narrows a ticket that matches in scope", () => {
     expect(scanAt([standard(), rowOn(9, "Quiz")], { force: true })).toEqual({
       kind: "admit",

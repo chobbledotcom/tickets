@@ -39,7 +39,9 @@ export const groupDoor = async (
 
 /** A group-door scan as the page's own script would send it. The JSON body
  * is returned unasserted: guards like the missing-group 404 also answer
- * JSON, and each test names the status it expects. */
+ * JSON, and each test names the status it expects. A non-JSON answer (the
+ * site's own error page) comes back with an empty body so the response's
+ * status stays assertable. */
 export const scanAtDoor = async (
   groupId: number,
   body: Record<string, unknown>,
@@ -55,7 +57,42 @@ export const scanAtDoor = async (
       },
     ),
   );
-  return { json: await response.json(), response };
+  const isJson = (response.headers.get("content-type") ?? "").includes("json");
+  return {
+    json: isJson ? await response.json() : {},
+    response,
+  };
+};
+
+/** Someone holding one place on each of two listings in their own separate
+ * group — a ticket this door does not own, whatever it scans next. */
+export const ticketFromItsOwnGroup = async (
+  who: string,
+  groupName: string,
+): Promise<string> => {
+  const { createMultiBookingAttendee } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
+  const own = await createTestGroup({ name: groupName });
+  const first = await createTestListing({
+    groupId: own.id,
+    maxAttendees: 10,
+    name: "Quiz",
+  });
+  const second = await createTestListing({
+    groupId: own.id,
+    maxAttendees: 10,
+    name: "Talk",
+  });
+  const { ticket_token } = await createMultiBookingAttendee(
+    who,
+    `${who.toLowerCase()}@example.com`,
+    [
+      { listingId: first.id, quantity: 1 },
+      { listingId: second.id, quantity: 1 },
+    ],
+  );
+  return ticket_token;
 };
 
 /** The scanner page for one group door. */

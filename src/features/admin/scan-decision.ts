@@ -45,7 +45,8 @@ export const decideScan = (
   const inScope = entries.filter((entry) => scope.has(entry.listing.id));
   // `force` only ever widens: a ticket that matches in scope is decided by
   // the listings it matched, exactly as the listing scanner always has.
-  const pool = force && inScope.length === 0 ? [...entries] : inScope;
+  const widened = force && inScope.length === 0;
+  const pool = widened ? [...entries] : inScope;
   if (pool.length === 0) {
     return entries.length === 0 && force
       ? { kind: "not_found" }
@@ -57,7 +58,8 @@ export const decideScan = (
     rows.some((entry) => !entry.attendee.checked_in),
   );
   if (unchecked.length === 0) return { kind: "already_checked_in", live };
-  const admitted = checkInEveryListing ? unchecked : [unchecked[0]!];
+  const admitted =
+    checkInEveryListing && !widened ? unchecked : [unchecked[0]!];
   const rows = admitted.flat();
   if (!idVerified && rows.some((entry) => entry.listing.non_transferable)) {
     return { kind: "verify_id", rows };

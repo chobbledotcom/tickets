@@ -13,6 +13,7 @@ import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateCheckedInOnListings } from "#db/attendees/update.ts";
+import { withTransaction } from "#db/client.ts";
 import { getGroupById, getListingsByGroupId, groups } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -195,25 +196,31 @@ const scanBody = (
   status,
 });
 
-/** Perform one scan's whole admission: one UPDATE covering every admitted
- * listing, then one activity row per listing carrying that listing's own
- * name, so each listing's record of the day shows its own check-ins. */
+/** Perform one scan's whole admission as one transaction: the UPDATE that
+ * covers every admitted listing and the activity rows for each admitted
+ * listing carry that listing's own name, so each listing's record of the day
+ * shows its own check-ins. A failure in either write rolls both back, so a
+ * check-in never lands without its activity record. */
 const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
   const units = rowsByListing(rows);
-  await updateCheckedInOnListings(
-    rows[0]!.attendee.id,
-    units.map((unit) => unit[0]!.listing.id),
-  );
-  await logActivities(
-    units.map((unit) => {
-      const entry = unit[0]!;
-      return {
-        attendeeId: entry.attendee.id,
-        listing: entry.listing.id,
-        message: `Attendee checked in via scanner for '${entry.listing.name}'`,
-      };
-    }),
-  );
+  await withTransaction(async (tx) => {
+    await updateCheckedInOnListings(
+      rows[0]!.attendee.id,
+      units.map((unit) => unit[0]!.listing.id),
+      tx,
+    );
+    await logActivities(
+      units.map((unit) => {
+        const entry = unit[0]!;
+        return {
+          attendeeId: entry.attendee.id,
+          listing: entry.listing.id,
+          message: `Attendee checked in via scanner for '${entry.listing.name}'`,
+        };
+      }),
+      tx,
+    );
+  });
 };
 
 /** Resolve a token against one door's scope and perform its scan decision. */

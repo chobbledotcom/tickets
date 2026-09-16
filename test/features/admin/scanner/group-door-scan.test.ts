@@ -12,6 +12,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
@@ -20,11 +21,17 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import {
+  adminFormPost,
   requestAsSession,
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { editorScan, groupDoor, scanAtDoor } from "./support.ts";
+import {
+  editorScan,
+  groupDoor,
+  scanAtDoor,
+  ticketFromItsOwnGroup,
+} from "./support.ts";
 
 describeWithEnv("group scanner scans", { db: true }, () => {
   test("checks a member ticket in through the group door", async () => {
@@ -99,29 +106,94 @@ describeWithEnv("group scanner scans", { db: true }, () => {
 
   test("a multi-listing ticket from outside names every listing it holds", async () => {
     const door = await groupDoor();
-    const elsewhere = await createTestGroup({ name: "Elsewhere" });
-    const quiz = await createTestListing({
-      groupId: elsewhere.id,
-      maxAttendees: 10,
-      name: "Quiz",
-    });
-    const talk = await createTestListing({
-      groupId: elsewhere.id,
-      maxAttendees: 10,
-      name: "Talk",
-    });
-    const holder = await createMultiBookingAttendee("Zia", "zia@example.com", [
-      { listingId: quiz.id, quantity: 1 },
-      { listingId: talk.id, quantity: 1 },
-    ]);
+    const token = await ticketFromItsOwnGroup("Zia", "Elsewhere");
 
-    const rejected = await scanAtDoor(door.group.id, {
-      token: holder.ticket_token,
-    });
+    const rejected = await scanAtDoor(door.group.id, { token });
 
     expect(rejected.json.status).toBe("wrong_listing");
     expect(rejected.json.listingName).toBe("Quiz, Talk");
     expect(rejected.json.name).toBe("Zia");
+  });
+
+  test("the checkbox never widens a forced override onto every listing", async () => {
+    // Forced overrides are an organiser's single judgement at one door, so
+    // they stay on the one-listing walk rule even when the group's own box
+    // says "check in every listing".
+    const door = await groupDoor();
+    const token = await ticketFromItsOwnGroup("Ora", "Elsewhere two");
+    await adminFormPost(`/admin/groups/${door.group.id}/scanner`, {
+      csrf_token: await testCsrfToken(),
+      scan_checks_in_all_listings: "1",
+    });
+
+    const forced = await scanAtDoor(door.group.id, {
+      force: true,
+      token,
+    });
+
+    expect(forced.json.status).toBe("checked_in");
+    expect(forced.json.listingName).toBe("Quiz");
+    expect(forced.json.remaining).toBe(1);
+  });
+
+  test("a failed activity row rolls the whole admission back", async () => {
+    const { group, members } = await groupDoor();
+    const ticket = await createMultiBookingAttendee("Ash", "ash@example.com", [
+      { listingId: members[0]!.id, quantity: 1 },
+    ]);
+
+    // The scan's own error logging rethrows in tests, so the failed write is
+    // the rejection itself.
+    const scan = withDbFault(
+      `CREATE TRIGGER test_no_activity_log
+        BEFORE INSERT ON activity_log
+      BEGIN
+        SELECT RAISE(ABORT, 'activity log unavailable');
+      END`,
+      "test_no_activity_log",
+      () => scanAtDoor(group.id, { token: ticket.ticket_token }),
+    );
+    await expect(scan).rejects.toThrow("activity log unavailable");
+
+    // The check-in the admission wrote must not survive the failed activity
+    // record: the transaction rolled both back.
+    const { queryOne } = await import("#db/client.ts");
+    const row = await queryOne<{ checked_in: number }>(
+      "SELECT checked_in FROM listing_attendees WHERE attendee_id = ?",
+      [ticket.id],
+    );
+    expect(row?.checked_in).toBe(0);
+  });
+
+  test("two concurrent group scans of one ticket leave one true state", async () => {
+    const { group, members } = await groupDoor(2);
+    const ticket = await createMultiBookingAttendee("Ivy", "ivy@example.com", [
+      { listingId: members[0]!.id, quantity: 1 },
+      { listingId: members[1]!.id, quantity: 1 },
+    ]);
+    await adminFormPost(`/admin/groups/${group.id}/scanner`, {
+      csrf_token: await testCsrfToken(),
+      scan_checks_in_all_listings: "1",
+    });
+
+    const [first, second] = await Promise.all([
+      scanAtDoor(group.id, { token: ticket.ticket_token }),
+      scanAtDoor(group.id, { token: ticket.ticket_token }),
+    ]);
+
+    // Both answer a true state: a check-in or the already-in answer of the
+    // other scan's write. Neither is refused or admitted twice.
+    for (const answer of [first, second]) {
+      expect(["checked_in", "already_checked_in"]).toContain(
+        answer.json.status,
+      );
+      expect(answer.json.name).toBe("Ivy");
+    }
+    const after = await scanAtDoor(group.id, {
+      token: ticket.ticket_token,
+    });
+    expect(after.json.status).toBe("already_checked_in");
+    expect(after.json.listingName).toBe("Standard, Society");
   });
 
   test("a listing door never widens a forced scan into other listings", async () => {

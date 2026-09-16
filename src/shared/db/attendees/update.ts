@@ -12,6 +12,7 @@ import {
   inPlaceholders,
   queryAll,
   rawSql,
+  type TxScope,
   update,
   withTransaction,
 } from "#db/client.ts";
@@ -39,15 +40,17 @@ export const updateCheckedIn = async (
 /** Check one scanned attendee in on every listing a scan admitted — one
  * statement covers the whole admission, one listing or several. The caller
  * guarantees at least one listing, so an empty admission never reaches SQL.
- * The same no-quantity guard as {@link updateCheckedIn} applies to every row. */
+ * The same no-quantity guard as {@link updateCheckedIn} applies to every row.
+ * A caller wrapping the admission and its activity rows in one transaction
+ * passes its {@link TxScope} so both commit together. */
 export const updateCheckedInOnListings = async (
   attendeeId: number,
   listingIds: readonly number[],
+  transaction?: TxScope,
 ): Promise<void> => {
-  await execute(
-    `UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`,
-    [attendeeId, ...listingIds],
-  );
+  const sql = `UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`;
+  const args = [attendeeId, ...listingIds];
+  (await transaction) ? transaction.execute({ args, sql }) : execute(sql, args);
 };
 
 /**

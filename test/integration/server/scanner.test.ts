@@ -100,10 +100,7 @@ const unauthScanPost = (
 ): Request =>
   new Request(`http://localhost/admin/listing/${listingId}/scan`, {
     body,
-    headers: {
-      "content-type": contentType,
-      host: "localhost",
-    },
+    headers: { "content-type": contentType, host: "localhost" },
     method: "POST",
   });
 
@@ -117,8 +114,8 @@ const scanPostWithHeaders = (
     body,
     headers: {
       "content-type": "application/json",
-      host: "localhost",
       ...headers,
+      host: "localhost",
     },
     method: "POST",
   });
@@ -195,15 +192,13 @@ const setupLoginAndRawScan = async (
 const orphanAttendee = async (token: string) => {
   const { getDb } = await import("#db/client.ts");
   const { hmacHash } = await import("#crypto/hashing.ts");
-  const tokenIndex = await hmacHash(token);
   await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
   await getDb().execute({
-    args: [tokenIndex],
+    args: [await hmacHash(token)],
     sql: `UPDATE listing_attendees
           SET listing_id = 99999
           WHERE attendee_id = (
-            SELECT id FROM attendees
-            WHERE ticket_token_index = ?
+            SELECT id FROM attendees WHERE ticket_token_index = ?
           )`,
   });
   return { getDb };
@@ -323,7 +318,6 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/scan", () => {
-    // Spies on console.error for the tests that prove an error path logged.
     const errorLog = setupErrorSpy();
 
     test("returns Unknown listing when attendee's listing is deleted", async () => {
@@ -344,13 +338,12 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns wrong_listing for attendee from different listing", async () => {
+      // Scan token from listing A while on listing B's scanner
       const { listing: listingA, token } = await createTestAttendeeWithToken(
         "Carol",
         "carol@test.com",
       );
       const listingB = await createTestListing({ maxAttendees: 10 });
-
-      // Scan token from listing A while on listing B's scanner
       const result = await crossListingScanAndGetJson(listingB.id, { token });
       expect(result.status).toBe("wrong_listing");
       expect(result.name).toBe("Carol");
@@ -446,9 +439,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("accepts a CSRF token older than the 1-hour default", async () => {
-      // Admins keep the scanner page open for a whole listing, so its CSRF token
-      // is given an extended window. A token well past the standard 1-hour
-      // expiry should still check attendees in.
+      // Admins keep the scanner page open for a whole listing, so its CSRF
+      // token gets an extended window. A token well past the standard 1-hour
+      // expiry still checks attendees in.
       const { listing, token, session } = await setupScanTest(
         "Aged",
         "aged@test.com",
@@ -512,10 +505,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { response } = await setupLoginAndScan({ token: "some-token" });
       await assertJson(Promise.resolve(response), 500, (result) => {
         expect(result.error).toBe("Decryption unavailable");
-        // The failure says where it came from, so the log answers the 500.
-        expect(errorLog.contains("Scanner: private key unavailable")).toBe(
-          true,
-        );
+        // The log names the screen the 500 came from.
+        const logged = errorLog.contains("Scanner: private key unavailable");
+        expect(logged).toBe(true);
       });
     });
 

@@ -100,7 +100,12 @@ describeWithEnv("group scanner page", { db: true }, () => {
     // The save tells the organiser it worked, as a success flash.
     const flash = save.response.headers.get("set-cookie") ?? "";
     expect(decodeURIComponent(flash)).toContain(`"t":"s"`);
-    expect(await doorPage(group.id)).toContain("checked");
+    // The box itself renders the stored state, checked — not just anywhere
+    // the word appears on the page.
+    const saved = await doorPage(group.id);
+    expect(
+      saved.match(/<input[^>]*name="scan_checks_in_all_listings"[^>]*>/)![0],
+    ).toContain("checked");
 
     const { json } = await scanAtDoor(group.id, {
       token: ticket.ticket_token,
