@@ -1,4 +1,4 @@
-import { type BrowserSession, hrefOf } from "./browser.ts";
+import { type BrowserSession, clickControlOn, hrefOf } from "./browser.ts";
 import { catalogWords } from "./catalog-words.ts";
 import { log, step } from "./log.ts";
 
@@ -39,6 +39,12 @@ export const createListing = async (
   // The price field is entered in major units (e.g. "1.00"), not minor.
   await session.fill("unit_price", (priceMinor / 100).toFixed(2));
   if (sitePlanMonths !== undefined) {
+    // The plan's fields sit in the collapsed Advanced settings section, so
+    // open it the way an owner does before checking them.
+    await clickControlOn(
+      session.page,
+      session.page.locator("details.listing-advanced > summary"),
+    );
     await session.check("assign_built_site", "1");
     await session.fill("initial_site_months", String(sitePlanMonths));
   }
