@@ -8,7 +8,7 @@ import {
 } from "#shared/email/registration.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
-import { ErrorCode, logErrorLocal } from "#shared/logger.ts";
+import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import {
@@ -182,6 +182,15 @@ const queueRegistrationNotifications = async (
   );
 };
 
+/** Report background work that died after a booking was already paid for.
+ * addPendingWork settles rejections silently, so without this the buyer keeps
+ * the ticket and the operator never learns the site or its credit was lost. */
+const reportAfterBookingFailure =
+  (detail: string) =>
+  (error: unknown): void => {
+    logError({ code: ErrorCode.SITE_ASSIGNMENT, detail, error });
+  };
+
 /** Record a registration and queue its external notifications. */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
@@ -201,6 +210,18 @@ export const logAndNotifyRegistration = async (
   addPendingWork(
     queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
   );
-  addPendingWork(assignAndNotifyBuiltSites(entries));
-  addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
+  addPendingWork(
+    assignAndNotifyBuiltSites(entries).catch(
+      reportAfterBookingFailure(
+        "Site assignment failed after a completed booking",
+      ),
+    ),
+  );
+  addPendingWork(
+    applyRenewalsForEntries(entries, siteTokenIndex).catch(
+      reportAfterBookingFailure(
+        "Renewal was not applied after a completed booking",
+      ),
+    ),
+  );
 };
