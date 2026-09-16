@@ -74,10 +74,14 @@ const browserBundle = (
 });
 
 export const STATIC_JS_BUNDLES: StaticBundle[] = [
+  // ESM (not IIFE): the scanner is loaded as `<script type="module">`, and it
+  // exports the pieces its direct mirror test drives through the built
+  // bundle.
   browserBundle(
     "Scanner",
     "./src/ui/client/scanner.js",
     STATIC_ASSET_OUTFILES.scanner,
+    { format: "esm" },
   ),
   browserBundle(
     "Admin",

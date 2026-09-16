@@ -19,7 +19,7 @@ export const initManualCheckin = (): void => {
   ) as HTMLInputElement;
   const listbox = document.getElementById("ticket-options")!;
   const statusEl = document.getElementById("manual-checkin-status")!;
-  const listingId = form.dataset.listingId!;
+  const scanPath = form.dataset.scanPath!;
   const csrfInput = form.querySelector<HTMLInputElement>(
     'input[name="csrf_token"]',
   )!;
@@ -148,31 +148,50 @@ export const initManualCheckin = (): void => {
     statusEl.classList.add("checkin-status", `checkin-status-${type}`);
   };
 
+  /** One scan answer as the message the door reads: who they are, how many
+   * places the answer covers, and the listing names that drove it. */
+  const answerValues = (result: {
+    listingName?: unknown;
+    name?: string;
+    quantity?: unknown;
+  }): Record<string, string | undefined> => ({
+    listingName: String(result.listingName ?? ""),
+    name: result.name,
+    tickets: formatTicketCount(
+      Number.isFinite(result.quantity) ? Number(result.quantity) : 1,
+    ),
+  });
+
   const handleCheckedIn = (
-    result: { name: string; quantity?: unknown },
+    result: {
+      listingName?: unknown;
+      name: string;
+      quantity?: unknown;
+      remaining?: unknown;
+    },
     token: string,
     idVerified: boolean,
   ) => {
-    const qty = Number.isFinite(result.quantity)
-      ? (result.quantity as number)
-      : 1;
     const idNote = idVerified
       ? getMessage("messageVerifyIdNote", " — verify their ID")
       : "";
     showCheckinStatus(
       `${interpolate(
-        getMessage("messageCheckedIn", "{name} checked in ({tickets})"),
-        {
-          name: result.name,
-          tickets: formatTicketCount(qty),
-        },
+        getMessage(
+          "messageCheckedIn",
+          "{name} checked in for {listingName} ({tickets})",
+        ),
+        answerValues(result),
       )}${idNote}`,
       "success",
     );
+    // A scan admits one listing at a time unless the group says otherwise,
+    // so a person with more listings to check in keeps their option.
+    const remaining = Number(result.remaining);
+    const fullyCheckedIn = !Number.isFinite(remaining) || remaining === 0;
     for (const opt of allOptions()) {
-      if (opt.dataset.token === token) {
+      if (opt.dataset.token === token && fullyCheckedIn) {
         opt.remove();
-        break;
       }
     }
     tokenInput.value = "";
@@ -181,6 +200,7 @@ export const initManualCheckin = (): void => {
 
   const dispatchScanResult = (
     result: {
+      listingName?: unknown;
       status?: string;
       name?: string;
       message?: string;
@@ -199,11 +219,11 @@ export const initManualCheckin = (): void => {
     } else if (result.status === "already_checked_in") {
       showCheckinStatus(
         interpolate(
-          getMessage("messageAlreadyCheckedIn", "{name} already checked in"),
-          {
-            name: result.name,
-            tickets: formatTicketCount(Number(result.quantity) || 1),
-          },
+          getMessage(
+            "messageAlreadyCheckedIn",
+            "{name} already checked in for {listingName} ({tickets})",
+          ),
+          answerValues(result),
         ),
         "warning",
       );
@@ -238,7 +258,7 @@ export const initManualCheckin = (): void => {
     submitBtn.disabled = true;
 
     const postScan = async (body: Record<string, unknown>) => {
-      const r = await fetch(`/admin/listing/${listingId}/scan`, {
+      const r = await fetch(scanPath, {
         body: JSON.stringify(body),
         headers: {
           "content-type": "application/json",

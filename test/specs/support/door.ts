@@ -8,6 +8,7 @@
  */
 
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import { handleRequest } from "#routes";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
@@ -39,12 +40,29 @@ export interface DoorAnswer {
   status: string;
 }
 
+/** An admin page belonging to one record — its listing, or the group its
+ * listings sit under. Shared by the listing door and the group door. */
+export const recordPath = (
+  kind: "listing" | "groups",
+  id: number,
+  page: string,
+): string => `/admin/${kind}/${id}/${page}`;
+
 /** A page belonging to one of the story's listings. */
 const listingPath = (
   world: TicketsWorld,
   listing: string,
   page: string,
-): string => `/admin/listing/${listingIdNamed(world, listing)}/${page}`;
+): string => recordPath("listing", listingIdNamed(world, listing), page);
+
+/** What the organiser decides about a ticket the door queried. */
+export type DoorChoice = {
+  confirmedTheirId?: boolean;
+  letInAnyway?: boolean;
+};
+
+/** One door's own pages: its scanner page, and the door that page answers. */
+export type DoorPaths = { page: string; scan: string };
 
 /** Someone with a ticket for one of the story's listings. Both the listing and
  * the ticket are kept under the names the story uses for them. */
@@ -70,8 +88,9 @@ export const personWithTicket = async (
   rememberTicket(world, who, token);
 };
 
-/** Keep a ticket under the name the story calls its holder. */
-const rememberTicket = (
+/** Keep a ticket under the name the story calls its holder — the one place
+ * both doors keep them. */
+export const rememberTicket = (
   world: TicketsWorld,
   who: string,
   ticket: string,
@@ -130,7 +149,7 @@ export const refundTicket = async (
 /** The one-use code the scanner page carries for its own requests. Reading it
  * off the page is what the page's own script does, so a page that stopped
  * supplying it fails the story here rather than the story inventing one. */
-const codeOnPage = (browser: TestBrowser): string => {
+export const codeOnPage = (browser: TestBrowser): string => {
   const found = browser.currentHtml.match(
     /<meta[^>]*name="csrf-token"[^>]*content="([^"]*)"/,
   );
@@ -138,27 +157,25 @@ const codeOnPage = (browser: TestBrowser): string => {
   return found[1];
 };
 
-/** The organiser opens a listing's door. */
-const openDoor: ReadAboutOneThing<TestBrowser> = async (world, listing) =>
-  openAdminPage(world, listingPath(world, listing, "scanner"));
-
-/** The organiser holds a ticket up to a listing's door and is told what to do
- * with the person in front of them. Letting someone in who belongs to another
- * listing is a deliberate second press, so it is asked for rather than assumed.
- */
-export const showTicketAtDoor = async (
-  world: TicketsWorld,
-  listing: string,
-  ticket: string,
-  choices: { confirmedTheirId?: boolean; letInAnyway?: boolean } = {},
-): Promise<DoorAnswer> => {
-  const browser = await openDoor(world, listing);
-  const { handleRequest } = await import("#routes");
-  const cookies = [...browser.debugCookies()]
+/** The browser's cookies as one header value — the request the page's own
+ * script sends carries them. */
+export const cookiesOf = (browser: TestBrowser): string =>
+  [...browser.debugCookies()]
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
+
+/** Post one scanned ticket to a scanner page's own JSON door, as the page's
+ * own script would. The page is opened first so the code and cookies are its
+ * own; both the listing door and the group door go through here. */
+export const postScanAtPath = async (
+  world: TicketsWorld,
+  doorPaths: DoorPaths,
+  ticket: string,
+  choices: DoorChoice = {},
+): Promise<DoorAnswer> => {
+  const browser = await openAdminPage(world, doorPaths.page);
   const response = await handleRequest(
-    new Request(`http://localhost${listingPath(world, listing, "scan")}`, {
+    new Request(`http://localhost${doorPaths.scan}`, {
       body: JSON.stringify({
         token: ticket,
         ...(choices.letInAnyway === undefined
@@ -170,7 +187,7 @@ export const showTicketAtDoor = async (
       }),
       headers: {
         "content-type": "application/json",
-        cookie: cookies,
+        cookie: cookiesOf(browser),
         host: "localhost",
         "x-csrf-token": codeOnPage(browser),
       },
@@ -180,23 +197,58 @@ export const showTicketAtDoor = async (
   return (await expectAccepted(response).json()) as DoorAnswer;
 };
 
+/** What one door's scan gives a story: whose door, whose ticket, and what the
+ * organiser decided when the door asked. */
+export type ShowTicketAtDoor = (
+  world: TicketsWorld,
+  doorName: string,
+  ticket: string,
+  choices?: DoorChoice,
+) => Promise<DoorAnswer>;
+
+/** One door's scan, from the paths its own pages live at. Both the listing
+ * door and the group door stand on this. */
+export const scanAt =
+  (
+    pathsOf: (world: TicketsWorld, doorName: string) => DoorPaths,
+  ): ShowTicketAtDoor =>
+  async (world, doorName, ticket, choices = {}) =>
+    postScanAtPath(world, pathsOf(world, doorName), ticket, choices);
+
+/** The organiser holds a ticket up to a listing's door and is told what to do
+ * with the person in front of them. Letting someone in who belongs to another
+ * listing is a deliberate second press, so it is asked for rather than assumed.
+ */
+export const showTicketAtDoor: ShowTicketAtDoor = scanAt((world, listing) => ({
+  page: listingPath(world, listing, "scanner"),
+  scan: listingPath(world, listing, "scan"),
+}));
+
 /** The whole door page, for checks about what is not on it at all. */
 export const doorPageHtml: ReadAboutOneThing = async (world, listing) =>
-  (await openDoor(world, listing)).currentHtml;
+  (await openAdminPage(world, listingPath(world, listing, "scanner")))
+    .currentHtml;
 
-/** The people the door offers when the organiser looks someone up by hand
- * instead of reading their ticket. Each one is read from the row the organiser
- * would click, so a name shown anywhere else on the page does not count as
- * being offered. */
-export const peopleOfferedAtDoor: ReadAboutOneThing<
-  Array<{ name: string; ticket: string }>
-> = async (world, listing) => {
-  const html = await doorPageHtml(world, listing);
-  return [...html.matchAll(/<div[^>]*role="option"[^>]*>/g)].map(([row]) => ({
+/** The people a scanner page's list offers when the organiser looks someone
+ * up by hand instead of reading their ticket. Each one is read from the row
+ * the organiser would click, so a name shown anywhere else on the page does
+ * not count as being offered. */
+export const readOfferedPeople = (
+  html: string,
+): Array<{ name: string; ticket: string }> =>
+  [...html.matchAll(/<div[^>]*role="option"[^>]*>/g)].map(([row]) => ({
     name: readOf(row, "name"),
     ticket: readOf(row, "token"),
   }));
-};
+
+/** The people a door's own list offers, whatever door page the caller
+ * names: the listing's door and the group's door both stand on this. */
+export const offeredAt =
+  (
+    pageHtml: ReadAboutOneThing<string>,
+  ): ReadAboutOneThing<Array<{ name: string; ticket: string }>> =>
+  async (world, doorName) =>
+    readOfferedPeople(await pageHtml(world, doorName));
 
 /** One thing the door records about a person it is offering. A row missing it
  * is a broken page, not an empty answer. */
@@ -205,6 +257,10 @@ const readOf = (row: string, what: string): string => {
   if (!found?.[1]) throw new Error(`A row at the door has no ${what}`);
   return found[1];
 };
+
+/** The people the listing's door offers when the organiser looks someone up by
+ * hand instead of reading their ticket. */
+export const peopleOfferedAtDoor = offeredAt(doorPageHtml);
 
 /** What the listing's own record of the day says happened. */
 export const dayLog: ReadAboutOneThing = async (world, listing) => {

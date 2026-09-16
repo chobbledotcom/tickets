@@ -167,6 +167,12 @@ export const groupCatalogFields = {
     0,
   ],
   name: ["name", undefined, "name", CATALOG_FORM],
+  scanChecksInAllListings: [
+    "scan_checks_in_all_listings",
+    falseColumn,
+    "boolean",
+    CATALOG_API_FORM,
+  ],
   showHiddenListings: [
     "show_hidden_listings",
     trueColumn,

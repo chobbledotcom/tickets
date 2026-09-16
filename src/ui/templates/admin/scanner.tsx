@@ -9,13 +9,20 @@ import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
-import type { AdminSession, ListingWithCount } from "#types";
+import type { AdminSession } from "#types";
 
 /** Ticket option for the manual check-in autocomplete */
 export interface TicketOption {
   name: string;
   quantity: number;
   token: string;
+}
+
+/** The group's "check in every listing" box, shown under the scanner window
+ * once one scan can span more than one listing. */
+export interface ScanAllCheckbox {
+  checked: boolean;
+  savePath: string;
 }
 
 /** The check-in message templates shared by both the camera scanner container
@@ -39,44 +46,66 @@ const sharedScanMessageAttrs = (messageTemplates: {
   "data-message-ticket-count-other": messageTemplates.ticketCountOther,
 });
 
+/** What one page's scanner messages say — every `{name}`-style hole below is
+ * filled by the client from the scan API's answer. */
+type ScannerMessages = {
+  alreadyCheckedIn: string;
+  checkedIn: string;
+  idMismatch: string;
+  refunded: string;
+  skipped: string;
+  ticketCountOne: string;
+  ticketCountOther: string;
+  verifyIdConfirm: string;
+  wrongListingConfirm: string;
+};
+
+const scannerMessages = (): ScannerMessages => ({
+  alreadyCheckedIn: t("admin.scanner.already_checked_in", {
+    listingName: "{listingName}",
+    name: "{name}",
+    tickets: "{tickets}",
+  }),
+  checkedIn: t("admin.scanner.checked_in", {
+    listingName: "{listingName}",
+    name: "{name}",
+    tickets: "{tickets}",
+  }),
+  idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
+  refunded: t("admin.scanner.refunded", { name: "{name}" }),
+  skipped: t("admin.scanner.skipped", { name: "{name}" }),
+  ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
+  ticketCountOther: t("admin.scanner.ticket_count_other", {
+    count: "{count}",
+  }),
+  verifyIdConfirm: t("admin.scanner.verify_id_confirm", {
+    name: "{name}",
+  }),
+  wrongListingConfirm: t("admin.scanner.wrong_listing_confirm", {
+    listingName: "{listingName}",
+    name: "{name}",
+  }),
+});
+
 /**
- * Scanner page - camera feed with auto check-in + manual autocomplete
+ * Scanner page - camera feed with auto check-in + manual autocomplete.
+ * `subject` is whichever door this page scans for — a listing or a group —
+ * and `scanPath` is the JSON API its two check-in paths post to.
  */
 export const adminScannerPage = (
-  listing: ListingWithCount,
+  subject: { name: string },
+  scanPath: string,
   session: AdminSession,
   uncheckedIn: TicketOption[] = [],
+  scanAll?: ScanAllCheckbox,
 ): string => {
-  const messageTemplates = {
-    alreadyCheckedIn: t("admin.scanner.already_checked_in", {
-      name: "{name}",
-      tickets: "{tickets}",
-    }),
-    checkedIn: t("admin.scanner.checked_in", {
-      name: "{name}",
-      tickets: "{tickets}",
-    }),
-    idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
-    refunded: t("admin.scanner.refunded", { name: "{name}" }),
-    skipped: t("admin.scanner.skipped", { name: "{name}" }),
-    ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
-    ticketCountOther: t("admin.scanner.ticket_count_other", {
-      count: "{count}",
-    }),
-    verifyIdConfirm: t("admin.scanner.verify_id_confirm", {
-      name: "{name}",
-    }),
-    wrongListingConfirm: t("admin.scanner.wrong_listing_confirm", {
-      listingName: "{listingName}",
-      name: "{name}",
-    }),
-  };
+  const messageTemplates = scannerMessages();
 
   return String(
     <Layout
       beforeContent={<AdminNav active="/admin/" session={session} />}
-      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
-      title={t("admin.scanner.title", { name: listing.name })}
+      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`}
+      title={t("admin.scanner.title", { name: subject.name })}
     >
       <div class="prose">
         <h1>{t("admin.scanner.heading")}</h1>
@@ -98,7 +127,7 @@ export const adminScannerPage = (
         >
           <video
             class="hidden"
-            data-listing-id={String(listing.id)}
+            data-scan-path={scanPath}
             id="scanner-video"
             muted
             playsinline
@@ -132,14 +161,42 @@ export const adminScannerPage = (
         </button>
       </article>
 
+      {scanAll ? (
+        <article>
+          <form action={scanAll.savePath} id="scan-all-setting" method="POST">
+            <input
+              name="csrf_token"
+              type="hidden"
+              value={getCurrentCsrfToken()}
+            />
+            <input
+              checked={scanAll.checked || undefined}
+              id="scan-all-listings"
+              name="scan_checks_in_all_listings"
+              type="checkbox"
+              value="1"
+            />
+            <label for="scan-all-listings">
+              {t("fields.group.scan_checks_in_all_listings_label")}
+            </label>
+            <p class="hint">
+              {t("fields.group.scan_checks_in_all_listings_hint")}
+            </p>
+            <SubmitButton icon="save">
+              {t("admin.scanner.save_setting")}
+            </SubmitButton>
+          </form>
+        </article>
+      ) : undefined}
+
       <article>
         <h2>{t("admin.scanner.manual_checkin")}</h2>
         <form
-          action={`/admin/listing/${listing.id}/scan`}
+          action={scanPath}
           {...sharedScanMessageAttrs(messageTemplates)}
-          data-listing-id={String(listing.id)}
           data-manual-checkin
           data-message-verify-id-note={t("admin.scanner.verify_id_note")}
+          data-scan-path={scanPath}
           id="manual-checkin"
           method="POST"
         >

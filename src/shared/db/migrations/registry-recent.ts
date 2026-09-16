@@ -32,5 +32,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-09-14_group_show_hidden_listings",
     () => import("./2026-09-14_group_show_hidden_listings.ts"),
   ),
+  // The group scanner's door preference: one listing per scan, or every
+  // listing at once when the group's checkbox says so.
+  entry(
+    "2026-09-15_group_scan_checks_in_all_listings",
+    () => import("./2026-09-15_group_scan_checks_in_all_listings.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

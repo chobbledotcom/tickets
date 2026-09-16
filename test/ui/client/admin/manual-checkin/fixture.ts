@@ -8,7 +8,6 @@ import {
 
 const CHECKIN_FORM = `
   <form
-    data-listing-id="7"
     data-manual-checkin
     data-message-error="Check-in failed"
     data-message-network-error="Could not reach server"
@@ -17,6 +16,7 @@ const CHECKIN_FORM = `
     data-message-ticket-count-one="{count} pass"
     data-message-ticket-count-other="{count} tickets"
     data-message-verify-id-note=" - check ID"
+    data-scan-path="/admin/listing/7/scan"
   >
     <input id="manual-checkin-input" />
     <input id="manual-checkin-token" />

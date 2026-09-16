@@ -17,18 +17,14 @@ const extractToken = (data) => {
   }
 };
 
-/** POST to scan API */
-const postScan = async (
-  listingId,
-  token,
-  csrfToken,
-  { force, idVerified } = {},
-) => {
+/** POST to scan API — the page names it door it posts to (one listing or a
+ * whole group), so the same client serves both. */
+const postScan = async (scanPath, token, csrfToken, { force, idVerified } = {}) => {
   const body = { token };
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
 
-  const res = await fetch(`/admin/listing/${listingId}/scan`, {
+  const res = await fetch(scanPath, {
     body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
@@ -78,6 +74,7 @@ const showStatus = (el, message, type) => {
 /** Build a "{name} … ({tickets})" status message for a check-in result. */
 const nameAndTicketsMessage = (messages, key, fallback, result) =>
   interpolate(getMessage(messages, key, fallback), {
+    listingName: result.listingName,
     name: result.name,
     tickets: formatTicketCount(messages, result.quantity),
   });
@@ -88,7 +85,7 @@ const handleResult = (el, result, messages) => {
     case "checked_in":
       showStatus(
         el,
-        nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in ({tickets})", result),
+        nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in for {listingName} ({tickets})", result),
         "success",
       );
       break;
@@ -98,7 +95,7 @@ const handleResult = (el, result, messages) => {
         nameAndTicketsMessage(
           messages,
           "messageAlreadyCheckedIn",
-          "{name} already checked in ({tickets})",
+          "{name} already checked in for {listingName} ({tickets})",
           result,
         ),
         "warning",
@@ -117,7 +114,7 @@ const handleResult = (el, result, messages) => {
 };
 
 /** Main scanner loop */
-const startScanner = (video, canvas, statusEl, listingId, csrfToken, messages) => {
+const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
@@ -168,7 +165,7 @@ const startScanner = (video, canvas, statusEl, listingId, csrfToken, messages) =
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    postScan(listingId, token, csrfToken)
+    postScan(scanPath, token, csrfToken)
       .then(async (result) => {
         if (result.status === "wrong_listing") {
           const ok = await showConfirm(
@@ -182,7 +179,7 @@ const startScanner = (video, canvas, statusEl, listingId, csrfToken, messages) =
             ),
           );
           if (ok) {
-            const forced = await postScan(listingId, token, csrfToken, {
+            const forced = await postScan(scanPath, token, csrfToken, {
               force: true,
             });
             handleResult(statusEl, forced, messages);
@@ -192,7 +189,7 @@ const startScanner = (video, canvas, statusEl, listingId, csrfToken, messages) =
         } else if (result.status === "verify_id") {
           const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
           if (ok) {
-            const verified = await postScan(listingId, token, csrfToken, {
+            const verified = await postScan(scanPath, token, csrfToken, {
               idVerified: true,
             });
             handleResult(statusEl, verified, messages);
@@ -264,7 +261,7 @@ const init = () => {
 
   const messages = scannerContainer.dataset;
 
-  const listingId = video.dataset.listingId;
+  const scanPath = video.dataset.scanPath;
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   const csrfToken = csrfMeta ? csrfMeta.content : "";
 
@@ -291,7 +288,7 @@ const init = () => {
       startBtn.classList.add("hidden");
       video.classList.remove("hidden");
       showStatus(statusEl, getMessage(messages, "messageScanning", "Scanning..."), "success");
-      startScanner(video, canvas, statusEl, listingId, csrfToken, messages);
+      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages);
     } catch {
       showStatus(statusEl, getMessage(messages, "messageCameraDenied", "Camera access denied"), "error");
     }
@@ -303,3 +300,8 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
+
+// The tail that makes this a module bundle (like the order widget's): the
+// served script tag is type="module", and these exports are the pieces the
+// direct test drives through the built bundle.
+export { extractToken, handleResult, postScan, showConfirm };

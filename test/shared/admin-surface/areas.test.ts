@@ -63,4 +63,10 @@ describe("the admin areas table", () => {
       "owner",
     ]);
   });
+
+  test("serves a POST-only area under the URL segment it posts to", () => {
+    // A POST-only area names no route of its own, so nothing else catches a
+    // wrong segment: the router would 404 the post before the area loads.
+    expect(ADMIN_AREAS.markdownPreview.segments).toEqual(["markdown-preview"]);
+  });
 });

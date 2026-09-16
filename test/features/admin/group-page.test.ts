@@ -93,10 +93,27 @@ describeWithEnv("the group page", { db: true }, () => {
     expect(html).toContain(
       `href="/admin/groups/${group.id}/attendees">Attendees</a>`,
     );
+    expect(html).toContain(
+      `href="/admin/groups/${group.id}/scanner">Scanner</a>`,
+    );
     expect(html).toContain(`href="/admin/groups/${group.id}/edit">Edit</a>`);
     expect(html).toContain(
       `href="/admin/groups/${group.id}/actions">Actions</a>`,
     );
+  });
+
+  test("keeps an editor off the scanner tab", async () => {
+    // The scanner route is staff-only, so an editor is shown no tab for it
+    // rather than one that answers 403.
+    const group = await createTestGroup({ name: "Editor Scans" });
+
+    const html = await (
+      await awaitTestRequest(`/admin/groups/${group.id}`, {
+        cookie: await editorCookie(),
+      })
+    ).text();
+
+    expect(html).not.toContain("/scanner");
   });
 
   test("adds the images tab once a storage zone is configured", async () => {

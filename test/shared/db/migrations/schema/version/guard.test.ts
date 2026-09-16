@@ -107,8 +107,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-18_sumup_recovery_state",
         "2026-09-11_refund_order_link",
         "2026-09-14_group_show_hidden_listings",
+        "2026-09-15_group_scan_checks_in_all_listings",
       ],
-      schemaHash: "1e1hygy",
+      schemaHash: "y91i2g",
     });
   });
 

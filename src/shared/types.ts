@@ -25,19 +25,14 @@ import type { NonEmptyString } from "#shared/validation/string.ts";
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/**
- * Unique identifiers for settings nags that prompt the admin to complete
- * required or recommended configuration.
- */
+/** Ids for the settings nags that prompt required or recommended setup. */
 export type NagId =
   | "payment-provider"
   | "business-email"
   | "domain"
   | "superuser";
 
-/**
- * A single settings nag item presented to the admin.
- */
+/** One settings nag item shown to the admin. */
 export type NagItem = {
   /** The nag identifier. */
   id: NagId;
@@ -679,6 +674,8 @@ export interface Group {
   is_package: boolean;
   max_attendees: number;
   name: string;
+  /** When true one group scan checks in every member listing the ticket holds. */
+  scan_checks_in_all_listings: boolean;
   /** When true the group's public booking page also offers member listings
    * marked Hidden (the long-standing behaviour). When false a hidden member
    * stays off that page — internal to admin and capacity, bookable only

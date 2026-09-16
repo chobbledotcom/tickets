@@ -37,6 +37,7 @@ describe("read-only request guard", () => {
       "/admin/deliveries/mark",
       "/admin/listing/42/scan",
       "/admin/listing/42/attendee/99/checkin",
+      "/admin/groups/42/scan",
       "/admin/login",
       "/admin/logout",
       "/admin/support",
@@ -44,6 +45,12 @@ describe("read-only request guard", () => {
       expect(readOnlyBlock(path, "POST"), path).toBeNull();
     }
     expect(readOnlyBlock("/admin/logout", "PUT")).toBe("page");
+  });
+
+  test("blocks the group scanner's checkbox save in read-only mode", () => {
+    // The scan at the door keeps working; changing the group's stored door
+    // preference is a group write, like the edit it belongs to.
+    expect(readOnlyBlock("/admin/groups/42/scanner", "POST")).toBe("page");
   });
 
   test("allows public operations that must continue in read-only mode", () => {

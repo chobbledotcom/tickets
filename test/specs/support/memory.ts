@@ -28,6 +28,8 @@ export interface ThingsByKind {
   bundle: Group;
   /** The days a listing's own page offered, the last time it was looked at. */
   daysOffered: string[];
+  /** One group door the story opened, kept by the name it calls the group. */
+  group_door: number;
   /** A key the owner made for another system, as it was handed to them once. */
   key: string;
   /** Something the site sells. */

@@ -7,7 +7,7 @@
   "guide.q.qr_code_purpose": "What's the QR code for?",
   "guide.a.qr_code_purpose": "<p>The QR code links to the ticket's check-in page. Scanning it opens the page in a browser. Non-admin visitors see a message to show the code to staff. Admin visitors see the attendee's details and a check-in button.</p>",
   "guide.q.use_qr_scanner": "How do I use the QR scanner?",
-  "guide.a.use_qr_scanner": "<p>Open a listing and click <strong>Scanner</strong>. Tap <strong>Start Camera</strong> to begin (grants camera permission on first use). Point the camera at an attendee's QR code and check-in happens automatically. The scanner works best with the rear camera on mobile devices.</p>",
+  "guide.a.use_qr_scanner": "<p>Open a listing and click <strong>Scanner</strong>. Tap <strong>Start Camera</strong> to begin (grants camera permission on first use). Point the camera at an attendee's QR code and check-in happens automatically. The scanner works best with the rear camera on mobile devices.</p><p>To check people in for a whole group, open the group and click <strong>Scanner</strong>. One scan checks in one listing at a time. A group with several listings has a checkbox under the scanner window: tick it to check in every listing the ticket holds with one scan.</p>",
   "guide.q.scanner_no_checkout": "Why doesn't the scanner check people out?",
   "guide.a.scanner_no_checkout": "<p>The scanner is intentionally one-way: it only checks people <strong>in</strong>, never out. This prevents accidental check-outs from double-scans at a busy door. To check someone out, use the manual check-in page instead.</p>",
   "guide.q.qr_different_listing": "What if a QR code is for a different listing?",

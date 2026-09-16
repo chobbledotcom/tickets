@@ -114,7 +114,7 @@ export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook" || path === "/sms/webhook";
 
 /** Pattern matching scan API paths (the scanner posts JSON check-ins) */
-const SCAN_API_PATTERN = /^\/admin\/listing\/\d+\/scan$/;
+const SCAN_API_PATTERN = /^\/admin\/(listing|groups)\/\d+\/scan$/;
 
 /** Pattern for public API paths */
 const API_PATH_PATTERN = /^\/api\//;

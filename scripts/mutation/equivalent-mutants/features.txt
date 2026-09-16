@@ -9,6 +9,7 @@ src/features/response.ts::redirect.flash~0r1iimg  ?? → ||   # maybeStashForm r
 src/features/admin/settings-connection-lines.ts::credentialLine.mode~1vqeabi  ?? → ||   # cred.mode on a valid credential is a non-empty mode word or undefined; never the empty string
 
 src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1   # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
+src/features/admin/scanner.ts::resolveAttendeeName.fromEntry~1ssznli  0→1   # one token is one attendee, so every entry carries that person's decrypted name: index 1 answers the same person, and the no-entry case falls back to the same blob
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → ||   # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
@@ -67,6 +68,7 @@ src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq
 # rediscover more tracking keys without changing the final boolean.
 src/features/middleware.ts::lowerContentType~06bb1lp  ?? → ||   # Content-Type is string|null; the only falsy non-null string is "", which is also the fallback
 src/features/middleware.ts::getCleanUrl~0l5b2wp  break; → (removed)   # later keys cannot reverse hasTracking
+src/features/middleware.ts::buildCspHeader.provider~130hma6 ??→||   # payment.provider is PaymentProviderType|null; every non-null member is a non-empty provider word, so ?? and || agree
 
 # group-page-data fallbacks have operands whose only falsy non-null value
 # coincides with the fallback.
