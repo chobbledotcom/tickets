@@ -18,6 +18,7 @@ import { assertJson, expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
@@ -322,6 +323,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/scan", () => {
+    // Spies on console.error for the tests that prove an error path logged.
+    const errorLog = setupErrorSpy();
+
     test("returns Unknown listing when attendee's listing is deleted", async () => {
       const { token } = await createTestAttendeeWithToken(
         "Frank",
@@ -508,6 +512,10 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { response } = await setupLoginAndScan({ token: "some-token" });
       await assertJson(Promise.resolve(response), 500, (result) => {
         expect(result.error).toBe("Decryption unavailable");
+        // The failure says where it came from, so the log answers the 500.
+        expect(errorLog.contains("Scanner: private key unavailable")).toBe(
+          true,
+        );
       });
     });
 

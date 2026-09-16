@@ -151,8 +151,10 @@ const resolveAttendeeName = async (
   awb: AttendeeWithBookings,
   privateKey: CryptoKey,
 ): Promise<string> => {
-  const fromEntry = allEntries[0]?.attendee.name;
-  if (fromEntry) return fromEntry;
+  // One token belongs to one attendee, so every entry names the same person;
+  // any entry answers, and an empty entry list falls back to the raw blob.
+  const fromAnyEntry = allEntries.at(-1)?.attendee.name;
+  if (fromAnyEntry) return fromAnyEntry;
   const decrypted = await decryptAttendees(
     [{ pii_blob: awb.pii_blob } as Attendee],
     privateKey,

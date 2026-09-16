@@ -67,6 +67,7 @@ src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq
 # rediscover more tracking keys without changing the final boolean.
 src/features/middleware.ts::lowerContentType~06bb1lp  ?? → ||   # Content-Type is string|null; the only falsy non-null string is "", which is also the fallback
 src/features/middleware.ts::getCleanUrl~0l5b2wp  break; → (removed)   # later keys cannot reverse hasTracking
+src/features/middleware.ts::buildCspHeader.provider~130hma6 ??→||   # payment.provider is PaymentProviderType|null; every non-null member is a non-empty provider word, so ?? and || agree
 
 # group-page-data fallbacks have operands whose only falsy non-null value
 # coincides with the fallback.
