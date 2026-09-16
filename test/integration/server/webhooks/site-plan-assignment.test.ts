@@ -166,8 +166,12 @@ describeWithEnv(
       // The vanished assignment is now an incident an operator can see:
       // console error, ntfy ping, and the raw error kept for Sentry.
       expect(
-        _error.calls.some((call) =>
-          String(call.args[0]).includes(ErrorCode.SITE_ASSIGNMENT),
+        _error.calls.some(
+          (call) =>
+            String(call.args[0]).includes(ErrorCode.SITE_ASSIGNMENT) &&
+            String(call.args[0]).includes(
+              "Site assignment failed after a completed booking",
+            ),
         ),
       ).toBe(true);
       expect(bodies.some((body) => body === ErrorCode.SITE_ASSIGNMENT)).toBe(
