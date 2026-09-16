@@ -224,10 +224,11 @@ describeWithEnv("group scanner scans", { db: true }, () => {
         },
       ),
     );
+    const answer = await forcedAtListing.json();
     // Even under force a listing door admits exactly one listing.
-    expect((await forcedAtListing.json()).status).toBe("checked_in");
-    expect((await forcedAtListing.json()).listingName).toBe("Standard");
-    expect((await forcedAtListing.json()).remaining).toBe(1);
+    expect(answer.status).toBe("checked_in");
+    expect(answer.listingName).toBe("Standard");
+    expect(answer.remaining).toBe(1);
   });
 
   test("a No check-in member never enters the door", async () => {
