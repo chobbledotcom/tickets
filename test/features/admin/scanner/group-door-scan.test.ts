@@ -1,4 +1,5 @@
-/** Tests for the group scanner's scan API
+/** Tests for the group scanner's scan API, the direct suite beside the
+ * routes it exercises in src/features/admin/scanner.ts:
  * POST /admin/groups/:id/scan - the same JSON check-in API over the group's
  * members
  *
@@ -68,7 +69,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
   });
 
   test("an outside-group ticket is queried, and force lets it in", async () => {
-    const { group, members } = await groupDoor();
+    const { group, members } = await groupDoor(2);
     const outside = await createTestAttendeeWithToken("Zoe", "zoe@example.com");
 
     const rejected = await scanAtDoor(group.id, { token: outside.token });
@@ -94,6 +95,68 @@ describeWithEnv("group scanner scans", { db: true }, () => {
       ),
     );
     expect((await listingDoor.json()).status).toBe("wrong_listing");
+  });
+
+  test("a multi-listing ticket from outside names every listing it holds", async () => {
+    const door = await groupDoor();
+    const elsewhere = await createTestGroup({ name: "Elsewhere" });
+    const quiz = await createTestListing({
+      groupId: elsewhere.id,
+      maxAttendees: 10,
+      name: "Quiz",
+    });
+    const talk = await createTestListing({
+      groupId: elsewhere.id,
+      maxAttendees: 10,
+      name: "Talk",
+    });
+    const holder = await createMultiBookingAttendee("Zia", "zia@example.com", [
+      { listingId: quiz.id, quantity: 1 },
+      { listingId: talk.id, quantity: 1 },
+    ]);
+
+    const rejected = await scanAtDoor(door.group.id, {
+      token: holder.ticket_token,
+    });
+
+    expect(rejected.json.status).toBe("wrong_listing");
+    expect(rejected.json.listingName).toBe("Quiz, Talk");
+    expect(rejected.json.name).toBe("Zia");
+  });
+
+  test("a listing door never widens a forced scan into other listings", async () => {
+    const { group, members } = await groupDoor(2);
+    const holder = await createMultiBookingAttendee("Fay", "fay@example.com", [
+      { listingId: members[0]!.id, quantity: 1 },
+      { listingId: members[1]!.id, quantity: 1 },
+    ]);
+
+    // The person holds no row on the unrelated listing, so force widens the
+    // door to their ticket — and still admits only one listing.
+    const unrelated = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "Unrelated door",
+    });
+    const forcedAtListing = await handleRequest(
+      requestAsSession(
+        `/admin/listing/${unrelated.id}/scan`,
+        { cookie: await testCookie(), csrfToken: await testCsrfToken() },
+        {
+          body: JSON.stringify({
+            force: true,
+            token: holder.ticket_token,
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      ),
+    ).then((response) => response.json());
+
+    expect(forcedAtListing.status).toBe("checked_in");
+    // Even under force a listing door admits exactly one listing.
+    expect(forcedAtListing.listingName).toBe("Standard");
+    expect(forcedAtListing.remaining).toBe(1);
   });
 
   test("a No check-in member never enters the door", async () => {
@@ -217,6 +280,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
 
     const missing = await scanAtDoor(99999, { token: "any" });
     expect(missing.response.status).toBe(404);
+    expect(missing.json.status).toBe("not_found");
   });
 
   test("answers 401, 403, and 400 like the listing scan", async () => {
@@ -246,5 +310,6 @@ describeWithEnv("group scanner scans", { db: true }, () => {
 
     const missing = await scanAtDoor(group.id, {});
     expect(missing.response.status).toBe(400);
+    expect(missing.json.error).toBe("Missing token");
   });
 });

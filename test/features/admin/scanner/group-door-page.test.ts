@@ -1,4 +1,5 @@
-/** Tests for the group scanner page
+/** Tests for the group scanner page, the direct suite beside the routes it
+ * exercises in src/features/admin/scanner.ts:
  * GET /admin/groups/:id/scanner - one door for every member of a group
  * POST /admin/groups/:id/scanner - the "check in every listing" box
  *
@@ -96,6 +97,9 @@ describeWithEnv("group scanner page", { db: true }, () => {
     expect(save.response.headers.get("location")).toContain(
       `/admin/groups/${group.id}/scanner`,
     );
+    // The save tells the organiser it worked, as a success flash.
+    const flash = save.response.headers.get("set-cookie") ?? "";
+    expect(decodeURIComponent(flash)).toContain(`"t":"s"`);
     expect(await doorPage(group.id)).toContain("checked");
 
     const { json } = await scanAtDoor(group.id, {
