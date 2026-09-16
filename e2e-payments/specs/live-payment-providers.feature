@@ -164,7 +164,8 @@ Feature: Real sandbox payments finish safely
     Quantity on a built-site plan buys months of one site's service. The
     sandbox has no build infrastructure, so the expected outcome is the
     documented failure mode: the paid booking and its money stand, the failed
-    build costs no later entry its attempt, and the system map answers clean.
+    build costs no later entry its attempt, the owner's log records the lost
+    assignment, and the system map answers clean.
 
     @case:live-payments.stripe-plan-months
     Scenario: A visitor buys three units of a three-month site plan
@@ -174,6 +175,7 @@ Feature: Real sandbox payments finish safely
       And Stripe's signed webhook confirms the payment
       And the visitor retries the exact browser return
       Then the owner sees one attendee and the captured income once
+      And the owner's log records the lost site assignment
       And the owner's system map answers clean
 
   @rule:payments.live-complex-order-keeps-every-path @surface:admin @surface:public
