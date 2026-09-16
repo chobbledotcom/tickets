@@ -177,6 +177,16 @@ describeWithEnv(
       expect(bodies.some((body) => body === ErrorCode.SITE_ASSIGNMENT)).toBe(
         true,
       );
+      // The raw error belongs to Sentry only — it must not reach the
+      // console line or the ntfy ping.
+      expect(bodies.some((body) => body.includes(crash.message))).toBe(false);
+      expect(
+        _error.calls.some((call) =>
+          call.args.some((argument) =>
+            String(argument).includes(crash.message),
+          ),
+        ),
+      ).toBe(false);
     });
   },
 );
