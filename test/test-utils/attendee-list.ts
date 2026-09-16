@@ -4,11 +4,20 @@
  * the table's own order), each overridable per test.
  */
 
-import type {
-  AttendeeListSetup,
-  AttendeeSort,
+import {
+  type AttendeeListSetup,
+  type AttendeeListState,
+  type AttendeeSort,
+  readAttendeeListState,
 } from "#shared/attendee-list-controls.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+
+/** Read one setup's state from a query string, the way a test writes queries. */
+export const readListState = <Sort extends AttendeeSort | null>(
+  setup: AttendeeListSetup<Sort>,
+  query: string,
+): AttendeeListState<Sort> =>
+  readAttendeeListState(setup, new URLSearchParams(query));
 
 export const testBrowserListSetup = (
   overrides: Partial<AttendeeListSetup<AttendeeSort>> = {},

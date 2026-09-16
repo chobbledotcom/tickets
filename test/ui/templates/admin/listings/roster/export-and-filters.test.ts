@@ -3,6 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
   registerListingTemplateHooks,
+  renderRosterPanel,
+  type renderRosterPanel as renderRosterPanelType,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -266,5 +268,40 @@ describe("adminListingPage Renewal tag", () => {
       allowedDomain: "",
     });
     expect(html).not.toContain("Renewal");
+  });
+});
+
+describe("adminListingPage daily roster detail table", () => {
+  registerListingTemplateHooks();
+
+  // The roster renders its shared detail rows (including the revenue row) only
+  // when a daily listing is narrowed to one date. Render the roster panel alone
+  // so the overview's identical revenue row cannot satisfy the assertions.
+  const dailyRosterHtml = (
+    unit_price: number,
+    attendees: Parameters<typeof renderRosterPanelType>[0]["attendees"],
+  ) =>
+    renderRosterPanel({
+      allowedDomain: "localhost",
+      attendees,
+      dateFilter: "2026-03-15",
+      listing: testListingWithCount({
+        attendee_count: attendees.length,
+        listing_type: "daily",
+        unit_price,
+      }),
+    });
+
+  test("shows the revenue row for a paid listing", () => {
+    const html = dailyRosterHtml(1000, [
+      testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
+    ]);
+    expect(html).toContain("Total Revenue");
+    expect(html).toContain("£10");
+  });
+
+  test("hides the revenue row for a free listing", () => {
+    const html = dailyRosterHtml(0, [testAttendee({ price_paid: "0" })]);
+    expect(html).not.toContain("Total Revenue");
   });
 });

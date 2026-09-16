@@ -89,7 +89,11 @@ export const renderListingDetail = (opts: DetailOptions): string =>
       ),
       systemNotes: opts.systemNotes,
     }),
-  ) +
+  ) + renderRosterPanel(opts);
+
+/** Render only the Roster panel, for a test that must see what the roster
+ *  itself draws — the overview's detail table renders the same labels. */
+export const renderRosterPanel = (opts: DetailOptions): string =>
   String(
     ListingRosterPanel({
       ...opts,

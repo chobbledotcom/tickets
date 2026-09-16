@@ -105,7 +105,6 @@
   "test/scripts/specs/profile.test.ts": 417,
   "test/scripts/typescript-lex.test.ts": 419,
   "test/shared/accounting/store.test.ts": 443,
-  "test/shared/attendee-list-controls.test.ts": 407,
   "test/shared/booking/fold-tree.test.ts": 406,
   "test/shared/builder.test.ts": 442,
   "test/shared/bunny-cdn/edge-script.test.ts": 455,

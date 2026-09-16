@@ -84,6 +84,14 @@ describeWithEnv("listing detail group context", { db: true }, () => {
 
     expect(await loadGroupContext(listing, null)).toBeUndefined();
   });
+
+  test("fails loudly when a capped group is missing from the remaining map", async () => {
+    const listing = await listingInCappedGroups("Missing", [5]);
+
+    await expect(
+      loadGroupContext(listing, null, async () => new Map()),
+    ).rejects.toThrow("Missing group remaining");
+  });
 });
 
 describeWithEnv("listing detail attendee filtering", { db: true }, () => {

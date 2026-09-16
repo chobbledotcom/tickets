@@ -154,13 +154,14 @@ export const loadListingQuestionData = async (
 };
 
 /** Fetch group + current usage when the listing sits in a capped group, so the
- * detail page can render a row for the shared cap. Returns undefined for
- * ungrouped or uncapped groups. A listing can belong to several capped groups;
- * the one with the FEWEST remaining spots is the binding constraint (a booking
- * is blocked by the tightest group — see capacity.ts), so surface that one. */
+ *  detail page can render a row for the shared cap. Returns undefined for
+ *  ungrouped or uncapped groups. A listing can belong to several capped groups;
+ *  the one with the FEWEST remaining spots is the binding constraint (a booking
+ *  is blocked by the tightest group — see capacity.ts), so surface that one. */
 export const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
+  getRemaining: typeof getGroupRemainingByGroupId = getGroupRemainingByGroupId,
 ): Promise<GroupContext | undefined> => {
   const groupIds = await listingGroups.getIds(listing.id);
   const groupsById = await getGroupsByIds(groupIds);
@@ -169,13 +170,14 @@ export const loadGroupContext = async (
     return group && group.max_attendees > 0 ? [group] : [];
   });
   if (capped.length === 0) return;
-  const remainingMap = await getGroupRemainingByGroupId(
+  const remainingMap = await getRemaining(
     capped.map((group) => group.id),
     dateFilter,
   );
   let tightest: { ctx: GroupContext; remaining: number } | undefined;
   for (const group of capped) {
-    // max_attendees > 0 guarantees the helper returns an entry for the group.
+    // A capped group read earlier must still be capped now; a missing entry
+    // means the two reads disagreed, and requiredMapValue surfaces that loudly.
     const remaining = requiredMapValue(
       remainingMap,
       group.id,
