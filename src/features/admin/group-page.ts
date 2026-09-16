@@ -102,6 +102,19 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
       (group) => loadGroupAttendeesPanel(group),
       staffOnly,
     ),
+    {
+      // The scanner is served by its own route (GET /admin/groups/:id/
+      // scanner, scanner.ts) rather than this tab framework's section
+      // loaders — the router tries literal paths before this page's /:tab
+      // wildcard, so that route always wins and this tab renders no content
+      // of its own. Its entry here exists only to promote the link into the
+      // top-level tab strip, the same promotion the listing page's scanner
+      // tab uses, behind the same staff-only gate its route enforces.
+      labelKey: "groups.detail.scanner",
+      sections: [],
+      slug: "scanner",
+      visible: staffOnly,
+    },
     writeFormTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
     writeFormTab(
       "images",

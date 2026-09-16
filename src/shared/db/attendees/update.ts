@@ -9,6 +9,7 @@ import {
   execute,
   executeBatch,
   executeUpdate,
+  inPlaceholders,
   queryAll,
   rawSql,
   update,
@@ -32,6 +33,20 @@ export const updateCheckedIn = async (
   await execute(
     "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ? AND quantity > 0",
     [checkedIn ? 1 : 0, attendeeId, listingId],
+  );
+};
+
+/** Check one scanned attendee in on every listing a scan admitted — one
+ * statement covers the whole admission, one listing or several. The caller
+ * guarantees at least one listing, so an empty admission never reaches SQL.
+ * The same no-quantity guard as {@link updateCheckedIn} applies to every row. */
+export const updateCheckedInOnListings = async (
+  attendeeId: number,
+  listingIds: readonly number[],
+): Promise<void> => {
+  await execute(
+    `UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`,
+    [attendeeId, ...listingIds],
   );
 };
 

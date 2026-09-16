@@ -269,7 +269,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "scanner-container",
         "scanner-video",
         "scanner-start",
-        `data-listing-id="${listing.id}"`,
+        `data-scan-path="/admin/listing/${listing.id}/scan"`,
         "scanner.js",
         "scanner-confirm",
       );

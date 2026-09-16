@@ -1,9 +1,8 @@
 /**
  * Every admin area, and the routes it serves.
  *
- * This is the one place an admin route is declared. The nav that links to a
- * route lives in `sections.ts`; the module that serves it lives in
- * `src/features/admin/area-loaders.ts`, keyed by the same area names.
+ * This is the one place an admin route is declared. Its nav (`sections.ts`)
+ * and its serving module (`area-loaders.ts`) are keyed by the same area names.
  *
  * An area names the role that reaches it once. A route names a role only when
  * it differs from its area. `segments` lists a URL segment the area serves
@@ -346,6 +345,7 @@ export const ADMIN_AREAS = {
   scanner: {
     audience: STAFF_ADMIN_LEVELS,
     view: {
+      groupScanner: "/admin/groups/:id/scanner",
       listingScanner: "/admin/listing/:id/scanner",
     },
   },

@@ -28,12 +28,20 @@ describe("manual check-in submission", () => {
         "x-csrf-token": "csrf",
       });
       expect(JSON.parse(String(init?.body))).toEqual({ token: "ada" });
-      return Response.json({ name: "Ada", quantity: 2, status: "checked_in" });
+      return Response.json({
+        listingName: "Ceilidh",
+        name: "Ada",
+        quantity: 2,
+        remaining: 0,
+        status: "checked_in",
+      });
     });
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Ada checked in (2 tickets)");
+    expect(page.status.textContent).toBe(
+      "Ada checked in for Ceilidh (2 tickets)",
+    );
     expect(page.status.className).toBe("checkin-status checkin-status-success");
     expect(page.listbox.querySelector("[data-token=ada]")).toBeNull();
     expect(page.tokenInput.value).toBe("");
@@ -44,12 +52,17 @@ describe("manual check-in submission", () => {
     const page = setup();
     page.tokenInput.value = "unknown";
     using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: "two", status: "checked_in" }),
+      Response.json({
+        listingName: "Ceilidh",
+        name: "Ada",
+        quantity: "two",
+        status: "checked_in",
+      }),
     );
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Ada checked in (1 pass)");
+    expect(page.status.textContent).toBe("Ada checked in for Ceilidh (1 pass)");
     expect(page.listbox.querySelectorAll("[role=option]").length).toBe(3);
   });
 
@@ -57,12 +70,19 @@ describe("manual check-in submission", () => {
     const page = setup();
     page.tokenInput.value = "unknown";
     using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 0, status: "checked_in" }),
+      Response.json({
+        listingName: "Ceilidh",
+        name: "Ada",
+        quantity: 0,
+        status: "checked_in",
+      }),
     );
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Ada checked in (0 tickets)");
+    expect(page.status.textContent).toBe(
+      "Ada checked in for Ceilidh (0 tickets)",
+    );
   });
 
   test("successful submission uses empty text for an unknown message value", async () => {
@@ -78,18 +98,44 @@ describe("manual check-in submission", () => {
     expect(page.status.textContent).toBe("Ada:");
   });
 
-  test("successful submission removes only the first matching option", async () => {
+  test("a full check-in removes every matching option", async () => {
     const page = setup();
     const option = page.listbox.querySelector<HTMLElement>("[data-token=ada]")!;
     page.listbox.append(option.cloneNode(true));
     page.tokenInput.value = "ada";
     using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 2, status: "checked_in" }),
+      Response.json({
+        listingName: "Ceilidh",
+        name: "Ada",
+        quantity: 2,
+        remaining: 0,
+        status: "checked_in",
+      }),
     );
 
     await page.submit();
 
-    expect(page.listbox.querySelectorAll("[data-token=ada]").length).toBe(1);
+    expect(page.listbox.querySelectorAll("[data-token=ada]").length).toBe(0);
+  });
+
+  test("a check-in with listings remaining keeps the person's option", async () => {
+    const page = setup();
+    page.tokenInput.value = "ada";
+    using _fetch = stubFetch(
+      Response.json({
+        listingName: "Ceilidh",
+        name: "Ada",
+        quantity: 2,
+        remaining: 1,
+        status: "checked_in",
+      }),
+    );
+
+    await page.submit();
+
+    expect(page.listbox.querySelector("[data-token=ada]")).not.toBeNull();
+    expect(page.tokenInput.value).toBe("");
+    expect(page.input.value).toBe("");
   });
 
   test("ID verification resubmits before showing success", async () => {
@@ -102,7 +148,13 @@ describe("manual check-in submission", () => {
     };
     using _fetch = stubFetch(reply, (_url, init) => {
       bodies.push(JSON.parse(String(init?.body)));
-      return Response.json({ name: "Bea", quantity: 1, status: "checked_in" });
+      return Response.json({
+        listingName: "Ceilidh",
+        name: "Bea",
+        quantity: 1,
+        remaining: 0,
+        status: "checked_in",
+      });
     });
 
     await page.submit();
@@ -111,7 +163,9 @@ describe("manual check-in submission", () => {
       { token: "bea" },
       { id_verified: true, token: "bea" },
     ]);
-    expect(page.status.textContent).toBe("Bea checked in (1 pass) - check ID");
+    expect(page.status.textContent).toBe(
+      "Bea checked in for Ceilidh (1 pass) - check ID",
+    );
   });
 
   test("ID verification uses its fallback note when no message is configured", async () => {
@@ -120,13 +174,19 @@ describe("manual check-in submission", () => {
     page.tokenInput.value = "bea";
     using _fetch = stubFetch(
       Response.json({ status: "verify_id" }),
-      Response.json({ name: "Bea", quantity: 1, status: "checked_in" }),
+      Response.json({
+        listingName: "Ceilidh",
+        name: "Bea",
+        quantity: 1,
+        remaining: 0,
+        status: "checked_in",
+      }),
     );
 
     await page.submit();
 
     expect(page.status.textContent).toBe(
-      "Bea checked in (1 pass) \u2014 verify their ID",
+      "Bea checked in for Ceilidh (1 pass) \u2014 verify their ID",
     );
   });
 
@@ -140,7 +200,7 @@ describe("manual check-in submission", () => {
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Ada already (1 pass)");
+    expect(page.status.textContent).toBe("Ada already (0 tickets)");
     expect(page.status.className).toBe("checkin-status checkin-status-warning");
   });
 
@@ -198,10 +258,15 @@ describe("manual check-in submission", () => {
 
   for (const fallback of [
     {
-      expected: "Ada already checked in",
+      expected: "Ada already checked in for Ceilidh (2 tickets)",
       key: "messageAlreadyCheckedIn",
       name: "already checked in results use their fallback message",
-      result: { name: "Ada", status: "already_checked_in" },
+      result: {
+        listingName: "Ceilidh",
+        name: "Ada",
+        quantity: 2,
+        status: "already_checked_in",
+      },
     },
     {
       expected: "Ada has been refunded",

@@ -184,6 +184,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   is_package: false,
   max_attendees: 0,
   name: "Test Group",
+  scan_checks_in_all_listings: false,
   show_hidden_listings: true,
   slug: "test-group",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
@@ -489,29 +490,20 @@ export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
   ],
 });
 
-/** A minimal "Size?" question fixture: a single question with a single
- *  answer "S" (id 10) and an empty `attendeeAnswerMap` (no one picked it).
- *  Used to assert the question renders even with zero selections —
- *  `buildSharedDetailRows` includes a question summary row, and
- *  `ListingOverviewPanel` renders the answer header in the details table. */
-export const singleAnswerSizeQuestionData = (): AttendeeQuestionData => ({
-  attendeeAnswerMap: new Map(),
-  questions: [
-    testQuestion({
-      answers: [testAnswer({ id: 10, text: "S" })],
-      id: 1,
-      text: "Size?",
-    }),
-  ],
-});
+/** One question with one answer that nobody picked, so the question renders
+ *  with zero selections: `buildSharedDetailRows` still includes its summary
+ *  row, and `ListingOverviewPanel` still renders the answer header. */
+const oneUnselectedQuestion =
+  (text: string, answer: string) => (): AttendeeQuestionData => ({
+    attendeeAnswerMap: new Map(),
+    questions: [
+      testQuestion({
+        answers: [testAnswer({ id: 10, text: answer })],
+        id: 1,
+        text,
+      }),
+    ],
+  });
 
-export const unselectedAnswerQuestionData = (): AttendeeQuestionData => ({
-  attendeeAnswerMap: new Map(),
-  questions: [
-    testQuestion({
-      answers: [testAnswer({ id: 10, text: "A" })],
-      id: 1,
-      text: "Q?",
-    }),
-  ],
-});
+export const singleAnswerSizeQuestionData = oneUnselectedQuestion("Size?", "S");
+export const unselectedAnswerQuestionData = oneUnselectedQuestion("Q?", "A");

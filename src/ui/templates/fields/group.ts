@@ -51,6 +51,7 @@ const getGroupCheckboxField =
 const groupToggleNames = [
   "is_package",
   "hide_package_listings",
+  "scan_checks_in_all_listings",
   "show_hidden_listings",
 ] as const;
 type GroupToggleName = (typeof groupToggleNames)[number];

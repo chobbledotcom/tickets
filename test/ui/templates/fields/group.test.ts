@@ -17,6 +17,7 @@ describe("group fields", () => {
       "hidden",
       "is_package",
       "hide_package_listings",
+      "scan_checks_in_all_listings",
       "show_hidden_listings",
     ]);
   });
@@ -32,6 +33,7 @@ describe("group fields", () => {
       "hidden",
       "is_package",
       "hide_package_listings",
+      "scan_checks_in_all_listings",
       "show_hidden_listings",
     ]);
   });

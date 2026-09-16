@@ -89,8 +89,8 @@ scope-aware path.
 The group scanner page offers one option per person: name, summed quantity of
 their unchecked live places in scope, and their token. A manual check-in behaves
 exactly like a camera scan — same walk rule, same setting — so a pick from the
-list never admits something the camera would not. The client removes a person's
-option only when `remaining` reaches zero.
+list never admits something the camera must refuse. The client removes a
+person's option only when `remaining` reaches zero.
 
 ### The checkbox
 
@@ -124,29 +124,29 @@ scanner's existing message names each row's own listing.
 | Nothing        | Missing token field      | 400 `Missing token`                                                 | Caller                     |
 | Scope resolved | Token resolves to nobody | 404 `not_found`                                                     | Caller                     |
 | Rows read      | Key unavailable          | 500 `Decryption unavailable`                                        | Request infrastructure     |
-| Rows read      | A write fails mid-batch  | The batch rolls back; no partial check-in, no activity rows         | Door staff re-scan         |
-| Nothing        | Read-only mode           | The scan allowed; the checkbox save blocked like other group writes | An owner with write access |
+| Rows read      | A write fails mid-batch  | The batch rolls back. No partial check-in, no activity rows         | Door staff re-scan         |
+| Nothing        | Read-only mode           | The scan allowed. The checkbox save blocked like other group writes | An owner with write access |
 
 ## Retry and replay
 
-A scan has no idempotency key; its stable identity is the row it writes. An
-exact replay reads the rows again: under the default it walks to the next
-listing or answers `already_checked_in`; with the preference on it answers
-`already_checked_in`. Two concurrent scans of the same token both write
-`checked_in = 1`, an idempotent write; at worst the activity log names the same
-person twice, which is the existing listing-scanner behavior under the same
-race. Nothing can double-admit, because admission is a boolean column, not a
-counter.
+A scan has no idempotency key. Its stable identity is the row it writes. An
+exact replay reads the rows again. Under the default it walks to the next
+listing, and it answers `already_checked_in` only when nothing remains. With the
+preference on it answers `already_checked_in` at once. Two concurrent scans of
+the same token both write `checked_in = 1`, an idempotent write. At worst the
+activity log names the same person twice, which is the existing listing-scanner
+behavior under the same race. Nothing can double-admit, because admission is a
+boolean column, not a counter.
 
 ## Concurrency
 
-| Operation A   | Operation B                        | Required result                                                                                         | Protection                 |
-| ------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------- |
-| Group scan    | Same group scan                    | Both answer a true state; one admission per listing                                                     | Idempotent column write    |
-| Group scan    | Listing scanner or roster check-in | The later request answers for what remains                                                              | Row read before each write |
-| Group scan    | Refund of the same row             | A scan that reads first admits; the refund then reverses the money and the next scan answers `refunded` | Existing refund machinery  |
-| Group scan    | Membership edit                    | The scan resolves the scope at request time                                                             | Request-scoped read        |
-| Checkbox save | Group edit form save               | Both write the same column; last write wins and both surfaces read it back                              | One stored column          |
+| Operation A   | Operation B                        | Required result                                                                                          | Protection                 |
+| ------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Group scan    | Same group scan                    | Both answer a true state. One admission per listing.                                                     | Idempotent column write    |
+| Group scan    | Listing scanner or roster check-in | The later request answers for what remains                                                               | Row read before each write |
+| Group scan    | Refund of the same row             | A scan that reads first admits. The refund then reverses the money, and the next scan answers `refunded` | Existing refund machinery  |
+| Group scan    | Membership edit                    | The scan resolves the scope at request time                                                              | Request-scoped read        |
+| Checkbox save | Group edit form save               | Both write the same column. The last write wins, and both surfaces read it back                          | One stored column          |
 
 ## Owner choices
 
@@ -197,7 +197,8 @@ Recorded 15 September 2026.
 ### Tests that prove the contract
 
 - Scans for each of three tiers in one group, all through one group scanner.
-- An outside-group ticket answers `wrong_listing`; `force` admits one listing.
+- An outside-group ticket answers `wrong_listing`, and `force` admits one
+  listing.
 - A multiple-listing ticket walks one listing per scan under the default, names
   the admitted listing each time, and answers `already_checked_in` at the end.
 - The checkbox on: one scan checks in every listing with an unchecked live row,
@@ -210,8 +211,8 @@ Recorded 15 September 2026.
 - `verify_id` holds a non-transferable member ticket before any row is written.
 - The manual roster dedupes one person to one option and only offers people with
   an unchecked live row, through the scan path itself.
-- Editor and agent get 403 before the group lookup; unknown group 404s;
-  read-only mode still admits the scan but blocks the checkbox save.
+- Editor and agent get 403 before the group lookup. An unknown group 404s.
+  Read-only mode still admits the scan but blocks the checkbox save.
 - Concurrent identical scans leave one true state.
 - The listing scanner responses gain `listingName` and `remaining`, and its door
   stories stay green on the shared core.

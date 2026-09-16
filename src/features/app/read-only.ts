@@ -13,6 +13,7 @@ const READ_ONLY_ADMIN_OPERATION_PATTERNS = [
   "/admin/deliveries/mark",
   "/admin/listing/:id/scan",
   "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+  "/admin/groups/:id/scan",
   "/admin/login",
   "/admin/logout",
   "/admin/support",
