@@ -50,7 +50,11 @@ export const updateCheckedInOnListings = async (
 ): Promise<void> => {
   const sql = `UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`;
   const args = [attendeeId, ...listingIds];
-  (await transaction) ? transaction.execute({ args, sql }) : execute(sql, args);
+  if (transaction) {
+    await transaction.execute({ args, sql });
+  } else {
+    await execute(sql, args);
+  }
 };
 
 /**

@@ -69,8 +69,8 @@ const runBundleOnce = (): void => {
     (_all, list: string) => {
       const pairs = list.split(",").map((one) => {
         const [internal, exported] = one.trim().split(/\s+as\s+/);
-        const name = exported ?? internal;
-        return `${name.trim()}:${internal.trim()}`;
+        const name = exported ?? internal ?? "";
+        return `${name.trim()}:${internal?.trim() ?? ""}`;
       });
       return `;globalThis.${MODULE_MARKER}={${pairs.join(",")}};`;
     },
@@ -78,9 +78,6 @@ const runBundleOnce = (): void => {
   new Function(bundle)();
 };
 
-/** The built bundle's export tail, rewritten as a global assignment: each
- * `export { internal as name }` becomes `name: internal`, an object the test
- * can reach (a function body can't carry `export`). */
 /** The scanner page's own markup, as the template renders it: the messages
  * the container carries, the camera, the status line, and the start button. */
 const SCANNER_PAGE = `
@@ -115,6 +112,14 @@ const SCANNER_PAGE = `
   <button id="scanner-start" type="button">Start Camera</button>
 `;
 
+/** One element of the installed scanner page by id — the fixture always
+ * carries it, so a miss is a broken page, not an empty answer. */
+const el = (document: Window["document"], id: string): HTMLElement => {
+  const found = document.getElementById(id);
+  if (!found) throw new Error(`The scanner page carries no ${id}`);
+  return found as unknown as HTMLElement;
+};
+
 const useScanner = (): ScannerHarness => {
   const window = new Window({ url: "http://localhost/" });
   const document = window.document;
@@ -127,7 +132,7 @@ const useScanner = (): ScannerHarness => {
   const module = (globalThis as Record<string, unknown>)[
     MODULE_MARKER
   ] as ScannerModule;
-  const messages = (document.getElementById("scanner-container") as HTMLElement)
+  const messages = el(document, "scanner-container")
     .dataset as unknown as Record<string, string>;
 
   return {
@@ -136,12 +141,10 @@ const useScanner = (): ScannerHarness => {
       window.close();
     },
     confirm: {
-      close: document.getElementById("scanner-confirm-close") as HTMLElement,
-      message: document.getElementById(
-        "scanner-confirm-message",
-      ) as HTMLElement,
-      no: document.getElementById("scanner-confirm-no") as HTMLElement,
-      yes: document.getElementById("scanner-confirm-yes") as HTMLElement,
+      close: el(document, "scanner-confirm-close"),
+      message: el(document, "scanner-confirm-message"),
+      no: el(document, "scanner-confirm-no"),
+      yes: el(document, "scanner-confirm-yes"),
     },
     document,
     messages,
@@ -150,10 +153,8 @@ const useScanner = (): ScannerHarness => {
       stash.restore();
       delete (globalThis as Record<string, unknown>)[MODULE_MARKER];
     },
-    statusEl: document.getElementById("scanner-status") as HTMLElement,
-    video: document.getElementById(
-      "scanner-video",
-    ) as unknown as HTMLVideoElement,
+    statusEl: el(document, "scanner-status"),
+    video: el(document, "scanner-video") as unknown as HTMLVideoElement,
     window,
   };
 };
@@ -180,8 +181,7 @@ describe("scanner bundle", {
 
   test("reacts to the camera being unavailable", async () => {
     const h = fresh();
-    const startBtn = h.document.getElementById("scanner-start") as HTMLElement;
-    startBtn.click();
+    el(h.document, "scanner-start").click();
     await h.window.happyDOM.waitUntilComplete();
 
     expect(h.statusEl.textContent).toBe("Camera access denied");
