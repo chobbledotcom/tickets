@@ -31,7 +31,7 @@
   "src/shared/db/users.ts": 491,
   "src/shared/limits.ts": 692,
   "src/shared/listings-actions.ts": 539,
-  "src/shared/logger.ts": 428,
+  "src/shared/logger.ts": 426,
   "src/shared/merge/attendee-merge.ts": 891,
   "src/shared/payment-helpers.ts": 704,
   "src/shared/payment/refund-machine-spec.ts": 534,

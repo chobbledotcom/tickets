@@ -133,6 +133,7 @@ const ERROR_DEFS = {
     "E_REGISTRATION_DELIVERY",
     "Registration notification delivery failed",
   ],
+  SITE_ASSIGNMENT: ["E_SITE_ASSIGNMENT", "Site assignment failed"],
   SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
   SQUARE_ORDER: ["E_SQUARE_ORDER", "Square order validation failed"],
   SQUARE_REFUND: ["E_SQUARE_REFUND", "Square refund failed"],
@@ -204,10 +205,7 @@ type RequestLogEntry = {
   durationMs: number;
 };
 
-/**
- * Log a completed request to console.debug
- * Path is automatically redacted for privacy
- */
+/** Log a completed request to console.debug, with the path redacted. */
 export const logRequest = (entry: RequestLogEntry): void => {
   if (shouldSuppressRequestLogs()) return;
   const redactedPath = redactPath(entry.path);
