@@ -39,9 +39,7 @@ export const groupDoor = async (
 
 /** A group-door scan as the page's own script would send it. The JSON body
  * is returned unasserted: guards like the missing-group 404 also answer
- * JSON, and each test names the status it expects. A non-JSON answer (the
- * site's own error page) comes back with an empty body so the response's
- * status stays assertable. */
+ * JSON, and each test names the status it expects. */
 export const scanAtDoor = async (
   groupId: number,
   body: Record<string, unknown>,
@@ -57,11 +55,7 @@ export const scanAtDoor = async (
       },
     ),
   );
-  const isJson = (response.headers.get("content-type") ?? "").includes("json");
-  return {
-    json: isJson ? await response.json() : {},
-    response,
-  };
+  return { json: await response.json(), response };
 };
 
 /** Someone holding one place on each of two listings in their own separate
