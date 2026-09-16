@@ -104,7 +104,7 @@ export const adminScannerPage = (
   return String(
     <Layout
       beforeContent={<AdminNav active="/admin/" session={session} />}
-      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
+      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`}
       title={t("admin.scanner.title", { name: subject.name })}
     >
       <div class="prose">

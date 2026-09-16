@@ -300,3 +300,8 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
+
+// The tail that makes this a module bundle (like the order widget's): the
+// served script tag is type="module", and these exports are the pieces the
+// direct test drives through the built bundle.
+export { extractToken, handleResult, postScan, showConfirm };
