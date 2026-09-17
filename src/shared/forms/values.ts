@@ -6,6 +6,23 @@ export interface FieldValues {
 
 export const booleanToCheckbox = (value: boolean): string => (value ? "1" : "");
 
+/** The controls that draw a stored yes/no: a checkbox group holds the tick,
+ * a select holds a yes option. Both carry the same "1" a ticked box sends,
+ * so one stored boolean answers for either. */
+const yesNoControls: ReadonlySet<Field["type"]> = new Set([
+  "checkbox-group",
+  "select",
+]);
+
+/** How one form field draws an entity's stored value. A stored boolean
+ * becomes the "1" its box or yes option sends; every other value is the
+ * form's own text. A formatter, where one is given, still decides for its
+ * field. */
+const valueForField = (field: Field, raw: unknown): string | number | null =>
+  typeof raw === "boolean" && yesNoControls.has(field.type)
+    ? booleanToCheckbox(raw)
+    : String(raw);
+
 export const entityToFieldValues = <T>(
   entity: T | undefined,
   fields: readonly Field[],
@@ -19,7 +36,10 @@ export const entityToFieldValues = <T>(
         entity && formatter
           ? formatter(entity)
           : entity
-            ? String((entity as unknown as Record<string, unknown>)[field.name])
+            ? valueForField(
+                field,
+                (entity as unknown as Record<string, unknown>)[field.name],
+              )
             : "";
       return [field.name, value];
     }),

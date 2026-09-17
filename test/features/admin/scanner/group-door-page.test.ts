@@ -1,11 +1,10 @@
 /** Tests for the group scanner page, the direct suite beside the routes it
- * exercises in src/features/admin/scanner.ts:
- * GET /admin/groups/:id/scanner - one door for every member of a group
- * POST /admin/groups/:id/scanner - the "check in every listing" box
+ * exercises in src/features/admin/scanner.ts: GET /admin/groups/:id/scanner -
+ * one door for every member of a group.
  *
  * The scan API itself has its own suite beside this one; this one owns the
  * page: the scope from the group's membership, the roster, the stored
- * checkbox, and the guards.
+ * every-listing warning, and the guards.
  */
 
 import { expect } from "@std/expect";
@@ -13,11 +12,13 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestGroup,
+  updateTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import {
-  adminFormPost,
   createTestEditorSession,
   requestAsSession,
   testCookie,
@@ -70,42 +71,44 @@ describeWithEnv("group scanner page", { db: true }, () => {
     expect(body).not.toContain("Mel");
   });
 
-  test("shows the check-every-listing box once one scan can span listings", async () => {
+  test("warns that one scan checks in every listing only once that rule is on", async () => {
     const door = await groupDoor(2);
-    const body = await doorPage(door.group.id);
-    expect(body).toContain('name="scan_checks_in_all_listings"');
-    expect(body).toContain(`action="/admin/groups/${door.group.id}/scanner"`);
+    // The rule off its default: every door walks one listing per scan, so
+    // the page says nothing about spanning listings.
+    expect(await doorPage(door.group.id)).not.toContain(
+      "Scanning a ticket in this group",
+    );
 
-    const single = await groupDoor(1, {}, ["Solo"], "Solo door");
-    expect(await doorPage(single.group.id)).not.toContain(
-      'name="scan_checks_in_all_listings"',
+    await updateTestGroup(door.group.id, { scanChecksInAllListings: true });
+    const warned = await doorPage(door.group.id);
+    expect(warned).toContain('role="alert"');
+    expect(warned).toContain(
+      "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
+    );
+
+    // One listing left that a scan can span: the warning would say "ALL"
+    // over a single place, so even the stored rule on stays quiet.
+    const single = await createTestGroup({
+      name: "Solo door",
+      scanChecksInAllListings: true,
+    });
+    await createTestListing({
+      groupId: single.id,
+      maxAttendees: 10,
+      name: "Solo",
+    });
+    expect(await doorPage(single.id)).not.toContain(
+      "Scanning a ticket in this group",
     );
   });
 
-  test("saves the box and carries the stored state back to the page", async () => {
+  test("a scan after the saved rule checks in every listing at once", async () => {
     const { group, members } = await groupDoor(2);
     const ticket = await createMultiBookingAttendee("Van", "van@example.com", [
       { listingId: members[0]!.id, quantity: 1 },
       { listingId: members[1]!.id, quantity: 2 },
     ]);
-
-    const save = await adminFormPost(`/admin/groups/${group.id}/scanner`, {
-      csrf_token: await testCsrfToken(),
-      scan_checks_in_all_listings: "1",
-    });
-    expect(save.response.status).toBe(302);
-    expect(save.response.headers.get("location")).toContain(
-      `/admin/groups/${group.id}/scanner`,
-    );
-    // The save tells the organiser it worked, as a success flash.
-    const flash = save.response.headers.get("set-cookie") ?? "";
-    expect(decodeURIComponent(flash)).toContain(`"t":"s"`);
-    // The box itself renders the stored state, checked — not just anywhere
-    // the word appears on the page.
-    const saved = await doorPage(group.id);
-    expect(
-      saved.match(/<input[^>]*name="scan_checks_in_all_listings"[^>]*>/)![0],
-    ).toContain("checked");
+    await updateTestGroup(group.id, { scanChecksInAllListings: true });
 
     const { json } = await scanAtDoor(group.id, {
       token: ticket.ticket_token,
@@ -116,7 +119,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
     expect(json.remaining).toBe(0);
   });
 
-  test("a No check-in member alone gives the door no box and no roster", async () => {
+  test("a No check-in member alone gives the door no warning and no roster", async () => {
     const group = await createTestGroup({ name: "Merch only" });
     const merch = await createTestListing({
       groupId: group.id,
@@ -127,9 +130,10 @@ describeWithEnv("group scanner page", { db: true }, () => {
     await createMultiBookingAttendee("Ola", "ola@example.com", [
       { listingId: merch.id, quantity: 1 },
     ]);
+    await updateTestGroup(group.id, { scanChecksInAllListings: true });
     const body = await doorPage(group.id);
 
-    expect(body).not.toContain('name="scan_checks_in_all_listings"');
+    expect(body).not.toContain("Scanning a ticket in this group");
     expect(body).not.toContain("Ola");
     expect(body).toContain("No tickets to check in");
   });

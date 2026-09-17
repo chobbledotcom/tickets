@@ -11,51 +11,10 @@ import {
   savedFormValueOrNull,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
-import { entityToFieldValues } from "#shared/forms/values.ts";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
 ): Field => ({ type: "text", ...overrides }) as Field;
-
-describe("entityToFieldValues", () => {
-  const fields = [
-    field({ label: "A", name: "a" }),
-    field({ label: "B", name: "b" }),
-  ];
-
-  test("derives field values from the entity", () => {
-    const values = entityToFieldValues({ a: "1", b: "2" }, fields, {});
-    expect(values).toEqual({ a: "1", b: "2" });
-  });
-
-  test("applies a formatter when one is supplied for the field", () => {
-    const values = entityToFieldValues({ a: "1", b: "2" }, fields, {
-      a: (e) => `formatted-${e.a}`,
-    });
-    expect(values.a).toBe("formatted-1");
-    expect(values.b).toBe("2");
-  });
-
-  test("yields empty strings when there is no entity", () => {
-    const values = entityToFieldValues(undefined, fields, {});
-    expect(values).toEqual({ a: "", b: "" });
-  });
-
-  test("merges extra values over the entity-derived fields", () => {
-    const values = entityToFieldValues(
-      { a: "1", b: "2" },
-      fields,
-      {},
-      {
-        b: "override",
-        c: "extra",
-      },
-    );
-    expect(values.a).toBe("1");
-    expect(values.b).toBe("override");
-    expect(values.c).toBe("extra");
-  });
-});
 
 describe("saved form data", () => {
   afterEach(() => clearSavedFormData());

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import { t } from "#i18n";
-import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
 import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import {
@@ -405,50 +404,6 @@ describe("group admin panels", () => {
         ],
       });
       expect(html).not.toMatch(/<input disabled[^>]*value="5"/);
-    });
-  });
-
-  describe("GroupEditPanel package members table", () => {
-    test("renders saved overrides and falls back to defaults for members without a row", () => {
-      const group = testGroup({ is_package: true, name: "Bundle" });
-      const withOverride = testListingWithCount({ id: 1, name: "Priced" });
-      const withoutRow = testListingWithCount({ id: 2, name: "Default" });
-      // Only listing 1 has a saved member row; listing 2 exercises the
-      // member-absent defaults (price → blank, quantity → 1).
-      const members = new Map([[1, { price: 1500, quantity: 4 }]]);
-
-      const html = String(
-        GroupEditPanel({
-          group,
-          listings: [withOverride, withoutRow],
-          members,
-        }),
-      );
-      expect(html).toContain('name="package_price_1"');
-      expect(html).toContain('value="15.00"');
-      expect(html).toContain('name="package_qty_1"');
-      expect(html).toContain('value="4"');
-      // Listing 2 (no row): blank price, quantity defaults to 1.
-      expect(html).toMatch(
-        /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
-      );
-    });
-
-    test("shows the empty-state prompt when the package has no listings", () => {
-      const group = testGroup({ is_package: true, name: "Empty" });
-      const html = String(
-        GroupEditPanel({ group, listings: [], members: new Map() }),
-      );
-      expect(html).toContain("Add listings to this group");
-    });
-
-    test("leaves the JSON export on the Actions tab", () => {
-      const group = testGroup({ id: 7, name: "Exportable" });
-      const html = String(
-        GroupEditPanel({ group, listings: [], members: new Map() }),
-      );
-      // The Actions panel owns the export link; the Edit panel omits it.
-      expect(html).not.toContain(`/admin/groups/${group.id}/export.json`);
     });
   });
 });

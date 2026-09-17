@@ -5,7 +5,7 @@
  *
  * The scan rule itself has exact tests in test/features/admin/scan-decision;
  * this suite proves the route: the scope from the group's membership, the
- * walk, the stored checkbox, and the guards.
+ * walk, the stored every-listing rule, and the guards.
  */
 
 import { expect } from "@std/expect";
@@ -17,11 +17,13 @@ import {
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestGroup,
+  updateTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import {
-  adminFormPost,
   requestAsSession,
   testCookie,
   testCsrfToken,
@@ -121,10 +123,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
     // says "check in every listing".
     const door = await groupDoor();
     const token = await ticketFromItsOwnGroup("Ora", "Elsewhere two");
-    await adminFormPost(`/admin/groups/${door.group.id}/scanner`, {
-      csrf_token: await testCsrfToken(),
-      scan_checks_in_all_listings: "1",
-    });
+    await updateTestGroup(door.group.id, { scanChecksInAllListings: true });
 
     const forced = await scanAtDoor(door.group.id, {
       force: true,
@@ -171,10 +170,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
       { listingId: members[0]!.id, quantity: 1 },
       { listingId: members[1]!.id, quantity: 1 },
     ]);
-    await adminFormPost(`/admin/groups/${group.id}/scanner`, {
-      csrf_token: await testCsrfToken(),
-      scan_checks_in_all_listings: "1",
-    });
+    await updateTestGroup(group.id, { scanChecksInAllListings: true });
 
     const [first, second] = await Promise.all([
       scanAtDoor(group.id, { token: ticket.ticket_token }),

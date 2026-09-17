@@ -1,10 +1,7 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { toMajorUnits } from "#shared/currency.ts";
-import {
-  booleanToCheckbox,
-  entityToFieldValues,
-} from "#shared/forms/values.ts";
+import { entityToFieldValues } from "#shared/forms/values.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
@@ -26,13 +23,7 @@ const groupToFieldValues = (
     group,
     getGroupForm().fields,
     {
-      hidden: (value) => booleanToCheckbox(value.hidden),
-      hide_package_listings: (value) =>
-        booleanToCheckbox(value.hide_package_listings),
-      is_package: (value) => booleanToCheckbox(value.is_package),
       max_attendees: (value) => value.max_attendees || null,
-      show_hidden_listings: (value) =>
-        booleanToCheckbox(value.show_hidden_listings),
     },
     // A new group's form starts with its hidden-listings box ticked, matching
     // the column default: the public group page offers hidden members until

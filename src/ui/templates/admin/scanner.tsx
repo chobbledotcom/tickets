@@ -18,13 +18,6 @@ export interface TicketOption {
   token: string;
 }
 
-/** The group's "check in every listing" box, shown under the scanner window
- * once one scan can span more than one listing. */
-export interface ScanAllCheckbox {
-  checked: boolean;
-  savePath: string;
-}
-
 /** The check-in message templates shared by both the camera scanner container
  *  and the manual-checkin form, as `data-message-*` attributes to spread onto
  *  each (each form then adds its own extra messages). Keeping the common set
@@ -90,14 +83,16 @@ const scannerMessages = (): ScannerMessages => ({
 /**
  * Scanner page - camera feed with auto check-in + manual autocomplete.
  * `subject` is whichever door this page scans for — a listing or a group —
- * and `scanPath` is the JSON API its two check-in paths post to.
+ * and `scanPath` is the JSON API its two check-in paths post to. A group
+ * whose stored door rule checks in every listing passes
+ * `checksInEveryListing`, so door staff are warned what one scan will do.
  */
 export const adminScannerPage = (
   subject: { name: string },
   scanPath: string,
   session: AdminSession,
   uncheckedIn: TicketOption[] = [],
-  scanAll?: ScanAllCheckbox,
+  checksInEveryListing = false,
 ): string => {
   const messageTemplates = scannerMessages();
 
@@ -161,31 +156,11 @@ export const adminScannerPage = (
         </button>
       </article>
 
-      {scanAll ? (
+      {checksInEveryListing ? (
         <article>
-          <form action={scanAll.savePath} id="scan-all-setting" method="POST">
-            <input
-              name="csrf_token"
-              type="hidden"
-              value={getCurrentCsrfToken()}
-            />
-            <input
-              checked={scanAll.checked || undefined}
-              id="scan-all-listings"
-              name="scan_checks_in_all_listings"
-              type="checkbox"
-              value="1"
-            />
-            <label for="scan-all-listings">
-              {t("fields.group.scan_checks_in_all_listings_label")}
-            </label>
-            <p class="hint">
-              {t("fields.group.scan_checks_in_all_listings_hint")}
-            </p>
-            <SubmitButton icon="save">
-              {t("admin.scanner.save_setting")}
-            </SubmitButton>
-          </form>
+          <aside role="alert">
+            <p>{t("admin.scanner.scan_checks_in_all_listings_warning")}</p>
+          </aside>
         </article>
       ) : undefined}
 

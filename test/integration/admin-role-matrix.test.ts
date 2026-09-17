@@ -276,8 +276,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(92);
-    expect(insiderWritableRoutes().length).toBe(91);
+    expect(writableRoutes().length).toBe(91);
+    expect(insiderWritableRoutes().length).toBe(90);
   });
 });
 
