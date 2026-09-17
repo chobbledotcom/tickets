@@ -154,13 +154,16 @@ describeWithEnv(
       const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
 
       // Near misses of mapped shapes: another origin that ends like a mapped
-      // path, a pull-zone action the build never takes, and a database path
-      // deeper than the read endpoint. Every one must reach the real network.
+      // path, a pull-zone action the build never takes, a database path
+      // deeper than the read endpoint, and query-bearing versions of mapped
+      // paths. Every one must reach the real network.
       const nearMisses = [
         "https://unmapped.example/compute/script",
         "https://unmapped.example/pullzone/123",
         "https://api.bunny.net/pullzone/123/addHostname",
         "https://api.bunny.net/database/v2/databases/7/backups",
+        "https://api.bunny.net/database/v2/databases/7?backup=1",
+        "https://api.bunny.net/compute/script/1/secrets?refresh=1",
       ];
       for (const url of nearMisses) {
         const response = await dryRunOrFetchText(url, () => ({ headers: {} }));

@@ -37,13 +37,13 @@ const okBody = (): string => "{}";
 const BUNNY_DB_REGIONS = /^https:\/\/api\.bunny\.net\/database\/v1\/config$/;
 const BUNNY_DB_CREATE = /^https:\/\/api\.bunny\.net\/database\/v2\/databases$/;
 const BUNNY_DB_GET =
-  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/]+$/;
+  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/?#]+$/;
 const DB_GET_URL_PREFIX = "https://api.bunny.net/database/v2/databases/";
 const BUNNY_DB_TOKEN =
-  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/]+\/auth\/generate$/;
+  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/?#]+\/auth\/generate$/;
 const BUNNY_SCRIPT_CREATE = /^https:\/\/api\.bunny\.net\/compute\/script$/;
 const BUNNY_SCRIPT_ACTION =
-  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/]+\/(code|publish|secrets)$/;
+  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/?#]+\/(code|publish|secrets)$/;
 const BUNNY_PULL_ZONE = /^https:\/\/api\.bunny\.net\/pullzone\/\d+$/;
 /** The canned release's asset, so the build's bundle download dry-runs too. */
 const DRY_RUN_RELEASE_ASSET = /^https:\/\/dry-run\.invalid\/bunny-script\.ts$/;
