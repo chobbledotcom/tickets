@@ -77,14 +77,22 @@ export const withRefundConfirmationFault = <T>(
 export const orphanAttendeeBooking = async (token: string): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
   const { hmacHash } = await import("#crypto/hashing.ts");
-  await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
-  await getDb().execute({
-    args: [await hmacHash(token)],
-    sql: `UPDATE listing_attendees
-          SET listing_id = 99999
-          WHERE attendee_id = (
-            SELECT id FROM attendees WHERE ticket_token_index = ?
-          )`,
-  });
-  await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+  // The hashed index first, so an early failure never touches the
+  // foreign-key switch; the try/finally restores it whatever the update
+  // does to a connection later suites share.
+  const tokenIndex = await hmacHash(token);
+  const db = getDb();
+  await db.execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
+  try {
+    await db.execute({
+      args: [tokenIndex],
+      sql: `UPDATE listing_attendees
+            SET listing_id = 99999
+            WHERE attendee_id = (
+              SELECT id FROM attendees WHERE ticket_token_index = ?
+            )`,
+    });
+  } finally {
+    await db.execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+  }
 };
