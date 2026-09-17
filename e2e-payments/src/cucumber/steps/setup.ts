@@ -10,7 +10,11 @@ import { config } from "#e2e/config.ts";
 import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import { assertFreeThankYou, waitForHostedCheckout } from "#e2e/flow.ts";
-import { createListing, type ListingFields } from "#e2e/listing-flow.ts";
+import {
+  createListing,
+  type ListingFields,
+  submitListingForm,
+} from "#e2e/listing-flow.ts";
 import { buildOrderCatalog, type OrderCatalog } from "#e2e/order-flow.ts";
 import { refuseOtherProvider } from "#e2e/providers/shared.ts";
 import type { ProviderName } from "#e2e/providers/types.ts";
@@ -35,15 +39,20 @@ const configureCurrentProvider = async (world: LiveWorld): Promise<void> => {
 };
 
 /** Publish this scenario's listing through the real admin form: create it,
- *  remember its public booking path, and record the given phase. */
+ * remember its public booking path, and record the given phase. The hidden
+ * renewal tier has no public booking path to remember. */
 const publishListing = async (
   world: LiveWorld,
   phase: string,
   fields: ListingFields,
 ): Promise<void> => {
   await world.prepareOwner();
-  const path = await createListing(world.resources.owner, fields);
-  world.rememberListing(path);
+  if (fields.renewalTierMonths === undefined) {
+    const path = await createListing(world.resources.owner, fields);
+    world.rememberListing(path);
+  } else {
+    await submitListingForm(world.resources.owner, fields);
+  }
   world.recordPhase(phase);
 };
 
@@ -76,6 +85,22 @@ for (const [text, priceMinor] of PUBLISHED_LISTING_STEPS) {
     await publishPricedListing(this, priceMinor);
   });
 }
+
+/** A site-plan checkout is refused until a hidden purchase-only tier prices
+ * the assigned site's renewals, so the plan's store needs this listing
+ * before the visitor can buy the plan. */
+const publishRenewalTierListing = async (world: LiveWorld): Promise<void> => {
+  await publishListing(world, "tier-listing-published", {
+    name: `E2E Renewal Tier ${world.scenario.runId}`,
+    priceMinor: config.unitPrice,
+    renewalTierMonths: 1,
+  });
+};
+
+Given(
+  "the owner has published a monthly renewal tier",
+  worldStep(publishRenewalTierListing),
+);
 
 Given(
   "the owner has published a three-month site plan",
