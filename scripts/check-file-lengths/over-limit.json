@@ -158,7 +158,7 @@
   "test/ui/client/order.test.ts": 414,
   "test/ui/templates/admin/attendees-list.test.ts": 428,
   "test/ui/templates/admin/dashboard.test.ts": 817,
-  "test/ui/templates/admin/groups/overview/groups.test.ts": 454,
+  "test/ui/templates/admin/groups/overview/groups.test.ts": 409,
   "test/ui/templates/admin/nav.test.tsx": 499,
   "test/ui/templates/fields/listing.test.ts": 474,
   "scripts/compact-test-reporter.ts": 561,

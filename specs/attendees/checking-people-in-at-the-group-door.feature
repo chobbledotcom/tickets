@@ -7,8 +7,8 @@ Feature: An organiser checks people in at a group's door
   never switch scanners between the group's admission tiers. The site tells
   them who is in front of them and which tier the ticket holds. A ticket that
   covers several of the group's tiers is let in one tier at a time, so every
-  later door still has something to admit — or the group can turn on its own
-  checkbox and let one scan admit everything the ticket holds.
+  later door still has something to admit — or the organiser turns on the
+  group's own checkbox and lets one scan admit everything the ticket holds.
 
   @rule:attendees.any-tier-of-a-group-lets-them-in-at-its-door
   @surface:admin
@@ -76,9 +76,9 @@ Feature: An organiser checks people in at a group's door
   @rule:attendees.a-group-door-can-admit-every-tier-at-once
   @surface:admin
   Rule: The group's own checkbox lets one scan admit every tier
-    The group's page offers a checkbox: "Check in every listing in this group
-    when scanning any". With it on, one scan admits every tier the ticket
-    holds.
+    The group's edit page offers a checkbox: "Check in every listing in this
+    group when scanning any". With it on, one scan admits every tier the
+    ticket holds, and the group's scanner page warns the door staff.
 
     @case:group-door.the-checkbox-admits-every-tier
     Scenario: The organiser turns the checkbox on and reads a two-tier ticket
@@ -90,6 +90,13 @@ Feature: An organiser checks people in at a group's door
       And the door says the ticket holds the Standard and the Society
       When the organiser reads Alice's ticket at the Festival group door
       Then the door says Alice is already in
+
+    @case:group-door.the-saved-checkbox-stays-ticked-and-warns
+    Scenario: The saved checkbox stays ticked and the scanner page warns
+      Given a group door for the Festival holds the Standard and Society tiers
+      And the Festival door checks in every listing when scanning
+      Then the Festival group's edit page still shows the checkbox ticked
+      And the Festival group's scanner warns that one scan checks in every listing
 
   @rule:attendees.the-group-door-offers-people-not-in-yet
   @surface:admin

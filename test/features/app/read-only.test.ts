@@ -47,10 +47,11 @@ describe("read-only request guard", () => {
     expect(readOnlyBlock("/admin/logout", "PUT")).toBe("page");
   });
 
-  test("blocks the group scanner's checkbox save in read-only mode", () => {
+  test("blocks the group's every-listing door rule save in read-only mode", () => {
     // The scan at the door keeps working; changing the group's stored door
-    // preference is a group write, like the edit it belongs to.
-    expect(readOnlyBlock("/admin/groups/42/scanner", "POST")).toBe("page");
+    // preference is a group write, so its edit form is blocked like the
+    // group's other writes.
+    expect(readOnlyBlock("/admin/groups/42/edit", "POST")).toBe("page");
   });
 
   test("allows public operations that must continue in read-only mode", () => {

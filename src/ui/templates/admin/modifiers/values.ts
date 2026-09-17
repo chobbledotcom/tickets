@@ -6,10 +6,7 @@
 import { t } from "#i18n";
 import { toMajorUnits } from "#shared/currency.ts";
 import type { Field } from "#shared/forms/field.ts";
-import {
-  booleanToCheckbox,
-  entityToFieldValues,
-} from "#shared/forms/values.ts";
+import { entityToFieldValues } from "#shared/forms/values.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
 import type { Modifier } from "#types";
 
@@ -44,7 +41,6 @@ export const modifierToFieldValues = (
     modifier,
     fields,
     {
-      active: (m) => booleanToCheckbox(m.active),
       max_per_order: (m) => m.max_per_order ?? "",
       min_subtotal: (m) =>
         m.min_subtotal ? Number(toMajorUnits(m.min_subtotal)) : "",

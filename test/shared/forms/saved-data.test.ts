@@ -36,6 +36,48 @@ describe("entityToFieldValues", () => {
     expect(values.b).toBe("2");
   });
 
+  /** One yes/no box, shaped as the real forms build them. */
+  const yesNoBox = field({
+    label: "Tick this",
+    name: "keep",
+    options: [{ label: "Keep it", value: "1" }],
+    type: "checkbox-group",
+  });
+
+  test("a stored boolean fills its yes/no box with the tick it carries", () => {
+    expect(entityToFieldValues({ keep: true }, [yesNoBox], {})).toEqual({
+      keep: "1",
+    });
+    expect(entityToFieldValues({ keep: false }, [yesNoBox], {})).toEqual({
+      keep: "",
+    });
+  });
+
+  test("a stored boolean picks the yes option of its yes/no dropdown", () => {
+    const yesNoSelect = field({
+      label: "Keep it",
+      name: "keep",
+      options: [
+        { label: "No", value: "" },
+        { label: "Yes", value: "1" },
+      ],
+      type: "select",
+    });
+    expect(entityToFieldValues({ keep: true }, [yesNoSelect], {})).toEqual({
+      keep: "1",
+    });
+    expect(entityToFieldValues({ keep: false }, [yesNoSelect], {})).toEqual({
+      keep: "",
+    });
+  });
+
+  test("a stored boolean keeps its own text when the box is not yes/no", () => {
+    // The number box has no tick to draw, so the raw value stays as text.
+    expect(entityToFieldValues({ a: true }, [fields[0]!], {})).toEqual({
+      a: "true",
+    });
+  });
+
   test("yields empty strings when there is no entity", () => {
     const values = entityToFieldValues(undefined, fields, {});
     expect(values).toEqual({ a: "", b: "" });

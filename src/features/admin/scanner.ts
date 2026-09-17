@@ -4,7 +4,6 @@
  * POST /admin/listing/:id/scan - JSON API for processing scanned tokens
  * GET /admin/groups/:id/scanner - One scanner for every member of a group
  * POST /admin/groups/:id/scan - The same JSON API over the group's members
- * POST /admin/groups/:id/scanner - Save the group's "check in every listing" box
  */
 
 import { logActivities } from "#db/activity-log.ts";
@@ -14,22 +13,20 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateCheckedInOnListings } from "#db/attendees/update.ts";
 import { withTransaction } from "#db/client.ts";
-import { getGroupById, getListingsByGroupId, groups } from "#db/groups.ts";
+import { getGroupById, getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { filter, reduce, sumOf, unique } from "#fp";
-import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { requireSessionOr, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import { htmlResponse, jsonResponse, redirect } from "#routes/response.ts";
+import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   decryptTokenEntries,
   resolveEntries,
   type TokenEntry,
 } from "#routes/tickets/token-utils.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   getRequestPrivateKey,
@@ -126,13 +123,9 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
       `/admin/groups/${group.id}/scan`,
       session,
       manualCheckinOptions(attendees),
-      // The checkbox only means something once one scan can span listings.
-      scope.listingIds.size > 1
-        ? {
-            checked: group.scan_checks_in_all_listings,
-            savePath: `/admin/groups/${group.id}/scanner`,
-          }
-        : undefined,
+      // One scan at this door spans listings only from a multi-listing
+      // group whose stored rule says to check in every listing.
+      scope.listingIds.size > 1 && scope.checkInEveryListing,
     ),
   );
 });
@@ -313,30 +306,10 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
     return processScan(await groupScope(group), body);
   });
 
-/** Handle POST /admin/groups/:id/scanner — save the group's "check in every
- * listing" checkbox and return to the scanner page. */
-const handleGroupScannerSettingPost: IdRouteHandler = createAuthedHandler<
-  { id: number },
-  Group
->({
-  handle: async ({ context: group, form }) => {
-    await groups.table.update(group.id, {
-      scanChecksInAllListings: form.getFlag("scan_checks_in_all_listings"),
-    });
-    return redirect(
-      `/admin/groups/${group.id}/scanner`,
-      t("admin.scanner.setting_saved"),
-      true,
-    );
-  },
-  loadContext: ({ id }) => getGroupById(id),
-});
-
 /** Scanner routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "POST /admin/groups/:id/scan": handleGroupScanPost,
-  "POST /admin/groups/:id/scanner": handleGroupScannerSettingPost,
   "POST /admin/listing/:id/scan": handleScanPost,
 });

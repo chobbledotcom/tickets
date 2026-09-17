@@ -59,22 +59,14 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
 const listingFieldFormatters: Partial<
   Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
-  assign_built_site: (e) => booleanToCheckbox(e.assign_built_site),
-  bookable_alone: (e) => booleanToCheckbox(e.bookable_alone),
   bookable_days: (e) => formatBookableDays(e.bookable_days),
-  can_pay_more: (e) => booleanToCheckbox(e.can_pay_more),
   closes_at: (e) => formatDatetimeLocal(e.closes_at),
-  customisable_days: (e) => booleanToCheckbox(e.customisable_days),
   date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
-  hidden: (e) => booleanToCheckbox(e.hidden),
   initial_site_months: (e) =>
     e.initial_site_months ? String(e.initial_site_months) : "",
   max_price: (e) => toMajorUnits(e.max_price),
   months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
-  non_transferable: (e) => booleanToCheckbox(e.non_transferable),
-  purchase_only: (e) => booleanToCheckbox(e.purchase_only),
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
-  uses_logistics: (e) => booleanToCheckbox(e.uses_logistics),
 };
 
 export const listingToFieldValues = (listing: ListingWithCount): FieldValues =>

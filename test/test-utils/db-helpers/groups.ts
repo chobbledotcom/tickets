@@ -16,6 +16,7 @@ export const createTestGroup = async (
     isPackage: overrides.isPackage ?? false,
     maxAttendees: overrides.maxAttendees ?? 0,
     name: overrides.name ?? "Test Group",
+    scanChecksInAllListings: overrides.scanChecksInAllListings ?? false,
     showHiddenListings: overrides.showHiddenListings ?? true,
     termsAndConditions: overrides.termsAndConditions ?? "",
   };
@@ -29,6 +30,9 @@ export const createTestGroup = async (
       terms_and_conditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
       ...(input.isPackage ? { is_package: "1" } : {}),
+      ...(input.scanChecksInAllListings
+        ? { scan_checks_in_all_listings: "1" }
+        : {}),
       ...(input.showHiddenListings ? { show_hidden_listings: "1" } : {}),
     },
     async () => {
@@ -76,6 +80,8 @@ export const updateTestGroup = async (
 
   const hidden = updates.hidden ?? existing.hidden;
   const isPackage = updates.isPackage ?? existing.is_package;
+  const scanChecksInAllListings =
+    updates.scanChecksInAllListings ?? existing.scan_checks_in_all_listings;
   const showHiddenListings =
     updates.showHiddenListings ?? existing.show_hidden_listings;
   return doAuthenticatedFormRequest(
@@ -89,6 +95,7 @@ export const updateTestGroup = async (
         updates.termsAndConditions ?? existing.terms_and_conditions,
       ...(hidden ? { hidden: "1" } : {}),
       ...(isPackage ? { is_package: "1" } : {}),
+      ...(scanChecksInAllListings ? { scan_checks_in_all_listings: "1" } : {}),
       ...(showHiddenListings ? { show_hidden_listings: "1" } : {}),
     },
     async () => {

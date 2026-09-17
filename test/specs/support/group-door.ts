@@ -1,13 +1,15 @@
 /**
  * Checking people in at a group's door. The organiser works from the group's
- * scanner page: one door for every member listing of the group. Every check
- * here goes through that page — the page is opened first, and the code it
- * carries for the request is the one the page itself supplies, so a group
- * scanner page that stopped working would fail the story rather than being
- * stepped around.
+ * scanner page: one door for every member listing of the group. Every scan
+ * goes through that page — the page is opened first, and the code it carries
+ * for the request is the one the page itself supplies, so a group scanner
+ * page that stopped working would fail the story rather than being stepped
+ * around. The door's own rule — check in every listing at once — lives on
+ * the group's edit form, so turning it on goes through that real form.
  */
 
 // jscpd:ignore-start
+import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -16,6 +18,10 @@ import {
   rememberTicket,
   scanAt,
 } from "#test/specs/support/door.ts";
+import {
+  checkboxValueOffered,
+  tickedCheckboxes,
+} from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   listingIdNamed,
@@ -46,6 +52,10 @@ const groupDoorPaths = (world: TicketsWorld, groupName: string): DoorPaths => {
     scan: `/admin/groups/${id}/scan`,
   };
 };
+
+/** The group's own edit page, where its door rule lives. */
+const groupEditPage = (world: TicketsWorld, groupName: string): string =>
+  `/admin/groups/${doorIdNamed(world, groupName)}/edit`;
 
 /** A fixture over the group's tiers: the world, the name the story calls the
  * thing being set up, and the tiers it covers. */
@@ -116,16 +126,33 @@ export const groupDoorPageHtml: ReadAboutOneThing = async (world, groupName) =>
 export const peopleOfferedAtGroupDoor = offeredAt(groupDoorPageHtml);
 
 /** Turn the group's own "check in every listing when scanning" box on,
- * through the very form the scanner page renders. */
+ * through the very edit form the group's page renders. The page's other
+ * ticks ride along untouched, the way a browser sends them. */
+const EVERY_LISTING_BOX = "scan_checks_in_all_listings";
+
 export const groupDoorChecksInAll = async (
   world: TicketsWorld,
   groupName: string,
 ): Promise<void> => {
-  const browser = await openAdminPage(
-    world,
-    groupDoorPaths(world, groupName).page,
-  );
-  await fillInAndSend(browser, {}, t("admin.scanner.save_setting"), {
-    scan_checks_in_all_listings: ["1"],
+  const browser = await openAdminPage(world, groupEditPage(world, groupName));
+  const page = browser.currentHtml;
+  const tickWorth = checkboxValueOffered(page, EVERY_LISTING_BOX);
+  // Turning on is only a real turn-on for a box that started clear.
+  expect(tickedCheckboxes(page, EVERY_LISTING_BOX)).not.toContain(tickWorth);
+  await fillInAndSend(browser, {}, t("common.save_changes"), {
+    [EVERY_LISTING_BOX]: [tickWorth],
   });
+};
+
+/** The group's own edit page keeps the box the organiser saved ticked
+ * drawn ticked. A page that drew every box clear however it stood would
+ * make every later save quietly turn the rule off. */
+export const editPageKeepsEveryListingBoxTicked: ReadAboutOneThing<
+  void
+> = async (world, groupName) => {
+  const page = (await openAdminPage(world, groupEditPage(world, groupName)))
+    .currentHtml;
+  expect(tickedCheckboxes(page, EVERY_LISTING_BOX)).toContain(
+    checkboxValueOffered(page, EVERY_LISTING_BOX),
+  );
 };

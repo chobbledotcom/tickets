@@ -19,7 +19,7 @@ describe("the admin scanner page template", () => {
     expect(html).toContain("<title>Scanner: Doors</title>");
     expect(html).toContain('data-scan-path="/admin/groups/5/scan"');
     expect(html).toContain('action="/admin/groups/5/scan"');
-    expect(html).not.toContain('id="scan-all-setting"');
+    expect(html).not.toContain("Scanning a ticket in this group");
   });
 
   test("offers the people still to arrive with their summed places", () => {
@@ -51,41 +51,29 @@ describe("the admin scanner page template", () => {
     expect(html).toContain("No tickets to check in");
   });
 
-  test("carries the check-in-every-listing box only for a spanning door", () => {
-    const listing = adminScannerPage(
-      { name: "One Door" },
-      "/admin/listing/3/scan",
-      OWNER_SESSION,
-    );
-    expect(listing).not.toContain('id="scan-all-setting"');
-
-    const group = adminScannerPage(
+  test("carries the check-every-listing warning as an alert, with no way to change it at the door", () => {
+    // The flag, not the door's kind, draws the warning: the group's route
+    // passes it only for a multi-listing door whose stored rule is on.
+    const warned = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [],
-      { checked: false, savePath: "/admin/groups/5/scanner" },
+      true,
     );
-    expect(group).toContain('id="scan-all-setting"');
-    expect(group).toContain('action="/admin/groups/5/scanner"');
-    const box = group.match(/<input[^>]*id="scan-all-listings"[^>]*>/)![0];
-    expect(box).toContain('name="scan_checks_in_all_listings"');
-    expect(box).toContain('type="checkbox"');
-    expect(box).toContain('value="1"');
-    expect(box).not.toContain("checked");
-    expect(group).toContain(
-      "Check in every listing in this group when scanning any",
+    expect(warned).toContain('role="alert"');
+    expect(warned).toContain(
+      "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
     );
+    // The warning states the rule; it must not offer to change it at the door.
+    expect(warned).not.toContain('name="scan_checks_in_all_listings"');
+    expect(warned).not.toContain('action="/admin/groups/5/scanner"');
 
-    const ticked = adminScannerPage(
+    const quiet = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
-      { checked: true, savePath: "/admin/groups/5/scanner" },
     );
-    expect(
-      ticked.match(/<input[^>]*id="scan-all-listings"[^>]*>/)![0],
-    ).toContain("checked");
+    expect(quiet).not.toContain("Scanning a ticket in this group");
   });
 });

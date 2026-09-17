@@ -2,9 +2,12 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import { ticketOf } from "#test/specs/support/door.ts";
 import {
+  editPageKeepsEveryListingBoxTicked,
   groupDoorChecksInAll,
+  groupDoorPageHtml,
   groupDoorWithTiers,
   peopleOfferedAtGroupDoor,
   personWithMultiTierTicket,
@@ -106,6 +109,24 @@ Then(
   "the door says the ticket holds the {word} and the {word}",
   function (this: TicketsWorld, firstTier: string, secondTier: string): void {
     expect(lastAnswer(this).listingName).toBe(`${firstTier}, ${secondTier}`);
+  },
+);
+
+Then(
+  "the {word} group's edit page still shows the checkbox ticked",
+  function (this: TicketsWorld, groupName: string): Promise<void> {
+    return editPageKeepsEveryListingBoxTicked(this, groupName);
+  },
+);
+
+Then(
+  "the {word} group's scanner warns that one scan checks in every listing",
+  async function (this: TicketsWorld, groupName: string): Promise<void> {
+    const page = await groupDoorPageHtml(this, groupName);
+    expect(page).toContain(
+      t("admin.scanner.scan_checks_in_all_listings_warning"),
+    );
+    expect(page).toContain('role="alert"');
   },
 );
 

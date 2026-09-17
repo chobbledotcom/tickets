@@ -31,7 +31,6 @@
   "admin.scanner.scanning": "Scanning...",
   "admin.scanner.camera_denied": "Camera access denied",
   "admin.scanner.verify_id_note": " — verify their ID",
-  "admin.scanner.save_setting": "Save",
-  "admin.scanner.setting_saved": "Scanner setting saved",
+  "admin.scanner.scan_checks_in_all_listings_warning": "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
   "admin.scanner.error": "Error"
 }
