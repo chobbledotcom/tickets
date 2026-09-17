@@ -34,23 +34,26 @@ const cannedResponse = (text: string): FetchResult => ({
 });
 
 const okBody = (): string => "{}";
-
 const BUNNY_DB_REGIONS = /^https:\/\/api\.bunny\.net\/database\/v1\/config$/;
 const BUNNY_DB_CREATE = /^https:\/\/api\.bunny\.net\/database\/v2\/databases$/;
-const BUNNY_DB_GET = /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/.+$/;
+const BUNNY_DB_GET =
+  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/]+$/;
 const DB_GET_URL_PREFIX = "https://api.bunny.net/database/v2/databases/";
 const BUNNY_DB_TOKEN =
-  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/.+\/auth\/generate$/;
-const BUNNY_SCRIPT_CREATE = /\/compute\/script$/;
-const BUNNY_SCRIPT_ACTION = /\/compute\/script\/.+\/(code|publish|secrets)$/;
-const BUNNY_PULL_ZONE = /\/pullzone\/\d+/;
+  /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/]+\/auth\/generate$/;
+const BUNNY_SCRIPT_CREATE = /^https:\/\/api\.bunny\.net\/compute\/script$/;
+const BUNNY_SCRIPT_ACTION =
+  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/]+\/(code|publish|secrets)$/;
+const BUNNY_PULL_ZONE = /^https:\/\/api\.bunny\.net\/pullzone\/\d+$/;
 /** The canned release's asset, so the build's bundle download dry-runs too. */
 const DRY_RUN_RELEASE_ASSET = /^https:\/\/dry-run\.invalid\/bunny-script\.ts$/;
 
 /** One mapped endpoint's canned body builder. */
 type CannedBody = (url: string) => string;
 
-/** The canned answers for the site-build surface, tried in order. */
+/** The canned answers for the site-build surface, tried in order. Each pattern
+ * anchors the exact Bunny origin and path shape its caller builds, so a
+ * near-miss URL stays real and fails loudly without credentials. */
 const CANNED_BODIES: readonly (readonly [RegExp, CannedBody])[] = [
   [BUNNY_DB_TOKEN, () => JSON.stringify({ token: "dry-run-db-token" })],
   [

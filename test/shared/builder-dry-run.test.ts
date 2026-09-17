@@ -148,6 +148,27 @@ describeWithEnv(
       expect(_network.calls.length).toBe(1);
     });
 
+    test("performs the real fetch for a near-miss of a mapped endpoint", async () => {
+      using _env = withDryRunEnv();
+      using _network = stubFetch(() => new Response("{}", { status: 200 }));
+      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
+
+      // Near misses of mapped shapes: another origin that ends like a mapped
+      // path, a pull-zone action the build never takes, and a database path
+      // deeper than the read endpoint. Every one must reach the real network.
+      const nearMisses = [
+        "https://unmapped.example/compute/script",
+        "https://unmapped.example/pullzone/123",
+        "https://api.bunny.net/pullzone/123/addHostname",
+        "https://api.bunny.net/database/v2/databases/7/backups",
+      ];
+      for (const url of nearMisses) {
+        const response = await dryRunOrFetchText(url, () => ({ headers: {} }));
+        expect(response.ok, `at ${url}`).toBe(true);
+      }
+      expect(_network.calls.length).toBe(nearMisses.length);
+    });
+
     test("performs the real fetch when the flag is off", async () => {
       using _env = withEnv({ SITE_BUILD_DRY_RUN: undefined });
       using _network = stubFetch(() => new Response("{}", { status: 200 }));
