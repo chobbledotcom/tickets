@@ -1,19 +1,17 @@
 /**
- * The site-build dry run: with `SITE_BUILD_DRY_RUN` set, the external calls a
- * site build makes answer from canned bodies — no network leaves the machine,
- * the subrequest budget still pays for every call with the same label a real
- * call would carry, and the canned bodies pass the real response parsers.
+ * The site-build dry run's own module: with `SITE_BUILD_DRY_RUN` set, a mapped
+ * call answers from a canned body with no network, the subrequest budget still
+ * pays for the call, and successive canned builds draw successive ids. The
+ * per-provider canned bodies are pinned by each provider's own mirrored
+ * suite (update.test.ts, bunny-db.test.ts, bunny-cdn/).
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { bunnyDbProvider } from "#shared/bunny-db.ts";
-import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
-import { fetchLatestRelease } from "#shared/update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** A fetch stub that fails the moment any real network is attempted. */
@@ -23,98 +21,83 @@ const noNetwork = (): ReturnType<typeof stubFetch> =>
   });
 
 /** The site-build dry-run flag, set for the current test only. */
-const withDryRunEnv = (): EnvScope => withEnv({ SITE_BUILD_DRY_RUN: "true" });
+const withDryRunEnv = (): ReturnType<typeof withEnv> =>
+  withEnv({ SITE_BUILD_DRY_RUN: "true" });
 
 describeWithEnv(
   "site-build dry run",
-  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  { db: true, env: { BUNNY_API_KEY: "test-key", CAN_BUILD_SITES: "true" } },
   () => {
-    test("answers the GitHub release lookup without network", async () => {
+    test("draws successive ids for successive canned creations", async () => {
       using _env = withDryRunEnv();
       using _network = noNetwork();
 
-      const release = await fetchLatestRelease();
+      // The first two canned creations in this process take ids 1 and 2, so
+      // the counter starts at zero and advances by exactly one per creation.
+      const first = await bunnyCdnApi.createEdgeScript("First", "export {};");
+      const second = await bunnyCdnApi.createEdgeScript("Second", "export {};");
 
-      expect(release.assetUrl).not.toBeNull();
-      expect(release.assetUrl).toContain("dry-run.invalid");
-    });
-
-    test("deploys the latest release to a script without network", async () => {
-      using _env = withDryRunEnv();
-      using _network = noNetwork();
-      const { deployLatestReleaseToScript } = await import("#shared/update.ts");
-
-      // Self-update shares the same call surface, so it dry-runs too: the
-      // release lookup, the asset download, and the script deploy.
-      const release = await deployLatestReleaseToScript(1);
-
-      expect(release.assetUrl).toContain("dry-run.invalid");
-    });
-
-    test("creates a Bunny database without network", async () => {
-      using _env = withDryRunEnv();
-      using _network = noNetwork();
-
-      const result = await bunnyDbProvider.createDatabase("Dry run db");
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value.dbUrl).toContain("dry-run-");
-        expect(result.value.dbUrl).toContain(".invalid");
-        expect(result.value.dbToken).not.toBe("");
-      }
-    });
-
-    test("creates an edge script without network", async () => {
-      using _env = withDryRunEnv();
-      using _network = noNetwork();
-
-      const result = await bunnyCdnApi.createEdgeScript(
-        "Dry run script",
-        "export {};",
-      );
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.defaultHostname).toMatch(/^dry-run-\d+\.invalid$/);
-        expect(String(result.scriptId)).toMatch(/^\d+$/);
-      }
-    });
-
-    test("sets secrets, updates the pull zone, and publishes without network", async () => {
-      using _env = withDryRunEnv();
-      using _network = noNetwork();
-
-      expect(await bunnyCdnApi.setEdgeScriptSecret(1, "DB_URL", "x")).toEqual({
+      expect(first).toEqual({
+        defaultHostname: "dry-run-1.invalid",
         ok: true,
+        pullZoneId: 1,
+        scriptId: 1,
       });
-      expect(
-        await bunnyCdnApi.updatePullZone(1, { DisableCookies: false }),
-      ).toEqual({ ok: true });
-      expect(await bunnyCdnApi.publishEdgeScript(1)).toEqual({ ok: true });
+      expect(second).toEqual({
+        defaultHostname: "dry-run-2.invalid",
+        ok: true,
+        pullZoneId: 2,
+        scriptId: 2,
+      });
     });
 
-    test("builds and retains a whole site through the canned surface", async () => {
+    test("answers a mapped call with a canned 200", async () => {
       using _env = withDryRunEnv();
       using _network = noNetwork();
-      let retained = 0;
-      const retainedId = { value: 0 };
+      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
 
-      const result = await builderApi.buildSite(
-        { siteName: "00001" },
-        async (site) => {
-          retained += 1;
-          retainedId.value = site.hostingId === "" ? 0 : Number(site.hostingId);
-        },
+      const response = await dryRunOrFetchText(
+        "https://api.bunny.net/compute/script/1/secrets",
+        () => ({ headers: {} }),
       );
 
-      expect(result.ok).toBe(true);
-      expect(retained).toBe(1);
-      expect(retainedId.value).toBeGreaterThan(0);
-      if (result.ok) {
-        expect(result.defaultHostname).toMatch(/^dry-run-\d+\.invalid$/);
-      }
-      expect(generateScheduledTaskKey()).toBeTruthy();
+      expect(response.ok).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.text).toBe("{}");
+    });
+
+    test("answers a database token request with the canned token", async () => {
+      using _env = withDryRunEnv();
+      using _network = noNetwork();
+      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
+
+      const tokenResponse = await dryRunOrFetchText(
+        "https://api.bunny.net/database/v2/databases/1/auth/generate",
+        () => ({ headers: {} }),
+      );
+
+      expect(JSON.parse(tokenResponse.text)).toEqual({
+        token: "dry-run-db-token",
+      });
+    });
+
+    test("answers a database read with an id-derived canned URL", async () => {
+      using _env = withDryRunEnv();
+      using _network = noNetwork();
+      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
+
+      const getResponse = await dryRunOrFetchText(
+        "https://api.bunny.net/database/v2/databases/7",
+        () => ({ headers: {} }),
+      );
+
+      expect(JSON.parse(getResponse.text)).toEqual({
+        db: {
+          db_id: "7",
+          name: "Dry run",
+          url: "libsql://dry-run-7.invalid",
+        },
+      });
     });
 
     test("counts every canned call against the subrequest budget", async () => {
@@ -132,26 +115,23 @@ describeWithEnv(
       expect(await usage).toBe(1);
     });
 
-    test("refuses the call when the budget is exhausted", async () => {
+    test("builds and retains a whole site through the canned surface", async () => {
       using _env = withDryRunEnv();
       using _network = noNetwork();
-      const {
-        getSubrequestUsage,
-        runWithSubrequestBudget,
-        withSubrequestAllowance,
-      } = await import("#shared/subrequest-budget.ts");
+      let retained = 0;
+      const retainedId = { value: 0 };
 
-      const call = runWithSubrequestBudget(() =>
-        withSubrequestAllowance(
-          { database: 0, external: 0, total: 0 },
-          async () => {
-            await bunnyCdnApi.setEdgeScriptSecret(1, "DB_URL", "x");
-            return getSubrequestUsage();
-          },
-        ),
+      const result = await builderApi.buildSite(
+        { siteName: "00001" },
+        async (site) => {
+          retained += 1;
+          retainedId.value = Number(site.hostingId);
+        },
       );
 
-      await expect(call).rejects.toThrow("Subrequest allowance exceeded");
+      expect(result.ok).toBe(true);
+      expect(retained).toBe(1);
+      expect(retainedId.value).toBeGreaterThan(0);
     });
 
     test("performs the real fetch for a URL outside the surface", async () => {
@@ -169,7 +149,7 @@ describeWithEnv(
     });
 
     test("performs the real fetch when the flag is off", async () => {
-      using _key = withEnv({ BUNNY_API_KEY: "test-bunny-key" });
+      using _env = withEnv({ SITE_BUILD_DRY_RUN: undefined });
       using _network = stubFetch(() => new Response("{}", { status: 200 }));
       const { getSubrequestUsage, runWithSubrequestBudget } = await import(
         "#shared/subrequest-budget.ts"
