@@ -180,6 +180,28 @@ Feature: Real sandbox payments finish safely
       And the owner's log records the lost site assignment
       And the owner's system map answers clean
 
+  @rule:payments.live-plan-dry-run-completes @surface:admin @surface:public @surface:return
+  Rule: A plan purchase completes its site inside the request budget
+    A test site can answer the build's provider calls from canned bodies,
+    paying the subrequest budget for each call without touching the network.
+    The purchase must then complete the whole assignment — the site built,
+    assigned, and carrying its term of credit — with no lost-assignment
+    incident, which is also the proof the request fits the budget: a build
+    that ran out of calls would name itself on the owner's log instead.
+
+    @case:live-payments.stripe-plan-dry-run
+    Scenario: A visitor's dry-run plan purchase completes its site
+      Given Stripe is configured with dedicated test credentials
+      And the owner has published a monthly renewal tier
+      And the owner has published a three-month site plan
+      When a separate visitor pays for three units through Stripe Checkout
+      And Stripe's signed webhook confirms the payment
+      And the visitor retries the exact browser return
+      Then the owner sees one attendee and the captured income once
+      And the owner's built-sites page shows the assigned site with its credit
+      And the owner's log records no lost site assignment
+      And the owner's system map answers clean
+
   @rule:payments.live-complex-order-keeps-every-path @surface:admin @surface:public
   Rule: A complex order records every booking path
     The conversion must preserve the existing package, independent member and

@@ -14,6 +14,7 @@ import {
 } from "#db/client.ts";
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
+import { siteBuildDryRunEnabled } from "#shared/builder-dry-run.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -207,6 +208,15 @@ export const formatBuildDate = (iso: string): string => {
  * Throws on network/API errors.
  */
 export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
+  if (siteBuildDryRunEnabled()) {
+    countExternalSubrequest("GitHub release lookup");
+    return {
+      assetUrl: "https://dry-run.invalid/bunny-script.ts",
+      name: "Dry-run release",
+      publishedAt: "",
+      tagName: "dry-run",
+    };
+  }
   countExternalSubrequest("GitHub release lookup");
   const response = await fetch(GITHUB_LATEST_RELEASE_URL, {
     headers: { Accept: "application/vnd.github.v3+json" },
@@ -228,6 +238,10 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
 
 /** Download a release asset URL and return the source code text. */
 const downloadReleaseAsset = async (assetUrl: string): Promise<string> => {
+  if (siteBuildDryRunEnabled()) {
+    countExternalSubrequest("GitHub release download");
+    return "export {}; // dry-run site build";
+  }
   countExternalSubrequest("GitHub release download");
   const assetResponse = await fetch(assetUrl);
   if (!assetResponse.ok) {
