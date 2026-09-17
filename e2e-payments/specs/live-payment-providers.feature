@@ -161,15 +161,17 @@ Feature: Real sandbox payments finish safely
 
   @rule:payments.live-plan-priced-in-months @surface:admin @surface:public @surface:return
   Rule: A site plan is sold in months and paid once
-    Quantity on a built-site plan buys months of one site's service. The
-    sandbox has no build infrastructure, so the expected outcome is the
-    documented failure mode: the paid booking and its money stand, the failed
-    build costs no later entry its attempt, the owner's log records the lost
-    assignment, and the system map answers clean.
+    Quantity on a built-site plan buys months of one site's service, and a
+    hidden monthly tier prices the assigned site's renewals. The sandbox has
+    no build infrastructure, so the expected outcome is the documented
+    failure mode: the paid booking and its money stand, the failed build costs
+    no later entry its attempt, the owner's log records the lost assignment,
+    and the system map answers clean.
 
     @case:live-payments.stripe-plan-months
     Scenario: A visitor buys three units of a three-month site plan
       Given Stripe is configured with dedicated test credentials
+      And the owner has published a monthly renewal tier
       And the owner has published a three-month site plan
       When a separate visitor pays for three units through Stripe Checkout
       And Stripe's signed webhook confirms the payment
