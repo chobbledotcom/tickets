@@ -16,6 +16,7 @@ import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { assertJson, expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { orphanAttendeeBooking } from "#test-utils/db-fault.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -188,22 +189,6 @@ const setupLoginAndRawScan = async (
   return { listing, response, session };
 };
 
-/** Point an attendee at a non-existent listing to simulate orphan */
-const orphanAttendee = async (token: string) => {
-  const { getDb } = await import("#db/client.ts");
-  const { hmacHash } = await import("#crypto/hashing.ts");
-  await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
-  await getDb().execute({
-    args: [await hmacHash(token)],
-    sql: `UPDATE listing_attendees
-          SET listing_id = 99999
-          WHERE attendee_id = (
-            SELECT id FROM attendees WHERE ticket_token_index = ?
-          )`,
-  });
-  return { getDb };
-};
-
 describeWithEnv("QR Scanner", { db: true }, () => {
   describe("isJsonApiPath", () => {
     test("matches scan endpoint with numeric listing ID", () => {
@@ -328,8 +313,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const listingB = await createTestListing({ maxAttendees: 10 });
 
       // Point attendee at a non-existent listing to simulate orphan
-      const { getDb } = await orphanAttendee(token);
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+      await orphanAttendeeBooking(token);
 
       // Scan from listing B - attendee's listing_id still points to deleted listing A
       const result = await crossListingScanAndGetJson(listingB.id, { token });
@@ -519,7 +503,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const listingB = await createTestListing({ maxAttendees: 10 });
 
       // Point attendee at a non-existent listing to simulate orphan
-      const { getDb } = await orphanAttendee(token);
+      await orphanAttendeeBooking(token);
 
       // Force check-in from listing B — listing 99999 doesn't exist,
       // so no entries can be resolved and check-in returns not_found
@@ -531,8 +515,6 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       await assertJson(Promise.resolve(response), 404, (json) => {
         expect(json.status).toBe("not_found");
       });
-
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
     });
   });
 

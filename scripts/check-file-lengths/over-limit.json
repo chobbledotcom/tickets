@@ -85,7 +85,7 @@
   "test/integration/server/parents-e2e.test.ts": 650,
   "test/integration/server/privacy-refund-recovery.test.ts": 425,
   "test/integration/server/privacy.test.ts": 425,
-  "test/integration/server/scanner.test.ts": 635,
+  "test/integration/server/scanner.test.ts": 617,
   "test/integration/server/settings/apple-wallet.test.ts": 680,
   "test/integration/server/settings/superuser.test.ts": 506,
   "test/integration/server/setup.test.ts": 582,

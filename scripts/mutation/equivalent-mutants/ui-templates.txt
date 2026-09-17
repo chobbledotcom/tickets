@@ -59,6 +59,7 @@ src/ui/templates/admin/holidays.tsx::holidayColumns.key~1lbn6k9  start_date → 
 src/ui/templates/admin/holidays.tsx::holidayColumns.key~0mip5xw  end_date → ""   # same as the start_date key above — the holidays table supplies only a scroll class
 src/ui/templates/admin/logistics.tsx::agentColumns~15k9yrk  name → ""   # AgentsSection renders these columns with no options at all, so nothing supplies a column-key reader, and agentColumns never reaches renderColumnReference
 src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? → ||   # values is a form-values object or undefined, and an object is always truthy, so || keeps exactly what ?? keeps
+src/ui/templates/admin/listings/form-values.tsx::renderDayPricesFieldset.prices~02nzxkd  ?? → ||   # day_prices is a DayPrices object or undefined, and a present object is always truthy, so || reads it exactly as ?? does
 
 # schema-atlas.tsx: formatTimeAgo returns a formatted string or null, never
 # "", so ?? and || pick the same side for every input.
