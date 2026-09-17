@@ -58,7 +58,7 @@ Given/When steps rather than disappearing into hooks.
 `e2e-payments/specs/live-payment-providers.feature` is the human contract: each
 Rule names one safe-durable result, and every step states a visible outcome.
 
-The eight scenarios:
+The nine scenarios:
 
 - **free-booking-once** — the no-provider journey proves setup, the public form
   and the admin assertions work before a third-party provider is involved.
@@ -82,6 +82,12 @@ The eight scenarios:
   Stripe Checkout. The sandbox has no build infrastructure, so the post-payment
   build fails: the booking and its money stand, and the owner's log records the
   lost site assignment as an incident.
+- **stripe-plan-dry-run** — the same purchase on an app server whose
+  `SITE_BUILD_DRY_RUN` env answers the build's provider calls from canned bodies
+  while still paying the subrequest budget for each one. The purchase completes
+  the whole assignment — site built, assigned, and carrying its term of credit —
+  and the owner's log records no lost assignment, which is also the proof the
+  request fits the edge's call budget.
 - **complex-order-<provider>** — a package, member, and plain listing booked in
   one order, with per-listing income verified.
 

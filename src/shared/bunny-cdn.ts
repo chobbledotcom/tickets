@@ -6,6 +6,7 @@
  */
 
 import { range } from "#fp";
+import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import {
   getBunnyApiKey,
   getBunnyDnsSubdomainSuffix,
@@ -161,20 +162,20 @@ const bunnyKeyRequest = (url: string, method: string): Promise<FetchResult> =>
   });
 
 /** A Bunny API request that carries the AccessKey header and a JSON body — the
- *  shared shape of every POST/PUT call. `body` is already-serialized JSON. */
+ * shared shape of every POST/PUT call. `body` is already-serialized JSON. */
 const bunnyJsonRequest = (
   url: string,
   body: string,
   method: string,
 ): Promise<FetchResult> =>
-  fetchText(url, {
+  dryRunOrFetchText(url, () => ({
     body,
     headers: {
       AccessKey: getBunnyApiKey(),
       "Content-Type": "application/json",
     },
     method,
-  });
+  }));
 
 /** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
 const loadFreeCertificate = async (
@@ -484,9 +485,7 @@ const createEdgeScriptImpl = async (
   };
 };
 
-/**
- * Set a secret on a Bunny edge script.
- */
+/** Set a secret on a Bunny edge script. */
 const setEdgeScriptSecretImpl = async (
   scriptId: number,
   name: string,

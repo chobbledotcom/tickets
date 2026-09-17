@@ -7,9 +7,10 @@
  */
 
 import * as v from "valibot";
+import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
-import { fetchText, jsonHeaders } from "#shared/fetch.ts";
+import { jsonHeaders } from "#shared/fetch.ts";
 import {
   type CreateDatabaseFn,
   type DatabaseProviderApi,
@@ -66,9 +67,9 @@ const regionIds = (regions: RegionConfig[]): string[] =>
 const getAllRegions = async (): Promise<
   Result<{ primaryRegions: string[]; replicaRegions: string[] }>
 > => {
-  const res = await fetchText(`${DB_API_BASE}/v1/config`, {
+  const res = await dryRunOrFetchText(`${DB_API_BASE}/v1/config`, () => ({
     headers: dbApiHeaders(),
-  });
+  }));
 
   if (!res.ok) {
     return parseBunnyError(res, "Get database config");
@@ -93,16 +94,19 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   }
 
   // 2. Create the database with all of Bunny's nodes as primaries and replicas
-  const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
-    body: JSON.stringify({
-      name,
-      primary_regions: regions.value.primaryRegions,
-      replicas_regions: regions.value.replicaRegions,
-      storage_region: STORAGE_REGION,
+  const createRes = await dryRunOrFetchText(
+    `${DB_API_BASE}/v2/databases`,
+    () => ({
+      body: JSON.stringify({
+        name,
+        primary_regions: regions.value.primaryRegions,
+        replicas_regions: regions.value.replicaRegions,
+        storage_region: STORAGE_REGION,
+      }),
+      headers: dbApiHeaders(),
+      method: "POST",
     }),
-    headers: dbApiHeaders(),
-    method: "POST",
-  });
+  );
 
   if (!createRes.ok) {
     return parseBunnyError(createRes, "Create database");
@@ -112,9 +116,9 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   const dbId = createData.db_id;
 
   // 3. Fetch database details to get the connection URL
-  const getRes = await fetchText(
+  const getRes = await dryRunOrFetchText(
     `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}`,
-    { headers: dbApiHeaders() },
+    () => ({ headers: dbApiHeaders() }),
   );
 
   if (!getRes.ok) {
@@ -125,13 +129,13 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   const dbUrl = getData.db.url;
 
   // 4. Generate a full-access token
-  const tokenRes = await fetchText(
+  const tokenRes = await dryRunOrFetchText(
     `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}/auth/generate`,
-    {
+    () => ({
       body: JSON.stringify({ authorization: "full-access", expires_at: null }),
       headers: dbApiHeaders(),
       method: "PUT",
-    },
+    }),
   );
 
   if (!tokenRes.ok) {
