@@ -58,7 +58,7 @@ Given/When steps rather than disappearing into hooks.
 `e2e-payments/specs/live-payment-providers.feature` is the human contract: each
 Rule names one safe-durable result, and every step states a visible outcome.
 
-The seven scenarios:
+The eight scenarios:
 
 - **free-booking-once** — the no-provider journey proves setup, the public form
   and the admin assertions work before a third-party provider is involved.
@@ -78,6 +78,10 @@ The seven scenarios:
 - **stripe-invalidated-checkout-refunded** — the owner changes the price while a
   visitor is paying; the webhook processes the later charge, retains the booking
   at quantity 0, and automatically refunds.
+- **stripe-plan-months** — a site plan is priced and bought in months through
+  Stripe Checkout. The sandbox has no build infrastructure, so the post-payment
+  build fails: the booking and its money stand, and the owner's log records the
+  lost site assignment as an incident.
 - **complex-order-<provider>** — a package, member, and plain listing booked in
   one order, with per-listing income verified.
 
