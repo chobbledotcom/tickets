@@ -18,7 +18,6 @@
       "devenv shell deno task check:*": "allow",
       "devenv shell deno task line-counts": "allow",
       "devenv shell deno task find-unused-src": "allow",
-      "devenv shell deno run *": "allow",
       "devenv shell -- deno task test:*": "allow",
       "devenv shell -- deno task mutation:*": "allow",
       "devenv shell -- deno task mutation *": "allow",
