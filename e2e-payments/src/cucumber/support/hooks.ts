@@ -25,6 +25,7 @@ import { config, needsTunnel, providerSecrets } from "#e2e/config.ts";
 import { log, warn } from "#e2e/log.ts";
 import { providers } from "#e2e/providers/index.ts";
 import { startAppServer } from "#e2e/server.ts";
+import { DRY_RUN_SITE_BUILD_CASES, type LiveCaseId } from "#e2e/targets.ts";
 import { noTunnel, startTunnel } from "#e2e/tunnel.ts";
 import { LiveWorld } from "./world.ts";
 
@@ -97,10 +98,15 @@ const caseIdOf = (hook: ITestCaseHookParameter): string => {
  * everything already acquired (newest first) when a later acquisition fails —
  * a half-started scenario must not leak its app server or Chromium into the
  * scenarios after it. */
-const acquireInfra = async (world: LiveWorld): Promise<void> => {
+const acquireInfra = async (
+  world: LiveWorld,
+  dryRunSiteBuilds: boolean,
+): Promise<void> => {
   const acquired: NamedCleanup[] = [];
   try {
-    const server = await startAppServer();
+    const server = await startAppServer(
+      dryRunSiteBuilds ? { SITE_BUILD_DRY_RUN: "true" } : {},
+    );
     acquired.push({ name: "app server", run: () => server.stop() });
     const tunnel = needsTunnel(world.target)
       ? await startTunnel(server.port)
@@ -131,7 +137,12 @@ Before(
     log(`— scenario ${this.scenario.caseId} (run ${this.scenario.runId})`);
     this.recordPhase("starting-infrastructure");
 
-    await acquireInfra(this);
+    // A dry-run case gets an app server whose site-build provider calls
+    // answer from canned bodies (see DRY_RUN_SITE_BUILD_CASES).
+    await acquireInfra(
+      this,
+      DRY_RUN_SITE_BUILD_CASES.includes(this.scenario.caseId as LiveCaseId),
+    );
 
     if (this.target !== "free") {
       const driver = providers[this.target];

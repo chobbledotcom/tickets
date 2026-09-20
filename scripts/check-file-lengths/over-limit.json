@@ -15,7 +15,7 @@
   "src/fp.ts": 585,
   "src/shared/admin-surface/areas.ts": 466,
   "src/shared/booking/fold-tree.ts": 485,
-  "src/shared/bunny-cdn.ts": 674,
+  "src/shared/bunny-cdn.ts": 673,
   "src/shared/crypto/keys.ts": 499,
   "src/shared/dates.ts": 524,
   "src/shared/db/attendees/queries.ts": 460,
