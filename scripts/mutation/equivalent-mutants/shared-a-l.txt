@@ -1,5 +1,12 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
+# builder-dry-run.ts canned release asset: the code text flows only into the
+# unsent create-script request body, so no parser or return value reads it.
+# The same-text branch in update.ts is recorded under shared-m-z.txt.
+src/shared/builder-dry-run.ts::CANNED_BODIES~05ocz8s  export {}; // dry-run site build→""   # the canned code is an answer to the release-asset URL, whose only consumer buildSiteOnProvider forwards unsent
+src/shared/builder-dry-run.ts::CANNED_BODIES.primary_regions.id~10dvhh2  eu-west-1→""   # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
+src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west-1→""   # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
+
 src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → ||   # trim returns a string, and its only falsy value is the empty string supplied by the fallback
 src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
 src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows

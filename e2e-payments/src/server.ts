@@ -76,7 +76,9 @@ export const buildStaticAssets = async (): Promise<void> => {
   });
 };
 
-export const startAppServer = async (): Promise<AppServer> => {
+export const startAppServer = async (
+  extraEnv: Record<string, string | undefined> = {},
+): Promise<AppServer> => {
   const port = pickPort();
   mkdirSync(artifactsRoot, { recursive: true });
 
@@ -119,6 +121,11 @@ export const startAppServer = async (): Promise<AppServer> => {
         DB_ENCRYPTION_KEY: config.dbEncryptionKey,
         DB_URL: dbUrl,
         PORT: String(port),
+        // A scenario can ask for more (the dry-run plan case sets
+        // SITE_BUILD_DRY_RUN, whose app server answers the site-build
+        // provider calls from canned bodies — the test-only mode documented
+        // in the repository's env-vars).
+        ...extraEnv,
       },
     },
   );

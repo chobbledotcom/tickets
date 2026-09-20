@@ -8,13 +8,13 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
+import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { fetchText } from "#shared/fetch.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult } from "#shared/result.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
@@ -161,7 +161,7 @@ const getBuildCode = async (
     if (!release.assetUrl) {
       return { error: "No release asset found on GitHub", ok: false as const };
     }
-    const assetResponse = await fetchText(release.assetUrl);
+    const assetResponse = await dryRunOrFetchText(release.assetUrl, () => ({}));
     if (!assetResponse.ok) {
       return {
         error: `Failed to download release: ${assetResponse.status}`,
