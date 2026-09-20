@@ -29,10 +29,10 @@ describeWithEnv("db > capacity singular path", { db: true }, () => {
   });
 
   test("maps each listing to its group ids", async () => {
-    const {
-      group,
-      listings: [linked],
-    } = await createGroupWithListings("Weekend", ["Linked hall"]);
+    const { group, listings } = await createGroupWithListings("Weekend", [
+      "Linked hall",
+    ]);
+    const linked = listings[0]!;
     const lone = await createTestListing({ name: "Free hall" });
 
     const membership = await getListingGroupMembership([linked, lone]);
