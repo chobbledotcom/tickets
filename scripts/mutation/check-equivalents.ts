@@ -31,6 +31,9 @@ interface EquivalentCheckOptions {
 
 interface Entry {
   key: string;
+  /** The entry's `from → to` as the key format writes it, so a candidate key
+   *  carrying the same mutation compares by string equality. */
+  mutation: string;
   registry: string;
   sourcePath: string;
 }
@@ -67,6 +70,7 @@ const readEntries = async (
     )) {
       entries.push({
         key: parsed.key,
+        mutation: `${parsed.operator}→${parsed.newOperator}`,
         registry,
         sourcePath: parsed.sourcePath,
       });
@@ -95,6 +99,31 @@ const keysFor = async (
       mutantKeyForPath(sourcePath, mutant),
     ),
   );
+};
+
+/** A canonical key's `from → to`: the anchor ends at its first space, and the
+ *  path before the `::` carries no raw colon. */
+const mutationOfKey = (key: string): string =>
+  key.slice(key.indexOf(" ", key.indexOf("::") + 2) + 1);
+
+/** The stale line for an entry whose key resolves to nothing: each key in the
+ *  file that still produces the same mutation is offered as the paste-ready
+ *  replacement, and when none does the mutation is gone and the entry has to
+ *  go — the entry suppresses nothing either way. */
+const staleEntryProblem = (entry: Entry, keys: Set<string>): string => {
+  const fresh = [...keys].filter(
+    (key) => mutationOfKey(key) === entry.mutation,
+  );
+  const [head, ...accepts] =
+    fresh.length === 0
+      ? [
+          `stale (nothing to suppress — the mutation no longer occurs in that file, so delete the entry) (${entry.registry}): ${entry.key}`,
+        ]
+      : [
+          `stale (nothing to suppress — did it move or get renamed?) (${entry.registry}): ${entry.key}`,
+          ...fresh.map((key) => `to accept: ${key}`),
+        ];
+  return [head, ...accepts].join("\n");
 };
 
 export const checkEquivalentMutants = async (
@@ -126,9 +155,7 @@ export const checkEquivalentMutants = async (
       `No mutants were generated for ${entry.sourcePath}`,
     );
     if (!keys.has(entry.key)) {
-      problems.push(
-        `stale (nothing to suppress — did it move or get renamed?) (${entry.registry}): ${entry.key}`,
-      );
+      problems.push(staleEntryProblem(entry, keys));
     }
   }
   return problems;
