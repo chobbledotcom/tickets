@@ -10,19 +10,23 @@ import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 import { makeParent } from "#test-utils/parents.ts";
 
 describeWithEnv("db > modifier child-add-on reachability", { db: true }, () => {
+  /** The candidate for an opt-in add-on linked to the named listings. The
+   * submitted scope stays "listings", so the reachable set decides alone. */
+  const saveFor = (name: string, listingIds: number[]) =>
+    childAddOnSaveError({
+      active: true,
+      groupIds: [],
+      listingIds,
+      name,
+      scope: "listings",
+      trigger: "optional",
+    });
+
   test("an add-on reachable only through a suppressed child is refused", async () => {
     const { child } = await makeParent();
     await optInAddOnForListings("Link extra", [child.id]);
 
-    const error = await childAddOnSaveError({
-      active: true,
-      groupIds: [],
-      listingIds: [child.id],
-      name: "Link extra",
-      scope: "listings",
-      trigger: "optional",
-    });
-    expect(error).toContain("Link extra");
+    expect(await saveFor("Link extra", [child.id])).toContain("Link extra");
   });
 
   test("a bookable_alone child serves its own page and resolves the save", async () => {
@@ -31,14 +35,6 @@ describeWithEnv("db > modifier child-add-on reachability", { db: true }, () => {
     });
     await optInAddOnForListings("Link extra", [child.id]);
 
-    const error = await childAddOnSaveError({
-      active: true,
-      groupIds: [],
-      listingIds: [child.id],
-      name: "Link extra",
-      scope: "listings",
-      trigger: "optional",
-    });
-    expect(error).toBeNull();
+    expect(await saveFor("Link extra", [child.id])).toBeNull();
   });
 });

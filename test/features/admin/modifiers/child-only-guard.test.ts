@@ -20,6 +20,7 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import {
+  activeOptInAddOn,
   insertModifier,
   linkModifierListing,
   patchModifier,
@@ -33,15 +34,7 @@ describeWithEnv(
   { db: true },
   () => {
     /** An active opt-in, listings-scoped add-on with no links yet. */
-    const optInAddOn = async (name: string) => {
-      const modifier = await insertModifier({ name });
-      await patchModifier(modifier.id, {
-        active: 1,
-        scope: "listings",
-        trigger: "optional",
-      });
-      return modifier;
-    };
+    const optInAddOn = (name: string) => activeOptInAddOn(name);
 
     /** A bookable_alone child with the "Solo extra" opt-in add-on linked to it. */
     const linkSoloAddOnToBookableAloneChild = async () => {

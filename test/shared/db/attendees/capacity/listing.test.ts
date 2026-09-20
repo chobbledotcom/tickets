@@ -7,9 +7,8 @@ import {
   getListingGroupMembership,
   useListingById,
 } from "#db/attendees/capacity/listing.ts";
-import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > capacity singular path", { db: true }, () => {
@@ -30,13 +29,14 @@ describeWithEnv("db > capacity singular path", { db: true }, () => {
   });
 
   test("maps each listing to its group ids", async () => {
-    const group = await createTestGroup({ name: "Weekend" });
-    const listing = await createTestListing({ name: "Linked hall" });
-    await assignListingsToGroup([listing.id], group.id);
+    const {
+      group,
+      listings: [linked],
+    } = await createGroupWithListings("Weekend", ["Linked hall"]);
     const lone = await createTestListing({ name: "Free hall" });
 
-    const membership = await getListingGroupMembership([listing, lone]);
-    expect(membership.get(listing.id)).toEqual([group.id]);
+    const membership = await getListingGroupMembership([linked, lone]);
+    expect(membership.get(linked.id)).toEqual([group.id]);
     expect(membership.get(lone.id)).toEqual([]);
   });
 });

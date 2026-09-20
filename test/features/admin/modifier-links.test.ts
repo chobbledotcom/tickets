@@ -9,24 +9,15 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  insertModifier,
+  activeOptInAddOn,
   optInAddOnForListings,
-  patchModifier,
 } from "#test-utils/modifiers.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("db > admin modifier links", { db: true }, () => {
   /** A listings-scoped, active, opt-in modifier with no links yet. */
-  const seedScopedModifier = async (name: string) => {
-    const modifier = await insertModifier({ name });
-    await patchModifier(modifier.id, {
-      active: 1,
-      scope: "listings",
-      trigger: "optional",
-    });
-    return modifier;
-  };
+  const seedScopedModifier = (name: string) => activeOptInAddOn(name);
 
   test("links the positive integers and drops every hole the group submits", async () => {
     const { id } = await seedScopedModifier("Checked");
