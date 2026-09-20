@@ -9,7 +9,8 @@ import {
   visibleTransfers,
 } from "#accounting/queries.ts";
 import type { LedgerRange } from "#accounting/range.ts";
-import { getAllGroupNames, groupListings } from "#db/groups.ts";
+import { groupListings } from "#db/groups/table.ts";
+import { getAllGroupNames } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { sort } from "#fp";

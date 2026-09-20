@@ -1,10 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { renderListingEditError } from "#routes/admin/listings-edit.ts";
+import { renderListingEditError } from "#routes/admin/listings-edit-save.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   expectFlashRedirect,

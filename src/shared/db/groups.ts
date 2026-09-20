@@ -24,7 +24,7 @@ import {
 } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
-import { linkTableSide } from "#db/link-table.ts";
+import { groupListings, listingGroups } from "#db/groups/table.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import {
   getGroupDayPricesByGroupIds,
@@ -92,26 +92,6 @@ export const groups = cachedEntityTable<Group, GroupInput>(
     ttlMs: GROUPS_CACHE_TTL_MS,
   },
 );
-
-/** The listing ids in a group, and the reverse listing-to-groups side. */
-export const groupListings = linkTableSide(
-  "group_listings",
-  "group_id",
-  "listing_id",
-);
-export const listingGroups = {
-  ...linkTableSide("group_listings", "listing_id", "group_id"),
-  /** Read one of this side's guaranteed batch entries. */
-  idsFor: (
-    idsByListing: ReadonlyMap<number, number[]>,
-    listingId: number,
-  ): number[] =>
-    requiredMapValue(
-      idsByListing,
-      listingId,
-      "Missing listing group membership",
-    ),
-};
 
 /** Every group keyed by id, from the request-cached set — the batched
  * alternative to one read per id when resolving or validating many groups

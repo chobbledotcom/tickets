@@ -20,7 +20,8 @@ import {
 } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import { groups, listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { groups } from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import {

@@ -198,7 +198,7 @@ src/features/admin/listings-form.ts::listingValidate~19dmftv  ?? → ||   # vali
 src/features/admin/listings-edit.ts::handleNewListingGet.templateId~06kqyx5  ?? → ||   # gate.template?.id is a TemplateId or undefined, and every TemplateId is a non-empty string, so the fallback runs on exactly the same input either way
 src/features/admin/listings-edit.ts::chosenTemplateOrPicker.template~09uwhwd  ?? → ||   # Array.find returns a template object or undefined, and objects are always truthy
 src/features/admin/listings-edit.ts::resolveErrorTemplateId~1v3vh1c  ?? → ||   # inferTemplate(...)?.id is a TemplateId or undefined, and every TemplateId is a non-empty string
-src/features/admin/listings-edit.ts::parseListingForm~1h0dnu7   → "mutated"   # the editor lock writes use_defaults, which is only ever read through FormParams.getFlag and the form's own `=== "1"` comparison, so every value other than "1" is off
+src/features/admin/listings-form.ts::parseListingForm~1h0dnu7   → "mutated"   # the editor lock writes use_defaults, which is only ever read through FormParams.getFlag and the form's own `=== "1"` comparison, so every value other than "1" is off
 src/features/auth.ts::loadAuthUserFields~0qjvs2i  ?? → ||   # getUserAuthFieldsById gives back a user-fields object or null, and objects are always truthy
 src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → ||   # getAuthenticatedSession gives back an AuthSession object or null, and objects are always truthy
 src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → ||   # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself

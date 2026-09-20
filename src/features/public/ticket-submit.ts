@@ -8,7 +8,7 @@ import {
   getSharedGroupCapacities,
 } from "#db/attendees/capacity/groups.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";

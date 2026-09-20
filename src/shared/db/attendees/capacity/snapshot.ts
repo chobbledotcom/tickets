@@ -9,7 +9,7 @@
  */
 
 import { inPlaceholders, queryAll } from "#db/client.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { clampDurationDays } from "#types";

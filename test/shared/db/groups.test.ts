@@ -13,6 +13,7 @@ import {
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getDb } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,
@@ -24,7 +25,6 @@ import {
   getPackageDisplaysByIds,
   groups,
   isGroupSlugTaken,
-  listingGroups,
   resetGroupListings,
   setGroupPackageMembers,
 } from "#db/groups.ts";

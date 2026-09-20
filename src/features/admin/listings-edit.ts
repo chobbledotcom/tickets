@@ -7,17 +7,10 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import {
-  checkGroupCapAfterDurationChange,
-  recomputeListingBookingRanges,
-} from "#db/attendees/update.ts";
-import { anyHiddenPackageGroup, groups, listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { anyHiddenPackageGroup, groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import {
-  adjustListingIncome,
-  type ListingAggregateValues,
-  listingAggregates,
-} from "#db/listings/aggregates.ts";
+import { adjustListingIncome } from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
@@ -26,11 +19,6 @@ import {
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
-import {
-  type EditErrorRenderer,
-  editErrorRenderer,
-} from "#routes/admin/entity-write-tab.ts";
 import {
   adminLandingPath,
   CONTENT_MULTIPART,
@@ -38,15 +26,10 @@ import {
   requireContentOr,
   withAuth,
 } from "#routes/auth.ts";
-import { formDataToParams } from "#routes/csrf.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import {
-  applyDemoOverrides,
-  LISTING_DEMO_FIELDS,
-} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   dimensionsOf,
@@ -60,21 +43,23 @@ import {
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
-import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   type AdminSession,
   isListingType,
-  type Listing,
   type ListingWithCount,
 } from "#types";
 import { withEntityFromParam } from "./entity-handlers.ts";
-import { listingPage } from "./listing-page.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
-import { loadListingEditPanel } from "./listing-page-management-panels.ts";
+import {
+  handleListingEditSuccess,
+  parseAggregatesForRole,
+  renderListingEditError,
+} from "./listings-edit-save.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
   parseGroupIds,
+  parseListingForm,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
@@ -216,29 +201,6 @@ const renderCreateListingError = async (
 };
 
 /**
- * Editors must not set a listing's webhook URL. The registration webhook posts
- * full attendee PII to that endpoint, so a crafted URL exfiltrates exactly the
- * data the keyless editor role cannot otherwise read. They must not toggle
- * `use_defaults` either, because that changes the same effective webhook.
- *
- * Both fields are forced to their existing values, so a submitted value is
- * ignored. The editor form hides them too. This is the backstop.
- */
-const parseListingForm = (
-  session: AdminSession,
-  formData: FormData,
-  existing: { webhookUrl: string; useDefaults: boolean },
-): FormParams => {
-  const form = formDataToParams(formData);
-  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-  if (session.adminLevel === "editor") {
-    form.set("webhook_url", existing.webhookUrl);
-    form.set("use_defaults", existing.useDefaults ? "1" : "");
-  }
-  return form;
-};
-
-/**
  * Handle POST /admin/listing (create listing)
  */
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
@@ -332,107 +294,6 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
       ctx.selectedGroupIds,
     ),
   );
-
-/** The earliest over-capacity day across every group the listing belongs to
- * after its booking ranges were recomputed, or null when all groups fit. */
-const firstGroupCapOverflow = async (
-  listingId: number,
-): Promise<string | null> => {
-  for (const groupId of await listingGroups.getIds(listingId)) {
-    const overDay = await checkGroupCapAfterDurationChange(listingId, groupId);
-    if (overDay) return overDay;
-  }
-  return null;
-};
-
-const reconcileDurationChange = async (
-  row: {
-    id: number;
-    name: string;
-    listing_type: string;
-    customisable_days: boolean;
-    duration_days: number;
-  },
-  previousDurationDays: number,
-): Promise<string> => {
-  if (row.listing_type !== "daily") return "";
-  // For customisable-days listings each booking has its own visitor-chosen
-  // span, so `duration_days` is only the maximum offered to new bookings —
-  // never rewrite existing bookings' stored ranges from it.
-  if (row.customisable_days) return "";
-  if (row.duration_days === previousDurationDays) return "";
-
-  await recomputeListingBookingRanges(row.id, row.duration_days);
-  await logActivity(
-    `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
-    row,
-  );
-  const overDay = await firstGroupCapOverflow(row.id);
-  if (!overDay) return "";
-  await logActivity(
-    `Duration change caused group capacity overflow on ${overDay}`,
-    row,
-  );
-  return ` Warning: group capacity exceeded on ${overDay}`;
-};
-
-/** Re-render the Edit tab in place at 400 with the submitted error and the
- * operator's submitted group selection (not the saved set), so a rejected edit
- * doesn't silently drop their group changes. Deterministic — no flash stash. */
-export const renderListingEditError: EditErrorRenderer = editErrorRenderer(
-  () => listingPage,
-  "edit",
-  (entity, ctx, rejected) =>
-    loadListingEditPanel(
-      entity,
-      ctx,
-      rejected.error,
-      parseGroupIds(rejected.form),
-    ),
-);
-
-const handleListingEditSuccess = async (
-  row: Listing,
-  existing: ListingWithCount,
-  aggregateValues: ListingAggregateValues | null,
-  formData: FormData,
-  id: number,
-): Promise<Response> => {
-  if (aggregateValues) {
-    await listingAggregates.update(id, aggregateValues);
-  }
-  const durationWarning = await reconcileDurationChange(
-    row,
-    existing.duration_days,
-  );
-  await logActivity(`Listing '${row.name}' updated`, row);
-  return processUploadsAndRedirect(
-    formData,
-    id,
-    entityReturnPath("/admin/listings", row.id),
-    `Listing updated${durationWarning}`,
-    existing.attachment_url,
-  );
-};
-
-/**
- * Parse the editable trigger-maintained aggregates (booked_quantity,
- * tickets_count, …) from an edit submission — but only for staff. Editors may
- * not touch these owner-level figures, so any such hidden fields they craft are
- * ignored rather than trusted: they always edit with a null aggregate input.
- */
-const parseAggregatesForRole = (
-  session: AdminSession,
-  form: FormParams,
-):
-  | { ok: true; input: ListingAggregateValues | null }
-  | { ok: false; error: string } =>
-  session.adminLevel === "editor"
-    ? { input: null, ok: true }
-    : parseEditableAggregateForm<ListingAggregateValues>(
-        form,
-        getListingAggregateFields(),
-      );
 
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<

@@ -2,7 +2,7 @@
 
 import { dateToRange } from "#db/capacity.ts";
 import { inPlaceholders, queryAll } from "#db/client.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { columnMapByIds } from "#db/query.ts";
 import { mapBy, mapById, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";

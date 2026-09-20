@@ -102,7 +102,8 @@ export const updateTestListing = async (
   if (!existing) {
     throw new Error(`Listing not found: ${listingId}`);
   }
-  const { listingGroups, setListingGroups } = await import("#db/groups.ts");
+  const { setListingGroups } = await import("#db/groups.ts");
+  const { listingGroups } = await import("#db/groups/table.ts");
   // The real edit form carries membership as pre-checked group_ids checkboxes;
   // the form helper omits them. Resolve the intended set (requested change, else
   // current membership) and submit its first id so the handler preserves

@@ -7,11 +7,11 @@ import {
   getDatelessGroupRemaining,
   remainingByListingOverGroups,
 } from "#db/attendees/capacity/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   getGroupPackagePricesByGroupIds,
   getListingsByGroupIds,
   groups,
-  listingGroups,
   packageMemberMaps,
 } from "#db/groups.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";

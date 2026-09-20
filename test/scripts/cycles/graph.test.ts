@@ -6,7 +6,7 @@ import {
   formatCycleReport,
   loadTimeEdges,
 } from "#scripts/cycles/graph.ts";
-import { runCycleReport } from "#scripts/cycles/run.ts";
+import { runCycleGate } from "#scripts/cycles/run.ts";
 import type { ModuleGraph } from "#scripts/module-graph.ts";
 
 const ROOT = "/repo";
@@ -249,26 +249,41 @@ describe("formatCycleReport", () => {
   });
 });
 
-describe("runCycleReport", () => {
-  test("shapes the answer from whatever graph it reads", async () => {
-    // A stubbed reader keeps the deno-info subprocess out of the ordinary
-    // suite; the real read has its own direct tests. The fixture must sit
-    // under the repo root the report computes for itself.
+describe("runCycleGate", () => {
+  /** The gate over an a→b (and optionally b→a) fixture pair. A stubbed reader
+   * keeps the deno-info subprocess out of the ordinary suite; the real read has
+   * its own direct tests. The fixture must sit under the repo root the gate
+   * computes for itself. */
+  const gateOverPair = async (back = true) => {
     const repo = resolve(import.meta.dirname!, "../../..");
     const graph = graphOf(
       moduleOf(`file://${repo}/src/a.ts`, [
         { code: { specifier: `file://${repo}/src/b.ts` } },
       ]),
-      moduleOf(`file://${repo}/src/b.ts`, [
-        { code: { specifier: `file://${repo}/src/a.ts` } },
-      ]),
+      moduleOf(
+        `file://${repo}/src/b.ts`,
+        back ? [{ code: { specifier: `file://${repo}/src/a.ts` } }] : [],
+      ),
     );
-    const report = await runCycleReport(() => Promise.resolve(graph));
-    expect(report).toContain("modules with load-time imports: 2");
-    expect(report).toContain("cyclic groups: 1");
-    expect(report).toContain("== group of 2 ==");
-    expect(report).toContain("  src/a.ts");
-    expect(report).toContain("  src/b.ts");
-    expect(report).toContain("type-only imports evaluate nothing and dynamic");
+    return runCycleGate(() => Promise.resolve(graph));
+  };
+
+  test("exits non-zero with fix guidance while a ring stands", async () => {
+    const gate = await gateOverPair();
+    expect(gate.exitCode).toBe(1);
+    expect(gate.text).toContain("modules with load-time imports: 2");
+    expect(gate.text).toContain("cyclic groups: 1");
+    expect(gate.text).toContain("== group of 2 ==");
+    expect(gate.text).toContain("  src/a.ts");
+    expect(gate.text).toContain("  src/b.ts");
+    expect(gate.text).toContain(
+      "type-only imports evaluate nothing and dynamic",
+    );
+  });
+
+  test("exits zero once the tree holds no ring", async () => {
+    const gate = await gateOverPair(false);
+    expect(gate.exitCode).toBe(0);
+    expect(gate.text).toContain("cyclic groups: 0");
   });
 });

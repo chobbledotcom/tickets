@@ -93,6 +93,9 @@ jobs:
       - name: Check known-equivalent mutant records
         run: deno task check:equivalents
 
+      - name: Check for import cycles
+        run: deno task cycles
+
       - name: Build edge bundle
         run: deno task build:edge
 

@@ -15,9 +15,9 @@ import {
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   getGroupPackagePricesByGroupIds,
-  listingGroups,
   packageMemberMaps,
 } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";

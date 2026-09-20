@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
-import { relationshipErrorTx } from "#db/listing-relationship-validation.ts";
+import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -14,18 +14,20 @@ import {
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > listing relationship validation", { db: true }, () => {
+  /** The rule check as the writers run it: a broken edge throws the edit
+   *refusing, every edge holding resolves silently. */
   const check = (parentId: number, childId: number) =>
-    withTransaction((tx) => relationshipErrorTx(tx, [{ childId, parentId }]));
+    withTransaction((tx) =>
+      requireCurrentRelationshipRules(tx, [{ childId, parentId }]),
+    );
 
   test("accepts an empty edge list", async () => {
-    expect(
-      await withTransaction((tx) => relationshipErrorTx(tx, [])),
-    ).toBeNull();
+    await withTransaction((tx) => requireCurrentRelationshipRules(tx, []));
   });
 
   test("accepts compatible current listing fields", async () => {
     const { parent, child } = await parentAndChild();
-    expect(await check(parent.id, child.id)).toBeNull();
+    await check(parent.id, child.id);
   });
 
   test("reports incompatible current listing fields with decrypted names", async () => {
@@ -35,7 +37,7 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
       name: "Daily child",
     });
 
-    expect(await check(parent.id, child.id)).toBe(
+    await expect(check(parent.id, child.id)).rejects.toThrow(
       t("listings_table.children_err_child_daily", { name: child.name }),
     );
   });
@@ -54,14 +56,14 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
       name: "Two-day child",
     });
 
-    expect(await check(parent.id, child.id)).toBeNull();
+    await check(parent.id, child.id);
   });
 
   test("reports a current child-only add-on", async () => {
     const { parent, child } = await parentAndChild();
     await optInAddOnForListings("Child extra", [child.id]);
 
-    expect(await check(parent.id, child.id)).toContain("Child extra");
+    await expect(check(parent.id, child.id)).rejects.toThrow("Child extra");
   });
 
   test("refuses an edge whose parent assigns a built site", async () => {
@@ -73,7 +75,7 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
     });
     const child = await createTestListing({ name: "Plan child" });
 
-    expect(await check(parent.id, child.id)).toBe(
+    await expect(check(parent.id, child.id)).rejects.toThrow(
       t("listings_table.children_err_parent_site_plan", { name: parent.name }),
     );
   });
@@ -87,7 +89,7 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
       name: "Plan child",
     });
 
-    expect(await check(parent.id, child.id)).toBe(
+    await expect(check(parent.id, child.id)).rejects.toThrow(
       t("listings_table.children_err_child_site_plan", { name: child.name }),
     );
   });
@@ -100,19 +102,21 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
     });
     await optInAddOnForListings("Standalone extra", [child.id]);
 
-    expect(await check(parent.id, child.id)).toBeNull();
+    await check(parent.id, child.id);
   });
 
   test("ignores stale listing links for a group-scoped add-on", async () => {
     const { parent, child } = await groupAddOnWithStaleParentLink();
 
-    expect(await check(parent.id, child.id)).toContain("Group child extra");
+    await expect(check(parent.id, child.id)).rejects.toThrow(
+      "Group child extra",
+    );
   });
 
   test("ignores stale listing links for an order-wide add-on", async () => {
     const { parent, child } = await allAddOnWithStaleChildLink();
 
-    expect(await check(parent.id, child.id)).toBeNull();
+    await check(parent.id, child.id);
   });
 
   test("checks every requested edge", async () => {
@@ -123,13 +127,14 @@ describeWithEnv("db > listing relationship validation", { db: true }, () => {
       name: "Blocked child",
     });
 
-    const error = await withTransaction((tx) =>
-      relationshipErrorTx(tx, [
-        { childId: allowed.id, parentId: parent.id },
-        { childId: blocked.id, parentId: parent.id },
-      ]),
-    );
-    expect(error).toBe(
+    await expect(
+      withTransaction((tx) =>
+        requireCurrentRelationshipRules(tx, [
+          { childId: allowed.id, parentId: parent.id },
+          { childId: blocked.id, parentId: parent.id },
+        ]),
+      ),
+    ).rejects.toThrow(
       t("listings_table.children_err_child_daily", { name: blocked.name }),
     );
   });

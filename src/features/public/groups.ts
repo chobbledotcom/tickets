@@ -3,9 +3,9 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
+import { groupListings } from "#db/groups/table.ts";
 import {
   getGroupBySlugIndex,
-  groupListings,
   groups,
   readGroupMembersWith,
 } from "#db/groups.ts";

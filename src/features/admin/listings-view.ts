@@ -7,7 +7,8 @@
  */
 
 import { getGroupRemainingByGroupId } from "#db/attendees/capacity/groups.ts";
-import { getGroupsByIds, listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { getGroupsByIds } from "#db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,

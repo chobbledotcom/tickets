@@ -79,6 +79,10 @@ const STEPS = [
   // audit that re-proves equivalence runs lint and type-check per entry and
   // stays an on-demand tool.
   { cmd: ["task", "check:equivalents"], name: "check:equivalents" },
+  // Hold src/ at zero import cycles. The rings the tree carried were broken
+  // one by one while the report stayed advisory (see test/integration/
+  // import-cycles.test.ts); once it reached zero the report became the gate.
+  { cmd: ["task", "cycles"], name: "cycles" },
   { cmd: ["task", "build:edge"], name: "build:edge" },
   {
     cmd: ["task", "test:coverage"],

@@ -1,4 +1,4 @@
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import type { ListingWithCount } from "#types";
 
