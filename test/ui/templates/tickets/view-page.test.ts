@@ -291,4 +291,28 @@ describe("ticketViewPage ticket cards", () => {
     // duration=3 starting 2026-06-12 → covers 12, 13, 14 inclusive.
     expect(html).toContain("12–14 June 2026");
   });
+
+  test("a site-plan card states the months its booking covers", () => {
+    // Three units of a three-month plan buy one site with nine months.
+    const html = oneCardPage({
+      attendee: { quantity: 3 },
+      listing: { assign_built_site: true, initial_site_months: 3 },
+    });
+    expect(html).toContain("ticket-card-quantity");
+    expect(html).toContain("9 months of service");
+    expect(html).not.toContain("Quantity:");
+  });
+
+  test("a site-plan card for a single unit states its one month", () => {
+    const html = oneCardPage({
+      listing: { assign_built_site: true, initial_site_months: 1 },
+    });
+    expect(html).toContain("1 month of service");
+  });
+
+  test("a ticket card still states its plain quantity", () => {
+    const html = oneCardPage({ attendee: { quantity: 3 } });
+    expect(html).toContain("Quantity: 3");
+    expect(html).not.toContain("month of service");
+  });
 });

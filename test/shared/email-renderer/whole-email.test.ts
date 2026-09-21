@@ -83,4 +83,49 @@ describeEmailRenderer(() => {
       }
     }
   });
+
+  describe("the whole email a site-plan booking sends", () => {
+    // Three units of a three-month plan buy one site with nine months. The
+    // email keeps the ticket-shaped skeleton the sibling describe pins and
+    // swaps only what the plan row's words change: the order's listing name
+    // and the row's months, not tickets.
+    const planData = (): Promise<Parameters<typeof renderEmailContent>[1]> =>
+      buildTestData([
+        makeEntry(
+          {
+            assign_built_site: true,
+            initial_site_months: 3,
+            name: "Site Plan",
+          },
+          { quantity: 3 },
+        ),
+      ]);
+
+    const expected = (whole: EmailContent): EmailContent => ({
+      html: whole.html
+        .replaceAll("Test Listing", "Site Plan")
+        .replace(
+          '<td style="text-align:center">1</td>',
+          '<td style="text-align:center">9 months of service</td>',
+        ),
+      subject: whole.subject.replaceAll("Test Listing", "Site Plan"),
+      text: whole.text
+        .replaceAll("Test Listing", "Site Plan")
+        .replace("Site Plan: 1 ticket", "Site Plan: 9 months of service"),
+    });
+
+    for (const [which, whole] of Object.entries(WHOLE_EMAIL)) {
+      const planned = expected(whole);
+      for (const part of EVERY_PART) {
+        test(`the ${which} email's ${part}, whole`, async () => {
+          const sent = await renderEmailContent(
+            which as EmailTemplateType,
+            await planData(),
+          );
+
+          expect(sent[part]).toBe(planned[part]);
+        });
+      }
+    }
+  });
 });

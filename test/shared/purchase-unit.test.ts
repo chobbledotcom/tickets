@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { resolvePurchaseUnit } from "#shared/purchase-unit.ts";
+import { bookedMonths, resolvePurchaseUnit } from "#shared/purchase-unit.ts";
 import { testListing } from "#test-utils/factories.ts";
 
 describe("resolvePurchaseUnit", () => {
@@ -81,6 +81,39 @@ describe("resolvePurchaseUnit", () => {
       initial_site_months: -2,
     });
     expect(() => resolvePurchaseUnit(negative, { renewal: true })).toThrow(
+      "assigned-site plan states no initial months",
+    );
+  });
+});
+
+describe("bookedMonths", () => {
+  test("totals a plan line's months from its term times its quantity", () => {
+    const plan = testListing({
+      assign_built_site: true,
+      initial_site_months: 3,
+    });
+    expect(bookedMonths(plan, 3)).toBe(9);
+    expect(bookedMonths(plan, 1)).toBe(3);
+  });
+
+  test("a plain ticket booking covers no months", () => {
+    expect(bookedMonths(testListing(), 2)).toBe(0);
+  });
+
+  test("a line whose listing stopped assigning a site covers no months", () => {
+    const retired = testListing({
+      assign_built_site: false,
+      initial_site_months: 3,
+    });
+    expect(bookedMonths(retired, 2)).toBe(0);
+  });
+
+  test("throws for a stored plan that states no term", () => {
+    const zeroed = testListing({
+      assign_built_site: true,
+      initial_site_months: 0,
+    });
+    expect(() => bookedMonths(zeroed, 2)).toThrow(
       "assigned-site plan states no initial months",
     );
   });

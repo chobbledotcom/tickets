@@ -107,5 +107,24 @@ describeEmailRenderer(() => {
     test("date_range_label: empty when no booking date", async () => {
       expect(await dateRangeLabelFor({}, { date: null })).toBe("");
     });
+
+    test("a ticket entry carries no months beside its quantity", async () => {
+      const data = await buildTestData([makeEntry({}, { quantity: 4 })]);
+
+      expect(data.entries[0]!.attendee.quantity).toBe(4);
+      expect(data.entries[0]!.attendee.quantity_months).toBe(0);
+    });
+
+    test("a site-plan entry totals the months its quantity buys", async () => {
+      const data = await buildTestData([
+        makeEntry(
+          { assign_built_site: true, initial_site_months: 3 },
+          { quantity: 3 },
+        ),
+      ]);
+
+      expect(data.entries[0]!.attendee.quantity).toBe(3);
+      expect(data.entries[0]!.attendee.quantity_months).toBe(9);
+    });
   });
 });

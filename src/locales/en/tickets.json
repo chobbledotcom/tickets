@@ -4,6 +4,7 @@
   "tickets.booking_date": "Booking Date:",
   "tickets.price": "Price:",
   "tickets.quantity": "Quantity:",
+  "tickets.months_of_service": "{count, plural, one {# month of service} other {# months of service}}",
   "tickets.non_transferable": "Non-transferable \u2014 ID required at entry",
   "tickets.add_to": "Add to:",
   "tickets.apple_wallet": "Apple Wallet",

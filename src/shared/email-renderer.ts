@@ -19,6 +19,7 @@ import {
   groupPackageRows,
   type PackageRowGroup,
 } from "#shared/package-rows.ts";
+import { bookedMonths } from "#shared/purchase-unit.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import {
@@ -54,6 +55,10 @@ type TemplateEntry = {
   };
   attendee: ContactInfo & {
     quantity: number;
+    /** Total months the entry covers — a site plan's months per unit times
+     * the booked quantity. 0 when the entry counts plain tickets, which
+     * cover no months, so templates branch on it without a null case. */
+    quantity_months: number;
     price_paid: string;
     date: string | null;
     /** Human-readable booking date (or range for multi-day). Empty string when no date. */
@@ -101,6 +106,7 @@ const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
       phone: attendee.phone,
       price_paid: attendee.price_paid,
       quantity: attendee.quantity,
+      quantity_months: bookedMonths(listing, attendee.quantity),
       special_instructions: attendee.special_instructions,
     },
     listing: {
@@ -122,16 +128,20 @@ export const sumEntryQuantities = sumOf(
 );
 
 /** The single-row summary a hidden package collapses to for buyers: the
- * bundle's summed price and quantity plus the widest member's dated stay
- * (hiding members must not lose the date the buyer booked). Shared by the
- * email body row and the SVG ticket, so the two can never disagree. */
+ * bundle's summed price, quantity, and booked months, plus the widest member's
+ * dated stay (hiding members must not lose the date the buyer booked). Shared
+ * by the email body row and the SVG ticket, so the two can never disagree. */
 export const collapsedPackageSummary = (
   entries: EmailEntry[],
 ): {
   pricePaid: string;
   quantity: number;
+  months: number;
   widestDated: EmailEntry | null;
 } => ({
+  months: sumOf((entry: EmailEntry) =>
+    bookedMonths(entry.listing, entry.attendee.quantity),
+  )(entries),
   pricePaid: String(sumEntryPrices(entries)),
   quantity: sumEntryQuantities(entries),
   widestDated: widestDatedEntry(entries),
@@ -233,6 +243,7 @@ const collapsedPackageEntry = (
       date_range_label: dated?.date_range_label ?? "",
       price_paid: summary.pricePaid,
       quantity: summary.quantity,
+      quantity_months: summary.months,
     },
     listing: {
       is_paid: entries.some(entryIsPaid),

@@ -20,6 +20,7 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ attendee.address }}", "attendee_address"],
   ["{{ attendee.special_instructions }}", "attendee_special_instructions"],
   ["{{ attendee.quantity }}", "entry_attendee_quantity"],
+  ["{{ attendee.quantity_months }}", "entry_attendee_quantity_months"],
   ["{{ attendee.price_paid | currency }}", "entry_attendee_price_paid"],
   ["{{ attendee.date }}", "entry_attendee_date"],
   ["{{ attendee.date_range_label }}", "entry_attendee_date_range_label"],
@@ -36,6 +37,7 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
     "attendee_special_instructions",
   ],
   ["{{ entry.attendee.quantity }}", "entry_attendee_quantity"],
+  ["{{ entry.attendee.quantity_months }}", "entry_attendee_quantity_months"],
   ["{{ entry.attendee.price_paid | currency }}", "entry_attendee_price_paid"],
   ["{{ entry.attendee.date }}", "entry_attendee_date"],
   ["{{ entry.attendee.date_range_label }}", "entry_attendee_date_range_label"],
@@ -43,7 +45,9 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
 ];
 
 /** A worked loop over `entries`: one line per booked listing, printing its
- * name, quantity, dates, and price. */
+ * name, what it counts, its dates, and its price. The quantity branch reads
+ * the same way the site's own default templates do, so a site that sells
+ * plans cannot copy its way back into naming months as tickets. */
 export const LOOP_EXAMPLE = `{% for entry in entries %}
-{{ entry.listing.name }}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}, {{ entry.attendee.date_range_label }}, {{ entry.attendee.price_paid | currency }}
+{{ entry.listing.name }}: {% if entry.attendee.quantity_months > 0 %}{{ entry.attendee.quantity_months }} {{ entry.attendee.quantity_months | pluralize: "month of service", "months of service" }}{% else %}{{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% endif %}, {{ entry.attendee.date_range_label }}, {{ entry.attendee.price_paid | currency }}
 {% endfor %}`;

@@ -32,6 +32,17 @@ export const monthsPerUnitOf = (
 ): number | undefined =>
   unit?.kind === "months" ? unit.monthsPerUnit : undefined;
 
+/** How many months one booked line covers: the site plan in it states how
+ *  many months each unit buys, and the booking states how many units were
+ *  bought. Returns 0 when the line counts plain tickets, which cover no
+ *  months. */
+export const bookedMonths = (
+  listing: PurchaseUnitFacts,
+  quantity: number,
+): number =>
+  (monthsPerUnitOf(resolvePurchaseUnit(listing, { renewal: false })) ?? 0) *
+  quantity;
+
 /** The listing facts that decide what one purchased unit buys. */
 export type PurchaseUnitFacts = {
   assign_built_site?: boolean | undefined;

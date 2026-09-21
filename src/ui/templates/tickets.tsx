@@ -16,6 +16,7 @@ import {
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+import { bookedMonths } from "#shared/purchase-unit.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { clampDurationDays } from "#types";
@@ -211,6 +212,11 @@ const renderTicketCard = (
       `<div class="ticket-card-price">${t("tickets.price")} ${escapeHtml(formatCurrency(p))}</div>`,
   );
 
+  const monthsBooked = bookedMonths(listing, attendee.quantity);
+  // The quantity line names what the booking counts: months of service on a
+  // site plan, plain quantity on everything else.
+  const quantityHtml = `<div class="ticket-card-quantity">${monthsBooked > 0 ? t("tickets.months_of_service", { count: monthsBooked }) : `${t("tickets.quantity")} ${attendee.quantity}`}</div>`;
+
   const nonTransferableHtml =
     listing.non_transferable && !listing.purchase_only
       ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
@@ -240,7 +246,7 @@ const renderTicketCard = (
       ${descriptionHtml}
       ${nonTransferableHtml}
       ${attendeeDateHtml}
-      <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
+      ${quantityHtml}
       ${priceHtml}
       ${attachmentHtml}
       ${renderQrBlock(token, listing.purchase_only)}

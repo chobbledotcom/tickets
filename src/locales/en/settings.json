@@ -134,6 +134,7 @@
   "settings.advanced.email_variables.entry_listing_slug": "The listing's address ending, inside the loop",
   "settings.advanced.email_variables.entry_listing_is_paid": "Whether the listing has a price",
   "settings.advanced.email_variables.entry_attendee_quantity": "Ticket quantity",
+  "settings.advanced.email_variables.entry_attendee_quantity_months": "The months a site-plan row covers. It is 0 when the row counts tickets.",
   "settings.advanced.email_variables.entry_attendee_price_paid": "Price shown as money",
   "settings.advanced.email_variables.entry_attendee_date": "Chosen date, if there is one",
   "settings.advanced.email_variables.entry_attendee_date_range_label": "The booking's dates, written out",

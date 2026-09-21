@@ -63,6 +63,44 @@ describeEmailRenderer(() => {
       expect(data.entries[0]!.listing.slug).toBe("");
     });
 
+    test("a collapsed hidden package totals the months its members buy", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Home Kit",
+      });
+      await groups.table.update(group.id, { hidePackageListings: true });
+      const plan = await createTestListing({
+        groupId: group.id,
+        name: "Site Plan",
+      });
+      const chair = await createTestListing({
+        groupId: group.id,
+        name: "Chair",
+      });
+      // One plan member (2 × 3 months) beside a plain ticket member.
+      const data = await buildTestData(
+        [
+          makeEntry(
+            {
+              assign_built_site: true,
+              id: plan.id,
+              initial_site_months: 3,
+              name: "Site Plan",
+            },
+            { package_group_id: group.id, quantity: 2 },
+          ),
+          makeEntry(
+            { id: chair.id, name: "Chair" },
+            { package_group_id: group.id, quantity: 1 },
+          ),
+        ],
+        { hidePackageMembers: true },
+      );
+
+      expect(data.entries[0]!.attendee.quantity).toBe(3);
+      expect(data.entries[0]!.attendee.quantity_months).toBe(6);
+    });
+
     test("a collapsed hidden package of free-base members is paid from prices", async () => {
       const group = await createTestGroup({
         isPackage: true,

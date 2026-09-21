@@ -233,7 +233,7 @@ const exactExemptions = exactFieldExemptions([
   ),
   liquidFields(
     templateEntryPath({ name: "attendee" }),
-    ["price_paid", "quantity"],
+    ["price_paid", "quantity", "quantity_months"],
     liquidReason("attendee"),
   ),
   liquidFields(
