@@ -365,3 +365,4 @@ src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # runValidati
 src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
 src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → ||   # byChild sums validated quantities of at least 1, so every present value is truthy
 src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → ||   # childrenByParentId.get answers an array or undefined, and every array is truthy
+src/shared/purchase-unit.ts::bookedMonths~0kbpyj6  ?? → ||   # monthsUnitOrNull validates the term to a whole number of at least 1, so monthsPerUnitOf is undefined or truthy — never falsy-but-non-null

@@ -108,6 +108,14 @@ describe("bookedMonths", () => {
     expect(bookedMonths(retired, 2)).toBe(0);
   });
 
+  test("a tier's months per unit do not price a booking outside a renewal", () => {
+    // The stored booking carries no renewal context, so the page that priced
+    // months cannot be read back at email or ticket-card time: outside the
+    // renewal checkout the tier's units stay tickets.
+    const tier = testListing({ months_per_unit: 2 });
+    expect(bookedMonths(tier, 3)).toBe(0);
+  });
+
   test("throws for a stored plan that states no term", () => {
     const zeroed = testListing({
       assign_built_site: true,

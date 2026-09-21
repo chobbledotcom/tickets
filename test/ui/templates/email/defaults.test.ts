@@ -1,5 +1,6 @@
 /**
- * The complete email that each of the site's own templates sends.
+ * The complete email that the site's default templates send — the mirror of
+ * `src/ui/templates/email/defaults.ts`.
  *
  * Every other check here reads for a fragment, so a render that kept the
  * opening and lost the ticket link, a row, or a whole conditional block would
@@ -11,12 +12,24 @@
  */
 
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { renderEmailContent } from "#shared/email-renderer.ts";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import {
+  buildTemplateData,
+  renderEmailContent,
+  resetEngine,
+} from "#shared/email-renderer.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { useSetting } from "#test-utils/settings.ts";
 import type { EmailTemplateType } from "#types";
-import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
+
+const TICKET_URL = "https://example.com/t/ABC";
+
+const buildTestData = (
+  entries: Parameters<typeof buildTemplateData>[0],
+): Promise<Parameters<typeof renderEmailContent>[1]> =>
+  buildTemplateData(entries, "GBP", TICKET_URL);
 
 const WHOLE_EMAIL = {
   admin: {
@@ -67,7 +80,10 @@ View your tickets: https://example.com/t/ABC`,
 
 const EVERY_PART = ["subject", "html", "text"] as const;
 
-describeEmailRenderer(() => {
+describeWithEnv("the site's default email templates", { db: true }, () => {
+  useSetting({ currency: "GBP" });
+  beforeEach(resetEngine);
+  afterEach(resetEngine);
   describe("the whole email the site's own wording sends", () => {
     for (const [which, whole] of Object.entries(WHOLE_EMAIL)) {
       for (const part of EVERY_PART) {
