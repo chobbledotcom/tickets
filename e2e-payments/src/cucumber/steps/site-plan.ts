@@ -37,7 +37,10 @@ When(
       await buyer.dumpPage("plan-page-not-priced-in-months");
       throw new Error(
         `the plan's booking page must price it in months (expected ` +
-          `"${numberOfMonths}" and "${threeUnitsBuy}"); got:\n${body.slice(0, 600)}`,
+          `"${numberOfMonths}" and "${threeUnitsBuy}"); got:\n${body.slice(
+            0,
+            600,
+          )}`,
       );
     }
     this.recordPhase("plan-prices-in-months");
@@ -57,7 +60,9 @@ Then(
     const owner = this.resources.owner;
     await owner.goto("/admin/log");
     const body = await owner.bodyText();
-    const expected = `${errorCodeLabel[ErrorCode.SITE_ASSIGNMENT]} (${LOST_ASSIGNMENT_DETAIL})`;
+    const expected = `${
+      errorCodeLabel[ErrorCode.SITE_ASSIGNMENT]
+    } (${LOST_ASSIGNMENT_DETAIL})`;
     if (!body.includes(expected)) {
       await owner.dumpPage("lost-assignment-missing-from-log");
       throw new Error(
