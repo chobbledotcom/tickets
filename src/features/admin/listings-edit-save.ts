@@ -31,16 +31,20 @@ import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import { parseGroupIds } from "./listings-form.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 
-/** The earliest over-capacity day across every group the listing belongs to
- * after its booking ranges were recomputed, or null when all groups fit. */
-const firstGroupCapOverflow = async (
+/** The earliest over-capacity day across every group the listing belongs to,
+ * or null when all groups fit. Booking ranges were already recomputed by the
+ * caller, so each group is swept as its rows now stand. */
+export const earliestGroupCapOverflow = async (
   listingId: number,
 ): Promise<string | null> => {
+  let earliest: string | null = null;
   for (const groupId of await listingGroups.getIds(listingId)) {
     const overDay = await checkGroupCapAfterDurationChange(listingId, groupId);
-    if (overDay) return overDay;
+    if (overDay && (earliest === null || overDay < earliest)) {
+      earliest = overDay;
+    }
   }
-  return null;
+  return earliest;
 };
 
 const reconcileDurationChange = async (
@@ -65,7 +69,7 @@ const reconcileDurationChange = async (
     `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
     row,
   );
-  const overDay = await firstGroupCapOverflow(row.id);
+  const overDay = await earliestGroupCapOverflow(row.id);
   if (!overDay) return "";
   await logActivity(
     `Duration change caused group capacity overflow on ${overDay}`,
