@@ -26,6 +26,11 @@ import {
 } from "#test-utils/session.ts";
 import { doorPage, groupDoor, scanAtDoor } from "./support.ts";
 
+/** The manual check-in list's own attribute for one person's option. The page
+ * also renders random tokens (CSRF, ticket tokens) that can legally contain a
+ * short name, so assertions must match the attribute, never a bare name. */
+const rosterOption = (name: string): string => `data-name="${name}"`;
+
 describeWithEnv("group scanner page", { db: true }, () => {
   test("renders one door for the whole group", async () => {
     const { group, members } = await groupDoor();
@@ -67,8 +72,8 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(group.id);
 
-    expect(body).not.toContain("Rob");
-    expect(body).not.toContain("Mel");
+    expect(body).not.toContain(rosterOption("Rob"));
+    expect(body).not.toContain(rosterOption("Mel"));
   });
 
   test("warns that one scan checks in every listing only once that rule is on", async () => {
@@ -134,7 +139,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
     const body = await doorPage(group.id);
 
     expect(body).not.toContain("Scanning a ticket in this group");
-    expect(body).not.toContain("Ola");
+    expect(body).not.toContain(rosterOption("Ola"));
     expect(body).toContain("No tickets to check in");
   });
 
