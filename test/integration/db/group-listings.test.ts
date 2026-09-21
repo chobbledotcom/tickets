@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   getGroupPackagePrices,
-  listingGroups,
   setGroupPackageMembers,
   setListingGroups,
 } from "#db/groups.ts";

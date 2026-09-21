@@ -9,11 +9,8 @@ import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
-import {
-  getGroupsById,
-  getListingsByGroupIds,
-  listingGroups,
-} from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { getGroupsById, getListingsByGroupIds } from "#db/groups.ts";
 import {
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,

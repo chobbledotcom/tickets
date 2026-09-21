@@ -32,10 +32,8 @@ import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import type { ChildAllocation, LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDatelessGroupRemaining } from "#db/attendees/capacity/groups.ts";
-import {
-  listingGroups,
-  loadPackageMemberPricingByGroupIds,
-} from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { loadPackageMemberPricingByGroupIds } from "#db/groups.ts";
 import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { getImageFilenamesForItem } from "#db/images.ts";
 import {

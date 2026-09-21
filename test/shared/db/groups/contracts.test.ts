@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   getAllGroupNames,
   getGroupPackagePrices,
@@ -9,7 +10,6 @@ import {
   getListingsByGroupIds,
   groupExists,
   groups,
-  listingGroups,
   packageMembersError,
   setGroupListingsActive,
   setGroupPackageMembers,

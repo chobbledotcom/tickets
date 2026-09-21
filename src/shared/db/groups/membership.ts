@@ -7,7 +7,7 @@ import {
   checkGroupListingSettings,
   type GroupListingSettings,
 } from "#db/groups/homogeneity.ts";
-import { groupListings } from "#db/groups.ts";
+import { groupListings } from "#db/groups/table.ts";
 import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
 import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";

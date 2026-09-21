@@ -12,7 +12,7 @@ import {
   loadCapacitySnapshot,
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { addDays } from "#shared/dates.ts";
 import { requireValue } from "#shared/required-value.ts";

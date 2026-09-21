@@ -2,6 +2,7 @@ import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
 import type { DayPriceRow } from "#db/listing-prices.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { refusingTheWriteOn } from "#db/transaction.ts";
 import { unique } from "#fp";
 import {
   childAddOnError,
@@ -96,7 +97,7 @@ const relationshipError = (
 
 /** Check current relationship fields and add-on scopes on the writer's open
  * transaction. The caller has already proved every endpoint exists. */
-export const relationshipErrorTx = async (
+const relationshipErrorTx = async (
   tx: TxScope,
   edges: readonly ParentChildEdge[],
 ): Promise<string | null> => {
@@ -159,4 +160,41 @@ export const relationshipErrorTx = async (
     if (error) return error;
   }
   return null;
+};
+
+export const requireCurrentRelationshipRules =
+  refusingTheWriteOn(relationshipErrorTx);
+
+/** Recheck every current edge touching a saved listing through the writer's
+ * transaction, including edges another writer added after request validation. */
+export const requireTouchingRelationshipsTx = async (
+  tx: TxScope,
+  listingId: number,
+): Promise<void> => {
+  const [childResult, parentResult] = await tx.batch([
+    {
+      args: [listingId],
+      sql: `SELECT listingParent.child_listing_id AS id
+              FROM listing_parents AS listingParent
+             WHERE listingParent.parent_listing_id = ?
+             ORDER BY listingParent.child_listing_id`,
+    },
+    {
+      args: [listingId],
+      sql: `SELECT listingParent.parent_listing_id AS id
+              FROM listing_parents AS listingParent
+             WHERE listingParent.child_listing_id = ?
+             ORDER BY listingParent.parent_listing_id`,
+    },
+  ]);
+  await requireCurrentRelationshipRules(tx, [
+    ...resultRows<{ id: number }>(childResult!).map(({ id: childId }) => ({
+      childId,
+      parentId: listingId,
+    })),
+    ...resultRows<{ id: number }>(parentResult!).map(({ id: parentId }) => ({
+      childId: listingId,
+      parentId,
+    })),
+  ]);
 };

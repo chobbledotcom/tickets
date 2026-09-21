@@ -11,20 +11,12 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import {
-  inPlaceholders,
-  queryIdColumn,
-  resultRows,
-  type TxScope,
-} from "#db/client.ts";
+import { inPlaceholders, queryIdColumn, type TxScope } from "#db/client.ts";
 import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
-import { relationshipErrorTx } from "#db/listing-relationship-validation.ts";
+import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import {
-  refusingTheWriteOn,
-  TransactionValidationError,
-} from "#db/transaction.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
 import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
 import { t } from "#i18n";
 import {
@@ -58,42 +50,6 @@ export const listingChildren = listingEdges.pointsAt;
  * delete), so it can't disturb a parent's other children the way a
  * `listingChildren.setIdsTx` replace would. */
 export const listingParents = listingEdges.pointedAtBy;
-
-const requireCurrentRelationshipRules = refusingTheWriteOn(relationshipErrorTx);
-
-/** Recheck every current edge touching a saved listing through the writer's
- * transaction, including edges another writer added after request validation. */
-export const requireTouchingRelationshipsTx = async (
-  tx: TxScope,
-  listingId: number,
-): Promise<void> => {
-  const [childResult, parentResult] = await tx.batch([
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.child_listing_id AS id
-              FROM listing_parents AS listingParent
-             WHERE listingParent.parent_listing_id = ?
-             ORDER BY listingParent.child_listing_id`,
-    },
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.parent_listing_id AS id
-              FROM listing_parents AS listingParent
-             WHERE listingParent.child_listing_id = ?
-             ORDER BY listingParent.parent_listing_id`,
-    },
-  ]);
-  await requireCurrentRelationshipRules(tx, [
-    ...resultRows<{ id: number }>(childResult!).map(({ id: childId }) => ({
-      childId,
-      parentId: listingId,
-    })),
-    ...resultRows<{ id: number }>(parentResult!).map(({ id: parentId }) => ({
-      childId: listingId,
-      parentId,
-    })),
-  ]);
-};
 
 /** Replaces child edges only when the transaction's package memberships allow
  *  them and every endpoint still exists. `listing_parents` has no foreign key,

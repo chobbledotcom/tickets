@@ -7,7 +7,7 @@
  *   - Session cookie + x-csrf-token header
  */
 
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
 import {
   getAllListings,

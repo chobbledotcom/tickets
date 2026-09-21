@@ -2,7 +2,7 @@
  *  Extracted from `api.ts` so that route file stays focused. */
 
 import * as v from "valibot";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { reduce } from "#fp";
 import {

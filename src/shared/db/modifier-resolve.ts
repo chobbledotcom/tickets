@@ -10,7 +10,7 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { getVisits, hashEmail, hashPhone } from "#db/contact-preferences.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import {
   getActiveModifiers,

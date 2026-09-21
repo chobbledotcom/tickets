@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
-import {
-  listingChildren,
-  requireTouchingRelationshipsTx,
-} from "#db/listing-parents.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";

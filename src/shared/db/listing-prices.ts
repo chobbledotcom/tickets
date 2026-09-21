@@ -11,7 +11,7 @@
 
 import * as v from "valibot";
 import { execute, inPlaceholders, queryAll, type TxScope } from "#db/client.ts";
-import { requireTouchingRelationshipsTx } from "#db/listing-parents.ts";
+import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
 import {
   PRICE_TYPE_DAY_COUNT,
   PRICE_TYPE_GROUP,

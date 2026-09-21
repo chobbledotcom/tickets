@@ -18,7 +18,7 @@ import {
   requireOne,
   type SqlStatement,
 } from "#db/client.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { identity, map, mapById, unique } from "#fp";

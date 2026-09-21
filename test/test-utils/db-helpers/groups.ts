@@ -1,11 +1,30 @@
-import { listingGroups } from "#db/groups.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import type { Group } from "#types";
+import { createTestListing } from "./listings.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** The ids of the groups one listing belongs to, ascending. */
 export const listingGroupIdsOf = async (listingId: number): Promise<number[]> =>
   [...(await listingGroups.getIds(listingId))].toSorted((a, b) => a - b);
+
+/** A group with each named listing linked to it, in name order. */
+export const createGroupWithListings = async (
+  groupName: string,
+  listingNames: [string, ...string[]],
+): Promise<{ group: Group; listings: { id: number; name: string }[] }> => {
+  const group = await createTestGroup({ name: groupName });
+  const listings = [] as { id: number; name: string }[];
+  for (const name of listingNames) {
+    listings.push(await createTestListing({ name }));
+  }
+  await assignListingsToGroup(
+    listings.map((listing) => listing.id),
+    group.id,
+  );
+  return { group, listings };
+};
 
 export const createTestGroup = async (
   overrides: Partial<Omit<GroupInput, "slugIndex">> = {},

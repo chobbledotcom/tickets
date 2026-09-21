@@ -8,7 +8,7 @@ import {
   getGroupStaticCapByGroupId,
   remainingByListingOverGroups,
 } from "#db/attendees/capacity/groups.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

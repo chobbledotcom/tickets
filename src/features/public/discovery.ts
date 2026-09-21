@@ -19,7 +19,7 @@ import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#db/attendees/capacity/groups.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import {
   getNonStandaloneChildIds,

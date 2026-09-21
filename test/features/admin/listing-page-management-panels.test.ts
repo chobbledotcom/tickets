@@ -5,7 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {

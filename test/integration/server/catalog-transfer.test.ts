@@ -2,11 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
-import {
-  getGroupPackagePrices,
-  listingGroups,
-  setGroupPackageMembers,
-} from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";

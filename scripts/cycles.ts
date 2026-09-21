@@ -1,9 +1,15 @@
-/**
- * The import-cycle report for the production module graph. A report, not a
- * gate: the tree carries known groups, so this prints the number to work
- * down rather than failing on it.
- */
+#!/usr/bin/env -S deno run -A
+/** Cycle gate over the production module graph, run by `deno task cycles`. */
 
-import { runCycleReport } from "./cycles/run.ts";
+import { runCycleGate } from "./cycles/run.ts";
 
-console.log(await runCycleReport());
+const { exitCode, text } = await runCycleGate();
+console.log(text);
+if (exitCode !== 0) {
+  console.error(
+    "Break each group: home the shared core in a module both ends already" +
+      "\nread, or defer one edge behind a dynamic import. The groups above" +
+      "\nname every member; each member's load-time imports list its edges.",
+  );
+  Deno.exit(exitCode);
+}

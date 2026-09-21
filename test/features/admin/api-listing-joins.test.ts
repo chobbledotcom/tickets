@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { type SqlStatement, withTransaction } from "#db/client.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";

@@ -3,16 +3,8 @@
 import { modifierAccount } from "#accounting/accounts.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { logActivity } from "#db/activity-log.ts";
-import { groups, listingGroups } from "#db/groups.ts";
-import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
+import { groups } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import {
-  childUnreachableAddOnError,
-  type ListingGroupMembership,
-  listingIdsInGroups,
-  reachablePageIds,
-  toListingGroupMembership,
-} from "#db/modifier-resolve.ts";
 import {
   adjustModifierRevenue,
   getAllModifiers,
@@ -27,7 +19,6 @@ import {
   modifierGroups,
   modifierListings,
   modifiersTable,
-  setModifierAnswers,
 } from "#db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { once } from "#fp";
@@ -45,18 +36,11 @@ import {
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import type { FormParams } from "#shared/form-data.ts";
-import {
-  type ModifierScope,
-  type ModifierTrigger,
-  normalizeCode,
-  validateCalcValue,
-} from "#shared/price-modifier.ts";
+import { normalizeCode, validateCalcValue } from "#shared/price-modifier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
@@ -78,6 +62,8 @@ import {
 } from "#templates/fields/modifier.ts";
 import type { Modifier } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
+import { childAddOnSaveError } from "./modifier-add-on-reachability.ts";
+import { handleAnswerLinks, handleScopeLinks } from "./modifier-links.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
 /* jscpd:ignore-end */
@@ -107,62 +93,6 @@ const extractModifierInput = async (
     stock: values.stock,
     trigger: values.trigger,
   };
-};
-
-const resolveAddOnScope = (
-  scope: ModifierScope | undefined,
-  listingIds: number[],
-  groupIds: number[],
-  allListings: ListingGroupMembership[],
-): number[] | null => {
-  if (scope === "listings") return listingIds;
-  if (scope === "groups") return listingIdsInGroups(groupIds, allListings);
-  return null;
-};
-
-type AddOnSaveCandidate = {
-  active: boolean;
-  trigger: ModifierTrigger;
-  name: string;
-  scope: ModifierScope | undefined;
-  listingIds: number[];
-  groupIds: number[];
-};
-
-const childAddOnSaveError = async (
-  candidate: AddOnSaveCandidate,
-): Promise<string | null> => {
-  const allListings = await getAllListings();
-  const allIds = allListings.map((listing) => listing.id);
-  const [childIds, membership] = await Promise.all([
-    getNonStandaloneChildIds(allIds),
-    listingGroups.getIdsByKeys(allIds),
-  ]);
-  const membershipListings: ListingGroupMembership[] = allListings.map(
-    (listing) => toListingGroupMembership(listing, membership),
-  );
-  // Only an ACTIVE listing that serves its own booking page can rescue a
-  // child-only add-on. That is any active listing except a non-standalone child
-  // (a `bookable_alone` child DOES serve its own page, so it counts): public
-  // ticket contexts load active listings only (`withActiveListings`), so an
-  // inactive listing serves nothing. `childIds` here is the narrowed
-  // non-standalone set, so a flagged child is neither suppressed nor excluded.
-  const reachableIds = reachablePageIds(allListings, childIds);
-  return childUnreachableAddOnError(
-    {
-      active: candidate.active,
-      name: candidate.name,
-      scope: resolveAddOnScope(
-        candidate.scope,
-        candidate.listingIds,
-        candidate.groupIds,
-        membershipListings,
-      ),
-      trigger: candidate.trigger,
-    },
-    childIds,
-    reachableIds,
-  );
 };
 
 const childAddOnInputError = async (
@@ -417,94 +347,6 @@ const handleModifierRecalculatePost: TypedRouteHandler<
   "POST /admin/modifiers/recalculate/:modifierId"
 > = (request, { modifierId }) =>
   modifierRecalculateHandlers.post(request, modifierId);
-
-/** Selected ids from a checkbox group, positive integers only. */
-const selectedIds = (form: FormParams, field: string): number[] =>
-  form
-    .getAll(field)
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n > 0);
-
-/** Run a modifier-link save (scope or answer) for the loaded modifier, then
- * redirect back to its edit page with a flash. Shared by the scope and answer
- * link forms so the auth/load/redirect boilerplate lives once. An optional
- * `guard` runs before the write and, when it returns a message, blocks the save
- * with that error instead (e.g. the child-only add-on reachability check). */
-const saveModifierLinks = (
-  request: Request,
-  id: number,
-  save: (modifier: Modifier, form: FormParams) => Promise<unknown>,
-  message: string,
-  guard?: (modifier: Modifier, form: FormParams) => Promise<string | null>,
-): Promise<Response> =>
-  createAuthedHandler<{ id: number }, Modifier>({
-    handle: async ({ context: modifier, form }) => {
-      const error = guard ? await guard(modifier, form) : null;
-      if (error) return errorRedirect(`/admin/modifiers/${id}/edit`, error);
-      await save(modifier, form);
-      return redirect(`/admin/modifiers/${modifier.id}/edit`, message, true);
-    },
-    loadContext: ({ id: modifierId }) => getModifier(modifierId),
-  })(request, { id });
-
-/** Write a scoped modifier's listing/group links from the submitted form. */
-const writeScopeLinks = (
-  modifier: Modifier,
-  form: FormParams,
-): Promise<unknown> => {
-  if (modifier.scope === "listings") {
-    return modifierListings.setIds(
-      modifier.id,
-      selectedIds(form, "listing_ids"),
-    );
-  }
-  if (modifier.scope === "groups") {
-    return modifierGroups.setIds(modifier.id, selectedIds(form, "group_ids"));
-  }
-  return Promise.resolve();
-};
-
-/** Block a scope-links save that would leave an opt-in add-on reachable only
- * through a suppressed child (parents feature on), from the submitted links. */
-const scopeLinksChildGuard = (
-  modifier: Modifier,
-  form: FormParams,
-): Promise<string | null> =>
-  childAddOnSaveError({
-    active: modifier.active,
-    groupIds: selectedIds(form, "group_ids"),
-    listingIds: selectedIds(form, "listing_ids"),
-    name: modifier.name,
-    scope: modifier.scope,
-    trigger: modifier.trigger,
-  });
-
-/** POST handler that saves a scoped modifier's listing/group links — blocked
- * when the new scope would leave an opt-in add-on reachable only through a
- * suppressed child (parents feature on). */
-const handleScopeLinks: TypedRouteHandler<"POST /admin/modifiers/:id/links"> = (
-  request,
-  { id },
-) =>
-  saveModifierLinks(
-    request,
-    id,
-    writeScopeLinks,
-    "Scope updated",
-    scopeLinksChildGuard,
-  );
-
-/** POST handler that saves an answer-triggered modifier's answer links. */
-const handleAnswerLinks: TypedRouteHandler<
-  "POST /admin/modifiers/:id/answers"
-> = (request, { id }) =>
-  saveModifierLinks(
-    request,
-    id,
-    (modifier, form) =>
-      setModifierAnswers(modifier.id, selectedIds(form, "answer_ids")),
-    "Answers updated",
-  );
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */

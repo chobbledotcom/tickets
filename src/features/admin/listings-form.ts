@@ -23,6 +23,7 @@ import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { range } from "#fp";
+import { formDataToParams } from "#routes/csrf.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type ListingInput,
@@ -32,6 +33,10 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
+import {
+  applyDemoOverrides,
+  LISTING_DEMO_FIELDS,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   generateUniqueListingSlug,
@@ -47,12 +52,40 @@ import {
   type ListingEditFormValues,
   type ListingFormValues,
 } from "#templates/fields/listing.ts";
-import { type DayPrices, type ListingType, parseDayPrices } from "#types";
+import {
+  type AdminSession,
+  type DayPrices,
+  type ListingType,
+  parseDayPrices,
+} from "#types";
 
 /* jscpd:ignore-end */
 
 type ListingWriteMode = "create" | "update";
 type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
+
+/**
+ * Editors must not set a listing's webhook URL. The registration webhook posts
+ * full attendee PII to that endpoint, so a crafted URL exfiltrates exactly the
+ * data the keyless editor role cannot otherwise read. They must not toggle
+ * `use_defaults` either, because that changes the same effective webhook.
+ *
+ * Both fields are forced to their existing values, so a submitted value is
+ * ignored. The editor form hides them too. This is the backstop.
+ */
+export const parseListingForm = (
+  session: AdminSession,
+  formData: FormData,
+  existing: { webhookUrl: string; useDefaults: boolean },
+): FormParams => {
+  const form = formDataToParams(formData);
+  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+  if (session.adminLevel === "editor") {
+    form.set("webhook_url", existing.webhookUrl);
+    form.set("use_defaults", existing.useDefaults ? "1" : "");
+  }
+  return form;
+};
 
 const DEFAULT_LISTING_TYPE: ListingType = "standard";
 

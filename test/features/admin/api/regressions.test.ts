@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";

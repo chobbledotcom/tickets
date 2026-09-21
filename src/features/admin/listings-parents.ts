@@ -5,7 +5,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
-import { listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   hydrateListingLinks,
   listingChildren,

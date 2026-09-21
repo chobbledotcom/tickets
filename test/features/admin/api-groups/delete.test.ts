@@ -3,7 +3,8 @@
 // whole-file mutants meet their real covering tests.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups, listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { groups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

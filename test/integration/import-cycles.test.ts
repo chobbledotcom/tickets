@@ -33,18 +33,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** Every ring `src/` carries today, each sorted, and the rings in the order
  *  the detector reports them. Each says why it is still standing. */
-const KNOWN_RINGS: string[][] = [
-  // A group and its membership each need to ask the other what a listing
-  // belongs to before they can answer.
-  ["src/shared/db/groups.ts", "src/shared/db/groups/membership.ts"],
-  // A listing's parents, prices and records each need to ask the others what
-  // a listing belongs to before they can answer.
-  [
-    "src/shared/db/listing-parents.ts",
-    "src/shared/db/listing-prices.ts",
-    "src/shared/db/listings/records.ts",
-  ],
-];
+const KNOWN_RINGS: string[][] = [];
 
 /** The alias table, read the way the import check reads it. */
 const readAliases = async (): Promise<Alias[]> => {
@@ -89,12 +78,6 @@ describe("import cycles", () => {
           .map((to) => `${from} -> ${to}`),
       );
     }).sort();
-    expect(edges).toEqual([
-      "src/shared/db/groups.ts -> src/shared/db/groups/membership.ts",
-      "src/shared/db/groups/membership.ts -> src/shared/db/groups.ts",
-      "src/shared/db/listing-parents.ts -> src/shared/db/listings/records.ts",
-      "src/shared/db/listing-prices.ts -> src/shared/db/listing-parents.ts",
-      "src/shared/db/listings/records.ts -> src/shared/db/listing-prices.ts",
-    ]);
+    expect(edges).toEqual([]);
   });
 });

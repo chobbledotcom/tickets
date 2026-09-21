@@ -50,6 +50,18 @@ export const optInAddOnForListings = async (
   }
 };
 
+/** An active, listings-scoped, opt-in modifier with no links yet. Links go
+ * on later with `linkModifierListing`. */
+export const activeOptInAddOn = async (name: string) => {
+  const modifier = await insertModifier({ name });
+  await patchModifier(modifier.id, {
+    active: 1,
+    scope: "listings",
+    trigger: "optional",
+  });
+  return modifier;
+};
+
 /** Link a "groups"-scoped modifier to a group. */
 export const linkModifierGroup = (modifierId: number, groupId: number) =>
   getDb().execute({
