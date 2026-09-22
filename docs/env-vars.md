@@ -103,6 +103,14 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   also records its commit into `settings.current_script_commit` on boot, so a
   backup carries the commit the site was on and a restore can surface which
   commit to redeploy (via `.github/workflows/restore-deploy.yml`).
+- `SITE_BUILD_DRY_RUN` - Test environments only: `true` answers every site
+  build's provider call (the GitHub release fetch, the Bunny database, the edge
+  script and its secrets, the publish) from a canned body instead of the
+  network, while the request's subrequest budget still pays for each call
+  exactly as it pays for a real one. A call outside the canned surface still
+  runs for real, so an environment with no provider credentials fails loudly
+  there. Dry-run sites carry synthesized values (`dry-run-N.invalid` addresses)
+  that cannot serve traffic. Never set this in production.
 - `BOTPOISON_PUBLIC_KEY` - Optional Botpoison public key (sent to the browser).
   The contact form works without it; setting it together with
   `BOTPOISON_SECRET_KEY` adds proof-of-work spam protection as a progressive

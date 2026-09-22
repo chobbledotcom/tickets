@@ -1,5 +1,10 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
+# update.ts dry-run: the canned release code feeds only request bodies that the
+# dry-run surface never sends (the Bunny script create and any deploy target
+# reached after it), so its text has no observer in a dry-run environment.
+src/shared/update.ts::downloadReleaseAsset~1gjm973  export {}; // dry-run site build→""   # the code flows into unsent create-script request bodies and no parser, check, or return value reads it
+
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
 

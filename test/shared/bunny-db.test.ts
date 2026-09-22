@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  bunnyDbProvider as bunnyDbApi,
-  STORAGE_REGION,
-} from "#shared/bunny-db.ts";
+import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** Bunny's live region config, as returned by GET /database/v1/config. */
@@ -127,11 +125,54 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     });
     await bunnyDbApi.createDatabase("Test");
 
+    // storage_region is pinned by its literal, not by the exported
+    // constant, so a mutated constant cannot match itself.
     expect(createBody).toEqual({
       name: "Test",
       primary_regions: PRIMARY_REGION_IDS,
       replicas_regions: REPLICA_REGION_IDS,
-      storage_region: STORAGE_REGION,
+      storage_region: "eu-west-1",
+    });
+  });
+  test("createDatabase posts the create and puts the token", async () => {
+    const requests: Record<string, { body: unknown; method: string }> = {};
+    const record = (url: string, init: RequestInit | undefined): void => {
+      requests[url] = {
+        body: init?.body === undefined ? null : JSON.parse(String(init.body)),
+        method: init?.method ?? "",
+      };
+    };
+
+    using _fetch = stubFetch((url, init) => {
+      if (url.endsWith("/v2/databases") || url.includes("/auth/generate")) {
+        record(url, init);
+      }
+      if (url.endsWith("/v1/config")) {
+        return configResponse();
+      }
+      if (url.endsWith("/v2/databases")) {
+        return new Response(JSON.stringify({ db_id: "db_m" }));
+      }
+      return getAndAuthResponse(url, "db_m");
+    });
+    await bunnyDbApi.createDatabase("Methods");
+
+    expect(requests).toEqual({
+      "https://api.bunny.net/database/v2/databases": {
+        body: {
+          // The literal pins the region, so a mutated constant cannot
+          // match itself.
+          name: "Methods",
+          primary_regions: PRIMARY_REGION_IDS,
+          replicas_regions: REPLICA_REGION_IDS,
+          storage_region: "eu-west-1",
+        },
+        method: "POST",
+      },
+      "https://api.bunny.net/database/v2/databases/db_m/auth/generate": {
+        body: { authorization: "full-access", expires_at: null },
+        method: "PUT",
+      },
     });
   });
 
@@ -183,6 +224,21 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     // A failed config lookup must not go on to create anything.
     expect(fetchStub.calls.length).toBe(1);
     expect(String(fetchStub.calls[0]!.args[0])).toContain("/v1/config");
+  });
+
+  test("createDatabase answers from canned bodies in a dry run", async () => {
+    using _env = withEnv({ SITE_BUILD_DRY_RUN: "true" });
+    using _network = stubFetch(() => {
+      throw new Error("dry run must not touch the network");
+    });
+
+    const result = await bunnyDbApi.createDatabase("Dry run db");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.dbUrl).toMatch(/^libsql:\/\/dry-run-\d+\.invalid$/);
+      expect(result.value.dbToken).toBe("dry-run-db-token");
+    }
   });
 
   test("createDatabase returns error when create endpoint fails", async () => {
