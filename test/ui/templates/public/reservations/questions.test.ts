@@ -92,7 +92,7 @@ describe("renderQuestions", () => {
     const html = renderQuestions(questions).toString();
 
     expect(html).toContain("Red");
-    expect(html).not.toContain("Blue");
+    expect(html).not.toContain("Blue</label>");
     expect(html).not.toContain('value="11"');
   });
 

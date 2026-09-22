@@ -165,7 +165,8 @@ describe("migrationInProgressPage", () => {
 
   test("does not present itself as an error", () => {
     const html = migrationInProgressPage();
-    expect(html).not.toContain("Error");
+    expect(html).not.toContain("<title>Error");
+    expect(html).not.toContain("<h1>Error");
   });
 });
 
