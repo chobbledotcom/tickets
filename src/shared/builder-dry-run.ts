@@ -18,6 +18,11 @@ import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 export const siteBuildDryRunEnabled = (): boolean =>
   getEnv("SITE_BUILD_DRY_RUN") === "true";
 
+/** The synthetic release asset the dry run's own release lookup hands back —
+ * the one asset URL the update side also keeps canned. */
+export const DRY_RUN_RELEASE_ASSET_URL =
+  "https://dry-run.invalid/bunny-script.ts";
+
 /** Each canned build draws the next number, so no two dry-run sites share an
  * id, a hostname, or a database URL. */
 const nextDryRunId = (() => {
@@ -46,7 +51,9 @@ const BUNNY_SCRIPT_ACTION =
   /^https:\/\/api\.bunny\.net\/compute\/script\/[^/?#]+\/(code|publish|secrets)$/;
 const BUNNY_PULL_ZONE = /^https:\/\/api\.bunny\.net\/pullzone\/\d+$/;
 /** The canned release's asset, so the build's bundle download dry-runs too. */
-const DRY_RUN_RELEASE_ASSET = /^https:\/\/dry-run\.invalid\/bunny-script\.ts$/;
+const DRY_RUN_RELEASE_ASSET = new RegExp(
+  `^${DRY_RUN_RELEASE_ASSET_URL.replaceAll(".", "\\.")}$`,
+);
 
 /** One mapped endpoint's canned body builder. */
 type CannedBody = (url: string) => string;

@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -79,6 +80,29 @@ describeWithEnv(
       await expect(call).rejects.toThrow(
         "Blocked external operation: GitHub release download",
       );
+    });
+
+    test("deploys a real asset's own code, not the canned one", async () => {
+      // deployRelease carries an arbitrary asset URL, and only the dry run's
+      // own synthetic release is canned. The captured deploy proves the
+      // foreign URL's downloaded code is the code that reaches it, so a
+      // dry-run environment cannot quietly ship the canned source.
+      using _fetch = stubFetch(new Response("console.log('the real asset')"));
+      const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
+      const { deployRelease } = await import("#shared/update.ts");
+      let deployedCode = "";
+      const deployStub = stub(bunnyCdnApi, "deployScriptCode", (code) => {
+        deployedCode = code;
+        return Promise.resolve({ ok: true as const });
+      });
+      try {
+        await deployRelease("https://example.com/asset.ts", "9001");
+      } finally {
+        deployStub.restore();
+      }
+
+      expect(_fetch.calls[0]!.args[0]).toBe("https://example.com/asset.ts");
+      expect(deployedCode).toBe("console.log('the real asset')");
     });
   },
 );

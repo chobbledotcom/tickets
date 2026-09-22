@@ -14,7 +14,10 @@ import {
 } from "#db/client.ts";
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
-import { siteBuildDryRunEnabled } from "#shared/builder-dry-run.ts";
+import {
+  DRY_RUN_RELEASE_ASSET_URL,
+  siteBuildDryRunEnabled,
+} from "#shared/builder-dry-run.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -211,7 +214,7 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
   if (siteBuildDryRunEnabled()) {
     countExternalSubrequest("GitHub release lookup");
     return {
-      assetUrl: "https://dry-run.invalid/bunny-script.ts",
+      assetUrl: DRY_RUN_RELEASE_ASSET_URL,
       name: "Dry-run release",
       publishedAt: "",
       tagName: "dry-run",
@@ -239,8 +242,12 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
 /** Download a release asset URL and return the source code text. */
 const downloadReleaseAsset = async (assetUrl: string): Promise<string> => {
   if (siteBuildDryRunEnabled()) {
-    countExternalSubrequest("GitHub release download");
-    return "export {}; // dry-run site build";
+    // Only the dry run's own synthetic release stays canned; an explicit
+    // deploy of some other asset URL performs the real download.
+    if (assetUrl === DRY_RUN_RELEASE_ASSET_URL) {
+      countExternalSubrequest("GitHub release download");
+      return "export {}; // dry-run site build";
+    }
   }
   countExternalSubrequest("GitHub release download");
   const assetResponse = await fetch(assetUrl);
