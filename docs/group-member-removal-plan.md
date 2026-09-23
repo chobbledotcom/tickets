@@ -118,10 +118,10 @@ The issue asks for the same write, not a new decision.
   them. `removeGroupPricesStatement` in `listing-prices.ts` now serves both
   shapes: one listing across many groups, and one group across many listings. A
   second review finding added the add-on reachability guard
-  `groupLeavingOrphanedAddOnError` (`listings-actions.ts`): the listing form
-  refuses an untick that orphans a child-scoped add-on, and the group page
-  removes members through the same rule, checked before the write transaction
-  opens.
+  `groupLeavingOrphanedAddOnError` (`add-on-reachability.ts`, the module that
+  now holds the reachability walks): the listing form refuses an untick that
+  orphans a child-scoped add-on, and the group page removes members through the
+  same rule, checked before the write transaction opens.
 - Returns an error message for the flash redirect, or null on success.
 
 The route handler parses `listing_ids`, calls the one implementation, logs the
