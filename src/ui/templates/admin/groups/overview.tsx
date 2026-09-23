@@ -24,10 +24,12 @@ import {
   UnavailablePublicUrlRow,
 } from "#templates/admin/share-rows.tsx";
 import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
+import type { IconName } from "#templates/components/actions.tsx";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import {
+  type LinkedItemOption,
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
@@ -152,6 +154,39 @@ const GroupShareRows = ({
     <UnavailablePublicUrlRow message={t("groups.detail.share_unavailable")} />
   );
 
+/** One of the group page's two membership pick-lists: the same checkbox list
+ * the add and remove forms share, differing only in where they post and what
+ * they carry beside it. */
+const ListingPickForm = ({
+  action,
+  headingKey,
+  options,
+  submitIcon,
+  submitLabel,
+  warning,
+}: {
+  action: string;
+  headingKey: "linked_items.heading_add" | "linked_items.heading_remove";
+  options: LinkedItemOption[];
+  submitIcon: IconName;
+  submitLabel: string;
+  warning?: string;
+}): JSX.Element => (
+  <SaveForm action={action} submitIcon={submitIcon} submitLabel={submitLabel}>
+    {warning !== undefined && <div class="warning">{warning}</div>}
+    <LinkedItemsCheckboxes
+      groups={[
+        {
+          label: t("terms.listings"),
+          options,
+        },
+      ]}
+      heading={({ type }) => t(headingKey, { type })}
+      name="listing_ids"
+    />
+  </SaveForm>
+);
+
 /** The Overview tab's details, money summary, listings, and membership form. */
 export const GroupOverviewPanel = ({
   group,
@@ -258,34 +293,36 @@ export const GroupOverviewPanel = ({
         })}
       </PageBlock>
 
+      {!isReadOnly() && listings.length > 0 && (
+        <ListingPickForm
+          action={`/admin/groups/${group.id}/remove-listings`}
+          headingKey="linked_items.heading_remove"
+          options={toLinkedItemOptions(listings, [])}
+          submitIcon="x"
+          submitLabel={t("groups.detail.remove_listings_submit")}
+          warning={t("groups.detail.remove_listings_warning")}
+        />
+      )}
+
       {!isReadOnly() && ungroupedListings.length > 0 && (
-        <SaveForm
+        <ListingPickForm
           action={`/admin/groups/${group.id}/add-listings`}
+          headingKey="linked_items.heading_add"
+          // The save's own homogeneity rules read the same blocks, so a
+          // candidate the save must refuse is greyed out here with the
+          // why, before the operator saves.
+          options={toLinkedItemOptions(ungroupedListings, []).map(
+            (option, index) => ({
+              ...option,
+              blocked: groupCandidateBlockedError(
+                listings,
+                ungroupedListings[index]!,
+              ),
+            }),
+          )}
           submitIcon="plus"
           submitLabel={t("groups.detail.add_listings_submit")}
-        >
-          <LinkedItemsCheckboxes
-            groups={[
-              {
-                label: t("terms.listings"),
-                // The save's own homogeneity rules read the same blocks, so a
-                // candidate the save must refuse is greyed out here with the
-                // why, before the operator saves.
-                options: toLinkedItemOptions(ungroupedListings, []).map(
-                  (option, index) => ({
-                    ...option,
-                    blocked: groupCandidateBlockedError(
-                      listings,
-                      ungroupedListings[index]!,
-                    ),
-                  }),
-                ),
-              },
-            ]}
-            heading={({ type }) => t("linked_items.heading_add", { type })}
-            name="listing_ids"
-          />
-        </SaveForm>
+        />
       )}
     </PageRegions>
   );

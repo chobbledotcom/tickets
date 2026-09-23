@@ -17,6 +17,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { tx } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
+import { findForms } from "#test-utils/test-browser/forms.ts";
 
 describeWithEnv(
   "server (admin groups) — detail & sharing",
@@ -192,10 +193,15 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/groups/${target.id}`)
         ).text();
+        // The membership forms are read apart, so the claim covers only the
+        // add form the operator would send.
+        const addForm = findForms(html).find(
+          (form) => form.action === `/admin/groups/${target.id}/add-listings`,
+        );
         // The listing already in Group A is offered as an add candidate…
-        expect(html).toContain(`value="${inOtherGroup.id}"`);
+        expect(addForm?.body).toContain(`value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
-        expect(html).not.toContain(`value="${ownMember.id}"`);
+        expect(addForm?.body).not.toContain(`value="${ownMember.id}"`);
       });
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {

@@ -17,7 +17,12 @@ import {
   storedPlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
-import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import {
+  hasPackageBookingsTx,
+  setGroupPackageMembers,
+  setListingGroupsTx,
+} from "#db/groups.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   refusingTheWriteOn,
@@ -155,20 +160,44 @@ const groupListingAssignmentStatements = (
     }),
   );
 
-/** Adds listings after checking fresh group, listing, and edge state in one write transaction. */
-export const assignListingsToGroup = async (
+/** A membership write over one group: which listings, and the group they join
+ * or leave. Returns the flash message when the write was refused, or null
+ * when the membership changed. */
+export type MembershipWrite = (
   listingIds: number[],
   groupId: number,
-): Promise<string | null> => {
-  if (listingIds.length === 0) return null;
-  return withTransaction(async (tx) => {
-    const ids = [...new Set(listingIds)];
-    // Serialize the two transaction reads: the connection allows one in-flight
+) => Promise<string | null>;
+
+/** Builds one membership write over a fresh-checked group: it deduplicates
+ * the ids, opens one write transaction, checks the group's state there, and
+ * hands it — with the id list and the group — to the caller's write. An empty
+ * id list writes nothing. */
+const membershipWrite =
+  (
+    writeListings: (
+      tx: TxScope,
+      ids: number[],
+      state: GroupState,
+      groupId: number,
+    ) => Promise<string | null>,
+  ) =>
+  async (listingIds: number[], groupId: number): Promise<string | null> => {
+    if (listingIds.length === 0) return null;
+    return withTransaction(async (tx) => {
+      const ids = [...new Set(listingIds)];
+      const groups = await groupStatesTx(tx, [groupId]);
+      const state = groups.get(groupId);
+      if (!state) return t("error.selected_group_deleted");
+      return writeListings(tx, ids, state, groupId);
+    });
+  };
+
+/** Adds listings after checking fresh group, listing, and edge state in one write transaction. */
+export const assignListingsToGroup: MembershipWrite = membershipWrite(
+  async (tx, ids, state, groupId) => {
+    // Serialize the transaction reads: the connection allows one in-flight
     // statement, so concurrent tx.execute calls can interleave and reject.
-    const groups = await groupStatesTx(tx, [groupId]);
     const listings = await listingStatesTx(tx, ids);
-    const state = groups.get(groupId);
-    if (!state) return t("error.selected_group_deleted");
     if (listings.length !== ids.length) {
       return t("error.selected_listing_deleted");
     }
@@ -178,8 +207,25 @@ export const assignListingsToGroup = async (
     // always fits; the group-edit fence judges every saved quantity.
     await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
-  });
-};
+  },
+);
+
+/** Removes listings after checking fresh group state in one write
+ * transaction. Each listing keeps every other membership and its overrides
+ * there: the removal runs the same membership diff the listing form's own
+ * checkboxes run ({@link setListingGroupsTx}), so no parallel statement
+ * builder exists here. A listing that is not a member is a no-op. */
+export const removeListingsFromGroup: MembershipWrite = membershipWrite(
+  async (tx, ids, _state, groupId) => {
+    for (const listingId of ids) {
+      const others = (await listingGroups.getIdsTx(tx, listingId)).filter(
+        (id) => id !== groupId,
+      );
+      await setListingGroupsTx(tx, listingId, others);
+    }
+    return null;
+  },
+);
 
 /** The rejection reasons for one add-listings batch: a built-site plan joins
  *  no group (ordinary or package), a stored plan member holds every joiner

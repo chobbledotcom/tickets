@@ -94,7 +94,7 @@ const groupTheListing = async (browser: TestBrowser): Promise<string> => {
   expect(browser.currentHtml).toContain('name="listing_ids"');
   await browser.submitForm(
     { listing_ids: ALL_CHECKBOXES },
-    "Add Selected Listings",
+    "Add selected listings",
   );
   expect(browser.containsText(LISTING)).toBe(true);
   // The group page shows its own public booking link.

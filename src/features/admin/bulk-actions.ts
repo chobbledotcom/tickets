@@ -44,7 +44,8 @@ import {
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
-import { groupFormPost, withGroup } from "#routes/admin/groups.ts";
+import { groupFormPost } from "#routes/admin/group-form-post.ts";
+import { withGroup } from "#routes/admin/groups.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import {

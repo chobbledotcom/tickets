@@ -51,6 +51,7 @@ describe("Cucumber story catalog", () => {
       "catalogue.copy-a-group-of-listings",
       "catalogue.describing-what-is-on-offer",
       "catalogue.narrowing-a-long-list-down",
+      "catalogue.removing-a-listing-from-a-group",
       "catalogue.taking-a-group-off-sale",
       "catalogue.the-list-a-visitor-reads",
       "pages.asking-the-host-for-help",
