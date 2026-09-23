@@ -11,7 +11,6 @@ import { formatCurrency } from "#shared/currency.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
-  adminPost,
   createServicingHold,
   deleteServicingEvent,
   listingCostOf,
@@ -22,14 +21,17 @@ import {
   recordBoilerCost,
   SERVICE_DATE,
 } from "#test-utils/servicing-ledger.ts";
-import { createTestManagerSession } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  createTestManagerSession,
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
   test("the servicing edit route records a cost from the cost form", async () => {
     const { id, listing } = await createServicingHold();
-    const response = await adminPost(`/admin/servicing/${id}`, {
+    const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       amount: "90.00",
       memo: "Boiler part",
       target_listing_id: String(listing.id),

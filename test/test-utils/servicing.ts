@@ -312,21 +312,6 @@ export const assertRedirectPathname = (
   expect(new URL(location!, "http://x").pathname).toBe(expected);
 };
 
-/** POST an admin form as the logged-in test owner and return the response
- *  (for status/body assertions). Replaces the per-test `handleRequest` +
- *  `mockFormRequest` + `getTestSession` dance. */
-export const adminPost = async (
-  path: string,
-  data: Record<string, string>,
-): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-  const { cookie, csrfToken } = await getTestSession();
-  return awaitTestRequest(path, {
-    cookie,
-    data: { csrf_token: csrfToken, ...data },
-  });
-};
-
 // ─── Compound assertion helpers (curried where the shape is shared) ─────────
 
 /** Assert a servicing event's logistics plan is disabled (split=0, no agents).

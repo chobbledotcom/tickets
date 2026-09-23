@@ -13,7 +13,6 @@ import {
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import {
-  type AdminTestContext,
   getInternalTestSession,
   setTestSession,
   TEST_ADMIN_PASSWORD,
@@ -383,15 +382,26 @@ export const adminFormPost = async (
   path: string,
   data: TestFormValues = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { settings } = await import("#db/settings.ts");
-  await settings.loadKeys([]);
+  // Mirror what a rendered CsrfForm sends: only the settings, features, and
+  // listing-defaults forms carry settings_version, and only those routes read
+  // it (a missing value there refuses the version-guarded save).
+  const versioned =
+    path.startsWith("/admin/settings") ||
+    path.startsWith("/admin/features/") ||
+    path === "/admin/listing-defaults";
+  let version: string | undefined;
+  if (versioned) {
+    const { settings } = await import("#db/settings.ts");
+    await settings.loadKeys([]);
+    version = String(settings.version);
+  }
   const { cookie, csrfToken } = await getTestSession();
   const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path, {
     cookie,
     data: {
       csrf_token: csrfToken,
-      settings_version: String(settings.version),
+      ...(version !== undefined ? { settings_version: version } : {}),
       ...data,
     },
   });
@@ -444,67 +454,3 @@ export const getBulkActionForm =
     expect(response.status).toBe(200);
     return html;
   };
-
-export const setupAdminTest = async (
-  listingOverrides: TestListingOverrides = {},
-): Promise<AdminTestContext> => {
-  const { createTestListing } = await import(
-    "#test-utils/db-helpers/listings.ts"
-  );
-  const { createTestAttendee } = await import(
-    "#test-utils/db-helpers/attendees.ts"
-  );
-  const listing = await createTestListing({
-    maxAttendees: 100,
-    thankYouUrl: "https://example.com",
-    ...listingOverrides,
-  });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "John Doe",
-    "john@example.com",
-  );
-  const { cookie, csrfToken } = await getTestSession();
-  return { attendee, cookie, csrfToken, listing };
-};
-
-type AdminFixtureResult = AdminTestContext & { response: Response };
-
-/** Set up the standard admin fixture, send one request built from it, and
- * hand back the fixture together with the response. */
-const onAdminFixture =
-  (send: (ctx: AdminTestContext) => Promise<Response>) =>
-  async (
-    listingOverrides: TestListingOverrides = {},
-  ): Promise<AdminFixtureResult> => {
-    const ctx = await setupAdminTest(listingOverrides);
-    return { ...ctx, response: await send(ctx) };
-  };
-
-export const adminAttendeeAction =
-  (action: string, scope: "listing" | "attendee" = "attendee") =>
-  (
-    formData: Record<string, string> = {},
-  ): ((
-    listingOverrides?: TestListingOverrides,
-  ) => Promise<AdminFixtureResult>) =>
-    onAdminFixture(async (ctx) => {
-      const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-      const url =
-        scope === "listing"
-          ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
-          : `/admin/attendees/${ctx.attendee.id}/${action}`;
-      return awaitTestRequest(url, {
-        cookie: ctx.cookie,
-        data: { csrf_token: ctx.csrfToken, ...formData },
-      });
-    });
-
-export const adminListingPage = (
-  pathFn: (ctx: AdminTestContext) => string,
-): ((listingOverrides?: TestListingOverrides) => Promise<AdminFixtureResult>) =>
-  onAdminFixture(async (ctx) => {
-    const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-    return awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
-  });

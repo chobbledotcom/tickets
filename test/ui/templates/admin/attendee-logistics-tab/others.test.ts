@@ -34,7 +34,6 @@ import {
   deliveredListingSetup,
   logisticsTabHtml,
   makeAttendee,
-  postLogistics,
 } from "#test-utils/logistics-tab.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -44,7 +43,7 @@ describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
     const id = await makeAttendee("Demo Person", [{ listingId: listing.id }]);
     setDemoModeForTest(true);
     try {
-      await postLogistics(id, {
+      await adminFormPost(`/admin/attendees/${id}/logistics`, {
         address: "1 Real Street, Realtown",
         lat: "51.503396",
         lng: "-0.127640",
@@ -67,7 +66,7 @@ describeWithEnv("the Edit tab and the Logistics pin", { db: true }, () => {
   const editAfterPinning = async (editedAddress: string) => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const id = await makeAttendee("Pin Person", [{ listingId: listing.id }]);
-    await postLogistics(id, {
+    await adminFormPost(`/admin/attendees/${id}/logistics`, {
       address: "10 Downing Street, LONDON, SW1A 2AA",
       lat: "51.503396",
       lng: "-0.127640",
@@ -120,14 +119,17 @@ describeWithEnv(
       );
 
       // Submit new times together with an invalid pin.
-      const response = await postLogistics(id, {
-        address: "Somewhere",
-        [endTimeField()]: "18:30",
-        lat: "91",
-        lng: "0",
-        [startAgentField()]: String(van.id),
-        [startTimeField()]: "10:30",
-      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${id}/logistics`,
+        {
+          address: "Somewhere",
+          [endTimeField()]: "18:30",
+          lat: "91",
+          lng: "0",
+          [startAgentField()]: String(van.id),
+          [startTimeField()]: "10:30",
+        },
+      );
       expect(response.status).toBe(400);
       const html = await response.text();
       // The form re-renders with the operator's submitted choices…

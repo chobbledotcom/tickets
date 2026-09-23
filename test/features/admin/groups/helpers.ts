@@ -2,33 +2,14 @@
 
 import { expect } from "@std/expect";
 import { hmacHash } from "#crypto/hashing.ts";
-import { handleRequest } from "#routes";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import {
   createSoldPackageMember,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import type { TestFormValues } from "#test-utils/form-values.ts";
-import { mockFormRequest } from "#test-utils/mocks.ts";
-import { apiRequest, getTestSession } from "#test-utils/session.ts";
+import { apiRequest } from "#test-utils/session.ts";
 import type { Group, ListingWithCount } from "#types";
-
-/** Post a signed-in admin form and hand back the raw response, so a rejected
- * save can be read from its flash message instead of throwing. */
-export const adminPost = async (
-  path: string,
-  values: TestFormValues,
-): Promise<Response> => {
-  const session = await getTestSession();
-  return handleRequest(
-    mockFormRequest(
-      path,
-      { ...values, csrf_token: session.csrfToken },
-      session.cookie,
-    ),
-  );
-};
 
 /** The group input the validators read, with only the fields a test varies.
  * The slug index is the real one-way code for the slug, as a saved group's

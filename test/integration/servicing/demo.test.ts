@@ -29,7 +29,8 @@ import { DEMO_NAMES, DEMO_SERVICING_NAMES } from "#shared/demo/samples.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminPost, getServicingEvent } from "#test-utils/servicing.ts";
+import { getServicingEvent } from "#test-utils/servicing.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -116,7 +117,7 @@ describeWithEnv(
       listingId: number,
       name: string,
     ): Promise<number> => {
-      const response = await adminPost(
+      const { response } = await adminFormPost(
         "/admin/servicing/new",
         servicingForm(listingId, name),
       );
@@ -166,7 +167,7 @@ describeWithEnv(
       const submitted = "Another Unlisted Job ABC";
       expect(DEMO_SERVICING_NAMES).not.toContain(submitted);
       await inDemoMode(async () => {
-        await adminPost(
+        await adminFormPost(
           `/admin/servicing/${id}`,
           servicingForm(listing.id, submitted),
         );

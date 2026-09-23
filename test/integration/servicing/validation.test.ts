@@ -20,7 +20,6 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import {
-  adminPost,
   assertRedirectTo,
   createDatedServicingScenario,
   createServicingHold,
@@ -28,6 +27,7 @@ import {
   expectRejects,
   getServicingEvent,
 } from "#test-utils/servicing.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -69,7 +69,7 @@ describeWithEnv(
         maxAttendees: 5,
         name: "L",
       });
-      const response = await adminPost("/admin/servicing/new", {
+      const { response } = await adminFormPost("/admin/servicing/new", {
         [`quantity_${listing.id}`]: "1",
         name: "Bad Service",
         // Deliberately omitting start_date.
@@ -86,7 +86,7 @@ describeWithEnv(
       // don't cause a NO_LINES_ERROR or attempt to insert a 0-qty row.
       const listingA = await createTestListing({ maxAttendees: 10, name: "A" });
       const listingB = await createTestListing({ maxAttendees: 10, name: "B" });
-      const response = await adminPost("/admin/servicing/new", {
+      const { response } = await adminFormPost("/admin/servicing/new", {
         [`quantity_${listingA.id}`]: "0",
         [`quantity_${listingB.id}`]: "2",
         name: "Filtered Service",
@@ -109,7 +109,7 @@ describeWithEnv(
       // Exercises the try/catch in handleServicingPost: normalizeServicingForSave
       // throws when a daily listing is booked but start_date is absent.
       const { id, listing } = await createDatedServicingScenario();
-      const response = await adminPost(`/admin/servicing/${id}`, {
+      const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         [`quantity_${listing.id}`]: "1",
         name: "Updated",
         // Deliberately omitting start_date.
@@ -125,7 +125,10 @@ describeWithEnv(
         quantity: 1,
       });
       // The listing now has 1/1 capacity used. Duplicating would need another slot.
-      const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
+      const { response } = await adminFormPost(
+        `/admin/servicing/${id}/duplicate`,
+        {},
+      );
       assertRedirectTo(response, `/admin/servicing/${id}`);
     });
 

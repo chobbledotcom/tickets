@@ -20,7 +20,6 @@ import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  adminPost,
   assertAdmin404,
   assertRedirectPathname,
   assertServicingId404sEverywhere,
@@ -31,7 +30,7 @@ import {
   listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
-import { getTestSession } from "#test-utils/session.ts";
+import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -65,7 +64,7 @@ describeWithEnv(
     test("merge POST is rejected when either id is servicing (guarded at the action)", async () => {
       const servicing = await createServicingHold();
       const { attendee: real } = await createRealAttendee();
-      const response = await adminPost(
+      const { response } = await adminFormPost(
         `/admin/attendees/${servicing.id}/merge`,
         { token: real.ticket_token },
       );
@@ -80,27 +79,39 @@ describeWithEnv(
   { db: true },
   () => {
     test("POST /admin/servicing/:id/delete 404s for a missing service event id", async () => {
-      const response = await adminPost("/admin/servicing/999999/delete", {});
+      const { response } = await adminFormPost(
+        "/admin/servicing/999999/delete",
+        {},
+      );
       expect(response.status).toBe(404);
       response.body?.cancel();
     });
 
     test("POST /admin/servicing/:id/delete redirects to the dashboard on success", async () => {
       const { id } = await createServicingHold();
-      const response = await adminPost(`/admin/servicing/${id}/delete`, {});
+      const { response } = await adminFormPost(
+        `/admin/servicing/${id}/delete`,
+        {},
+      );
       assertRedirectPathname(response, "/admin/");
       expect(await getServicingEvent(id)).toBeNull();
     });
 
     test("POST /admin/servicing/:id/duplicate 404s for a missing service event id", async () => {
-      const response = await adminPost("/admin/servicing/999999/duplicate", {});
+      const { response } = await adminFormPost(
+        "/admin/servicing/999999/duplicate",
+        {},
+      );
       expect(response.status).toBe(404);
       response.body?.cancel();
     });
 
     test("POST /admin/servicing/:id/duplicate redirects to the copy on success", async () => {
       const { id, listing } = await createServicingHold({ name: "Original" });
-      const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
+      const { response } = await adminFormPost(
+        `/admin/servicing/${id}/duplicate`,
+        {},
+      );
       expect(response.status).toBe(302);
       const location = response.headers.get("location");
       expect(location).not.toBeNull();
@@ -119,9 +130,12 @@ describeWithEnv(
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a missing cost id", async () => {
       const { id, listing } = await createServicingHold();
-      const response = await adminPost(`/admin/servicing/${id}/cost/999999`, {
-        amount: "60.00",
-      });
+      const { response } = await adminFormPost(
+        `/admin/servicing/${id}/cost/999999`,
+        {
+          amount: "60.00",
+        },
+      );
       expect(response.status).toBe(404);
       response.body?.cancel();
       // No cost leg was posted for the phantom cost id.
@@ -159,7 +173,7 @@ describeWithEnv(
       // The cost belongs to `held`, but it is posted through `other`'s route —
       // the cost's listing is not held by `other`, so it 404s instead of
       // silently editing a cost from a different event.
-      const response = await adminPost(
+      const { response } = await adminFormPost(
         `/admin/servicing/${other.id}/cost/${costId}`,
         { amount: "60.00" },
       );
@@ -193,7 +207,7 @@ describeWithEnv(
         servicingId: eventA.id,
       });
       // Attempting to edit event A's cost through event B's route must 404.
-      const response = await adminPost(
+      const { response } = await adminFormPost(
         `/admin/servicing/${eventB.id}/cost/${costId}`,
         { amount: "60.00" },
       );

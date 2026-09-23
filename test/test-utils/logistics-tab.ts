@@ -9,9 +9,8 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
-import { handleRequest } from "#routes";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -42,22 +41,6 @@ export const logisticsTabHtml = async (attendeeId: number): Promise<string> => {
   return response.text();
 };
 
-/** POST the Logistics tab form (session + CSRF handled). */
-export const postLogistics = async (
-  attendeeId: number,
-  fields: Record<string, string>,
-): Promise<Response> => {
-  const { cookie, csrfToken } = await getTestSession();
-  return handleRequest(
-    mockFormRequest(
-      `/admin/attendees/${attendeeId}/logistics`,
-      { csrf_token: csrfToken, ...fields },
-      cookie,
-    ),
-  );
-};
-
-/** A delivered (logistics) listing with one agent, booked by one attendee. */
 export const deliveredListingSetup = async (
   agentName: string,
   attendeeName: string,

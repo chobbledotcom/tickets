@@ -4,6 +4,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
+// jscpd:ignore-end
+import {
+  adminAttendeeAction,
+  adminListingPage,
+  setupAdminTest,
+} from "#test-utils/admin-fixture.ts";
 import {
   assertAdminHtml,
   expectFlash,
@@ -12,16 +18,10 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-// jscpd:ignore-end
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import {
-  adminAttendeeAction,
-  adminFormPost,
-  adminListingPage,
-  setupAdminTest,
-} from "#test-utils/session.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */

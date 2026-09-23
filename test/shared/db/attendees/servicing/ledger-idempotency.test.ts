@@ -13,13 +13,13 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminPost,
   createServicingHold,
   expectRejects,
   listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
 import { SERVICE_DATE, transfersOfKind } from "#test-utils/servicing-ledger.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -49,13 +49,15 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
 
   test("a double-submit of the cost form records once and reports a clean success (idempotency key)", async () => {
     const { id, listing } = await createServicingHold();
-    const postCost = (idempotencyKey: string) =>
-      adminPost(`/admin/servicing/${id}`, {
-        amount: "90.00",
-        cost_idempotency_key: idempotencyKey,
-        memo: "Boiler part",
-        target_listing_id: String(listing.id),
-      });
+    const postCost = async (idempotencyKey: string) =>
+      (
+        await adminFormPost(`/admin/servicing/${id}`, {
+          amount: "90.00",
+          cost_idempotency_key: idempotencyKey,
+          memo: "Boiler part",
+          target_listing_id: String(listing.id),
+        })
+      ).response;
     const key = "idem-double-submit";
     await postCost(key);
     const retried = await postCost(key);
@@ -72,13 +74,15 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
   test("reusing an idempotency key with a changed amount errors, never a silent false success", async () => {
     const { id, listing } = await createServicingHold();
     const key = "idem-changed-amount";
-    const postCost = (amount: string) =>
-      adminPost(`/admin/servicing/${id}`, {
-        amount,
-        cost_idempotency_key: key,
-        memo: "Boiler part",
-        target_listing_id: String(listing.id),
-      });
+    const postCost = async (amount: string) =>
+      (
+        await adminFormPost(`/admin/servicing/${id}`, {
+          amount,
+          cost_idempotency_key: key,
+          memo: "Boiler part",
+          target_listing_id: String(listing.id),
+        })
+      ).response;
     await postCost("90.00");
     const changed = await postCost("50.00");
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
@@ -92,13 +96,15 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
   test("reusing an idempotency key with only the memo changed does not silently keep the old memo", async () => {
     const { id, listing } = await createServicingHold();
     const key = "idem-changed-memo";
-    const postCost = (memo: string) =>
-      adminPost(`/admin/servicing/${id}`, {
-        amount: "90.00",
-        cost_idempotency_key: key,
-        memo,
-        target_listing_id: String(listing.id),
-      });
+    const postCost = async (memo: string) =>
+      (
+        await adminFormPost(`/admin/servicing/${id}`, {
+          amount: "90.00",
+          cost_idempotency_key: key,
+          memo,
+          target_listing_id: String(listing.id),
+        })
+      ).response;
     await postCost("Original memo");
     const changed = await postCost("Edited memo");
     expect(changed.status).toBe(302);

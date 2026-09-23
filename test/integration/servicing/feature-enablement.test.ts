@@ -4,11 +4,11 @@ import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  adminPost,
   createServicingHold,
   getServicingEvent,
   servicingRowsForListing,
 } from "#test-utils/servicing.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import {
   enableFeature,
   storedFeatureEnabled,
@@ -18,7 +18,7 @@ import {
 describeWithEnv("servicing feature enablement", { db: true }, () => {
   test("creating a servicing event enables the feature", async () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "Room" });
-    const response = await adminPost("/admin/servicing/new", {
+    const { response } = await adminFormPost("/admin/servicing/new", {
       [`quantity_${listing.id}`]: "1",
       name: "Boiler service",
     });
@@ -38,7 +38,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "Room" });
     await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
-      const response = await adminPost("/admin/servicing/new", {
+      const { response } = await adminFormPost("/admin/servicing/new", {
         [`quantity_${listing.id}`]: "1",
         name: "Boiler service",
       });
@@ -56,7 +56,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     const { id, listing } = await createServicingHold({ name: "Before" });
     await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
-      const response = await adminPost(`/admin/servicing/${id}`, {
+      const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         [`quantity_${listing.id}`]: "2",
         name: "After",
       });
@@ -76,7 +76,10 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     const { id, listing } = await createServicingHold();
     await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
-      const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
+      const { response } = await adminFormPost(
+        `/admin/servicing/${id}/duplicate`,
+        {},
+      );
       expectRedirectWithFlash(
         `/admin/servicing/${id}`,
         expect.stringContaining("feature enable failed"),
