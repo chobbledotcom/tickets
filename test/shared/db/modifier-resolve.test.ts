@@ -12,7 +12,7 @@ import {
 } from "#db/modifier-resolve.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

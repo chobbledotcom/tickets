@@ -23,7 +23,7 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertModifier,

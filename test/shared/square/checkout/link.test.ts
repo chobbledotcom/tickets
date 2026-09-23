@@ -4,8 +4,8 @@ import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 import {

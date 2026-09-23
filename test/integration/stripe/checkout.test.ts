@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import {

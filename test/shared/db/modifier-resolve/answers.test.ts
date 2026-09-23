@@ -7,7 +7,7 @@ import {
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
 import type { ModifierInput } from "#db/modifiers.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { insertModifierUsage, patchModifier } from "#test-utils/modifiers.ts";
 import { resolveAnswerPicks, setUpAnswerModifier } from "./answer-setup.ts";

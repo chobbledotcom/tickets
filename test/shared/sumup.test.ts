@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { sumupApi } from "#shared/sumup.ts";
-import { checkoutIntent } from "#test-utils/checkout.ts";
+import { checkoutIntent } from "#test-utils/checkout-items.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
