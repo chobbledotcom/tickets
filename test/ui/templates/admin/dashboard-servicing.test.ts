@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import {
-  NO_QUANTITY_PREFIX,
-  QTY_PREFIX,
-} from "#routes/admin/attendee-form-lines.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -14,6 +10,7 @@ import {
 import {
   createServicingHold,
   createTestServicingEvent,
+  getServicingEvent,
   renderAdminPage,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
@@ -55,19 +52,31 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
     expect(html).not.toContain("Deleted Route Listing");
   });
 
-  test("the servicing update route updates name and default booking quantity", async () => {
+  test("the servicing update route updates name and booking quantity", async () => {
     const { id, listing } = await createServicingHold({
       name: "Before Route Update",
+      quantity: 3,
     });
 
+    // The page's quantity input is named `quantity_<listing id>`; a field with
+    // any other name is dropped by the form parser, so the POST below must
+    // use the real name or the route rejects it.
     const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       name: "After Route Update",
-      [`${QTY_PREFIX}${listing.id}`]: "1",
+      [`quantity_${listing.id}`]: "1",
     });
 
     expect(response.headers.get("location")).toContain(
       `/admin/servicing/${id}`,
     );
+    // Read the row the route itself wrote — the next helper call would
+    // overwrite it, and a rejected POST must not pass this assertion.
+    const saved = await getServicingEvent(id);
+    expect(saved).toMatchObject({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      name: "After Route Update",
+    });
+    // A booking without an explicit quantity keeps the default of one.
     const updated = await updateServicingEvent(id, {
       bookings: [{ listingId: listing.id }],
       name: "Default Quantity Update",
@@ -96,7 +105,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       "/admin/servicing/999999",
       {
         name: "Missing",
-        [`${QTY_PREFIX}1`]: "1",
+        quantity_1: "1",
       },
     );
     expect(editResponse.status).toBe(404);
@@ -116,14 +125,13 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       name: "Validation Room",
     });
 
-    // A no-quantity form submission: the route catches the validation error
+    // A zero-quantity form submission: the route catches the validation error
     // and redirects back to the create form (not a 500).
     const { response: noQtyResponse } = await adminFormPost(
       "/admin/servicing/new",
       {
         name: "No Quantity Service",
-        [`${NO_QUANTITY_PREFIX}${listing.id}`]: "1",
-        [`${QTY_PREFIX}${listing.id}`]: "9",
+        [`quantity_${listing.id}`]: "0",
       },
     );
     expect(noQtyResponse.status).toBe(302);

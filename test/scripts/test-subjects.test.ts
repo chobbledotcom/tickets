@@ -187,6 +187,29 @@ describe("test subjects", () => {
       ).toEqual(["src/shared/email.ts"]);
     });
 
+    test("names no subject for a test-utils helper an absolute root reached", async () => {
+      // A scan given an absolute test root walks absolute paths, and a
+      // helper a test reaches by a relative import resolves absolute — the
+      // utils exclusion must still leave the test naming its one subject.
+      const files = {
+        "/proj/test/shared/email.test.ts": [
+          `import { sendEmail } from "#shared/email.ts";`,
+          `import { setup } from "../test-utils/db.ts";`,
+        ].join("\n"),
+        "/proj/test/test-utils/db.ts": `import { getDb } from "#db/client.ts";`,
+      };
+      expect(
+        (
+          await collectTestSubjects(
+            "/proj/test/shared/email.test.ts",
+            readerFor(files),
+            IMPORT_MAP,
+            new Set(Object.keys(files)),
+          )
+        ).subjects,
+      ).toEqual(["src/shared/email.ts"]);
+    });
+
     test("follows helpers through more than one hop", async () => {
       const files = {
         "test/a.test.ts": `import { one } from "#test/first.ts";`,

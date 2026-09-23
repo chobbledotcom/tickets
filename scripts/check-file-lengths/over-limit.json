@@ -69,7 +69,6 @@
   "test/integration/server/agent-deliveries.test.ts": 498,
   "test/integration/server/attendee-form-status.test.ts": 413,
   "test/integration/server/attendee-paths.test.ts": 429,
-  "test/integration/server/attendees/delete.test.ts": 402,
   "test/integration/server/bulk-email/notes-and-history.test.ts": 454,
   "test/integration/server/calendar.test.ts": 511,
   "test/integration/server/cart-packages.test.ts": 410,

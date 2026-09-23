@@ -128,6 +128,12 @@ type Walk = {
   visited: Set<string>;
 };
 
+/** Whether `file` sits under `test/test-utils/` — the shared plumbing nearly
+ * every test reaches — however the walk's root spelled its path: an absolute
+ * root walks absolute paths, and Windows writes `\` separators. */
+const underTestUtils = (file: string): boolean =>
+  /(^|\/)test\/test-utils\//.test(file.replaceAll("\\", "/"));
+
 /** Read one file and fold each of its specifiers into `walk`. */
 const readFileIntoWalk = async (
   walk: Walk,
@@ -137,8 +143,7 @@ const readFileIntoWalk = async (
   // The test names its own imports as subjects; so does a helper beside it.
   // The shared helpers under test/test-utils/ are plumbing nearly every test
   // needs, so their imports name no subject (see `TestSubjects`).
-  const namesSubjects =
-    file === walk.testFile || !file.startsWith("test/test-utils/");
+  const namesSubjects = file === walk.testFile || !underTestUtils(file);
   for (const spec of parseImportSpecifiers(await readText(file))) {
     foldIntoWalk(walk, file, namesSubjects, spec);
   }

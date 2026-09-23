@@ -279,6 +279,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       );
 
       await expectAttendeeDeleted(response);
+      expect(await attendeeExists(attendee.id)).toBe(false);
     });
   });
 
@@ -353,9 +354,6 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         "Test User",
         "test@example.com",
       );
-
-      // POST route exercises attendeeDeleteHandler which calls parseAttendeeIds.
-      // The custom handler requires confirm_identifier to match the attendee name.
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}/delete`,
@@ -363,7 +361,6 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
           cookie,
         ),
       );
-      // Should redirect after successful delete
       expect(response.status).toBe(302);
     });
   });
