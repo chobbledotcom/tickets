@@ -17,7 +17,7 @@ import {
   followRedirect,
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
+import { mockProviderType, mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRefundMock } from "#test-utils/refund-routes.ts";
@@ -144,7 +144,6 @@ export const completePaidOrder = async (
 export const withStripeAsProvider = async (
   body: () => Promise<void>,
 ): Promise<void> => {
-  const { mockProviderType, withMocks } = await import("#test-utils/mocks.ts");
   await withMocks(
     () =>
       stub(paymentsApi, "getConfiguredProvider", () =>

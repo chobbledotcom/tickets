@@ -13,11 +13,7 @@ export const useHandler = (
   browser: TestBrowser,
   handler: ResponseHandler<[request: Request]>,
 ): void => {
-  (
-    browser as unknown as {
-      handleRequest: (request: Request) => Promise<Response>;
-    }
-  ).handleRequest = (request) => Promise.resolve(handler(request));
+  browser.handleRequest = (request) => Promise.resolve(handler(request));
 };
 
 /** A browser that keeps what its last send carried — where it went and what it

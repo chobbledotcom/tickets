@@ -3,6 +3,7 @@ import type { WrappedKey } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { createApiKey } from "#db/api-keys.ts";
 import { getSession } from "#db/sessions.ts";
+import { handleRequest } from "#routes";
 import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -10,6 +11,7 @@ import {
   runWithSessionContext,
   setCachedSession,
 } from "#shared/session-context.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import {
@@ -18,6 +20,12 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import {
+  awaitTestRequest,
+  mockAdminLoginRequest,
+  mockMultipartRequest,
+  testPageHtml,
+} from "#test-utils/mocks.ts";
 import { getSetupState } from "#test-utils/test-state.ts";
 import type { Listing } from "#types";
 
@@ -28,18 +36,13 @@ export const loginAsAdmin = async (
   cookie: string;
   csrfToken: string;
 }> => {
-  const { mockAdminLoginRequest, sendToApp, testPageHtml } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const { extractCsrfToken } = await import("#test-utils/csrf.ts");
-
   const loginCsrfToken = extractCsrfToken(await testPageHtml("/admin/"));
 
   if (!loginCsrfToken) {
     throw new Error("Failed to get CSRF token for admin login");
   }
 
-  const loginResponse = await sendToApp(
+  const loginResponse = await handleRequest(
     await mockAdminLoginRequest({ password, username }, loginCsrfToken),
   );
   const cookie = loginResponse.headers
@@ -350,7 +353,6 @@ export const apiRequest = async (
     apiKey?: string;
   } = {},
 ): Promise<Response> => {
-  const { sendToApp } = await import("#test-utils/mocks.ts");
   const apiKey = options.apiKey ?? (await createTestApiKeyToken());
   const method = options.method ?? "GET";
   const headers: HeadersInit =
@@ -360,7 +362,7 @@ export const apiRequest = async (
     headers,
     method,
   };
-  return sendToApp(requestAsApiKey(path, apiKey, init));
+  return handleRequest(requestAsApiKey(path, apiKey, init));
 };
 
 export const setupListingAndLogin = async (
@@ -396,7 +398,6 @@ export const adminFormPost = async (
     version = String(settings.version);
   }
   const { cookie, csrfToken } = await getTestSession();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path, {
     cookie,
     data: {
@@ -419,10 +420,7 @@ export const adminMultipartPost = async (
   },
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
-  const { mockMultipartRequest, sendToApp } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const response = await sendToApp(
+  const response = await handleRequest(
     mockMultipartRequest(
       path,
       { csrf_token: csrfToken, ...data },
@@ -435,7 +433,6 @@ export const adminMultipartPost = async (
 
 export const adminGet = async (path: string): Promise<Response> => {
   const { cookie } = await getTestSession();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   return awaitTestRequest(path, { cookie });
 };
 

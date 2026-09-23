@@ -7,6 +7,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
+import { handleRequest } from "#routes";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
@@ -14,7 +15,9 @@ import {
   rememberListing,
 } from "#test/specs/support/listings.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
+import { STUB_CHECKOUT_URL } from "#test-utils/checkout.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -178,9 +181,6 @@ export const customerScansLater = async (
 /** A customer scans a code the moment it goes up. */
 export const customerScans = (link: string): Promise<WhereTheCodeLed> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
-    const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
-    const { handleRequest } = await import("#routes");
-    const { mockRequest } = await import("#test-utils/mocks.ts");
     const response = await handleRequest(mockRequest(link));
     // The whole address has to be the payment page, not merely start like it.
     const sentToPay =

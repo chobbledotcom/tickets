@@ -8,6 +8,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
+import { handleRequest } from "#routes";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import { emailFor } from "#test/specs/support/tickets.ts";
 import type {
@@ -27,7 +28,6 @@ const ask = async (
   path: string,
   options: { body?: Record<string, unknown>; method?: string } = {},
 ): Promise<ApiAnswer> => {
-  const { handleRequest } = await import("#routes");
   const method = options.method ?? "GET";
   const response = await handleRequest(
     mockRequest(path, {

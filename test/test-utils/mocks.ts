@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
 import { bracket } from "#fp";
+import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -372,19 +373,12 @@ export const testRequest = (
     method: method ?? "GET",
   });
 };
-
-/** Send `request` to the app. The route graph is a dynamic import, so a helper
- *  module that only builds requests never pulls it in. */
-export const sendToApp = async (request: Request): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  return handleRequest(request);
-};
-
+/** Send a test request for `path` to the app and return the Response. */
 export const awaitTestRequest = (
   path: string,
   tokenOrOptions?: string | TestRequestOptions | null,
 ): Promise<Response> =>
-  sendToApp(
+  handleRequest(
     typeof tokenOrOptions === "object" && tokenOrOptions !== null
       ? testRequest(path, null, tokenOrOptions)
       : testRequest(path, tokenOrOptions),

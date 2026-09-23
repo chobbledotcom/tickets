@@ -15,6 +15,8 @@
 
 import { expect } from "@std/expect";
 import { listingChildren } from "#db/listing-parents.ts";
+import { handleRequest } from "#routes";
+import { awaitTestRequest, testPageHtml } from "#test-utils/mocks.ts";
 import type { Group, Listing, ListingWithCount } from "#types";
 import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
@@ -30,10 +32,8 @@ import { enablePublicSite } from "./settings.ts";
 // ---------------------------------------------------------------------------
 
 /** GET `/ticket/<slugs>` and return the raw Response. */
-export const ticketGet = async (slugs: string): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-  return awaitTestRequest(`/ticket/${slugs}`);
-};
+export const ticketGet = async (slugs: string): Promise<Response> =>
+  awaitTestRequest(`/ticket/${slugs}`);
 
 /** GET the booking-page HTML for `slugs`. */
 export const bookingPageHtml = async (slugs: string): Promise<string> =>
@@ -58,7 +58,6 @@ const postToBookingPath = async (
   slugs: string,
   fields: Record<string, string>,
 ): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const csrf = await bookingPageToken(slugs);
   return awaitTestRequest(`/${section}/${slugs}`, {
     cookie: `csrf_token=${csrf}`,
@@ -166,10 +165,8 @@ export const makeCustomisableDailyParent = () =>
   });
 
 /** GET a JSON API path and return the raw Response. */
-export const apiGet = async (path: string): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-  return awaitTestRequest(path);
-};
+export const apiGet = async (path: string): Promise<Response> =>
+  awaitTestRequest(path);
 
 /** GET `/api/listings` (the collection endpoint) and return the row whose slug
  *  matches `slug` — the single shape behind the "this parent is/isn't sold-out
@@ -291,7 +288,6 @@ export const expectChildAvailability = (
  * shared fetch behind {@link publicBody} and {@link ticketPageStatus}. */
 const publicFetch = async (path: string): Promise<Response> => {
   await enablePublicSite();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   return awaitTestRequest(path);
 };
 
@@ -313,9 +309,8 @@ export const ticketPageStatus = async (slug: string): Promise<number> => {
 export const apiBook = async (
   slug: string,
   extra: Record<string, unknown> = {},
-): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  return handleRequest(
+): Promise<Response> =>
+  handleRequest(
     new Request(`http://localhost/api/listings/${slug}/book`, {
       body: JSON.stringify({
         email: "a@b.com",
@@ -327,7 +322,6 @@ export const apiBook = async (
       method: "POST",
     }),
   );
-};
 
 /** Assert a response is the public reservation success redirect. */
 export const expectReserved = (response: Response): void => {
@@ -402,7 +396,6 @@ export const postChildren = async (
   childIds: number[],
 ): Promise<Response> => {
   const { getTestSession } = await import("#test-utils/session.ts");
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const { cookie, csrfToken } = await getTestSession();
   return awaitTestRequest(`/admin/listing/${listingId}/children`, {
     cookie,
@@ -538,7 +531,6 @@ export const soldOutParentInGroup = async (
  */
 export const expectNoListingsCta = async (groupSlug: string): Promise<void> => {
   await enablePublicSite();
-  const { testPageHtml } = await import("#test-utils/mocks.ts");
   const body = await testPageHtml("/listings");
   expect(body).not.toContain(`href="/ticket/${groupSlug}"`);
 };

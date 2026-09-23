@@ -2,6 +2,7 @@
  * listing, its "John Doe" attendee, and the owner session. */
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
 
 export const setupAdminTest = async (
@@ -49,7 +50,6 @@ export const adminAttendeeAction =
     listingOverrides?: TestListingOverrides,
   ) => Promise<AdminFixtureResult>) =>
     onAdminFixture(async (ctx) => {
-      const { awaitTestRequest } = await import("#test-utils/mocks.ts");
       const url =
         scope === "listing"
           ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
@@ -63,7 +63,6 @@ export const adminAttendeeAction =
 export const adminListingPage = (
   pathFn: (ctx: AdminTestContext) => string,
 ): ((listingOverrides?: TestListingOverrides) => Promise<AdminFixtureResult>) =>
-  onAdminFixture(async (ctx) => {
-    const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-    return awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
-  });
+  onAdminFixture(async (ctx) =>
+    awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie }),
+  );

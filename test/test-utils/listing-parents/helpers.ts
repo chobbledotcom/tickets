@@ -1,7 +1,9 @@
 import { listingChildren } from "#db/listing-parents.ts";
+import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import {
   insertModifier,
   linkModifierGroup,
@@ -10,7 +12,7 @@ import {
   patchModifier,
 } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
-import { apiRequest } from "#test-utils/session.ts";
+import { apiRequest, getTestSession } from "#test-utils/session.ts";
 
 type TestListing = Awaited<ReturnType<typeof createTestListing>>;
 type ParentChild = { parent: TestListing; child: TestListing };
@@ -161,10 +163,6 @@ export const postListingEdit = async (
   const { buildUpdateListingForm } = await import(
     "#test-utils/db-helpers/listing-forms.ts"
   );
-  const { getTestSession } = await import("#test-utils/session.ts");
-  const { mockMultipartRequest, sendToApp } = await import(
-    "#test-utils/mocks.ts"
-  );
   const existing = (await getListingWithCount(listingId))!;
   const form = buildUpdateListingForm(updates, existing);
   // The edit form carries group membership as `group_ids` checkboxes. Translate
@@ -178,7 +176,7 @@ export const postListingEdit = async (
   const formWithGroups =
     groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
   const session = await getTestSession();
-  return sendToApp(
+  return handleRequest(
     mockMultipartRequest(
       `/admin/listing/${listingId}/edit`,
       { ...formWithGroups, csrf_token: session.csrfToken },

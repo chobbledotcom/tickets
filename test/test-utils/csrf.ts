@@ -1,7 +1,14 @@
 import { expect } from "@std/expect";
+import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
+import {
+  awaitTestRequest,
+  mockFormRequest,
+  mockTicketFormRequest,
+  testPageHtml,
+} from "#test-utils/mocks.ts";
 
 export const extractCsrfToken = (html: string | null): string | null => {
   if (!html) return null;
@@ -75,7 +82,6 @@ export const csrfTokenOrSignedFallback = async (
 export const getPageWithCsrf = async (
   path: string,
 ): Promise<{ csrfToken: string; html: string }> => {
-  const { testPageHtml } = await import("#test-utils/mocks.ts");
   const html = await testPageHtml(path);
   const csrfToken = extractCsrfToken(html);
   if (!csrfToken) throw new Error(`Failed to get CSRF token from ${path}`);
@@ -103,9 +109,6 @@ export const submitJoinForm = async (
   inviteCode: string,
   data: { password: string; password_confirm: string },
 ): Promise<Response> => {
-  const { awaitTestRequest, testPageHtml } = await import(
-    "#test-utils/mocks.ts"
-  );
   const joinPath = `/join/${inviteCode}`;
   const joinCsrf = requireJoinCsrfToken(await testPageHtml(joinPath));
   return awaitTestRequest(joinPath, {
@@ -121,13 +124,10 @@ export const submitTicketForm = async (
   slug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { mockTicketFormRequest, sendToApp, testPageHtml } = await import(
-    "#test-utils/mocks.ts"
-  );
   const html = await testPageHtml(`/ticket/${slug}`);
   const csrfToken = await csrfTokenOrSignedFallback(html);
   const normalizedData = normalizeSingleListingFields(data, html);
-  return sendToApp(mockTicketFormRequest(slug, normalizedData, csrfToken));
+  return handleRequest(mockTicketFormRequest(slug, normalizedData, csrfToken));
 };
 
 /** POSTs a ticket form carrying no CSRF token at all and asserts the
@@ -137,7 +137,6 @@ export const expectMissingCsrfRejected = async (
   path: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path, { data });
   expect(response.status).toBe(302);
   expectFlash(
@@ -152,7 +151,6 @@ export const submitMultiTicketForm = async (
   slug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const path = `/ticket/${slug}`;
   const { csrfToken } = await getPageWithCsrf(path);
   return awaitTestRequest(path, {
@@ -169,9 +167,8 @@ export const postRunningTotal = async (
   postSlug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { mockFormRequest, sendToApp } = await import("#test-utils/mocks.ts");
   const { csrfToken } = await getPageWithCsrf(`/ticket/${pageSlug}`);
-  return sendToApp(
+  return handleRequest(
     mockFormRequest(`/calculate/${postSlug}`, {
       ...data,
       csrf_token: csrfToken,

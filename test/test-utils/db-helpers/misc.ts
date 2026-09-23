@@ -1,5 +1,6 @@
 import type { NewsPostWriteInput } from "#db/news-posts.ts";
 import type { SitePageWriteInput } from "#db/site-pages.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import type { NewsPost, SitePage } from "#types";
 import { createTestListing } from "./listings.ts";
 
@@ -8,7 +9,6 @@ export const createTestInvite = async (
   adminLevel = "manager",
 ): Promise<{ inviteCode: string; cookie: string; csrfToken: string }> => {
   const { getTestSession } = await import("#test-utils/session.ts");
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const { cookie, csrfToken } = await getTestSession();
   const inviteResponse = await awaitTestRequest("/admin/users", {
     cookie,
@@ -27,7 +27,6 @@ export const createTestInvite = async (
 };
 
 export const getEmbeddableTicketResponse = async (): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const listing = await createTestListing({
     maxAttendees: 50,
     thankYouUrl: "https://example.com",
