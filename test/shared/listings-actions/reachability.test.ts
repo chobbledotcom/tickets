@@ -2,10 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import {
-  deactivationOrphanedAddOnError,
-  validateListingInput,
-} from "#shared/listings-actions.ts";
+import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
+import { validateListingInput } from "#shared/listings-actions.ts";
 import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

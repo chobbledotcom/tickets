@@ -9,6 +9,7 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { removeListingsFromGroup } from "#db/groups/membership/package-writes.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -16,6 +17,10 @@ import {
   listingGroupIdsOf,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  groupRescuedChildAddOn,
+  groupScopedAddOn,
+} from "#test-utils/listing-parents/helpers.ts";
 
 /** The flat price override rows one group's membership put on a listing. */
 const groupOverrideRows = (listingId: number, groupId: number) =>
@@ -134,5 +139,36 @@ describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
     // starts from no override — same as unticking the box on its own form.
     expect(await listingGroupIdsOf(listing.id)).toEqual([]);
     expect(await groupOverrideRows(listing.id, group.id)).toEqual([]);
+  });
+
+  test("refuses removing the parent that rescues a group-scoped add-on", async () => {
+    const { child, group, parent } = await groupScopedAddOn();
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    expect(await removeListingsFromGroup([parent.id], group.id)).toBe(
+      t("modifiers.err_child_only_addon", { name: "Group extra" }),
+    );
+    // The refused write changed nothing: the parent is still a member.
+    expect(await listingGroupIdsOf(parent.id)).toEqual([group.id]);
+  });
+
+  test("refuses removing the rescuing page of a group-scoped add-on", async () => {
+    const { group, rescuer } = await groupRescuedChildAddOn();
+
+    expect(await removeListingsFromGroup([rescuer.id], group.id)).toBe(
+      t("modifiers.err_child_only_addon", { name: "Group extra" }),
+    );
+    expect(await listingGroupIdsOf(rescuer.id)).toEqual([group.id]);
+  });
+
+  test("allows removing a member that leaves the add-on reachable", async () => {
+    const { child, group, parent } = await groupScopedAddOn();
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    // The parent stays in the group, so removing the child leaves the add-on
+    // reachable from the parent's own page.
+    expect(await removeListingsFromGroup([child.id], group.id)).toBeNull();
+    expect(await listingGroupIdsOf(child.id)).toEqual([]);
+    expect(await listingGroupIdsOf(parent.id)).toEqual([group.id]);
   });
 });

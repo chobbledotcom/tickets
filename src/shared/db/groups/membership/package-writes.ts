@@ -23,6 +23,7 @@ import {
   storedPlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
@@ -30,8 +31,9 @@ import {
   refusingTheWriteOn,
   TransactionValidationError,
 } from "#db/transaction.ts";
-import { compact } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
+import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 
 /* jscpd:ignore-end */
@@ -174,9 +176,10 @@ export type MembershipWrite = (
 ) => Promise<string | null>;
 
 /** Builds one membership write over a fresh-checked group: it deduplicates
- * the ids, opens one write transaction, checks the group's state there, and
- * hands it — with the id list and the group — to the caller's write. An empty
- * id list writes nothing. */
+ * the ids, runs the optional `prepare` check outside the write transaction,
+ * opens one write transaction, checks the group's state there, and hands it —
+ * with the id list and the group — to the caller's write. An empty id list
+ * writes nothing. */
 const membershipWrite =
   (
     writeListings: (
@@ -185,11 +188,14 @@ const membershipWrite =
       state: GroupState,
       groupId: number,
     ) => Promise<string | null>,
+    prepare?: (ids: number[], groupId: number) => Promise<string | null>,
   ) =>
   async (listingIds: number[], groupId: number): Promise<string | null> => {
     if (listingIds.length === 0) return null;
+    const ids = [...new Set(listingIds)];
+    const refusal = await prepare?.(ids, groupId);
+    if (refusal) return refusal;
     return withTransaction(async (tx) => {
-      const ids = [...new Set(listingIds)];
       const groups = await groupStatesTx(tx, [groupId]);
       const state = groups.get(groupId);
       if (!state) return t("error.selected_group_deleted");
@@ -234,6 +240,27 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
       ...compact([removeGroupPricesStatement(ids, [groupId])]),
     ]);
     return null;
+  },
+  // Before the transaction opens, the same add-on reachability check a
+  // listing save runs when it drops a group: a member can be the only page a
+  // child-scoped add-on is reachable from, and the listing edit form refuses
+  // that untick — the group page must refuse it too.
+  async (ids, groupId) => {
+    // getIdsByKeys answers every requested key, so the missing case below is
+    // an impossible state, not a member with no groups.
+    const current = await listingGroups.getIdsByKeys(ids);
+    return groupLeavingOrphanedAddOnError(
+      new Map(
+        ids.map((id) => [
+          id,
+          requiredMapValue(
+            current,
+            id,
+            "membership set for a leaving listing",
+          ).filter((group) => group !== groupId),
+        ]),
+      ),
+    );
   },
 );
 
