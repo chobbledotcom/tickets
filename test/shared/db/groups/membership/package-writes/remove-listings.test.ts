@@ -40,6 +40,28 @@ describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
     expect(await listingGroupIdsOf(two.id)).toEqual([]);
   });
 
+  test("removes ten members in one post without tripping the round-trip guard", async () => {
+    const group = await createTestGroup({ name: "Big night" });
+    const members = [];
+    for (let index = 0; index < 10; index++) {
+      members.push(await createTestListing({ name: `Member ${index}` }));
+    }
+    await Promise.all(
+      members.map((listing) => setListingGroups(listing.id, [group.id])),
+    );
+
+    expect(
+      await removeListingsFromGroup(
+        members.map((listing) => listing.id),
+        group.id,
+      ),
+    ).toBeNull();
+
+    for (const listing of members) {
+      expect(await listingGroupIdsOf(listing.id)).toEqual([]);
+    }
+  });
+
   test("a member of several groups keeps every other membership and override", async () => {
     const night = await createTestGroup({ name: "Night" });
     const day = await createTestGroup({ name: "Day" });

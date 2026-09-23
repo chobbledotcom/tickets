@@ -1,8 +1,14 @@
 /** The package half of a group write: every path that packages a group, sets
  *  its members, or assigns listings to it rechecks transaction-fresh state
  *  through the guards and fences here. */
+/* jscpd:ignore-start -- imports */
 
-import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
+import {
+  inPlaceholders,
+  resultRows,
+  type TxScope,
+  withTransaction,
+} from "#db/client.ts";
 import {
   type GroupListingSettings,
   groupListingSettingsError,
@@ -17,19 +23,18 @@ import {
   storedPlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
-import { listingGroups } from "#db/groups/table.ts";
-import {
-  hasPackageBookingsTx,
-  setGroupPackageMembers,
-  setListingGroupsTx,
-} from "#db/groups.ts";
+import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { removeGroupPricesStatement } from "#db/listing-prices.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   refusingTheWriteOn,
   TransactionValidationError,
 } from "#db/transaction.ts";
+import { compact } from "#fp";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
+
+/* jscpd:ignore-end */
 
 /** Rechecks every member after a group becomes a package or hides its members.
  *  A built-site plan can be no group's final member — ordinary or package —
@@ -212,17 +217,22 @@ export const assignListingsToGroup: MembershipWrite = membershipWrite(
 
 /** Removes listings after checking fresh group state in one write
  * transaction. Each listing keeps every other membership and its overrides
- * there: the removal runs the same membership diff the listing form's own
- * checkboxes run ({@link setListingGroupsTx}), so no parallel statement
- * builder exists here. A listing that is not a member is a no-op. */
+ * there: the deletes are the same pair-shaped ones the listing form's own
+ * untick runs, with the group fixed and the listings in-listed, so no parallel
+ * statement builder exists here. One batch however many members were chosen —
+ * a chatty per-listing loop would trip the interactive round-trip guard. A
+ * listing that is not a member is a no-op. */
 export const removeListingsFromGroup: MembershipWrite = membershipWrite(
   async (tx, ids, _state, groupId) => {
-    for (const listingId of ids) {
-      const others = (await listingGroups.getIdsTx(tx, listingId)).filter(
-        (id) => id !== groupId,
-      );
-      await setListingGroupsTx(tx, listingId, others);
-    }
+    await tx.batch([
+      {
+        args: [groupId, ...ids],
+        sql: `DELETE FROM group_listings WHERE group_id = ? AND listing_id IN (${inPlaceholders(
+          ids,
+        )})`,
+      },
+      ...compact([removeGroupPricesStatement(ids, [groupId])]),
+    ]);
     return null;
   },
 );

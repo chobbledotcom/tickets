@@ -106,10 +106,17 @@ The issue asks for the same write, not a new decision.
 
 - Mirrors `assignListingsToGroup`. One `withTransaction`.
 - A fresh `groupStatesTx` read answers `error.selected_group_deleted`.
-- For each listing, read the current group set, drop `groupId`, and run
-  `setListingGroupsTx` with the remaining set. `setListingGroupsTx` already
-  validates the membership, skips a deleted listing, and builds the same diff
-  statements the listing edit form uses. No parallel statement builder.
+- **Build note:** the plan first ran `setListingGroupsTx` per listing, with the
+  listing's remaining group set. The review of the pull request showed that loop
+  spends about five statements per listing inside one write transaction, so
+  removing ten members trips the interactive round-trip guard at statement 31
+  and the edge subrequest budget at 51. The built write deletes by (listing,
+  group) pair instead: the same pair-shaped deletes the listing form's untick
+  runs, with the group fixed and the listings in-listed, all in one batch
+  however many members were chosen. A pure removal cannot break the membership
+  rules, because each remaining set is a subset of a set that already passed
+  them. `removeGroupPricesStatement` in `listing-prices.ts` now serves both
+  shapes: one listing across many groups, and one group across many listings.
 - Returns an error message for the flash redirect, or null on success.
 
 The route handler parses `listing_ids`, calls the one implementation, logs the
@@ -123,8 +130,8 @@ catalog copy for the submit label.
 - **What if the group disappears between the page load and the post?** The fresh
   group read inside the transaction answers the deletion. The operator lands on
   the groups list.
-- **What if a listing disappears?** `setListingGroupsTx` reports a missing
-  listing and skips it. No partial write, no error.
+- **What if a listing disappears?** A membership row for a deleted listing
+  matches no row, so the delete is a no-op. No partial write, no error.
 - **What if the operator re-posts after an interruption?** The second run is a
   no-op on the removed rows. The success flash is correct either way.
 - **What does a buyer see mid-change?** A live checkout prices from live
@@ -168,7 +175,8 @@ outside this count.
 - Unit tests for `removeListingsFromGroup`: the membership row and this group's
   price overrides are gone. Other groups' memberships and overrides stay. A
   non-member is a no-op. A deleted group returns the error message. A deleted
-  listing is skipped.
+  listing is skipped. Ten members go in one post without tripping the round-trip
+  guard.
 - Route tests for `POST /admin/groups/:id/remove-listings`: the write lands and
   the flash shows. A read-only editor is refused. The removed listing appears in
   the add form again. A member of two groups keeps the other membership.

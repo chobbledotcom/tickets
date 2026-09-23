@@ -8,7 +8,7 @@ import {
   getListingDayPrices,
   groupDayPriceStatements,
   groupFlatPriceStatements,
-  removeListingGroupPricesStatement,
+  removeGroupPricesStatement,
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
@@ -151,18 +151,28 @@ describe("groupFlatPriceStatements", () => {
   });
 });
 
-describe("removeListingGroupPricesStatement", () => {
+describe("removeGroupPricesStatement", () => {
   test("returns null when no groups are being left", () => {
-    expect(removeListingGroupPricesStatement(5, [])).toBeNull();
+    expect(removeGroupPricesStatement([5], [])).toBeNull();
+  });
+
+  test("returns null when no listings are named", () => {
+    expect(removeGroupPricesStatement([], [1])).toBeNull();
   });
 
   test("drops the listing's flat + per-day rows for each left group in one statement", () => {
-    const stmt = removeListingGroupPricesStatement(5, [1, 12])!;
+    const stmt = removeGroupPricesStatement([5], [1, 12])!;
     // Flat rows matched by exact group id; per-day rows by the "<id>/%" glob (the
     // trailing "/" keeps group 1's glob from matching group 12's price_ids).
     expect(stmt.args).toEqual([5, "1", "12", "1/%", "12/%"]);
     expect(stmt.sql).toContain("price_type = 'group' AND price_id IN (?, ?)");
     expect(stmt.sql).toContain("price_id LIKE ? OR price_id LIKE ?");
+  });
+
+  test("drops several listings' rows for one left group in one statement", () => {
+    const stmt = removeGroupPricesStatement([5, 6, 7], [1])!;
+    expect(stmt.args).toEqual([5, 6, 7, "1", "1/%"]);
+    expect(stmt.sql).toContain("listing_id IN (?, ?, ?)");
   });
 });
 
