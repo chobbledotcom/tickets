@@ -15,6 +15,7 @@ const writeProject = async (
     JSON.stringify({
       imports: {
         "#db/": "./src/shared/db/",
+        "#routes": "./src/features/index.ts",
         "#shared/": "./src/shared/",
         "#test/": `${root}/test/`,
       },
@@ -46,6 +47,22 @@ describe("scanTestTree", () => {
     expect([...scan.subjectsOf(`${testRoot}/shared/a.test.ts`)].sort()).toEqual(
       ["src/shared/a.ts", "src/shared/db/client.ts"],
     );
+  });
+
+  test("marks a test that drives the app through a helper", async () => {
+    using temp = tempDir();
+    const { configPath, testRoot } = await writeProject(temp.path, {
+      "test/pages.ts": `const { handleRequest } = await import("#routes");`,
+      "test/shared/a.test.ts": `import { openPage } from "../pages.ts";`,
+    });
+    const scan = await scanTestTree({
+      configPath,
+      isTest: (path) => path.endsWith(".test.ts"),
+      testRoot,
+    });
+    expect(scan.loadsAppOf(`${testRoot}/shared/a.test.ts`)).toBe(true);
+    // A path the scan did not select loads nothing.
+    expect(scan.loadsAppOf(`${testRoot}/absent.test.ts`)).toBe(false);
   });
 
   test("defaults to this repo's own config and test tree", async () => {

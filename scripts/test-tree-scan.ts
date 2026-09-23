@@ -17,12 +17,15 @@ import {
   collectTestSubjects,
   type ImportMap,
   type ReadText,
+  type TestSubjects,
 } from "./test-subjects.ts";
 import { walkFiles } from "./walk-files.ts";
 
 /** The result of one scan: every test-tree file, what each selected test
- *  exercises, and the reader that produced it. */
+ * exercises, and the reader that produced it. */
 export interface TestTreeScan {
+  /** True when the test drives the app through a helper it reaches. */
+  loadsAppOf: (testFile: string) => boolean;
   readText: ReadText;
   /** The `src/` files a test exercises; empty for a path that wasn't selected. */
   subjectsOf: (testFile: string) => readonly string[];
@@ -49,17 +52,18 @@ export const scanTestTree = async ({
   const readText = cachingReader((path: string) => Deno.readTextFile(path));
   const testTreeFiles = new Set<string>();
   for await (const path of walkFiles(testRoot)) testTreeFiles.add(path);
-  const subjects = new Map<string, readonly string[]>();
+  const walked = new Map<string, TestSubjects>();
   for (const path of testTreeFiles) {
     if (!isTest(path)) continue;
-    subjects.set(
+    walked.set(
       path,
       await collectTestSubjects(path, readText, importMap, testTreeFiles),
     );
   }
   return {
+    loadsAppOf: (testFile) => walked.get(testFile)?.loadsApp ?? false,
     readText,
-    subjectsOf: (testFile) => subjects.get(testFile) ?? [],
+    subjectsOf: (testFile) => walked.get(testFile)?.subjects ?? [],
     testTreeFiles,
   };
 };

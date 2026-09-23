@@ -35,8 +35,9 @@ import {
 } from "./unit-tests-report-lib.ts";
 import { walkFiles } from "./walk-files.ts";
 
-/** A test file with both its line count (for the ratio report) and the `src/`
- *  paths it exercises, its own and its helpers' (for the misplaced worklist). */
+/** A test file with its line count (for the ratio report), the `src/` paths it
+ * exercises — its own and its non-utils helpers' — and whether it drives the
+ * app through a helper (for the misplaced worklist). */
 type TestFile = FileLines & TestImports;
 
 /** Walk `root`, keep the files matching `keep`, and build a record from each
@@ -83,6 +84,7 @@ if (import.meta.main) {
     tests.push({
       imports: scan.subjectsOf(path),
       lines: countLines(await scan.readText(path)),
+      loadsApp: scan.loadsAppOf(path),
       path,
     });
   }
