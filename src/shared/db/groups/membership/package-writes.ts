@@ -175,37 +175,39 @@ export type MembershipWrite = (
   groupId: number,
 ) => Promise<string | null>;
 
-/** Builds one membership write over a fresh-checked group: it deduplicates
- * the ids, runs the optional `prepare` check outside the write transaction,
- * opens one write transaction, checks the group's state there, and hands it —
- * with the id list and the group — to the caller's write. An empty id list
- * writes nothing. */
+/** The deduplicated ids of one membership write. An empty selection returns
+ * null: a write with nothing selected never opens a transaction. */
+const selectedListingIds = (listingIds: number[]): number[] | null =>
+  listingIds.length === 0 ? null : [...new Set(listingIds)];
+
+/** Builds one membership write: nothing selected writes nothing, the ids are
+ * deduplicated, the optional `prepare` check runs before the write
+ * transaction opens, and the `write` itself runs inside it with the group
+ * checked there. */
 const membershipWrite =
-  (
-    writeListings: (
+  (steps: {
+    prepare?: (ids: number[], groupId: number) => Promise<string | null>;
+    write: (
       tx: TxScope,
       ids: number[],
-      state: GroupState,
       groupId: number,
-    ) => Promise<string | null>,
-    prepare?: (ids: number[], groupId: number) => Promise<string | null>,
-  ) =>
+    ) => Promise<string | null>;
+  }) =>
   async (listingIds: number[], groupId: number): Promise<string | null> => {
-    if (listingIds.length === 0) return null;
-    const ids = [...new Set(listingIds)];
-    const refusal = await prepare?.(ids, groupId);
+    const ids = selectedListingIds(listingIds);
+    if (ids === null) return null;
+    const refusal = await steps.prepare?.(ids, groupId);
     if (refusal) return refusal;
-    return withTransaction(async (tx) => {
-      const groups = await groupStatesTx(tx, [groupId]);
-      const state = groups.get(groupId);
-      if (!state) return t("error.selected_group_deleted");
-      return writeListings(tx, ids, state, groupId);
-    });
+    return withTransaction((tx) => steps.write(tx, ids, groupId));
   };
 
-/** Adds listings after checking fresh group, listing, and edge state in one write transaction. */
-export const assignListingsToGroup: MembershipWrite = membershipWrite(
-  async (tx, ids, state, groupId) => {
+/** Adds listings after checking fresh group, listing, and edge state in one
+ * write transaction. */
+export const assignListingsToGroup: MembershipWrite = membershipWrite({
+  write: async (tx, ids, groupId) => {
+    const groups = await groupStatesTx(tx, [groupId]);
+    const state = groups.get(groupId);
+    if (!state) return t("error.selected_group_deleted");
     // Serialize the transaction reads: the connection allows one in-flight
     // statement, so concurrent tx.execute calls can interleave and reject.
     const listings = await listingStatesTx(tx, ids);
@@ -219,17 +221,44 @@ export const assignListingsToGroup: MembershipWrite = membershipWrite(
     await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
   },
-);
+});
 
-/** Removes listings after checking fresh group state in one write
+/** Removes listings after checking the group exists, in one write
  * transaction. Each listing keeps every other membership and its overrides
  * there: the deletes are the same pair-shaped ones the listing form's own
  * untick runs, with the group fixed and the listings in-listed, so no parallel
  * statement builder exists here. One batch however many members were chosen —
  * a chatty per-listing loop would trip the interactive round-trip guard. A
  * listing that is not a member is a no-op. */
-export const removeListingsFromGroup: MembershipWrite = membershipWrite(
-  async (tx, ids, _state, groupId) => {
+export const removeListingsFromGroup: MembershipWrite = membershipWrite({
+  // Before the transaction opens, the same add-on reachability check a
+  // listing save runs when it drops a group: a member can be the only page a
+  // child-scoped add-on is reachable from, and the listing edit form refuses
+  // that untick — the group page must refuse it too. getIdsByKeys answers
+  // every requested key, so the required map value below is an invariant,
+  // not a member with no groups.
+  async prepare(ids, groupId) {
+    const current = await listingGroups.getIdsByKeys(ids);
+    const leaving = new Map(
+      ids.map((id) => [
+        id,
+        requiredMapValue(
+          current,
+          id,
+          "membership set for a leaving listing",
+        ).filter((group) => group !== groupId),
+      ]),
+    );
+    return groupLeavingOrphanedAddOnError(leaving);
+  },
+  async write(tx, ids, groupId) {
+    // The removal judges no member rules, so the fresh group check reads the
+    // group's existence alone — not the whole member list.
+    const group = await tx.execute({
+      args: [groupId],
+      sql: "SELECT 1 FROM groups WHERE id = ? LIMIT 1",
+    });
+    if (group.rows.length === 0) return t("error.selected_group_deleted");
     await tx.batch([
       {
         args: [groupId, ...ids],
@@ -241,28 +270,7 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
     ]);
     return null;
   },
-  // Before the transaction opens, the same add-on reachability check a
-  // listing save runs when it drops a group: a member can be the only page a
-  // child-scoped add-on is reachable from, and the listing edit form refuses
-  // that untick — the group page must refuse it too.
-  async (ids, groupId) => {
-    // getIdsByKeys answers every requested key, so the missing case below is
-    // an impossible state, not a member with no groups.
-    const current = await listingGroups.getIdsByKeys(ids);
-    return groupLeavingOrphanedAddOnError(
-      new Map(
-        ids.map((id) => [
-          id,
-          requiredMapValue(
-            current,
-            id,
-            "membership set for a leaving listing",
-          ).filter((group) => group !== groupId),
-        ]),
-      ),
-    );
-  },
-);
+});
 
 /** The rejection reasons for one add-listings batch: a built-site plan joins
  *  no group (ordinary or package), a stored plan member holds every joiner

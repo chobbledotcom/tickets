@@ -74,12 +74,12 @@ There is no external provider call. The command is one local transaction.
 
 ### Concurrency table
 
-| Operation A               | Operation B                                       | Required result                                                                                                                                                     | Protection                            |
-| ------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Remove `L` from `G`       | Add `L` to `G` (add-listings form)                | One membership row ends the race with a member; the remove-first order ends with no member. Each transaction reads the current set inside its own write lock.       | Transaction lock                      |
-| Remove `L` from `G`       | Save the listing edit form (`setListingGroupsTx`) | The same serialization. Both paths run the diff statements from `listingGroupDiffStatements`.                                                                       | Transaction lock                      |
-| Remove `L` from `G`       | Delete group `G`                                  | Either the remove sees a live group and commits, or it sees no group and reports the deletion. `resetGroupListings` in the delete path removes every member anyway. | Transaction lock and fresh group read |
-| Remove package member `L` | A checkout of the package at commit time          | The webhook revalidation prices from live membership after the commit and refuses the stale checkout. This is the current behavior of the listing edit form path.   | Webhook revalidation                  |
+| Operation A               | Operation B                                       | Required result                                                                                                                                                                     | Protection                            |
+| ------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Remove `L` from `G`       | Add `L` to `G` (add-listings form)                | Whichever transaction commits last decides: remove first, then add, ends with `L` a member; add first, then remove, ends without it. Each transaction runs alone on the write lock. | Transaction lock                      |
+| Remove `L` from `G`       | Save the listing edit form (`setListingGroupsTx`) | The same serialization. Both paths run the diff statements from `listingGroupDiffStatements`.                                                                                       | Transaction lock                      |
+| Remove `L` from `G`       | Delete group `G`                                  | Either the remove sees a live group and commits, or it sees no group and reports the deletion. `resetGroupListings` in the delete path removes every member anyway.                 | Transaction lock and fresh group read |
+| Remove package member `L` | A checkout of the package at commit time          | The webhook revalidation prices from live membership after the commit and refuses the stale checkout. This is the current behavior of the listing edit form path.                   | Webhook revalidation                  |
 
 ### Owner choices
 
