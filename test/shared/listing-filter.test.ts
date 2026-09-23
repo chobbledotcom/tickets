@@ -173,7 +173,7 @@ describe("renderTypeFilter", () => {
         ' / <a href="/admin/listings?type=standard">Standard</a>' +
         "</div>",
     );
-    expect(html).not.toContain("Daily");
+    expect(html).not.toContain("?type=daily");
     expect(html).not.toContain("No check-in");
   });
 

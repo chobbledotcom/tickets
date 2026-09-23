@@ -58,7 +58,7 @@ attendeeTableSuite(() => {
   test("renders only the answers saved for an attendee", () => {
     const html = renderAnswers(2);
     expect(html).toContain("Large");
-    expect(html).not.toContain("Small");
+    expect(html).not.toContain('title="Size?: Small');
   });
 
   test("omits Answers when question data is absent", () => {

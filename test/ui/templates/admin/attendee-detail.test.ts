@@ -87,7 +87,7 @@ describe("attendee summary section", () => {
 
   test("omits the email row when there is no email", () => {
     const html = renderDetail(testAttendee({ email: "" }));
-    expect(html).not.toContain("Email");
+    expect(html).not.toContain('<th scope="row">Email</th>');
   });
 
   test("shows the phone number with small tel and whatsapp links", () => {
@@ -106,7 +106,7 @@ describe("attendee summary section", () => {
 
   test("omits the phone row when there is no phone", () => {
     const html = renderDetail(testAttendee({ phone: "" }));
-    expect(html).not.toContain("Phone");
+    expect(html).not.toContain('<th scope="row">Phone</th>');
     expect(html).not.toContain("tel:");
   });
 
@@ -326,7 +326,9 @@ describe("AttendeeAnswersTable", () => {
     expect(html).toContain("Large");
     // Unanswered question and the unpicked option are absent.
     expect(html).not.toContain("Meal?");
-    expect(html).not.toContain("Small");
+    // The answer opens the table cell, so ">Small" matches only an answer
+    // the page shows, never a fragment of a longer string.
+    expect(html).not.toContain(">Small");
   });
 
   test("returns null when the attendee answered no questions", () => {

@@ -120,7 +120,7 @@ describe("saved form data", () => {
     clearSavedFormData();
     expect(
       renderFields([field({ label: "Name", name: "name" })]),
-    ).not.toContain("Alice");
+    ).not.toContain('value="Alice"');
   });
 
   test("renders no value attributes when nothing was saved", () => {

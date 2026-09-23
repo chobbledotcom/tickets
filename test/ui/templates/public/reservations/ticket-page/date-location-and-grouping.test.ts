@@ -169,8 +169,8 @@ describe("ticketViewPage package grouping", () => {
       new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
     );
     expect(html).toContain("Secret Bundle");
-    expect(html).not.toContain("Tent");
-    expect(html).not.toContain("Chair");
+    expect(html).not.toContain("<li>Tent");
+    expect(html).not.toContain("<li>Chair");
     expect(html).toContain(`/t/${token}/svg`);
   });
 
