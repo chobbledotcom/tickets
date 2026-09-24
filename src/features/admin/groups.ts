@@ -36,7 +36,8 @@ import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
   handleAddListingsToGroup,
-  handleRemoveListingsFromGroup,
+  handleRemoveListingsGet,
+  handleRemoveListingsPost,
 } from "#routes/admin/group-listing-forms.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
@@ -346,6 +347,7 @@ export const adminHandlers = defineRoutes({
   // invariant via validate/afterWrite.
   ...entityTabRoutes(adminPattern("group"), groupPage),
   "GET /admin/groups/:id/delete": crud.deleteGet,
+  "GET /admin/groups/:id/remove-listings": handleRemoveListingsGet,
   // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": create.newGet,
   "POST /admin/groups": create.createPost,
@@ -354,5 +356,5 @@ export const adminHandlers = defineRoutes({
   "POST /admin/groups/:id/edit": crud.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
-  "POST /admin/groups/:id/remove-listings": handleRemoveListingsFromGroup,
+  "POST /admin/groups/:id/remove-listings": handleRemoveListingsPost,
 });

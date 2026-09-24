@@ -71,17 +71,9 @@ export const groupLeavingOrphanedAddOnError = (
     return groupIds === undefined ? {} : { groupIds: [...groupIds] };
   });
 
-/**
- * The edge-touching re-check only walks edges that touch a listing, so it
- * MISSES this case. A deactivated listing may have no edge of its own, and
- * still be the ordinary page keeping a child-scoped add-on reachable.
- *
- * So every active opt-in add-on is re-checked against an in-memory set with ALL
- * the targets marked inactive AT ONCE. An add-on rescued only by several group
- * members together is then still caught.
- *
- * DEACTIVATION only. An activation can only ADD reachable pages.
- */
+/** Re-checks every add-on with ALL the targets inactive at once: one rescued
+ * only by several group members together is still caught. Deactivation only —
+ * an activation can only add reachable pages. */
 export const deactivationOrphanedAddOnError = async (
   inactiveIds: ReadonlySet<number>,
 ): Promise<string | null> => {

@@ -14,17 +14,15 @@ import { logActivity } from "#db/activity-log.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-end */
 import {
-  type AuthSession,
-  contentMultipartRoute,
-  contentPage,
-  requireContentOr,
-} from "#routes/auth.ts";
+  type ContentRecordLoad,
+  contentRecordPage,
+} from "#routes/admin/content-record.ts";
+import { contentMultipartRoute, contentPage } from "#routes/auth.ts";
 import { requireUploadedFile } from "#routes/csrf.ts";
 import {
   downloadResponse,
   encodeBody,
   errorRedirect,
-  notFoundResponse,
   redirect,
 } from "#routes/response.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
@@ -55,28 +53,21 @@ const catalogFilename = (kind: string, name: string): string =>
 const downloadExport = <T>(
   request: Request,
   id: number,
-  load: (
-    id: number,
-    session: AuthSession,
-  ) => Promise<T | CatalogExportError | null>,
+  load: ContentRecordLoad<T | CatalogExportError>,
   kind: string,
   nameOf: (blob: T) => string,
 ): Promise<Response> =>
-  requireContentOr(request, async (session) => {
-    const blob = await load(id, session);
-    // A row created through the JSON API can hold a value the transfer format
-    // rejects (e.g. an unrecognised bookable day); surface that as an
-    // operator-facing 422 rather than a raw 500.
-    if (blob instanceof CatalogExportError) {
-      return new Response(blob.message, {
-        headers: { "content-type": "text/plain; charset=utf-8" },
-        status: 422,
-      });
-    }
-    return blob
-      ? jsonDownload(blob, catalogFilename(kind, nameOf(blob)))
-      : notFoundResponse();
-  });
+  contentRecordPage<T | CatalogExportError>(request, id, load, async (blob) =>
+    // A row created through the JSON API can hold a value the transfer
+    // format rejects (e.g. an unrecognised bookable day); surface that as
+    // an operator-facing 422 rather than a raw 500.
+    blob instanceof CatalogExportError
+      ? new Response(blob.message, {
+          headers: { "content-type": "text/plain; charset=utf-8" },
+          status: 422,
+        })
+      : jsonDownload(blob, catalogFilename(kind, nameOf(blob))),
+  );
 
 /** GET /admin/listing/:id/export.json — download a listing's export blob. */
 const handleListingExport: TypedRouteHandler<

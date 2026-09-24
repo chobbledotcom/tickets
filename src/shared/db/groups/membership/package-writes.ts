@@ -223,20 +223,12 @@ export const assignListingsToGroup: MembershipWrite = membershipWrite({
   },
 });
 
-/** Removes listings after checking the group exists, in one write
- * transaction. Each listing keeps every other membership and its overrides
- * there: the deletes are the same pair-shaped ones the listing form's own
- * untick runs, with the group fixed and the listings in-listed, so no parallel
- * statement builder exists here. One batch however many members were chosen —
- * a chatty per-listing loop would trip the interactive round-trip guard. A
- * listing that is not a member is a no-op. */
+/** Removes listings from one group in one write transaction, with the
+ * pair-shaped deletes the listing form's untick runs. One batch however many
+ * members were chosen; a non-member is a no-op. */
 export const removeListingsFromGroup: MembershipWrite = membershipWrite({
-  // Before the transaction opens, the same add-on reachability check a
-  // listing save runs when it drops a group: a member can be the only page a
-  // child-scoped add-on is reachable from, and the listing edit form refuses
-  // that untick — the group page must refuse it too. getIdsByKeys answers
-  // every requested key, so the required map value below is an invariant,
-  // not a member with no groups.
+  // The listing form refuses an untick that orphans a child-scoped add-on;
+  // the group page refuses it here, before the transaction opens.
   async prepare(ids, groupId) {
     const current = await listingGroups.getIdsByKeys(ids);
     const leaving = new Map(
