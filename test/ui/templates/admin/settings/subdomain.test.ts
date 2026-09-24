@@ -109,6 +109,20 @@ describe("HostSubdomainForm", () => {
     expect(html).toContain("<code>your-name.tickets.example</code>");
   });
 
+  test("renders markup in the suffix as text, not HTML", () => {
+    const html = String(
+      HostSubdomainForm({
+        ...advancedDefaultState,
+        bunnyDnsEnabled: true,
+        bunnyDnsSubdomainSuffix: ".<b>tickets</b>",
+        existingPaymentProvider: null,
+      }),
+    );
+    // The intro renders as raw HTML, so a hostile suffix must arrive escaped.
+    expect(html).toContain("<code>your-name.&lt;b&gt;tickets&lt;/b&gt;</code>");
+    expect(html).not.toContain("your-name.<b>");
+  });
+
   test("renders the active subdomain state", () => {
     const html = String(
       HostSubdomainForm({

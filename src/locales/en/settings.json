@@ -166,7 +166,7 @@
   "settings.advanced.custom_domain_saved_unvalidated": "Custom domain saved. Validation failed: {error}",
   "settings.advanced.domain_not_validated": "Your custom domain is not yet validated. It will not work until validation is complete.",
   "settings.advanced.domain_cname_intro": "Make one CNAME record like this:",
-  "settings.advanced.domain_cname_step_open": "Open the DNS settings where you bought your domain.",
+  "settings.advanced.domain_cname_step_open": "Open the DNS settings for your domain. These are often with the company you bought it from. A service like Cloudflare can manage them instead.",
   "settings.advanced.domain_cname_step_record": "Add one CNAME record with these values:",
   "settings.advanced.domain_cname_step_check": "Come back here and click Validate custom domain. Validation can take a few minutes.",
   "settings.advanced.domain_col_type": "Type",

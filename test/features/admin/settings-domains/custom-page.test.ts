@@ -51,7 +51,7 @@ describeCustomDomain("custom domain settings page", (enable) => {
     expect(html).toContain('id="settings-custom-domain-validate"');
     expect(html).toContain("Make one CNAME record like this:");
     expect(html).toContain(
-      "Open the DNS settings where you bought your domain.",
+      "Open the DNS settings for your domain. These are often with the company you bought it from.",
     );
     expect(html).toContain("CNAME");
     expect(html).toContain("tickets.example.com");

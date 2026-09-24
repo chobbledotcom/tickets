@@ -33,6 +33,23 @@ test("without host config the answer falls back to an example suffix", () => {
   expect(html).toContain("<code>your-name.example.com</code>");
 });
 
+test("renders markup in the suffix as text, not HTML", () => {
+  const html = String(
+    renderGuideSections(
+      domainsSections({
+        builderEnabled: false,
+        bunnyDnsSubdomainSuffix: ".<b>tickets</b>",
+        hostAppleWalletPassTypeId: null,
+        hostEmailFromAddress: null,
+        hostEmailProvider: null,
+        hostGoogleWalletIssuerId: null,
+      }),
+    ),
+  );
+  expect(html).toContain("<code>your-name.&lt;b&gt;tickets&lt;/b&gt;</code>");
+  expect(html).not.toContain("your-name.<b>");
+});
+
 test("the custom domain answer names the always-working b-cdn.net address", () => {
   const html = String(renderGuideSections(domainsSections()));
   expect(html).toContain(

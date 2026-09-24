@@ -68,9 +68,7 @@ describe("CustomDomainForm", () => {
     expect(html).toContain("not yet validated");
     // Numbered CNAME steps with the record values
     expect(html).toContain("Make one CNAME record like this:");
-    expect(html).toContain(
-      "Open the DNS settings where you bought your domain.",
-    );
+    expect(html).toContain("Open the DNS settings for your domain.");
     expect(html).toContain("Validation can take a few minutes.");
     // CNAME record rows: the exact label, value, and one space between them
     expect(html).toContain("<strong>Type:</strong> CNAME");

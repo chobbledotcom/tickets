@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
@@ -18,7 +19,10 @@ import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 const SubdomainIntroProse = (s: AdvancedSettingsPageState): SafeHtml =>
   ProseIntro({
-    html: t("settings.subdomain.intro", { suffix: s.bunnyDnsSubdomainSuffix }),
+    // The suffix comes from host env, and this copy renders as raw HTML.
+    html: t("settings.subdomain.intro", {
+      suffix: escapeHtml(s.bunnyDnsSubdomainSuffix),
+    }),
   });
 
 const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {

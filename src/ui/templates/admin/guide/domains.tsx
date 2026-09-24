@@ -5,6 +5,7 @@
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   custom,
@@ -22,7 +23,10 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
           "what_is_host_subdomain",
           <Raw
             html={t("guide.domains.what_is_host_subdomain", {
-              suffix: hostConfig?.bunnyDnsSubdomainSuffix || ".example.com",
+              // Host env value rendered as raw HTML, so escape it.
+              suffix: escapeHtml(
+                hostConfig?.bunnyDnsSubdomainSuffix || ".example.com",
+              ),
             })}
           />,
         ),
