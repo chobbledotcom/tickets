@@ -105,22 +105,9 @@ describe("HostSubdomainForm", () => {
     expect(form[0]).toContain("Check if the name is free");
     expect(html).toContain("muted");
     expect(html).toContain(".tickets.example");
-    // The intro shows the full final URL once, from the host's own suffix.
-    expect(html).toContain("<code>your-name.tickets.example</code>");
-  });
-
-  test("renders markup in the suffix as text, not HTML", () => {
-    const html = String(
-      HostSubdomainForm({
-        ...advancedDefaultState,
-        bunnyDnsEnabled: true,
-        bunnyDnsSubdomainSuffix: ".<b>tickets</b>",
-        existingPaymentProvider: null,
-      }),
-    );
-    // The intro renders as raw HTML, so a hostile suffix must arrive escaped.
-    expect(html).toContain("<code>your-name.&lt;b&gt;tickets&lt;/b&gt;</code>");
-    expect(html).not.toContain("your-name.<b>");
+    // The intro promises the address through the check, not an example that
+    // would need the DNS zone to be exact.
+    expect(html).toContain("the page shows your full site address");
   });
 
   test("renders the active subdomain state", () => {

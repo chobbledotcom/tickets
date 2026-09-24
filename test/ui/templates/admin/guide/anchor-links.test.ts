@@ -27,7 +27,6 @@ const sectionIds = (): Set<string> =>
   new Set(
     guideSections({
       builderEnabled: true,
-      bunnyDnsSubdomainSuffix: ".example.com",
       hostAppleWalletPassTypeId: null,
       hostEmailFromAddress: null,
       hostEmailProvider: null,

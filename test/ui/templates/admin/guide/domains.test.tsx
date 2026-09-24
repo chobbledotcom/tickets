@@ -12,42 +12,19 @@ test("the sections keep the anchors the settings page links to", () => {
   expect(html).toContain('<h3 id="settings">');
 });
 
-test("the host subdomain answer shows the host's own suffix", () => {
-  const html = String(
-    renderGuideSections(
-      domainsSections({
-        builderEnabled: false,
-        bunnyDnsSubdomainSuffix: ".tix.chobble.net",
-        hostAppleWalletPassTypeId: null,
-        hostEmailFromAddress: null,
-        hostEmailProvider: null,
-        hostGoogleWalletIssuerId: null,
-      }),
-    ),
-  );
-  expect(html).toContain("<code>your-name.tix.chobble.net</code>");
-});
-
-test("without host config the answer falls back to an example suffix", () => {
+test("the host subdomain answer does not promise the ending", () => {
   const html = String(renderGuideSections(domainsSections()));
-  expect(html).toContain("<code>your-name.example.com</code>");
+  // The host sets the DNS zone, so only the check can name the full address.
+  expect(html).toContain("You pick the name, and the host sets the ending.");
+  expect(html).toContain("only when your host offers subdomains");
+  expect(html).not.toContain("site answers at");
 });
 
-test("renders markup in the suffix as text, not HTML", () => {
-  const html = String(
-    renderGuideSections(
-      domainsSections({
-        builderEnabled: false,
-        bunnyDnsSubdomainSuffix: ".<b>tickets</b>",
-        hostAppleWalletPassTypeId: null,
-        hostEmailFromAddress: null,
-        hostEmailProvider: null,
-        hostGoogleWalletIssuerId: null,
-      }),
-    ),
+test("the custom-domain answer notes when its section is absent", () => {
+  const html = String(renderGuideSections(domainsSections()));
+  expect(html).toContain(
+    "The section appears only when your host runs on Bunny CDN.",
   );
-  expect(html).toContain("<code>your-name.&lt;b&gt;tickets&lt;/b&gt;</code>");
-  expect(html).not.toContain("your-name.<b>");
 });
 
 test("the custom domain answer names the always-working fallback address", () => {

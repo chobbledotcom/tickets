@@ -428,15 +428,6 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide("Host subdomain", "a free address for your site");
     });
 
-    test("shows subdomain suffix when Bunny DNS is configured", async () => {
-      using _env = withEnv({
-        BUNNY_API_KEY: "test-key",
-        BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
-        BUNNY_DNS_ZONE_ID: "test-zone",
-      });
-      await assertAdminHtml("/admin/guide", ".tickets.example.com");
-    });
-
     test("documents the release tag format shared with the update checker", async () => {
       await guide(
         "Software Updates",

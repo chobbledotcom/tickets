@@ -4,7 +4,7 @@
   "guide.sections.host_subdomain": "Host subdomain",
   "guide.sections.built_sites": "Built sites",
   "guide.q.setup_custom_domain": "How do I set up a custom domain?",
-  "guide.a.setup_custom_domain": "<p>You own a domain name? Do this. Open <a href=\"/admin/settings-advanced\">Advanced settings</a> and find the <strong>Custom domain</strong> section. Enter your domain, for example <code>tickets.example.co.uk</code>, and save. Then follow the CNAME steps on the page, and click <strong>Validate custom domain</strong>. Validation can take a few minutes.</p>",
+  "guide.a.setup_custom_domain": "<p>You own a domain name? Do this. Open <a href=\"/admin/settings-advanced\">Advanced settings</a> and find the <strong>Custom domain</strong> section. The section appears only when your host runs on Bunny CDN. Enter your domain, for example <code>tickets.example.co.uk</code>, and save. Then follow the CNAME steps on the page, and click <strong>Validate custom domain</strong>. Validation can take a few minutes.</p>",
   "guide.q.what_does_validation_do": "What does validation do?",
   "guide.a.what_does_validation_do": "<p>Validation registers the hostname with the Bunny CDN pull zone, requests a free SSL certificate, and enables HTTPS. You can re-validate at any time if you change your DNS.</p>",
   "guide.q.available_settings": "What settings are available?",
@@ -34,5 +34,5 @@
   "guide.q.can_i_add_a_site_record_without": "Can I add a site record without using the builder?",
   "guide.a.can_i_add_a_site_record_without": "<p>Yes. On the <strong>Built Sites</strong> page, click <strong>Add Built Site</strong> to manually record a site name and URL. This is useful for tracking instances you deployed by other means.</p>",
   "guide.q.what_is_host_subdomain": "What is a host subdomain?",
-  "guide.domains.what_is_host_subdomain": "<p>A host subdomain is a free address for your site. It replaces the long default address the site starts with. You do not own a domain name? Use this. It needs no DNS set-up. You pick the name. The full address looks like <code>your-name{suffix}</code>. The name is permanent. The section appears on the settings page only when your host offers subdomains.</p>"
+  "guide.a.what_is_host_subdomain": "<p>A host subdomain is a free address for your site. It replaces the long default address the site starts with. You do not own a domain name? Use this. It needs no DNS set-up. You pick the name, and the host sets the ending. Press <strong>Check if the name is free</strong> on the settings page to see your full site address. The name is permanent. The section appears only when your host offers subdomains.</p>"
 }

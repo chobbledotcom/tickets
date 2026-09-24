@@ -6,11 +6,7 @@ import { defineRoutes } from "#routes/router.ts";
 
 import { settings } from "#db/settings.ts";
 import { contentPage, sessionPage } from "#routes/auth.ts";
-import {
-  getBunnyDnsSubdomainSuffix,
-  isBuilderEnabled,
-  isBunnyDnsEnabled,
-} from "#shared/config.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { EMAIL_PROVIDER_LABELS, hostEmail } from "#shared/email.ts";
 import {
   adminFormattingHelpPage,
@@ -24,9 +20,6 @@ const handleAdminGuideGet = sessionPage((session) => {
   const hostEmailConfig = hostEmail.getHostConfig();
   return adminGuidePage(session, {
     builderEnabled: isBuilderEnabled(),
-    bunnyDnsSubdomainSuffix: isBunnyDnsEnabled()
-      ? getBunnyDnsSubdomainSuffix()
-      : null,
     hostAppleWalletPassTypeId:
       settings.appleWallet.hostConfig?.passTypeId ?? null,
     hostEmailFromAddress: hostEmailConfig?.fromAddress ?? null,

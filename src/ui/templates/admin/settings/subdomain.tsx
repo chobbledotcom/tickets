@@ -4,7 +4,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
@@ -17,13 +16,8 @@ import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 /* jscpd:ignore-end */
 
-const SubdomainIntroProse = (s: AdvancedSettingsPageState): SafeHtml =>
-  ProseIntro({
-    // The suffix comes from host env, and this copy renders as raw HTML.
-    html: t("settings.subdomain.intro", {
-      suffix: escapeHtml(s.bunnyDnsSubdomainSuffix),
-    }),
-  });
+const SubdomainIntroProse = (): SafeHtml =>
+  ProseIntro({ html: t("settings.subdomain.intro") });
 
 const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.bunnySubdomain) {
@@ -45,7 +39,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.subdomainPreview) {
     return (
       <>
-        {SubdomainIntroProse(s)}
+        {SubdomainIntroProse()}
         <p>
           <strong>{s.subdomainPreviewFullDomain}</strong>{" "}
           {t("settings.subdomain.is_available")}
@@ -74,7 +68,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   }
   return (
     <>
-      {SubdomainIntroProse(s)}
+      {SubdomainIntroProse()}
       <label>
         {t("settings.subdomain.subdomain_label")}
         <input
