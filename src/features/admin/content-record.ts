@@ -21,6 +21,6 @@ export const contentRecordPage = <T>(
 ): Promise<Response> =>
   requireContentOr(request, async (session) => {
     const record = await load(id, session);
-    if (!record) return notFoundResponse();
+    if (record === null) return notFoundResponse();
     return then(record, session);
   });
