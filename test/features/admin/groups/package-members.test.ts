@@ -10,8 +10,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import type { GroupListing, ListingWithCount } from "#types";
-import { adminPost } from "./helpers.ts";
 
 describeWithEnv("admin package member overrides", { db: true }, () => {
   /** Save the group as a package with the given raw member inputs. */
@@ -19,7 +19,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     group: { id: number; name: string; slug: string },
     memberInputs: TestFormValues,
   ): Promise<void> => {
-    const response = await adminPost(`/admin/groups/${group.id}/edit`, {
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
       description: "",
       is_package: "1",
       max_attendees: "0",
@@ -144,7 +144,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       unitPrice: 900,
     });
 
-    const response = await adminPost(`/admin/groups/${group.id}/edit`, {
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
       description: "",
       is_package: "1",
       max_attendees: "0",

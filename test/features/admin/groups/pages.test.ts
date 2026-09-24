@@ -17,8 +17,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withStorageMock } from "#test-utils/mocks.ts";
-import { adminGet, getTestSession } from "#test-utils/session.ts";
-import { adminPost } from "./helpers.ts";
+import {
+  adminFormPost,
+  adminGet,
+  getTestSession,
+} from "#test-utils/session.ts";
 
 describeWithEnv("admin group pages", { db: true }, () => {
   test("lists every group", async () => {
@@ -45,7 +48,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
   });
 
   test("sends the operator to the new group's page after creating it", async () => {
-    const response = await adminPost("/admin/groups", {
+    const { response } = await adminFormPost("/admin/groups", {
       description: "",
       max_attendees: "0",
       name: "Created group",
@@ -60,9 +63,12 @@ describeWithEnv("admin group pages", { db: true }, () => {
   test("sends the operator back to the group list after deleting one", async () => {
     const group = await createTestGroup({ name: "Deleted group" });
 
-    const response = await adminPost(`/admin/groups/${group.id}/delete`, {
-      confirm_identifier: group.name,
-    });
+    const { response } = await adminFormPost(
+      `/admin/groups/${group.id}/delete`,
+      {
+        confirm_identifier: group.name,
+      },
+    );
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups(\?|$)/);
     expect(parseFlashCookie(response).success).toContain("Group");
   });
@@ -88,9 +94,12 @@ describeWithEnv("admin group pages", { db: true }, () => {
     const image = await makeImage("Library shot");
 
     await withStorageMock(async () => {
-      const response = await adminPost(`/admin/groups/${group.id}/images`, {
-        image_ids: [String(image.id)],
-      });
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/images`,
+        {
+          image_ids: [String(image.id)],
+        },
+      );
       expect(response.status).toBe(302);
     });
     expect(await imageNamesForItem("group", group.id)).toEqual([

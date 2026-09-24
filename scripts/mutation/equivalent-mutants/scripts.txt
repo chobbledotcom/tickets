@@ -40,7 +40,8 @@ scripts/pr-queue/summary.ts::hasTruncatedConnection~1uwoobj  ?? → ||   # hasNe
 scripts/unit-tests-report-imports.ts::stem~1b6v82q   → "mutated"   # stem()'s first replace strips the directory before every `===` comparison in findMisplacedTests; both sides always have a leading `dir/` (tests live under test/, sources under src/), so the replacement string is prepended to both operands identically — stem(test) === stem(source) is invariant under its value
 
 # Test-tree scan: the subject lookup's default for an unselected path.
-scripts/test-tree-scan.ts::scanTestTree.subjectsOf~0mczjth  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
+scripts/test-tree-scan.ts::scanTestTree.subjectsOf~15036b4  ?? → ||   # the map holds either an array (always truthy, even when empty) or nothing, so ?? and || pick the same fallback
+scripts/test-tree-scan.ts::scanTestTree.loadsAppOf~06gpsz0  ?? → ||   # the map holds true, false, or nothing; false and nothing take the same fallback, so ?? and || agree
 
 # Mutation test map: null-coalescing and the integration split.
 scripts/mutation/test-map.ts::mirrorOwnerOrNull~0tdqf2c  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree

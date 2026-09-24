@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { handleRequest } from "#routes";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import type { Attendee } from "#types";
@@ -67,10 +68,9 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
   assertions?: (json: T) => void,
   signature = "sig_valid",
 ): Promise<T> => {
-  const { sendToApp } = await import("#test-utils/mocks.ts");
   try {
     return await assertJson<T>(
-      sendToApp(mockWebhookRequest({}, { "stripe-signature": signature })),
+      handleRequest(mockWebhookRequest({}, { "stripe-signature": signature })),
       status,
       assertions,
     );
@@ -85,11 +85,12 @@ export const expectWebhookRejected = async (
   event: Parameters<typeof stubWebhookVerify>[0],
   message: string,
 ): Promise<void> => {
-  const { sendToApp } = await import("#test-utils/mocks.ts");
   const verify = await stubWebhookVerify(event);
   try {
     await expect(
-      sendToApp(mockWebhookRequest({}, { "stripe-signature": "sig_valid" })),
+      handleRequest(
+        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      ),
     ).rejects.toThrow(message);
   } finally {
     verify.restore();

@@ -9,7 +9,7 @@ import {
   isoFromUnixSeconds,
   stripeApi,
 } from "#shared/stripe.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import {
   stripeCheckoutSession,

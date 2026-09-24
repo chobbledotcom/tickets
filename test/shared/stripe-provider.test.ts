@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { checkoutIntent } from "#test-utils/checkout.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
+import { checkoutIntent } from "#test-utils/checkout-items.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import {

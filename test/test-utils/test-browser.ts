@@ -6,6 +6,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { handleRequest as appHandler } from "#routes";
 import {
   appendFormValue,
   extractFormEntries,
@@ -75,19 +76,12 @@ export class TestBrowser {
    * destination (a payment provider) from a same-path local one. Empty when the
    * last request did not redirect. */
   redirectedTo = "";
+  /** Turns a request into a response. The tests for this browser swap it for
+   * a stand-in that answers without the app; every other caller runs the
+   * app's own `handleRequest`. */
+  handleRequest: (request: Request) => Promise<Response> = appHandler;
   /** Cookie jar persisted across requests */
   private cookies = new Map<string, string>();
-  /** Lazy-loaded handleRequest function */
-  private handleRequest: ((req: Request) => Promise<Response>) | null = null;
-
-  /** Get handleRequest, lazily importing it */
-  private async getHandler(): Promise<(req: Request) => Promise<Response>> {
-    if (!this.handleRequest) {
-      const mod = await import("#routes");
-      this.handleRequest = mod.handleRequest;
-    }
-    return this.handleRequest;
-  }
 
   /** Enable debug logging */
   debug = false;
@@ -107,8 +101,7 @@ export class TestBrowser {
 
   /** Send a request, log if debugging, and collect cookies */
   private async send(req: Request, debugLabel: string): Promise<Response> {
-    const handler = await this.getHandler();
-    const response = await handler(req);
+    const response = await this.handleRequest(req);
     if (this.debug) {
       console.log(
         `[browser] ${debugLabel} -> ${response.status}${formatCookies(
@@ -405,9 +398,8 @@ export class TestBrowser {
    * Does NOT update currentHtml/currentUrl.
    */
   async downloadBytes(path: string): Promise<Uint8Array> {
-    const handler = await this.getHandler();
     const req = this.buildRequest(toPath(path));
-    const response = await handler(req);
+    const response = await this.handleRequest(req);
     parseCookies(response, this.cookies);
     return new Uint8Array(await response.arrayBuffer());
   }

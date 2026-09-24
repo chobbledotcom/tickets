@@ -3,10 +3,17 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
+import {
+  awaitTestRequest,
+  mockTicketFormRequest,
+  testPageHtml,
+} from "#test-utils/mocks.ts";
 import type { Attendee, Listing } from "#types";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
 
@@ -58,15 +65,10 @@ export const createTestAttendee = async (
   quantity = 1,
   phone = "",
 ): Promise<Attendee> => {
-  const { mockTicketFormRequest, sendToApp, testPageHtml } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const { extractCsrfToken } = await import("#test-utils/csrf.ts");
-
   const pageHtml = await testPageHtml(`/ticket/${listingSlug}`);
   const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
 
-  const response = await sendToApp(
+  const response = await handleRequest(
     mockTicketFormRequest(
       listingSlug,
       { email, name, phone, [`quantity_${listingId}`]: String(quantity) },
@@ -336,7 +338,6 @@ export const fetchAliceTicketPageBody = async (): Promise<{
   token: string;
   body: string;
 }> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const { token } = await createTestAttendeeWithToken(
     "Alice",
     "alice@test.com",

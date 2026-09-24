@@ -3,6 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
+  adminAttendeeAction,
+  adminListingPage,
+  setupAdminTest,
+} from "#test-utils/admin-fixture.ts";
+import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -16,13 +21,7 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import {
-  adminAttendeeAction,
-  adminFormPost,
-  adminGet,
-  adminListingPage,
-  setupAdminTest,
-} from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin attendees) > resend notification",

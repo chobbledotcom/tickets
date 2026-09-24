@@ -19,7 +19,6 @@ import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  adminPost,
   createDailyListingPair,
   createServicingHold,
   decryptFirstServicingAttendee,
@@ -31,6 +30,7 @@ import {
   tokenIndexOf,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -156,7 +156,7 @@ describeWithEnv(
 
       // Saving the form (preserving the held quantity) must keep the hold — it
       // is not silently dropped because the listing is inactive.
-      const response = await adminPost(`/admin/servicing/${id}`, {
+      const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         [`quantity_${listing.id}`]: "2",
         day_count: "1",
         name: "Boiler Service",

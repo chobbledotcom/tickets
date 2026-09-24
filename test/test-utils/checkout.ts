@@ -1,35 +1,9 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { submitTicketForm } from "./csrf.ts";
 import { stubRetrieveCheckoutSession } from "./webhooks/stripe.ts";
-
-/** A checkout line item with sensible defaults; override any field. */
-export const checkoutItem = (
-  overrides: Partial<CheckoutItem> = {},
-): CheckoutItem => ({
-  listingId: 1,
-  name: "General",
-  quantity: 1,
-  slug: "general",
-  unitPrice: 1000,
-  ...overrides,
-});
-
-/** A checkout intent with sensible defaults; override any field. */
-export const checkoutIntent = (
-  overrides: Partial<CheckoutIntent> = {},
-): CheckoutIntent => ({
-  address: "",
-  date: null,
-  email: "buyer@example.com",
-  items: [checkoutItem()],
-  name: "Buyer",
-  phone: "",
-  special_instructions: "",
-  ...overrides,
-});
 
 /** The checkout URL {@link stubCheckout} returns, so a test can assert a paid
  *  booking's response carries exactly the URL the stub produced (importing it

@@ -26,8 +26,13 @@ import {
   type ReportOptions,
 } from "./unit-tests-report-lib.ts";
 
-/** A test file paired with the `src/` paths it imports, resolved from aliases. */
+/** A test file paired with the `src/` paths it imports, resolved from
+ * aliases, and whether it drives the app through a helper it reaches. */
 export type TestImports = {
+  /** True when a helper the test reaches imports the `#routes` app entry or
+   * a route module under `#routes/…`: the test drives real pages, so it is
+   * an integration suite however it loads them (issue #2312). */
+  loadsApp: boolean;
   path: string;
   imports: readonly string[];
 };
@@ -180,8 +185,9 @@ export const findMisplacedTests = (
   const misplaced: MisplacedTest[] = [];
   for (const test of tests) {
     if (hasExemptPrefix(test.path, options.exemptTestPrefixes)) continue;
-    // Importing the app makes it an integration test, never a single-source unit.
-    if (test.imports.includes(appEntry)) continue;
+    // Importing the app makes it an integration test, never a single-source
+    // unit — directly, or through a helper that drives real pages.
+    if (test.imports.includes(appEntry) || test.loadsApp) continue;
     const subjects = test.imports.filter((path) => sourceSet.has(path));
     if (subjects.length !== 1) continue;
     const source = subjects[0]!;

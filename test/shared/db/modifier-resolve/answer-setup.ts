@@ -11,7 +11,7 @@ import {
 import { type ModifierInput, setModifierAnswers } from "#db/modifiers.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 
 /** Create a question with `count` answers, returning their real ids (answer

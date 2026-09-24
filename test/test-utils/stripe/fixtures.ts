@@ -22,7 +22,7 @@ import type {
   StripeCheckoutSession,
   StripeRefund,
 } from "#shared/stripe/schemas.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import type { Listing } from "#types";
 

@@ -2,22 +2,24 @@
  * What a test file actually exercises.
  *
  * A test rarely names its subject directly. It calls a shared helper — a
- * `#test-utils/` factory, a `shared.ts` next to its siblings — and that helper
- * is what imports the `src/` module under test. Reading only the test's own
- * import list therefore credits the test to whichever `src/` file it happened
- * to mention (a database client it seeds rows with, a CSRF helper it reads a
+ * factory, a `shared.ts` next to its siblings — and that helper is what
+ * imports the `src/` module under test. Reading only the test's own import
+ * list therefore credits the test to whichever `src/` file it happened to
+ * mention (a database client it seeds rows with, a CSRF helper it reads a
  * token from) and misses the module its assertions are really about.
  *
- * This module follows the imports one hop further: from the test file, through
- * every `test/` helper it reaches, collecting the `src/` files found along the
- * way. It stops at the `src/` boundary — a source's own imports are not the
- * test's subjects, or every test would exercise the whole tree.
+ * This module follows the imports: from the test file, through every `test/`
+ * helper it reaches, collecting the `src/` files named on the way. It stops
+ * at the `src/` boundary — a source's own imports are not the test's
+ * subjects, or every test would exercise the whole tree. Helpers under
+ * `test/test-utils/` name no subjects (see `TestSubjects`).
  *
  * The unit-test coverage report uses this to work out which source each test
  * covers. The mutation gate deliberately does not: it selects tests by the
  * mirror path alone, so a source whose test sits elsewhere is reported as
  * missing its direct suite and gets moved, rather than quietly running whatever
  * reaches it through a shared helper.
+ *
  * Reading files is the caller's job: pass a `readText`, and the walk stays pure
  * enough to unit-test from an in-memory map.
  */
@@ -66,59 +68,109 @@ export const resolveProjectImportOrNull = (
 };
 
 /**
- * Start-up helpers that say nothing about what a test is for. `describeWithEnv`
- * and the env overlay begin nearly every test and reach the database, config and
- * storage on the way. Only these two are listed, not all of `test-utils/`:
- * helpers like `session.ts` drive real pages, so what they reach genuinely is
- * the test's subject (see issue #2312 for the report that sees past them).
+ * Helpers under `test/test-utils/` are followed but add no subjects. Their
+ * imports — a database row, a config value, a rendered page — are plumbing
+ * nearly every test needs on the way, not what the test is about. Counting
+ * them buries single-source findings under dozens of incidental imports.
+ *
+ * The walk still reads them, because a helper that drives the app (it imports
+ * the `#routes` entry, or a route module under `#routes/…`) says the test is
+ * an integration suite however it reaches the pages. `loadsApp` carries that
+ * out; the misplaced-test list refuses to move such a test (issue #2312).
  */
-const SHARED_SETUP_FILES = ["test/test-utils/db.ts", "test/test-utils/env.ts"];
+export type TestSubjects = {
+  /** True when a helper the test reaches imports the `#routes` app entry or a
+   * route module under `#routes/…`. The test drives real pages, so it is an
+   * integration suite, never a single-source unit. */
+  loadsApp: boolean;
+  /** Every `src/` file the test exercises: the ones it imports itself, plus
+   * the ones imported on its behalf by helpers outside `test/test-utils/`. */
+  subjects: string[];
+};
 
-/**
- * Every `src/` file `testFile` exercises: the ones it imports itself, plus the
- * ones imported by any `test/` helper it reaches. Helper files are followed;
- * sources are collected and not followed. Each file is read once.
- *
- * The start-up helpers listed above are not followed: counting what they reach
- * would say a test of one small module is about a dozen modules, which then
- * hides it from the "this test sits away from the code it covers" list — the
- * very thing the list exists to find.
- *
- * `testTreeFiles` is every file in the test tree. A resolved path outside that
- * set is not followed, which keeps a specifier quoted as fixture data — the
- * code-quality tests scan for `import "…"` strings — from sending the walk
- * after a file that was never meant to exist.
- */
+/** The specifiers that name the app: its entry point (`#routes`) and the
+ * route modules beneath it (`#routes/…`). */
+const isRoutesSpecifier = (spec: string): boolean =>
+  /^#routes(\/|$)/.test(spec);
+
 export const collectTestSubjects = async (
   testFile: string,
   readText: ReadText,
   importMap: ImportMap,
   testTreeFiles: ReadonlySet<string>,
-): Promise<string[]> => {
-  const subjects = new Set<string>();
-  const visited = new Set<string>([testFile]);
-  const queue = [testFile];
-  /** A helper worth reading for more subjects: one beside the test, unread so
-   *  far, and not the shared setup every test uses. */
-  const shouldFollow = (path: string): boolean =>
-    testTreeFiles.has(path) &&
-    !visited.has(path) &&
-    !SHARED_SETUP_FILES.includes(path);
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const specifiers = parseImportSpecifiers(await readText(current));
-    for (const spec of specifiers) {
-      const resolved = resolveProjectImportOrNull(spec, importMap, current);
-      if (resolved === null) continue;
-      if (resolved.startsWith("src/")) subjects.add(resolved);
-      else if (shouldFollow(resolved)) {
-        visited.add(resolved);
-        queue.push(resolved);
-      }
-    }
+): Promise<TestSubjects> => {
+  const walk: Walk = {
+    importMap,
+    loadsApp: false,
+    queue: [testFile],
+    subjects: new Set<string>(),
+    testFile,
+    testTreeFiles,
+    visited: new Set<string>([testFile]),
+  };
+  while (walk.queue.length > 0) {
+    await readFileIntoWalk(walk, walk.queue.shift()!, readText);
   }
-  return [...subjects];
+  return { loadsApp: walk.loadsApp, subjects: [...walk.subjects] };
 };
+
+/** Everything the walk learns about one test, in the state it gathers it. */
+type Walk = {
+  importMap: ImportMap;
+  /** Set when a helper the test reaches imports `#routes` or a module under
+   * `#routes/…` — the test drives real pages, so it is an integration suite. */
+  loadsApp: boolean;
+  /** Test-tree files still to read; starts at the test file itself. */
+  queue: string[];
+  subjects: Set<string>;
+  testFile: string;
+  testTreeFiles: ReadonlySet<string>;
+  visited: Set<string>;
+};
+
+/** Whether `file` sits under `test/test-utils/` — the shared plumbing nearly
+ * every test reaches — however the walk's root spelled its path: an absolute
+ * root walks absolute paths, and Windows writes `\` separators. */
+const underTestUtils = (file: string): boolean =>
+  /(^|\/)test\/test-utils\//.test(file.replaceAll("\\", "/"));
+
+/** Read one file and fold each of its specifiers into `walk`. */
+const readFileIntoWalk = async (
+  walk: Walk,
+  file: string,
+  readText: ReadText,
+): Promise<void> => {
+  // The test names its own imports as subjects; so does a helper beside it.
+  // The shared helpers under test/test-utils/ are plumbing nearly every test
+  // needs, so their imports name no subject (see `TestSubjects`).
+  const namesSubjects = file === walk.testFile || !underTestUtils(file);
+  for (const spec of parseImportSpecifiers(await readText(file))) {
+    foldIntoWalk(walk, file, namesSubjects, spec);
+  }
+};
+
+/** Fold one specifier into the walk: app reach from a helper, a subject a
+ * naming file imports, and a still-unread helper queued for reading. */
+const foldIntoWalk = (
+  walk: Walk,
+  file: string,
+  namesSubjects: boolean,
+  spec: string,
+): void => {
+  if (file !== walk.testFile && isRoutesSpecifier(spec)) walk.loadsApp = true;
+  const resolved = resolveProjectImportOrNull(spec, walk.importMap, file);
+  if (resolved === null) return;
+  if (resolved.startsWith("src/")) {
+    if (namesSubjects) walk.subjects.add(resolved);
+  } else if (followsFrom(walk, resolved)) {
+    walk.visited.add(resolved);
+    walk.queue.push(resolved);
+  }
+};
+
+/** A helper worth reading: a test-tree file the walk has not read yet. */
+const followsFrom = (walk: Walk, path: string): boolean =>
+  walk.testTreeFiles.has(path) && !walk.visited.has(path);
 
 /** A `readText` that reads from disk once per path and caches the text, so a
  *  helper shared by fifty tests is read one time for the whole walk. */

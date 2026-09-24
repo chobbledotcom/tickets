@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { asSession } from "#test-utils/payment-session.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import {

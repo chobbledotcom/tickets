@@ -11,11 +11,11 @@ import {
 import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   expectClosedCheckoutFailure,
   expectSameThrown,
 } from "#test-utils/checkout-failure.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";

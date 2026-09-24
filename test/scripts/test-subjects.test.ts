@@ -10,6 +10,8 @@ const IMPORT_MAP = {
   "#cli/": "./cli/",
   "#db/": "./src/shared/db/",
   "#fp": "./src/fp.ts",
+  "#routes": "./src/features/index.ts",
+  "#routes/": "./src/features/",
   "#scripts/": "./scripts/",
   "#shared/": "./src/shared/",
   "#test-utils/": "./test/test-utils/",
@@ -18,6 +20,15 @@ const IMPORT_MAP = {
   // A non-alias key that still points into src: only `#` specifiers count.
   "legacy/": "./src/legacy/",
 };
+
+/** Run the subject walk over an in-memory tree. */
+const walkTree = (files: Record<string, string>, testFile: string) =>
+  collectTestSubjects(
+    testFile,
+    readerFor(files),
+    IMPORT_MAP,
+    testTreeOf(files),
+  );
 
 /** Reads from an in-memory tree; an unknown path throws, as a real read would. */
 const readerFor =
@@ -136,14 +147,8 @@ describe("test subjects", () => {
       const files = {
         "test/shared/csrf.test.ts": `import { signCsrf } from "#shared/csrf.ts";`,
       };
-      const read = readerFor(files);
       expect(
-        await collectTestSubjects(
-          "test/shared/csrf.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
+        (await walkTree(files, "test/shared/csrf.test.ts")).subjects,
       ).toEqual(["src/shared/csrf.ts"]);
     });
 
@@ -155,23 +160,17 @@ describe("test subjects", () => {
         ].join("\n"),
         "test/ui/table/shared.ts": `import { AttendeeTable } from "#ui/templates/table/component.tsx";`,
       };
-      const read = readerFor(files);
       expect(
         (
-          await collectTestSubjects(
-            "test/ui/table/component.test.tsx",
-            read,
-            IMPORT_MAP,
-            testTreeOf(files),
-          )
-        ).sort(),
+          await walkTree(files, "test/ui/table/component.test.tsx")
+        ).subjects.sort(),
       ).toEqual(["src/shared/csrf.ts", "src/ui/templates/table/component.tsx"]);
     });
 
-    test("ignores what start-up setup reaches, keeping the real subject alone", async () => {
-      // describeWithEnv-style setup starts nearly every test and touches the
-      // database and config. Counting those would bury the one module the
-      // test is actually about.
+    test("names no subject for what a test-utils helper reaches", async () => {
+      // Shared helpers under test/test-utils/ are plumbing nearly every test
+      // needs — a database row, a config value — so nothing they import says
+      // what the test is about.
       const files = {
         "test/shared/email.test.ts": [
           `import { sendEmail } from "#shared/email.ts";`,
@@ -179,36 +178,35 @@ describe("test subjects", () => {
         ].join("\n"),
         "test/test-utils/db.ts": [
           `import { getDb } from "#db/client.ts";`,
-          `import { settings } from "#db/settings.ts";`,
-        ].join("\n"),
-      };
-      const read = readerFor(files);
-      expect(
-        await collectTestSubjects(
-          "test/shared/email.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
-      ).toEqual(["src/shared/email.ts"]);
-    });
-
-    test("ignores what the env overlay reaches too", async () => {
-      const files = {
-        "test/shared/email.test.ts": [
-          `import { sendEmail } from "#shared/email.ts";`,
           `import { withEnv } from "#test-utils/env.ts";`,
         ].join("\n"),
         "test/test-utils/env.ts": `import { config } from "#shared/config.ts";`,
       };
-      const read = readerFor(files);
       expect(
-        await collectTestSubjects(
-          "test/shared/email.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
+        (await walkTree(files, "test/shared/email.test.ts")).subjects,
+      ).toEqual(["src/shared/email.ts"]);
+    });
+
+    test("names no subject for a test-utils helper an absolute root reached", async () => {
+      // A scan given an absolute test root walks absolute paths, and a
+      // helper a test reaches by a relative import resolves absolute — the
+      // utils exclusion must still leave the test naming its one subject.
+      const files = {
+        "/proj/test/shared/email.test.ts": [
+          `import { sendEmail } from "#shared/email.ts";`,
+          `import { setup } from "../test-utils/db.ts";`,
+        ].join("\n"),
+        "/proj/test/test-utils/db.ts": `import { getDb } from "#db/client.ts";`,
+      };
+      expect(
+        (
+          await collectTestSubjects(
+            "/proj/test/shared/email.test.ts",
+            readerFor(files),
+            IMPORT_MAP,
+            new Set(Object.keys(files)),
+          )
+        ).subjects,
       ).toEqual(["src/shared/email.ts"]);
     });
 
@@ -218,15 +216,9 @@ describe("test subjects", () => {
         "test/first.ts": `import { two } from "#test/second.ts";`,
         "test/second.ts": `import { deep } from "#shared/deep.ts";`,
       };
-      const read = readerFor(files);
-      expect(
-        await collectTestSubjects(
-          "test/a.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
-      ).toEqual(["src/shared/deep.ts"]);
+      expect((await walkTree(files, "test/a.test.ts")).subjects).toEqual([
+        "src/shared/deep.ts",
+      ]);
     });
 
     test("does not follow a source's own imports", async () => {
@@ -235,15 +227,9 @@ describe("test subjects", () => {
         "src/shared/a.ts": `import { b } from "#shared/b.ts";`,
         "test/shared/a.test.ts": `import { a } from "#shared/a.ts";`,
       };
-      const read = readerFor(files);
-      expect(
-        await collectTestSubjects(
-          "test/shared/a.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
-      ).toEqual(["src/shared/a.ts"]);
+      expect((await walkTree(files, "test/shared/a.test.ts")).subjects).toEqual(
+        ["src/shared/a.ts"],
+      );
     });
 
     test("survives helpers that import each other in a cycle", async () => {
@@ -255,30 +241,59 @@ describe("test subjects", () => {
         ].join("\n"),
         "test/second.ts": `import { one } from "#test/first.ts";`,
       };
-      const read = readerFor(files);
-      expect(
-        await collectTestSubjects(
-          "test/a.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
-      ).toEqual(["src/shared/a.ts"]);
+      expect((await walkTree(files, "test/a.test.ts")).subjects).toEqual([
+        "src/shared/a.ts",
+      ]);
     });
 
     test("reports no subjects for a test that imports nothing of ours", async () => {
       const files = {
         "test/pure.test.ts": `import { expect } from "@std/expect";`,
       };
-      const read = readerFor(files);
+      expect((await walkTree(files, "test/pure.test.ts")).subjects).toEqual([]);
+    });
+
+    test("marks a test app-loading when a helper reaches the app entry", async () => {
+      // A suite that drives pages through session.ts is an integration suite
+      // however it reaches the app — the misplaced-test list must not move it
+      // onto the mirror of an import it only checks along the way (issue
+      // #2312).
+      const files = {
+        "test/features/maintenance.test.ts": [
+          `import { resetDb } from "#test-utils/db.ts";`,
+          `import { adminFormPost } from "#test-utils/session.ts";`,
+        ].join("\n"),
+        "test/test-utils/db.ts": `import { getDb } from "#db/client.ts";`,
+        "test/test-utils/mocks.ts": `import { handleRequest } from "#routes";`,
+        "test/test-utils/session.ts": `import { awaitTestRequest } from "#test-utils/mocks.ts";`,
+      };
+      const walked = await walkTree(files, "test/features/maintenance.test.ts");
+      expect(walked.loadsApp).toBe(true);
+      expect(walked.subjects).toEqual([]);
+    });
+
+    test("marks a test app-loading when a helper reaches a route module", async () => {
+      const files = {
+        "test/features/maintenance.test.ts": `import { postSetting } from "#test-utils/session.ts";`,
+        "test/test-utils/session.ts": `const { handleRequest } = await import("#routes/admin/settings.ts");`,
+      };
       expect(
-        await collectTestSubjects(
-          "test/pure.test.ts",
-          read,
-          IMPORT_MAP,
-          testTreeOf(files),
-        ),
-      ).toEqual([]);
+        (await walkTree(files, "test/features/maintenance.test.ts")).loadsApp,
+      ).toBe(true);
+    });
+
+    test("keeps a route module the test imports itself a plain subject", async () => {
+      // The test file's own import names its subject on purpose, so it stays
+      // a move candidate — only a helper's reach makes a test integration.
+      const files = {
+        "test/ui/templates/checkin/routes.test.ts": `const { routeCheckin } = await import("#routes/checkin.ts");`,
+      };
+      const walked = await walkTree(
+        files,
+        "test/ui/templates/checkin/routes.test.ts",
+      );
+      expect(walked.subjects).toEqual(["src/features/checkin.ts"]);
+      expect(walked.loadsApp).toBe(false);
     });
   });
 

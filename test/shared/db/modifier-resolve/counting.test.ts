@@ -7,7 +7,7 @@ import {
   oversubscribedAnswerTiers,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

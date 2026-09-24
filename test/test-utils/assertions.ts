@@ -1,8 +1,16 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { once } from "#fp";
+import { handleRequest } from "#routes";
 import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
+import { renderError, renderSuccess } from "#shared/forms/flash.tsx";
 import { BROKEN_IMAGE_PNG } from "#shared/images/broken.ts";
+import {
+  awaitTestRequest,
+  mockFormRequest,
+  mockMultipartRequest,
+  mockRequest,
+} from "#test-utils/mocks.ts";
 import { escapeForRegex } from "#test-utils/regex.ts";
 
 export const FLASH_TEST_ID = "t001";
@@ -108,7 +116,6 @@ export const fetchListingExportCsv = async (
   cookie: string,
   query = "",
 ): Promise<string> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(
     `/admin/listing/${listingId}/export${query}`,
     { cookie },
@@ -249,7 +256,6 @@ export const assertAdminHtmlWithCookie = async (
   cookie: string,
   ...substrings: string[]
 ): Promise<string> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path, { cookie });
   return expectHtmlResponse(response, 200, ...substrings);
 };
@@ -258,7 +264,6 @@ export const assertPublicHtml = async (
   path: string,
   ...substrings: string[]
 ): Promise<string> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path);
   return expectHtmlResponse(response, 200, ...substrings);
 };
@@ -478,8 +483,6 @@ export const expectFlashRedirect =
   async (response: Response): Promise<Response> => {
     expectRedirectWithFlash(location, message, succeeded)(response);
 
-    const [{ handleRequest }, { renderError, renderSuccess }] =
-      await Promise.all([import("#routes"), import("#shared/forms/flash.tsx")]);
     const followed = await followRedirectWithFlash(
       response,
       handleRequest,
@@ -516,17 +519,13 @@ export const expectCheckoutRedirect = (response: Response): string =>
 export const followRedirect = async (
   response: Response,
   handler: (request: Request) => Promise<Response>,
-): Promise<Response> => {
-  const { mockRequest } = await import("#test-utils/mocks.ts");
-  return handler(mockRequest(expectRedirect(response)));
-};
+): Promise<Response> => handler(mockRequest(expectRedirect(response)));
 
 export const followRedirectWithFlash = async (
   response: Response,
   handler: (request: Request) => Promise<Response>,
   extraCookie?: string,
 ): Promise<Response> => {
-  const { mockRequest } = await import("#test-utils/mocks.ts");
   const location = expectRedirect(response);
   const setCookies = response.headers.getSetCookie();
   const flashCookie = setCookies
@@ -630,9 +629,6 @@ export const testRequiresAuth = (
   it("redirects to login when not authenticated", async () => {
     const cleanup = await options.setup?.();
     try {
-      const { handleRequest } = await import("#routes");
-      const { mockFormRequest, mockMultipartRequest, mockRequest } =
-        await import("#test-utils/mocks.ts");
       const request = options.multipart
         ? mockMultipartRequest(path, options.body!)
         : options.method === "POST"

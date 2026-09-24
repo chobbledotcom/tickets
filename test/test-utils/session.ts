@@ -3,6 +3,7 @@ import type { WrappedKey } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { createApiKey } from "#db/api-keys.ts";
 import { getSession } from "#db/sessions.ts";
+import { handleRequest } from "#routes";
 import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -10,15 +11,21 @@ import {
   runWithSessionContext,
   setCachedSession,
 } from "#shared/session-context.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import {
-  type AdminTestContext,
   getInternalTestSession,
   setTestSession,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import {
+  awaitTestRequest,
+  mockAdminLoginRequest,
+  mockMultipartRequest,
+  testPageHtml,
+} from "#test-utils/mocks.ts";
 import { getSetupState } from "#test-utils/test-state.ts";
 import type { Listing } from "#types";
 
@@ -29,18 +36,13 @@ export const loginAsAdmin = async (
   cookie: string;
   csrfToken: string;
 }> => {
-  const { mockAdminLoginRequest, sendToApp, testPageHtml } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const { extractCsrfToken } = await import("#test-utils/csrf.ts");
-
   const loginCsrfToken = extractCsrfToken(await testPageHtml("/admin/"));
 
   if (!loginCsrfToken) {
     throw new Error("Failed to get CSRF token for admin login");
   }
 
-  const loginResponse = await sendToApp(
+  const loginResponse = await handleRequest(
     await mockAdminLoginRequest({ password, username }, loginCsrfToken),
   );
   const cookie = loginResponse.headers
@@ -351,7 +353,6 @@ export const apiRequest = async (
     apiKey?: string;
   } = {},
 ): Promise<Response> => {
-  const { sendToApp } = await import("#test-utils/mocks.ts");
   const apiKey = options.apiKey ?? (await createTestApiKeyToken());
   const method = options.method ?? "GET";
   const headers: HeadersInit =
@@ -361,7 +362,7 @@ export const apiRequest = async (
     headers,
     method,
   };
-  return sendToApp(requestAsApiKey(path, apiKey, init));
+  return handleRequest(requestAsApiKey(path, apiKey, init));
 };
 
 export const setupListingAndLogin = async (
@@ -383,15 +384,25 @@ export const adminFormPost = async (
   path: string,
   data: TestFormValues = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { settings } = await import("#db/settings.ts");
-  await settings.loadKeys([]);
+  // Mirror what a rendered CsrfForm sends: only the settings, features, and
+  // listing-defaults forms carry settings_version, and only those routes read
+  // it (a missing value there refuses the version-guarded save).
+  const versioned =
+    path.startsWith("/admin/settings") ||
+    path.startsWith("/admin/features/") ||
+    path === "/admin/listing-defaults";
+  let version: string | undefined;
+  if (versioned) {
+    const { settings } = await import("#db/settings.ts");
+    await settings.loadKeys([]);
+    version = String(settings.version);
+  }
   const { cookie, csrfToken } = await getTestSession();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path, {
     cookie,
     data: {
       csrf_token: csrfToken,
-      settings_version: String(settings.version),
+      ...(version !== undefined ? { settings_version: version } : {}),
       ...data,
     },
   });
@@ -409,10 +420,7 @@ export const adminMultipartPost = async (
   },
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
-  const { mockMultipartRequest, sendToApp } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const response = await sendToApp(
+  const response = await handleRequest(
     mockMultipartRequest(
       path,
       { csrf_token: csrfToken, ...data },
@@ -425,7 +433,6 @@ export const adminMultipartPost = async (
 
 export const adminGet = async (path: string): Promise<Response> => {
   const { cookie } = await getTestSession();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   return awaitTestRequest(path, { cookie });
 };
 
@@ -444,67 +451,3 @@ export const getBulkActionForm =
     expect(response.status).toBe(200);
     return html;
   };
-
-export const setupAdminTest = async (
-  listingOverrides: TestListingOverrides = {},
-): Promise<AdminTestContext> => {
-  const { createTestListing } = await import(
-    "#test-utils/db-helpers/listings.ts"
-  );
-  const { createTestAttendee } = await import(
-    "#test-utils/db-helpers/attendees.ts"
-  );
-  const listing = await createTestListing({
-    maxAttendees: 100,
-    thankYouUrl: "https://example.com",
-    ...listingOverrides,
-  });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "John Doe",
-    "john@example.com",
-  );
-  const { cookie, csrfToken } = await getTestSession();
-  return { attendee, cookie, csrfToken, listing };
-};
-
-type AdminFixtureResult = AdminTestContext & { response: Response };
-
-/** Set up the standard admin fixture, send one request built from it, and
- * hand back the fixture together with the response. */
-const onAdminFixture =
-  (send: (ctx: AdminTestContext) => Promise<Response>) =>
-  async (
-    listingOverrides: TestListingOverrides = {},
-  ): Promise<AdminFixtureResult> => {
-    const ctx = await setupAdminTest(listingOverrides);
-    return { ...ctx, response: await send(ctx) };
-  };
-
-export const adminAttendeeAction =
-  (action: string, scope: "listing" | "attendee" = "attendee") =>
-  (
-    formData: Record<string, string> = {},
-  ): ((
-    listingOverrides?: TestListingOverrides,
-  ) => Promise<AdminFixtureResult>) =>
-    onAdminFixture(async (ctx) => {
-      const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-      const url =
-        scope === "listing"
-          ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
-          : `/admin/attendees/${ctx.attendee.id}/${action}`;
-      return awaitTestRequest(url, {
-        cookie: ctx.cookie,
-        data: { csrf_token: ctx.csrfToken, ...formData },
-      });
-    });
-
-export const adminListingPage = (
-  pathFn: (ctx: AdminTestContext) => string,
-): ((listingOverrides?: TestListingOverrides) => Promise<AdminFixtureResult>) =>
-  onAdminFixture(async (ctx) => {
-    const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-    return awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
-  });

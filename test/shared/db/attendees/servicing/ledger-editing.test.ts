@@ -8,7 +8,6 @@ import { getServicingCosts } from "#db/attendees/servicing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminPost,
   createServicingHold,
   editServiceCost,
   listingCostOf,
@@ -21,6 +20,7 @@ import {
   SERVICE_DATE,
   transfersOfKind,
 } from "#test-utils/servicing-ledger.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -63,9 +63,12 @@ describeWithEnv("servicing §22 - editing costs", { db: true }, () => {
   test("the service-cost edit route posts a correcting delta for that event", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
-    const response = await adminPost(`/admin/servicing/${id}/cost/${costId}`, {
-      amount: "60.00",
-    });
+    const { response } = await adminFormPost(
+      `/admin/servicing/${id}/cost/${costId}`,
+      {
+        amount: "60.00",
+      },
+    );
     expect(response.headers.get("location")).toContain(
       `/admin/servicing/${id}`,
     );

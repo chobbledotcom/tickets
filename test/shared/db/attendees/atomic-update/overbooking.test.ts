@@ -4,7 +4,6 @@ import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import {
   everydayDailyListing,
   expectMixedStandardAndDailyLines,
-  submitNewAttendeeForm,
   tomorrowInTz,
 } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -148,7 +147,7 @@ describeWithEnv(
         });
         const tomorrow = tomorrowInTz();
 
-        const response = await submitNewAttendeeForm({
+        const { response } = await adminFormPost("/admin/attendees/new", {
           day_count: "1",
           email: "mix@example.com",
           name: "Mix",

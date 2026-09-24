@@ -2,29 +2,12 @@ import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { mockFormRequest } from "#test-utils/mocks.ts";
-import { getTestSession } from "#test-utils/session.ts";
 
 type AttendeeRow = Awaited<ReturnType<typeof getAttendeesRaw>>[number];
-
-/** Submit the unified new-attendee admin form, injecting a fresh CSRF token. */
-export const submitNewAttendeeForm = async (
-  fields: Record<string, string>,
-): Promise<Response> => {
-  const { cookie, csrfToken } = await getTestSession();
-  return handleRequest(
-    mockFormRequest(
-      "/admin/attendees/new",
-      { csrf_token: csrfToken, ...fields },
-      cookie,
-    ),
-  );
-};
 
 /** Assert a listing has exactly `count` attendee rows and return them. */
 export const expectAttendeeLineCount = async (

@@ -193,9 +193,11 @@ const { handleRequest } = await import("#routes");
 const { mockFormRequest } = await import("#test-utils/mocks.ts");
 ```
 
-`mocks.ts` already held `awaitTestRequest`, which does exactly this. It now also
-exports `sendToApp` and `testPageHtml`, and every helper module goes through one
-of the three.
+`mocks.ts` already held `awaitTestRequest`, which does exactly this. Every
+helper module went through it or `testPageHtml`. `sendToApp`, the third export
+of that merge, later folded back to nothing. Issue #2191 settled on the static
+`#routes` import as the one way to reach the app, so the pass-through helper had
+no work left.
 
 ## What is left, and what each step costs
 

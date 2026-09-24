@@ -21,7 +21,11 @@ const importMap: Record<string, string> = {
 };
 
 /** Build a test-with-imports record. */
-const imp = (path: string, imports: string[]) => ({ imports, path });
+const imp = (path: string, imports: string[], loadsApp = false) => ({
+  imports,
+  loadsApp,
+  path,
+});
 
 describe("parseImportSpecifiers", () => {
   test("extracts import and re-export specifiers, including multiline", () => {
@@ -237,6 +241,27 @@ describe("findMisplacedTests", () => {
     expect(
       findMisplacedTests(
         [imp("test/lib/route.test.ts", [appEntry, "src/shared/email.ts"])],
+        sources,
+        options,
+        appEntry,
+      ),
+    ).toEqual([]);
+  });
+
+  test("skips a test that reaches the app through a helper", () => {
+    // The one subject is an import the test only checks along the way; the
+    // pages came in through a helper the walk followed. That suite is
+    // integration, and the list must not move it onto a database mirror
+    // (issue #2312).
+    expect(
+      findMisplacedTests(
+        [
+          imp(
+            "test/features/maintenance.test.ts",
+            ["src/shared/db/client.ts"],
+            true,
+          ),
+        ],
         sources,
         options,
         appEntry,

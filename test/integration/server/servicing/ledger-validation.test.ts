@@ -5,7 +5,6 @@ import { allTransfers } from "#accounting/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  adminPost,
   createServicingHold,
   createTestServicingEvent,
   editServiceCost,
@@ -18,6 +17,7 @@ import {
   recordBoilerCost,
   SERVICE_DATE,
 } from "#test-utils/servicing-ledger.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -26,7 +26,7 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
     const { id, listing } = await createServicingHold();
     const before = (await allTransfers()).length;
     for (const amount of ["", "-5", "abc", "0"]) {
-      const response = await adminPost(`/admin/servicing/${id}`, {
+      const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         amount,
         memo: "Bad",
         target_listing_id: String(listing.id),
@@ -40,7 +40,7 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
     const { id, listing } = await createServicingHold();
     const before = (await allTransfers()).length;
     for (const target of ["", "abc", "0", "-3"]) {
-      const response = await adminPost(`/admin/servicing/${id}`, {
+      const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         amount: "90.00",
         memo: "Bad",
         target_listing_id: target,
@@ -48,7 +48,7 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
       await expectCostFormError(response, id, before);
     }
     const other = await createTestListing({ maxAttendees: 10, name: "Other" });
-    const response = await adminPost(`/admin/servicing/${id}`, {
+    const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       amount: "90.00",
       memo: "Bad",
       target_listing_id: String(other.id),
@@ -62,7 +62,7 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
     const costId = await recordBoilerCost(id, listing.id);
     const before = (await allTransfers()).length;
     for (const amount of ["", "-5", "abc", "0"]) {
-      const response = await adminPost(
+      const { response } = await adminFormPost(
         `/admin/servicing/${id}/cost/${costId}`,
         { amount },
       );

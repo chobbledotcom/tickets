@@ -11,7 +11,6 @@ import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminPost,
   createRealAttendee,
   createServicingHold,
   decryptFirstServicingAttendee,
@@ -21,6 +20,7 @@ import {
   SMUGGLED_CONTACT_FIELDS,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -35,7 +35,7 @@ describeWithEnv(
       const { getTestSession } = await import("#test-utils/session.ts");
       const { cookie } = await getTestSession();
       await assertAdmin404(`/admin/attendees/${id}`, cookie);
-      const post = await adminPost(`/admin/attendees/${id}`, {
+      const { response: post } = await adminFormPost(`/admin/attendees/${id}`, {
         name: "Hijacked",
       });
       expect(post.status).toBe(404);
@@ -64,10 +64,13 @@ describeWithEnv(
 
     test("an attendee cannot be converted into a service event (or vice-versa) via params", async () => {
       const { attendee } = await createRealAttendee();
-      const response = await adminPost(`/admin/attendees/${attendee.id}`, {
-        kind: SERVICING_KIND,
-        name: "Real Customer",
-      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          kind: SERVICING_KIND,
+          name: "Real Customer",
+        },
+      );
       response.body?.cancel();
       expect(await kindOf(attendee.id)).toBe(ATTENDEE_KIND);
     });

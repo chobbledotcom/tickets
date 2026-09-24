@@ -27,9 +27,11 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { ATTENDEE_FIELDS, attendeeColumns } from "#db/attendees/select.ts";
 import { getDb, queryAll, queryOne } from "#db/client.ts";
 import { getAllListings } from "#db/listings/records.ts";
+import { handleRequest } from "#routes";
 import { nowMs } from "#shared/now.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
 import type { Attendee, Listing, ListingWithCount } from "#types";
 
@@ -265,8 +267,6 @@ export const SMUGGLED_CONTACT_FIELDS = {
  *  Replaces the per-file `getTestSession` + `handleRequest` + `mockRequest`
  *  dance duplicated across §5/§6/§8/§11/§12/§17. */
 export const renderAdminPage = async (path: string): Promise<string> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
   const { cookie } = await getTestSession();
   const response = await handleRequest(
     mockRequest(path, {
@@ -281,7 +281,6 @@ export const assertAdmin404 = async (
   path: string,
   cookie: string,
 ): Promise<void> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(path, { cookie });
   expect(response.status).toBe(404);
   response.body?.cancel();
@@ -310,21 +309,6 @@ export const assertRedirectPathname = (
   const location = response.headers.get("location");
   expect(location).not.toBeNull();
   expect(new URL(location!, "http://x").pathname).toBe(expected);
-};
-
-/** POST an admin form as the logged-in test owner and return the response
- *  (for status/body assertions). Replaces the per-test `handleRequest` +
- *  `mockFormRequest` + `getTestSession` dance. */
-export const adminPost = async (
-  path: string,
-  data: Record<string, string>,
-): Promise<Response> => {
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-  const { cookie, csrfToken } = await getTestSession();
-  return awaitTestRequest(path, {
-    cookie,
-    data: { csrf_token: csrfToken, ...data },
-  });
 };
 
 // ─── Compound assertion helpers (curried where the shape is shared) ─────────

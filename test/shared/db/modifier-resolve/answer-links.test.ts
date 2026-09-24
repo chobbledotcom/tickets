@@ -5,7 +5,7 @@ import {
   oversubscribedAnswerTiers,
 } from "#db/modifier-resolve.ts";
 import { getModifierAnswerIds, setModifierAnswers } from "#db/modifiers.ts";
-import { checkoutItem } from "#test-utils/checkout.ts";
+import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertModifier,

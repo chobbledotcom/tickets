@@ -2,6 +2,11 @@
  *  the request redirects (a non-redirect response means the submission was
  *  rejected, so it throws with the caller's error context). Shared by every
  *  admin create/update/delete test helper below. */
+import { handleRequest } from "#routes";
+import type { TestFormValues } from "#test-utils/form-values.ts";
+import { mockFormRequest, mockMultipartRequest } from "#test-utils/mocks.ts";
+import { getTestSession } from "#test-utils/session.ts";
+
 async function doAuthenticatedRequest<T>(
   path: string,
   formData: TestFormValues,
@@ -9,10 +14,8 @@ async function doAuthenticatedRequest<T>(
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> {
-  const { getTestSession } = await import("#test-utils/session.ts");
-  const { sendToApp } = await import("#test-utils/mocks.ts");
   const session = await getTestSession();
-  const response = await sendToApp(
+  const response = await handleRequest(
     buildRequest(
       path,
       { ...formData, csrf_token: session.csrfToken },
@@ -25,36 +28,36 @@ async function doAuthenticatedRequest<T>(
   return onSuccess();
 }
 
-export const doAuthenticatedFormRequest = async <T>(
+/** The two helpers below, spelled out once: sign in, post the caller's form
+ * data, and return whatever the caller's success read produced. */
+type AuthenticatedFormRequest = <T>(
   path: string,
   formData: TestFormValues,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> => {
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  return doAuthenticatedRequest(
-    path,
-    formData,
-    mockFormRequest,
-    onSuccess,
-    errorContext,
-  );
-};
+) => Promise<T>;
 
-export const doAuthenticatedMultipartFormRequest = async <T>(
-  path: string,
-  formData: TestFormValues,
-  onSuccess: () => Promise<T>,
-  errorContext: string,
-): Promise<T> => {
-  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
-  return doAuthenticatedRequest(
-    path,
-    formData,
-    mockMultipartRequest,
-    onSuccess,
-    errorContext,
-  );
-};
+/** The shared post-and-read shape behind both senders below: sign in, post
+ * the form the given builder packs, and read the DB state it left. */
+const doAuthenticatedRequestWith =
+  (
+    buildRequest: (
+      path: string,
+      data: TestFormValues,
+      cookie: string,
+    ) => Request,
+  ): AuthenticatedFormRequest =>
+  (path, formData, onSuccess, errorContext) =>
+    doAuthenticatedRequest(
+      path,
+      formData,
+      buildRequest,
+      onSuccess,
+      errorContext,
+    );
 
-import type { TestFormValues } from "#test-utils/form-values.ts";
+export const doAuthenticatedFormRequest: AuthenticatedFormRequest =
+  doAuthenticatedRequestWith(mockFormRequest);
+
+export const doAuthenticatedMultipartFormRequest: AuthenticatedFormRequest =
+  doAuthenticatedRequestWith(mockMultipartRequest);

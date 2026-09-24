@@ -16,7 +16,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  adminPost,
   createDatedServicingScenario,
   createServicingHold,
   expectCostAfterRecording,
@@ -30,6 +29,7 @@ import {
   SERVICE_DATE,
   transfersOfKind,
 } from "#test-utils/servicing-ledger.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -119,7 +119,7 @@ describeWithEnv(
 
     test("the cost route dates the cost leg to the service event date, not the submit time", async () => {
       const { id, listing } = await createDatedServicingScenario();
-      await adminPost(`/admin/servicing/${id}`, {
+      await adminFormPost(`/admin/servicing/${id}`, {
         amount: "90.00",
         memo: "Boiler part",
         target_listing_id: String(listing.id),

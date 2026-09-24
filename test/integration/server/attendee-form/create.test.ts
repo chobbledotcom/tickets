@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
 import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
-import {
-  expectAttendeeLineCount,
-  submitNewAttendeeForm,
-} from "#test-utils/attendee-form/helpers.ts";
+import { expectAttendeeLineCount } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
@@ -34,7 +31,7 @@ describeWithEnv(
           maxAttendees: 100,
           maxQuantity: 5,
         });
-        const response = await submitNewAttendeeForm({
+        const { response } = await adminFormPost("/admin/attendees/new", {
           email: "jane@example.com",
           name: "Jane Doe",
           ...attendeeLineFields([{ eventId: event.id, quantity: Number("2") }]),
@@ -48,7 +45,7 @@ describeWithEnv(
         const { listing: event } = await setupListingAndLogin({
           maxAttendees: 100,
         });
-        const response = await submitNewAttendeeForm({
+        const { response } = await adminFormPost("/admin/attendees/new", {
           name: "Ghost Only",
           ...attendeeLineFields([
             { eventId: event.id, noQuantity: true, quantity: 1 },
@@ -78,7 +75,7 @@ describeWithEnv(
           maxQuantity: 5,
           name: "B",
         });
-        const response = await submitNewAttendeeForm({
+        const { response } = await adminFormPost("/admin/attendees/new", {
           email: "multi@example.com",
           name: "Multi",
           ...attendeeLineFields([
@@ -97,7 +94,8 @@ describeWithEnv(
           maxAttendees: 100,
           maxQuantity: 5,
         });
-        const response = await submitNewAttendeeForm(
+        const { response } = await adminFormPost(
+          "/admin/attendees/new",
           oneLineAttendeeForm({
             email: "preserve@example.com",
             eventId: event.id,

@@ -6,6 +6,10 @@ import { deleteListing } from "#db/listings/delete.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import {
+  adminAttendeeAction,
+  adminListingPage,
+} from "#test-utils/admin-fixture.ts";
+import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -25,14 +29,17 @@ import {
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import {
-  adminAttendeeAction,
   adminFormPost,
   adminGet,
-  adminListingPage,
   setupListingAndLogin,
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+
+const expectAttendeeDeleted = expectFlashRedirect(
+  "/admin/attendees",
+  "Attendee deleted",
+);
 
 /** A listing plus "John Doe" attendee, with the thank-you URL set — the
  *  shared setup for the delete GET/POST/DELETE auth and 404 tests. */
@@ -219,10 +226,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         confirm_identifier: "john doe",
         release_bookings: "1",
       })();
-      await expectFlashRedirect(
-        "/admin/attendees",
-        "Attendee deleted",
-      )(response);
+      await expectAttendeeDeleted(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#db/attendees/queries.ts");
@@ -237,10 +241,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       const { response } = await deleteAction({
         confirm_identifier: "  John Doe  ",
       })();
-      await expectFlashRedirect(
-        "/admin/attendees",
-        "Attendee deleted",
-      )(response);
+      await expectAttendeeDeleted(response);
     });
 
     test("can delete attendee without releasing bookings", async () => {
@@ -259,10 +260,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         { confirm_identifier: "Keep Pool" },
       );
 
-      await expectFlashRedirect(
-        "/admin/attendees",
-        "Attendee deleted",
-      )(response);
+      await expectAttendeeDeleted(response);
       const updated = await getListingWithCount(listing.id);
       expect(updated).toMatchObject({
         attendee_count: 3,
@@ -280,10 +278,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         { confirm_identifier: "John Doe" },
       );
 
-      await expectFlashRedirect(
-        "/admin/attendees",
-        "Attendee deleted",
-      )(response);
+      await expectAttendeeDeleted(response);
       expect(await attendeeExists(attendee.id)).toBe(false);
     });
   });
@@ -308,12 +303,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
           method: "DELETE",
         }),
       );
-      await expectFlashRedirect(
-        "/admin/attendees",
-        "Attendee deleted",
-      )(response);
-
-      // Verify attendee was deleted
+      await expectAttendeeDeleted(response);
       const { getAttendeeRaw } = await import("#db/attendees/queries.ts");
       const deletedAttendee = await getAttendeeRaw(1);
       expect(deletedAttendee).toBeNull();
@@ -364,9 +354,6 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         "Test User",
         "test@example.com",
       );
-
-      // POST route exercises attendeeDeleteHandler which calls parseAttendeeIds.
-      // The custom handler requires confirm_identifier to match the attendee name.
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}/delete`,
@@ -374,7 +361,6 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
           cookie,
         ),
       );
-      // Should redirect after successful delete
       expect(response.status).toBe(302);
     });
   });
