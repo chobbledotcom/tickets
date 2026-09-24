@@ -28,8 +28,17 @@ async function doAuthenticatedRequest<T>(
   return onSuccess();
 }
 
-/** The shared post-and-read shape behind the two senders below: sign in,
- *  post the form the given builder packs, and read the DB state it left. */
+/** The two helpers below, spelled out once: sign in, post the caller's form
+ * data, and return whatever the caller's success read produced. */
+type AuthenticatedFormRequest = <T>(
+  path: string,
+  formData: TestFormValues,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+) => Promise<T>;
+
+/** The shared post-and-read shape behind both senders below: sign in, post
+ * the form the given builder packs, and read the DB state it left. */
 const doAuthenticatedRequestWith =
   (
     buildRequest: (
@@ -37,13 +46,8 @@ const doAuthenticatedRequestWith =
       data: TestFormValues,
       cookie: string,
     ) => Request,
-  ) =>
-  async <T>(
-    path: string,
-    formData: TestFormValues,
-    onSuccess: () => Promise<T>,
-    errorContext: string,
-  ): Promise<T> =>
+  ): AuthenticatedFormRequest =>
+  (path, formData, onSuccess, errorContext) =>
     doAuthenticatedRequest(
       path,
       formData,
@@ -52,8 +56,8 @@ const doAuthenticatedRequestWith =
       errorContext,
     );
 
-export const doAuthenticatedFormRequest =
+export const doAuthenticatedFormRequest: AuthenticatedFormRequest =
   doAuthenticatedRequestWith(mockFormRequest);
 
-export const doAuthenticatedMultipartFormRequest =
+export const doAuthenticatedMultipartFormRequest: AuthenticatedFormRequest =
   doAuthenticatedRequestWith(mockMultipartRequest);
