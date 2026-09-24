@@ -20,17 +20,17 @@ import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { toStableHostname } from "#shared/site-address.ts";
 
-const BUNNY_API_BASE = "https://api.bunny.net";
+export const BUNNY_API_BASE = "https://api.bunny.net";
 
 /** The error branch shared by every Bunny API result — a failed call with its
  *  message and optional Bunny ErrorKey. */
-type BunnyApiError = {
+export type BunnyApiError = {
   ok: false;
   error: string;
   errorKey?: string | undefined;
 };
 
-type BunnyApiResult = { ok: true } | BunnyApiError;
+export type BunnyApiResult = { ok: true } | BunnyApiError;
 
 type CdnHostnameResult =
   | { ok: true; hostname: string }
@@ -54,7 +54,7 @@ interface EdgeScriptResponse {
  * GET a Bunny API endpoint with AccessKey auth and parse the JSON body, or
  * surface a Bunny API error. Shared by the edge-script, secrets, and DNS reads.
  */
-const bunnyGetJson = async <T>(
+export const bunnyGetJson = async <T>(
   path: string,
   label: string,
 ): Promise<{ ok: true; data: T } | BunnyApiError> => {
@@ -163,7 +163,7 @@ const bunnyKeyRequest = (url: string, method: string): Promise<FetchResult> =>
 
 /** A Bunny API request that carries the AccessKey header and a JSON body — the
  * shared shape of every POST/PUT call. `body` is already-serialized JSON. */
-const bunnyJsonRequest = (
+export const bunnyJsonRequest = (
   url: string,
   body: string,
   method: string,

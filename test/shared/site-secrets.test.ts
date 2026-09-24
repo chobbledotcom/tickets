@@ -96,22 +96,23 @@ describeWithEnv(
       BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
       BUNNY_DNS_ZONE_ID: "zone-1",
       NTFY_URL: "https://ntfy.example.com/t",
+      SUPPORT_PAGE_TEXT: "# Support help",
     },
   },
   () => {
-    test("excludes Bunny-only secrets for a Deno hosting provider", () => {
-      const names = collectHostSecrets("deno").map(([name]) => name);
-      expect(names).toContain("NTFY_URL");
-      expect(names).not.toContain("BUNNY_API_KEY");
-      expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
-      expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+    test("keeps the Deno-only support message and skips Bunny-only secrets", () => {
+      expect(collectHostSecrets("deno")).toEqual([
+        ["NTFY_URL", "https://ntfy.example.com/t"],
+        ["SUPPORT_PAGE_TEXT", "# Support help"],
+      ]);
     });
 
-    test("includes Bunny-only secrets for a Bunny hosting provider", () => {
+    test("skips the support message for a Bunny hosting provider", () => {
       const names = collectHostSecrets("bunny").map(([name]) => name);
       expect(names).toContain("BUNNY_API_KEY");
       expect(names).toContain("BUNNY_DNS_ZONE_ID");
       expect(names).toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+      expect(names).not.toContain("SUPPORT_PAGE_TEXT");
     });
   },
 );
@@ -126,13 +127,11 @@ describeWithEnv(
     },
   },
   () => {
-    test("excludes Bunny DNS secrets for a Deno-hosted site", () => {
+    test("excludes Bunny-only secrets for a Deno-hosted site", () => {
       const names = expectedNamesFor(
         buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
       );
-      expect(names).not.toContain("BUNNY_API_KEY");
-      expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
-      expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+      expect(names.filter((name) => name.startsWith("BUNNY_"))).toEqual([]);
     });
   },
 );

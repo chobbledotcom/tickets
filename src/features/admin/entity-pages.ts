@@ -18,6 +18,7 @@ import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminDestination, adminRecordPath } from "#shared/admin-surface.ts";
 import {
+  type FlankingNav,
   resolveTabSlug,
   splitActions,
   type TabState,
@@ -41,6 +42,9 @@ export type EntityId = number | string;
 
 /** Per-request context handed to every loader and href builder. */
 export interface PageCtx {
+  /** The slug of the tab this request lands on — what sibling-page links
+   * (e.g. a pager's prev/next arrows) carry so following one keeps the tab. */
+  activeTabSlug: string;
   /** The request's origin (for absolute links, e.g. the customer pay link).
    * Empty on POST failure re-renders, which never build absolute links. */
   baseUrl: string;
@@ -150,6 +154,9 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
    *  (e.g. the attendee page's "Add a note" link). */
   proseExtra?: SlotLoader<E>;
   tabs: readonly TabDef<E>[];
+  /** Flanking controls around the `<h1>`, e.g. a built-site pager whose
+   * arrows keep the viewer on the same tab. */
+  titleNav?: (entity: E, ctx: PageCtx) => Promise<FlankingNav | null>;
   titleOf: (entity: E) => string;
 }
 
@@ -304,6 +311,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     const tab = resolvePageTab(def.tabs, entity, session, requestedTab);
     if (!tab) return notFoundResponse();
     const ctx: PageCtx = {
+      activeTabSlug: tab.activeSlug,
       baseUrl: opts.baseUrl ?? "",
       query: opts.query ?? new URLSearchParams(),
       returnUrl: path(id, tab.activeSlug),
@@ -316,10 +324,11 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
       ctx,
       opts.panel,
     );
-    const [banner, guideFooter, proseExtra] = await Promise.all([
+    const [banner, guideFooter, proseExtra, titleNav] = await Promise.all([
       resolveSlot(def.banner, entity, ctx),
       resolveSlot(def.guideFooter, entity, ctx),
       resolveSlot(def.proseExtra, entity, ctx),
+      def.titleNav?.(entity, ctx) ?? null,
     ]);
     return htmlResponse(
       entityPageView({
@@ -331,6 +340,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
         session,
         tabs: tabLinks(tab.states, basePath(id), tab.activeSlug),
         title: def.titleOf(entity),
+        titleNav,
       }),
       opts.status ?? 200,
     );

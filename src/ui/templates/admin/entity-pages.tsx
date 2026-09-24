@@ -16,7 +16,7 @@ import type { ActivityLogEntry } from "#db/activity-log.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
-import type { TabLink } from "#shared/entity-pages/core.ts";
+import type { FlankingNav, TabLink } from "#shared/entity-pages/core.ts";
 import { getFlashFormId } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
 import { ActivityLogTable } from "#templates/admin/activity-log.tsx";
@@ -228,6 +228,9 @@ export interface EntityPageView {
   session: AdminSession;
   tabs: TabLink[];
   title: string;
+  /** Optional controls flanking the title inside the `<h1>` — see
+   * `FlankingNav`. */
+  titleNav?: FlankingNav | null;
 }
 
 /** The whole entity page: title → banner → tab strip → active tab's sections,
@@ -243,7 +246,13 @@ export const entityPageView = (view: EntityPageView): string =>
     >
       {getFlashFormId() === undefined && requestFlash()}
       <div class="prose entity-header">
-        <h1>{view.title}</h1>
+        {view.titleNav ? (
+          <h1>
+            {view.titleNav.before} {view.title} {view.titleNav.after}
+          </h1>
+        ) : (
+          <h1>{view.title}</h1>
+        )}
         {view.proseExtra}
       </div>
       {view.banner}

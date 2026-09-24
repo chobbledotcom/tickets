@@ -9,16 +9,19 @@
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
-import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
-import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult } from "#shared/result.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { withSiteDb } from "#shared/site-db.ts";
+import { resolveHostingProvider } from "#shared/site-hosting.ts";
+import {
+  SUPPORT_MESSAGE_KEY,
+  supportMessageApi,
+} from "#shared/site-support-message.ts";
+import { getSupportPageText } from "#shared/support.ts";
 import { tryStep } from "#shared/try-step.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
@@ -32,13 +35,18 @@ import { fetchLatestRelease } from "#shared/update.ts";
  * stays aware. Keeping sensitivity here, on the single source list, stops it
  * drifting from a hand-maintained parallel list.
  */
-type HostSecret = { name: string; hostInfra?: boolean; bunnyOnly?: boolean };
+type HostSecret = {
+  name: string;
+  hostInfra?: boolean;
+  bunnyOnly?: boolean;
+  denoOnly?: boolean;
+};
 
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "SENTRY_URL" },
   { name: "ADMIN_EMAIL_ADDRESS" },
-  { name: "SUPPORT_PAGE_TEXT" },
+  { denoOnly: true, name: SUPPORT_MESSAGE_KEY },
   { name: "SUPPORT_FORM_NAG_DAYS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
   { hostInfra: true, name: "STORAGE_ZONE_KEY" },
@@ -124,16 +132,17 @@ export const testDbConnection = async (
  * Collect the host-environment secrets that are currently set, as [name, value]
  * pairs. These are copied onto every freshly built site, and backfilled onto
  * existing sites that are missing them (see #shared/site-secrets.ts).
- * Secrets tagged `bunnyOnly` are excluded for non-Bunny hosting providers
- * (e.g. Deno sites have no Bunny script ID, so `isBunnyDnsEnabled()` must
- * stay false to avoid surfacing a DNS form that would fail at runtime).
+ * Secrets tagged `bunnyOnly` or `denoOnly` apply to that hosting provider
+ * alone. Bunny sites keep the support message as a readable variable instead
+ * of a secret copy (see #shared/site-support-message.ts).
  */
 export const collectHostSecrets = (
   hostingProvider: HostingProvider = "bunny",
 ): [string, string][] => {
   const secrets: [string, string][] = [];
-  for (const { name, bunnyOnly } of HOST_SECRETS) {
+  for (const { name, bunnyOnly, denoOnly } of HOST_SECRETS) {
     if (bunnyOnly && hostingProvider !== "bunny") continue;
+    if (denoOnly && hostingProvider !== "deno") continue;
     const value = getEnv(name);
     if (value) secrets.push([name, value]);
   }
@@ -245,6 +254,19 @@ const buildSiteOnProvider = async (
       ok: false,
     };
   }
+  // A Bunny site's support message lives as a readable variable, so the new
+  // site starts with the host's own text instead of a secret copy nobody can
+  // read back. Set before publishing so the first request already sees it.
+  if (hostingProvider === "bunny") {
+    const hostText = getSupportPageText();
+    if (hostText !== null) {
+      const seeded = await supportMessageApi.setSupportMessage(
+        result.value.hostingId,
+        hostText,
+      );
+      if (!seeded.ok) return seeded;
+    }
+  }
   const published = await provider.publishSite(result.value.hostingId, code);
   if (!published.ok) return published;
   const { scheduledTaskKey: _scheduledTaskKey, ...built } = prepared;
@@ -277,37 +299,6 @@ export const buildSite = async (
     input.hostingProvider ?? "bunny",
     retain,
   );
-};
-
-const HOSTING_PROVIDERS: Record<HostingProvider, HostingProviderApi> = {
-  bunny: bunnyHostingProvider,
-  deno: denoHostingProvider,
-};
-
-export const resolveHostingProvider = (
-  provider: HostingProvider,
-): HostingProviderApi => HOSTING_PROVIDERS[provider];
-
-/**
- * A built site can only be reached on its hosting provider when it has a
- * hosting ID and the host holds the provider's API key. `blocked` finishes
- * the error sentence — e.g. "its secrets can't be read".
- */
-export const siteHostingAccess = (
-  site: { hostingId: string; hostingProvider: HostingProvider },
-  blocked: string,
-): { ok: true; hostingId: string } | { ok: false; error: string } => {
-  if (!site.hostingId) {
-    return { error: `This site has no hosting ID, so ${blocked}.`, ok: false };
-  }
-  const { configEnvVar } = resolveHostingProvider(site.hostingProvider);
-  if (!getEnv(configEnvVar)) {
-    return {
-      error: `${configEnvVar} is not configured on this host, so ${blocked}.`,
-      ok: false,
-    };
-  }
-  return { hostingId: site.hostingId, ok: true };
 };
 
 /** Dispatch database creation to the selected provider. */

@@ -5,6 +5,10 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
+import {
+  type SupportMessageResult,
+  supportMessageApi,
+} from "#shared/site-support-message.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
@@ -77,6 +81,8 @@ interface BuildSiteMockOptions {
   releaseOpts?: ReleaseOptions;
   scriptId?: number;
   secretResult?: BunnyResult;
+  /** The support-message variable seed's write result. */
+  supportSeedResult?: SupportMessageResult;
   updatePullZoneResult?: BunnyResult;
 }
 
@@ -112,6 +118,12 @@ export const stubBuildSiteApis = (opts: BuildSiteMockOptions = {}) => ({
   ),
   secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve(opts.secretResult ?? { ok: true as const }),
+  ),
+  supportSeedStub: stub(
+    supportMessageApi,
+    "setSupportMessage",
+    (_hostingId: string, value: string) =>
+      Promise.resolve(opts.supportSeedResult ?? { ok: true as const, value }),
   ),
   updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
     Promise.resolve(opts.updatePullZoneResult ?? { ok: true as const }),

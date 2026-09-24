@@ -6,7 +6,12 @@ import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { builtSitePage } from "./built-site-page.tsx";
 
-export type BuiltSiteTab = "maintenance" | "renewal" | "secrets" | "update";
+export type BuiltSiteTab =
+  | "maintenance"
+  | "renewal"
+  | "secrets"
+  | "support-message"
+  | "update";
 
 export const builtSiteTabSuccess = (
   id: number,

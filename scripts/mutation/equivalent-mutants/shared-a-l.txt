@@ -328,3 +328,5 @@ src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → ||  # the
 # is the only absent value, so ?? and || read identically over the type.
 src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecordDefaults is undefined or a truthy record object
 src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object
+src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → ||   # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
+src/shared/site-support-message.ts::readSupportMessageImpl.variable~1o5zuox  ?? → ||   # Bunny answers EdgeScriptVariables with an array or null; every array is truthy

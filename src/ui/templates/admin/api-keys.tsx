@@ -19,6 +19,7 @@ import { ExampleCode } from "#templates/admin/guide/components.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
+import type { ChildProps } from "#templates/components/child-props.ts";
 import { linkCell } from "#templates/components/link-cell.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -160,8 +161,8 @@ export const adminApiKeyDeletePage = entityDeletePage(
 );
 
 /** A `<pre><code>…</code></pre>` block — the request/response payload
- *  container shared by every endpoint entry. */
-const CodeBlock = ({ children }: { children: Child }): JSX.Element => (
+ * container shared by every endpoint entry. */
+const CodeBlock = ({ children }: ChildProps): JSX.Element => (
   <pre>
     <code>{children}</code>
   </pre>

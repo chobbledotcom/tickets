@@ -15,7 +15,6 @@ import {
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
-import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
@@ -29,6 +28,7 @@ import {
   type SiteAssignmentConfigValidation,
 } from "#shared/site-assignment-failure.ts";
 import { buildAssignableSite } from "#shared/site-build.ts";
+import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */

@@ -48,7 +48,7 @@ const BUNNY_DB_TOKEN =
   /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/?#]+\/auth\/generate$/;
 const BUNNY_SCRIPT_CREATE = /^https:\/\/api\.bunny\.net\/compute\/script$/;
 const BUNNY_SCRIPT_ACTION =
-  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/?#]+\/(code|publish|secrets)$/;
+  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/?#]+\/(code|publish|secrets|variables)$/;
 const BUNNY_PULL_ZONE = /^https:\/\/api\.bunny\.net\/pullzone\/\d+$/;
 /** The canned release's asset, so the build's bundle download dry-runs too. */
 const DRY_RUN_RELEASE_ASSET = new RegExp(

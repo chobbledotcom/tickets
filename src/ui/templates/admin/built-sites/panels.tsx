@@ -19,10 +19,12 @@ import {
   type IconName,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import type { ChildProps } from "#templates/components/child-props.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { Prose } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 
-const SiteActionForm = ({
+export const SiteActionForm = ({
   siteId,
   action,
   children,
@@ -54,6 +56,14 @@ const CodeNameList = ({ names }: { names: string[] }): JSX.Element => (
       </li>
     ))}
   </ul>
+);
+
+/** A tab whose whole body is its read failure: the error note alone in a
+ * prose block. */
+export const TabErrorNote = ({ children }: ChildProps): JSX.Element => (
+  <Prose>
+    <ErrorNote>{children}</ErrorNote>
+  </Prose>
 );
 
 const ConfirmActionButton = ({
@@ -293,11 +303,9 @@ export const SecretsPanel = ({
   if (!view) return <p class="prose">{t("built_sites.secrets_unavailable")}</p>;
   if (!view.ok) {
     return (
-      <div class="prose">
-        <ErrorNote>
-          {t("built_sites.secrets_error", { error: view.error })}
-        </ErrorNote>
-      </div>
+      <TabErrorNote>
+        {t("built_sites.secrets_error", { error: view.error })}
+      </TabErrorNote>
     );
   }
   const infraMissing = hostInfraSecretNames(view.missing);

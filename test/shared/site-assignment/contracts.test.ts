@@ -341,5 +341,53 @@ describeWithEnv(
         "Your new sites are ready!\n\nVisit the setup links below to activate your sites:\n\n- Hosted listing: https://a.test/setup/\n- Hosted listing: https://b.test/setup/",
       );
     });
+
+    test("a no-quantity line books no site and sends no email", async () => {
+      using fetchStub = stubFetch(new Response());
+      using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await insertBuiltSite("Site Z", "z.test", "", "", true, "131");
+
+      await assignAndNotifyBuiltSites([
+        {
+          ...assignmentEntry(),
+          attendee: { email: "buyer@example.com", id: 81, quantity: 0 },
+        },
+      ]);
+
+      const site = (await builtSites.getAll()).find(
+        ({ name }) => name === "Site Z",
+      )!;
+      expect(site.assignedAttendeeId).toBeNull();
+      expect(fetchStub.calls).toEqual([]);
+    });
+
+    test("one email names every plan listing a multi-listing buyer booked", async () => {
+      using fetchStub = stubFetch(new Response());
+      using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await insertBuiltSite("Site J", "j.test", "", "", true, "141");
+
+      const planEntry = (name: string) => ({
+        attendee: { email: "buyer@example.com", id: 81, quantity: 1 },
+        listing: {
+          assign_built_site: true,
+          id: 72,
+          initial_site_months: 3,
+          name,
+        },
+      });
+      await assignAndNotifyBuiltSites([
+        planEntry("Bronze plan"),
+        planEntry("Gold plan"),
+      ]);
+
+      const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+      expect(body.text).toContain(
+        "Bronze plan + Gold plan: https://j.test/setup/",
+      );
+    });
   },
 );

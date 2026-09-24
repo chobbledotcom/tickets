@@ -9,8 +9,8 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { divWithClass } from "#templates/components/div-with-class.tsx";
 
 /** A `<div class="prose">` block — the standard prose styling wrapper the
- *  components below share. */
-const Prose: (props: { children: Child }) => JSX.Element =
+ * components below share. */
+export const Prose: (props: { children: Child }) => JSX.Element =
   divWithClass("prose");
 
 /** A top-level `<h1>` page heading. Shared by the page {@link HeadingLayout}

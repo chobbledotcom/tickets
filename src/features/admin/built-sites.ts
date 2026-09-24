@@ -21,8 +21,6 @@ import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
-/* jscpd:ignore-end */
-import { siteHostingAccess } from "#shared/builder.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 /* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
@@ -40,6 +38,8 @@ import {
   rotateRenewalToken,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
+/* jscpd:ignore-end */
+import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { addMissingSiteSecrets } from "#shared/site-secrets.ts";
 import { deployAndReport } from "#shared/site-update.ts";
@@ -62,6 +62,7 @@ import {
   builtSiteTabSuccess,
 } from "./built-site-action.ts";
 import { builtSitePage } from "./built-site-page.tsx";
+import { handleSaveSiteSupportMessage } from "./built-site-support-message.ts";
 
 /** Extract built site input from validated form values.
  *
@@ -384,6 +385,7 @@ export const adminHandlers = gateOnBuilder(
       handleProvisionSiteScheduler,
     "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
     "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+    "POST /admin/built-sites/:id/support-message": handleSaveSiteSupportMessage,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
   }),
 );

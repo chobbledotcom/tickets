@@ -173,11 +173,11 @@ describeWithEnv(
         expectSecret(secretsSet, "NTFY_URL", "https://ntfy.example.com/test");
         expectSecret(secretsSet, "SENTRY_URL", "https://k@bugs.example.com/2");
         expectSecret(secretsSet, "ADMIN_EMAIL_ADDRESS", "admin@example.com");
-        expectSecret(
-          secretsSet,
-          "SUPPORT_PAGE_TEXT",
-          "# Help\\n\\nAsk us anything",
-        );
+        // Bunny sites keep the support message as a readable variable
+        // instead — the seed test below pins that call.
+        expect(
+          secretsSet.map(([name]) => name).includes("SUPPORT_PAGE_TEXT"),
+        ).toBe(false);
         expectSecret(secretsSet, "SUPPORT_FORM_NAG_DAYS", "14");
       }));
 
