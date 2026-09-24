@@ -313,3 +313,6 @@ src/features/admin/bulk-actions.ts::handleDuplicateGroupPost.cloneInputs.input.c
 # is never "" and the only nullish value is undefined, where ?? and || agree.
 src/features/tickets/index.ts::matchSvgPath~0ma4ttp  ?? → ||  # match?.[1] is a non-empty string or undefined; ?? and || read identically
 src/features/admin/settings-domains.ts::runGuardedTask.run~0zdzaus  ?? → ||   # requireRecovery returns null, or the ErrorPageFn result — Response | Promise<Response>, both always truthy — so ?? and || agree on every reachable value
+src/features/admin/guide.ts::handleAdminGuideGet.hostAppleWalletPassTypeId~0fwsjhh  ?? → ||   # appleWallet.hostConfig builds only when every field is truthy (apple-wallet-settings.ts), so the operand is undefined or a non-empty string
+src/features/admin/guide.ts::handleAdminGuideGet.hostEmailFromAddress~1owtz5h  ?? → ||  # getHostEmailConfigFromEnv returns null unless provider, apiKey, and the parseEmail-valid fromAddress are all truthy (email.ts), so the operand is undefined or a valid email
+src/features/admin/guide.ts::handleAdminGuideGet.hostGoogleWalletIssuerId~00ncc9m  ?? → ||  # googleWallet.hostConfig builds only when issuerId, serviceAccountEmail, and serviceAccountKey are all truthy (google-wallet-settings.ts), so the operand is undefined or a non-empty string
