@@ -27,7 +27,10 @@ test("the custom-domain answer notes when its section is absent", () => {
   );
 });
 
-test("the custom domain answer names the always-working fallback address", () => {
+test("the answers name the request-hostname fallback", () => {
   const html = String(renderGuideSections(domainsSections()));
-  expect(html).toContain("b-cdn.net</code> address. It always works.");
+  // The system keeps the raw request hostname — a bunny.run request keeps
+  // bunny.run links — so the copy must not claim a fixed b-cdn.net address.
+  expect(html).toContain("hostname the request came in on");
+  expect(html).toContain("b-cdn.net</code> or <code>bunny.run</code>");
 });
