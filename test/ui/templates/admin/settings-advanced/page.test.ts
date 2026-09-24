@@ -99,9 +99,9 @@ describe("adminAdvancedSettingsPage", () => {
       subdomainPreviewFullDomain: "mylisting.tickets.example.com",
     });
     expect(html).toContain("mylisting.tickets.example.com");
-    expect(html).toContain("is available");
+    expect(html).toContain("is free.");
     expect(html).toContain('name="save"');
-    expect(html).toContain("Confirm registration");
+    expect(html).toContain("Register this subdomain");
     expect(html).toContain('value="mylisting"');
   });
 

@@ -16,8 +16,10 @@ import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 /* jscpd:ignore-end */
 
-const SubdomainIntroProse = (): SafeHtml =>
-  ProseIntro({ html: t("settings.subdomain.intro") });
+const SubdomainIntroProse = (s: AdvancedSettingsPageState): SafeHtml =>
+  ProseIntro({
+    html: t("settings.subdomain.intro", { suffix: s.bunnyDnsSubdomainSuffix }),
+  });
 
 const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.bunnySubdomain) {
@@ -39,7 +41,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.subdomainPreview) {
     return (
       <>
-        <SubdomainIntroProse />
+        {SubdomainIntroProse(s)}
         <p>
           <strong>{s.subdomainPreviewFullDomain}</strong>{" "}
           {t("settings.subdomain.is_available")}
@@ -68,7 +70,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   }
   return (
     <>
-      <SubdomainIntroProse />
+      {SubdomainIntroProse(s)}
       <label>
         {t("settings.subdomain.subdomain_label")}
         <input

@@ -109,7 +109,9 @@ export const handleCustomDomainPost = advancedSettingsRoute(
 
         return fail(
           "/admin/settings-advanced",
-          `Custom domain saved but validation failed: ${result.error}`,
+          t("settings.advanced.custom_domain_saved_unvalidated", {
+            error: result.error,
+          }),
           { formId: "settings-custom-domain" },
         );
       },
@@ -172,18 +174,24 @@ const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
 export const handleHostSubdomainPost = advancedSettingsRoute(
   withSettingsFields("settings-host-subdomain", async (form, errorPage) => {
     if (!isBunnyDnsEnabled()) {
-      return errorPage("Not configured", FORM_ID_HOST_SUBDOMAIN);
+      return errorPage(
+        t("settings.subdomain.flash.not_configured"),
+        FORM_ID_HOST_SUBDOMAIN,
+      );
     }
     if (settings.bunnySubdomain) {
       return errorPage(
-        "Subdomain has already been set and cannot be changed",
+        t("settings.subdomain.flash.already_set"),
         FORM_ID_HOST_SUBDOMAIN,
       );
     }
 
     const raw = form.getString("subdomain").toLowerCase().trim();
     if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
-      return errorPage("Invalid subdomain format", FORM_ID_HOST_SUBDOMAIN);
+      return errorPage(
+        t("settings.subdomain.flash.invalid"),
+        FORM_ID_HOST_SUBDOMAIN,
+      );
     }
 
     const save = form.getString("save");
@@ -196,13 +204,13 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       }
       if (!check.available) {
         return errorPage(
-          `Subdomain "${raw}" is already taken`,
+          t("settings.subdomain.flash.taken", { name: raw }),
           FORM_ID_HOST_SUBDOMAIN,
         );
       }
       return ok(
         "/admin/settings-advanced",
-        `${check.fullDomain} is available`,
+        t("settings.subdomain.flash.available", { domain: check.fullDomain }),
         {
           formId: FORM_ID_HOST_SUBDOMAIN,
           result: `${raw}\n${check.fullDomain}`,
@@ -227,7 +235,9 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
             await logActivity(`Host subdomain set to ${ok_.fullDomain}`);
             return ok(
               "/admin/settings-advanced",
-              `Subdomain registered: ${ok_.fullDomain}`,
+              t("settings.subdomain.flash.registered", {
+                domain: ok_.fullDomain,
+              }),
               {
                 formId: FORM_ID_HOST_SUBDOMAIN,
               },

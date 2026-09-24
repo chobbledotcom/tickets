@@ -49,32 +49,34 @@ describe("CustomDomainForm", () => {
     expect(formHtml).toContain('id="settings-custom-domain"');
     // Prose container around the heading
     expect(html).toContain('class="prose"');
-    // Whitespace between the intro sentence and the setup-guide anchor
-    expect(html).toContain("your tickets site. <a");
+    // Whitespace between the example URL and the setup-guide anchor
+    expect(html).toContain("<code>tickets.example.co.uk</code>. <a");
     const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
     expect(domainInput).not.toBeNull();
     if (domainInput === null) return;
-    expect(domainInput[0]).toContain('placeholder="tickets.yourdomain.com"');
+    expect(domainInput[0]).toContain('placeholder="tickets.example.co.uk"');
     expect(domainInput[0]).toContain('type="text"');
     expect(domainInput[0]).toContain('value="tickets.example.com"');
     // Guide link
     expect(html).toContain('href="/admin/guide#custom-domain"');
     // Subdomain note (visible when subdomain is set)
-    expect(html).toContain("same time as a custom domain");
+    expect(html).toContain("keeps working at the same time");
     // Validate button (visible when customDomain is set)
     expect(html).toContain('action="/admin/settings/custom-domain/validate"');
     expect(html).toContain('id="settings-custom-domain-validate"');
     // Not-yet-validated warning (customDomainLastValidated defaults to "")
     expect(html).toContain("not yet validated");
-    // DNS hint
-    expect(html).toContain("DNS record is in place");
-    // CNAME instructions: whitespace separators between strong tags and text
-    expect(html).toContain("</strong> record:");
+    // Numbered CNAME steps with the record values
+    expect(html).toContain("Make one CNAME record like this:");
+    expect(html).toContain(
+      "Open the DNS settings where you bought your domain.",
+    );
+    expect(html).toContain("Validation can take a few minutes.");
+    // CNAME record rows: whitespace separators between strong tags and text
     expect(html).toContain("Name:</strong> <code");
+    expect(html).toContain("TTL:</strong> 3600");
     // Last-validated line is hidden when customDomainLastValidated is empty
     expect(html).not.toContain("Last validated:");
-    // Payment name label
-    expect(html).toContain("Name:");
   });
 
   test("blocks a domain change until provider recovery is complete", () => {

@@ -410,8 +410,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains host subdomain section", async () => {
       await guide(
-        "Host Subdomain",
-        "permanent and cannot be changed",
+        "Host subdomain",
+        "needs no DNS set-up",
         "host subdomain and custom domain",
       );
     });
@@ -425,7 +425,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains host subdomain in advanced settings list", async () => {
-      await guide("Host subdomain", "register a pretty");
+      await guide("Host subdomain", "a free address for your site");
     });
 
     test("shows subdomain suffix when Bunny DNS is configured", async () => {

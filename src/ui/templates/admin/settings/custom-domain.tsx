@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
@@ -26,10 +27,9 @@ export const CustomDomainForm = (
         <div class="prose">
           <h2>{t("settings.advanced.custom_domain")}</h2>
           <p>
-            Set a custom domain for your tickets site.{" "}
-            <a href="/admin/guide#custom-domain">Setup guide</a>.
+            <Raw html={t("settings.advanced.custom_domain_intro")} />
             {s.bunnySubdomain &&
-              " Your host subdomain can be active at the same time as a custom domain."}
+              ` ${t("settings.advanced.custom_domain_with_subdomain")}`}
           </p>
         </div>
         <TextField
@@ -38,7 +38,7 @@ export const CustomDomainForm = (
             "settings-custom-domain",
             "custom_domain",
           )}
-          placeholder="tickets.yourdomain.com"
+          placeholder={t("settings.advanced.custom_domain_placeholder")}
           type="text"
           value={s.customDomain}
         />
@@ -58,40 +58,48 @@ export const CustomDomainForm = (
           {!s.customDomainLastValidated && (
             <article>
               <aside role="alert">
-                <p>
-                  <strong>Your custom domain is not yet validated.</strong> It
-                  will not work until validation is complete.
-                </p>
+                <p>{t("settings.advanced.domain_not_validated")}</p>
               </aside>
             </article>
           )}
           <article>
             <aside>
-              <p>
-                To use your custom domain, create a <strong>CNAME</strong>{" "}
-                record:
-              </p>
-              <ul>
+              <p>{t("settings.advanced.domain_cname_intro")}</p>
+              <ol>
+                <li>{t("settings.advanced.domain_cname_step_open")}</li>
                 <li>
-                  <strong>Type:</strong> CNAME
+                  {t("settings.advanced.domain_cname_step_record")}
+                  <ul>
+                    <li>
+                      <strong>{t("settings.advanced.domain_col_type")}:</strong>{" "}
+                      CNAME
+                    </li>
+                    <li>
+                      <strong>{t("settings.advanced.domain_col_name")}:</strong>{" "}
+                      <code>{s.customDomain}</code>
+                    </li>
+                    <li>
+                      <strong>
+                        {t("settings.advanced.domain_col_value")}:
+                      </strong>{" "}
+                      <code>{s.cdnHostname}</code>
+                    </li>
+                    <li>
+                      <strong>{t("settings.advanced.domain_col_ttl")}:</strong>{" "}
+                      3600
+                    </li>
+                  </ul>
                 </li>
-                <li>
-                  <strong>{t("payment.name_label")}</strong>{" "}
-                  <code>{s.customDomain}</code>
-                </li>
-                <li>
-                  <strong>Value:</strong> <code>{s.cdnHostname}</code>
-                </li>
-                <li>
-                  <strong>TTL:</strong> 3600
-                </li>
-              </ul>
-              <p>{t("settings.advanced.domain_dns_hint")}</p>
+                <li>{t("settings.advanced.domain_cname_step_check")}</li>
+              </ol>
             </aside>
           </article>
           {s.customDomainLastValidated && (
             <p>
-              <small>Last validated: {s.customDomainLastValidated}</small>
+              <small>
+                {t("settings.advanced.domain_last_validated")}{" "}
+                {s.customDomainLastValidated}
+              </small>
             </p>
           )}
         </SaveForm>

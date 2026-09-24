@@ -54,9 +54,9 @@ describe("HostSubdomainForm", () => {
       }),
     );
     expect(html).toContain("my-sub.example.com");
-    expect(html).toContain("is available");
-    // Whitespace between the previewed domain and the "is available" suffix
-    expect(html).toContain("</strong> is available");
+    expect(html).toContain("is free");
+    // Whitespace between the previewed domain and the "is free" suffix
+    expect(html).toContain("</strong> is free.");
     const form = html.match(
       /<form[^>]*action="\/admin\/settings\/host-subdomain"[^>]*>[\s\S]*?<\/form>/,
     );
@@ -67,12 +67,12 @@ describe("HostSubdomainForm", () => {
     if (subdomainInput === null) return;
     expect(subdomainInput[0]).toContain('type="hidden"');
     expect(subdomainInput[0]).toContain('value="my-sub"');
-    expect(html).toContain("Confirm registration");
+    expect(html).toContain("Register this subdomain. This cannot be undone.");
     // Confirm checkbox: defaults to unchecked, carries name="save" + value="1"
     expect(html).not.toContain("checked");
     expect(html).toContain('name="save"');
     expect(html).toContain('value="1"');
-    expect(html).toContain("Register Subdomain");
+    expect(html).toContain("Register subdomain");
     expect(html).toContain("btn secondary");
     expect(html).toContain("Cancel");
     expect(html).toContain(
@@ -102,9 +102,11 @@ describe("HostSubdomainForm", () => {
     if (subdomainInput === null) return;
     expect(subdomainInput[0]).toContain('type="text"');
     expect(form[0]).toContain('id="settings-host-subdomain"');
-    expect(form[0]).toContain("Check");
+    expect(form[0]).toContain("Check if the name is free");
     expect(html).toContain("muted");
     expect(html).toContain(".tickets.example");
+    // The intro shows the full final URL once, from the host's own suffix.
+    expect(html).toContain("<code>your-name.tickets.example</code>");
   });
 
   test("renders the active subdomain state", () => {
