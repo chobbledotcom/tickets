@@ -46,6 +46,7 @@
   "linked_items.heading": "Linked items ({count}):",
   "linked_items.heading_typed": "Linked {type} ({count}):",
   "linked_items.heading_add": "Add {type}:",
+  "linked_items.heading_remove": "Remove {type}:",
   "expected_actual.badge_error": "Mismatch",
   "expected_actual.default_title": "Stored total mismatch",
   "expected_actual.expected": "expected",

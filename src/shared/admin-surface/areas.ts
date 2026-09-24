@@ -98,9 +98,7 @@ export const ADMIN_AREAS = {
   },
   builder: {
     audience: OWNER_AUDIENCE,
-    view: {
-      builder: "/admin/builder",
-    },
+    view: { builder: "/admin/builder" },
   },
   builtSites: {
     audience: OWNER_AUDIENCE,
@@ -195,6 +193,7 @@ export const ADMIN_AREAS = {
       groupEdit: "/admin/groups/:id/edit",
       groupImages: "/admin/groups/:id/images",
       groupNew: "/admin/groups/new",
+      groupRemoveListings: "/admin/groups/:id/remove-listings",
     },
   },
   guide: {

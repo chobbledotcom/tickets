@@ -16,8 +16,8 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import {
-  deactivationOrphanedAddOnError,
   deleteOrphanedAddOnError,
   performListingDelete,
 } from "#shared/listings-actions.ts";

@@ -16,21 +16,17 @@ import {
   firstTouchingEdgeError,
   getNonStandaloneChildIds,
   listingChildren,
-  listingIdsWithLinks,
   listingParents,
 } from "#db/listing-parents.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import {
-  getAllListings,
   getListingWithCount,
   isSlugTaken,
   listingsTable,
 } from "#db/listings/records.ts";
 import {
   childOnlyAddOnNameForListings,
-  firstChildUnreachableAddOnForListings,
   type ListingGroupMembership,
-  toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
 import {
   catalogNameLengthError,
@@ -211,19 +207,11 @@ const validateRenewalConfig = (input: ListingInput): string | null => {
  * see the pending change). The listing is checked both as a
  * parent (its children, against its own page id `[id]`) and as a child (under
  * each parent's page id `[parentId]`). */
-/** Every listing as a {@link ListingGroupMembership} with a per-listing override
- * applied — the would-be group set or inactive state the save is about to
- * commit. One membership lookup feeds both would-be reachability checks. */
-const listingsWithGroups = async (
-  override: (listing: ListingWithCount) => Partial<ListingGroupMembership>,
-): Promise<ListingGroupMembership[]> => {
-  const all = await getAllListings();
-  const membership = await listingGroups.getIdsByKeys(all.map((l) => l.id));
-  return all.map((listing) => ({
-    ...toListingGroupMembership(listing, membership),
-    ...override(listing),
-  }));
-};
+import {
+  deactivationOrphanedAddOnError,
+  listingsWithGroups,
+  orphanedAddOnOverWouldBe,
+} from "#shared/add-on-reachability.ts";
 
 const orphanedAddOnAfterChange = async (
   id: number,
@@ -259,59 +247,6 @@ const orphanedAddOnAfterChange = async (
       ? t("listings_table.children_err_child_addon_save", { addon: addOn })
       : null;
   });
-};
-
-/**
- * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks
- * edges that touch a listing, so it MISSES this case. A deactivated listing may
- * have no edge of its own, and still be the ordinary page keeping a
- * child-scoped add-on reachable.
- *
- * So every active opt-in add-on is re-checked against an in-memory set with ALL
- * the targets marked inactive AT ONCE. An add-on rescued only by several group
- * members together is then still caught.
- *
- * DEACTIVATION only. An activation can only ADD reachable pages.
- */
-/**
- * Run the shared child-scoped-add-on reachability over a would-be listing set:
- * apply `override` (a save's inactive/group-move state) to the in-memory
- * listings, then treat `forceSuppressed` ids as non-standalone children even
- * when the DB still reads them otherwise (a just-cleared `bookable_alone` flag,
- * which the pending save hasn't committed yet). Being in the suppressed set also
- * drops those ids from the reachable pages. Returns the first orphaned add-on's
- * error, or null. Shared by the deactivation and false-transition guards so
- * their reachability computation can't drift.
- */
-const orphanedAddOnOverWouldBe = async (
-  override: (listing: ListingWithCount) => Partial<ListingGroupMembership>,
-  forceSuppressed: readonly number[] = [],
-): Promise<string | null> => {
-  const wouldBe = await listingsWithGroups(override);
-  const childIds = await getNonStandaloneChildIds(wouldBe.map((l) => l.id));
-  for (const id of forceSuppressed) childIds.add(id);
-  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
-};
-
-export const deactivationOrphanedAddOnError = async (
-  inactiveIds: ReadonlySet<number>,
-): Promise<string | null> => {
-  // Deactivation does not clear bookable_alone, so a flagged child's stored row
-  // still reads `bookable_alone = 1` and getNonStandaloneChildIds keeps excluding
-  // it from the suppressed set — yet taking its page offline removes the only
-  // surface a child-only add-on could sell from. Force every deactivated flagged
-  // child (a child of some parent whose flag is still set) into the suppressed
-  // set, matching the edit-save path's lostPageOrphanedAddOn.
-  const ids = [...inactiveIds];
-  const childLinks = await listingParents.getIdsByKeys(ids);
-  const childIds = listingIdsWithLinks(childLinks);
-  const nonStandalone = await getNonStandaloneChildIds([...childIds]);
-  const flaggedChildren = [...childIds].filter((id) => !nonStandalone.has(id));
-  // Apply the would-be inactive state of every target listing to the in-memory set.
-  return orphanedAddOnOverWouldBe(
-    (listing) => (inactiveIds.has(listing.id) ? { active: false } : {}),
-    flaggedChildren,
-  );
 };
 
 /** True when the save takes this listing out of a group it is currently in.

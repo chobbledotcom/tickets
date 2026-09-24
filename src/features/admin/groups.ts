@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
@@ -11,10 +11,8 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import { logActivity } from "#db/activity-log.ts";
 import { executeBatch } from "#db/client.ts";
 import {
-  assignListingsToGroup,
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#db/groups/membership/package-writes.ts";
@@ -29,31 +27,30 @@ import {
   resetGroupListings,
 } from "#db/groups.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
-import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
-import { compact } from "#fp";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
-import { redirect } from "#routes/response.ts";
+import {
+  handleAddListingsToGroup,
+  handleRemoveListingsGet,
+  handleRemoveListingsPost,
+} from "#routes/admin/group-listing-forms.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
-import { xCount } from "#shared/count-text.ts";
 import {
   GROUP_DEMO_FIELDS,
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
@@ -67,7 +64,7 @@ import {
   getGroupCreateForm,
   getGroupForm,
 } from "#templates/fields/group.ts";
-import type { DayPrices, Group, ListingWithCount } from "#types";
+import type { DayPrices, Group } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
@@ -329,66 +326,6 @@ const crud = createCrudHandlers({
 /** Look up group by id, return 404 if not found */
 export const withGroup = withEntityLoader((id: number) => getGroupById(id));
 
-/**
- * POST handler factory: CSRF-validated form + loaded group.
- * Callers receive the group and the parsed form; a missing session or
- * missing group short-circuits with the appropriate response.
- */
-export const groupFormPost = (
-  handler: ResponseHandler<[group: Group, form: FormParams]>,
-): TypedRouteHandler<"POST /admin/groups/:id"> =>
-  createAuthedHandler<{ id: number }, Group>({
-    handle: ({ context, form }) => handler(context, form),
-    loadContext: ({ id }) => getGroupById(id),
-  });
-
-/** Validate package-only rules that rely on the group settings loaded for the form. */
-const packageListingError = async (
-  group: Group,
-  listings: ListingWithCount[],
-): Promise<string | null> => {
-  if (group.is_package) {
-    const packageError = await packageMembersError(
-      listings,
-      group.hide_package_listings,
-    );
-    if (packageError) return packageError;
-  }
-  return null;
-};
-
-/** Handle POST /admin/groups/:id/add-listings - assign ungrouped listings to group */
-const handleAddListingsToGroup = groupFormPost(async (group, form) => {
-  const groupPath = entityReturnPath(adminPattern("groups"), group.id);
-  const listingIds = form
-    .getAll("listing_ids")
-    .map(Number)
-    .filter((n) => n > 0);
-  if (listingIds.length > 0) {
-    const listings = compact(await getListingsWithCountsByIds(listingIds));
-    const packageError = await packageListingError(group, listings);
-    if (packageError) {
-      return redirect(groupPath, packageError, false);
-    }
-    const existingListingIds = listings.map((listing) => listing.id);
-    const typeError = await assignListingsToGroup(listingIds, group.id);
-    if (typeError) {
-      // Another operator can delete the group between the load above and this
-      // write, and the group's own page would then answer 404, so a group that
-      // went missing sends the operator back to the list instead.
-      const target =
-        typeError === t("error.selected_group_deleted")
-          ? adminPattern("groups")
-          : groupPath;
-      return redirect(target, typeError, false);
-    }
-    await logActivity(
-      `${xCount(existingListingIds.length)} listings added to group '${group.name}'`,
-    );
-  }
-  return redirect(groupPath, t("success.listings_added_to_group"), true);
-});
-
 const groupImageHandlers = createItemImageHandlers({
   disabledPath: (id) => `/admin/groups/${id}/edit`,
   itemType: "group",
@@ -410,6 +347,7 @@ export const adminHandlers = defineRoutes({
   // invariant via validate/afterWrite.
   ...entityTabRoutes(adminPattern("group"), groupPage),
   "GET /admin/groups/:id/delete": crud.deleteGet,
+  "GET /admin/groups/:id/remove-listings": handleRemoveListingsGet,
   // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": create.newGet,
   "POST /admin/groups": create.createPost,
@@ -418,4 +356,5 @@ export const adminHandlers = defineRoutes({
   "POST /admin/groups/:id/edit": crud.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
+  "POST /admin/groups/:id/remove-listings": handleRemoveListingsPost,
 });

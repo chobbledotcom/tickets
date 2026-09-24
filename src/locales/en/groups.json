@@ -8,6 +8,9 @@
   "groups.package_prices.heading": "Package prices",
   "groups.package_prices.hint": "Set the price for each listing when booked as part of this package. Leave blank to use the listing's own price.",
   "groups.package_prices.no_listings": "Add listings to this group to set their package prices.",
+  "groups.remove.heading": "Remove listings from the group",
+  "groups.remove.confirm_prompt": "Type the group name \"{name}\" to confirm.",
+  "groups.remove.submit": "Remove listings",
   "groups.delete.heading": "Delete Group",
   "groups.delete.confirm": "Are you sure you want to delete the group {name} ({slug})?",
   "groups.delete.listings_note": "Listings in this group will not be deleted. They will be moved out of the group.",
@@ -24,7 +27,9 @@
   "groups.detail.no_group_cap": "no group cap",
   "groups.detail.attendees_scope": "across all listings in the group",
   "groups.detail.share_unavailable": "This group or package isn't currently bookable, so its public page 404s — no link, embed, or QR code until it can be booked.",
-  "groups.detail.add_listings_submit": "Add Selected Listings",
+  "groups.detail.add_listings_submit": "Add selected listings",
+  "groups.detail.remove_listings_submit": "Remove selected listings",
+  "groups.detail.remove_listings_warning": "Warning: Each listing keeps its bookings and its money. Prices and quantities set for this group are removed.",
   "groups.fields.name": "Group Name",
   "groups.fields.name_placeholder": "Summer Fete",
   "groups.fields.max_attendees": "Max Attendees (optional)",
@@ -86,5 +91,6 @@
   "groups.candidate_type_blocked": "Every listing in this group is {type}. This listing is {candidate}.",
   "groups.candidate_days_blocked_fixed": "Every listing in this group has a fixed number of days. This listing lets visitors choose theirs.",
   "groups.candidate_days_blocked_customisable": "Every listing in this group lets visitors choose the number of days. This listing cannot.",
-  "success.listings_added_to_group": "Listings added to group"
+  "success.listings_added_to_group": "Listings added to group",
+  "success.listings_removed_from_group": "Listings removed from group"
 }

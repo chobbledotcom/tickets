@@ -133,26 +133,30 @@ export const groupFlatPriceStatements = (
   ]);
 };
 
-/** The statement that drops a listing's package price overrides — flat `group`
- * and per-day `group_day` — for a set of groups it is LEAVING. When a listing is
- * unticked from a package, its `group_listings` row goes but the price rows live
- * in `listing_prices`; without this they'd survive and a later re-add would
- * resurrect the stale override (the retired `group_listings.package_price` column
- * was deleted with the membership row, so re-adding started from no override). A
- * single statement regardless of how many groups, to stay within the interactive
- * round-trip guard. `null` for an empty set (nothing to drop). */
-export const removeListingGroupPricesStatement = (
-  listingId: number,
+/** The statement that drops package price overrides — flat `group` and per-day
+ * `group_day` — for every (listing, group) pair named. When a listing is
+ * unticked from a package, its `group_listings` row goes but the price rows
+ * live in `listing_prices`; without this they'd survive and a later re-add
+ * would resurrect the stale override (the retired `group_listings.package_price`
+ * column was deleted with the membership row, so re-adding started from no
+ * override). The listing-form diff names one listing across many groups; the
+ * group-page removal names one group across many listings. A single statement
+ * either way, to stay within the interactive round-trip guard. `null` when
+ * either set is empty (nothing to drop). */
+export const removeGroupPricesStatement = (
+  listingIds: readonly number[],
   groupIds: readonly number[],
 ): PriceStatement | null => {
-  if (groupIds.length === 0) return null;
+  if (groupIds.length === 0 || listingIds.length === 0) return null;
   const idText = groupIds.map(String);
   // Each group's group_day price_ids are "<groupId>/<n>"; the trailing "/" keeps
   // the LIKE exact (group 1's "1/%" never matches group 12's "12/3").
   const globs = groupIds.map((id) => `${id}/%`);
   return {
-    args: [listingId, ...idText, ...globs],
-    sql: `DELETE FROM listing_prices WHERE listing_id = ? AND (
+    args: [...listingIds, ...idText, ...globs],
+    sql: `DELETE FROM listing_prices WHERE listing_id IN (${inPlaceholders(
+      listingIds,
+    )}) AND (
         (price_type = '${PRICE_TYPE_GROUP}' AND price_id IN (${inPlaceholders(
           idText,
         )}))

@@ -30,7 +30,7 @@ import {
   getGroupDayPricesByGroupIds,
   groupDayPriceStatements,
   groupFlatPriceStatements,
-  removeListingGroupPricesStatement,
+  removeGroupPricesStatement,
 } from "#db/listing-prices.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
@@ -433,7 +433,7 @@ const listingGroupDiffStatements = (
     // they live in listing_prices, not on the membership row, so they'd otherwise
     // outlive the removal and resurrect on a re-add. Non-null: toRemove is
     // non-empty inside this branch.
-    statements.push(removeListingGroupPricesStatement(listingId, toRemove)!);
+    statements.push(removeGroupPricesStatement([listingId], toRemove)!);
   }
   if (toAdd.length > 0) {
     statements.push({
