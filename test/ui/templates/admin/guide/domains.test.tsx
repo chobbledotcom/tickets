@@ -50,9 +50,7 @@ test("renders markup in the suffix as text, not HTML", () => {
   expect(html).not.toContain("your-name.<b>");
 });
 
-test("the custom domain answer names the always-working b-cdn.net address", () => {
+test("the custom domain answer names the always-working fallback address", () => {
   const html = String(renderGuideSections(domainsSections()));
-  expect(html).toContain(
-    "b-cdn.net</code> address. That address always works.",
-  );
+  expect(html).toContain("b-cdn.net</code> address. It always works.");
 });
