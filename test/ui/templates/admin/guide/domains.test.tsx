@@ -8,6 +8,8 @@ test("the sections keep the anchors the settings page links to", () => {
   // The advanced-settings intro deep-links these two anchors.
   expect(html).toContain('<h3 id="host-subdomain">');
   expect(html).toContain('<h3 id="custom-domain">');
+  // The settings-overview section carries its own anchor too.
+  expect(html).toContain('<h3 id="settings">');
 });
 
 test("the host subdomain answer shows the host's own suffix", () => {

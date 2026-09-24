@@ -5,6 +5,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
   describeCustomDomain,
   expectActivityLogged,
+  requirePaymentProviderRecovery,
   withValidatedDomain,
 } from "#test/features/admin/settings-domains/support.ts";
 import {
@@ -50,6 +51,20 @@ describeCustomDomain("custom domain validation", (enable) => {
         )(response);
         expect(settings.customDomainLastValidated).not.toBe("");
         await expectActivityLogged("Custom domain validated");
+      });
+    });
+
+    test("still validates while a provider choice is pending", async () => {
+      enable();
+      await settings.update.customDomain("tickets.example.com");
+      await requirePaymentProviderRecovery();
+      await withValidatedDomain(async () => {
+        const { response } = await adminFormPost(PATH);
+        expectRedirectWithFlash(
+          REDIRECT,
+          "Custom domain validated successfully",
+        )(response);
+        expect(settings.customDomainLastValidated).not.toBe("");
       });
     });
 

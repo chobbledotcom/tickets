@@ -22,7 +22,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
           "what_is_host_subdomain",
           <Raw
             html={t("guide.domains.what_is_host_subdomain", {
-              suffix: hostConfig?.bunnyDnsSubdomainSuffix ?? ".example.com",
+              suffix: hostConfig?.bunnyDnsSubdomainSuffix || ".example.com",
             })}
           />,
         ),
