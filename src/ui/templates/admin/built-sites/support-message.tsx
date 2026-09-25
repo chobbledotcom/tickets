@@ -9,10 +9,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import {
-  SUPPORT_MESSAGE_MAX_BYTES,
-  type SupportMessageResult,
-} from "#shared/site-support-message.ts";
+import type { SupportMessageResult } from "#shared/site-support-message.ts";
 import {
   SiteActionForm,
   TabErrorNote,
@@ -55,14 +52,11 @@ export const SupportMessagePanel = ({
         <SiteActionForm action="support-message" siteId={site.id}>
           <label>
             {t("built_sites.support_message_label")}
-            <textarea
-              data-markdown-preview
-              maxlength={SUPPORT_MESSAGE_MAX_BYTES}
-              name="support_message"
-            >
+            <textarea data-markdown-preview name="support_message">
               {editorText ?? ""}
             </textarea>
           </label>
+          <p class="hint">{t("built_sites.support_message_limit")}</p>
           <SubmitButton icon="save">
             {t("built_sites.support_message_save")}
           </SubmitButton>

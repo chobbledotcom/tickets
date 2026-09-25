@@ -7,6 +7,7 @@
  * copy there disappears at the first save too.
  */
 
+import * as v from "valibot";
 import type { BuiltSite, HostingProvider } from "#db/built-sites/types.ts";
 import {
   BUNNY_API_BASE,
@@ -24,8 +25,7 @@ export const SUPPORT_MESSAGE_KEY = "SUPPORT_PAGE_TEXT";
 
 /** Bunny caps an environment variable's value at 2 KB, and Deno Deploy allows
  * 16 KB, so the smaller limit covers every site. */
-export const SUPPORT_MESSAGE_MAX_BYTES = 2048;
-
+const SUPPORT_MESSAGE_MAX_BYTES = 2048;
 /** Whether `text` is more bytes than a site can store. */
 export const supportMessageTooLong = (text: string): boolean =>
   new TextEncoder().encode(text).length > SUPPORT_MESSAGE_MAX_BYTES;
@@ -34,25 +34,36 @@ export const supportMessageTooLong = (text: string): boolean =>
 export type SupportMessageResult = Result<string | null>;
 
 /** The parts of Bunny's script response this module reads: the script's
- * variable list, each entry carrying its own readable value. */
-interface ScriptVariablesResponse {
-  EdgeScriptVariables:
-    | { Name: string | null; DefaultValue: string | null }[]
-    | null;
-}
+ * variable list, each entry carrying its own readable value. The key must be
+ * present — only Bunny's documented explicit null counts as "no variables",
+ * and a response without the key is a contract failure, not an empty list. */
+const ScriptVariablesResponseSchema = v.object({
+  EdgeScriptVariables: v.union([
+    v.array(
+      v.object({
+        DefaultValue: v.nullable(v.string()),
+        Name: v.nullable(v.string()),
+      }),
+    ),
+    v.null(),
+  ]),
+});
 
-/** A Bunny site's support message: the script's variable by that name. */
+/** A Bunny site's support message: the script's variable by that name. A
+ * malformed success response throws here and the read step reports it. */
 const readBunnySupportMessage = async (
   hostingId: string,
 ): Promise<SupportMessageResult> => {
-  const result = await bunnyGetJson<ScriptVariablesResponse>(
+  const result = await bunnyGetJson<unknown>(
     `/compute/script/${encodeURIComponent(hostingId)}`,
     "Read support message",
   );
   if (!result.ok) return result;
-  const variable = (result.data.EdgeScriptVariables ?? []).find(
-    ({ Name }) => Name === SUPPORT_MESSAGE_KEY,
-  );
+  const variables = v.parse(
+    ScriptVariablesResponseSchema,
+    result.data,
+  ).EdgeScriptVariables;
+  const variable = variables?.find(({ Name }) => Name === SUPPORT_MESSAGE_KEY);
   return okResult(variable === undefined ? null : variable.DefaultValue);
 };
 
@@ -82,7 +93,7 @@ const readDenoSupportMessage = async (
   const result = await denoDeployApi.getAppEnvVars(appId);
   if (!result.ok) return result;
   const entry = result.value.find(({ key }) => key === SUPPORT_MESSAGE_KEY);
-  return okResult(entry?.secret ? null : (entry?.value ?? null));
+  return okResult(entry === undefined || entry.secret ? null : entry.value);
 };
 
 /** Set a Deno app's support message as a plain env var. The API deep-merges

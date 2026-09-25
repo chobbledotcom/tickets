@@ -21,7 +21,9 @@ const saveSupportMessageResult = builtSiteTabResult(
  * upsert, so an exact replay saves the same text again. */
 export const handleSaveSiteSupportMessage = builtSiteAction(
   async (site, form, id) => {
-    const value = form.getString("support_message");
+    // Raw, not getString: markdown's own meaning (an indented code block,
+    // the blank line before a list) lives in the whitespace.
+    const value = form.getRaw("support_message");
     if (supportMessageTooLong(value)) {
       return builtSiteTabError(
         id,

@@ -46,8 +46,9 @@ describeWithEnv(
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
         expect(html).toContain("data-markdown-preview");
-        // Bunny caps an environment variable's value at 2 KB.
-        expect(html).toContain('maxlength="2048"');
+        // The byte-budget hint replaces a character maxlength, which cannot
+        // express the UTF-8 byte rule.
+        expect(html).toContain("at most 2,048 bytes");
       });
 
       test("shows the read error on the panel on Bunny failure", async () => {

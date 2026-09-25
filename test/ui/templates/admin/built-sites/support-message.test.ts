@@ -48,8 +48,9 @@ describe("SupportMessagePanel", () => {
     expect(html).toContain('action="/admin/built-sites/1/support-message"');
     expect(html).toContain('name="support_message"');
     expect(html).toContain("data-markdown-preview");
-    // Bunny caps an environment variable's value at 2 KB.
-    expect(html).toContain('maxlength="2048"');
+    // The stored limit is UTF-8 bytes, which a character maxlength cannot
+    // express, so the panel states it instead.
+    expect(html).toContain("at most 2,048 bytes");
     expect(editorContent(html)).toBe("# Ring us");
     expect(html).toContain("Save support message");
   });

@@ -84,7 +84,7 @@ describeWithEnv(
           );
           expect(result).toEqual({
             error:
-              "The support message is too long. A site can hold at most about 2,000 characters.",
+              "The support message is too long. A site holds at most 2,048 bytes of text.",
             ok: false,
           });
           expect(createDbStub.calls).toHaveLength(0);

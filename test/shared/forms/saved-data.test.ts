@@ -176,6 +176,14 @@ describe("saved form data", () => {
     expect(savedFormValueOrNull("phone")).toBeNull();
   });
 
+  test("savedFormValueOrNull refills exactly what was submitted", () => {
+    // Markdown indentation is meaning, so the refill keeps surrounding
+    // spaces instead of trimming them away.
+    setSavedFormData(new FormParams("note=%20%20indented%20%20"));
+    expect(savedFormValueOrNull("note")).toBe("  indented  ");
+    clearSavedFormData();
+  });
+
   test("savedFormValueOrNull answers null with no saved form", () => {
     expect(savedFormValueOrNull("name")).toBeNull();
   });

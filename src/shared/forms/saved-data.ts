@@ -29,12 +29,14 @@ export const getSavedFormData = (): FormParams | null =>
 export const savedFormValue = (name: string): string =>
   savedFormScope.current().form?.getString(name) ?? "";
 
-/** The submitted value of one field, or null when this form never carried
- * it — the distinction a pre-filled field needs: a submitted empty string is
- * the buyer's choice, an absent field is not. */
+/** The submitted value of one field exactly as the operator sent it, or null
+ * when this form never carried the field — the distinction a pre-filled
+ * field needs: a submitted empty string is the buyer's choice, an absent
+ * field is not. Markdown fields keep their indentation because no trimming
+ * happens here. */
 export const savedFormValueOrNull = (name: string): string | null => {
   const form = savedFormScope.current().form;
-  return form?.has(name) ? form.getString(name) : null;
+  return form?.has(name) ? form.get(name) : null;
 };
 
 /** Return a restorable field value without exposing passwords or files. */

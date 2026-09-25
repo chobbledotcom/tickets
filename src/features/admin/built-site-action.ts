@@ -4,6 +4,7 @@ import { requireOwnerOr } from "#routes/auth.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { builtSitePage } from "./built-site-page.tsx";
 
 export type BuiltSiteTab =
@@ -35,7 +36,7 @@ export const builtSiteTabResult =
 
 export type BuiltSitePost = (
   site: BuiltSite,
-  form: { getString: (key: string) => string },
+  form: FormParams,
   id: number,
 ) => Promise<Response>;
 

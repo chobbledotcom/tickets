@@ -9,7 +9,6 @@ import {
 import {
   loadSiteSupportMessage,
   SUPPORT_MESSAGE_KEY,
-  SUPPORT_MESSAGE_MAX_BYTES,
   type SupportMessageResult,
   saveSiteSupportMessage,
   supportMessageApi,
@@ -74,13 +73,12 @@ describeWithEnv(
   "site support message",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {
-    test("pins the stored limit to the smaller provider cap", () => {
-      expect(SUPPORT_MESSAGE_MAX_BYTES).toBe(2048);
+    test("pins the stored limit's encoded-byte edge", () => {
+      expect(supportMessageTooLong("a".repeat(2048))).toBe(false);
+      expect(supportMessageTooLong("a".repeat(2049))).toBe(true);
     });
 
     test("too-long counts the encoded bytes, not the characters", () => {
-      expect(supportMessageTooLong("a".repeat(2048))).toBe(false);
-      expect(supportMessageTooLong("a".repeat(2049))).toBe(true);
       // 1025 two-byte characters hold 2050 bytes while looking half the limit.
       expect(supportMessageTooLong("é".repeat(1025))).toBe(true);
     });
@@ -212,16 +210,16 @@ describeWithEnv(
       ).toEqual({ ok: true, value: null });
     });
 
-    test("reads null from a Deno app whose plain entry has no value", async () => {
-      using _appEnvVars = stub(denoDeployApi, "getAppEnvVars", () =>
-        Promise.resolve({
-          ok: true as const,
-          value: [{ key: SUPPORT_MESSAGE_KEY, secret: false }],
-        }),
+    test("reports a malformed Bunny success without the variable list", async () => {
+      await withMocks(
+        () => stubFetch(new Response('{"DefaultHostname":"x.b-cdn.net"}')),
+        async () => {
+          expectErrorResult(
+            await supportMessageApi.readSupportMessage("bunny", "501"),
+            "Read support message",
+          );
+        },
       );
-      expect(
-        await supportMessageApi.readSupportMessage("deno", "app-1"),
-      ).toEqual({ ok: true, value: null });
     });
 
     test("reports a failed Deno env-var read as an error result", async () => {

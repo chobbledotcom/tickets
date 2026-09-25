@@ -69,6 +69,30 @@ describeWithEnv(
       });
     });
 
+    test("saves markdown indentation without trimming", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "8206",
+        name: "Indent Site",
+      });
+      await withSavedWrites(async (saved) => {
+        const { response } = await adminFormPost(tabPath(site.id), {
+          // The four leading spaces open an indented code block in markdown.
+          support_message: "    plain code block",
+        });
+        await expectFlashRedirect(
+          tabPath(site.id),
+          "Support message saved.",
+        )(response);
+        expect(saved).toEqual([
+          {
+            hostingId: "8206",
+            hostingProvider: "bunny",
+            value: "    plain code block",
+          },
+        ]);
+      });
+    });
+
     test("rejects text past the stored byte limit", async () => {
       const site = await createTestBuiltSite({
         hostingId: "8201",
@@ -82,7 +106,7 @@ describeWithEnv(
         });
         await expectFlashRedirect(
           tabPath(site.id),
-          "The support message is too long. A site can hold at most about 2,000 characters.",
+          "The support message is too long. A site holds at most 2,048 bytes of text.",
           false,
         )(response);
         expect(saved).toEqual([]);
