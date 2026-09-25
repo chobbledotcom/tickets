@@ -208,7 +208,7 @@
   "settings.subdomain.subdomain_label": "Subdomain",
   "settings.subdomain.subdomain_placeholder": "your-name",
   "settings.subdomain.check_button": "Check if the name is free",
-  "settings.subdomain.flash.not_configured": "Subdomain names are not turned on for this site. Use the Support page to ask for them.",
+  "settings.subdomain.flash.not_configured": "Subdomain names are not turned on for this site. Ask your host to turn them on.",
   "settings.subdomain.flash.already_set": "Your subdomain is already set. You cannot change it.",
   "settings.subdomain.flash.invalid": "Use only lowercase letters, numbers, and hyphens. Start and end with a letter or a number.",
   "settings.subdomain.flash.taken": "{name} is already taken. Try a different name.",

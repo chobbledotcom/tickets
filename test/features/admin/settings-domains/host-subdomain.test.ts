@@ -93,7 +93,7 @@ describeWithEnv(
       const response = await postSubdomain("mylisting");
       expectRedirectWithFlash(
         REDIRECT,
-        "Subdomain names are not turned on for this site. Use the Support page to ask for them.",
+        "Subdomain names are not turned on for this site. Ask your host to turn them on.",
         false,
       )(response);
     });
