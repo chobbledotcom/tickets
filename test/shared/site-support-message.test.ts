@@ -1,12 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
+  type DenoEnvVarUpdate,
+  denoDeployApi,
+} from "#shared/deno-deploy-api.ts";
+import {
   loadSiteSupportMessage,
-  SUPPORT_MESSAGE_MAX_LENGTH,
+  SUPPORT_MESSAGE_KEY,
+  SUPPORT_MESSAGE_MAX_BYTES,
   type SupportMessageResult,
   saveSiteSupportMessage,
   supportMessageApi,
+  supportMessageTooLong,
 } from "#shared/site-support-message.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
@@ -48,9 +55,9 @@ const expectReadWith = (
   withMocks(
     () => stubFetch(reply),
     async () => {
-      expect(await supportMessageApi.readSupportMessage("501")).toEqual(
-        expected,
-      );
+      expect(
+        await supportMessageApi.readSupportMessage("bunny", "501"),
+      ).toEqual(expected);
     },
   );
 
@@ -67,8 +74,15 @@ describeWithEnv(
   "site support message",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {
-    test("pins the limit on a variable value to Bunny's documented cap", () => {
-      expect(SUPPORT_MESSAGE_MAX_LENGTH).toBe(4096);
+    test("pins the stored limit to the smaller provider cap", () => {
+      expect(SUPPORT_MESSAGE_MAX_BYTES).toBe(2048);
+    });
+
+    test("too-long counts the encoded bytes, not the characters", () => {
+      expect(supportMessageTooLong("a".repeat(2048))).toBe(false);
+      expect(supportMessageTooLong("a".repeat(2049))).toBe(true);
+      // 1025 two-byte characters hold 2050 bytes while looking half the limit.
+      expect(supportMessageTooLong("é".repeat(1025))).toBe(true);
     });
 
     test("reads the set variable value", async () => {
@@ -101,7 +115,7 @@ describeWithEnv(
         () => stubFetch(new Response("nope", { status: 500 })),
         async () => {
           expectErrorResult(
-            await supportMessageApi.readSupportMessage("501"),
+            await supportMessageApi.readSupportMessage("bunny", "501"),
             "Read support message",
           );
         },
@@ -113,7 +127,7 @@ describeWithEnv(
         () => stubFetch(new Error("network down")),
         async () => {
           expectErrorResult(
-            await supportMessageApi.readSupportMessage("501"),
+            await supportMessageApi.readSupportMessage("bunny", "501"),
             "Read support message: network down",
           );
         },
@@ -134,7 +148,7 @@ describeWithEnv(
           }),
         async () => {
           expect(
-            await supportMessageApi.setSupportMessage("501", "# New"),
+            await supportMessageApi.setSupportMessage("bunny", "501", "# New"),
           ).toEqual({ ok: true, value: "# New" });
         },
       );
@@ -142,7 +156,7 @@ describeWithEnv(
         {
           body: JSON.stringify({
             DefaultValue: "# New",
-            Name: "SUPPORT_PAGE_TEXT",
+            Name: SUPPORT_MESSAGE_KEY,
           }),
           method: "PUT",
           url: "https://api.bunny.net/compute/script/501/variables",
@@ -155,7 +169,7 @@ describeWithEnv(
         () => stubFetch(new Response("bad", { status: 400 })),
         async () => {
           expectErrorResult(
-            await supportMessageApi.setSupportMessage("501", "# New"),
+            await supportMessageApi.setSupportMessage("bunny", "501", "# New"),
             "Set support message",
           );
         },
@@ -167,41 +181,147 @@ describeWithEnv(
         () => stubFetch(new Error("network down")),
         async () => {
           expectErrorResult(
-            await supportMessageApi.setSupportMessage("501", "# New"),
+            await supportMessageApi.setSupportMessage("bunny", "501", "# New"),
             "Set support message: network down",
           );
         },
       );
     });
+
+    test("reads a Deno app's plain variable and masks its secrets", async () => {
+      using _appEnvVars = stub(denoDeployApi, "getAppEnvVars", () =>
+        Promise.resolve({
+          ok: true as const,
+          value: [{ key: SUPPORT_MESSAGE_KEY, secret: false, value: "old" }],
+        }),
+      );
+      expect(
+        await supportMessageApi.readSupportMessage("deno", "app-1"),
+      ).toEqual({ ok: true, value: "old" });
+    });
+
+    test("reads null from a Deno app whose entry is a secret", async () => {
+      using _appEnvVars = stub(denoDeployApi, "getAppEnvVars", () =>
+        Promise.resolve({
+          ok: true as const,
+          value: [{ key: SUPPORT_MESSAGE_KEY, secret: true, value: undefined }],
+        }),
+      );
+      expect(
+        await supportMessageApi.readSupportMessage("deno", "app-1"),
+      ).toEqual({ ok: true, value: null });
+    });
+
+    test("reads null from a Deno app whose plain entry has no value", async () => {
+      using _appEnvVars = stub(denoDeployApi, "getAppEnvVars", () =>
+        Promise.resolve({
+          ok: true as const,
+          value: [{ key: SUPPORT_MESSAGE_KEY, secret: false }],
+        }),
+      );
+      expect(
+        await supportMessageApi.readSupportMessage("deno", "app-1"),
+      ).toEqual({ ok: true, value: null });
+    });
+
+    test("reports a failed Deno env-var read as an error result", async () => {
+      using _appEnvVars = stub(denoDeployApi, "getAppEnvVars", () =>
+        Promise.resolve({
+          error: "Get app failed (404): no app",
+          ok: false as const,
+        }),
+      );
+      expectErrorResult(
+        await supportMessageApi.readSupportMessage("deno", "app-1"),
+        "Get app failed (404)",
+      );
+    });
+
+    test("reports a failed Deno env-var write as an error result", async () => {
+      using _setEnvVar = stub(denoDeployApi, "setEnvVar", () =>
+        Promise.resolve({
+          error: "Set app env var failed (422): bad var",
+          ok: false as const,
+        }),
+      );
+      expectErrorResult(
+        await supportMessageApi.setSupportMessage("deno", "app-1", "# New"),
+        "Set app env var failed (422)",
+      );
+    });
+
+    test("patches one plain variable onto a Deno app", async () => {
+      const seen: unknown[] = [];
+      using _setEnvVar = stub(
+        denoDeployApi,
+        "setEnvVar",
+        (appId: string, entry: DenoEnvVarUpdate) => {
+          seen.push({ appId, entry });
+          return Promise.resolve({ ok: true as const, value: undefined });
+        },
+      );
+      expect(
+        await supportMessageApi.setSupportMessage("deno", "app-1", "# New"),
+      ).toEqual({ ok: true, value: "# New" });
+      expect(seen).toEqual([
+        {
+          appId: "app-1",
+          entry: { key: SUPPORT_MESSAGE_KEY, secret: false, value: "# New" },
+        },
+      ]);
+    });
+    test("saves a reachable site's message through its provider", async () => {
+      const seen: { hostingId: string; provider: string; value: string }[] = [];
+      using _set = stub(
+        supportMessageApi,
+        "setSupportMessage",
+        (provider: string, hostingId: string, value: string) => {
+          seen.push({ hostingId, provider, value });
+          return Promise.resolve({ ok: true as const, value });
+        },
+      );
+      expect(await saveSiteSupportMessage(bunnySite(), "# Hello")).toEqual({
+        ok: true,
+        value: "# Hello",
+      });
+      expect(seen).toEqual([
+        { hostingId: "501", provider: "bunny", value: "# Hello" },
+      ]);
+    });
   },
 );
 
-describe("site support message gates", () => {
-  test("refuses to read a Deno-hosted site", async () => {
+describe("site support message save gate", () => {
+  test("refuses to save without the site's provider key", async () => {
     expectErrorResult(
-      await loadSiteSupportMessage(
-        bunnySite({ hostingId: "app-1", hostingProvider: "deno" }),
-      ),
-      "This site is not hosted on Bunny, so its support message can't be read.",
-    );
-  });
-
-  test("refuses a site without a hosting ID", async () => {
-    expectErrorResult(
-      await loadSiteSupportMessage(bunnySite({ hostingId: "" })),
-      "This site has no hosting ID, so its support message can't be read.",
+      await saveSiteSupportMessage(bunnySite({ hostingId: "" }), "# No way"),
+      "This site has no hosting ID, so its support message can't be set.",
     );
   });
 });
 
 describeWithEnv(
-  "site support message without the Bunny key",
-  { env: { BUNNY_API_KEY: undefined } },
+  "site support message without the provider keys",
+  {
+    env: {
+      BUNNY_API_KEY: undefined,
+      DENO_DEPLOY_TOKEN: undefined,
+    },
+  },
   () => {
-    test("refuses to write when the host has no BUNNY_API_KEY", async () => {
+    test("refuses to read a Deno-hosted site without its token", async () => {
       expectErrorResult(
-        await saveSiteSupportMessage(bunnySite(), "# New"),
-        "BUNNY_API_KEY is not configured on this host, so its support message can't be set.",
+        await loadSiteSupportMessage(
+          bunnySite({ hostingId: "app-1", hostingProvider: "deno" }),
+        ),
+        "DENO_DEPLOY_TOKEN is not configured on this host, so its support message can't be read.",
+      );
+    });
+
+    test("refuses to set a Bunny site's message without its key", async () => {
+      expectErrorResult(
+        await supportMessageApi.setSupportMessage("bunny", "501", "# New"),
+        "Set support message",
       );
     });
   },

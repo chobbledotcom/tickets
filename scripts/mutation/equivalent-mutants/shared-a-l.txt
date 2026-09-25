@@ -329,4 +329,5 @@ src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → ||  # the
 src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecordDefaults is undefined or a truthy record object
 src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → ||   # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
-src/shared/site-support-message.ts::readSupportMessageImpl.variable~1o5zuox  ?? → ||   # Bunny answers EdgeScriptVariables with an array or null; every array is truthy
+src/shared/site-support-message.ts::readBunnySupportMessage.variable~1o5zuox  ?? → ||   # Bunny answers EdgeScriptVariables with an array or null; every array is truthy
+src/shared/site-support-message.ts::readDenoSupportMessage~02xv50g  ?? → ||   # a secret entry never carries its value, so only an absent value reaches the null fallback

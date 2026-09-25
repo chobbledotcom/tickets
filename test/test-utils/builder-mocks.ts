@@ -86,6 +86,22 @@ interface BuildSiteMockOptions {
   updatePullZoneResult?: BunnyResult;
 }
 
+/** Their providers' mock bundles differ; both spread this shared base so the
+ * support-message seed carries one stub spelling. */
+interface SupportSeedOptions {
+  /** The support-message variable seed's write result. */
+  supportSeedResult?: SupportMessageResult;
+}
+
+/** Stub the build's support-message seed write for both hosting providers. */
+const stubSupportSeed = (opts: SupportSeedOptions) =>
+  stub(
+    supportMessageApi,
+    "setSupportMessage",
+    (_provider: string, _hostingId: string, value: string) =>
+      Promise.resolve(opts.supportSeedResult ?? { ok: true as const, value }),
+  );
+
 /**
  * Every stub `builderApi.buildSite` exercises: the GitHub release fetch, the
  * edge-script create/publish/secret/pull-zone calls, the encryption-key
@@ -119,12 +135,7 @@ export const stubBuildSiteApis = (opts: BuildSiteMockOptions = {}) => ({
   secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve(opts.secretResult ?? { ok: true as const }),
   ),
-  supportSeedStub: stub(
-    supportMessageApi,
-    "setSupportMessage",
-    (_hostingId: string, value: string) =>
-      Promise.resolve(opts.supportSeedResult ?? { ok: true as const, value }),
-  ),
+  supportSeedStub: stubSupportSeed(opts),
   updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
     Promise.resolve(opts.updatePullZoneResult ?? { ok: true as const }),
   ),
@@ -169,6 +180,8 @@ interface DenoBuilderMockOptions {
   onOther?: (url: string) => Response;
   releaseOpts?: ReleaseOptions;
   setEnvResult?: DenoEnvResult;
+  /** The support-message variable seed's write result. */
+  supportSeedResult?: SupportMessageResult;
 }
 
 /**
@@ -199,6 +212,7 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
   setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
     Promise.resolve(opts.setEnvResult ?? okResult(undefined)),
   ),
+  supportSeedStub: stubSupportSeed(opts),
 });
 
 /** Assert `api.createDatabase` returns a 403 error when fetch responds Forbidden. */

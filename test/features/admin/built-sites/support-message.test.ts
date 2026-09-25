@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { supportMessageApi } from "#shared/site-support-message.ts";
-import { expectHtmlResponse, expectStatus } from "#test-utils/assertions.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -12,7 +12,11 @@ describeWithEnv(
   "GET /admin/built-sites/:id/support-message",
   {
     db: true,
-    env: { BUNNY_API_KEY: "k", CAN_BUILD_SITES: "true" },
+    env: {
+      BUNNY_API_KEY: "k",
+      CAN_BUILD_SITES: "true",
+      DENO_DEPLOY_TOKEN: "deno-token",
+    },
   },
   () => {
     const tabPath = (id: number): string =>
@@ -42,8 +46,8 @@ describeWithEnv(
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
         expect(html).toContain("data-markdown-preview");
-        // Bunny caps a variable's value at 4096 characters.
-        expect(html).toContain('maxlength="4096"');
+        // Bunny caps an environment variable's value at 2 KB.
+        expect(html).toContain('maxlength="2048"');
       });
 
       test("shows the read error on the panel on Bunny failure", async () => {
@@ -83,18 +87,26 @@ describeWithEnv(
         expect(html).not.toContain('name="support_message"');
       });
 
-      test("404s for a Deno-hosted site and hides its tab link", async () => {
+      test("opens the tab for a Deno-hosted site too", async () => {
         const site = await createTestBuiltSite({
           hostingId: "app-9",
           hostingProvider: "deno",
           name: "Deno Site",
         });
+        using _read = stub(supportMessageApi, "readSupportMessage", () =>
+          Promise.resolve({ ok: true as const, value: "# Deno help" }),
+        );
         const response = await adminGet(tabPath(site.id));
-        expectStatus(404)(response);
+        await expectHtmlResponse(
+          response,
+          200,
+          "Support message",
+          "# Deno help",
+        );
 
         const edit = await adminGet(`/admin/built-sites/${site.id}`);
         const html = await expectHtmlResponse(edit, 200, "Deno Site");
-        expect(html).not.toContain("/support-message");
+        expect(html).toContain(tabPath(site.id));
       });
     });
   },

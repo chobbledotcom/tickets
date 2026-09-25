@@ -38,9 +38,28 @@ describeWithEnv(
         const result = await buildSite();
         expect(result.ok).toBe(true);
         expect(supportSeedStub.calls.map((c) => c.args)).toEqual([
-          ["42", getSupportPageText()],
+          ["bunny", "42", getSupportPageText()],
         ]);
       });
+    });
+
+    test("seeds a Deno build with the same variable write", async () => {
+      const savedNames: string[] = [];
+      await withMocks(
+        () => stubDenoBuilderApis(),
+        async ({ setEnvStub, supportSeedStub }) => {
+          const result = await buildSite({ hostingProvider: "deno" });
+          expect(result.ok).toBe(true);
+          expect(supportSeedStub.calls.map((c) => c.args)).toEqual([
+            ["deno", "app_abc123", getSupportPageText()],
+          ]);
+          // The support message is no longer a secret copy on any provider.
+          for (const call of setEnvStub.calls) {
+            for (const [name] of call.args[1]) savedNames.push(name);
+          }
+        },
+      );
+      expect(savedNames).not.toContain("SUPPORT_PAGE_TEXT");
     });
 
     test("does not seed when the host has no support text", async () => {
@@ -48,6 +67,22 @@ describeWithEnv(
       await withBuildSiteMocks(async ({ supportSeedStub }) => {
         const result = await buildSite();
         expect(result.ok).toBe(true);
+        expect(supportSeedStub.calls).toHaveLength(0);
+      });
+    });
+
+    test("fails the build before any resource when the host text is too long", async () => {
+      using _env = withEnv({
+        SUPPORT_PAGE_TEXT: `# Big\n\n${"a".repeat(2100)}`,
+      });
+      await withBuildSiteMocks(async ({ createStub, supportSeedStub }) => {
+        const result = await buildSite();
+        expect(result).toEqual({
+          error:
+            "The support message is too long. A site can hold at most about 2,000 characters.",
+          ok: false,
+        });
+        expect(createStub.calls).toHaveLength(0);
         expect(supportSeedStub.calls).toHaveLength(0);
       });
     });
@@ -69,21 +104,6 @@ describeWithEnv(
           }
         },
       );
-    });
-
-    test("still copies the support text as an env secret for Deno builds", async () => {
-      // The seed is Bunny-only, so the Deno build keeps the plain copy.
-      const savedNames: string[] = [];
-      await withMocks(
-        () => stubDenoBuilderApis(),
-        async ({ setEnvStub }) => {
-          await buildSite({ hostingProvider: "deno" });
-          for (const call of setEnvStub.calls) {
-            for (const [name] of call.args[1]) savedNames.push(name);
-          }
-        },
-      );
-      expect(savedNames).toContain("SUPPORT_PAGE_TEXT");
     });
   },
 );

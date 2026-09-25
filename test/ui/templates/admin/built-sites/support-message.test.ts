@@ -43,8 +43,8 @@ describe("SupportMessagePanel", () => {
     expect(html).toContain('action="/admin/built-sites/1/support-message"');
     expect(html).toContain('name="support_message"');
     expect(html).toContain("data-markdown-preview");
-    // Bunny caps a variable's value at 4096 characters.
-    expect(html).toContain('maxlength="4096"');
+    // Bunny caps an environment variable's value at 2 KB.
+    expect(html).toContain('maxlength="2048"');
     expect(editorContent(html)).toBe("# Ring us");
     expect(html).toContain("Save support message");
   });

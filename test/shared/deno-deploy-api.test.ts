@@ -255,59 +255,6 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     }
   });
 
-  // ── getEnvVarNames ─────────────────────────────────────────────────────────
-
-  test("getEnvVarNames returns names of set env vars", async () => {
-    using _fetch = stubFetch(
-      new Response(
-        JSON.stringify({
-          env_vars: [{ key: "DB_TOKEN" }, { key: "DB_URL" }],
-          id: "app_gn",
-          slug: "gn-app",
-        }),
-      ),
-    );
-    const result = await denoDeployApi.getEnvVarNames("app_gn");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value).toContain("DB_URL");
-      expect(result.value).toContain("DB_TOKEN");
-      expect(result.value.length).toBe(2);
-    }
-  });
-
-  test("getEnvVarNames returns empty array when no env vars are set", async () => {
-    using _fetch = stubFetch(
-      new Response(
-        JSON.stringify({ env_vars: [], id: "app_empty", slug: "empty" }),
-      ),
-    );
-    const result = await denoDeployApi.getEnvVarNames("app_empty");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value).toEqual([]);
-    }
-  });
-
-  test("getEnvVarNames rejects an app response without env vars", async () => {
-    using _fetch = stubFetch(
-      new Response(JSON.stringify({ id: "app_no_ev", slug: "no-ev" })),
-    );
-    await expect(denoDeployApi.getEnvVarNames("app_no_ev")).rejects.toThrow();
-  });
-
-  test("getEnvVarNames returns error when API fails", async () => {
-    using _fetch = stubFetch(
-      new Response(JSON.stringify({ error: "app not found" }), { status: 404 }),
-    );
-    const result = await denoDeployApi.getEnvVarNames("app_bad");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("Get app failed (404)");
-      expect(result.error).toContain("app not found");
-    }
-  });
-
   test("hosting provider names its required credential", () => {
     expect(denoHostingProvider.configEnvVar).toBe("DENO_DEPLOY_TOKEN");
   });

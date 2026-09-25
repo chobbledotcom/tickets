@@ -6,8 +6,21 @@ export const DenoAppIdentitySchema = v.object({
 });
 
 export const DenoAppEnvVarsSchema = v.object({
-  env_vars: v.array(v.object({ key: v.string() })),
+  env_vars: v.array(
+    v.object({
+      id: v.optional(v.string()),
+      key: v.string(),
+      /** Omitted when the entry is a secret. */
+      secret: v.optional(v.boolean(), false),
+      value: v.optional(v.string()),
+    }),
+  ),
 });
+
+/** One app-level environment variable as the Deno Deploy API reports it. */
+export type DenoEnvVar = v.InferOutput<
+  typeof DenoAppEnvVarsSchema
+>["env_vars"][number];
 
 export const DenoRevisionStatusSchema = v.picklist([
   "skipped",

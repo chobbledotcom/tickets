@@ -8,6 +8,7 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
+import { t } from "#i18n";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
@@ -18,8 +19,8 @@ import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { withSiteDb } from "#shared/site-db.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import {
-  SUPPORT_MESSAGE_KEY,
   supportMessageApi,
+  supportMessageTooLong,
 } from "#shared/site-support-message.ts";
 import { getSupportPageText } from "#shared/support.ts";
 import { tryStep } from "#shared/try-step.ts";
@@ -39,14 +40,12 @@ type HostSecret = {
   name: string;
   hostInfra?: boolean;
   bunnyOnly?: boolean;
-  denoOnly?: boolean;
 };
 
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "SENTRY_URL" },
   { name: "ADMIN_EMAIL_ADDRESS" },
-  { denoOnly: true, name: SUPPORT_MESSAGE_KEY },
   { name: "SUPPORT_FORM_NAG_DAYS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
   { hostInfra: true, name: "STORAGE_ZONE_KEY" },
@@ -132,17 +131,16 @@ export const testDbConnection = async (
  * Collect the host-environment secrets that are currently set, as [name, value]
  * pairs. These are copied onto every freshly built site, and backfilled onto
  * existing sites that are missing them (see #shared/site-secrets.ts).
- * Secrets tagged `bunnyOnly` or `denoOnly` apply to that hosting provider
- * alone. Bunny sites keep the support message as a readable variable instead
- * of a secret copy (see #shared/site-support-message.ts).
+ * Secrets tagged `bunnyOnly` apply to Bunny sites alone. Every site keeps the
+ * support message as a readable variable instead of a secret copy (see
+ * #shared/site-support-message.ts).
  */
 export const collectHostSecrets = (
   hostingProvider: HostingProvider = "bunny",
 ): [string, string][] => {
   const secrets: [string, string][] = [];
-  for (const { name, bunnyOnly, denoOnly } of HOST_SECRETS) {
+  for (const { name, bunnyOnly } of HOST_SECRETS) {
     if (bunnyOnly && hostingProvider !== "bunny") continue;
-    if (denoOnly && hostingProvider !== "deno") continue;
     const value = getEnv(name);
     if (value) secrets.push([name, value]);
   }
@@ -228,6 +226,12 @@ const buildSiteOnProvider = async (
   const fullName = `Tickets - ${input.siteName}`;
   const encryptionKey = builderApi.generateEncryptionKey();
   const scheduledTaskKey = generateScheduledTaskKey();
+  const hostSupportText = getSupportPageText();
+  // The seed copy must fit a site's variable, so a swollen host text fails
+  // the build before any provider resource is created or retained.
+  if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
+    return { error: t("built_sites.support_message_too_long"), ok: false };
+  }
   const secrets: [string, string][] = [
     ...buildBaseSecrets(dbCredentials, encryptionKey),
     ["SCHEDULED_TASK_KEY", scheduledTaskKey],
@@ -254,18 +258,16 @@ const buildSiteOnProvider = async (
       ok: false,
     };
   }
-  // A Bunny site's support message lives as a readable variable, so the new
+  // Every site's support message lives as a readable variable, so the new
   // site starts with the host's own text instead of a secret copy nobody can
   // read back. Set before publishing so the first request already sees it.
-  if (hostingProvider === "bunny") {
-    const hostText = getSupportPageText();
-    if (hostText !== null) {
-      const seeded = await supportMessageApi.setSupportMessage(
-        result.value.hostingId,
-        hostText,
-      );
-      if (!seeded.ok) return seeded;
-    }
+  if (hostSupportText !== null) {
+    const seeded = await supportMessageApi.setSupportMessage(
+      hostingProvider,
+      result.value.hostingId,
+      hostSupportText,
+    );
+    if (!seeded.ok) return seeded;
   }
   const published = await provider.publishSite(result.value.hostingId, code);
   if (!published.ok) return published;

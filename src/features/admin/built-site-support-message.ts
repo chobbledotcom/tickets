@@ -1,10 +1,10 @@
-/** The Support message tab's write path: set this site's support message as a
- * Bunny variable from the markdown editor's form. */
+/** The Support message tab's write path: set this site's support message as
+ * its hosting provider's readable variable, from the markdown editor's form. */
 
 import { t } from "#i18n";
 import {
-  SUPPORT_MESSAGE_MAX_LENGTH,
   saveSiteSupportMessage,
+  supportMessageTooLong,
 } from "#shared/site-support-message.ts";
 import {
   builtSiteAction,
@@ -22,13 +22,11 @@ const saveSupportMessageResult = builtSiteTabResult(
 export const handleSaveSiteSupportMessage = builtSiteAction(
   async (site, form, id) => {
     const value = form.getString("support_message");
-    if (value.length > SUPPORT_MESSAGE_MAX_LENGTH) {
+    if (supportMessageTooLong(value)) {
       return builtSiteTabError(
         id,
         "support-message",
-        t("built_sites.support_message_too_long", {
-          max: String(SUPPORT_MESSAGE_MAX_LENGTH),
-        }),
+        t("built_sites.support_message_too_long"),
       );
     }
     return saveSupportMessageResult(t("built_sites.support_message_saved"))(

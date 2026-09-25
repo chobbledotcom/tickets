@@ -100,10 +100,9 @@ describeWithEnv(
     },
   },
   () => {
-    test("keeps the Deno-only support message and skips Bunny-only secrets", () => {
+    test("copies host secrets without the support message on any provider", () => {
       expect(collectHostSecrets("deno")).toEqual([
         ["NTFY_URL", "https://ntfy.example.com/t"],
-        ["SUPPORT_PAGE_TEXT", "# Support help"],
       ]);
     });
 

@@ -1,15 +1,16 @@
 /**
- * The built-site Support message tab: the current text as Bunny stores it, and
- * the markdown editor that saves it back per site.
+ * The built-site Support message tab: the site's current text as its hosting
+ * provider stores it, and the markdown editor that saves it back per site.
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import {
-  SUPPORT_MESSAGE_MAX_LENGTH,
+  SUPPORT_MESSAGE_MAX_BYTES,
   type SupportMessageResult,
 } from "#shared/site-support-message.ts";
 import {
@@ -33,6 +34,9 @@ export const SupportMessagePanel = ({
       </TabErrorNote>
     );
   }
+  // A refused save re-fills the editor with the operator's submitted text,
+  // so a transient provider failure never costs them the draft.
+  const editorText = savedFormValueOrNull("support_message") ?? state.value;
   return (
     <div class="prose">
       <p>{t("built_sites.support_message_intro")}</p>
@@ -42,10 +46,10 @@ export const SupportMessagePanel = ({
             {t("built_sites.support_message_label")}
             <textarea
               data-markdown-preview
-              maxlength={SUPPORT_MESSAGE_MAX_LENGTH}
+              maxlength={SUPPORT_MESSAGE_MAX_BYTES}
               name="support_message"
             >
-              {state.value ?? ""}
+              {editorText ?? ""}
             </textarea>
           </label>
           <SubmitButton icon="save">
@@ -53,8 +57,8 @@ export const SupportMessagePanel = ({
           </SubmitButton>
         </SiteActionForm>
       </WritableOnly>
-      {isReadOnly() && state.value !== null ? (
-        <Raw html={renderMarkdown(state.value)} />
+      {isReadOnly() && editorText !== null ? (
+        <Raw html={renderMarkdown(editorText)} />
       ) : null}
     </div>
   );

@@ -47,13 +47,9 @@ const loadedPanelTab = <Data,>(
   labelKey: string,
   load: (site: BuiltSite) => Promise<Data>,
   render: (site: BuiltSite, data: Data) => JSX.Element,
-  visible?: (site: BuiltSite) => boolean,
 ) =>
-  panelTab<BuiltSite>(
-    slug,
-    labelKey,
-    async (site) => render(site, await load(site)),
-    visible,
+  panelTab<BuiltSite>(slug, labelKey, async (site) =>
+    render(site, await load(site)),
   );
 
 const secretsTab = loadedPanelTab(
@@ -77,14 +73,11 @@ const maintenanceTab = loadedPanelTab(
   (site, monitor) => <MaintenancePanel monitor={monitor} site={site} />,
 );
 
-/** Only Bunny sites can keep their support message as a readable variable, so
- * the tab exists for them alone (Deno hides env-var values from its API). */
 const supportMessageTab = loadedPanelTab(
   "support-message",
   "built_sites.support_message_title",
   loadSiteSupportMessage,
   (site, message) => <SupportMessagePanel site={site} state={message} />,
-  (site) => site.hostingProvider === "bunny",
 );
 
 /** One pager arrow, named for the site it lands on. */

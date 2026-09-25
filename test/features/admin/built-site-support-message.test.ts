@@ -1,11 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
 import { supportMessageApi } from "#shared/site-support-message.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  followRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
   "POST /admin/built-sites/:id/support-message",
@@ -19,14 +23,20 @@ describeWithEnv(
 
     /** Record every support-message write while `body` runs. */
     const withSavedWrites = async (
-      body: (saved: { hostingId: string; value: string }[]) => Promise<void>,
+      body: (
+        saved: { hostingProvider: string; hostingId: string; value: string }[],
+      ) => Promise<void>,
     ): Promise<void> => {
-      const saved: { hostingId: string; value: string }[] = [];
+      const saved: {
+        hostingProvider: string;
+        hostingId: string;
+        value: string;
+      }[] = [];
       using _set = stub(
         supportMessageApi,
         "setSupportMessage",
-        (hostingId: string, value: string) => {
-          saved.push({ hostingId, value });
+        (provider: string, hostingId: string, value: string) => {
+          saved.push({ hostingId, hostingProvider: provider, value });
           return Promise.resolve({ ok: true as const, value });
         },
       );
@@ -49,29 +59,60 @@ describeWithEnv(
         expect(saved).toEqual([
           {
             hostingId: "8200",
+            hostingProvider: "bunny",
             value: "# New hours\n\nCall after 6pm.",
           },
         ]);
       });
     });
 
-    test("rejects text past Bunny's variable limit", async () => {
+    test("rejects text past the stored byte limit", async () => {
       const site = await createTestBuiltSite({
         hostingId: "8201",
         name: "Long Site",
       });
       await withSavedWrites(async (saved) => {
         const { response } = await adminFormPost(tabPath(site.id), {
-          // One character past the 4096 characters a Bunny value allows.
-          support_message: "x".repeat(4097),
+          // 1025 two-byte characters hold 2050 bytes: past the 2048-byte cap
+          // while seating under it in characters.
+          support_message: "é".repeat(1025),
         });
         await expectFlashRedirect(
           tabPath(site.id),
-          "The support message is too long. Use at most 4,096 characters.",
+          "The support message is too long. A site can hold at most about 2,000 characters.",
           false,
         )(response);
         expect(saved).toEqual([]);
       });
+    });
+
+    test("re-fills the refused draft over the stored text", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "8203",
+        name: "Retry Site",
+      });
+      using _read = stub(supportMessageApi, "readSupportMessage", () =>
+        Promise.resolve({ ok: true as const, value: "# Old text" }),
+      );
+      using _set = stub(supportMessageApi, "setSupportMessage", () =>
+        Promise.resolve({
+          error: "Set support message failed (500): try later",
+          ok: false as const,
+        }),
+      );
+      const { response } = await adminFormPost(tabPath(site.id), {
+        support_message: "# Draft that failed to save",
+      });
+      const followed = await followRedirectWithFlash(
+        response,
+        handleRequest,
+        await testCookie(),
+      );
+      const html = await followed.text();
+      expect(followed.status).toBe(200);
+      expect(html).toContain("# Draft that failed to save");
+      expect(html).not.toContain("# Old text");
+      expect(html).toContain("The support message could not be saved");
     });
 
     test("shows the Bunny error when the write fails", async () => {

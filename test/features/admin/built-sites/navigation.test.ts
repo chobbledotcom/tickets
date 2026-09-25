@@ -106,26 +106,22 @@ describeWithEnv(
       expect(html).not.toContain("Next built site");
     });
 
-    test("keeps Deno sites in the pager even though the support tab hides", async () => {
+    test("lands the pager's support-message cycle on a Deno site", async () => {
       await createTestBuiltSite({ name: "Zulu" });
       await createTestBuiltSite({ name: "Middle" });
-      await createTestBuiltSite({
+      const denoSite = await createTestBuiltSite({
         hostingProvider: "deno",
         name: "Alpha Deno",
       });
-      const denoSite = await readSite("Alpha Deno");
-      const middle = await readSite("Middle");
+      // The tab exists on every provider, so the cycle's arrows stay live.
       const response = await adminGet(
         `/admin/built-sites/${denoSite.id}/support-message`,
       );
-      expect(response.status).toBe(404);
-      const edit = await adminGet(`/admin/built-sites/${denoSite.id}`);
-      const html = await expectHtmlResponse(edit, 200, "Alpha Deno");
-      // The pager walks every built site, so a Deno site stays in the cycle.
+      const html = await expectHtmlResponse(response, 200, "Support message");
       expectArrow(
         html,
         "Next built site",
-        `/admin/built-sites/${middle.id}/edit`,
+        `/admin/built-sites/${(await readSite("Middle")).id}/support-message`,
         "Middle",
       );
     });
