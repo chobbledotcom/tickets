@@ -43,7 +43,9 @@ describe("ConfirmForm", () => {
     );
     expect(html).toContain('name="confirm_identifier"');
     // The typed-name box must not offer or remember completions.
-    expect(html).toContain('autocomplete="off"');
+    expect(html).toContain(
+      '<input autocomplete="off" name="confirm_identifier"',
+    );
     expect(html).toContain('type="text"');
   });
 
