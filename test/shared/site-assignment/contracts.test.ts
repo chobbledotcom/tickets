@@ -370,20 +370,21 @@ describeWithEnv(
       );
       await insertBuiltSite("Site J", "j.test", "", "", true, "141");
 
-      const planEntry = (name: string) => ({
+      const planEntry = (id: number, name: string) => ({
         attendee: { email: "buyer@example.com", id: 81, quantity: 1 },
         listing: {
           assign_built_site: true,
-          id: 72,
+          id,
           initial_site_months: 3,
           name,
         },
       });
       await assignAndNotifyBuiltSites([
-        planEntry("Bronze plan"),
-        planEntry("Gold plan"),
+        planEntry(72, "Bronze plan"),
+        planEntry(73, "Gold plan"),
       ]);
 
+      expect(fetchStub.calls).toHaveLength(1);
       const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
       expect(body.text).toContain(
         "Bronze plan + Gold plan: https://j.test/setup/",

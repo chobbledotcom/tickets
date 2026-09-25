@@ -99,23 +99,36 @@ const writeDenoSupportMessage = async (
   return result.ok ? okResult(value) : result;
 };
 
+/** Reading a support message, keyed by hosting provider. A new provider in
+ * `HostingProvider` fails to compile until its read is added here. */
+const SUPPORT_READERS: Record<
+  HostingProvider,
+  (hostingId: string) => Promise<SupportMessageResult>
+> = {
+  bunny: readBunnySupportMessage,
+  deno: readDenoSupportMessage,
+};
+
+/** Writing a support message, keyed by hosting provider. */
+const SUPPORT_WRITERS: Record<
+  HostingProvider,
+  (hostingId: string, value: string) => Promise<SupportMessageResult>
+> = {
+  bunny: writeBunnySupportMessage,
+  deno: writeDenoSupportMessage,
+};
+
 /** Stubbable API for testing. */
 export const supportMessageApi = {
   readSupportMessage: (provider: HostingProvider, hostingId: string) =>
-    tryStep("Read support message", () =>
-      provider === "bunny"
-        ? readBunnySupportMessage(hostingId)
-        : readDenoSupportMessage(hostingId),
-    ),
+    tryStep("Read support message", () => SUPPORT_READERS[provider](hostingId)),
   setSupportMessage: (
     provider: HostingProvider,
     hostingId: string,
     value: string,
   ) =>
     tryStep("Set support message", () =>
-      provider === "bunny"
-        ? writeBunnySupportMessage(hostingId, value)
-        : writeDenoSupportMessage(hostingId, value),
+      SUPPORT_WRITERS[provider](hostingId, value),
     ),
 };
 

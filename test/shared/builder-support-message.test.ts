@@ -75,16 +75,23 @@ describeWithEnv(
       using _env = withEnv({
         SUPPORT_PAGE_TEXT: `# Big\n\n${"a".repeat(2100)}`,
       });
-      await withBuildSiteMocks(async ({ createStub, supportSeedStub }) => {
-        const result = await buildSite();
-        expect(result).toEqual({
-          error:
-            "The support message is too long. A site can hold at most about 2,000 characters.",
-          ok: false,
-        });
-        expect(createStub.calls).toHaveLength(0);
-        expect(supportSeedStub.calls).toHaveLength(0);
-      });
+      await withBuildSiteMocks(
+        async ({ createDbStub, createStub, supportSeedStub }) => {
+          // No dbUrl or dbToken: the build would auto-provision the
+          // database before it reaches the hosting provider.
+          const result = await builderApi.buildSite({ siteName: "Test" }, () =>
+            Promise.resolve(),
+          );
+          expect(result).toEqual({
+            error:
+              "The support message is too long. A site can hold at most about 2,000 characters.",
+            ok: false,
+          });
+          expect(createDbStub.calls).toHaveLength(0);
+          expect(createStub.calls).toHaveLength(0);
+          expect(supportSeedStub.calls).toHaveLength(0);
+        },
+      );
     });
 
     test("fails the build when the variable write is refused", async () => {

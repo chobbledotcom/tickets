@@ -220,18 +220,13 @@ const buildSiteOnProvider = async (
   code: string,
   dbCredentials: BuildSiteCredentials,
   dbProvider: DbProvider,
+  hostSupportText: string | null,
   hostingProvider: HostingProvider,
   retain: RetainPreparedSite,
 ): Promise<BuildSiteResult> => {
   const fullName = `Tickets - ${input.siteName}`;
   const encryptionKey = builderApi.generateEncryptionKey();
   const scheduledTaskKey = generateScheduledTaskKey();
-  const hostSupportText = getSupportPageText();
-  // The seed copy must fit a site's variable, so a swollen host text fails
-  // the build before any provider resource is created or retained.
-  if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
-    return { error: t("built_sites.support_message_too_long"), ok: false };
-  }
   const secrets: [string, string][] = [
     ...buildBaseSecrets(dbCredentials, encryptionKey),
     ["SCHEDULED_TASK_KEY", scheduledTaskKey],
@@ -283,6 +278,14 @@ export const buildSite = async (
   input: BuildSiteInput,
   retain: RetainPreparedSite,
 ): Promise<BuildSiteResult> => {
+  const hostSupportText = getSupportPageText();
+  // The seed copy must fit a site's variable, so a swollen host text fails
+  // the build before any provisioned resource — database, hosting script,
+  // or release download — exists to leave behind.
+  if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
+    return { error: t("built_sites.support_message_too_long"), ok: false };
+  }
+
   // 1. Source the bundle code: caller-supplied or latest GitHub release
   const codeResult = await getBuildCode(input);
   if (!codeResult.ok) return codeResult;
@@ -298,6 +301,7 @@ export const buildSite = async (
     codeResult.code,
     dbCredentials,
     dbProvider,
+    hostSupportText,
     input.hostingProvider ?? "bunny",
     retain,
   );

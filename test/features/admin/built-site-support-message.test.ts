@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { supportMessageApi } from "#shared/site-support-message.ts";
+import {
+  type SupportMessageResult,
+  supportMessageApi,
+} from "#shared/site-support-message.ts";
 import {
   expectFlashRedirect,
   followRedirectWithFlash,
@@ -86,13 +89,16 @@ describeWithEnv(
       });
     });
 
-    test("re-fills the refused draft over the stored text", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "8203",
-        name: "Retry Site",
-      });
+    /** Submit a support message whose save fails, then follow the refused
+     * save's own redirect: the page the operator lands on, and what the
+     * follow-up read answered in the editor's place. */
+    const followedRefusedSave = async (
+      siteId: number,
+      read: SupportMessageResult,
+      value: string,
+    ): Promise<string> => {
       using _read = stub(supportMessageApi, "readSupportMessage", () =>
-        Promise.resolve({ ok: true as const, value: "# Old text" }),
+        Promise.resolve(read),
       );
       using _set = stub(supportMessageApi, "setSupportMessage", () =>
         Promise.resolve({
@@ -100,19 +106,67 @@ describeWithEnv(
           ok: false as const,
         }),
       );
-      const { response } = await adminFormPost(tabPath(site.id), {
-        support_message: "# Draft that failed to save",
+      const { response } = await adminFormPost(tabPath(siteId), {
+        support_message: value,
       });
       const followed = await followRedirectWithFlash(
         response,
         handleRequest,
         await testCookie(),
       );
-      const html = await followed.text();
       expect(followed.status).toBe(200);
+      return await followed.text();
+    };
+
+    test("re-fills the refused draft over the stored text", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "8203",
+        name: "Retry Site",
+      });
+      const html = await followedRefusedSave(
+        site.id,
+        { ok: true, value: "# Old text" },
+        "# Draft that failed to save",
+      );
       expect(html).toContain("# Draft that failed to save");
       expect(html).not.toContain("# Old text");
       expect(html).toContain("The support message could not be saved");
+    });
+
+    test("keeps the refused draft above the error when the follow-up read fails", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "8204",
+        name: "Outage Site",
+      });
+      const html = await followedRefusedSave(
+        site.id,
+        {
+          error: "Read support message failed (500): outage",
+          ok: false,
+        },
+        "# Draft kept through the outage",
+      );
+      expect(html).toContain("# Draft kept through the outage");
+      expect(html).toContain('name="support_message"');
+      expect(html).toContain("The support message could not be read");
+    });
+
+    test("keeps a refused empty draft empty over the stored text", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "8205",
+        name: "Clear Site",
+      });
+      const html = await followedRefusedSave(
+        site.id,
+        { ok: true, value: "# Old text" },
+        "",
+      );
+      // The refused clear must keep the empty editor to retry, not fall
+      // back to the stored text the operator asked to remove.
+      const editorStart = html.indexOf(">", html.indexOf("<textarea")) + 1;
+      expect(html.slice(editorStart, html.indexOf("</textarea>"))).toBe("");
+      expect(html).toContain("</textarea>");
+      expect(html).not.toContain("# Old text");
     });
 
     test("shows the Bunny error when the write fails", async () => {

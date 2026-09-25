@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
+import { FormParams } from "#shared/form-data.ts";
+import {
+  runWithSavedFormContext,
+  setSavedFormData,
+} from "#shared/forms/saved-data.ts";
 import type { SupportMessageResult } from "#shared/site-support-message.ts";
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
 import { withEnv } from "#test-utils/env.ts";
@@ -62,6 +67,20 @@ describe("SupportMessagePanel", () => {
     });
     expect(html).toContain("The support message could not be read");
     expect(html).not.toContain('name="support_message"');
+  });
+  test("keeps a refused save's draft beside the read failure", () => {
+    const html = runWithSavedFormContext(() => {
+      setSavedFormData(
+        new FormParams("support_message=%23+Draft+kept+through+the+outage"),
+      );
+      return panelHtml({
+        error: "Read support message failed (500): outage",
+        ok: false,
+      });
+    });
+    expect(html).toContain("The support message could not be read");
+    expect(html).toContain('name="support_message"');
+    expect(editorContent(html)).toBe("# Draft kept through the outage");
   });
 
   test("renders the message as Markdown with no form while read-only", () => {

@@ -159,5 +159,4 @@ src/ui/templates/admin/groups/form.tsx::packageMembersTable.key~0xky529  price �
 src/ui/templates/admin/groups/form.tsx::packageMembersTable.key~0obhtqh  quantity → ""   # same as the name key — the members table renders without columnKeys, hiddenKeys, or filters
 
 src/ui/templates/admin/listings/overview.tsx::overviewStatsFromAttendees~0so9vc9  ?? → ||   # the operand is a Set or undefined, and every Set object is truthy
-src/ui/templates/admin/built-sites/support-message.tsx::SupportMessagePanel.editorText~1k2usjf  ?? → ||   # editorText is string or null; the only falsy string is the empty string the fallback also supplies
-src/ui/templates/admin/built-sites/support-message.tsx::SupportMessagePanel~0xks06p  ?? → ||   # editorText is string or null; the only falsy string is the empty string the fallback also supplies
+src/ui/templates/admin/built-sites/support-message.tsx::SupportMessagePanel~0xks06p  ?? → ||   # editorText settles to "" (not null) by the textarea's fallback, so the only falsy string is the empty string the fallback also supplies

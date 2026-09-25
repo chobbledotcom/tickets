@@ -19,6 +19,7 @@ import {
 } from "#templates/admin/built-sites/panels.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 
 export const SupportMessagePanel = ({
   site,
@@ -27,19 +28,29 @@ export const SupportMessagePanel = ({
   site: BuiltSite;
   state: SupportMessageResult;
 }): JSX.Element => {
-  if (!state.ok) {
+  // A refused save's draft survives here even when the follow-up read also
+  // fails: the read error shows above the editor instead of in its place,
+  // so the operator keeps their text to retry with.
+  const draft = savedFormValueOrNull("support_message");
+  const readFailed = !state.ok;
+  if (readFailed && draft === null) {
     return (
       <TabErrorNote>
         {t("built_sites.support_message_error", { error: state.error })}
       </TabErrorNote>
     );
   }
-  // A refused save re-fills the editor with the operator's submitted text,
-  // so a transient provider failure never costs them the draft.
-  const editorText = savedFormValueOrNull("support_message") ?? state.value;
+  const stored = state.ok ? state.value : null;
+  const editorText = draft ?? stored;
   return (
     <div class="prose">
-      <p>{t("built_sites.support_message_intro")}</p>
+      {readFailed ? (
+        <ErrorNote>
+          {t("built_sites.support_message_error", { error: state.error })}
+        </ErrorNote>
+      ) : (
+        <p>{t("built_sites.support_message_intro")}</p>
+      )}
       <WritableOnly>
         <SiteActionForm action="support-message" siteId={site.id}>
           <label>
