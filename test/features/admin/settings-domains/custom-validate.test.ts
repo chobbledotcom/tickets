@@ -54,7 +54,7 @@ describeCustomDomain("custom domain validation", (enable) => {
       });
     });
 
-    test("still validates while a provider choice is pending", async () => {
+    test("blocks validation until provider recovery is complete", async () => {
       enable();
       await settings.update.customDomain("tickets.example.com");
       await requirePaymentProviderRecovery();
@@ -62,9 +62,10 @@ describeCustomDomain("custom domain validation", (enable) => {
         const { response } = await adminFormPost(PATH);
         expectRedirectWithFlash(
           REDIRECT,
-          "Custom domain validated successfully",
+          "Choose the provider for existing payments before changing your domain.",
+          false,
         )(response);
-        expect(settings.customDomainLastValidated).not.toBe("");
+        expect(settings.customDomainLastValidated).toBe("");
       });
     });
 

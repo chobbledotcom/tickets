@@ -15,7 +15,7 @@ test("the sections keep the anchors the settings page links to", () => {
 test("the host subdomain answer does not promise the ending", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The host sets the DNS zone, so only the check can name the full address.
-  expect(html).toContain("You pick the name, and the host sets the ending.");
+  expect(html).toContain("You pick the name. The host sets the ending.");
   expect(html).toContain("only when your host offers subdomains");
   expect(html).not.toContain("site answers at");
 });

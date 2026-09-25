@@ -51,6 +51,7 @@ export const CustomDomainForm = (
       {s.customDomain && (
         <SaveForm
           action="/admin/settings/custom-domain/validate"
+          disabled={s.paymentProviderRecoveryNeeded}
           id="settings-custom-domain-validate"
           submitIcon="check"
           submitLabel={t("settings.advanced.validate_custom_domain")}

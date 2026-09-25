@@ -101,10 +101,13 @@ describe("CustomDomainForm", () => {
       CustomDomainForm({
         ...advancedDefaultState,
         bunnyCdnEnabled: true,
+        customDomain: "tickets.example.com",
         paymentProviderRecoveryNeeded: true,
       }),
     );
-    expect(html).toContain('<button disabled type="submit">');
+    // Both the save and the validate submit buttons are disabled, the same
+    // way the host-subdomain register button is.
+    expect(html.match(/<button disabled type="submit">/g)?.length).toBe(2);
     expect(html).toContain("Choose the provider for existing payments");
   });
 });
