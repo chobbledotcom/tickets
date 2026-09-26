@@ -85,7 +85,7 @@
   "test/integration/server/settings/apple-wallet.test.ts": 680,
   "test/integration/server/settings/superuser.test.ts": 506,
   "test/integration/server/setup.test.ts": 582,
-  "test/integration/server/site-assignment.test.ts": 802,
+  "test/integration/server/site-assignment.test.ts": 677,
   "test/integration/server/webhooks/price-signature-post-commit-recovery.test.ts": 404,
   "test/integration/stripe/core.test.ts": 492,
   "test/integration/turso-api-management.test.ts": 414,

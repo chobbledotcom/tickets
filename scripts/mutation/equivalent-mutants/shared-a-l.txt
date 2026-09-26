@@ -34,6 +34,7 @@ src/shared/app-forms.ts::createAuthedHandler~1q900po  ?? → ||   # config.auth 
 src/shared/site-assignment.ts::renewalDeadlineBaseMs~00cywnq  ?? → ||   # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~0yvlh8h  ?? → ||   # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → ||   # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/site-assignment-failure.ts::reportOutOfStockBuyers.config~0yvlh8h  ?? → ||   # getEmailConfig(): EmailConfig|null, same shape as sendSiteAssignmentEmail.config above
 
 src/shared/ledger/project.ts::allBalances.add~0gr4ng6  ?? → ||   # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/ledger/project.ts::balanceOf~128hnl9  ?? → ||   # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0

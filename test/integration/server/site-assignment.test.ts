@@ -17,17 +17,16 @@ import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 /* jscpd:ignore-start -- imports */
-import {
-  assignAndNotifyBuiltSites,
-  syncReadOnlyFrom,
-  validateSiteAssignmentConfig,
-} from "#shared/site-assignment.ts";
+import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import {
+  deactivateAllTierListings,
+  siteEntry,
+} from "./site-assignment-shared.ts";
 
 /* jscpd:ignore-end */
 
@@ -40,53 +39,6 @@ const forbidBuildDuringAssignment = (): Stub =>
 const stubEdgeSecretSuccess = () =>
   stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve({ ok: true as const }),
-  );
-
-/** Deactivate every active, hidden, purchase-only, monthly listing — the
- *  "renewal tier" set — so tests can exercise the no-qualifying-tier path.
- *  Both the "skips assignment" and "rejects missing renewal tier" tests
- *  need this exact teardown. */
-const deactivateAllTierListings = async (): Promise<void> => {
-  const { getAllListings } = await import("#db/listings/records.ts");
-  const { deactivateTestListing } = await import(
-    "#test-utils/db-helpers/listings.ts"
-  );
-  const listings = await getAllListings();
-  for (const ev of listings) {
-    if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
-      await deactivateTestListing(ev.id);
-    }
-  }
-};
-
-/** Build an entry with assign_built_site for testing */
-const siteEntry = (
-  overrides: {
-    listingId?: number;
-    listingName?: string;
-    assignBuiltSite?: boolean;
-    initialSiteMonths?: number;
-    attendeeId?: number;
-    quantity?: number;
-    email?: string;
-  } = {},
-) =>
-  makeTestEntry(
-    {
-      assign_built_site: overrides.assignBuiltSite ?? true,
-      initial_site_months: overrides.initialSiteMonths ?? 3,
-      ...(overrides.listingId !== undefined && { id: overrides.listingId }),
-      ...(overrides.listingName !== undefined && {
-        name: overrides.listingName,
-      }),
-    },
-    {
-      ...(overrides.attendeeId !== undefined && { id: overrides.attendeeId }),
-      ...(overrides.email !== undefined && { email: overrides.email }),
-      ...(overrides.quantity !== undefined && {
-        quantity: overrides.quantity,
-      }),
-    },
   );
 
 describeWithEnv(
@@ -262,6 +214,12 @@ describeWithEnv(
         );
       });
 
+      /** The one warning email this run sent, parsed for its assertions. */
+      const warningEmailBody = (): Record<string, unknown> => {
+        expect(fetchStub.calls.length).toBe(1);
+        return JSON.parse(fetchStub.calls[0]!.args[1].body);
+      };
+
       test("an empty pool keeps the booking and warns the business email", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", false);
         await settings.update.businessEmail("biz@example.com");
@@ -276,8 +234,7 @@ describeWithEnv(
           expect(existing.assignedAttendeeId).toBeNull();
           // The buyer's booking stands with no setup email, and one warning
           // email reaches the business address.
-          expect(fetchStub.calls.length).toBe(1);
-          const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+          const body = warningEmailBody();
           expect(body.subject).toBe("A site plan sold with no site available");
           expect(body.to).toEqual(["biz@example.com"]);
           expect(body.html).toContain(
@@ -302,15 +259,13 @@ describeWithEnv(
           siteEntry({ attendeeId: 11 }),
           siteEntry({ attendeeId: 12, listingName: "Second Plan" }),
         ]);
-
-        expect(fetchStub.calls.length).toBe(1);
-        const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
-        expect(body.html).toContain(
+        const body = warningEmailBody();
+        for (const buyer of [
           "Test Listing — Jane Doe (jane@example.com)",
-        );
-        expect(body.html).toContain(
           "Second Plan — Jane Doe (jane@example.com)",
-        );
+        ]) {
+          expect(body.html).toContain(buyer);
+        }
       });
 
       test("no-ops for empty entries", async () => {
@@ -718,85 +673,5 @@ describeWithEnv(
         }
       });
     });
-
-    describe("syncReadOnlyFrom", () => {
-      test("pushes RENEWAL_URL alongside READ_ONLY_FROM when given a renewalUrl", async () => {
-        await insertBuiltSite(
-          "Sync A",
-          "sync-a.test.net",
-          "",
-          "",
-          false,
-          "5001",
-        );
-        const site = (await builtSites.getAll()).find(
-          (s) => s.name === "Sync A",
-        )!;
-
-        await syncReadOnlyFrom(
-          site,
-          addMonthsIso(nowIso(), 3),
-          "https://example.test/renew/?t=abc",
-        );
-
-        const keys = secretStub.calls.map((c) => c.args[1]);
-        expect(keys).toContain("RENEWAL_URL");
-        expect(keys).toContain("READ_ONLY_FROM");
-      });
-
-      test("pushes only READ_ONLY_FROM when no renewalUrl is given", async () => {
-        await insertBuiltSite(
-          "Sync B",
-          "sync-b.test.net",
-          "",
-          "",
-          false,
-          "5002",
-        );
-        const site = (await builtSites.getAll()).find(
-          (s) => s.name === "Sync B",
-        )!;
-
-        await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
-
-        const keys = secretStub.calls.map((c) => c.args[1]);
-        expect(keys).not.toContain("RENEWAL_URL");
-        expect(keys).toContain("READ_ONLY_FROM");
-      });
-    });
-
-    describe("validateSiteAssignmentConfig", () => {
-      test("passes when no selected listing needs a site", async () => {
-        const result = await validateSiteAssignmentConfig([
-          siteEntry({ assignBuiltSite: false }),
-        ]);
-        expect(result.ok).toBe(true);
-      });
-
-      test("rejects missing renewal tier before checkout", async () => {
-        await deactivateAllTierListings();
-
-        const result = await validateSiteAssignmentConfig([siteEntry()]);
-        expect(result.ok).toBe(false);
-        if (!result.ok) expect(result.reason).toBe("missing_tier");
-      });
-
-      test("rejects invalid initial site months before checkout", async () => {
-        const result = await validateSiteAssignmentConfig([
-          siteEntry({ initialSiteMonths: 0 }),
-        ]);
-        expect(result.ok).toBe(false);
-        if (!result.ok) expect(result.reason).toBe("initial_months");
-      });
-    });
   },
 );
-
-describe("validateSiteAssignmentConfig without builder", () => {
-  test("rejects when CAN_BUILD_SITES is disabled", async () => {
-    using _env = withEnv({ CAN_BUILD_SITES: undefined });
-    const result = await validateSiteAssignmentConfig([siteEntry()]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("builder_disabled");
-  });
-});

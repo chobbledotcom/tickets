@@ -60,6 +60,7 @@ describeWithEnv("site build", { db: true }, () => {
 
       expect(retainedIdSeenByBuild).toBe(built.retainedId);
       expect((await builtSites.getAll())[0]).toMatchObject({
+        assignable: false,
         name: "Local Site",
         scheduledTaskKey: TEST_SCHEDULED_KEY,
       });
