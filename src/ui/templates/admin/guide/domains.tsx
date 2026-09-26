@@ -5,7 +5,6 @@
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import {
-  custom,
   faq,
   type GuideHostConfig,
   type GuideSection,
@@ -16,20 +15,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
   compact<GuideSection>([
     {
       entries: [
-        custom(
-          "what_is_host_subdomain",
-          <p>
-            If your server administrator has enabled subdomain registration, you
-            can claim a pretty subdomain for your tickets site (e.g.{" "}
-            <code>
-              my-business
-              {hostConfig?.bunnyDnsSubdomainSuffix || ".example.com"}
-            </code>
-            ) instead of using the default CDN hostname. The option appears in{" "}
-            <strong>Advanced Settings</strong> under{" "}
-            <strong>Host Subdomain</strong>.
-          </p>,
-        ),
+        faq("what_is_host_subdomain"),
         faq("how_do_i_register_a_subdomain"),
         faq("can_i_use_both_a_subdomain_and"),
       ],

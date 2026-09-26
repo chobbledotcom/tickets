@@ -64,10 +64,8 @@ describeWithEnv(
       enable();
       const html = await advancedPageHtml();
       expect(html).toContain('id="settings-host-subdomain"');
-      expect(html).toContain("Host Subdomain");
-      expect(html).toContain(
-        "Check Availability &amp; Preview Complete Domain",
-      );
+      expect(html).toContain("Host subdomain");
+      expect(html).toContain("Check if the name is free");
     });
 
     test("shows a registered subdomain on its secure host", async () => {
@@ -88,12 +86,16 @@ describeWithEnv(
       expect(response.status).toBe(200);
       expect(html).toContain("mylisting.tickets.example.com");
       expect(html).toContain("permanent and cannot be changed");
-      expect(html).toContain("can be active at the same time");
+      expect(html).toContain("keeps working at the same time");
     });
 
     test("rejects registration when DNS is not configured", async () => {
       const response = await postSubdomain("mylisting");
-      expectRedirectWithFlash(REDIRECT, "Not configured", false)(response);
+      expectRedirectWithFlash(
+        REDIRECT,
+        "Subdomain names are not turned on for this site. Ask your host to turn them on.",
+        false,
+      )(response);
     });
 
     test("rejects a change after a subdomain is set", async () => {
@@ -114,7 +116,7 @@ describeWithEnv(
       );
       expectRedirectWithFlash(
         REDIRECT,
-        "Subdomain has already been set and cannot be changed",
+        "Your subdomain is already set. You cannot change it.",
         false,
       )(response);
     });
@@ -125,7 +127,7 @@ describeWithEnv(
         const response = await postSubdomain(subdomain);
         expectRedirectWithFlash(
           REDIRECT,
-          "Invalid subdomain format",
+          "Use only lowercase letters, numbers, and hyphens. Start and end with a letter or a number.",
           false,
         )(response);
       });
@@ -144,7 +146,7 @@ describeWithEnv(
         );
         expectRedirectWithFlash(
           REDIRECT,
-          "mylisting.tickets.example.com is available",
+          "mylisting.tickets.example.com is free.",
         )(response);
         const html = await (
           await followRedirectWithFlash(response, handleRequest, cookie)
@@ -168,7 +170,7 @@ describeWithEnv(
       await withSubdomainCheck(subdomainCheck(false), async () => {
         expectRedirectWithFlash(
           REDIRECT,
-          'Subdomain "mylisting" is already taken',
+          "mylisting is already taken. Try a different name.",
           false,
         )(await postSubdomain("mylisting"));
       });
@@ -208,7 +210,7 @@ describeWithEnv(
           });
           expectRedirectWithFlash(
             REDIRECT,
-            "Subdomain registered: mylisting.tickets.example.com",
+            "Subdomain registered. Your site is now at mylisting.tickets.example.com.",
           )(response);
           expect(settings.bunnySubdomain).toBe("mylisting.tickets.example.com");
           await expectActivityLogged(

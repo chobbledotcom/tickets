@@ -28,7 +28,6 @@ const en = await allEnglishMessages(GUIDE_MESSAGE_GROUPS);
 const allSections = (): GuideSection[] =>
   guideSections({
     builderEnabled: true,
-    bunnyDnsSubdomainSuffix: ".example.com",
     hostAppleWalletPassTypeId: null,
     hostEmailFromAddress: null,
     hostEmailProvider: null,

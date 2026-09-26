@@ -257,7 +257,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const html = await (await adminGet("/admin/settings-advanced")).text();
 
       expect(html).toContain('<span class="muted">.tickets.test</span>');
-      expect(html).not.toContain("is available.");
+      // No pending preview: the hidden subdomain input only appears after a
+      // successful check.
+      expect(html).not.toContain('<input name="subdomain" type="hidden"');
     });
 
     test("splits an exact subdomain preview from its full domain", async () => {

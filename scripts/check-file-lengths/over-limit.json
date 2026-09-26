@@ -76,7 +76,7 @@
   "test/integration/server/daily-packages.test.ts": 408,
   "test/integration/server/editor.test.ts": 721,
   "test/integration/server/feeds.test.ts": 651,
-  "test/integration/server/guide.test.ts": 522,
+  "test/integration/server/guide.test.ts": 513,
   "test/integration/server/parents-duplicate.test.ts": 560,
   "test/integration/server/parents-e2e.test.ts": 650,
   "test/integration/server/privacy-refund-recovery.test.ts": 425,

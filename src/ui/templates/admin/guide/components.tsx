@@ -21,7 +21,6 @@ export type GuideHostConfig = {
   hostAppleWalletPassTypeId: string | null;
   hostGoogleWalletIssuerId: string | null;
   builderEnabled: boolean;
-  bunnyDnsSubdomainSuffix: string | null;
 };
 
 export const Section = ({
