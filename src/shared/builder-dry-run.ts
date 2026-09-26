@@ -12,6 +12,7 @@
 
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { createBooleanScope } from "#shared/request-scoped.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 /** True when the site-build surface answers without network. */
@@ -48,7 +49,7 @@ const BUNNY_DB_TOKEN =
   /^https:\/\/api\.bunny\.net\/database\/v2\/databases\/[^/?#]+\/auth\/generate$/;
 const BUNNY_SCRIPT_CREATE = /^https:\/\/api\.bunny\.net\/compute\/script$/;
 const BUNNY_SCRIPT_ACTION =
-  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/?#]+\/(code|publish|secrets)$/;
+  /^https:\/\/api\.bunny\.net\/compute\/script\/[^/?#]+\/(code|publish|secrets|variables)$/;
 const BUNNY_PULL_ZONE = /^https:\/\/api\.bunny\.net\/pullzone\/\d+$/;
 /** The canned release's asset, so the build's bundle download dry-runs too. */
 const DRY_RUN_RELEASE_ASSET = new RegExp(
@@ -57,6 +58,16 @@ const DRY_RUN_RELEASE_ASSET = new RegExp(
 
 /** One mapped endpoint's canned body builder. */
 type CannedBody = (url: string) => string;
+
+/** Whether the call in flight belongs to a site build. SITE_BUILD_DRY_RUN
+ * answers a *build's* external calls, and nothing else: the same builder
+ * instance also serves live admin actions against real sites (a
+ * Support-message save, for example), and a canned success there would
+ * report a write Bunny never received. */
+const insideSiteBuild = createBooleanScope();
+
+/** Run `fn` as a site build, so its external calls may take dry-run answers. */
+export const runWithSiteBuildScope = insideSiteBuild.runUnder;
 
 /** The canned answers for the site-build surface, tried in order. Each pattern
  * anchors the exact Bunny origin and path shape its caller builds, so a
@@ -102,14 +113,16 @@ const CANNED_BODIES: readonly (readonly [RegExp, CannedBody])[] = [
   [DRY_RUN_RELEASE_ASSET, () => "export {}; // dry-run site build"],
 ];
 
-/** One site-build call: with the flag on and the URL mapped, the budget pays
- * for the call and the canned body answers; otherwise the real fetch runs
- * and `init` supplies its request exactly as before. */
+/** One site-build call: inside a build's scope, with the flag on and the URL
+ * mapped, the budget pays for the call and the canned body answers; otherwise
+ * the real fetch runs and `init` supplies its request exactly as before. */
 export const dryRunOrFetchText = (
   url: string,
   init: () => RequestInit,
 ): Promise<FetchResult> => {
-  if (!siteBuildDryRunEnabled()) return fetchText(url, init());
+  if (!siteBuildDryRunEnabled() || !insideSiteBuild.read()) {
+    return fetchText(url, init());
+  }
   const mapped = CANNED_BODIES.find(([pattern]) => pattern.test(url));
   if (mapped === undefined) return fetchText(url, init());
   countExternalSubrequest(`fetch ${new URL(url).origin}`);

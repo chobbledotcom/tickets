@@ -48,11 +48,33 @@ test("rejects unknown revision states and missing identities", () => {
   expect(() => v.parse(DenoAppIdentitySchema, { id: "app-1" })).toThrow();
 });
 
-test("reads app environment variable names from the documented list", () => {
+test("reads app environment variables with their secret flag", () => {
   expect(
     v.parse(DenoAppEnvVarsSchema, {
       env_vars: [{ key: "DB_URL", secret: true }],
     }),
-  ).toEqual({ env_vars: [{ key: "DB_URL" }] });
+  ).toEqual({ env_vars: [{ key: "DB_URL", secret: true }] });
   expect(() => v.parse(DenoAppEnvVarsSchema, {})).toThrow();
+});
+
+test("requires a plain entry's value and a secret's flag", () => {
+  expect(
+    v.parse(DenoAppEnvVarsSchema, {
+      env_vars: [{ key: "SUPPORT_PAGE_TEXT", secret: false, value: "# Hi" }],
+    }),
+  ).toEqual({
+    env_vars: [{ key: "SUPPORT_PAGE_TEXT", secret: false, value: "# Hi" }],
+  });
+  // The API omits a secret's value, so only a plain entry missing one is a
+  // contract failure.
+  expect(() =>
+    v.parse(DenoAppEnvVarsSchema, {
+      env_vars: [{ key: "SUPPORT_PAGE_TEXT", secret: false }],
+    }),
+  ).toThrow();
+  expect(() =>
+    v.parse(DenoAppEnvVarsSchema, {
+      env_vars: [{ key: "ORIGIN" }],
+    }),
+  ).toThrow();
 });

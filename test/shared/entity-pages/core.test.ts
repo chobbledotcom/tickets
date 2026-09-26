@@ -6,6 +6,7 @@ import {
   type TabState,
   tabLinks,
   tabPath,
+  wrapAroundNeighbours,
 } from "#shared/entity-pages/core.ts";
 
 const tab = (slug: string, visible = true): TabState => ({
@@ -96,5 +97,53 @@ describe("splitActions", () => {
 
   test("an empty list yields two empty halves", () => {
     expect(splitActions([])).toEqual({ danger: [], plain: [] });
+  });
+});
+
+describe("wrapAroundNeighbours", () => {
+  test("gives a missing current item no neighbours on either side", () => {
+    expect(wrapAroundNeighbours(["A", "B"], (item) => item === "Z")).toEqual({
+      next: null,
+      previous: null,
+    });
+  });
+
+  test("gives an empty list no neighbours", () => {
+    expect(wrapAroundNeighbours([], () => false)).toEqual({
+      next: null,
+      previous: null,
+    });
+  });
+
+  test("gives the only item in a one-item list no neighbours", () => {
+    expect(wrapAroundNeighbours(["A"], (item) => item === "A")).toEqual({
+      next: null,
+      previous: null,
+    });
+  });
+
+  test("treats a falsy-looking item as a neighbour all the same", () => {
+    expect(wrapAroundNeighbours(["A", 0], (item) => item === "A").next).toBe(0);
+    expect(
+      wrapAroundNeighbours([0, "A"], (item) => item === "A").previous,
+    ).toBe(0);
+  });
+
+  test("neighbours the middle item plainly", () => {
+    expect(
+      wrapAroundNeighbours(["A", "B", "C"], (item) => item === "B"),
+    ).toEqual({ next: "C", previous: "A" });
+  });
+
+  test("wraps the first item's previous to the list's last", () => {
+    expect(
+      wrapAroundNeighbours(["A", "B", "C"], (item) => item === "A"),
+    ).toEqual({ next: "B", previous: "C" });
+  });
+
+  test("wraps the last item's next to the list's first", () => {
+    expect(
+      wrapAroundNeighbours(["A", "B", "C"], (item) => item === "C"),
+    ).toEqual({ next: "A", previous: "B" });
   });
 });

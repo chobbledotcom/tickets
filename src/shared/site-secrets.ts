@@ -12,13 +12,12 @@
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
+import { collectHostSecrets, HOST_INFRA_SECRET_KEYS } from "#shared/builder.ts";
+import type { Result } from "#shared/result.ts";
 import {
-  collectHostSecrets,
-  HOST_INFRA_SECRET_KEYS,
   resolveHostingProvider,
   siteHostingAccess,
-} from "#shared/builder.ts";
-import type { Result } from "#shared/result.ts";
+} from "#shared/site-hosting.ts";
 import { tryStep } from "#shared/try-step.ts";
 
 /**

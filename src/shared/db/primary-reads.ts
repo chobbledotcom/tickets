@@ -1,14 +1,13 @@
 import { nowMs } from "#shared/now.ts";
-import { createScopedValue } from "#shared/request-scoped.ts";
+import { createBooleanScope } from "#shared/request-scoped.ts";
 
 /** Keep refills on the primary while a nearby replica catches up. */
 const PRIMARY_READ_AFTER_WRITE_MS = 30_000;
 
-const primaryReads = createScopedValue(() => false);
+const primaryReads = createBooleanScope();
 
 /** Run database reads in `work` against the primary. */
-export const runWithPrimaryReads = <T>(work: () => T): T =>
-  primaryReads.run(true, work);
+export const runWithPrimaryReads = primaryReads.runUnder;
 
 /** Whether reads in the current async scope must use the primary. */
 export const mustReadFromPrimary = (): boolean => primaryReads.read();

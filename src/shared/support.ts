@@ -25,14 +25,21 @@ import { getAdminEmailAddress } from "#shared/superuser.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 
 /**
- * The SUPPORT_PAGE_TEXT markdown the host configured, with literal `\n`
- * sequences turned into real line breaks (env values can't easily hold real
- * newlines). Null when unset or blank.
+ * The Support page's markdown, or null when unset or blank. Two writers, two
+ * channels: SUPPORT_PAGE_MARKDOWN is the site's own text, written through the
+ * provider API (the Support-message tab, a fresh build's seed) with real line
+ * breaks, read back exactly as stored. The SUPPORT_PAGE_TEXT fallback is the
+ * hand-set dashboard convention, where `\n` is the only way to write a break,
+ * so the read turns each `\n` into a real one.
  */
 export const getSupportPageText = (): string | null => {
-  const raw = getEnv("SUPPORT_PAGE_TEXT");
-  if (!raw?.trim()) return null;
-  return raw.replace(/\\n/g, "\n");
+  const raw = getEnv("SUPPORT_PAGE_MARKDOWN");
+  // A set-but-blank markdown key is a deliberate clear: show the
+  // placeholder, never fall through to an older hand-set value.
+  if (raw !== undefined) return raw.trim() ? raw : null;
+  const legacy = getEnv("SUPPORT_PAGE_TEXT");
+  if (!legacy?.trim()) return null;
+  return legacy.replace(/\\n/g, "\n");
 };
 
 /** The Support feature is available when ADMIN_EMAIL_ADDRESS is set and valid. */

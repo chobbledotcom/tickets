@@ -289,6 +289,6 @@ describe("the routes this suite cannot ask", () => {
     const paths = new Set(declared.map((one) => one.pattern));
     const methods = await writeRoutes();
     const undeclared = [...methods.keys()].filter((path) => !paths.has(path));
-    expect(undeclared.length).toBe(98);
+    expect(undeclared.length).toBe(99);
   });
 });

@@ -16,6 +16,7 @@ import {
 import {
   DenoAppEnvVarsSchema,
   DenoAppIdentitySchema,
+  type DenoEnvVar,
   type DenoRevision,
   DenoRevisionSchema,
 } from "#shared/deno-deploy-schema.ts";
@@ -74,46 +75,85 @@ const createAppImpl = async (
   return okResult({ appId: data.id, slug: data.slug });
 };
 
-/** Fetch the current env vars for a Deno Deploy app. */
-const fetchAppEnvVarNames = async (
+/** Fetch the current env vars for a Deno Deploy app, values included for
+ * plain entries (secret entries mask their value). */
+const getAppEnvVarsImpl = async (
   appId: string,
-): Promise<Result<string[]>> => {
+): Promise<Result<DenoEnvVar[]>> => {
   const result = await getDenoApi(
     `apps/${encodeURIComponent(appId)}`,
     "Get app",
     (text) => parseJson(DenoAppEnvVarsSchema, text),
   );
-  if (!result.ok) return result;
-  return okResult(result.value.env_vars.map(({ key }) => key));
+  return result.ok ? okResult(result.value.env_vars) : result;
+};
+
+/** The app's env var keys — the names-only view of {@link getAppEnvVarsImpl}. */
+const getAppEnvVarNamesImpl = async (
+  appId: string,
+): Promise<Result<string[]>> => {
+  const result = await getAppEnvVarsImpl(appId);
+  return result.ok ? okResult(result.value.map(({ key }) => key)) : result;
+};
+
+/** One env var entry as the PATCH body sends it: plain or secret, and the
+ * production context unless the caller narrows it. */
+export interface DenoEnvVarUpdate {
+  contexts?: string[];
+  key: string;
+  secret?: boolean;
+  value: string;
+}
+
+/** The default body for one env var entry. */
+const denoEnvVarPatch = (entry: DenoEnvVarUpdate) => ({
+  contexts: entry.contexts ?? ["production"],
+  key: entry.key,
+  secret: entry.secret ?? true,
+  value: entry.value,
+});
+
+/** PATCH env var entries onto a Deno Deploy app. The API deep-merges
+ * env_vars by key, so every var the entries do not name stays untouched. */
+const patchAppEnvVars = async (
+  appId: string,
+  entries: DenoEnvVarUpdate[],
+  label: string,
+) => {
+  const patchRes = await fetchText(
+    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
+    {
+      body: JSON.stringify({
+        env_vars: entries.map(denoEnvVarPatch),
+      }),
+      headers: denoApiHeaders(),
+      method: "PATCH",
+    },
+  );
+
+  if (!patchRes.ok) return parseApiError(patchRes, label);
+  return okResult(undefined);
 };
 
 /**
- * Set environment variables on a Deno Deploy app.
- * PATCHes only the supplied secrets — the Deno API deep-merges by key, so
- * existing vars not in `secrets` are preserved without re-sending them.
- * (Re-sending existing secrets risks clearing them: the GET response masks
- * secret values, so a round-trip GET→merge→PATCH would PATCH with empty values.)
+ * Set ONE environment variable on a Deno Deploy app, plain or secret.
  */
-const envVar = ([key, value]: [string, string]) => ({
+const setEnvVarImpl = (appId: string, entry: DenoEnvVarUpdate) =>
+  patchAppEnvVars(appId, [entry], "Set app env var");
+
+/** Set secret environment variables on a Deno Deploy app, all in production.
+ * (Re-sending existing secrets risks clearing them: the GET response masks
+ * secret values, so a round-trip GET→merge→PATCH would PATCH with empty
+ * values. The supplied pairs always carry their full value.) */
+const envVar = ([key, value]: [string, string]): DenoEnvVarUpdate => ({
   contexts: ["production"],
   key,
   secret: true,
   value,
 });
 
-const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
-  const patchRes = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
-    {
-      body: JSON.stringify({ env_vars: secrets.map(envVar) }),
-      headers: denoApiHeaders(),
-      method: "PATCH",
-    },
-  );
-
-  if (!patchRes.ok) return parseApiError(patchRes, "Set app env vars");
-  return okResult(undefined);
-};
+const setEnvVarsImpl = (appId: string, secrets: [string, string][]) =>
+  patchAppEnvVars(appId, secrets.map(envVar), "Set app env vars");
 
 const REVISION_POLL_BACKOFF_MS = Array<number>(20).fill(1_000);
 
@@ -204,18 +244,13 @@ const deployCodeImpl: HostingProviderApi["publishSite"] = async (
   return waitForRevision(parseDenoRevision(res.text));
 };
 
-/**
- * Get the names of environment variables currently set on a Deno Deploy app.
- * Used by the secrets backfill UI to diff against the expected set.
- */
-const getEnvVarNamesImpl = async (appId: string): Promise<Result<string[]>> =>
-  fetchAppEnvVarNames(appId);
-
 /** Stubbable API for testing */
 export const denoDeployApi = {
   createApp: createAppImpl,
   deployCode: deployCodeImpl,
-  getEnvVarNames: getEnvVarNamesImpl,
+  getAppEnvVars: getAppEnvVarsImpl,
+  getEnvVarNames: getAppEnvVarNamesImpl,
+  setEnvVar: setEnvVarImpl,
   setEnvVars: setEnvVarsImpl,
 };
 

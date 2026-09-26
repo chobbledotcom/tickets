@@ -8,17 +8,25 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
-import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
-import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
+import { t, withMessageGroups } from "#i18n";
+import {
+  dryRunOrFetchText,
+  runWithSiteBuildScope,
+} from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
-import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult } from "#shared/result.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { withSiteDb } from "#shared/site-db.ts";
+import { resolveHostingProvider } from "#shared/site-hosting.ts";
+import {
+  supportMessageApi,
+  supportMessageTooLong,
+} from "#shared/site-support-message.ts";
+import { getSupportPageText } from "#shared/support.ts";
 import { tryStep } from "#shared/try-step.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
@@ -32,13 +40,16 @@ import { fetchLatestRelease } from "#shared/update.ts";
  * stays aware. Keeping sensitivity here, on the single source list, stops it
  * drifting from a hand-maintained parallel list.
  */
-type HostSecret = { name: string; hostInfra?: boolean; bunnyOnly?: boolean };
+type HostSecret = {
+  name: string;
+  hostInfra?: boolean;
+  bunnyOnly?: boolean;
+};
 
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "SENTRY_URL" },
   { name: "ADMIN_EMAIL_ADDRESS" },
-  { name: "SUPPORT_PAGE_TEXT" },
   { name: "SUPPORT_FORM_NAG_DAYS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
   { hostInfra: true, name: "STORAGE_ZONE_KEY" },
@@ -99,7 +110,9 @@ export type PreparedBuildSite = Extract<BuildSiteResult, { ok: true }> & {
   scheduledTaskKey: string;
 };
 
-export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<void>;
+/** Retain the prepared site and answer its row's id, so the build deletes
+ * the row when a later step fails and no unfinished site stays recorded. */
+export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<number>;
 
 type BuildSiteCredentials = { dbUrl: string; dbToken: string };
 
@@ -124,9 +137,9 @@ export const testDbConnection = async (
  * Collect the host-environment secrets that are currently set, as [name, value]
  * pairs. These are copied onto every freshly built site, and backfilled onto
  * existing sites that are missing them (see #shared/site-secrets.ts).
- * Secrets tagged `bunnyOnly` are excluded for non-Bunny hosting providers
- * (e.g. Deno sites have no Bunny script ID, so `isBunnyDnsEnabled()` must
- * stay false to avoid surfacing a DNS form that would fail at runtime).
+ * Secrets tagged `bunnyOnly` apply to Bunny sites alone. Every site keeps the
+ * support message as a readable variable instead of a secret copy (see
+ * #shared/site-support-message.ts).
  */
 export const collectHostSecrets = (
   hostingProvider: HostingProvider = "bunny",
@@ -213,6 +226,7 @@ const buildSiteOnProvider = async (
   code: string,
   dbCredentials: BuildSiteCredentials,
   dbProvider: DbProvider,
+  hostSupportText: string | null,
   hostingProvider: HostingProvider,
   retain: RetainPreparedSite,
 ): Promise<BuildSiteResult> => {
@@ -237,78 +251,89 @@ const buildSiteOnProvider = async (
     ok: true,
     scheduledTaskKey,
   };
+  let retainedId: number;
   try {
-    await retain(prepared);
+    retainedId = await retain(prepared);
   } catch (error) {
     return {
       error: `Failed to retain site: ${errorMessage(error)}`,
       ok: false,
     };
   }
+  // Every site's support message lives as a readable variable, so the new
+  // site starts with the host's own text instead of a secret copy nobody can
+  // read back. Set before publishing so the first request already sees it.
+  if (hostSupportText !== null) {
+    const seeded = await supportMessageApi.setSupportMessage(
+      hostingProvider,
+      result.value.hostingId,
+      hostSupportText,
+    );
+    if (!seeded.ok) {
+      await builtSitesCrudTable.deleteById(retainedId);
+      return seeded;
+    }
+  }
   const published = await provider.publishSite(result.value.hostingId, code);
-  if (!published.ok) return published;
+  if (!published.ok) {
+    await builtSitesCrudTable.deleteById(retainedId);
+    return published;
+  }
   const { scheduledTaskKey: _scheduledTaskKey, ...built } = prepared;
   return built;
 };
 
 /**
  * Build a new site: provision database if needed, create hosting, configure
- * secrets, deploy.
+ * secrets, deploy. The whole flow runs inside the site-build scope, so a
+ * SITE_BUILD_DRY_RUN set answers these calls without live network while the
+ * same instance's unrelated admin actions stay real.
  */
 export const buildSite = async (
   input: BuildSiteInput,
   retain: RetainPreparedSite,
-): Promise<BuildSiteResult> => {
-  // 1. Source the bundle code: caller-supplied or latest GitHub release
-  const codeResult = await getBuildCode(input);
-  if (!codeResult.ok) return codeResult;
+): Promise<BuildSiteResult> =>
+  runWithSiteBuildScope(async () => {
+    const hostSupportText = getSupportPageText();
+    // The seed copy must fit a site's variable, so a swollen host text fails
+    // the build before any provisioned resource — database, hosting script,
+    // or release download — exists to leave behind.
+    if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
+      // A site-plan purchase auto-builds inside the booking request, where
+      // only the public message groups are visible: load the builder's own
+      // copy around this one lookup so the refusal still reads its sentence.
+      return {
+        error: await withMessageGroups(["built-sites"], () =>
+          t("built_sites.support_message_too_long"),
+        ),
+        ok: false,
+      };
+    }
 
-  // 2. Auto-provision database if credentials not supplied
-  const credentialsResult = await getDbCredentials(input);
-  if (!credentialsResult.ok) return credentialsResult;
-  const { credentials: dbCredentials, dbProvider } = credentialsResult;
+    // 1. Source the bundle code: caller-supplied or latest GitHub release
+    const codeResult = await getBuildCode(input);
+    if (!codeResult.ok) {
+      return codeResult;
+    }
 
-  // 3. Build on the selected hosting provider
-  return buildSiteOnProvider(
-    input,
-    codeResult.code,
-    dbCredentials,
-    dbProvider,
-    input.hostingProvider ?? "bunny",
-    retain,
-  );
-};
+    // 2. Auto-provision database if credentials not supplied
+    const credentialsResult = await getDbCredentials(input);
+    if (!credentialsResult.ok) {
+      return credentialsResult;
+    }
+    const { credentials: dbCredentials, dbProvider } = credentialsResult;
 
-const HOSTING_PROVIDERS: Record<HostingProvider, HostingProviderApi> = {
-  bunny: bunnyHostingProvider,
-  deno: denoHostingProvider,
-};
-
-export const resolveHostingProvider = (
-  provider: HostingProvider,
-): HostingProviderApi => HOSTING_PROVIDERS[provider];
-
-/**
- * A built site can only be reached on its hosting provider when it has a
- * hosting ID and the host holds the provider's API key. `blocked` finishes
- * the error sentence — e.g. "its secrets can't be read".
- */
-export const siteHostingAccess = (
-  site: { hostingId: string; hostingProvider: HostingProvider },
-  blocked: string,
-): { ok: true; hostingId: string } | { ok: false; error: string } => {
-  if (!site.hostingId) {
-    return { error: `This site has no hosting ID, so ${blocked}.`, ok: false };
-  }
-  const { configEnvVar } = resolveHostingProvider(site.hostingProvider);
-  if (!getEnv(configEnvVar)) {
-    return {
-      error: `${configEnvVar} is not configured on this host, so ${blocked}.`,
-      ok: false,
-    };
-  }
-  return { hostingId: site.hostingId, ok: true };
-};
+    // 3. Build on the selected hosting provider
+    return buildSiteOnProvider(
+      input,
+      codeResult.code,
+      dbCredentials,
+      dbProvider,
+      hostSupportText,
+      input.hostingProvider ?? "bunny",
+      retain,
+    );
+  });
 
 /** Dispatch database creation to the selected provider. */
 function createDatabase(name: string, provider: DbProvider = "bunny") {
