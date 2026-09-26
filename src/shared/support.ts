@@ -12,7 +12,7 @@
  */
 
 import { settings } from "#db/settings.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
+import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { formatTimeAgo } from "#shared/dates.ts";
 import { getEnv } from "#shared/env.ts";
 import {
@@ -25,14 +25,17 @@ import { getAdminEmailAddress } from "#shared/superuser.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 
 /**
- * The SUPPORT_PAGE_TEXT markdown the host configured, with literal `\n`
- * sequences turned into real line breaks (env values can't easily hold real
- * newlines). Null when unset or blank.
+ * The SUPPORT_PAGE_TEXT markdown, with literal `\n` sequences turned into
+ * real line breaks, or null when unset or blank. The unescaping belongs to the
+ * builder instance alone: its operator types the text in the provider's env
+ * dashboard, where `\n` is the only way to write a break. Every site the
+ * builder creates (and the Support-message tab edits) holds real newlines and
+ * its markdown exactly as typed.
  */
 export const getSupportPageText = (): string | null => {
   const raw = getEnv("SUPPORT_PAGE_TEXT");
   if (!raw?.trim()) return null;
-  return raw.replace(/\\n/g, "\n");
+  return isBuilderEnabled() ? raw.replace(/\\n/g, "\n") : raw;
 };
 
 /** The Support feature is available when ADMIN_EMAIL_ADDRESS is set and valid. */

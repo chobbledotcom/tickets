@@ -80,8 +80,19 @@ describe("getSupportPageText", () => {
   });
 
   test("converts literal backslash-n sequences into real newlines", () => {
-    sandbox.setEnv({ SUPPORT_PAGE_TEXT: "Line one\\nLine two" });
+    sandbox.setEnv({
+      CAN_BUILD_SITES: "true",
+      SUPPORT_PAGE_TEXT: "Line one\\nLine two",
+    });
     expect(getSupportPageText()).toBe("Line one\nLine two");
+  });
+
+  test("keeps a site's stored text exactly as the editor saved it", () => {
+    // A built site's Support message is written by the Support-message tab,
+    // which stores real newlines and keeps literal "\n" the operator typed —
+    // an inline-code example must reach the page as it reached the editor.
+    sandbox.setEnv({ SUPPORT_PAGE_TEXT: "Type `\\n` for a line break" });
+    expect(getSupportPageText()).toBe("Type `\\n` for a line break");
   });
 });
 

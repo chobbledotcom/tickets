@@ -72,28 +72,33 @@ describeWithEnv(
       });
     });
 
-    test("fails the build before any resource when the host text is too long", async () => {
-      using _env = withEnv({
-        SUPPORT_PAGE_TEXT: `# Big\n\n${"a".repeat(2100)}`,
+    // 1,025 two-byte characters hold 2,050 bytes: past the byte limit while
+    // looking like half of it in characters.
+    const tooLongHostTexts = ["a".repeat(2100), "é".repeat(1025)];
+
+    for (const hostText of tooLongHostTexts) {
+      test("fails the build before any resource when the host text is too long", async () => {
+        using _env = withEnv({ SUPPORT_PAGE_TEXT: hostText });
+        await withBuildSiteMocks(
+          async ({ createDbStub, createStub, supportSeedStub }) => {
+            // No dbUrl or dbToken: the build would auto-provision the
+            // database before it reaches the hosting provider.
+            const result = await builderApi.buildSite(
+              { siteName: "Test" },
+              () => Promise.resolve(),
+            );
+            expect(result).toEqual({
+              error:
+                "The support message is too long. A site holds at most 2,048 bytes of text.",
+              ok: false,
+            });
+            expect(createDbStub.calls).toHaveLength(0);
+            expect(createStub.calls).toHaveLength(0);
+            expect(supportSeedStub.calls).toHaveLength(0);
+          },
+        );
       });
-      await withBuildSiteMocks(
-        async ({ createDbStub, createStub, supportSeedStub }) => {
-          // No dbUrl or dbToken: the build would auto-provision the
-          // database before it reaches the hosting provider.
-          const result = await builderApi.buildSite({ siteName: "Test" }, () =>
-            Promise.resolve(),
-          );
-          expect(result).toEqual({
-            error:
-              "The support message is too long. A site holds at most 2,048 bytes of text.",
-            ok: false,
-          });
-          expect(createDbStub.calls).toHaveLength(0);
-          expect(createStub.calls).toHaveLength(0);
-          expect(supportSeedStub.calls).toHaveLength(0);
-        },
-      );
-    });
+    }
     test("reports the too-long copy inside a public route's message groups", async () => {
       using _env = withEnv({
         SUPPORT_PAGE_TEXT: `# Big\n\n${"a".repeat(2100)}`,
