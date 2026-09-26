@@ -100,6 +100,52 @@ describe("documented admin CRUD endpoints", () => {
     expect(create.max_attendees).toBe(50);
   });
 
+  test("the documented attendee example is one the endpoint could send", () => {
+    const attendee = JSON.parse(
+      documented(
+        ADMIN_API_ENDPOINTS,
+        "GET",
+        "/api/admin/listings/:listingId/attendees",
+      ).response,
+    ).attendees[0];
+
+    // The row the docs teach from stays a real person's booking: the contact
+    // details as the roster decrypts them, two seats on one line, money as
+    // minor units, and no booking dates on a standard listing.
+    expect(attendee).toMatchObject({
+      address: "12 Main Street, Springfield",
+      email: "jane@example.com",
+      name: "Jane Doe",
+      phone: "+1 555 0123",
+      special_instructions: "Vegetarian",
+    });
+    expect(attendee).toMatchObject({
+      checked_in: false,
+      created: "2026-06-01T10:00:00.000Z",
+      date: null,
+      end_date: null,
+      kind: "attendee",
+      listing_id: 4,
+      quantity: 2,
+    });
+    expect(attendee).toMatchObject({
+      payment_id: "pi_3Qx1aB2c",
+      price_paid: "5000",
+      refunded: false,
+      remaining_balance: 0,
+    });
+    expect(attendee).toMatchObject({
+      attachment_downloads: 0,
+      id: 7,
+      lat: "",
+      lng: "",
+      package_group_id: 0,
+      split_logistics_agents: false,
+      status_id: 3,
+      ticket_token: "tok_9f3c7a1b",
+    });
+  });
+
   /** The example a resource's endpoints show, paired with the delete body a
    * caller would have to send for it. */
   const documentedResources = (): {
@@ -155,7 +201,9 @@ describe("documented admin CRUD endpoints", () => {
         jsonLeaves(JSON.parse(body), endpoint.path),
       ),
     )
-      .filter(({ field }) => field === "date")
+      // A null date is "no date set" (an attendee row of a date-less booking),
+      // not a malformed datetime, so the timezone rule has nothing to check.
+      .filter(({ field, value }) => field === "date" && value !== null)
       .map(({ value }) => String(value));
 
     expect(dates.length).toBeGreaterThan(0);
@@ -196,7 +244,12 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "GET" && e.path.includes(":"),
     ).map((e: EndpointDoc) => Object.keys(JSON.parse(e.response)));
 
-    expect(singleResponses).toEqual([["listing"], ["group"], ["holiday"]]);
+    expect(singleResponses).toEqual([
+      ["listing"],
+      ["attendees"],
+      ["group"],
+      ["holiday"],
+    ]);
   });
 
   test("a delete answers with a plain ok", () => {
