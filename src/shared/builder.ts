@@ -8,7 +8,7 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
-import { t } from "#i18n";
+import { t, withMessageGroups } from "#i18n";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
@@ -283,7 +283,15 @@ export const buildSite = async (
   // the build before any provisioned resource — database, hosting script,
   // or release download — exists to leave behind.
   if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
-    return { error: t("built_sites.support_message_too_long"), ok: false };
+    // A site-plan purchase auto-builds inside the booking request, where
+    // only the public message groups are visible: load the builder's own
+    // copy around this one lookup so the refusal still reads its sentence.
+    return {
+      error: await withMessageGroups(["built-sites"], () =>
+        t("built_sites.support_message_too_long"),
+      ),
+      ok: false,
+    };
   }
 
   // 1. Source the bundle code: caller-supplied or latest GitHub release

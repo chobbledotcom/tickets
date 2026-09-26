@@ -43,7 +43,7 @@ const bunnySite = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
 
 /** A GET /compute/script/{id} body holding a variable list. */
 const scriptWithVariables = (
-  variables: { Name: string | null; DefaultValue: string | null }[],
+  variables: { DefaultValue?: string | null; Name: string | null }[],
 ): string => JSON.stringify({ EdgeScriptVariables: variables });
 
 /** Assert what `readSupportMessage` returns while fetch answers with `reply`. */
@@ -106,6 +106,36 @@ describeWithEnv(
         ok: true,
         value: null,
       });
+    });
+
+    test("reads an empty string value as a value, not an unset message", async () => {
+      await expectReadWith(
+        new Response(
+          scriptWithVariables([
+            { DefaultValue: "", Name: SUPPORT_MESSAGE_KEY },
+          ]),
+        ),
+        { ok: true, value: "" },
+      );
+    });
+
+    test("reads the message when an unrelated entry carries no DefaultValue", async () => {
+      await expectReadWith(
+        new Response(
+          scriptWithVariables([
+            { Name: "OTHER_VAR" },
+            { DefaultValue: "# Still readable", Name: SUPPORT_MESSAGE_KEY },
+          ]),
+        ),
+        { ok: true, value: "# Still readable" },
+      );
+    });
+
+    test("reads null when the support entry itself carries no DefaultValue", async () => {
+      await expectReadWith(
+        new Response(scriptWithVariables([{ Name: SUPPORT_MESSAGE_KEY }])),
+        { ok: true, value: null },
+      );
     });
 
     test("reports a failed Bunny read as an error result", async () => {

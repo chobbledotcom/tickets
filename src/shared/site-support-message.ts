@@ -36,13 +36,15 @@ export type SupportMessageResult = Result<string | null>;
 /** The parts of Bunny's script response this module reads: the script's
  * variable list, each entry carrying its own readable value. The key must be
  * present — only Bunny's documented explicit null counts as "no variables",
- * and a response without the key is a contract failure, not an empty list. */
+ * and a response without the key is a contract failure, not an empty list.
+ * Bunny's model marks every entry property optional, so an entry may carry no
+ * DefaultValue: absence reads as no value, not as a malformed response. */
 const ScriptVariablesResponseSchema = v.object({
   EdgeScriptVariables: v.union([
     v.array(
       v.object({
-        DefaultValue: v.nullable(v.string()),
-        Name: v.nullable(v.string()),
+        DefaultValue: v.nullish(v.string()),
+        Name: v.nullish(v.string()),
       }),
     ),
     v.null(),
@@ -64,7 +66,9 @@ const readBunnySupportMessage = async (
     result.data,
   ).EdgeScriptVariables;
   const variable = variables?.find(({ Name }) => Name === SUPPORT_MESSAGE_KEY);
-  return okResult(variable === undefined ? null : variable.DefaultValue);
+  // Bunny's model allows an entry without a DefaultValue: that is no value,
+  // the same state as an explicit null.
+  return okResult(variable?.DefaultValue ?? null);
 };
 
 /** Set a script's support-message variable, creating it when absent. Bunny

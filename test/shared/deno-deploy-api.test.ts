@@ -129,6 +129,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       value: "# Hi",
     });
     expect(result.ok).toBe(true);
+    expect(captured.method).toBe("PATCH");
+    expect(captured.url).toBe("https://api.deno.com/v2/apps/app_sv");
     expect(captured.body).toEqual({
       env_vars: [
         {
@@ -140,7 +142,6 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       ],
     });
   });
-
   test("setEnvVar passes a plain entry's own secret flag and contexts", async () => {
     const captured: CapturedRequest = { body: undefined, url: undefined };
     using _fetch = stubFetch(captureRequest({ env_vars: [] }, captured));
@@ -151,6 +152,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       value: "# Hi",
     });
     expect(result.ok).toBe(true);
+    expect(captured.url).toBe("https://api.deno.com/v2/apps/app_plain");
+    expect(captured.method).toBe("PATCH");
     expect(captured.body).toEqual({
       env_vars: [
         {

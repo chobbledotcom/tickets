@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { withMessageGroups } from "#i18n";
 import { builderApi } from "#shared/builder.ts";
 import { getSupportPageText } from "#shared/support.ts";
 import {
@@ -92,6 +93,25 @@ describeWithEnv(
           expect(supportSeedStub.calls).toHaveLength(0);
         },
       );
+    });
+    test("reports the too-long copy inside a public route's message groups", async () => {
+      using _env = withEnv({
+        SUPPORT_PAGE_TEXT: `# Big\n\n${"a".repeat(2100)}`,
+      });
+      await withBuildSiteMocks(async () => {
+        // A site-plan purchase auto-builds its site inside the booking
+        // request's pending work, where only the public message groups are
+        // visible: the builder must still answer the too-long refusal
+        // instead of throwing a missing-translation error.
+        const result = await withMessageGroups(["order"], () =>
+          builderApi.buildSite({ siteName: "Test" }, () => Promise.resolve()),
+        );
+        expect(result).toEqual({
+          error:
+            "The support message is too long. A site holds at most 2,048 bytes of text.",
+          ok: false,
+        });
+      });
     });
 
     test("fails the build when the variable write is refused", async () => {
