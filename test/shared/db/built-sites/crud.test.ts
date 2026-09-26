@@ -3,8 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
-  assignBuiltSite,
   builtSitesCrudTable,
+  claimBuiltSiteForAttendee,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
@@ -238,7 +238,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       "",
       true,
     );
-    await assignBuiltSite(row.id, 42, 7);
+    await claimBuiltSiteForAttendee(row.id, 42, 7);
     await updateBuiltSiteRenewalState(row.id, {
       readOnlyFrom: "2027-01-01T00:00:00Z",
       renewalToken: "renewal-token",

@@ -4,17 +4,18 @@ import { type Stub, stub } from "@std/testing/mock";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   builtSites,
+  claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
   insertBuiltSite,
 } from "#db/built-sites.ts";
-import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
+import { settings } from "#db/settings.ts";
+import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
-import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 /* jscpd:ignore-start -- imports */
 import {
   assignAndNotifyBuiltSites,
@@ -30,33 +31,11 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 /* jscpd:ignore-end */
 
-const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
-  let counter = 0;
-  return stub(
-    builderApi,
-    "buildSite",
-    async (input: BuildSiteInput, retain) => {
-      counter++;
-      onCall?.(input);
-      const result = {
-        dbProvider: "bunny" as const,
-        dbToken: `token-${counter}`,
-        dbUrl: `libsql://auto-${counter}.test`,
-        defaultHostname: `auto-${counter}.b-cdn.net`,
-        hostingId: String(1000 + counter),
-        hostingProvider: "bunny" as const,
-        ok: true as const,
-      };
-      await retain({ ...result, scheduledTaskKey: generateScheduledTaskKey() });
-      return result;
-    },
-  );
-};
-
-const stubBuildSiteFailure = () =>
-  stub(builderApi, "buildSite", () =>
-    Promise.resolve({ error: "build failed", ok: false as const }),
-  );
+/** Any assignment that builds a site has broken the pool-only contract. */
+const forbidBuildDuringAssignment = (): Stub =>
+  stub(builderApi, "buildSite", () => {
+    throw new Error("Assignment must hand out pre-built sites, never build");
+  });
 
 const stubEdgeSecretSuccess = () =>
   stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -119,20 +98,6 @@ describeWithEnv(
   () => {
     let fetchStub: Stub;
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
-
-    /** Three entries that each need one site — the mixed-order case. One
-     *  attendee takes quantity 2 to pin that quantity buys months, not sites. */
-    const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
-      await assignAndNotifyBuiltSites([
-        siteEntry({ attendeeId: 11 }),
-        siteEntry({ attendeeId: 12, quantity: 2 }),
-        siteEntry({ attendeeId: 13 }),
-      ]);
-      const sites = await builtSites.getAll();
-      const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-      expect(assigned).toHaveLength(3);
-      return assigned;
-    };
 
     const expectFlagPushOutcome = async (
       site: string,
@@ -297,59 +262,55 @@ describeWithEnv(
         );
       });
 
-      test("does not assign when no sites available and buildSite fails", async () => {
+      test("an empty pool keeps the booking and warns the business email", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", false);
-        const buildStub = stubBuildSiteFailure();
+        await settings.update.businessEmail("biz@example.com");
+        using _build = forbidBuildDuringAssignment();
+        const errorSpy = silencedErrors();
+
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
           const sites = await builtSites.getAll();
           const existing = sites.find((s) => s.name === "Site A")!;
           expect(existing.assignedAttendeeId).toBeNull();
-          expect(buildStub.calls.length).toBe(1);
-          expect(fetchStub.calls.length).toBe(0);
+          // The buyer's booking stands with no setup email, and one warning
+          // email reaches the business address.
+          expect(fetchStub.calls.length).toBe(1);
+          const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+          expect(body.subject).toBe("A site plan sold with no site available");
+          expect(body.to).toEqual(["biz@example.com"]);
+          expect(body.html).toContain(
+            "Test Listing — Jane Doe (jane@example.com)",
+          );
+          expect(body.text).toContain("/admin/built-sites");
+          expect(
+            errorSpy.calls.some((c) =>
+              String(c.args[0]).includes(ErrorCode.SITE_ASSIGNMENT),
+            ),
+          ).toBe(true);
         } finally {
-          buildStub.restore();
+          errorSpy.restore();
         }
       });
 
-      test("each entry still attempts its own build after one build fails", async () => {
-        const buildStub = stubBuildSiteFailure();
-        try {
-          await assignAndNotifyBuiltSites([
-            siteEntry({ attendeeId: 11, quantity: 2 }),
-            siteEntry({ attendeeId: 12 }),
-          ]);
+      test("one warning email names every buyer the pool could not serve", async () => {
+        await settings.update.businessEmail("biz@example.com");
+        using _build = forbidBuildDuringAssignment();
 
-          expect(buildStub.calls.length).toBe(2);
-          const sites = await builtSites.getAll();
-          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-          expect(assigned).toHaveLength(0);
-          expect(fetchStub.calls.length).toBe(0);
-        } finally {
-          buildStub.restore();
-        }
-      });
+        await assignAndNotifyBuiltSites([
+          siteEntry({ attendeeId: 11 }),
+          siteEntry({ attendeeId: 12, listingName: "Second Plan" }),
+        ]);
 
-      test("fails if an auto-build succeeds without retaining its site", async () => {
-        const buildStub = stub(builderApi, "buildSite", () =>
-          Promise.resolve({
-            dbProvider: "bunny" as const,
-            dbToken: "token",
-            dbUrl: "libsql://auto.test",
-            defaultHostname: "auto.b-cdn.net",
-            hostingId: "42",
-            hostingProvider: "bunny" as const,
-            ok: true as const,
-          }),
+        expect(fetchStub.calls.length).toBe(1);
+        const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+        expect(body.html).toContain(
+          "Test Listing — Jane Doe (jane@example.com)",
         );
-        try {
-          await expect(
-            assignAndNotifyBuiltSites([siteEntry()]),
-          ).rejects.toThrow("Built site was not retained");
-        } finally {
-          buildStub.restore();
-        }
+        expect(body.html).toContain(
+          "Second Plan — Jane Doe (jane@example.com)",
+        );
       });
 
       test("no-ops for empty entries", async () => {
@@ -357,54 +318,62 @@ describeWithEnv(
         expect(fetchStub.calls.length).toBe(0);
       });
 
-      test("auto-builds when no assignable sites are available", async () => {
-        const buildStub = stubBuildSiteSuccess();
-        try {
-          await assignAndNotifyBuiltSites([siteEntry()]);
-
-          const sites = await builtSites.getAll();
-          expect(sites).toHaveLength(1);
-          expect(sites[0]!.siteUrl).toBe("auto-1.b-cdn.net");
-          expect(sites[0]!.assignedAttendeeId).not.toBeNull();
-          expect(buildStub.calls.length).toBe(1);
-          expect(fetchStub.calls.length).toBe(1);
-        } finally {
-          buildStub.restore();
-        }
-      });
-
-      test("auto-builds remaining sites when fewer assignable than needed", async () => {
+      test("leaves later buyers unassigned when the pool runs short", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        const builtNames: string[] = [];
-        const buildStub = stubBuildSiteSuccess((input) => {
-          builtNames.push(input.siteName);
-        });
-        try {
-          await assignAndCollectThreeSites();
+        await settings.update.businessEmail("biz@example.com");
+        using _build = forbidBuildDuringAssignment();
 
-          expect(buildStub.calls.length).toBe(2);
-          expect(fetchStub.calls.length).toBe(1);
-        } finally {
-          buildStub.restore();
-        }
+        await assignAndNotifyBuiltSites([
+          siteEntry({ attendeeId: 11 }),
+          siteEntry({ attendeeId: 12 }),
+          siteEntry({ attendeeId: 13 }),
+        ]);
+
+        const sites = await builtSites.getAll();
+        expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(
+          1,
+        );
+        // One warning email for the two unserved buyers, then the setup email.
+        expect(fetchStub.calls.length).toBe(2);
+        const warning = JSON.parse(fetchStub.calls[0]!.args[1].body);
+        expect(warning.subject).toBe("A site plan sold with no site available");
+        expect(warning.html.match(/<li>/g)?.length).toBe(2);
+        expect(JSON.parse(fetchStub.calls[1]!.args[1].body).subject).toBe(
+          "Your new site is ready",
+        );
       });
 
-      test("uses sequential zero-padded names for auto-built sites", async () => {
-        await insertBuiltSite("Manual", "manual.b-cdn.net", "", "", false);
-        const builtNames: string[] = [];
-        const buildStub = stubBuildSiteSuccess((input) => {
-          builtNames.push(input.siteName);
-        });
-        try {
-          await assignAndNotifyBuiltSites([
-            siteEntry({ attendeeId: 11 }),
-            siteEntry({ attendeeId: 12 }),
-          ]);
+      test("a re-sent notification does not take a second site for a served buyer", async () => {
+        await insertSitesAAndB();
 
-          expect(builtNames).toEqual(["00002", "00003"]);
-        } finally {
-          buildStub.restore();
-        }
+        const resend = () =>
+          assignAndNotifyBuiltSites([
+            siteEntry({ attendeeId: 10, listingId: 1, listingName: "Plan" }),
+          ]);
+        await resend();
+        await resend();
+
+        const sites = await builtSites.getAll();
+        expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(
+          1,
+        );
+        // Site B stays in the pool, and no second email of either kind.
+        expect(sites.find((s) => s.name === "Site B")!.assignable).toBe(true);
+        expect(fetchStub.calls.length).toBe(1);
+      });
+
+      test("a second claim for the same site loses the race", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        const site = (await builtSites.getAll())[0]!;
+
+        // The where-assignable fence is what two racing requests hit: the
+        // first UPDATE flips assignable, so the second reads no row back.
+        expect(await claimBuiltSiteForAttendee(site.id, 42, 7)).toBe(true);
+        expect(await claimBuiltSiteForAttendee(site.id, 43, 7)).toBe(false);
+
+        const sites = await builtSites.getAll();
+        expect(sites[0]!.assignedAttendeeId).toBe(42);
+        expect(sites[0]!.assignable).toBe(false);
       });
 
       test("sends email with plural subject for multiple sites", async () => {
@@ -459,7 +428,6 @@ describeWithEnv(
       test("uses DB email config when available and includes reply-to", async () => {
         // Configure email via DB settings (not host config) so getEmailConfig()
         // returns non-null, covering the left branch of the ?? operator
-        const { settings } = await import("#db/settings.ts");
         await settings.update.email.provider("resend");
         await settings.update.email.apiKey("re_db_key");
         await settings.update.email.fromAddress("db@example.com");
@@ -575,7 +543,7 @@ describeWithEnv(
       test("skips assignment and logs CONFIG_MISSING when no qualifying tier listings exist", async () => {
         await deactivateAllTierListings();
 
-        const buildStub = stubBuildSiteSuccess();
+        using _build = forbidBuildDuringAssignment();
         using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = silencedErrors();
         try {
@@ -600,7 +568,6 @@ describeWithEnv(
           ).toBe(true);
         } finally {
           errorSpy.restore();
-          buildStub.restore();
         }
       });
 
@@ -662,9 +629,9 @@ describeWithEnv(
 
       test("Bunny push failure on one site of three leaves that site's readOnlyFrom empty, others persist", async () => {
         await createTierListing();
-
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "1001");
         await insertBuiltSite("Site B", "b.test.net", "", "", true, "1002");
+        await insertBuiltSite("Site C", "c.test.net", "", "", true, "1003");
 
         const assignableSites = await getAssignableBuiltSites();
         const failScriptId = Number(assignableSites[0]!.hostingId);
@@ -683,7 +650,7 @@ describeWithEnv(
             return Promise.resolve({ ok: true as const });
           },
         );
-        const buildStub = stubBuildSiteSuccess();
+        using _build = forbidBuildDuringAssignment();
         try {
           await assignAndNotifyBuiltSites([
             siteEntry({ attendeeId: 11 }),
@@ -712,7 +679,6 @@ describeWithEnv(
           }
         } finally {
           failStub.restore();
-          buildStub.restore();
         }
       });
 

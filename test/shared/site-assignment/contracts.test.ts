@@ -29,6 +29,13 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 const configMessage =
   "Site assignment is not configured. Please contact the administrator.";
 
+const buyerBlank = (attendeeId = 81) => ({
+  email: "buyer@example.com",
+  id: attendeeId,
+  name: "Buyer",
+  quantity: 1,
+});
+
 const configEntry = (initialSiteMonths = 3) => ({
   listing: {
     assign_built_site: true,
@@ -39,7 +46,7 @@ const configEntry = (initialSiteMonths = 3) => ({
 });
 
 const assignmentEntry = (attendeeId = 81) => ({
-  attendee: { email: "buyer@example.com", id: attendeeId, quantity: 1 },
+  attendee: buyerBlank(attendeeId),
   listing: {
     assign_built_site: true,
     id: 71,
@@ -67,9 +74,7 @@ const expectBlockedNotification = async (
   using fetchStub = stubFetch(new Response());
   using _error = stub(console, "error", () => {});
 
-  await assignAndNotifyBuiltSites([
-    { attendee: { email: "buyer@example.com", id: 81, quantity: 1 }, ...entry },
-  ]);
+  await assignAndNotifyBuiltSites([{ attendee: buyerBlank(), ...entry }]);
 
   expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
     notification,

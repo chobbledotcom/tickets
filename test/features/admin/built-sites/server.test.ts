@@ -77,9 +77,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
 
     test("shows Assigned status for assigned sites", async () => {
-      const { insertBuiltSite, assignBuiltSite } = await import(
-        "#db/built-sites.ts"
-      );
+      const { builtSites, claimBuiltSiteForAttendee, insertBuiltSite } =
+        await import("#db/built-sites.ts");
       await insertBuiltSite(
         "Taken Site",
         "https://taken.b-cdn.net",
@@ -87,9 +86,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         "",
         true,
       );
-      const { builtSites } = await import("#db/built-sites.ts");
       const sites = await builtSites.getAll();
-      await assignBuiltSite(sites[0]!.id, 42, 7);
+      await claimBuiltSiteForAttendee(sites[0]!.id, 42, 7);
 
       const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Assigned (attendee #42)");

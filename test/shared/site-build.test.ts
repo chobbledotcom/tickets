@@ -8,9 +8,9 @@ import {
   builderApi,
   type PreparedBuildSite,
 } from "#shared/builder.ts";
-import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
+import { buildRetainedSite } from "#shared/site-build.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 const BUILD_RESULT = {
@@ -41,68 +41,29 @@ describeWithEnv("site build", { db: true }, () => {
       ).rejects.toThrow("DB_ENCRYPTION_KEY environment variable is required");
       expect(buildStub.calls).toHaveLength(0);
     } finally {
-      setupTestEncryptionKey();
       buildStub.restore();
     }
   });
 
   test("retains a local bundle before reporting success", async () => {
+    let retainedIdSeenByBuild: number | null = null;
     const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
-      expect(input).toEqual({ code: "local bundle", siteName: "Local Site" });
       await retain(PREPARED_SITE);
-      return BUILD_RESULT;
+      retainedIdSeenByBuild = (await builtSites.getAll())[0]!.id;
+      return { ...BUILD_RESULT, ...input };
     });
     try {
-      expect(
-        await buildRetainedSite("Local Site", {
-          code: "local bundle",
-          siteName: "Local Site",
-        }),
-      ).toMatchObject({ result: BUILD_RESULT });
-      expect(await builtSites.getAll()).toMatchObject([
-        {
-          name: "Local Site",
-          scheduledTaskKey: TEST_SCHEDULED_KEY,
-        },
-      ]);
-    } finally {
-      buildStub.restore();
-    }
-  });
+      const built = await buildRetainedSite("Local Site", {
+        code: "local bundle",
+        siteName: "Local Site",
+      });
 
-  test("retains the scheduled key before making the site assignable", async () => {
-    let requestedName = "";
-    let retainedAssignable: boolean | undefined;
-    const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
-      requestedName = input.siteName;
-      await retain(PREPARED_SITE);
-      retainedAssignable = (await builtSites.getAll())[0]!.assignable;
-      return BUILD_RESULT;
-    });
-    try {
-      const site = await buildAssignableSite();
-
-      expect(requestedName).toBe("00001");
-      expect(retainedAssignable).toBe(false);
-      expect(site).toMatchObject({
-        assignable: true,
-        name: "00001",
+      expect(retainedIdSeenByBuild).toBe(built.retainedId);
+      expect((await builtSites.getAll())[0]).toMatchObject({
+        name: "Local Site",
         scheduledTaskKey: TEST_SCHEDULED_KEY,
       });
     } finally {
-      buildStub.restore();
-    }
-  });
-
-  test("returns null when the builder fails", async () => {
-    const buildStub = stub(builderApi, "buildSite", () =>
-      Promise.resolve({ error: "provider failed", ok: false }),
-    );
-    const errorStub = stub(console, "error");
-    try {
-      expect(await buildAssignableSite()).toBeNull();
-    } finally {
-      errorStub.restore();
       buildStub.restore();
     }
   });
@@ -112,9 +73,26 @@ describeWithEnv("site build", { db: true }, () => {
       Promise.resolve(BUILD_RESULT),
     );
     try {
-      await expect(buildAssignableSite()).rejects.toThrow(
-        "Built site was not retained",
-      );
+      await expect(
+        buildRetainedSite("Vanished Site", { siteName: "Vanished Site" }),
+      ).rejects.toThrow("Built site was not retained");
+    } finally {
+      buildStub.restore();
+    }
+  });
+
+  test("reports a failed build without retaining anything", async () => {
+    const buildStub = stub(builderApi, "buildSite", () =>
+      Promise.resolve({ error: "provider failed", ok: false as const }),
+    );
+    try {
+      const built = await buildRetainedSite("Failed Site", {
+        siteName: "Failed Site",
+      });
+
+      expect(built.result).toEqual({ error: "provider failed", ok: false });
+      expect(built.retainedId).toBe(0);
+      expect(await builtSites.getAll()).toHaveLength(0);
     } finally {
       buildStub.restore();
     }

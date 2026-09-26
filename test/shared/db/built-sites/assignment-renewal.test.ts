@@ -3,9 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import {
-  assignBuiltSite,
   builtSites,
   builtSitesCrudTable,
+  claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
@@ -34,7 +34,7 @@ describeWithEnv("assignable built sites", { db: true }, () => {
     ]);
   });
 
-  test("assignBuiltSite stores the assignment", async () => {
+  test("claimBuiltSiteForAttendee stores the assignment", async () => {
     const row = await insertBuiltSite(
       "To Assign",
       "assign.b-cdn.net",
@@ -42,15 +42,16 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       "",
       true,
     );
-    expect(await assignBuiltSite(row.id, 42, 7)).toMatchObject({
+    expect(await claimBuiltSiteForAttendee(row.id, 42, 7)).toBe(true);
+    expect(await builtSitesCrudTable.read.one({ id: row.id })).toMatchObject({
       assignable: false,
       assignedAttendeeId: 42,
       assignedListingId: 7,
     });
   });
 
-  test("assignBuiltSite returns null for a missing site", async () => {
-    expect(await assignBuiltSite(999, 1, 1)).toBeNull();
+  test("claimBuiltSiteForAttendee returns false for a missing site", async () => {
+    expect(await claimBuiltSiteForAttendee(999, 1, 1)).toBe(false);
   });
 
   test("keeps an assignment made during scheduler-key provisioning", async () => {
@@ -64,7 +65,7 @@ describeWithEnv("assignable built sites", { db: true }, () => {
 
     await Promise.all([
       ensureBuiltSiteSchedulerKey(site.id),
-      assignBuiltSite(site.id, 42, 7),
+      claimBuiltSiteForAttendee(site.id, 42, 7),
     ]);
 
     expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({

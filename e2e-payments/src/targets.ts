@@ -32,7 +32,7 @@ export type LiveCaseId =
   | "live-payments.stripe-refund-recovers"
   | "live-payments.stripe-invalidated-checkout-refunded"
   | "live-payments.stripe-plan-months"
-  | "live-payments.stripe-plan-dry-run"
+  | "live-payments.stripe-plan-pooled"
   | "live-payments.complex-stripe"
   | "live-payments.square-refund-safe"
   | "live-payments.complex-square"
@@ -48,7 +48,7 @@ export const TARGET_CASES: Record<LiveTarget, readonly LiveCaseId[]> = {
     "live-payments.stripe-refund-recovers",
     "live-payments.stripe-invalidated-checkout-refunded",
     "live-payments.stripe-plan-months",
-    "live-payments.stripe-plan-dry-run",
+    "live-payments.stripe-plan-pooled",
     "live-payments.complex-stripe",
   ],
   sumup: [
@@ -58,12 +58,12 @@ export const TARGET_CASES: Record<LiveTarget, readonly LiveCaseId[]> = {
   ],
 };
 
-/** The cases whose app server also answers the site-build provider calls from
- * canned bodies (`SITE_BUILD_DRY_RUN`, documented in docs/env-vars.md): the
- * build still pays the subrequest budget for every call, so these cases prove
- * a plan purchase completes its assignment inside the request budget. */
-export const DRY_RUN_SITE_BUILD_CASES: readonly LiveCaseId[] = [
-  "live-payments.stripe-plan-dry-run",
+/** The cases whose app server answers the Bunny API calls the journey makes
+ * (the assignment's renewal pushes) from canned bodies
+ * (`SITE_BUILD_DRY_RUN`, documented in docs/env-vars.md): no network leaves
+ * the machine, and each call still pays the subrequest budget. */
+export const CANNED_BUNNY_CASES: readonly LiveCaseId[] = [
+  "live-payments.stripe-plan-pooled",
 ];
 
 /** Parse the target name the command was invoked with. */
