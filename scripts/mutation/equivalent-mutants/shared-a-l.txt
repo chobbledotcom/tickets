@@ -70,6 +70,7 @@ src/shared/storage.ts::uploadRaw.contentType~1aiucvn  application/octet-stream �
 src/shared/site-build.ts::buildRetainedSite.result.retainedId%2evalue~1fvvof3  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts::ensureBuiltSiteSchedulerKey.updated.key~0z0c2lu  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
 src/shared/deno-deploy-api.ts::revisionOutcome~0hg2lm6  ?? → ||   # failure_reason is null or a non-empty picklist value, so both use the status only for null
+src/shared/deno-deploy-api.ts::denoEnvVarPatch.contexts~0jspgom ?? → ||   # contexts is an optional string array; every array is truthy (even []), so ?? and || pick the same side for every typed value
 src/shared/bunny-cdn.ts::createEdgeScriptImpl.defaultHostname~14iov21  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
 src/shared/bunny-cdn.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → ||   # scoped counts is an object when present, and every object is truthy

@@ -121,6 +121,68 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       expect(result.error).toContain("invalid env var name");
     }
   });
+  test("setEnvVar PATCHes one secret, production entry by default", async () => {
+    const captured: CapturedRequest = { body: undefined, url: undefined };
+    using _fetch = stubFetch(captureRequest({ env_vars: [] }, captured));
+    const result = await denoDeployApi.setEnvVar("app_sv", {
+      key: "SUPPORT_PAGE_TEXT",
+      value: "# Hi",
+    });
+    expect(result.ok).toBe(true);
+    expect(captured.body).toEqual({
+      env_vars: [
+        {
+          contexts: ["production"],
+          key: "SUPPORT_PAGE_TEXT",
+          secret: true,
+          value: "# Hi",
+        },
+      ],
+    });
+  });
+
+  test("setEnvVar passes a plain entry's own secret flag and contexts", async () => {
+    const captured: CapturedRequest = { body: undefined, url: undefined };
+    using _fetch = stubFetch(captureRequest({ env_vars: [] }, captured));
+    const result = await denoDeployApi.setEnvVar("app_plain", {
+      contexts: ["preview"],
+      key: "SUPPORT_PAGE_TEXT",
+      secret: false,
+      value: "# Hi",
+    });
+    expect(result.ok).toBe(true);
+    expect(captured.body).toEqual({
+      env_vars: [
+        {
+          contexts: ["preview"],
+          key: "SUPPORT_PAGE_TEXT",
+          secret: false,
+          value: "# Hi",
+        },
+      ],
+    });
+  });
+
+  test("setEnvVar returns the labelled error when PATCH fails", async () => {
+    using _fetch = stubFetch(new Response("{}", { status: 401 }));
+    const result = await denoDeployApi.setEnvVar("app_svf", {
+      key: "SUPPORT_PAGE_TEXT",
+      value: "# Hi",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("Set app env var failed (401)");
+    }
+  });
+
+  test("getAppEnvVars returns the labelled error when GET fails", async () => {
+    using _fetch = stubFetch(new Response("{}", { status: 401 }));
+    const result = await denoDeployApi.getAppEnvVars("app_gev");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("Get app failed (401)");
+    }
+  });
 
   // ── deployCode ─────────────────────────────────────────────────────────────
 

@@ -51,6 +51,7 @@ describe("SupportMessagePanel", () => {
     // The stored limit is UTF-8 bytes, which a character maxlength cannot
     // express, so the panel states it instead.
     expect(html).toContain("at most 2,048 bytes");
+    expect(html).toContain('class="hint"');
     expect(editorContent(html)).toBe("# Ring us");
     expect(html).toContain("Save support message");
   });
@@ -82,6 +83,16 @@ describe("SupportMessagePanel", () => {
     expect(html).toContain("The support message could not be read");
     expect(html).toContain('name="support_message"');
     expect(editorContent(html)).toBe("# Draft kept through the outage");
+  });
+
+  test("keeps a cleared draft, not the stored message, after a refused save", () => {
+    const html = runWithSavedFormContext(() => {
+      // The operator cleared the field and the save failed: the empty
+      // choice is theirs, so the stored value must not resurface.
+      setSavedFormData(new FormParams("support_message="));
+      return panelHtml({ ok: true, value: "# Old message" });
+    });
+    expect(editorContent(html)).toBe("");
   });
 
   test("renders the message as Markdown with no form while read-only", () => {
