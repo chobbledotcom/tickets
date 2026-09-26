@@ -107,7 +107,9 @@ describe("HostSubdomainForm", () => {
     expect(html).toContain(".tickets.example");
     // The intro promises the address through the check, not an example that
     // would need the DNS zone to be exact.
-    expect(html).toContain("The page shows your full site address");
+    expect(html).toContain(
+      "Press Check if the name is free to see your full site address",
+    );
   });
 
   test("renders the active subdomain state", () => {

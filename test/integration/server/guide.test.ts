@@ -411,7 +411,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains host subdomain section", async () => {
       await guide(
         "Host subdomain",
-        "needs no DNS set-up",
+        "no DNS set-up needed",
         "host subdomain and custom domain",
       );
     });
