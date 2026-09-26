@@ -20,8 +20,12 @@ import { okResult, type Result } from "#shared/result.ts";
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { tryStep } from "#shared/try-step.ts";
 
-/** The env name shared by the host's support text and every site's copy. */
-export const SUPPORT_MESSAGE_KEY = "SUPPORT_PAGE_TEXT";
+/** The env name a site's own support message lives under. Every writer of
+ * this key goes through a provider API (the Support-message tab, a fresh
+ * build's seed), so the value holds real line breaks and no read ever
+ * unescapes it — the hand-set SUPPORT_PAGE_TEXT convention is a different
+ * channel, read by #shared/support.ts with its legacy unescaping. */
+export const SUPPORT_MESSAGE_KEY = "SUPPORT_PAGE_MARKDOWN";
 
 /** Bunny caps an environment variable's value at 2 KB, and Deno Deploy allows
  * 16 KB, so the smaller limit covers every site. */

@@ -87,7 +87,7 @@ describeWithEnv(
       await expectReadWith(
         new Response(
           scriptWithVariables([
-            { DefaultValue: "# Hi", Name: "SUPPORT_PAGE_TEXT" },
+            { DefaultValue: "# Hi", Name: SUPPORT_MESSAGE_KEY },
           ]),
         ),
         { ok: true, value: "# Hi" },
@@ -184,7 +184,9 @@ describeWithEnv(
         {
           body: JSON.stringify({
             DefaultValue: "# New",
-            Name: SUPPORT_MESSAGE_KEY,
+            // The literal name, not the constant: the variable a site's
+            // provider carries is the documented SUPPORT_PAGE_MARKDOWN.
+            Name: "SUPPORT_PAGE_MARKDOWN",
           }),
           method: "PUT",
           url: "https://api.bunny.net/compute/script/501/variables",

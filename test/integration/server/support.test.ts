@@ -67,7 +67,6 @@ describeWithEnv(
         // template branch that renders them (the story's runs do not count
         // towards coverage).
         using _env = withEnv({
-          CAN_BUILD_SITES: "true",
           SUPPORT_PAGE_TEXT: "# Help Center\\n\\nReach out anytime",
         });
         const response = await adminGet("/admin/support");

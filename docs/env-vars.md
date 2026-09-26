@@ -138,14 +138,15 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
 - `HOST_EMAIL_FROM_ADDRESS` - The From address for host email (required with
   `HOST_EMAIL_PROVIDER`). Must be a valid email address.
 - `SUPPORT_PAGE_TEXT` - Optional markdown shown at the top of the Support page
-  (requires `ADMIN_EMAIL_ADDRESS`). On the builder instance, use literal `\n`
-  for line breaks, because the value is typed in the provider dashboard and the
-  instance turns each `\n` into a line break. Each site the builder creates
-  keeps its own copy, and the Support-message tab edits it with real line
-  breaks. The tab stores the text exactly as typed. When unset, a placeholder
-  note is shown instead. The support form below it (which delivers to
-  `ADMIN_EMAIL_ADDRESS`) needs a business email to be set, like the public
-  contact form.
+  (requires `ADMIN_EMAIL_ADDRESS`). Use literal `\n` for line breaks since Bunny
+  secrets cannot hold real newlines. When unset, a placeholder note is shown
+  instead. The support form below it (which delivers to `ADMIN_EMAIL_ADDRESS`)
+  needs a business email to be set, like the public contact form.
+- `SUPPORT_PAGE_MARKDOWN` - The Support page's markdown on a built site. The
+  Support-message tab and a fresh build's seed write this variable through the
+  provider API, with real line breaks. The stored text reaches the page exactly
+  as the editor saved it. Reads before `SUPPORT_PAGE_TEXT`, so a value saved
+  through the tab wins over a hand-set one.
 - `SUPPORT_FORM_NAG_DAYS` - Optional positive integer (default `7`). For this
   many days after a support-form submission, the Support page shows a "you last
   submitted this form …" notice to discourage duplicate messages.
