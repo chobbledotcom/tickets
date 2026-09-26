@@ -35,10 +35,18 @@ const site: BuiltSite = {
 const panelHtml = (state: SupportMessageResult): string =>
   String(SupportMessagePanel({ site, state }));
 
-/** The text held inside the panel's editor textarea. */
-const editorContent = (html: string): string => {
+/** The text between the editor's textarea tags, before any parsing. */
+const editorRaw = (html: string): string => {
   const start = html.indexOf(">", html.indexOf("<textarea")) + 1;
   return html.slice(start, html.indexOf("</textarea>"));
+};
+
+/** The text the browser holds in the editor: HTML parsing eats the first
+ * newline after a `<textarea>` start tag, so the markup carries one spare
+ * newline before the value. */
+const editorContent = (html: string): string => {
+  const raw = editorRaw(html);
+  return raw.startsWith("\n") ? raw.slice(1) : raw;
 };
 
 describe("SupportMessagePanel", () => {
@@ -60,6 +68,13 @@ describe("SupportMessagePanel", () => {
     const html = panelHtml({ ok: true, value: null });
     expect(html).toContain('name="support_message"');
     expect(editorContent(html)).toBe("");
+  });
+
+  test("keeps a leading newline in the stored message", () => {
+    const html = panelHtml({ ok: true, value: "\n# Ring us" });
+    // One spare newline for the parser, then the value exactly as stored.
+    expect(editorRaw(html)).toBe("\n\n# Ring us");
+    expect(editorContent(html)).toBe("\n# Ring us");
   });
 
   test("shows the read failure instead of the editor", () => {

@@ -318,8 +318,18 @@ export const deployLatestReleaseToScript = (
  * Fetch the latest GitHub release and deploy its asset to a Deno Deploy app,
  * returning the release on success.
  * Throws on any failure (no release asset, download, or deploy error).
+ *
+ * A `SITE_BUILD_DRY_RUN` environment refuses here: its release lookup and
+ * download answer from canned values, but Deno Deploy has no canned write
+ * surface, so the deploy would push the synthetic program to a real app.
  */
 export const deployLatestReleaseToDeno = (
   appId: string,
-): Promise<ReleaseInfo> =>
-  deployLatest((code) => denoDeployApi.deployCode(appId, code));
+): Promise<ReleaseInfo> => {
+  if (siteBuildDryRunEnabled()) {
+    throw new Error(
+      "A SITE_BUILD_DRY_RUN environment cannot update a Deno Deploy app",
+    );
+  }
+  return deployLatest((code) => denoDeployApi.deployCode(appId, code));
+};

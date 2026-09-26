@@ -8,6 +8,7 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
 import { t, withMessageGroups } from "#i18n";
 import {
   dryRunOrFetchText,
@@ -109,7 +110,9 @@ export type PreparedBuildSite = Extract<BuildSiteResult, { ok: true }> & {
   scheduledTaskKey: string;
 };
 
-export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<void>;
+/** Retain the prepared site and answer its row's id, so the build deletes
+ * the row when a later step fails and no unfinished site stays recorded. */
+export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<number>;
 
 type BuildSiteCredentials = { dbUrl: string; dbToken: string };
 
@@ -248,8 +251,9 @@ const buildSiteOnProvider = async (
     ok: true,
     scheduledTaskKey,
   };
+  let retainedId: number;
   try {
-    await retain(prepared);
+    retainedId = await retain(prepared);
   } catch (error) {
     return {
       error: `Failed to retain site: ${errorMessage(error)}`,
@@ -265,10 +269,16 @@ const buildSiteOnProvider = async (
       result.value.hostingId,
       hostSupportText,
     );
-    if (!seeded.ok) return seeded;
+    if (!seeded.ok) {
+      await builtSitesCrudTable.deleteById(retainedId);
+      return seeded;
+    }
   }
   const published = await provider.publishSite(result.value.hostingId, code);
-  if (!published.ok) return published;
+  if (!published.ok) {
+    await builtSitesCrudTable.deleteById(retainedId);
+    return published;
+  }
   const { scheduledTaskKey: _scheduledTaskKey, ...built } = prepared;
   return built;
 };

@@ -8,6 +8,7 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
+import { textareaBody } from "#templates/components/textarea.tsx";
 import { CONTACT_TEXTAREA_LIMIT } from "#templates/fields/validators.ts";
 
 export const AddressFieldWithLookup = ({
@@ -26,7 +27,7 @@ export const AddressFieldWithLookup = ({
         name="address"
         rows={3}
       >
-        {address}
+        {textareaBody(address)}
       </textarea>
     </label>
   </>

@@ -57,4 +57,27 @@ describe("shared > request scoped > createBooleanScope", () => {
     // stale value into an unrelated run.
     expect(() => scope.run(store, () => {})).toThrow(/reused/);
   });
+
+  test("a scope store cannot run twice after an async run settles", async () => {
+    const scope = createScope<{ tag: string }>();
+    // Strongly referenced by this test, so collection cannot remove the
+    // ended-store tracking between the runs. The async path ends the store
+    // when its returned promise settles, so the second run must fail too.
+    const store = { tag: "one" };
+    await scope.run(store, async () => {});
+
+    expect(() => scope.run(store, () => {})).toThrow(/reused/);
+  });
+
+  test("a scope store cannot run twice after its callback threw", () => {
+    const scope = createScope<{ tag: string }>();
+    const store = { tag: "one" };
+    expect(() =>
+      scope.run(store, () => {
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+
+    expect(() => scope.run(store, () => {})).toThrow(/reused/);
+  });
 });

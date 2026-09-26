@@ -27,16 +27,6 @@ src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||  
 # "falsy value still wins" test kills it.)
 src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
 
-# createScope's end(store) calls are unobservable, and the reuse-throw they
-# feed is GC-dependent: endedStores is a WeakSet whose entry dies with the
-# store object, and a store is referenced by nothing else once its fn returns
-# — so the reuse check reads false whether or not end ran, whenever a
-# collection lands between the two runs, on both the sync and the
-# async-settle path. (The ASL leak into an outside continuation is also
-# ordered against end() indeterminately, while current() answers undefined on
-# every green run outside the callback.)
-src/shared/request-scoped.ts::createScope.run~0z5obmb@1 end(store);→(removed)
-
 # Registration delivery is always queued through pending-work. After its fixed
 # incident has been recorded, flushPendingWork intentionally consumes either
 # fulfilment or rejection with Promise.allSettled, so changing the one-error
