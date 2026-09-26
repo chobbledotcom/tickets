@@ -1,7 +1,8 @@
 /**
- * Built site assignment — assigns sites to attendees after booking completion.
- * Sends a separate notification email with site URLs.
- * All assignment logic is gated behind CAN_BUILD_SITES.
+ * Built site assignment — assigns pre-built sites to attendees after booking
+ * completion, and sends the notification email with site URLs. Sites come
+ * from the pool the operator stocks; assignment never builds one. All of it
+ * is gated behind CAN_BUILD_SITES.
  */
 
 /* jscpd:ignore-start */
@@ -9,8 +10,9 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
-  assignBuiltSite,
+  claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
+  hasAssignedBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
@@ -25,10 +27,11 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
+  type MissedBuyer,
+  reportOutOfStockBuyers,
   reportSiteAssignmentFailure,
   type SiteAssignmentConfigValidation,
 } from "#shared/site-assignment-failure.ts";
-import { buildAssignableSite } from "#shared/site-build.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */
@@ -41,24 +44,13 @@ type SiteAssignmentEntry = {
     assign_built_site: boolean;
     initial_site_months: number;
   };
-  attendee: { id: number; email: string; quantity: number };
+  attendee: { id: number; name: string; email: string; quantity: number };
 };
 
 /** Info about an assigned site for email rendering */
 type SiteAssignment = {
   siteUrl: string;
   listingName: string;
-};
-
-type AssignmentContext = {
-  attendee: SiteAssignmentEntry["attendee"];
-  /** The booked plan the site is recorded against: the buyer's first line. */
-  listingId: number;
-  /** Every plan name the buyer bought, joined for the site's email. */
-  listingName: string;
-  /** The months the buyer's plans bought together on this one site. */
-  months: number;
-  site: BuiltSite;
 };
 
 export type CdnPushResult = { ok: true } | { ok: false; error: string };
@@ -252,37 +244,45 @@ export const rotateRenewalToken = async (
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
-/** Assign a site and provision its renewal for the months the buyer bought. */
-const assignSiteWithRenewal = async ({
-  attendee,
-  listingId,
-  listingName,
-  months,
-  site,
-}: AssignmentContext): Promise<SiteAssignment> => {
-  await assignBuiltSite(site.id, attendee.id, listingId);
-  await provisionSiteRenewal(
-    site,
-    months,
-    `Failed to push initial renewal secrets for site ${site.id}`,
-  );
-  return { listingName, siteUrl: site.siteUrl };
+/** Pop pooled sites until one claim sticks. A claim that returns no row lost
+ * a race with another request for the same site, so the site is gone — try
+ * the next one. Returns null when the whole pool is spent. */
+const claimNextSite = async (
+  available: BuiltSite[],
+  attendeeId: number,
+  listingId: number,
+): Promise<BuiltSite | null> => {
+  for (;;) {
+    const site = available.pop();
+    if (site === undefined) return null;
+    if (await claimBuiltSiteForAttendee(site.id, attendeeId, listingId)) {
+      return site;
+    }
+  }
 };
 
-/** Assign built sites to entries that need them. Returns assigned URLs. */
+/** Every buyer's outcome from one assignment run. */
+type SiteAssignmentOutcome = {
+  assignments: SiteAssignment[];
+  missedBuyers: MissedBuyer[];
+};
+
+/** Assign built sites to the entries that need them. Sites come only from the
+ * pool of assignable sites the operator has stocked. */
 const assignSitesForEntries = async (
   entries: SiteAssignmentEntry[],
-): Promise<SiteAssignment[]> => {
+): Promise<SiteAssignmentOutcome> => {
+  const missedBuyers: MissedBuyer[] = [];
   const needsSite = entries.filter(
     (e: SiteAssignmentEntry) => e.listing.assign_built_site,
   );
-  if (needsSite.length === 0) return [];
+  if (needsSite.length === 0) return { assignments: [], missedBuyers };
 
   // Keep async assignment aligned with the pre-checkout validation gate.
   const config = await validateSiteAssignmentConfig(needsSite);
   if (!config.ok) {
     reportSiteAssignmentFailure(config, needsSite.length);
-    return [];
+    return { assignments: [], missedBuyers };
   }
 
   const assignments: SiteAssignment[] = [];
@@ -295,28 +295,45 @@ const assignSitesForEntries = async (
   const plansByBuyer = Map.groupBy(needsSite, (e) => e.attendee.id);
   for (const buyerPlans of plansByBuyer.values()) {
     // A no-quantity line buys nothing, so it books no site and no months.
-    const booked = buyerPlans.filter((e) => e.attendee.quantity >= 1);
-    if (booked.length === 0) continue;
-    const site = available.pop() ?? (await buildAssignableSite());
-    // A failed build must not cost later buyers their own attempt.
-    if (!site) continue;
-
-    const first = booked[0]!;
-    assignments.push(
-      await assignSiteWithRenewal({
-        attendee: first.attendee,
-        listingId: first.listing.id,
-        listingName: unique(booked.map((e) => e.listing.name)).join(" + "),
-        months: sumOf(
-          (e: SiteAssignmentEntry) =>
-            e.listing.initial_site_months * e.attendee.quantity,
-        )(booked),
-        site,
-      }),
+    const booked = buyerPlans.filter(
+      (e: SiteAssignmentEntry) => e.attendee.quantity >= 1,
     );
+    if (booked.length === 0) continue;
+    const first = booked[0]!;
+    // A notification re-send for a buyer who already holds a site on these
+    // plans must not take a second site out of the pool.
+    if (
+      await hasAssignedBuiltSite(
+        first.attendee.id,
+        booked.map((e) => e.listing.id),
+      )
+    ) {
+      continue;
+    }
+
+    const listingName = unique(booked.map((e) => e.listing.name)).join(" + ");
+    const site = await claimNextSite(
+      available,
+      first.attendee.id,
+      first.listing.id,
+    );
+    if (site === null) {
+      missedBuyers.push({ attendee: first.attendee, listingName });
+      continue;
+    }
+    const months = sumOf(
+      (e: SiteAssignmentEntry) =>
+        e.listing.initial_site_months * e.attendee.quantity,
+    )(booked);
+    await provisionSiteRenewal(
+      site,
+      months,
+      `Failed to push initial renewal secrets for site ${site.id}`,
+    );
+    assignments.push({ listingName, siteUrl: site.siteUrl });
   }
 
-  return assignments;
+  return { assignments, missedBuyers };
 };
 
 /** Absolute /setup/ link for a site — siteUrl may be a bare hostname. */
@@ -362,14 +379,15 @@ const sendSiteAssignmentEmail = async (
   });
 };
 
-/** Assign sites and send notification email. Designed to be called via addPendingWork.
- * No-ops when CAN_BUILD_SITES is not enabled. */
+/** Assign pooled sites and send the notification email. Designed to be called
+ * via addPendingWork. No-ops when CAN_BUILD_SITES is not enabled. */
 export const assignAndNotifyBuiltSites = async (
   entries: SiteAssignmentEntry[],
 ): Promise<void> => {
   if (!isBuilderEnabled()) return;
 
-  const assignments = await assignSitesForEntries(entries);
+  const { assignments, missedBuyers } = await assignSitesForEntries(entries);
+  await reportOutOfStockBuyers(missedBuyers);
   if (assignments.length === 0) return;
 
   const email = parseEmail(entries[0]!.attendee.email);

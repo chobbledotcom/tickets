@@ -2,14 +2,15 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import { builtSites } from "#db/built-sites.ts";
-import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import { settings } from "#db/settings.ts";
+import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
@@ -29,7 +30,15 @@ describeWithEnv(
   { db: true, env: { CAN_BUILD_SITES: "true" }, triggers: true },
   () => {
     let fetchStub: Stub;
-    let buildStub: Stub;
+    let secretStub: Stub;
+
+    /** Assignment hands out pre-built sites only; building one here fails. */
+    const forbidBuild = (): Stub =>
+      stub(builderApi, "buildSite", () => {
+        throw new Error(
+          "Assignment must hand out pre-built sites, never build one",
+        );
+      });
 
     beforeEach(async () => {
       await setupStripe();
@@ -41,36 +50,19 @@ describeWithEnv(
         unitPrice: 300,
       });
       fetchStub = stubFetch(() => new Response());
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
       hostEmail.setOverride({
         apiKey: "re_test",
         fromAddress: validEmail("host@example.com"),
         provider: "resend",
       });
-      buildStub = stub(
-        builderApi,
-        "buildSite",
-        async (_input: BuildSiteInput, retain) => {
-          const result = {
-            dbProvider: "bunny" as const,
-            dbToken: "token-paid",
-            dbUrl: "libsql://paid.test",
-            defaultHostname: "paid.b-cdn.net",
-            hostingId: "2001",
-            hostingProvider: "bunny" as const,
-            ok: true as const,
-          };
-          await retain({
-            ...result,
-            scheduledTaskKey: generateScheduledTaskKey(),
-          });
-          return result;
-        },
-      );
     });
 
     afterEach(() => {
       fetchStub.restore();
-      if (!buildStub.restored) buildStub.restore();
+      secretStub.restore();
       hostEmail.resetOverride();
     });
 
@@ -111,15 +103,13 @@ describeWithEnv(
     const sentBodies = (): string[] =>
       fetchStub.calls.map((call) => String(call.args[1]?.body ?? ""));
 
-    test("a paid site plan books one site, one term, and sends the setup email", async () => {
-      using _secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
-      );
+    test("a paid site plan assigns a pooled site, one term, and sends the setup email", async () => {
+      using _build = forbidBuild();
       const plan = await createOneMonthPlan();
+      await insertBuiltSite("Pooled", "pooled.b-cdn.net", "", "", true, "3001");
 
       await payForPlan(plan, "site_plan");
 
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(plan.id);
       expect(attendees.length).toBe(1);
       const attendeeId = attendees[0]!.id;
@@ -128,7 +118,6 @@ describeWithEnv(
       const assigned = sites.filter(
         (site) => site.assignedAttendeeId === attendeeId,
       );
-      expect(buildStub.calls.length).toBe(1);
       expect(assigned).toHaveLength(1);
       expect(assigned[0]!.readOnlyFrom?.slice(0, 10)).toBe(
         addMonthsIso(nowIso(), 1).slice(0, 10),
@@ -139,22 +128,18 @@ describeWithEnv(
       ).toBe(true);
     });
 
-    test("a build that throws keeps the paid booking and reports the failure", async () => {
-      using _env = withEnv({ NTFY_URL: "https://ntfy.test/site-plan" });
+    test("an empty pool keeps the paid booking and warns the operator", async () => {
+      using _build = forbidBuild();
+      using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
       using _error = stub(console, "error", () => {});
-      const crash = new Error("edge budget spent mid-build");
-      buildStub.restore();
-      using _crashingBuild = stub(builderApi, "buildSite", () =>
-        Promise.reject(crash),
-      );
+      await settings.update.businessEmail("biz@example.com");
       const plan = await createOneMonthPlan();
 
-      await payForPlan(plan, "site_plan_crash");
+      await payForPlan(plan, "site_plan_empty");
 
       // The money and the booking stand.
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(plan.id)).length).toBe(1);
-      // No site was assigned and no setup email was sent.
+      // No site was assigned, and the buyer got no setup email.
       const sites = await builtSites.getAll();
       expect(sites.filter((site) => site.assignedAttendeeId !== null)).toEqual(
         [],
@@ -163,30 +148,21 @@ describeWithEnv(
       expect(
         bodies.some((body) => body.includes("Your new site is ready")),
       ).toBe(false);
-      // The vanished assignment is now an incident an operator can see:
-      // console error, ntfy ping, and the raw error kept for Sentry.
+      // The empty pool is an incident the operator can see: the warning email,
+      // the console line, and the ntfy ping.
       expect(
-        _error.calls.some(
-          (call) =>
-            String(call.args[0]).includes(ErrorCode.SITE_ASSIGNMENT) &&
-            String(call.args[0]).includes(
-              "Site assignment failed after a completed booking",
-            ),
+        bodies.some((body) =>
+          body.includes("A site plan sold with no site available"),
+        ),
+      ).toBe(true);
+      expect(
+        _error.calls.some((call) =>
+          String(call.args[0]).includes(ErrorCode.SITE_ASSIGNMENT),
         ),
       ).toBe(true);
       expect(bodies.some((body) => body === ErrorCode.SITE_ASSIGNMENT)).toBe(
         true,
       );
-      // The raw error belongs to Sentry only — it must not reach the
-      // console line or the ntfy ping.
-      expect(bodies.some((body) => body.includes(crash.message))).toBe(false);
-      expect(
-        _error.calls.some((call) =>
-          call.args.some((argument) =>
-            String(argument).includes(crash.message),
-          ),
-        ),
-      ).toBe(false);
     });
   },
 );

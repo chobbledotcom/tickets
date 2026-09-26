@@ -180,34 +180,63 @@ export const findBuiltSiteByIdPrimary = async (
   return row ? rowToBuiltSite(row) : null;
 };
 
+/** Store one revision-fenced change to a built site. Returns the stored row,
+ * or null when the revision moved underneath us and the write must retry. */
+const storeBuiltSiteChanges = async (
+  id: InValue,
+  existing: BuiltSite,
+  changes: BuiltSiteUpdate,
+): Promise<BuiltSiteRow | null> => {
+  const statement = await rawBuiltSitesTable.updateStatement(
+    id,
+    toRawInput({
+      ...existing,
+      ...changes,
+      siteDataRevision: existing.siteDataRevision + 1,
+    }),
+    { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+  );
+  return queryOne<BuiltSiteRow>(statement.sql, statement.args);
+};
+
 /** Update a whole built-site record without overwriting a concurrent blob write. */
 export const updateBuiltSite = (
   id: InValue,
   changesFor: (existing: BuiltSite) => BuiltSiteUpdate | null,
-): Promise<BuiltSite | null> => {
-  const updateStatement = rawBuiltSitesTable.updateStatement;
-  return retryWrite(`Could not update built site ${String(id)}`, async () => {
+): Promise<BuiltSite | null> =>
+  retryWrite(`Could not update built site ${String(id)}`, async () => {
     const existing = await findBuiltSiteByIdPrimary(id);
     if (!existing) return { value: null };
     const changes = changesFor(existing);
     if (!changes) return { value: existing };
-    const nextRevision = existing.siteDataRevision + 1;
-    const statement = await updateStatement(
-      id,
-      toRawInput({
-        ...existing,
-        ...changes,
-        siteDataRevision: nextRevision,
-      }),
-      { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
-    );
-    const stored = await queryOne<BuiltSiteRow>(statement.sql, statement.args);
-    if (stored) {
-      return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
-    }
-    return null;
+    const stored = await storeBuiltSiteChanges(id, existing, changes);
+    // A null row means the revision moved: signal retryWrite, not "stored
+    // nothing", or a losing edit would drop silently.
+    if (!stored) return null;
+    return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
   });
-};
+
+/**
+ * Atomically take one assignable site for an attendee. The revision fence is
+ * the whole claim: a request that lost the race for this site reads the site
+ * back no longer assignable and wins nothing, so it must try the next pooled
+ * site.
+ */
+export const claimBuiltSiteForAttendee = (
+  siteId: number,
+  attendeeId: number,
+  listingId: number,
+): Promise<boolean> =>
+  retryWrite(`Could not claim built site ${String(siteId)}`, async () => {
+    const existing = await findBuiltSiteByIdPrimary(siteId);
+    if (existing?.assignable !== true) return { value: false };
+    const stored = await storeBuiltSiteChanges(siteId, existing, {
+      assignable: false,
+      assignedAttendeeId: attendeeId,
+      assignedListingId: listingId,
+    });
+    return stored ? { value: true } : null;
+  });
 
 /**
  * CRUD-compatible table adapter that presents BuiltSite (with individual fields)
@@ -315,18 +344,6 @@ export const hasAssignedBuiltSite = rowExistsForIdList(
      WHERE assigned_attendee_id = ?
        AND assigned_listing_id IN (${listingIdPlaceholders}) LIMIT 1`,
 );
-
-/** Assign a built site to an attendee/listing — sets assignable=0 and stores IDs */
-export const assignBuiltSite = (
-  siteId: number,
-  attendeeId: number,
-  listingId: number,
-): Promise<BuiltSite | null> =>
-  updateBuiltSite(siteId, () => ({
-    assignable: false,
-    assignedAttendeeId: attendeeId,
-    assignedListingId: listingId,
-  }));
 
 /** Look up a built site by renewal token index (HMAC blind index) */
 export const getBuiltSiteByRenewalTokenIndex = async (

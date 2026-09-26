@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  assignBuiltSite,
   builtSites,
   builtSitesCrudTable,
+  claimBuiltSiteForAttendee,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
@@ -71,9 +71,10 @@ describeWithEnv("built-site update channel", { db: true }, () => {
       "",
       "beta",
     );
-    expect(await assignBuiltSite(row.id, 1, 2)).toMatchObject({
-      updates: "beta",
-    });
+    expect(await claimBuiltSiteForAttendee(row.id, 1, 2)).toBe(true);
+    expect((await builtSitesCrudTable.read.one({ id: row.id }))?.updates).toBe(
+      "beta",
+    );
   });
 
   test("updating renewal state preserves the channel", async () => {

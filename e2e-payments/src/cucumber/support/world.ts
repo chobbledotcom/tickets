@@ -79,6 +79,7 @@ export class LiveWorld extends World {
   private infra: ScenarioInfra | null = null;
   private journal: ScenarioJournal | null = null;
   private listingPath: string | null = null;
+  private registeredSite: { name: string; url: string } | null = null;
   private provider: PaymentProvider | null = null;
   private refundState: RefundState | null = null;
   private secondOwner: BrowserSession | null = null;
@@ -166,9 +167,19 @@ export class LiveWorld extends World {
     this.listingPath = path;
   }
 
+  /** The pooled site this scenario's owner registered, for every admin-side
+   * built-sites assertion. */
+  get pooledSite(): { name: string; url: string } {
+    return required(this.registeredSite, "the registered pooled built site");
+  }
+
+  rememberPoolSite(site: { name: string; url: string }): void {
+    this.registeredSite = site;
+  }
+
   /** What the scenario's booking cost in total, for the admin income
-   *  assertion: the configured unit price, unless a step states the plan's
-   *  multiple. */
+   * assertion: the configured unit price, unless a step states the plan's
+   * multiple. */
   rememberBookingPrice(minor: number): void {
     this.bookingPriceMinor = minor;
   }

@@ -1,9 +1,10 @@
-import type { BuiltSite } from "#db/built-sites/types.ts";
-import {
-  builtSites,
-  builtSitesCrudTable,
-  insertBuiltSite,
-} from "#db/built-sites.ts";
+/**
+ * Build a site and keep a record of it — the path this host's admin builder
+ * page and the scripts/build-site.ts CLI share. Assignment never calls this:
+ * it hands out pre-built sites from the pool only.
+ */
+
+import { insertBuiltSite } from "#db/built-sites.ts";
 import { initDb } from "#db/migrations.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
 import {
@@ -11,15 +12,19 @@ import {
   type BuildSiteResult,
   builderApi,
 } from "#shared/builder.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 
-const nextSiteName = async (): Promise<string> =>
-  String((await builtSites.getAll()).length + 1).padStart(5, "0");
+/** A build's outcome, with the id of the row the retain callback stored. */
+type RetainedBuild = { result: BuildSiteResult; retainedId: number };
 
+/**
+ * Build one site and retain a row for it as part of the build. The retain
+ * callback must have stored the row before the caller sees success, so a
+ * provider that reports a site nobody recorded fails loudly instead.
+ */
 export const buildRetainedSite = async (
   name: string,
   input: BuildSiteInput,
-): Promise<{ result: BuildSiteResult; retainedId: number }> => {
+): Promise<RetainedBuild> => {
   validateBootChecks();
   await initDb();
   const retainedId = { value: 0 };
@@ -42,20 +47,4 @@ export const buildRetainedSite = async (
     throw new Error("Built site was not retained");
   }
   return { result, retainedId: retainedId.value };
-};
-
-/** Build and retain one site before making it available for assignment. */
-export const buildAssignableSite = async (): Promise<BuiltSite | null> => {
-  const name = await nextSiteName();
-  const { result, retainedId } = await buildRetainedSite(name, {
-    siteName: name,
-  });
-  if (!result.ok) {
-    logError({
-      code: ErrorCode.CDN_REQUEST,
-      detail: `Failed to auto-build site '${name}': ${result.error}`,
-    });
-    return null;
-  }
-  return builtSitesCrudTable.update(retainedId, { assignable: true });
 };
