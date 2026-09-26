@@ -208,8 +208,11 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
     "generateEncryptionKey",
     () => opts.encryptionKey ?? "dGVzdGtleQ==",
   ),
+  envVarsStub: stub(denoDeployApi, "getAppEnvVars", () =>
+    Promise.resolve(okResult([])),
+  ),
   fetchStub: stubBuilderFetch(opts.onOther, opts.releaseOpts),
-  setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
+  setEnvStub: stub(denoDeployApi, "setEnvVar", () =>
     Promise.resolve(opts.setEnvResult ?? okResult(undefined)),
   ),
   supportSeedStub: stubSupportSeed(opts),

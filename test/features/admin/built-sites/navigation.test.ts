@@ -7,16 +7,24 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { adminGet } from "#test-utils/session.ts";
 
-/** Arrow assertions shared by every test below. */
+/** Arrow assertions shared by every test below. The three attributes must
+ * sit on one anchor, so the test finds the anchor by its label and reads
+ * that same tag's destination and title. */
 const expectArrow = (
   html: string,
   label: string,
   href: string,
   title: string,
 ): void => {
-  expect(html).toContain(`aria-label="${label}"`);
-  expect(html).toContain(`href="${href}"`);
-  expect(html).toContain(`title="${title}"`);
+  const anchors = [...html.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
+  const arrow = anchors.find((anchor) =>
+    anchor.includes(`aria-label="${label}"`),
+  );
+  if (arrow === undefined) {
+    throw new Error(`No anchor carries the aria-label "${label}"`);
+  }
+  expect(arrow).toContain(`href="${href}"`);
+  expect(arrow).toContain(`title="${title}"`);
 };
 
 describeWithEnv(
@@ -109,15 +117,22 @@ describeWithEnv(
     test("lands the pager's support-message cycle on a Deno site", async () => {
       await createTestBuiltSite({ name: "Zulu" });
       await createTestBuiltSite({ name: "Middle" });
-      const denoSite = await createTestBuiltSite({
+      await createTestBuiltSite({
         hostingProvider: "deno",
         name: "Alpha Deno",
       });
       // The tab exists on every provider, so the cycle's arrows stay live.
+      const deno = await readSite("Alpha Deno");
       const response = await adminGet(
-        `/admin/built-sites/${denoSite.id}/support-message`,
+        `/admin/built-sites/${deno.id}/support-message`,
       );
       const html = await expectHtmlResponse(response, 200, "Support message");
+      expectArrow(
+        html,
+        "Previous built site",
+        `/admin/built-sites/${(await readSite("Zulu")).id}/support-message`,
+        "Zulu",
+      );
       expectArrow(
         html,
         "Next built site",

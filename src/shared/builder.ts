@@ -8,6 +8,7 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
 import { t, withMessageGroups } from "#i18n";
 import {
   dryRunOrFetchText,
@@ -109,7 +110,9 @@ export type PreparedBuildSite = Extract<BuildSiteResult, { ok: true }> & {
   scheduledTaskKey: string;
 };
 
-export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<void>;
+/** Retain the prepared site and answer its row's id, so the build deletes
+ * the row when a later step fails and no unfinished site stays recorded. */
+export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<number>;
 
 type BuildSiteCredentials = { dbUrl: string; dbToken: string };
 
@@ -248,14 +251,32 @@ const buildSiteOnProvider = async (
     ok: true,
     scheduledTaskKey,
   };
+  let retainedId: number;
   try {
-    await retain(prepared);
+    retainedId = await retain(prepared);
   } catch (error) {
     return {
       error: `Failed to retain site: ${errorMessage(error)}`,
       ok: false,
     };
   }
+  // The recorded site must not survive a failed build. A record that cannot
+  // be deleted appends its own failure, so the provider error stays the
+  // first cause in the answer.
+  const buildFailedAfterRetain = async (failed: {
+    error: string;
+    ok: false;
+  }): Promise<BuildSiteResult> => {
+    try {
+      await builtSitesCrudTable.deleteById(retainedId);
+    } catch (deleteError) {
+      return {
+        error: `${failed.error}; the retained record could not be deleted: ${errorMessage(deleteError)}`,
+        ok: false,
+      };
+    }
+    return failed;
+  };
   // Every site's support message lives as a readable variable, so the new
   // site starts with the host's own text instead of a secret copy nobody can
   // read back. Set before publishing so the first request already sees it.
@@ -265,10 +286,10 @@ const buildSiteOnProvider = async (
       result.value.hostingId,
       hostSupportText,
     );
-    if (!seeded.ok) return seeded;
+    if (!seeded.ok) return await buildFailedAfterRetain(seeded);
   }
   const published = await provider.publishSite(result.value.hostingId, code);
-  if (!published.ok) return published;
+  if (!published.ok) return await buildFailedAfterRetain(published);
   const { scheduledTaskKey: _scheduledTaskKey, ...built } = prepared;
   return built;
 };

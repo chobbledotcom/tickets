@@ -22,12 +22,15 @@ const buildSite = (
   overrides: Partial<Parameters<typeof builderApi.buildSite>[0]> = {},
 ) =>
   builderApi.buildSite({ ...BUILD_INPUT, ...overrides }, () =>
-    Promise.resolve(),
+    Promise.resolve(0),
   );
 
 describeWithEnv(
   "buildSite support message seed",
   {
+    // The build deletes the retained row itself when a later step fails, so
+    // the seed-failure path runs against a test database.
+    db: true,
     env: {
       DENO_DEPLOY_ORG_SLUG: "test-org",
       SUPPORT_PAGE_TEXT: "# Help\\n\\nAsk us anything",
@@ -85,7 +88,7 @@ describeWithEnv(
             // database before it reaches the hosting provider.
             const result = await builderApi.buildSite(
               { siteName: "Test" },
-              () => Promise.resolve(),
+              () => Promise.resolve(0),
             );
             expect(result).toEqual({
               error:
@@ -109,7 +112,7 @@ describeWithEnv(
         // visible: the builder must still answer the too-long refusal
         // instead of throwing a missing-translation error.
         const result = await withMessageGroups(["order"], () =>
-          builderApi.buildSite({ siteName: "Test" }, () => Promise.resolve()),
+          builderApi.buildSite({ siteName: "Test" }, () => Promise.resolve(0)),
         );
         expect(result).toEqual({
           error:

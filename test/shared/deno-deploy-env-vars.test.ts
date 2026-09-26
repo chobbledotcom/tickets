@@ -16,8 +16,8 @@ describeWithEnv(
         new Response(
           JSON.stringify({
             env_vars: [
-              { key: "DB_TOKEN", secret: true },
-              { key: "DB_URL", secret: true },
+              { contexts: "all", id: "env-1", key: "DB_TOKEN", secret: true },
+              { contexts: "all", id: "env-2", key: "DB_URL", secret: true },
             ],
             id: "app_gn",
             slug: "gn-app",
@@ -72,8 +72,14 @@ describeWithEnv(
         new Response(
           JSON.stringify({
             env_vars: [
-              { key: "PLAIN", secret: false, value: "shown" },
-              { key: "SECRET", secret: true },
+              {
+                contexts: "all",
+                id: "env-3",
+                key: "PLAIN",
+                secret: false,
+                value: "shown",
+              },
+              { contexts: "all", id: "env-4", key: "SECRET", secret: true },
             ],
             id: "app_ga",
             slug: "ga-app",
@@ -84,8 +90,14 @@ describeWithEnv(
       expect(result).toEqual({
         ok: true,
         value: [
-          { key: "PLAIN", secret: false, value: "shown" },
-          { key: "SECRET", secret: true, value: undefined },
+          {
+            contexts: "all",
+            id: "env-3",
+            key: "PLAIN",
+            secret: false,
+            value: "shown",
+          },
+          { contexts: "all", id: "env-4", key: "SECRET", secret: true },
         ],
       });
     });
@@ -94,7 +106,14 @@ describeWithEnv(
       using _fetch = stubFetch(
         new Response(
           JSON.stringify({
-            env_vars: [{ key: "SUPPORT_PAGE_TEXT", secret: false }],
+            env_vars: [
+              {
+                contexts: "all",
+                id: "env-5",
+                key: "SUPPORT_PAGE_TEXT",
+                secret: false,
+              },
+            ],
             id: "app_pv",
             slug: "pv-app",
           }),

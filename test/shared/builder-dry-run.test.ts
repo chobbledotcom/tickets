@@ -138,6 +138,7 @@ describeWithEnv(
         async (site) => {
           retained += 1;
           retainedId.value = Number(site.hostingId);
+          return retainedId.value;
         },
       );
 

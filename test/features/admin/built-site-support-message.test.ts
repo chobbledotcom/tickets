@@ -186,9 +186,11 @@ describeWithEnv(
         "",
       );
       // The refused clear must keep the empty editor to retry, not fall
-      // back to the stored text the operator asked to remove.
+      // back to the stored text the operator asked to remove. The body
+      // holds the spare newline only, so parsing leaves the browser an
+      // empty editor.
       const editorStart = html.indexOf(">", html.indexOf("<textarea")) + 1;
-      expect(html.slice(editorStart, html.indexOf("</textarea>"))).toBe("");
+      expect(html.slice(editorStart, html.indexOf("</textarea>"))).toBe("\n");
       expect(html).toContain("</textarea>");
       expect(html).not.toContain("# Old text");
     });

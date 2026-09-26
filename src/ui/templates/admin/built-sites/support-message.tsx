@@ -17,6 +17,7 @@ import {
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { textareaBody } from "#templates/components/textarea.tsx";
 
 export const SupportMessagePanel = ({
   site,
@@ -53,7 +54,7 @@ export const SupportMessagePanel = ({
           <label>
             {t("built_sites.support_message_label")}
             <textarea data-markdown-preview name="support_message">
-              {editorText ?? ""}
+              {textareaBody(editorText ?? "")}
             </textarea>
           </label>
           <p class="hint">{t("built_sites.support_message_limit")}</p>

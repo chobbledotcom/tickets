@@ -27,7 +27,7 @@ const BUILD_INPUT = {
 } as const;
 
 const buildSite = (input: Parameters<typeof builderApi.buildSite>[0]) =>
-  builderApi.buildSite(input, () => Promise.resolve());
+  builderApi.buildSite(input, () => Promise.resolve(0));
 
 type Restorable = { restore(): void };
 

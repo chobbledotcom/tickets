@@ -41,6 +41,7 @@ import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
+import { textareaBody } from "#templates/components/textarea.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 import {
   CONTACT_TEXTAREA_LIMIT,
@@ -216,7 +217,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
         name="special_instructions"
         rows={3}
       >
-        {data.parsed.special_instructions || ""}
+        {textareaBody(data.parsed.special_instructions || "")}
       </textarea>
     </label>
   </>

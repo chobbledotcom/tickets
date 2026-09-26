@@ -22,7 +22,7 @@ export const buildRetainedSite = async (
 ): Promise<{ result: BuildSiteResult; retainedId: number }> => {
   validateBootChecks();
   await initDb();
-  const retainedId = { value: 0 };
+  let retainedId = 0;
   const result = await builderApi.buildSite(input, async (site) => {
     const row = await insertBuiltSite(
       name,
@@ -36,12 +36,13 @@ export const buildRetainedSite = async (
       site.dbProvider,
       site.scheduledTaskKey,
     );
-    retainedId.value = row.id;
+    retainedId = row.id;
+    return row.id;
   });
-  if (result.ok && retainedId.value === 0) {
+  if (result.ok && retainedId === 0) {
     throw new Error("Built site was not retained");
   }
-  return { result, retainedId: retainedId.value };
+  return { result, retainedId };
 };
 
 /** Build and retain one site before making it available for assignment. */

@@ -96,10 +96,12 @@ const getAppEnvVarNamesImpl = async (
   return result.ok ? okResult(result.value.map(({ key }) => key)) : result;
 };
 
-/** One env var entry as the PATCH body sends it: plain or secret, and the
- * production context unless the caller narrows it. */
+/** One env var entry as the PATCH body sends it: an existing record's id and
+ * contexts, or a new entry's key with the production context unless the
+ * caller narrows it. */
 export interface DenoEnvVarUpdate {
-  contexts?: string[];
+  contexts?: "all" | string[];
+  id?: string;
   key: string;
   secret?: boolean;
   value: string;
@@ -108,6 +110,7 @@ export interface DenoEnvVarUpdate {
 /** The default body for one env var entry. */
 const denoEnvVarPatch = (entry: DenoEnvVarUpdate) => ({
   contexts: entry.contexts ?? ["production"],
+  id: entry.id,
   key: entry.key,
   secret: entry.secret ?? true,
   value: entry.value,

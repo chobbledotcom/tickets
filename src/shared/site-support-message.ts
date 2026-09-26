@@ -16,6 +16,7 @@ import {
   parseBunnyError,
 } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import type { DenoEnvVar } from "#shared/deno-deploy-schema.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { tryStep } from "#shared/try-step.ts";
@@ -93,28 +94,58 @@ const writeBunnySupportMessage = async (
   return okResult(value);
 };
 
+/** The app's entry for the Support tab's key that the production isolate
+ * serves: the all-contexts record, or a production one. The documented
+ * contexts can hold the same key in other scopes (a preview record beside a
+ * production one), and those are not the serving copy. */
+const denoSupportEntry = async (
+  appId: string,
+): Promise<Result<DenoEnvVar | null>> => {
+  const result = await denoDeployApi.getAppEnvVars(appId);
+  if (!result.ok) return result;
+  const entry =
+    result.value.find(
+      ({ contexts, key }) =>
+        key === SUPPORT_MESSAGE_KEY &&
+        (contexts === "all" || contexts.includes("production")),
+    ) ?? null;
+  return okResult(entry);
+};
+
 /** A Deno site's support message: a plain env var's value. Secrets never
  * carry their value in the API's answer, and a missing entry reads null. */
 const readDenoSupportMessage = async (
   appId: string,
 ): Promise<SupportMessageResult> => {
-  const result = await denoDeployApi.getAppEnvVars(appId);
+  const result = await denoSupportEntry(appId);
   if (!result.ok) return result;
-  const entry = result.value.find(({ key }) => key === SUPPORT_MESSAGE_KEY);
-  return okResult(entry === undefined || entry.secret ? null : entry.value);
+  const entry = result.value;
+  return okResult(entry === null || entry.secret ? null : entry.value);
 };
 
-/** Set a Deno app's support message as a plain env var. The API deep-merges
- * env_vars by key, so every other var stays untouched. */
+/** Set a Deno app's support message as a plain env var. An existing record
+ * is updated through its id with its own contexts, so a dashboard-created
+ * all-contexts record is edited in place instead of shadowed by a second
+ * production entry the tab would never read again. */
 const writeDenoSupportMessage = async (
   appId: string,
   value: string,
 ): Promise<SupportMessageResult> => {
-  const result = await denoDeployApi.setEnvVar(appId, {
-    key: SUPPORT_MESSAGE_KEY,
-    secret: false,
-    value,
-  });
+  const existing = await denoSupportEntry(appId);
+  if (!existing.ok) return existing;
+  const found = existing.value;
+  const result = await denoDeployApi.setEnvVar(
+    appId,
+    found === null
+      ? { key: SUPPORT_MESSAGE_KEY, secret: false, value }
+      : {
+          contexts: found.contexts,
+          id: found.id,
+          key: SUPPORT_MESSAGE_KEY,
+          secret: false,
+          value,
+        },
+  );
   return result.ok ? okResult(value) : result;
 };
 

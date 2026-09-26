@@ -9,6 +9,7 @@ import {
   type PreparedBuildSite,
 } from "#shared/builder.ts";
 import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
+import { withBuildSiteMocks } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -118,5 +119,34 @@ describeWithEnv("site build", { db: true }, () => {
     } finally {
       buildStub.restore();
     }
+  });
+
+  test("removes the retained row when publishing fails", async () => {
+    await withBuildSiteMocks(
+      async () => {
+        const { result } = await buildRetainedSite("Failed Site", {
+          siteName: "Failed Site",
+        });
+        expect(result.ok).toBe(false);
+        expect(await builtSites.getAll()).toEqual([]);
+      },
+      { publishResult: { error: "publish refused", ok: false } },
+    );
+  });
+
+  test("removes the retained row when the support-message seed fails", async () => {
+    using _support = withEnv({ SUPPORT_PAGE_TEXT: "# Seed" });
+    await withBuildSiteMocks(
+      async () => {
+        const { result } = await buildRetainedSite("Failed Site", {
+          siteName: "Failed Site",
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error).toContain("seed refused");
+        expect(await builtSites.getAll()).toEqual([]);
+      },
+      { supportSeedResult: { error: "seed refused", ok: false } },
+    );
   });
 });
