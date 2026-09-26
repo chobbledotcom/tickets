@@ -238,6 +238,25 @@ describe("entityPageView", () => {
     expect(html).toContain('<div class="prose entity-header">');
   });
 
+  test("renders flanking nav beside the h1, never inside it", () => {
+    // The pager links' aria-labels must not reach the heading: a
+    // screen-reader walking by headings hears the record's name alone.
+    const html = entityPageView({
+      ...view,
+      titleNav: {
+        after: Raw({ html: '<a href="/next" aria-label="Next">→</a>' }),
+        before: Raw({ html: '<a href="/prev" aria-label="Previous">←</a>' }),
+      },
+    });
+    const row = html.slice(
+      html.indexOf('<div class="title-nav">'),
+      html.indexOf("</div>", html.indexOf('<div class="title-nav">')),
+    );
+    expect(row).toContain('<a href="/prev" aria-label="Previous">←</a>');
+    expect(row).toContain("<h1>Attendee: Jane</h1>");
+    expect(row).toContain('<a href="/next" aria-label="Next">→</a>');
+  });
+
   test("marks only the active tab with aria-current=page", () => {
     const html = entityPageView(view);
     expect(html).toContain(

@@ -228,8 +228,9 @@ export interface EntityPageView {
   session: AdminSession;
   tabs: TabLink[];
   title: string;
-  /** Optional controls flanking the title inside the `<h1>` — see
-   * `FlankingNav`. */
+  /** Optional controls flanking the `<h1>` as sibling links, one navigation
+   * row with the heading, so heading navigation announces the record's name
+   * alone — see `FlankingNav`. */
   titleNav?: FlankingNav | null;
 }
 
@@ -247,9 +248,11 @@ export const entityPageView = (view: EntityPageView): string =>
       {getFlashFormId() === undefined && requestFlash()}
       <div class="prose entity-header">
         {view.titleNav ? (
-          <h1>
-            {view.titleNav.before} {view.title} {view.titleNav.after}
-          </h1>
+          <div class="title-nav">
+            {view.titleNav.before}
+            <h1>{view.title}</h1>
+            {view.titleNav.after}
+          </div>
         ) : (
           <h1>{view.title}</h1>
         )}

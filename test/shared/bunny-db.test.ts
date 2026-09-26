@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -231,8 +232,11 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     using _network = stubFetch(() => {
       throw new Error("dry run must not touch the network");
     });
-
-    const result = await bunnyDbApi.createDatabase("Dry run db");
+    // Database creation is a build call, so it answers only inside the
+    // build's scope; the same instance's live admin actions stay real.
+    const result = await runWithSiteBuildScope(() =>
+      bunnyDbApi.createDatabase("Dry run db"),
+    );
 
     expect(result.ok).toBe(true);
     if (result.ok) {

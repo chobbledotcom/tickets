@@ -34,9 +34,10 @@ export const tabPath = (basePath: string, slug: string): string =>
 
 const visibleOnly = filter((tab: TabState) => tab.visible);
 
-/** Optional controls flanking a page's title: one before the `<h1>`'s text,
- * one after it (a record page's previous/next pager, say). Null renders
- * nothing on that side. */
+/** Optional controls flanking a page's title: one before the `<h1>`, one
+ * after it (a record page's previous/next pager, say). They render as the
+ * heading's siblings in one navigation row, so heading navigation announces
+ * the record's name alone. Null renders nothing on that side. */
 export interface FlankingNav {
   after: SafeHtml | null;
   before: SafeHtml | null;

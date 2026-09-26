@@ -125,5 +125,23 @@ describeWithEnv(
         "Middle",
       );
     });
+
+    test("keeps the pager links outside the heading", async () => {
+      await createTestBuiltSite({ name: "Zulu" });
+      await createTestBuiltSite({ name: "Middle" });
+      // Always read back by name: the create helper returns the list's last
+      // entry, so a same-test second create aliases to the wrong site.
+      const site = await readSite("Middle");
+      const response = await adminGet(`/admin/built-sites/${site.id}`);
+      const html = await expectHtmlResponse(response, 200, "Middle");
+      // A screen-reader walking the page by headings hears the site's name
+      // alone: the arrows are the heading's siblings, not its children.
+      const heading = html.slice(
+        html.indexOf("<h1>"),
+        html.indexOf("</h1>") + 5,
+      );
+      expect(heading).toBe("<h1>Middle</h1>");
+      expect(html).toContain('class="title-nav"');
+    });
   },
 );

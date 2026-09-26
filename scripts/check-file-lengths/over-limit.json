@@ -35,7 +35,7 @@
   "src/shared/storage.ts": 642,
   "src/shared/types.ts": 916,
   "src/ui/client/order.ts": 541,
-  "src/ui/static/style.scss": 3429,
+  "src/ui/static/style.scss": 3363,
   "src/ui/templates/admin/bulk-actions.tsx": 445,
   "src/ui/templates/admin/bulk-email.tsx": 464,
   "src/ui/templates/admin/debug.tsx": 511,

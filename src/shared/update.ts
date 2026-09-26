@@ -16,6 +16,7 @@ import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
   DRY_RUN_RELEASE_ASSET_URL,
+  runWithSiteBuildScope,
   siteBuildDryRunEnabled,
 } from "#shared/builder-dry-run.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
@@ -301,11 +302,17 @@ const deployLatest = async (
  * returning the release on success. This is the exact deploy our self-update
  * runs; pass `scriptId` to run it against a built site's script instead.
  * Throws on any failure (no release asset, download, or deploy error).
+ *
+ * The deploy runs inside the site-build scope: a SITE_BUILD_DRY_RUN demo
+ * answers the code upload and publish from canned bodies, like every machine
+ * deploy, while a live editor save on the same instance reaches Bunny.
  */
 export const deployLatestReleaseToScript = (
   scriptId?: number | string,
 ): Promise<ReleaseInfo> =>
-  deployLatest((code) => deployScriptCode(code, scriptId));
+  runWithSiteBuildScope(() =>
+    deployLatest((code) => deployScriptCode(code, scriptId)),
+  );
 
 /**
  * Fetch the latest GitHub release and deploy its asset to a Deno Deploy app,

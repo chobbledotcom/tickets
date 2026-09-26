@@ -9,7 +9,10 @@
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
 import { t, withMessageGroups } from "#i18n";
-import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
+import {
+  dryRunOrFetchText,
+  runWithSiteBuildScope,
+} from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { getEnv } from "#shared/env.ts";
@@ -272,48 +275,55 @@ const buildSiteOnProvider = async (
 
 /**
  * Build a new site: provision database if needed, create hosting, configure
- * secrets, deploy.
+ * secrets, deploy. The whole flow runs inside the site-build scope, so a
+ * SITE_BUILD_DRY_RUN set answers these calls without live network while the
+ * same instance's unrelated admin actions stay real.
  */
 export const buildSite = async (
   input: BuildSiteInput,
   retain: RetainPreparedSite,
-): Promise<BuildSiteResult> => {
-  const hostSupportText = getSupportPageText();
-  // The seed copy must fit a site's variable, so a swollen host text fails
-  // the build before any provisioned resource — database, hosting script,
-  // or release download — exists to leave behind.
-  if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
-    // A site-plan purchase auto-builds inside the booking request, where
-    // only the public message groups are visible: load the builder's own
-    // copy around this one lookup so the refusal still reads its sentence.
-    return {
-      error: await withMessageGroups(["built-sites"], () =>
-        t("built_sites.support_message_too_long"),
-      ),
-      ok: false,
-    };
-  }
+): Promise<BuildSiteResult> =>
+  runWithSiteBuildScope(async () => {
+    const hostSupportText = getSupportPageText();
+    // The seed copy must fit a site's variable, so a swollen host text fails
+    // the build before any provisioned resource — database, hosting script,
+    // or release download — exists to leave behind.
+    if (hostSupportText !== null && supportMessageTooLong(hostSupportText)) {
+      // A site-plan purchase auto-builds inside the booking request, where
+      // only the public message groups are visible: load the builder's own
+      // copy around this one lookup so the refusal still reads its sentence.
+      return {
+        error: await withMessageGroups(["built-sites"], () =>
+          t("built_sites.support_message_too_long"),
+        ),
+        ok: false,
+      };
+    }
 
-  // 1. Source the bundle code: caller-supplied or latest GitHub release
-  const codeResult = await getBuildCode(input);
-  if (!codeResult.ok) return codeResult;
+    // 1. Source the bundle code: caller-supplied or latest GitHub release
+    const codeResult = await getBuildCode(input);
+    if (!codeResult.ok) {
+      return codeResult;
+    }
 
-  // 2. Auto-provision database if credentials not supplied
-  const credentialsResult = await getDbCredentials(input);
-  if (!credentialsResult.ok) return credentialsResult;
-  const { credentials: dbCredentials, dbProvider } = credentialsResult;
+    // 2. Auto-provision database if credentials not supplied
+    const credentialsResult = await getDbCredentials(input);
+    if (!credentialsResult.ok) {
+      return credentialsResult;
+    }
+    const { credentials: dbCredentials, dbProvider } = credentialsResult;
 
-  // 3. Build on the selected hosting provider
-  return buildSiteOnProvider(
-    input,
-    codeResult.code,
-    dbCredentials,
-    dbProvider,
-    hostSupportText,
-    input.hostingProvider ?? "bunny",
-    retain,
-  );
-};
+    // 3. Build on the selected hosting provider
+    return buildSiteOnProvider(
+      input,
+      codeResult.code,
+      dbCredentials,
+      dbProvider,
+      hostSupportText,
+      input.hostingProvider ?? "bunny",
+      retain,
+    );
+  });
 
 /** Dispatch database creation to the selected provider. */
 function createDatabase(name: string, provider: DbProvider = "bunny") {

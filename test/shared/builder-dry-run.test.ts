@@ -9,7 +9,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { builderApi } from "#shared/builder.ts";
+import {
+  dryRunOrFetchText,
+  runWithSiteBuildScope,
+} from "#shared/builder-dry-run.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { supportMessageApi } from "#shared/site-support-message.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -34,8 +39,10 @@ describeWithEnv(
 
       // The first two canned creations in this process take ids 1 and 2, so
       // the counter starts at zero and advances by exactly one per creation.
-      const first = await bunnyCdnApi.createEdgeScript("First", "export {};");
-      const second = await bunnyCdnApi.createEdgeScript("Second", "export {};");
+      const [first, second] = await runWithSiteBuildScope(async () => [
+        await bunnyCdnApi.createEdgeScript("First", "export {};"),
+        await bunnyCdnApi.createEdgeScript("Second", "export {};"),
+      ]);
 
       expect(first).toEqual({
         defaultHostname: "dry-run-1.invalid",
@@ -54,11 +61,12 @@ describeWithEnv(
     test("answers a mapped call with a canned 200", async () => {
       using _env = withDryRunEnv();
       using _network = noNetwork();
-      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
 
-      const response = await dryRunOrFetchText(
-        "https://api.bunny.net/compute/script/1/secrets",
-        () => ({ headers: {} }),
+      const response = await runWithSiteBuildScope(() =>
+        dryRunOrFetchText(
+          "https://api.bunny.net/compute/script/1/secrets",
+          () => ({ headers: {} }),
+        ),
       );
 
       expect(response.ok).toBe(true);
@@ -69,11 +77,12 @@ describeWithEnv(
     test("answers a database token request with the canned token", async () => {
       using _env = withDryRunEnv();
       using _network = noNetwork();
-      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
 
-      const tokenResponse = await dryRunOrFetchText(
-        "https://api.bunny.net/database/v2/databases/1/auth/generate",
-        () => ({ headers: {} }),
+      const tokenResponse = await runWithSiteBuildScope(() =>
+        dryRunOrFetchText(
+          "https://api.bunny.net/database/v2/databases/1/auth/generate",
+          () => ({ headers: {} }),
+        ),
       );
 
       expect(JSON.parse(tokenResponse.text)).toEqual({
@@ -84,11 +93,12 @@ describeWithEnv(
     test("answers a database read with an id-derived canned URL", async () => {
       using _env = withDryRunEnv();
       using _network = noNetwork();
-      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
 
-      const getResponse = await dryRunOrFetchText(
-        "https://api.bunny.net/database/v2/databases/7",
-        () => ({ headers: {} }),
+      const getResponse = await runWithSiteBuildScope(() =>
+        dryRunOrFetchText(
+          "https://api.bunny.net/database/v2/databases/7",
+          () => ({ headers: {} }),
+        ),
       );
 
       expect(JSON.parse(getResponse.text)).toEqual({
@@ -108,7 +118,9 @@ describeWithEnv(
       );
 
       const usage = runWithSubrequestBudget(async () => {
-        await bunnyCdnApi.setEdgeScriptSecret(1, "DB_URL", "x");
+        await runWithSiteBuildScope(() =>
+          bunnyCdnApi.setEdgeScriptSecret(1, "DB_URL", "x"),
+        );
         return getSubrequestUsage().external;
       });
 
@@ -137,15 +149,56 @@ describeWithEnv(
     test("performs the real fetch for a URL outside the surface", async () => {
       using _env = withDryRunEnv();
       using _network = stubFetch(() => new Response("{}", { status: 200 }));
-      const { dryRunOrFetchText } = await import("#shared/builder-dry-run.ts");
 
       const response = await dryRunOrFetchText(
         "https://unmapped.example/records",
         () => ({ headers: {} }),
       );
 
-      expect(response.ok).toBe(true);
       expect(_network.calls.length).toBe(1);
+      expect(response.ok).toBe(true);
+    });
+
+    test("performs the real fetch for an unmapped URL inside a build", async () => {
+      using _env = withDryRunEnv();
+      using _network = stubFetch(() => new Response("{}", { status: 200 }));
+
+      // The build scope answers mapped build calls; a URL the surface does
+      // not map still runs for real, so a dry-run build fails loudly on an
+      // unmapped call instead of silently proceeding.
+      const response = await runWithSiteBuildScope(() =>
+        dryRunOrFetchText("https://unmapped.example/records", () => ({
+          headers: {},
+        })),
+      );
+
+      expect(_network.calls.length).toBe(1);
+      expect(response.ok).toBe(true);
+    });
+
+    test("answers the seed write inside a build, live outside it", async () => {
+      using _env = withDryRunEnv();
+      // A 401 distinguishes the real fetch from the canned 200: a Support
+      // message save is not a build call, so with the flag on it still
+      // reaches Bunny and reports the provider's refusal. The same call the
+      // build's seed step makes runs inside the build scope and gets the
+      // canned success.
+      using _network = stubFetch(new Response("{}", { status: 401 }));
+
+      const save = supportMessageApi.setSupportMessage(
+        "bunny",
+        "501",
+        "# Saved",
+      );
+      expect(await save).toEqual({
+        error: "Set support message failed (401): {}",
+        ok: false,
+      });
+
+      const seeded = await runWithSiteBuildScope(() =>
+        supportMessageApi.setSupportMessage("bunny", "501", "# Seed"),
+      );
+      expect(seeded).toEqual({ ok: true, value: "# Seed" });
     });
 
     test("performs the real fetch for a near-miss of a mapped endpoint", async () => {
