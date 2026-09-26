@@ -88,9 +88,10 @@ describe("attendeeBookingsFromLines", () => {
         listingId: 7,
       }),
     ]);
-    // Every stored field is carried through, with the 0/1 flags coerced to bools.
+    // Every stored field is carried through; the 0/1 flags coerce to bools.
     expect(bookings).toEqual([
       {
+        assignBuiltSite: false,
         checkedIn: true,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
@@ -103,7 +104,6 @@ describe("attendeeBookingsFromLines", () => {
       },
     ]);
   });
-
   test("carries a folded child row's parent listing id onto the summary", () => {
     const bookings = attendeeBookingsFromLines([
       line({

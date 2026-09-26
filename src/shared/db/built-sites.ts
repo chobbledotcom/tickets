@@ -345,6 +345,20 @@ export const hasAssignedBuiltSite = rowExistsForIdList(
        AND assigned_listing_id IN (${listingIdPlaceholders}) LIMIT 1`,
 );
 
+/** Every listing this attendee holds an assigned site from: the attendee
+ * page's repair view of which plan bookings still have no site. */
+export const getAssignedListingIdsForAttendee = async (
+  attendeeId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ assigned_listing_id: number | null }>(
+    "SELECT assigned_listing_id FROM built_sites WHERE assigned_attendee_id = ?",
+    [attendeeId],
+  );
+  return rows.flatMap(({ assigned_listing_id: listingId }) =>
+    listingId === null ? [] : [listingId],
+  );
+};
+
 /** Look up a built site by renewal token index (HMAC blind index) */
 export const getBuiltSiteByRenewalTokenIndex = async (
   tokenIndex: string,

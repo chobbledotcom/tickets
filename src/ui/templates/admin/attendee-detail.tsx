@@ -85,6 +85,7 @@ export const InactiveNote = ({
   );
 
 type BookingTableContext = {
+  assignedListingIds: Set<number>;
   childNamesByParentId: Map<number, string[]>;
   nameByListingId: Map<number, string>;
 };
@@ -105,6 +106,11 @@ const bookingColumns: readonly TableColumn<
               `#${booking.parentListingId}`,
           })}
         </div>
+      ) : null}
+      {booking.assignBuiltSite &&
+      booking.quantity >= 1 &&
+      !context.assignedListingIds.has(booking.listingId) ? (
+        <div class="muted small">{t("attendee_detail.no_site_assigned")}</div>
       ) : null}
       {context.childNamesByParentId.has(booking.listingId) ? (
         <div class="muted small">
@@ -148,8 +154,12 @@ const bookingsTable = defineTable(bookingColumns);
  * count. Returns null when nothing is booked so the caller can drop the section.
  */
 export const AttendeeBookingsTable = ({
+  assignedListingIds,
   bookings,
 }: {
+  /** The listings this attendee already holds an assigned site from, so a
+   * plan booking without one can show its repair cue. */
+  assignedListingIds: readonly number[];
   bookings: AttendeeBooking[];
 }): JSX.Element | null => {
   if (bookings.length === 0) return null;
@@ -174,7 +184,11 @@ export const AttendeeBookingsTable = ({
     <PageBlock>
       <h3>{t("terms.bookings")}</h3>
       {renderTable(bookingsTable, bookings, {
-        context: { childNamesByParentId, nameByListingId },
+        context: {
+          assignedListingIds: new Set(assignedListingIds),
+          childNamesByParentId,
+          nameByListingId,
+        },
         foot: (
           <tr>
             <th colspan="2" scope="row">

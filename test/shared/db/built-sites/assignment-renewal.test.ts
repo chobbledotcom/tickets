@@ -7,10 +7,12 @@ import {
   builtSitesCrudTable,
   claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
+  getAssignedListingIdsForAttendee,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
+import { execute } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("assignable built sites", { db: true }, () => {
@@ -33,7 +35,24 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       "Site C",
     ]);
   });
+  test("getAssignedListingIdsForAttendee lists only this attendee's claimed listings", async () => {
+    const mine = await insertBuiltSite("Mine", "mine.test", "", "", true);
+    await insertBuiltSite("Theirs", "theirs.test", "", "", true);
+    const theirs = (await builtSites.getAll()).find(
+      (s) => s.name === "Theirs",
+    )!;
+    await claimBuiltSiteForAttendee(mine.id, 42, 7);
+    await claimBuiltSiteForAttendee(theirs.id, 99, 8);
+    // A hand-repaired row can carry an attendee with no listing; the page
+    // must read it as "no listing this attendee was served on".
+    await execute(
+      "UPDATE built_sites SET assigned_attendee_id = 42, assigned_listing_id = NULL WHERE id = ?",
+      [theirs.id],
+    );
 
+    expect(await getAssignedListingIdsForAttendee(42)).toEqual([7]);
+    expect(await getAssignedListingIdsForAttendee(1234)).toEqual([]);
+  });
   test("claimBuiltSiteForAttendee stores the assignment", async () => {
     const row = await insertBuiltSite(
       "To Assign",

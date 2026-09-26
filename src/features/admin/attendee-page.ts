@@ -6,6 +6,7 @@
  */
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { getAssignedListingIdsForAttendee } from "#db/built-sites.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {
@@ -244,6 +245,7 @@ const overviewTab: TabDef<AttendeePageEntity> = {
         [],
       );
       return AttendeeBookingsTable({
+        assignedListingIds: await getAssignedListingIdsForAttendee(attendee.id),
         bookings: attendeeBookingsFromLines(parsed.lines),
       });
     }),

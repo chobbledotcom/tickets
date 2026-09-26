@@ -5,7 +5,6 @@ import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-// jscpd:ignore-end
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

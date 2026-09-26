@@ -94,12 +94,11 @@ export type AttendeeFormLine = {
 };
 
 /**
- * A read-only summary of one listing the attendee currently books, shown in the
- * bookings table at the top of the edit page. Derived from a stored
- * `listing_attendees` row joined to its listing, so it reflects exactly what is
- * saved: quantity, dates (daily listings), and check-in / refund status.
+ * A read-only summary of one listing the attendee currently books — quantity,
+ * dates, status — shown in the bookings table at the top of the edit page.
  */
 export type AttendeeBooking = {
+  assignBuiltSite: boolean;
   listingId: number;
   listingName: string;
   listingActive: boolean;
@@ -217,6 +216,7 @@ export const attendeeBookingsFromLines = (
     const { existingBooking: booking, listing } = line;
     if (!booking || !listing) return null;
     return {
+      assignBuiltSite: listing.assign_built_site,
       checkedIn: Boolean(booking.checked_in),
       endAt: booking.end_at,
       listingActive: listing.active,
