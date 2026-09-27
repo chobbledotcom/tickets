@@ -13,6 +13,23 @@ describe("ConfirmForm", () => {
       }),
     );
     expect(html).toContain('class="danger"');
+    // A danger confirm carries the bin icon; a safe confirm the check icon.
+    expect(html).toContain("#trash-2");
+    expect(html).not.toContain("#check");
+  });
+
+  test("gives a non-danger confirm the check icon", () => {
+    const html = String(
+      ConfirmForm({
+        action: "/x",
+        buttonText: "OK",
+        confirmName: false,
+        danger: false,
+      }),
+    );
+    expect(html).toContain("#check");
+    expect(html).not.toContain("#trash-2");
+    expect(html).not.toContain('class="danger"');
   });
 
   test("renders the confirm_identifier input by default", () => {
@@ -25,6 +42,11 @@ describe("ConfirmForm", () => {
       }),
     );
     expect(html).toContain('name="confirm_identifier"');
+    // The typed-name box must not offer or remember completions.
+    expect(html).toContain(
+      '<input autocomplete="off" name="confirm_identifier"',
+    );
+    expect(html).toContain('type="text"');
   });
 
   test("omits the confirm input when confirmName is false", () => {

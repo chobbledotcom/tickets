@@ -18,6 +18,7 @@ export const SaveForm = ({
   submitLabel,
   submitIcon = "save",
   submitClass,
+  disabled,
   children,
   ...rest
 }: Parameters<typeof CsrfForm>[0] & {
@@ -26,11 +27,14 @@ export const SaveForm = ({
   submitIcon?: IconName;
   /** Class for the submit button, e.g. "danger" for a destructive action. */
   submitClass?: string;
+  /** Disables the submit button, e.g. while a required choice is pending. */
+  disabled?: boolean;
 }): JSX.Element => (
   <CsrfForm {...rest}>
     {children}
     <SubmitButton
       icon={submitIcon}
+      {...(disabled !== undefined ? { disabled } : {})}
       {...(submitClass !== undefined ? { class: submitClass } : {})}
     >
       {submitLabel}

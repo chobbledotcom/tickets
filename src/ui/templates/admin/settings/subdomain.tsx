@@ -39,7 +39,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.subdomainPreview) {
     return (
       <>
-        <SubdomainIntroProse />
+        {SubdomainIntroProse()}
         <p>
           <strong>{s.subdomainPreviewFullDomain}</strong>{" "}
           {t("settings.subdomain.is_available")}
@@ -68,7 +68,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   }
   return (
     <>
-      <SubdomainIntroProse />
+      {SubdomainIntroProse()}
       <label>
         {t("settings.subdomain.subdomain_label")}
         <input

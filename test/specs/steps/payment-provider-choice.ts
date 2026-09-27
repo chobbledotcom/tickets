@@ -149,7 +149,7 @@ When(
         await submitRenderedAdminForm(
           this,
           "/admin/settings-advanced",
-          "Check Availability &amp; Preview Complete Domain",
+          "Check if the name is free",
           { subdomain },
         );
       },
@@ -173,7 +173,7 @@ When(
         await fillInAndSend(
           browser,
           { save: "1", subdomain },
-          "Register Subdomain",
+          "Register subdomain",
         );
         expect(browser.currentUrl).toBe("/admin");
       },
@@ -221,7 +221,7 @@ Then(
   "custom domain changes are unavailable until a provider is chosen",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expectButtonDisabled(browser.currentHtml, "Save Custom Domain", true);
+    expectButtonDisabled(browser.currentHtml, "Save custom domain", true);
     expect(browser.pageText).toContain(
       "Choose the provider for existing payments before changing your domain.",
     );
@@ -232,7 +232,7 @@ Then(
   "custom domain changes are available again",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, "/admin/settings-advanced");
-    expectButtonDisabled(browser.currentHtml, "Save Custom Domain", false);
+    expectButtonDisabled(browser.currentHtml, "Save custom domain", false);
     expect(browser.pageText).not.toContain(
       "Choose the provider for existing payments before changing your domain.",
     );
@@ -243,7 +243,7 @@ Then(
   "host subdomain registration is unavailable until a provider is chosen",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expectButtonDisabled(browser.currentHtml, "Register Subdomain", true);
+    expectButtonDisabled(browser.currentHtml, "Register subdomain", true);
     expect(browser.pageText).toContain(
       "Choose the provider for existing payments before changing your domain.",
     );
@@ -254,7 +254,7 @@ Then(
   "host subdomain registration is available again",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expectButtonDisabled(browser.currentHtml, "Register Subdomain", false);
+    expectButtonDisabled(browser.currentHtml, "Register subdomain", false);
     expect(browser.pageText).not.toContain(
       "Choose the provider for existing payments before changing your domain.",
     );

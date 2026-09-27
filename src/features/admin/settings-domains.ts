@@ -21,6 +21,7 @@ import {
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
 import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
 
 const orErrorPage = <S extends { ok: true }, R>(
@@ -44,21 +45,39 @@ const requireRecovery = requireSetting(
   () => existingPaymentProviderState().recoveryChoices.length === 0,
   "error.payment_provider_recovery_required",
 );
-/** Run a domain command while no other settings task is active. */
+/** Run a domain command while no other settings task is active. Every domain
+ * command waits for the owner to settle existing payments first, because any
+ * of them can move the domain the payment webhook points at. */
 const runGuardedTask = async (
   taskName: string,
   formId: string,
   errorPage: ErrorPageFn,
   expectedVersion: number | null,
-  needsRecovery: boolean,
   task: () => Promise<Response>,
 ): Promise<Response> => {
-  const run = needsRecovery
-    ? () => Promise.resolve(requireRecovery(errorPage, formId) ?? task())
-    : task;
+  const run = () =>
+    Promise.resolve(requireRecovery(errorPage, formId) ?? task());
   const result = await settings.withCurrentTask(taskName, run, expectedVersion);
   return orErrorPage(result, errorPage, formId, (ok) => ok.value);
 };
+
+/** Run one Bunny API call as a domain task: hold the task lock, wait for any
+ * payment-provider recovery, then report the call's failure on this form. */
+const runBunnyDomainTask = <T extends { ok: true }>(
+  taskName: string,
+  formId: string,
+  errorPage: ErrorPageFn,
+  form: FormParams,
+  call: () => Promise<T | { ok: false; error: string }>,
+  onOk: (value: T) => Promise<Response>,
+): Promise<Response> =>
+  runGuardedTask(
+    taskName,
+    formId,
+    errorPage,
+    form.getOptionalInt("settings_version"),
+    async () => orErrorPage(await call(), errorPage, formId, onOk),
+  );
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
@@ -79,7 +98,6 @@ export const handleCustomDomainPost = advancedSettingsRoute(
       "settings-custom-domain",
       errorPage,
       form.getOptionalInt("settings_version"),
-      true,
       async () => {
         if (raw === "") {
           await settings.update.customDomain("");
@@ -109,7 +127,9 @@ export const handleCustomDomainPost = advancedSettingsRoute(
 
         return fail(
           "/admin/settings-advanced",
-          `Custom domain saved but validation failed: ${result.error}`,
+          t("settings.advanced.custom_domain_saved_unvalidated", {
+            error: result.error,
+          }),
           { formId: "settings-custom-domain" },
         );
       },
@@ -134,28 +154,20 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
       );
     }
 
-    return runGuardedTask(
+    return runBunnyDomainTask(
       "custom-domain-validate",
       "settings-custom-domain-validate",
       errorPage,
-      form.getOptionalInt("settings_version"),
-      false,
+      form,
+      () => validateCustomDomain(customDomain),
       async () => {
-        const result = await validateCustomDomain(customDomain);
-        return orErrorPage(
-          result,
-          errorPage,
-          "settings-custom-domain-validate",
-          async () => {
-            await settings.update.customDomainLastValidated();
-            await logActivity(`Custom domain validated: ${customDomain}`);
-            return ok(
-              "/admin/settings-advanced",
-              t("success.custom_domain_validated"),
-              {
-                formId: "settings-custom-domain-validate",
-              },
-            );
+        await settings.update.customDomainLastValidated();
+        await logActivity(`Custom domain validated: ${customDomain}`);
+        return ok(
+          "/admin/settings-advanced",
+          t("success.custom_domain_validated"),
+          {
+            formId: "settings-custom-domain-validate",
           },
         );
       },
@@ -172,18 +184,24 @@ const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
 export const handleHostSubdomainPost = advancedSettingsRoute(
   withSettingsFields("settings-host-subdomain", async (form, errorPage) => {
     if (!isBunnyDnsEnabled()) {
-      return errorPage("Not configured", FORM_ID_HOST_SUBDOMAIN);
+      return errorPage(
+        t("settings.subdomain.flash.not_configured"),
+        FORM_ID_HOST_SUBDOMAIN,
+      );
     }
     if (settings.bunnySubdomain) {
       return errorPage(
-        "Subdomain has already been set and cannot be changed",
+        t("settings.subdomain.flash.already_set"),
         FORM_ID_HOST_SUBDOMAIN,
       );
     }
 
     const raw = form.getString("subdomain").toLowerCase().trim();
     if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
-      return errorPage("Invalid subdomain format", FORM_ID_HOST_SUBDOMAIN);
+      return errorPage(
+        t("settings.subdomain.flash.invalid"),
+        FORM_ID_HOST_SUBDOMAIN,
+      );
     }
 
     const save = form.getString("save");
@@ -196,13 +214,13 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       }
       if (!check.available) {
         return errorPage(
-          `Subdomain "${raw}" is already taken`,
+          t("settings.subdomain.flash.taken", { name: raw }),
           FORM_ID_HOST_SUBDOMAIN,
         );
       }
       return ok(
         "/admin/settings-advanced",
-        `${check.fullDomain} is available`,
+        t("settings.subdomain.flash.available", { domain: check.fullDomain }),
         {
           formId: FORM_ID_HOST_SUBDOMAIN,
           result: `${raw}\n${check.fullDomain}`,
@@ -210,28 +228,22 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       );
     }
 
-    return runGuardedTask(
+    return runBunnyDomainTask(
       "host-subdomain",
       FORM_ID_HOST_SUBDOMAIN,
       errorPage,
-      form.getOptionalInt("settings_version"),
-      true,
-      async () => {
-        const result = await registerBunnySubdomain(raw);
-        return orErrorPage(
-          result,
-          errorPage,
-          FORM_ID_HOST_SUBDOMAIN,
-          async (ok_) => {
-            await settings.update.bunnySubdomain(ok_.fullDomain);
-            await logActivity(`Host subdomain set to ${ok_.fullDomain}`);
-            return ok(
-              "/admin/settings-advanced",
-              `Subdomain registered: ${ok_.fullDomain}`,
-              {
-                formId: FORM_ID_HOST_SUBDOMAIN,
-              },
-            );
+      form,
+      () => registerBunnySubdomain(raw),
+      async (ok_) => {
+        await settings.update.bunnySubdomain(ok_.fullDomain);
+        await logActivity(`Host subdomain set to ${ok_.fullDomain}`);
+        return ok(
+          "/admin/settings-advanced",
+          t("settings.subdomain.flash.registered", {
+            domain: ok_.fullDomain,
+          }),
+          {
+            formId: FORM_ID_HOST_SUBDOMAIN,
           },
         );
       },
