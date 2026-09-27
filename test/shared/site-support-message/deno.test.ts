@@ -26,13 +26,10 @@ const record = (
   id: string,
   contexts: "all" | string[],
   value: string | undefined,
-): DenoEnvVar => ({
-  contexts,
-  id,
-  key: SUPPORT_MESSAGE_KEY,
-  secret: value === undefined,
-  value,
-});
+): DenoEnvVar =>
+  value === undefined
+    ? { contexts, id, key: SUPPORT_MESSAGE_KEY, secret: true }
+    : { contexts, id, key: SUPPORT_MESSAGE_KEY, secret: false, value };
 
 /** The getAppEnvVars stub answering `records`. */
 const appEnvVars = (records: DenoEnvVar[]) =>
