@@ -20,7 +20,7 @@ export const provisionTestBuiltSite = async (
   siteId: number,
   opts: { readOnlyFrom?: string } = {},
 ): Promise<{ token: string; tokenIndex: string }> => {
-  const { generateRenewalToken } = await import("#shared/site-assignment.ts");
+  const { generateRenewalToken } = await import("#shared/renewal-token.ts");
   const { updateBuiltSiteRenewalState } = await import("#db/built-sites.ts");
   const { index, token } = await generateRenewalToken();
   await updateBuiltSiteRenewalState(siteId, {

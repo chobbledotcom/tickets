@@ -38,6 +38,7 @@ export const siteEntry = (
     attendeeId?: number;
     quantity?: number;
     email?: string;
+    refunded?: boolean;
   } = {},
 ) =>
   makeTestEntry(
@@ -54,6 +55,9 @@ export const siteEntry = (
       ...(overrides.email !== undefined && { email: overrides.email }),
       ...(overrides.quantity !== undefined && {
         quantity: overrides.quantity,
+      }),
+      ...(overrides.refunded !== undefined && {
+        refunded: overrides.refunded,
       }),
     },
   );

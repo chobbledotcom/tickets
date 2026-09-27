@@ -193,10 +193,8 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   ...overrides,
 });
 
-/** Factory for an {@link Answer}: `active` defaults to `true` and the
- *  `question_id`/`sort_order`/`id` defaults mirror the most common test shape
- *  (a single question with id 1 and answers 10, 11, … in sort order). Override
- *  only the fields a given test actually varies. */
+/** Factory for an {@link Answer}: `active` defaults to `true`; the ids
+ *  mirror one question (id 1) with answers 10, 11, … in sort order. */
 export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
   active: true,
   id: 10,
@@ -415,6 +413,7 @@ export const makeTestAttendee = (
   phone: "555-1234",
   price_paid: "0",
   quantity: 1,
+  refunded: false,
   remaining_balance: 0,
   special_instructions: "",
   ticket_token: "AABB001122",

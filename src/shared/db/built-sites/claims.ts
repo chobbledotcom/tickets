@@ -99,7 +99,15 @@ export const takePooledSiteForBuyer = async (
   if (claim === null) return { kind: "empty" };
   if (claim.kind === "served") return claim;
   builtSites.invalidate();
-  const index = available.findIndex((site) => site.id === claim.siteId);
-  const site = available.splice(index, 1)[0]!;
-  return { kind: "claimed", site };
+  available.splice(
+    available.findIndex((site) => site.id === claim.siteId),
+    1,
+  );
+  // Read the claimed row back: a concurrent whole-row write may have landed
+  // between the pool load and the claim, and the pool snapshot is stale. The
+  // transaction just read this row's id, so it exists.
+  return {
+    kind: "claimed",
+    site: (await findBuiltSiteByIdPrimary(claim.siteId))!,
+  };
 };
