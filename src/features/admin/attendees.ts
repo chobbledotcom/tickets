@@ -279,9 +279,10 @@ const resendEntries = async (
     base.length = 0;
     base.push(...(await attendeeListingEntries(packageRows, pk)));
   }
-  // A refunded plan row buys nothing now, so it must not reach the assignment.
+  // A refunded plan row buys nothing now, so it must not reach the
+  // assignment; the loader kept only real lines.
   const candidates = rows.filter(
-    (row) => row.quantity >= 1 && !row.refunded && !covered.has(row.listing_id),
+    (row) => !row.refunded && !covered.has(row.listing_id),
   );
   const listings = await Promise.all(
     candidates.map((row) => requireListingWithCount(row.listing_id)),

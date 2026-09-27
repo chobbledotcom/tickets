@@ -8,28 +8,13 @@ import {
   bookTestAttendee,
   createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTierListing,
+  planListing,
+} from "#test-utils/db-helpers/site-plans.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
-
-/** The hidden monthly tier a plan booking's validation requires. */
-const createTierListing = () =>
-  createTestListing({
-    hidden: true,
-    monthsPerUnit: 1,
-    purchaseOnly: true,
-    unitPrice: 300,
-  });
-
-const planListing = (name: string) =>
-  createTestListing({
-    assignBuiltSite: true,
-    initialSiteMonths: 3,
-    maxAttendees: 100,
-    name,
-    unitPrice: 300,
-  });
 
 describeWithEnv(
   "server (admin attendees) > plan bookings without a site",
