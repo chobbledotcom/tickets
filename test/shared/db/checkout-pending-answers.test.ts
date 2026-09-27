@@ -46,7 +46,9 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       "SELECT session_index FROM checkout_pending_answers WHERE session_index = ?",
       [await sessionIndexOf("cs_reference")],
     );
-    expect(row?.session_index).not.toBe("cs_reference");
+    expect(row).toEqual({
+      session_index: await sessionIndexOf("cs_reference"),
+    });
   });
 
   test("takes the row away, so a second take finds nothing", async () => {
