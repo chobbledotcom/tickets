@@ -103,10 +103,15 @@ describe("site support message on Deno Deploy", () => {
         ok: false as const,
       }),
     );
+    using _setEnvVar = stub(denoDeployApi, "setEnvVar", () =>
+      Promise.resolve({ ok: true as const, value: undefined }),
+    );
     expectErrorResult(
       await supportMessageApi.setSupportMessage("deno", "app-1", "# New"),
       "Get app failed (404)",
     );
+    // The read failure stops the write before it starts.
+    expect(_setEnvVar.calls).toHaveLength(0);
   });
 
   test("updates the serving record's id and creates one when absent", async () => {
