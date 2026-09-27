@@ -44,6 +44,7 @@ export const makeCreateCheckoutSession =
     readResult: (result: Result) => {
       id: string | undefined;
       url: string | undefined | null;
+      squareLinkId?: string | undefined;
     },
   ): ((
     intent: CheckoutIntent,
@@ -53,11 +54,16 @@ export const makeCreateCheckoutSession =
     withCheckoutError(async () => {
       const result = await create(intent, baseUrl);
       if (result === null) return null;
-      const { id, url } = readResult(result);
+      const { id, url, squareLinkId } = readResult(result);
       const checkout = createdCheckout(provider, id, url);
       // The session id exists only now, so the answers stage beside it after
       // the provider accepts the checkout — every provider shares this step,
       // whatever its metadata caps allow the checkout itself to carry.
-      await stageCheckoutAnswers(checkout.sessionId, intent.textAnswers);
+      await stageCheckoutAnswers(
+        checkout.sessionId,
+        intent.textAnswers,
+        intent.submittedAnswers,
+        squareLinkId,
+      );
       return checkout;
     });

@@ -80,6 +80,15 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
               },
             }),
           ),
+        delete: async (input: { id: string }) =>
+          squareAnswer.deletedPaymentLink(
+            await squareFetch(
+              accessToken,
+              base,
+              `/v2/online-checkout/payment-links/${encodeURIComponent(input.id)}`,
+              { method: "DELETE" },
+            ),
+          ),
       },
     },
     locations: {

@@ -139,7 +139,7 @@ const OrderAnswer = v.pipe(
 );
 
 /** A created Square order and the page its buyer pays on. */
-export type SquarePaymentLink = { orderId: string; url: string };
+export type SquarePaymentLink = { id: string; orderId: string; url: string };
 
 /** Square sends a short and a long address for the same checkout page. The
  * long one carries the whole order, so it is the one the buyer is sent to. */
@@ -147,6 +147,7 @@ const PaymentLinkAnswer = v.pipe(
   v.object({
     payment_link: v.optional(
       v.object({
+        id: ResourceIdSchema,
         long_url: OptionalStringSchema,
         order_id: ResourceIdSchema,
         url: OptionalStringSchema,
@@ -154,11 +155,22 @@ const PaymentLinkAnswer = v.pipe(
     ),
   }),
   v.transform(({ payment_link: link }) => ({
+    id: link?.id,
     orderId: link?.order_id,
     url: link?.long_url ?? link?.url,
   })),
-  v.object({ orderId: ResourceIdSchema, url: NonEmptyTextSchema }),
+  v.object({
+    id: ResourceIdSchema,
+    orderId: ResourceIdSchema,
+    url: NonEmptyTextSchema,
+  }),
 );
+
+/** A DELETE reply names the link and cancelled order, not proof of no charge. */
+const DeletePaymentLinkAnswer = v.object({
+  id: ResourceIdSchema,
+  cancelled_order_id: ResourceIdSchema,
+});
 
 /** One place a merchant takes money at. */
 export type SquareLocation = {
@@ -221,5 +233,6 @@ export const squareAnswer = {
   order: readAnswer(OrderAnswer),
   payment: readAnswer(PaymentAnswer),
   paymentLink: readAnswer(PaymentLinkAnswer),
+  deletedPaymentLink: readAnswer(DeletePaymentLinkAnswer),
   refund: readAnswer(RefundAnswer),
 };

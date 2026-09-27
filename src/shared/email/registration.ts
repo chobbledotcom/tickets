@@ -1,9 +1,7 @@
 import { toBase64 } from "#crypto/utils.ts";
 import { settings } from "#db/settings.ts";
-import {
-  type FreeTextAnswers,
-  loadOrderAnswerLines,
-} from "#shared/email/answers.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
+import { loadSubmittedAnswerLines } from "#shared/email/answer-receipt.ts";
 import {
   deliverRegistrationEmail,
   type EmailAttachment,
@@ -106,30 +104,35 @@ const buildTicketAttachments = async (
   }));
 };
 
-export const sendRegistrationEmails = async (
+export const renderRegistrationEmailMessages = async (
   entries: EmailEntry[],
   currency: string,
   suppliedFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
-): Promise<RegistrationDeliveryResult> => {
+): Promise<{
+  config: EmailConfig;
+  messages: { recipient: "buyer" | "business"; message: EmailMessage }[];
+  templateErrors: unknown[];
+} | null> => {
   const delivery = registrationEmailDelivery(entries);
-  if (!delivery) return { failed: false };
+  if (!delivery) return null;
   const { attendeeEmail, businessEmail, config } = delivery;
   const facts =
     suppliedFacts === undefined
       ? await loadRegistrationPackageFacts(entries)
       : suppliedFacts;
-  const answerLines = await loadOrderAnswerLines(entries, freeTexts);
+  const answerLines = await loadSubmittedAnswerLines(entries, freeTexts);
   const ticketUrl = buildTicketUrl(entries);
-  const messages: EmailMessage[] = [];
+  const messages: { recipient: "buyer" | "business"; message: EmailMessage }[] = [];
   const templateErrors: unknown[] = [];
   const addRenderedMessage = (
     rendered: Awaited<ReturnType<typeof renderEmailContent>>,
     details: Pick<EmailMessage, "attachments" | "replyTo" | "to">,
+    recipient: "buyer" | "business",
   ): void => {
     const { errors, ...content } = rendered;
     templateErrors.push(...errors);
-    messages.push({ ...content, ...details });
+    messages.push({ recipient, message: { ...content, ...details } });
   };
 
   if (attendeeEmail) {
@@ -147,7 +150,7 @@ export const sendRegistrationEmails = async (
       attachments,
       replyTo: businessEmail || undefined,
       to: attendeeEmail,
-    });
+    }, "buyer");
   }
 
   if (businessEmail) {
@@ -159,11 +162,29 @@ export const sendRegistrationEmails = async (
     addRenderedMessage(rendered, {
       replyTo: attendeeEmail || undefined,
       to: businessEmail,
-    });
+    }, "business");
   }
 
+  return { config, messages, templateErrors };
+};
+
+export const sendRegistrationEmails = async (
+  entries: EmailEntry[],
+  currency: string,
+  suppliedFacts?: RegistrationPackageFacts,
+  freeTexts?: FreeTextAnswers,
+): Promise<RegistrationDeliveryResult> => {
+  const prepared = await renderRegistrationEmailMessages(
+    entries,
+    currency,
+    suppliedFacts,
+    freeTexts,
+  );
+  if (!prepared) return { failed: false };
   return await waitForRegistrationDeliveries([
-    ...messages.map((message) => deliverRegistrationEmail(config, message)),
-    ...templateErrors.map((error) => Promise.reject(error)),
+    ...prepared.messages.map(({ message }) =>
+      deliverRegistrationEmail(prepared.config, message)
+    ),
+    ...prepared.templateErrors.map((error) => Promise.reject(error)),
   ]);
 };

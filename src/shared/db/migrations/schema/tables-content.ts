@@ -53,6 +53,46 @@ export const contentTables: [name: string, table: Table][] = [
   ],
 
   [
+    // One durable send per registration recipient. Completed rows keep only an
+    // opaque work id so a replay cannot send the same message again.
+    "registration_email_work",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["work_id", "TEXT NOT NULL"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        [
+          "recipient",
+          "TEXT NOT NULL CHECK (recipient IN ('buyer', 'business', 'none'))",
+        ],
+        ["state", "TEXT NOT NULL CHECK (state IN ('due', 'sending', 'complete'))"],
+        ["sealed", "TEXT NOT NULL"],
+        ["wrapped_key", "TEXT NOT NULL"],
+        ["next_attempt_at", "TEXT NOT NULL"],
+        ["lease_until", "TEXT NOT NULL DEFAULT ''"],
+        ["claim_token", "TEXT NOT NULL DEFAULT ''"],
+        ["attempts", "INTEGER NOT NULL DEFAULT 0"],
+        ["created_at", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["work_id", "recipient"],
+          name: "idx_registration_email_work_identity",
+          unique: true,
+        },
+        {
+          columns: ["state", "next_attempt_at"],
+          name: "idx_registration_email_work_due",
+        },
+        {
+          columns: ["attendee_id"],
+          name: "idx_registration_email_work_attendee",
+        },
+      ],
+    },
+  ],
+
+  [
     // Lean, PII-free map from the gateway's message id to the attendee it was
     // sent to, so delivery/failure webhooks can be logged against the right
     // attendee. Message content and recipient numbers live only in the

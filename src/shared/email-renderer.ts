@@ -11,11 +11,8 @@ import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { lazyRef, map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
-import {
-  type AnswerLine,
-  loadOrderAnswerLines,
-  type OrderAnswerLines,
-} from "#shared/email/answers.ts";
+import { type AnswerLine, type OrderAnswerLines } from "#shared/email/answers.ts";
+import { loadSubmittedAnswerLines } from "#shared/email/answer-receipt.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
@@ -225,13 +222,11 @@ const orderDisplayNames: FromOrderEntries<string> = (entries, displays) =>
     )(entryGroupsBy(entries, displays, () => true)),
   );
 
-/** A single row standing in for a hidden package's members: the package name,
- * the buyer's contact, and the bundle's summed quantity/price — so the buyer's
- * confirmation never reveals the member listings (the admin email keeps them).
- * The row carries no answers, for the same reason: the members stay hidden. */
+/** A hidden package keeps one structural row but all submitted answers. */
 const collapsedPackageEntry = (
   entries: EmailEntry[],
   packageName: string,
+  answers: readonly AnswerLine[],
 ): TemplateEntry => {
   const base = toTemplateEntry(entries[0]!, []);
   const summary = collapsedPackageSummary(entries);
@@ -241,7 +236,7 @@ const collapsedPackageEntry = (
   return {
     attendee: {
       ...base.attendee,
-      answers: [],
+      answers: [...answers],
       date: dated?.date ?? null,
       date_range_label: dated?.date_range_label ?? "",
       price_paid: summary.pricePaid,
@@ -275,7 +270,7 @@ export const buildTemplateData = async (
 ): Promise<TemplateData> => {
   const displays =
     options.packageDisplays ?? (await packageDisplaysForRows(entries));
-  const answers = options.answerLines ?? (await loadOrderAnswerLines(entries));
+  const answers = options.answerLines ?? (await loadSubmittedAnswerLines(entries));
   // The loader fills every (attendee, listing) pair the entries name, so a
   // miss here is broken data, not an unanswered question.
   const entryAnswers = (entry: EmailEntry): AnswerLine[] =>
@@ -294,7 +289,11 @@ export const buildTemplateData = async (
     ? buyerEntryGroups(entries, displays).map((group) =>
         group.hiddenPackageName === undefined
           ? toTemplateEntry(group.entries[0]!, entryAnswers(group.entries[0]!))
-          : collapsedPackageEntry(group.entries, group.hiddenPackageName),
+          : collapsedPackageEntry(
+            group.entries,
+            group.hiddenPackageName,
+            group.entries.flatMap(entryAnswers),
+          ),
       )
     : map((entry: EmailEntry) => toTemplateEntry(entry, entryAnswers(entry)))(
         entries,

@@ -311,20 +311,31 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   [
-    // Free-text answers staged between checkout creation and payment
-    // completion, so the buyer's confirmation email can show what they typed
-    // without spending the owner key at webhook time. Sealed with
-    // DB_ENCRYPTION_KEY and keyed by the HMAC of the session id: for SumUp
-    // the session id is the checkout reference, which must never rest in this
-    // database (see sumup_checkouts for why). The row is deleted the moment
-    // the completion reads it. Survivors prune on the payments clock, which
-    // covers provider retry windows and Square links that never expire.
+    // Checkout and email work uses a separate deployment secret. An open Square
+    // link remains payable until Square confirms cancellation, so its staged
+    // text cannot expire on an unconditional retention clock.
     "checkout_pending_answers",
     {
       columns: [
         ["session_index", "TEXT PRIMARY KEY"],
         ["sealed", "TEXT NOT NULL"],
         ["created_at", "TEXT NOT NULL"],
+        ["wrapped_key", "TEXT NOT NULL DEFAULT ''"],
+        ["provider", "TEXT NOT NULL DEFAULT ''"],
+        ["state", "TEXT NOT NULL DEFAULT 'open'"],
+        ["next_check_at", "TEXT"],
+        ["claim_token", "TEXT NOT NULL DEFAULT ''"],
+        ["attendee_id", "INTEGER"],
+      ],
+      indexes: [
+        {
+          columns: ["provider", "state", "next_check_at"],
+          name: "idx_checkout_pending_answers_due",
+        },
+        {
+          columns: ["attendee_id"],
+          name: "idx_checkout_pending_answers_attendee",
+        },
       ],
     },
   ],

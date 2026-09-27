@@ -32,6 +32,10 @@ import type {
   TicketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import {
+  saveSubmittedAnswerReceipts,
+  submittedAnswersForCheckout,
+} from "#shared/email/answer-receipt.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { computeListingTextAnswerIdMap } from "./parse.ts";
 
@@ -65,6 +69,11 @@ export const handlePaidPath = async (
   if (!available) {
     return ticketFormErrorResponse(ctx)(TICKETS_UNAVAILABLE_MESSAGE);
   }
+  intent.submittedAnswers = submittedAnswersForCheckout(
+    intent.items,
+    info,
+    ctx.questionListingMap,
+  );
   // Create the encrypted free-text strings only once availability is confirmed,
   // so a rejected over-capacity submission never leaves orphaned plaintext rows.
   const listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
@@ -129,6 +138,11 @@ export const handleFreePath = async (
     ledgerOrder,
     allocations,
   } = params;
+  const submittedAnswers = submittedAnswersForCheckout(
+    items,
+    info,
+    ctx.questionListingMap,
+  );
   const result = await createFreeReservation({
     allocations,
     contact,
@@ -170,6 +184,7 @@ export const handleFreePath = async (
       groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
     );
   }
+  await saveSubmittedAnswerReceipts(result.entries, submittedAnswers);
   await logAndNotifyRegistration(result.entries, { freeTexts, siteTokenIndex });
 
   // The caller resolves the redirect from the pre-fold listing set (a single

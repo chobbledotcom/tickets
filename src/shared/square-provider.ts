@@ -255,7 +255,7 @@ const createSquareCheckoutSession = makeCreateCheckoutSession(
   // A lambda, not the member itself: the checkout builder is captured once
   // at module load, and resolving the member per call keeps test stubs live.
   (intent, baseUrl) => squareApi.createPaymentLink(intent, baseUrl),
-  (link) => ({ id: link.orderId, url: link.url }),
+  (link) => ({ id: link.orderId, url: link.url, squareLinkId: link.id }),
 );
 
 /** Square payment provider implementation */

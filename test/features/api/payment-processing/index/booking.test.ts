@@ -171,6 +171,38 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     );
   });
 
+  test("a paid replay saves answers after the first completion fails", async () => {
+    const id = "cs_replay_answer_save";
+    const { data, freeText, listing } = await checkoutWithTypedAnswer(id);
+    await configureTestEmail();
+    await execute(
+      `CREATE TRIGGER block_paid_answer_save
+       BEFORE INSERT ON attendee_answers
+       BEGIN SELECT RAISE(FAIL, 'blocked answer save'); END`,
+      [],
+    );
+
+    await expect(processPaymentSession(id, data)).rejects.toThrow(
+      "blocked answer save",
+    );
+    await execute("DROP TRIGGER block_paid_answer_save", []);
+    const [booked] = await getAttendeesRaw(listing.id);
+    expect(booked?.quantity).toBe(1);
+
+    await runWithPendingWork(async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+
+    expect(
+      await queryOne<{ question_id: number }>(
+        "SELECT question_id FROM attendee_answers WHERE attendee_id = ?",
+        [booked?.id],
+      ),
+    ).toEqual({ question_id: freeText });
+    expect(fetch.getFetchJsonBody().text).toContain("Arriving late");
+    expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
+  });
+
   test("logs loudly when a late payment outlives its staged answers", async () => {
     const id = "cs_stale_row";
     using errors = spy(console, "error");

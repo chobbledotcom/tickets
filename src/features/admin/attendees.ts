@@ -27,6 +27,7 @@ import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
+import { loadSubmittedFreeTexts } from "#shared/email/answer-receipt.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
@@ -296,18 +297,21 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
-  // An admin session can spend the owner key, so the resend is the one path
-  // that reads the buyer's free-text answers straight from the strings table.
-  const freeTexts =
-    (
-      await getAttendeeTextAnswersBatch(
-        [attendeeId],
-        await requireRequestPrivateKey(),
-      )
-    ).get(attendeeId) ?? new Map<number, string>();
+  const entries = await resendEntries(data);
+  const privateKey = await requireRequestPrivateKey();
+  const current = await getAttendeeTextAnswersBatch(
+    entries.map((entry) => entry.attendee.id),
+    privateKey,
+  );
+  const freeTexts = new Map(
+    [...current.values()].flatMap((answers) => [...answers]),
+  );
+  for (const [questionId, text] of await loadSubmittedFreeTexts(entries, privateKey)) {
+    freeTexts.set(questionId, text);
+  }
 
   await Promise.all([
-    logAndNotifyRegistration(await resendEntries(data), { freeTexts }),
+    logAndNotifyRegistration(entries, { freeTexts }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,
       data.listing.id,

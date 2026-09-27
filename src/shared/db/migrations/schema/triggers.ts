@@ -319,6 +319,36 @@ END`,
   },
 ];
 
+const RECEIPT_STRING_USES = {
+  submitted_answer_receipt_lines: ["string_id"],
+  strings: ["used_count"],
+} as const;
+
+const RECEIPT_STRING_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_submitted_answer_receipt_strings_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_submitted_answer_receipt_strings_insert
+AFTER INSERT ON submitted_answer_receipt_lines
+WHEN NEW.string_id IS NOT NULL
+BEGIN
+  UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
+END`,
+    table: "submitted_answer_receipt_lines",
+    uses: RECEIPT_STRING_USES,
+  },
+  {
+    name: "trg_submitted_answer_receipt_strings_delete",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_submitted_answer_receipt_strings_delete
+AFTER DELETE ON submitted_answer_receipt_lines
+WHEN OLD.string_id IS NOT NULL
+BEGIN
+  UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
+END`,
+    table: "submitted_answer_receipt_lines",
+    uses: RECEIPT_STRING_USES,
+  },
+];
+
 /** Every declared aggregate and validation trigger. */
 export const TRIGGERS: Trigger[] = [
   ...ADMIN_FEATURE_TRIGGERS,
@@ -328,4 +358,5 @@ export const TRIGGERS: Trigger[] = [
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
   ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
+  ...RECEIPT_STRING_TRIGGERS,
 ];

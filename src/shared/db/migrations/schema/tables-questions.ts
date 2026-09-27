@@ -217,6 +217,42 @@ export const questionTables: [name: string, table: Table][] = [
   ],
 
   [
+    "submitted_answer_receipts",
+    {
+      columns: [
+        ["attendee_id", "INTEGER PRIMARY KEY"],
+        ["listing_id", "INTEGER NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    "submitted_answer_receipt_lines",
+    {
+      columns: [
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["ordinal", "INTEGER NOT NULL"],
+        ["question_id", "INTEGER NOT NULL"],
+        ["kind", "TEXT NOT NULL CHECK (kind IN ('choice', 'free_text'))"],
+        ["question", "TEXT NOT NULL"],
+        ["choice_text", "TEXT"],
+        ["string_id", "INTEGER"],
+      ],
+      indexes: [
+        {
+          columns: ["attendee_id", "ordinal"],
+          name: "idx_submitted_answer_receipt_lines_unique",
+          unique: true,
+        },
+        {
+          columns: ["string_id"],
+          name: "idx_submitted_answer_receipt_lines_string_id",
+        },
+      ],
+    },
+  ],
+
+  [
     // Notes the operator sees on a record, named by which kind of record they
     // are about (`entity_type`) and which one (`entity_id`). `note` is always
     // stored encrypted — a `system` note (auto-generated, e.g. the
