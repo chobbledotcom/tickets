@@ -11,6 +11,7 @@ describe("admin roles", () => {
       ["manager", false],
       ["agent", false],
       ["editor", false],
+      ["scanner", false],
     ]);
   });
 });
