@@ -11,8 +11,6 @@ import {
   type AttendeeFormLine,
   isPaymentLockedLine,
   isRetainedLine,
-  SHOW_ALL_FIELD,
-  SHOW_PACKAGE_PATHS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -29,6 +27,14 @@ import type {
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+
+/** Checkbox that reveals the not-booked listing rows when at least one line is
+ * already booked (pure-CSS, never parsed; omitted on a bare create form, which
+ * shows every listing). */
+const SHOW_ALL_FIELD = "show_all";
+/** Checkbox that reveals the blank package-path lines (pure CSS, never
+ * parsed) — one line per (package, member) path the attendee could book. */
+const SHOW_PACKAGE_PATHS_FIELD = "show_package_paths";
 
 /* jscpd:ignore-end */
 

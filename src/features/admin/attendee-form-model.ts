@@ -44,13 +44,6 @@ import {
 
 /** Shared day count (range length) for every daily listing. */
 export const DAY_COUNT_FIELD = "day_count";
-/** Checkbox that reveals the not-booked listing rows when at least one line is
- * already booked (pure-CSS, never parsed; omitted on a bare create form, which
- * shows every listing). */
-export const SHOW_ALL_FIELD = "show_all";
-/** Checkbox that reveals the blank package-path lines (pure CSS, never
- * parsed) — one line per (package, member) path the attendee could book. */
-export const SHOW_PACKAGE_PATHS_FIELD = "show_package_paths";
 export const STATUS_FIELD = "status_id";
 export { START_DATE_FIELD };
 

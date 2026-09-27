@@ -13,7 +13,10 @@ import {
   loadPaymentMoveSnapshot,
   type PaymentMoveSnapshot,
 } from "#db/payment-admit-move.ts";
-import type { RefundPaymentReferenceSet } from "#db/payment-references.ts";
+import {
+  hasAnyPaymentReference,
+  type RefundPaymentReferenceSet,
+} from "#db/payment-references.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
@@ -236,7 +239,7 @@ const overviewTab: TabDef<AttendeePageEntity> = {
           }),
         ),
     },
-    customSection(async ({ attendee, existing, paymentReferences }) => {
+    customSection(async ({ attendee, existing }) => {
       const renderListings = await getRenderListings(existing);
       // The read-only bookings table needs no blank path lines.
       const { parsed } = buildEditFormFromAttendee(
@@ -249,19 +252,20 @@ const overviewTab: TabDef<AttendeePageEntity> = {
       // whether the buyer has a site at all — not per row. A sale that never
       // completed cannot owe a site, so an incomplete payment shows no cue.
       const bookings = attendeeBookingsFromLines(parsed.lines);
+      // The table gates each row on quantity and refund itself.
       const planListingIds = bookings
-        .filter((booking) => booking.assignBuiltSite && booking.quantity >= 1)
+        .filter((booking) => booking.assignBuiltSite)
         .map((booking) => booking.listingId);
       return AttendeeBookingsTable({
         bookings,
         planSaleMissingSite:
           planListingIds.length > 0 &&
+          // The same test the failed-payments delete uses.
           !isIncompletePayment(
             attendee,
             // A site plan is a paid listing by definition.
             true,
-            paymentReferences.kind === "complete" &&
-              paymentReferences.references.length > 0,
+            await hasAnyPaymentReference(attendee),
           ) &&
           !(await hasAssignedBuiltSite(attendee.id, planListingIds)),
       });
