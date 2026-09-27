@@ -8,6 +8,7 @@
  */
 
 import { join } from "node:path";
+import { errorMessage } from "#shared/error-message.ts";
 import { delay } from "#shared/now.ts";
 import { stripeMock } from "#shared/stripe/mock.ts";
 import { withFileLock } from "./lock-file.ts";
@@ -302,7 +303,16 @@ const attemptStartStripeMock = async (
 
   if (configuredPort) await downloadStripeMock(options);
 
-  const spawned = spawnStripeMock(paths, port);
+  // A spawn the machine refuses counts as a failed try like any other, so it
+  // retries and the thrown error names the refusal (a raw "Text file busy"
+  // under load used to escape unwrapped).
+  let spawned: SpawnedStripeMock;
+  try {
+    spawned = spawnStripeMock(paths, port);
+  } catch (error) {
+    return { error: errorMessage(error), kind: "retry" };
+  }
+
   const { stopTimeoutMs = STOP_TIMEOUT_MS } = options;
 
   if (await confirmOwnedStripeMock(options, port, spawned)) {
