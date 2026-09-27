@@ -85,9 +85,11 @@ export const InactiveNote = ({
   );
 
 type BookingTableContext = {
-  assignedListingIds: Set<number>;
   childNamesByParentId: Map<number, string[]>;
   nameByListingId: Map<number, string>;
+  /** True when a completed, unrefunded plan sale has no site for this
+   * buyer — the repair cue then shows on every plan row. */
+  planSaleMissingSite: boolean;
 };
 
 const bookingColumns: readonly TableColumn<
@@ -109,7 +111,8 @@ const bookingColumns: readonly TableColumn<
       ) : null}
       {booking.assignBuiltSite &&
       booking.quantity >= 1 &&
-      !context.assignedListingIds.has(booking.listingId) ? (
+      !booking.refunded &&
+      context.planSaleMissingSite ? (
         <div class="muted small">{t("attendee_detail.no_site_assigned")}</div>
       ) : null}
       {context.childNamesByParentId.has(booking.listingId) ? (
@@ -154,13 +157,13 @@ const bookingsTable = defineTable(bookingColumns);
  * count. Returns null when nothing is booked so the caller can drop the section.
  */
 export const AttendeeBookingsTable = ({
-  assignedListingIds,
   bookings,
+  planSaleMissingSite,
 }: {
-  /** The listings this attendee already holds an assigned site from, so a
-   * plan booking without one can show its repair cue. */
-  assignedListingIds: readonly number[];
   bookings: AttendeeBooking[];
+  /** One site serves every plan row this buyer holds, so the cue is a
+   * single buyer-level fact, not a per-row listing check. */
+  planSaleMissingSite: boolean;
 }): JSX.Element | null => {
   if (bookings.length === 0) return null;
   const totalQuantity = sumOf((b: AttendeeBooking) => b.quantity)(bookings);
@@ -185,9 +188,9 @@ export const AttendeeBookingsTable = ({
       <h3>{t("terms.bookings")}</h3>
       {renderTable(bookingsTable, bookings, {
         context: {
-          assignedListingIds: new Set(assignedListingIds),
           childNamesByParentId,
           nameByListingId,
+          planSaleMissingSite,
         },
         foot: (
           <tr>

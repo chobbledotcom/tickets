@@ -23,14 +23,14 @@ const booking = (
 
 const renderBookings = (
   bookings: AttendeeBooking[],
-  assignedListingIds: number[] = [],
-): string => String(AttendeeBookingsTable({ assignedListingIds, bookings }));
+  planSaleMissingSite = false,
+): string => String(AttendeeBookingsTable({ bookings, planSaleMissingSite }));
 
 describe("AttendeeBookingsTable", () => {
   test("returns null when the attendee has no bookings", () => {
     // Null lets the caller drop the whole section.
     expect(
-      AttendeeBookingsTable({ assignedListingIds: [1], bookings: [] }),
+      AttendeeBookingsTable({ bookings: [], planSaleMissingSite: true }),
     ).toBeNull();
   });
 
@@ -87,18 +87,28 @@ describe("AttendeeBookingsTable", () => {
       assignBuiltSite: true,
       listingName: "One Month Site",
     });
-    expect(renderBookings([planLine])).toContain(
+    expect(renderBookings([planLine], true)).toContain(
       '<div class="muted small">No site assigned yet</div>',
     );
-    expect(renderBookings([planLine], [planLine.listingId])).not.toContain(
-      "No site assigned yet",
-    );
+    // The buyer already holds a site, so no plan row shows the cue.
+    expect(renderBookings([planLine])).not.toContain("No site assigned yet");
     // An ordinary listing never reads as owed a site, and a no-quantity
     // plan line bought nothing.
     expect(
-      renderBookings([booking({ assignBuiltSite: true, quantity: 0 })]),
+      renderBookings([booking({ assignBuiltSite: true, quantity: 0 })], true),
     ).not.toContain("No site assigned yet");
-    expect(renderBookings([booking({ listingName: "Concert" })])).not.toContain(
+    expect(
+      renderBookings([booking({ listingName: "Concert" })], true),
+    ).not.toContain("No site assigned yet");
+  });
+
+  test("shows no repair cue on a refunded plan booking", () => {
+    const refundedPlan = booking({
+      assignBuiltSite: true,
+      listingName: "Refunded Site",
+      refunded: true,
+    });
+    expect(renderBookings([refundedPlan], true)).not.toContain(
       "No site assigned yet",
     );
   });

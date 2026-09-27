@@ -106,6 +106,14 @@ test("the custom-domain answer notes when its section is absent", () => {
   );
 });
 
+test("the out-of-stock answer gates its promises on an email provider", () => {
+  const html = String(renderGuideSections(domainsSections(hostConfig())));
+  expect(html).toContain("When an email provider is set up");
+  // The Built Sites page is owner-only, so the answer must not link it.
+  expect(html).not.toContain('href="/admin/built-sites"');
+  expect(html).toContain("Built Sites");
+});
+
 test("the answers name the request-hostname fallback", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The system keeps the raw request hostname — a bunny.run request keeps

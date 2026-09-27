@@ -6,7 +6,7 @@
  */
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { getAssignedListingIdsForAttendee } from "#db/built-sites.ts";
+import { hasAssignedBuiltSite } from "#db/built-sites.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {
@@ -51,6 +51,7 @@ import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-p
 import { adminPattern } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   AttendeeAnswersTable,
@@ -235,7 +236,7 @@ const overviewTab: TabDef<AttendeePageEntity> = {
           }),
         ),
     },
-    customSection(async ({ attendee, existing }) => {
+    customSection(async ({ attendee, existing, paymentReferences }) => {
       const renderListings = await getRenderListings(existing);
       // The read-only bookings table needs no blank path lines.
       const { parsed } = buildEditFormFromAttendee(
@@ -244,9 +245,25 @@ const overviewTab: TabDef<AttendeePageEntity> = {
         renderListings,
         [],
       );
+      // One site serves every plan row this buyer holds, so the cue asks
+      // whether the buyer has a site at all — not per row. A sale that never
+      // completed cannot owe a site, so an incomplete payment shows no cue.
+      const bookings = attendeeBookingsFromLines(parsed.lines);
+      const planListingIds = bookings
+        .filter((booking) => booking.assignBuiltSite && booking.quantity >= 1)
+        .map((booking) => booking.listingId);
       return AttendeeBookingsTable({
-        assignedListingIds: await getAssignedListingIdsForAttendee(attendee.id),
-        bookings: attendeeBookingsFromLines(parsed.lines),
+        bookings,
+        planSaleMissingSite:
+          planListingIds.length > 0 &&
+          !isIncompletePayment(
+            attendee,
+            // A site plan is a paid listing by definition.
+            true,
+            paymentReferences.kind === "complete" &&
+              paymentReferences.references.length > 0,
+          ) &&
+          !(await hasAssignedBuiltSite(attendee.id, planListingIds)),
       });
     }),
     customSection(async ({ attendee, existing }) => {

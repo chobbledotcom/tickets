@@ -6,13 +6,11 @@ import {
   builtSites,
   builtSitesCrudTable,
   getAssignableBuiltSites,
-  getAssignedListingIdsForAttendee,
   getBuiltSiteByRenewalTokenIndex,
   hasAssignedBuiltSite,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
-import { execute } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("assignable built sites", { db: true }, () => {
@@ -35,25 +33,6 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       "Site C",
     ]);
   });
-  test("getAssignedListingIdsForAttendee lists only this attendee's claimed listings", async () => {
-    await insertBuiltSite("Mine", "mine.test", "", "", true);
-    await insertBuiltSite("Theirs", "theirs.test", "", "", true);
-    const sites = await builtSites.getAll();
-    const mine = sites.find((s) => s.name === "Mine")!;
-    const theirs = sites.find((s) => s.name === "Theirs")!;
-    await takePooledSiteForBuyer([mine], 42, [7], 7);
-    await takePooledSiteForBuyer([theirs], 99, [8], 8);
-    // A hand-repaired row can carry an attendee with no listing; the page
-    // must read it as "no listing this attendee was served on".
-    await execute(
-      "UPDATE built_sites SET assigned_attendee_id = 42, assigned_listing_id = NULL WHERE id = ?",
-      [theirs.id],
-    );
-
-    expect(await getAssignedListingIdsForAttendee(42)).toEqual([7]);
-    expect(await getAssignedListingIdsForAttendee(1234)).toEqual([]);
-  });
-
   test("hasAssignedBuiltSite reads the buyer's assignment", async () => {
     await insertBuiltSite("Assigned", "assigned.b-cdn.net", "", "", true);
     const pool = await getAssignableBuiltSites();
