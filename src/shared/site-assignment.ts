@@ -250,10 +250,10 @@ export const rotateRenewalToken = async (
 
 const completeUnfinishedRenewal = async (
   attendeeId: number,
-  listingId: number,
+  listingIds: readonly number[],
   months: number,
 ): Promise<void> => {
-  const claimed = await siteClaimedByBuyer(attendeeId, listingId);
+  const claimed = await siteClaimedByBuyer(attendeeId, listingIds);
   // A set renewal index means the first push already provisioned the site.
   if (claimed !== null && !claimed.renewalTokenIndex) {
     await provisionSiteRenewal(
@@ -308,17 +308,18 @@ const assignSitesForEntries = async (
         e.listing.initial_site_months * e.attendee.quantity,
     )(booked);
 
+    const planListingIds = booked.map((e) => e.listing.id);
     const listingName = unique(booked.map((e) => e.listing.name)).join(" + ");
     const take = await takePooledSiteForBuyer(
       available,
       first.attendee.id,
-      booked.map((e) => e.listing.id),
+      planListingIds,
       first.listing.id,
     );
     if (take.kind === "served") {
       await completeUnfinishedRenewal(
         first.attendee.id,
-        first.listing.id,
+        planListingIds,
         months,
       );
       continue;

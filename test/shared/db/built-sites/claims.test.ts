@@ -88,9 +88,12 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     const pool = await getAssignableBuiltSites();
     await takePooledSiteForBuyer(pool, 42, [7], 7);
 
-    const claimed = await siteClaimedByBuyer(42, 7);
+    const claimed = await siteClaimedByBuyer(42, [7]);
     expect(claimed?.id).toBe(site.id);
-    expect(await siteClaimedByBuyer(42, 8)).toBeNull();
+    expect(await siteClaimedByBuyer(42, [8])).toBeNull();
+    // A combined purchase records only its first listing, so the lookup
+    // must find the claim through any of the buyer's plan listings.
+    expect((await siteClaimedByBuyer(42, [8, 7]))?.id).toBe(site.id);
   });
 
   test("keeps an assignment made during scheduler-key provisioning", async () => {

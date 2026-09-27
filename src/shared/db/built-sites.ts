@@ -324,15 +324,33 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
  * listing_attendees check) would otherwise survive behind a hidden line. One
  * query over all the IDs; callers pass a non-empty list.
  */
-export const assignedBuiltSiteExistsStatement = (
+/** One statement over a buyer's site assignments: the select list and the
+ * trailing clause vary, the attendee and the listing filter do not. */
+export const buyerAssignmentStatement = (
+  { select, tail = "" }: { select: string; tail?: string },
   attendeeId: number,
   listingIds: readonly number[],
 ): SqlStatement => ({
   args: [attendeeId, ...listingIds],
-  sql: `SELECT 1 FROM built_sites
+  sql: `SELECT ${select} FROM built_sites
      WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${inPlaceholders(listingIds)}) LIMIT 1`,
+       AND assigned_listing_id IN (${inPlaceholders(listingIds)})${tail}`,
 });
+
+/** A statement scoped to one buyer's plan listings. */
+export type BuyerPlanStatement = (
+  attendeeId: number,
+  listingIds: readonly number[],
+) => SqlStatement;
+
+/** Curry the buyer-assignment statement over its select list and tail. */
+export const buyerAssignmentStatementFor =
+  (parts: { select: string; tail?: string }): BuyerPlanStatement =>
+  (attendeeId, listingIds) =>
+    buyerAssignmentStatement(parts, attendeeId, listingIds);
+
+export const assignedBuiltSiteExistsStatement: BuyerPlanStatement =
+  buyerAssignmentStatementFor({ select: "1", tail: " LIMIT 1" });
 
 export const hasAssignedBuiltSite = async (
   attendeeId: number,
