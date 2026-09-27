@@ -6,6 +6,7 @@ import {
   advancedPageHtml,
   describeCustomDomain,
 } from "#test/features/admin/settings-domains/support.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { mockRequestWithHost } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 
@@ -20,7 +21,20 @@ describeCustomDomain("custom domain settings page", (enable) => {
     enable();
     const html = await advancedPageHtml();
     expect(html).toContain('id="settings-custom-domain"');
-    expect(html).toContain("Custom Domain");
+    expect(html).toContain("Custom domain");
+  });
+
+  test("leads with the host subdomain section, above the custom domain section", async () => {
+    enable();
+    using _env = withEnv({
+      BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.test",
+      BUNNY_DNS_ZONE_ID: "zone-id",
+    });
+    const html = await advancedPageHtml();
+    expect(html).toContain('id="settings-host-subdomain"');
+    expect(html.indexOf('id="settings-host-subdomain"')).toBeLessThan(
+      html.indexOf('id="settings-custom-domain"'),
+    );
   });
 
   test("hides validation when no custom domain is saved", async () => {
@@ -35,6 +49,10 @@ describeCustomDomain("custom domain settings page", (enable) => {
     await settings.update.customDomain("tickets.example.com");
     const html = await advancedPageHtml();
     expect(html).toContain('id="settings-custom-domain-validate"');
+    expect(html).toContain("Make one CNAME record like this:");
+    expect(html).toContain(
+      "Open the DNS settings for your domain. These are often with the company you bought it from.",
+    );
     expect(html).toContain("CNAME");
     expect(html).toContain("tickets.example.com");
     expect(html).toContain("mysite.b-cdn.net");

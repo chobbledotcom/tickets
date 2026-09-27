@@ -6,7 +6,7 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import { toAdminListing } from "#routes/admin/api.ts";
+import { type AdminApiAttendee, toAdminListing } from "#routes/admin/api.ts";
 import type {
   CreateGroupBody,
   UpdateGroupBody,
@@ -135,13 +135,44 @@ const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",
 } satisfies DeleteBody;
 
+/** Example attendee booking row, exactly as the attendees endpoint answers
+ * with it: the decrypted roster row minus the sealed PII blob and its blind
+ * index. A standard listing holds no booking date, so both span fields are
+ * null; a daily listing would carry its booked day number instead. */
+const ADMIN_API_EXAMPLE_ATTENDEE = {
+  address: "12 Main Street, Springfield",
+  attachment_downloads: 0,
+  checked_in: false,
+  created: "2026-06-01T10:00:00.000Z",
+  date: null,
+  email: "jane@example.com",
+  end_date: null,
+  id: 7,
+  kind: "attendee",
+  lat: "",
+  listing_id: 4,
+  lng: "",
+  name: "Jane Doe",
+  package_group_id: 0,
+  payment_id: "pi_3Qx1aB2c",
+  phone: "+1 555 0123",
+  price_paid: "5000",
+  quantity: 2,
+  refunded: false,
+  remaining_balance: 0,
+  special_instructions: "Vegetarian",
+  split_logistics_agents: false,
+  status_id: 3,
+  ticket_token: "tok_9f3c7a1b",
+} satisfies AdminApiAttendee;
+
 /** The booking window a listing gets when its create body says nothing. */
 const LISTING_DEFAULT_DAYS_AFTER =
   listingCatalogFields.maximumDaysAfter[1].default!();
 
 /** The five standard admin-CRUD doc entries for a resource. Descriptions are
- *  passed in (they carry per-resource wording — "an listing", the holiday
- *  "owner only" notes), so this shares only the method/path/request/response
+ *  passed in (they carry per-resource wording, such as the holiday's owner-only
+ *  note), so this shares only the method/path/request/response
  *  shape every resource repeats. `desc` is [list, get, create, update, delete]. */
 const crudDocs = (c: {
   singular: string;
@@ -215,8 +246,8 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "List all listings with attendee counts",
       "Get a single listing by ID",
       "Create a new listing",
-      "Update an listing (all fields optional)",
-      "Delete an listing (requires name confirmation)",
+      "Update a listing (all fields optional)",
+      "Delete a listing (requires name confirmation)",
     ],
     example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
     freshRecord: Object.fromEntries(
@@ -238,7 +269,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     updateBody: ADMIN_API_UPDATE_BODY,
   }),
   {
-    description: "Deactivate an listing",
+    description: "Deactivate a listing",
     method: "POST",
     path: "/api/admin/listings/:listingId/deactivate",
     response: json({
@@ -252,6 +283,12 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     response: json({
       listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: true },
     }),
+  },
+  {
+    description: "List the attendees booked on a listing",
+    method: "GET",
+    path: "/api/admin/listings/:listingId/attendees",
+    response: json({ attendees: [ADMIN_API_EXAMPLE_ATTENDEE] }),
   },
   ...crudDocs({
     createBody: ADMIN_API_GROUP_CREATE_BODY,

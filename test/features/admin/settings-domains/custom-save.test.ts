@@ -74,7 +74,7 @@ describeCustomDomain("POST /admin/settings/custom-domain", (enable) => {
         const { response } = await post("tickets.example.com");
         expectRedirectWithFlash(
           REDIRECT,
-          expect.stringContaining("validation failed"),
+          expect.stringContaining("Validation failed: DNS not configured"),
           false,
         )(response);
         expectFlash(
