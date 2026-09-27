@@ -130,9 +130,12 @@ One new write beside checkout creation, and one read plus delete at completion:
   posture as name, email, phone, address, and special instructions today.
 - The admin notification carries them to the configured business address. Same
   posture as the contact fields today.
-- The staged row is sealed with `DB_ENCRYPTION_KEY`, lives only while a checkout
-  is open, and is deleted or pruned after. For Stripe and Square this is
-  stronger than the contact block, which rests at the provider in plaintext.
+- The staged row is sealed with `DB_ENCRYPTION_KEY`. The completion deletes the
+  row when it reads it, and pruning removes the rest at the payments-retention
+  cutoff while the checkout is still open. A Square link can stay payable after
+  that cutoff, so a row can leave before its link stops taking payment. For
+  Stripe and Square this is stronger than the contact block, which rests at the
+  provider in plaintext.
 - The strings table keeps free text sealed to the owner key. No at-rest sealing
   changes.
 
