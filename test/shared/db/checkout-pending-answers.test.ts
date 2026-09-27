@@ -25,15 +25,25 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_sealed", { "7": "Coming by bus" });
 
     const row = await queryOne<{ sealed: string }>(
-      "SELECT sealed FROM checkout_pending_answers WHERE session_id = ?",
+      "SELECT sealed FROM checkout_pending_answers WHERE session_index = ?",
       ["cs_sealed"],
     );
     expect(row?.sealed).not.toContain("Coming by bus");
   });
 
+  test("rests only the hash of the session id, never the id itself", async () => {
+    await stageCheckoutAnswers("cs_reference", { "7": "text" });
+
+    const row = await queryOne<{ session_index: string }>(
+      "SELECT session_index FROM checkout_pending_answers",
+    );
+    // For SumUp the session id is the checkout reference, which must never
+    // rest in this database: the sumup_checkouts rows stay sealed without it.
+    expect(row?.session_index).not.toBe("cs_reference");
+  });
+
   test("takes the row away, so a second take finds nothing", async () => {
     await stageCheckoutAnswers("cs_taken", { "7": "Once only" });
-
     expect(await takeCheckoutAnswers("cs_taken")).toEqual(
       new Map([[7, "Once only"]]),
     );

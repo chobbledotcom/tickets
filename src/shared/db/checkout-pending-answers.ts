@@ -1,17 +1,19 @@
 /**
- * The free-text answers a buyer typed, staged beside their checkout.
+ * The free-text answers a buyer typed, staged beside their checkout: sealed
+ * with `DB_ENCRYPTION_KEY`, taken back by the completion in one round trip,
+ * deleted with that read, and pruned when a checkout is abandoned. The
+ * strings table keeps its owner-sealed copy, which the completion has no
+ * session to spend, and checkout metadata cannot carry the text because
+ * providers cap it.
  *
- * Free-text answer strings rest in the strings table sealed to the owner key,
- * and the payment completion (which sends the emails) has no session to spend
- * on that key. Checkout metadata cannot carry the text either, because
- * providers cap it. So the booking request stages the plaintext here, keyed by
- * the checkout session id and sealed with `DB_ENCRYPTION_KEY`, and the
- * completion takes it back in one round trip and deletes the row. Pruning
- * sweeps what an abandoned checkout leaves behind.
+ * Keyed by the HMAC of the session id, never the id itself: for SumUp it is
+ * the checkout reference, which must never rest in this database — with it,
+ * a dump plus the environment key could unwrap the SumUp staging rows.
  */
 
 /* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
@@ -20,7 +22,7 @@ import { stringRecordJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
 
-/** The sealed column, and nothing else: the lookup key is the session id the
+/** The sealed column, and nothing else: the lookup key is the index the
  * statement binds. */
 interface StagedRow {
   sealed: string;
@@ -35,13 +37,13 @@ export const stageCheckoutAnswers = async (
 ): Promise<void> => {
   if (!texts || Object.keys(texts).length === 0) return;
   await execute(
-    `INSERT INTO checkout_pending_answers (session_id, sealed, created_at)
+    `INSERT INTO checkout_pending_answers (session_index, sealed, created_at)
              VALUES (?, ?, ?)
-             ON CONFLICT(session_id) DO UPDATE SET
+             ON CONFLICT(session_index) DO UPDATE SET
                sealed = excluded.sealed,
                created_at = excluded.created_at`,
     [
-      sessionId,
+      await hmacHash(sessionId),
       await encrypt(stringRecordJson.write(texts, "checkout answers")),
       nowIso(),
     ],
@@ -57,9 +59,9 @@ export const takeCheckoutAnswers = async (
 ): Promise<FreeTextAnswers> => {
   const row = await queryOne<StagedRow>(
     `DELETE FROM checkout_pending_answers
-      WHERE session_id = ?
+      WHERE session_index = ?
       RETURNING sealed`,
-    [sessionId],
+    [await hmacHash(sessionId)],
   );
   if (row === null) return new Map();
   const staged = stringRecordJson.read(

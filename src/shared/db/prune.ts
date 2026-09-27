@@ -122,10 +122,13 @@ const pruneStatements = (): PruneStatement[] => [
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
   // Staged free-text answers whose checkout never completed. The completion
-  // deletes the row it reads, so anything this old belongs to an abandoned
-  // checkout, and only the strings table's sealed copy remains.
+  // deletes the row it reads, so anything this old belongs to a checkout no
+  // delivery will ever complete. The payments clock, not the SumUp clock,
+  // because Square payment links never expire: a buyer can pay one long
+  // after the SumUp staging window ends, and the row must still be there for
+  // that completion's emails.
   boundedDelete("checkout_pending_answers", "created_at < ?", [
-    isoBefore(PRUNE_SUMUP_RETENTION_MS),
+    isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
   ]),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),

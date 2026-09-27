@@ -314,14 +314,15 @@ export const attendeeTables: [name: string, table: Table][] = [
     // Free-text answers staged between checkout creation and payment
     // completion, so the buyer's confirmation email can show what they typed
     // without spending the owner key at webhook time. Sealed with
-    // DB_ENCRYPTION_KEY: weaker rows than the strings table hold brief, but
-    // checkout metadata cannot carry the text at all under provider caps, and
-    // the row is deleted the moment the completion reads it. Survivors prune
-    // on the same clock as the SumUp staging above.
+    // DB_ENCRYPTION_KEY and keyed by the HMAC of the session id: for SumUp
+    // the session id is the checkout reference, which must never rest in this
+    // database (see sumup_checkouts for why). The row is deleted the moment
+    // the completion reads it. Survivors prune on the payments clock, which
+    // covers provider retry windows and Square links that never expire.
     "checkout_pending_answers",
     {
       columns: [
-        ["session_id", "TEXT PRIMARY KEY"],
+        ["session_index", "TEXT PRIMARY KEY"],
         ["sealed", "TEXT NOT NULL"],
         ["created_at", "TEXT NOT NULL"],
       ],

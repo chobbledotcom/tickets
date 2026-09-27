@@ -76,11 +76,14 @@ One new write beside checkout creation, and one read plus delete at completion:
 
 - Checkout creation stores the order's free-text answers in a
   `checkout_pending_answers` row, sealed with `DB_ENCRYPTION_KEY`, keyed by the
-  provider checkout session id. The row holds the same question-id-to-text pairs
-  the buyer just typed. The strings table keeps its owner-sealed copy,
-  unchanged.
-- The payment completion reads that row, deletes it, and hands the texts to the
-  notification path beside the entries.
+  HMAC of the provider checkout session id. The raw session id never rests in
+  the database: for SumUp it is the checkout reference, and that reference must
+  stay absent so the `sumup_checkouts` rows cannot be unwrapped from a dump. The
+  row holds the same question-id-to-text pairs the buyer just typed. The strings
+  table keeps its owner-sealed copy, unchanged.
+- The payment completion saves the booking's answers first, then reads that row
+  and deletes it, and hands the texts to the notification path beside the
+  entries. A save that fails leaves the staged row in place.
 - The free web path hands the texts straight from the request.
 - The admin resend decrypts the strings table with the session key, the same way
   the attendees table reads free text today.
@@ -90,13 +93,14 @@ One new write beside checkout creation, and one read plus delete at completion:
 
 ## Failure table
 
-| Work completed   | Failure                                              | Required result                                                                                                    | Retry owner                                 |
-| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| Nothing          | Question or answer read fails                        | The email send fails loudly, as contact-field sends already do                                                     | The existing registration failure reporting |
-| Nothing          | A question's text fails to decrypt                   | Same. No silent omission                                                                                           | Same                                        |
-| Checkout created | No pending row at completion                         | The email renders choice answers and omits free text. This cannot happen for a row this code path wrote, so log it | No retry                                    |
-| Answers loaded   | Custom operator template does not use the new fields | Unchanged rendering. New fields are additive                                                                       | None                                        |
-| Row read         | Delete fails after the send                          | The row is swept by the stale-checkout pruning below                                                               | Pruning                                     |
+| Work completed   | Failure                                              | Required result                                                                                                                                   | Retry owner                                 |
+| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Nothing          | Question or answer read fails                        | The email send fails loudly, as contact-field sends already do                                                                                    | The existing registration failure reporting |
+| Nothing          | A question's text fails to decrypt                   | Same. No silent omission                                                                                                                          | Same                                        |
+| Checkout created | No pending row at completion                         | The email renders choice answers and omits free text. Square links never expire, so a late payment can outlive the row; the miss is logged loudly | No retry                                    |
+| Answers loaded   | Custom operator template does not use the new fields | Unchanged rendering. New fields are additive                                                                                                      | None                                        |
+| Row read         | Delete fails after the send                          | The row is swept by the stale-checkout pruning below                                                                                              | Pruning                                     |
+| Answers saved    | The staged row's take or the send fails              | The row stays or is gone, but the strings table still holds every answer, and the admin resend can rebuild the email                              | Pruning or the admin resend                 |
 
 ## Retry and replay table
 
@@ -106,8 +110,9 @@ One new write beside checkout creation, and one read plus delete at completion:
   only. The strings table still holds every answer, the admin interface still
   shows it, and the admin resend can rebuild it. No data is lost.
 - Abandoned checkouts never complete. The pruning that already sweeps stale
-  reservations also sweeps `checkout_pending_answers` rows older than the same
-  cutoff.
+  reservations also sweeps `checkout_pending_answers` rows older than the
+  payments retention cutoff, which covers provider retry windows and Square
+  links that never expire.
 
 ## Concurrency table
 

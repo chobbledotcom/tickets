@@ -2,6 +2,8 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type {
   PaymentResult,
@@ -9,6 +11,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
@@ -105,4 +108,27 @@ export const expectStoredRefund = async (
   expect((await getAttendeesRaw(expected.listingId))[0]?.quantity).toBe(0);
   expect(refund.calls).toHaveLength(1);
   await expectSessionFailed(expected.sessionId);
+};
+
+/** One booked line, as the code that writes the booking hands it on. */
+export const bookedLine = async (
+  name: string,
+): Promise<{ attendeeId: number; entry: CreatedEntry; listingId: number }> => {
+  const listing = await createTestListing({
+    maxAttendees: 50,
+    name,
+    unitPrice: 1000,
+  });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "Booked",
+    `${listing.slug}@example.com`,
+  );
+  const loaded = await getListingWithCount(listing.id);
+  return {
+    attendeeId: attendee.id,
+    entry: { attendee, listing: loaded! } as CreatedEntry,
+    listingId: listing.id,
+  };
 };

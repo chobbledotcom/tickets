@@ -1,3 +1,4 @@
+import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   type CreatedEntry,
   promoCodeActivities,
@@ -7,7 +8,7 @@ import {
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
-import type { FreeTextAnswers } from "#shared/email/answers.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
@@ -19,9 +20,21 @@ export const completePaidBooking = async (
   modifierApplications: ModifierApplication[],
   ticketTokens: string[],
   notificationPackages: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
+  sessionId: string,
 ): Promise<PaymentResult> => {
+  // The answers save before the staged row is taken: a save that fails must
+  // leave the staged plaintext in place, not destroy the only copy the
+  // completion's emails can read.
   await saveSessionAnswers(createdEntries, intent);
+  const freeTexts = intent.listingTextAnswerIds
+    ? await takeCheckoutAnswers(sessionId)
+    : undefined;
+  if (intent.listingTextAnswerIds && freeTexts?.size === 0) {
+    logError({
+      code: ErrorCode.DATA_INVALID,
+      detail: `A paid checkout carried text answers but its staged row is gone (session ${sessionId}); its emails will show choice answers only`,
+    });
+  }
   const firstEntry = createdEntries[0]!;
   const promoActivities =
     codeSpecs.length > 0

@@ -110,7 +110,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-15_group_scan_checks_in_all_listings",
         "2026-09-26_checkout_pending_answers",
       ],
-      schemaHash: "987tld",
+      schemaHash: "9gjt0c",
     });
   });
 
@@ -125,7 +125,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Stage a checkout's typed answers beside its session id, so the emails can show them without the owner key.",
+        "Stage a checkout's typed answers under the hash of its session id, so the emails can show them without the owner key.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
