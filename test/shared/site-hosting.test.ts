@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { siteHostingAccess } from "#shared/builder.ts";
+import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-describeWithEnv("builder hosting access", {}, () => {
+describeWithEnv("site hosting access", {}, () => {
   test("rejects a site with no hosting ID", () => {
     expect(
       siteHostingAccess(

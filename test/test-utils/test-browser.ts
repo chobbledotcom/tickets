@@ -8,14 +8,8 @@
 import { map, pipe } from "#fp";
 import { handleRequest as appHandler } from "#routes";
 import {
-  appendFormValue,
   extractFormEntries,
   type FormEntry,
-  findFormByButton,
-  findForms,
-  theWayToPost,
-  throwNoForm,
-  wayToPost,
 } from "#test-utils/test-browser/forms.ts";
 import {
   decodeEntities,
@@ -24,6 +18,14 @@ import {
   type LinkMatch,
   stripTags,
 } from "#test-utils/test-browser/parsing.ts";
+import {
+  appendFormValue,
+  findFormByButton,
+  findForms,
+  theWayToPost,
+  throwNoForm,
+  wayToPost,
+} from "#test-utils/test-browser/pressing.ts";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
 const parseCookies = (response: Response, jar: Map<string, string>): void => {
@@ -226,13 +228,10 @@ export class TestBrowser {
   }
 
   /**
-   * Submit a form by providing field data and identifying the form by its submit button text.
-   * Auto-includes CSRF token, hidden fields, AND visible input values (select/number/text)
-   * found in the form — like a real browser would. User-provided data overrides all
-   * auto-collected values. When `buttonText` matches a `<button name="…" value="…">`,
-   * that name/value pair is also included (so routes that dispatch on `action` work).
-   * For array fields (like checkboxes), pass "all" to auto-select all values,
-   * or pass a specific value.
+   * Submit a form by field data, identified by its submit button text.
+   * Auto-includes CSRF, hidden, and visible values like a real browser;
+   * user data overrides them. A `<button name="…" value="…">` pair rides
+   * along, and "all" selects every checkbox of an array field.
    */
   async submitForm(
     data: Record<string, string | string[]>,

@@ -15,7 +15,7 @@ import {
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
-import { resolveHostingProvider } from "#shared/builder.ts";
+import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
@@ -29,6 +29,7 @@ import {
   type SiteAssignmentConfigValidation,
 } from "#shared/site-assignment-failure.ts";
 import { buildAssignableSite } from "#shared/site-build.ts";
+import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */
@@ -155,10 +156,12 @@ const pushSiteSecrets = async (
 ): Promise<CdnPushResult> => {
   if (!site.hostingId) return { error: "No hostingId", ok: false };
   const pairs: [string, string][] = [];
-  if (secrets.renewalUrl !== undefined)
+  if (secrets.renewalUrl !== undefined) {
     pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
-  if (secrets.readOnlyFrom !== undefined)
+  }
+  if (secrets.readOnlyFrom !== undefined) {
     pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
+  }
   return resolveHostingProvider(site.hostingProvider).setSecrets(
     site.hostingId,
     pairs,
@@ -363,16 +366,23 @@ const sendSiteAssignmentEmail = async (
 };
 
 /** Assign sites and send notification email. Designed to be called via addPendingWork.
- * No-ops when CAN_BUILD_SITES is not enabled. */
+ * No-ops when CAN_BUILD_SITES is not enabled.
+ *
+ * The whole pipeline runs inside the site-build scope: it provisions and
+ * configures a new site (and pushes renewal secrets), the automated machine
+ * steps a SITE_BUILD_DRY_RUN demo answers as one unit. A human's live admin
+ * action on an existing site sits outside it. */
 export const assignAndNotifyBuiltSites = async (
   entries: SiteAssignmentEntry[],
 ): Promise<void> => {
   if (!isBuilderEnabled()) return;
 
-  const assignments = await assignSitesForEntries(entries);
-  if (assignments.length === 0) return;
+  await runWithSiteBuildScope(async () => {
+    const assignments = await assignSitesForEntries(entries);
+    if (assignments.length === 0) return;
 
-  const email = parseEmail(entries[0]!.attendee.email);
-  if (!email) return;
-  await sendSiteAssignmentEmail(email, assignments);
+    const email = parseEmail(entries[0]!.attendee.email);
+    if (!email) return;
+    await sendSiteAssignmentEmail(email, assignments);
+  });
 };

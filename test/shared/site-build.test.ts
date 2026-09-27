@@ -2,13 +2,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
-import { builtSites } from "#db/built-sites.ts";
+import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import {
   type BuildSiteResult,
   builderApi,
   type PreparedBuildSite,
 } from "#shared/builder.ts";
 import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
+import { withBuildSiteMocks } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -118,5 +119,55 @@ describeWithEnv("site build", { db: true }, () => {
     } finally {
       buildStub.restore();
     }
+  });
+
+  test("removes the retained row when publishing fails", async () => {
+    await withBuildSiteMocks(
+      async () => {
+        const { result } = await buildRetainedSite("Failed Site", {
+          siteName: "Failed Site",
+        });
+        expect(result.ok).toBe(false);
+        expect(await builtSites.getAll()).toEqual([]);
+      },
+      { publishResult: { error: "publish refused", ok: false } },
+    );
+  });
+
+  test("removes the retained row when the support-message seed fails", async () => {
+    using _support = withEnv({ SUPPORT_PAGE_TEXT: "# Seed" });
+    await withBuildSiteMocks(
+      async () => {
+        const { result } = await buildRetainedSite("Failed Site", {
+          siteName: "Failed Site",
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error).toContain("seed refused");
+        expect(await builtSites.getAll()).toEqual([]);
+      },
+      { supportSeedResult: { error: "seed refused", ok: false } },
+    );
+  });
+
+  test("keeps the build failure first when the record cannot be deleted", async () => {
+    // A delete that cannot run appends its own failure to the answer; the
+    // provider error stays the first cause the caller reports.
+    await withBuildSiteMocks(
+      async () => {
+        using _delete = stub(builtSitesCrudTable, "deleteById", () =>
+          Promise.reject(new Error("delete boom")),
+        );
+        const { result } = await buildRetainedSite("Failed Site", {
+          siteName: "Failed Site",
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error).toBe(
+          "publish refused; the retained record could not be deleted: delete boom",
+        );
+      },
+      { publishResult: { error: "publish refused", ok: false } },
+    );
   });
 });

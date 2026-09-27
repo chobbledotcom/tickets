@@ -14,11 +14,11 @@ import {
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import {
-  extractFormEntries,
   findFormByButton,
   findForms,
-} from "#test-utils/test-browser/forms.ts";
+} from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { RefundWindows } from "./windows.ts";
 

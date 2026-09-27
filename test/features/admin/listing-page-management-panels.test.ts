@@ -38,6 +38,7 @@ const SESSION: AuthSession = {
 };
 
 const CTX: PageCtx = {
+  activeTabSlug: "edit",
   baseUrl: "https://example.test",
   query: new URLSearchParams(),
   returnUrl: "/admin/listings/1",
