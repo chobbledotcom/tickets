@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import {
   builtSites,
   builtSitesCrudTable,
-  claimBuiltSiteForAttendee,
+  getAssignableBuiltSites,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
@@ -71,7 +72,10 @@ describeWithEnv("built-site update channel", { db: true }, () => {
       "",
       "beta",
     );
-    expect(await claimBuiltSiteForAttendee(row.id, 1, 2)).toBe(true);
+    const pool = await getAssignableBuiltSites();
+    expect((await takePooledSiteForBuyer(pool, 1, [2], 2)).kind).toBe(
+      "claimed",
+    );
     expect((await builtSitesCrudTable.read.one({ id: row.id }))?.updates).toBe(
       "beta",
     );

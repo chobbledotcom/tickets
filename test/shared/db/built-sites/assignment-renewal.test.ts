@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import {
   builtSites,
   builtSitesCrudTable,
-  claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
@@ -34,7 +34,7 @@ describeWithEnv("assignable built sites", { db: true }, () => {
     ]);
   });
 
-  test("claimBuiltSiteForAttendee stores the assignment", async () => {
+  test("takePooledSiteForBuyer stores the assignment", async () => {
     const row = await insertBuiltSite(
       "To Assign",
       "assign.b-cdn.net",
@@ -42,7 +42,9 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       "",
       true,
     );
-    expect(await claimBuiltSiteForAttendee(row.id, 42, 7)).toBe(true);
+    const pool = await getAssignableBuiltSites();
+    const take = await takePooledSiteForBuyer(pool, 42, [7], 7);
+    expect(take.kind).toBe("claimed");
     expect(await builtSitesCrudTable.read.one({ id: row.id })).toMatchObject({
       assignable: false,
       assignedAttendeeId: 42,
@@ -50,8 +52,12 @@ describeWithEnv("assignable built sites", { db: true }, () => {
     });
   });
 
-  test("claimBuiltSiteForAttendee returns false for a missing site", async () => {
-    expect(await claimBuiltSiteForAttendee(999, 1, 1)).toBe(false);
+  test("takePooledSiteForBuyer reports an empty pool for a taken site", async () => {
+    await insertBuiltSite("Already Taken", "taken.b-cdn.net", "", "", true);
+    const pool = await getAssignableBuiltSites();
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
+    const second = await takePooledSiteForBuyer(pool, 43, [7], 7);
+    expect(second.kind).toBe("empty");
   });
 
   test("keeps an assignment made during scheduler-key provisioning", async () => {
@@ -63,9 +69,10 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       true,
     );
 
+    const pool = await getAssignableBuiltSites();
     await Promise.all([
       ensureBuiltSiteSchedulerKey(site.id),
-      claimBuiltSiteForAttendee(site.id, 42, 7),
+      takePooledSiteForBuyer(pool, 42, [7], 7),
     ]);
 
     expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({

@@ -8,11 +8,10 @@
 /* jscpd:ignore-start */
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
-  claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
-  hasAssignedBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
@@ -147,10 +146,12 @@ const pushSiteSecrets = async (
 ): Promise<CdnPushResult> => {
   if (!site.hostingId) return { error: "No hostingId", ok: false };
   const pairs: [string, string][] = [];
-  if (secrets.renewalUrl !== undefined)
+  if (secrets.renewalUrl !== undefined) {
     pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
-  if (secrets.readOnlyFrom !== undefined)
+  }
+  if (secrets.readOnlyFrom !== undefined) {
     pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
+  }
   return resolveHostingProvider(site.hostingProvider).setSecrets(
     site.hostingId,
     pairs,
@@ -244,23 +245,6 @@ export const rotateRenewalToken = async (
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
-/** Pop pooled sites until one claim sticks. A claim that returns no row lost
- * a race with another request for the same site, so the site is gone — try
- * the next one. Returns null when the whole pool is spent. */
-const claimNextSite = async (
-  available: BuiltSite[],
-  attendeeId: number,
-  listingId: number,
-): Promise<BuiltSite | null> => {
-  for (;;) {
-    const site = available.pop();
-    if (site === undefined) return null;
-    if (await claimBuiltSiteForAttendee(site.id, attendeeId, listingId)) {
-      return site;
-    }
-  }
-};
-
 /** Every buyer's outcome from one assignment run. */
 type SiteAssignmentOutcome = {
   assignments: SiteAssignment[];
@@ -300,27 +284,20 @@ const assignSitesForEntries = async (
     );
     if (booked.length === 0) continue;
     const first = booked[0]!;
-    // A notification re-send for a buyer who already holds a site on these
-    // plans must not take a second site out of the pool.
-    if (
-      await hasAssignedBuiltSite(
-        first.attendee.id,
-        booked.map((e) => e.listing.id),
-      )
-    ) {
-      continue;
-    }
 
     const listingName = unique(booked.map((e) => e.listing.name)).join(" + ");
-    const site = await claimNextSite(
+    const take = await takePooledSiteForBuyer(
       available,
       first.attendee.id,
+      booked.map((e) => e.listing.id),
       first.listing.id,
     );
-    if (site === null) {
+    if (take.kind === "served") continue;
+    if (take.kind === "empty") {
       missedBuyers.push({ attendee: first.attendee, listingName });
       continue;
     }
+    const site = take.site;
     const months = sumOf(
       (e: SiteAssignmentEntry) =>
         e.listing.initial_site_months * e.attendee.quantity,
