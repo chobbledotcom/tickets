@@ -64,7 +64,11 @@ const formTextareaEntry = (tag: string): FormEntry | undefined => {
   const openTag = tag.match(/^<textarea\b[^>]*>/i)![0];
   const name = controlName(openTag);
   if (!name || isDisabled(openTag)) return;
-  const value = tag.match(/^<textarea\b[^>]*>([\s\S]*?)<\/textarea>$/i)![1]!;
+  const body = tag.match(/^<textarea\b[^>]*>([\s\S]*?)<\/textarea>$/i)![1]!;
+  // HTML parsing drops the first newline directly after a `<textarea>` start
+  // tag, so this is the value the browser would hold and submit: the body
+  // without its one leading newline.
+  const value = body.startsWith("\n") ? body.slice(1) : body;
   return [decodeEntities(name), decodeEntities(value)];
 };
 

@@ -212,7 +212,10 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
     Promise.resolve(okResult([])),
   ),
   fetchStub: stubBuilderFetch(opts.onOther, opts.releaseOpts),
-  setEnvStub: stub(denoDeployApi, "setEnvVar", () =>
+  setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
+    Promise.resolve(opts.setEnvResult ?? okResult(undefined)),
+  ),
+  setEnvVarStub: stub(denoDeployApi, "setEnvVar", () =>
     Promise.resolve(opts.setEnvResult ?? okResult(undefined)),
   ),
   supportSeedStub: stubSupportSeed(opts),
