@@ -94,13 +94,15 @@ const writeBunnySupportMessage = async (
   return okResult(value);
 };
 
-/** The app's entry for the Support tab's key that the production isolate
- * serves: the all-contexts record, or a production one. The documented
- * contexts can hold the same key in other scopes (a preview record beside a
- * production one), and those are not the serving copy. */
-const denoSupportEntry = async (
+/** Run `act` with the app's entry for the Support tab's key that the
+ * production isolate serves — the all-contexts record, or a production one.
+ * The documented contexts can hold the same key in other scopes (a preview
+ * record beside a production one), and those are not the serving copy. A
+ * failed read stops here, so neither reader nor writer repeats the guard. */
+const withDenoSupportEntry = async (
   appId: string,
-): Promise<Result<DenoEnvVar | null>> => {
+  act: (entry: DenoEnvVar | null) => Promise<SupportMessageResult>,
+): Promise<SupportMessageResult> => {
   const result = await denoDeployApi.getAppEnvVars(appId);
   if (!result.ok) return result;
   const entry =
@@ -109,7 +111,7 @@ const denoSupportEntry = async (
         key === SUPPORT_MESSAGE_KEY &&
         (contexts === "all" || contexts.includes("production")),
     ) ?? null;
-  return okResult(entry);
+  return act(entry);
 };
 
 /** A Deno site's support message: a plain env var's value. Secrets never
@@ -118,35 +120,31 @@ const supportValue = (entry: DenoEnvVar | null): string | null =>
   entry === null || entry.secret ? null : entry.value;
 
 const readDenoSupportMessage = (appId: string): Promise<SupportMessageResult> =>
-  denoSupportEntry(appId).then((existing) =>
-    existing.ok ? okResult(supportValue(existing.value)) : existing,
-  );
+  withDenoSupportEntry(appId, async (entry) => okResult(supportValue(entry)));
 
 /** Set a Deno app's support message as a plain env var. An existing record
  * is updated through its id with its own contexts, so a dashboard-created
  * all-contexts record is edited in place instead of shadowed by a second
  * production entry the tab would never read again. */
-const writeDenoSupportMessage = async (
+const writeDenoSupportMessage = (
   appId: string,
   value: string,
-): Promise<SupportMessageResult> => {
-  const existing = await denoSupportEntry(appId);
-  if (!existing.ok) return existing;
-  const found = existing.value;
-  const result = await denoDeployApi.setEnvVar(
-    appId,
-    found === null
-      ? { key: SUPPORT_MESSAGE_KEY, secret: false, value }
-      : {
-          contexts: found.contexts,
-          id: found.id,
-          key: SUPPORT_MESSAGE_KEY,
-          secret: false,
-          value,
-        },
-  );
-  return result.ok ? okResult(value) : result;
-};
+): Promise<SupportMessageResult> =>
+  withDenoSupportEntry(appId, async (entry) => {
+    const result = await denoDeployApi.setEnvVar(
+      appId,
+      entry === null
+        ? { key: SUPPORT_MESSAGE_KEY, secret: false, value }
+        : {
+            contexts: entry.contexts,
+            id: entry.id,
+            key: SUPPORT_MESSAGE_KEY,
+            secret: false,
+            value,
+          },
+    );
+    return result.ok ? okResult(value) : result;
+  });
 
 /** Reading a support message, keyed by hosting provider. A new provider in
  * `HostingProvider` fails to compile until its read is added here. */

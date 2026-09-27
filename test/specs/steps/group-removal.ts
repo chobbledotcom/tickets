@@ -22,8 +22,9 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-import { attrValue, findForms } from "#test-utils/test-browser/forms.ts";
+import { attrValue } from "#test-utils/test-browser/forms.ts";
 import { regexCollect } from "#test-utils/test-browser/parsing.ts";
+import { findForms } from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 Given(

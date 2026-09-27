@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { ALL_CHECKBOXES } from "#test-utils/test-browser/forms.ts";
+import { ALL_CHECKBOXES } from "#test-utils/test-browser/pressing.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import { recordingBrowser, setupFormSubmit, useHandler } from "./helpers.ts";
 
