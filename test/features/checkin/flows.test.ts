@@ -289,6 +289,28 @@ describeWithEnv(
           { checked_in: 0 },
         ]);
       });
+
+      test("a bundle's answer points back at the joined path", async () => {
+        const first = await createTestAttendeeWithToken(
+          "Bundle Ann",
+          "bundleann@example.com",
+        );
+        const second = await createTestAttendeeWithToken(
+          "Bundle Pat",
+          "bundlepat@example.com",
+        );
+        const session = {
+          cookie: await testCookie(),
+          csrfToken: await testCsrfToken(),
+        };
+        const tokens = `${first.token}+${second.token}`;
+
+        const response = await postCheckin(tokens, session, "true");
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(
+          `/checkin/${tokens}?message=Checked%20in%202%20tickets`,
+        );
+      });
     });
   },
 );

@@ -9,6 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -60,6 +61,15 @@ const statusAs = async (path: string, cookie: string): Promise<number> =>
   ).status;
 
 describeWithEnv("the scanner class's doors", { db: true }, () => {
+  test("tells a scanner there are no doors yet on an empty site", async () => {
+    const { cookie } = await createTestScannerSession();
+
+    const response = await getAs("/admin/scanner", cookie);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain(t("admin.scanner.doors_empty"));
+  });
+
   test("lists every listing door and group door on the doors page", async () => {
     const { cookie } = await createTestScannerSession();
     await createTestListing({ maxAttendees: 10, name: "Ceilidh" });

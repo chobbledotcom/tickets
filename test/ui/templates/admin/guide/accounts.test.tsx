@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import {
-  renderGuideSections,
-} from "#templates/admin/guide/components.tsx";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
+import { renderGuideSections } from "#templates/admin/guide/components.tsx";
 
 const sections = accountsSections();
 
-const userClassesSection = () => {
-  const section = sections.find(({ id }) => id === "user-classes");
-  if (section === undefined) throw new Error("User classes guide is missing");
+const sectionById = (id: string) => {
+  const section = sections.find((one) => one.id === id);
+  if (section === undefined)
+    throw new Error(`Guide section "${id}" is missing`);
   return section;
 };
 
@@ -28,7 +28,7 @@ describe("accounts guide schema", () => {
   });
 
   test("names every user class the invite form offers, in role order", () => {
-    const faqs = userClassesSection().entries.map(
+    const faqs = sectionById("user-classes").entries.map(
       (entry) => "faq" in entry && entry.faq,
     );
     expect(faqs).toEqual([
@@ -42,7 +42,7 @@ describe("accounts guide schema", () => {
   });
 
   test("renders the scanner answer with the role's reach and its limits", () => {
-    const html = String(renderGuideSections([userClassesSection()]));
+    const html = String(renderGuideSections([sectionById("user-classes")]));
     const question = t("guide.q.scanner_role");
     const answerStart = html.indexOf(question);
     expect(answerStart).toBeGreaterThan(-1);
@@ -53,5 +53,23 @@ describe("accounts guide schema", () => {
     // What the role is for, and the line past which it cannot go.
     expect(answer).toContain(t("guide.a.scanner_role"));
     expect(answer).toContain("<strong>Scanners</strong>");
+  });
+
+  test("renders the webhook answer's header with its spacing intact", () => {
+    const html = String(renderGuideSections([sectionById("webhooks")]));
+    expect(html).toContain("with <code>Content-Type: application/json</code>");
+  });
+
+  test("renders the lockout answer with the attempt count and the minutes", () => {
+    const html = String(renderGuideSections([sectionById("login")]));
+    expect(html).toContain(
+      `After <strong>${MAX_LOGIN_ATTEMPTS} failed attempts</strong>`,
+    );
+    expect(html).toContain(
+      `blocked for <strong>${LOGIN_LOCKOUT_MS / 60_000} minutes</strong>`,
+    );
+    expect(html).toContain(
+      "Because there is <strong>no password recovery</strong>",
+    );
   });
 });
