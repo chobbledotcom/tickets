@@ -1,6 +1,14 @@
 # Plan: attendee answers in registration email templates
 
-Status: awaiting human approval. No implementation has started.
+Status: implemented on branch `email-answers-in-templates`. The sections below
+are the approved contract. Two things the build taught, recorded so the plan
+stays true to the shipped code: the answers save BEFORE the free path queues its
+notification (the notification reads them the moment it is queued), and the
+choice-answer read is pinned to the primary for the same reason
+(`choiceAnswerIdsPrimary` in db/questions/attendee-answers/reads.ts). The
+`checkout_pending_answers` staging covers every provider through the shared
+checkout-session factory (`makeCreateCheckoutSession`), so no SumUp-specific
+carry exists.
 
 ## Current-system value
 

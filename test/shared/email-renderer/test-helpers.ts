@@ -42,6 +42,7 @@ export const sampleData: TemplateData = {
   amount_owed: "0",
   attendee: {
     address: "123 St",
+    answers: [],
     date: null,
     date_range_label: "",
     email: "jane@test.com",
@@ -56,6 +57,7 @@ export const sampleData: TemplateData = {
     {
       attendee: {
         address: "123 St",
+        answers: [],
         date: null,
         date_range_label: "",
         email: "jane@test.com",

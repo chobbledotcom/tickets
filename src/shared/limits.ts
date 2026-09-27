@@ -558,7 +558,6 @@ export const SUPPORT_FORM_NAG_DAYS = limit(
   "Support form repeat-submit notice",
   "days",
 );
-
 /** Computed: prune interval in ms. */
 export const PRUNE_INTERVAL_MS = PRUNE_INTERVAL_HOURS * 60 * 60 * 1000;
 

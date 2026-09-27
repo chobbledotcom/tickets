@@ -70,6 +70,12 @@ export const handlePaidPath = async (
   const listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
   if (listingTextAnswerIds !== undefined) {
     intent.listingTextAnswerIds = listingTextAnswerIds;
+    intent.textAnswers = Object.fromEntries(
+      info.textAnswers.map(({ questionId, text }) => [
+        String(questionId),
+        text,
+      ]),
+    );
   }
   return handlePaymentFlow(request, intent, ctx);
 };
@@ -151,14 +157,20 @@ export const handleFreePath = async (
   const siteTokenIndex = ctx.siteToken
     ? await hmacHash(ctx.siteToken)
     : undefined;
-  await logAndNotifyRegistration(result.entries, siteTokenIndex);
-
+  // The typed free-text answers leave with the notification: the strings
+  // table keeps them sealed to the owner key, which no notification path can
+  // spend. The answers save first, because the notification reads them the
+  // moment it is queued.
+  const freeTexts = new Map(
+    info.textAnswers.map(({ questionId, text }) => [questionId, text]),
+  );
   if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
     const maps = listingAnswerMaps(info, ctx.questionListingMap);
     await saveAttendeeAnswers(
       groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
     );
   }
+  await logAndNotifyRegistration(result.entries, { freeTexts, siteTokenIndex });
 
   // The caller resolves the redirect from the pre-fold listing set (a single
   // listing's — or a single parent + its folded children's — thank-you URL), so

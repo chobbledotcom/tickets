@@ -116,9 +116,17 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
+    `created_at < ? AND recovery_state IN (${inPlaceholders(
+      RECOVERY_PRUNABLE_NODES,
+    )})`,
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
+  // Staged free-text answers whose checkout never completed. The completion
+  // deletes the row it reads, so anything this old belongs to an abandoned
+  // checkout, and only the strings table's sealed copy remains.
+  boundedDelete("checkout_pending_answers", "created_at < ?", [
+    isoBefore(PRUNE_SUMUP_RETENTION_MS),
+  ]),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),

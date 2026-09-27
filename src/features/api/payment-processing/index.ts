@@ -10,6 +10,7 @@
 import { eventGroupHasLegs } from "#accounting/queries.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
@@ -248,7 +249,7 @@ const processNewBookingSession = async (
   // and refunded only when committed state proves that the batch rolled back.
   const ticketToken = generateTicketToken();
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
-  const complete = (
+  const complete = async (
     entries: Parameters<typeof completePaidBooking>[0],
     ticketTokens: string[],
   ) =>
@@ -259,6 +260,11 @@ const processNewBookingSession = async (
       pricedOrder.modifierApplications,
       ticketTokens,
       snapshot.notificationPackages,
+      // Only a checkout that carried text-answer refs staged a row, so the
+      // round trip is spent exactly when there is something to take back.
+      intent.listingTextAnswerIds
+        ? await takeCheckoutAnswers(session.id)
+        : undefined,
     );
   const honoured = await createAttendeeForSession(
     session,

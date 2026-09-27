@@ -38,5 +38,9 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-09-15_group_scan_checks_in_all_listings",
     () => import("./2026-09-15_group_scan_checks_in_all_listings.ts"),
   ),
+  entry(
+    "2026-09-26_checkout_pending_answers",
+    () => import("./2026-09-26_checkout_pending_answers.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

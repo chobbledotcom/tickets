@@ -9,6 +9,7 @@
 
 import * as v from "valibot";
 import { getSumupCheckout } from "#db/sumup-checkouts.ts";
+import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import {
   type RefundAttemptResult,
   refundOutcomeAfterReread,
@@ -18,10 +19,9 @@ import {
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
 import { ErrorCode } from "#shared/logger.ts";
-import {
-  makeCreateCheckoutSession,
-  parseWebhookPayload,
-} from "#shared/payment-helpers.ts";
+/* jscpd:ignore-start -- imports */
+import { parseWebhookPayload } from "#shared/payment-helpers.ts";
+/* jscpd:ignore-end */
 import type {
   PaymentProvider,
   RetrieveSessionResult,

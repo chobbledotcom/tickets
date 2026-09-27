@@ -26,17 +26,50 @@ const fullEntry = (name: string, slug: string, quantity: number) =>
     },
   );
 
+const ANSWER_LINES = new Map([
+  [
+    42,
+    new Map([
+      [
+        1,
+        [
+          { question: "Any dietary needs?", text: "None" },
+          { question: "How did you hear about us?", text: "A friend" },
+        ],
+      ],
+    ]),
+  ],
+]);
+
 const buildReferenceData = (): Promise<TemplateData> =>
-  buildTestData([
-    fullEntry("Summer Fete", "summer-fete", 3),
-    fullEntry("Bake Off", "bake-off", 1),
-  ]);
+  buildTestData(
+    [
+      fullEntry("Summer Fete", "summer-fete", 3),
+      fullEntry("Bake Off", "bake-off", 1),
+    ],
+    { answerLines: ANSWER_LINES },
+  );
 
 const joinPath = (prefix: string, key: string): string =>
   prefix === "" ? key : `${prefix}.${key}`;
 
-/** Every dotted path the built data holds. An array is a loop: the reference
- * names one row of it `entry`, so the element's paths carry that prefix. */
+/** The loop alias the reference gives an array's rows: a row of `entries`
+ * is `entry`, a row of `attendee.answers` is `answer`. */
+const loopAliasFor = (prefix: string): string =>
+  prefix.endsWith("answers") ? "answer" : "entry";
+
+/** Queue an array's first row under the loop alias the reference names it
+ * by, so its paths carry that loop's own prefix. */
+const queueLoopRows = (
+  queue: [prefix: string, value: unknown][],
+  prefix: string,
+  array: unknown[],
+): void => {
+  const row = array[0];
+  if (row !== undefined) queue.push([loopAliasFor(prefix), row]);
+};
+
+/** Every dotted path the built data holds. */
 const runtimePaths = (data: TemplateData): Set<string> => {
   const paths = new Set<string>();
   const queue: [prefix: string, value: unknown][] = [["", data]];
@@ -45,8 +78,7 @@ const runtimePaths = (data: TemplateData): Set<string> => {
       paths.add(prefix);
     } else if (Array.isArray(value)) {
       paths.add(prefix);
-      const row = value[0];
-      if (row !== undefined) queue.push(["entry", row]);
+      queueLoopRows(queue, prefix, value);
     } else {
       for (const [key, sub] of Object.entries(value)) {
         queue.push([joinPath(prefix, key), sub]);
@@ -91,10 +123,13 @@ describeEmailRenderer(() => {
       const data = await buildReferenceData();
       const engine = createBaseLiquidEngine();
       for (const [code] of TEMPLATE_VARIABLES) {
-        // An `entry.*` snippet only resolves inside the loop it belongs to.
-        const snippet = code.includes("entry.")
-          ? `{% for entry in entries %}${code}{% endfor %}`
-          : code;
+        // An `entry.*` snippet only resolves inside the loop it belongs to,
+        // and an `answer.*` snippet only inside an entry's answers loop.
+        const snippet = code.includes("answer.")
+          ? `{% for entry in entries %}{% for answer in entry.attendee.answers %}${code}{% endfor %}{% endfor %}`
+          : code.includes("entry.")
+            ? `{% for entry in entries %}${code}{% endfor %}`
+            : code;
         const rendered = await engine.parseAndRender(snippet, data);
         expect(rendered.trim(), code).not.toBe("");
       }

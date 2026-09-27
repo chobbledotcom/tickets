@@ -116,9 +116,12 @@ type CheckoutIntentBase = ContactInfo &
   ListingAnswerRefs &
   CheckoutMetaFields & {
     date: string | null;
-    /** Visitor-chosen day count for "customisable days" listings (shared across
-     * the checkout). Absent when no selected listing is customisable. */
+    /** Visitor-chosen day count for customisable-days listings, shared across
+     * the checkout. Absent when no selected listing is customisable. */
     dayCount?: number | undefined;
+    /** Free-text answers as the buyer typed them, keyed by question id. Never
+     * sent to a provider: the checkout stages it locally instead. */
+    textAnswers?: Record<string, string> | undefined;
   };
 
 /** Registration intent for checkout (one or more listings) */
@@ -127,20 +130,17 @@ export type CheckoutIntent = CheckoutIntentBase & {
   /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
    * empty when none apply. Applied to the price by the checkout-pricing layer. */
   modifiers?: ModifierSpec[];
-  /** Plain site renewal token from /renew. Hashed before storage in provider
-   * metadata; never stored at the provider in plaintext. */
+  /** Renewal token from /renew, hashed before it is stored in provider
+   * metadata. */
   siteToken?: string;
-  /** Override the subtotal the booking fee is calculated on (defaults to the
-   * item subtotal). Used so a deposit charges the fee on the full order, and a
-   * balance payment charges no fee (the fee was collected up front). */
+  /** Subtotal the booking fee is charged on: a deposit charges the fee on
+   * the full order, a balance payment charges none. */
   feeSubtotal?: number;
 };
 
-/** Result of creating a checkout session.
- * - Success: { sessionId, checkoutUrl }
- * - User-facing error (e.g. invalid phone): { error }
- * - Provider not configured: null
- * Unexpected failures throw. */
+/** Result of creating a checkout session: success carries the session id and
+ * checkout URL, a user-facing error carries `error`, and null means the
+ * provider is not configured. Unexpected failures throw. */
 export type CheckoutSessionResult =
   | {
       sessionId: string;

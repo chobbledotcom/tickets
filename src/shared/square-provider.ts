@@ -5,6 +5,7 @@
  * session id throughout.
  */
 
+import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import {
   mapProviderReader,
   type ProviderRead,
@@ -15,13 +16,12 @@ import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
-/* jscpd:ignore-end */
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
-  makeCreateCheckoutSession,
   toCanonicalIso,
 } from "#shared/payment-helpers.ts";
+/* jscpd:ignore-end */
 import { parsePriceProof } from "#shared/payment-signature.ts";
 import type {
   PaymentProvider,

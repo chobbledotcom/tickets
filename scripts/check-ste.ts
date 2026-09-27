@@ -9,6 +9,7 @@
  */
 
 import * as v from "valibot";
+import { stringRecordSchema } from "#shared/validation/stored-json.ts";
 import { consoleOutput } from "./check-report.ts";
 import { recordedState, updateMode } from "./check-runner.ts";
 import {
@@ -26,10 +27,7 @@ const BASELINE_PATH = new URL("./check-ste/baseline.json", import.meta.url)
   .pathname;
 
 const documents = await readDocuments(".", MARKDOWN_ROOTS);
-const records = await readJsonOrThrow(
-  RECORDS_PATH,
-  v.record(v.string(), v.string()),
-);
+const records = await readJsonOrThrow(RECORDS_PATH, stringRecordSchema);
 const baseline = await recordedState(
   BASELINE_PATH,
   updateMode(Deno.args),

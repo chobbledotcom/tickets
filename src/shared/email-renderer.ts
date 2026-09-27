@@ -11,6 +11,11 @@ import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { lazyRef, map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
+import {
+  type AnswerLine,
+  loadOrderAnswerLines,
+  type OrderAnswerLines,
+} from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
@@ -47,17 +52,20 @@ export const resetEngine = (): void => {
 
 /** Template entry shape exposed to Liquid templates */
 type TemplateEntry = {
-  listing: {
-    name: string;
-    slug: string;
-    is_paid: boolean;
-  };
   attendee: ContactInfo & {
+    /** The buyer's answers to this listing's questions, in the operator's
+     * question order. Empty when the listing asks nothing they answered. */
+    answers: AnswerLine[];
     quantity: number;
     price_paid: string;
     date: string | null;
     /** Human-readable booking date (or range for multi-day). Empty string when no date. */
     date_range_label: string;
+  };
+  listing: {
+    name: string;
+    slug: string;
+    is_paid: boolean;
   };
 };
 
@@ -80,8 +88,10 @@ export type TemplateData = {
 const entryIsPaid = ({ listing, attendee }: EmailEntry): boolean =>
   isPaidListing(listing) || Number(attendee.price_paid) > 0;
 
-/** Map one booking entry to its template shape. */
-const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
+const toTemplateEntry = (
+  entry: EmailEntry,
+  answers: readonly AnswerLine[],
+): TemplateEntry => {
   const { listing, attendee } = entry;
   // Render the booking's actual span from its stored range, so customisable-days
   // bookings show the chosen length rather than the listing's maximum duration
@@ -94,6 +104,7 @@ const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
   return {
     attendee: {
       address: attendee.address,
+      answers: [...answers],
       date: attendee.date,
       date_range_label: dateRangeLabel,
       email: attendee.email,
@@ -216,19 +227,21 @@ const orderDisplayNames: FromOrderEntries<string> = (entries, displays) =>
 
 /** A single row standing in for a hidden package's members: the package name,
  * the buyer's contact, and the bundle's summed quantity/price — so the buyer's
- * confirmation never reveals the member listings (the admin email keeps them). */
+ * confirmation never reveals the member listings (the admin email keeps them).
+ * The row carries no answers, for the same reason: the members stay hidden. */
 const collapsedPackageEntry = (
   entries: EmailEntry[],
   packageName: string,
 ): TemplateEntry => {
-  const base = toTemplateEntry(entries[0]!);
+  const base = toTemplateEntry(entries[0]!, []);
   const summary = collapsedPackageSummary(entries);
   const dated = summary.widestDated
-    ? toTemplateEntry(summary.widestDated).attendee
+    ? toTemplateEntry(summary.widestDated, []).attendee
     : null;
   return {
     attendee: {
       ...base.attendee,
+      answers: [],
       date: dated?.date ?? null,
       date_range_label: dated?.date_range_label ?? "",
       price_paid: summary.pricePaid,
@@ -255,21 +268,37 @@ export const buildTemplateData = async (
   currency: string,
   ticketUrl: string,
   options: {
+    answerLines?: OrderAnswerLines;
     hidePackageMembers?: boolean;
     packageDisplays?: ReadonlyMap<number, PackageDisplay>;
   } = {},
 ): Promise<TemplateData> => {
   const displays =
     options.packageDisplays ?? (await packageDisplaysForRows(entries));
+  const answers = options.answerLines ?? (await loadOrderAnswerLines(entries));
+  // The loader fills every (attendee, listing) pair the entries name, so a
+  // miss here is broken data, not an unanswered question.
+  const entryAnswers = (entry: EmailEntry): AnswerLine[] =>
+    requiredMapValue(
+      requiredMapValue(
+        answers,
+        entry.attendee.id,
+        `Missing answers for attendee ${entry.attendee.id}`,
+      ),
+      entry.listing.id,
+      `Missing answers for attendee ${entry.attendee.id} on listing ${entry.listing.id}`,
+    );
   // The buyer's confirmation (hidePackageMembers) collapses hidden packages'
   // rows; the admin notification keeps them.
   const templateEntries: TemplateEntry[] = options.hidePackageMembers
     ? buyerEntryGroups(entries, displays).map((group) =>
         group.hiddenPackageName === undefined
-          ? toTemplateEntry(group.entries[0]!)
+          ? toTemplateEntry(group.entries[0]!, entryAnswers(group.entries[0]!))
           : collapsedPackageEntry(group.entries, group.hiddenPackageName),
       )
-    : map(toTemplateEntry)(entries);
+    : map((entry: EmailEntry) => toTemplateEntry(entry, entryAnswers(entry)))(
+        entries,
+      );
 
   return {
     // remaining_balance is order-level (identical on every entry), so read it

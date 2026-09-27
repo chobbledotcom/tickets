@@ -2,12 +2,21 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import {
+  stageCheckoutAnswers,
+  takeCheckoutAnswers,
+} from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { runWithPendingWork } from "#shared/pending-work.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
 import {
   expectSessionFailed,
   getProcessedPayment,
@@ -23,6 +32,8 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("payment processing booking outcomes", { db: true }, () => {
+  const fetch = useFetchStub();
+
   test("creates one paid booking and replays it without a duplicate", async () => {
     const id = "cs_direct_booking";
     const { data, listing } = await singleListingPayment(id, 1000);
@@ -71,6 +82,28 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
     expect(calls).toBe(5);
+  });
+
+  test("takes a checkout's staged answers into its confirmation email", async () => {
+    const id = "cs_staged_answers";
+    const { data, listing } = await singleListingPayment(id, 1000);
+    const freeText = await createFreeTextQuestion([listing.id]);
+    const stringId = (await getOrCreateStringIds(["Arriving late"])).get(
+      "Arriving late",
+    )!;
+    data.intent.listingTextAnswerIds = {
+      [String(listing.id)]: [{ q: freeText, s: stringId }],
+    };
+    await stageCheckoutAnswers(id, { [String(freeText)]: "Arriving late" });
+    await configureTestEmail();
+
+    await runWithPendingWork(async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+
+    expect(await takeCheckoutAnswers(id)).toEqual(new Map());
+    const body = fetch.getFetchJsonBody();
+    expect(body.text).toContain("Anything else?: Arriving late");
   });
 
   test("heals a missing reservation from the durable booking ledger", async () => {

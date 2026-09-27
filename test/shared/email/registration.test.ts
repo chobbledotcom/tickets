@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { sendRegistrationEmails } from "#shared/email/registration.ts";
 import {
@@ -12,7 +13,13 @@ import {
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createFreeTextQuestion,
+  createQuestionWithAnswer,
+} from "#test-utils/db-helpers/questions.ts";
 import {
   configureTestEmail,
   expectSingleTicketSvg,
@@ -181,7 +188,7 @@ describeWithEnv(
       expect(decoded).not.toContain("Secret Stay");
     });
 
-    test("uses supplied package displays without reading the database", async () => {
+    test("reads only the order's answers when package displays are supplied", async () => {
       await configureTestEmail();
       const groupId = 71;
       const entry = makeEntry(
@@ -195,15 +202,49 @@ describeWithEnv(
         pricingByGroup: new Map(),
       };
 
+      // The two reads are the order's answers: one for the questions of the
+      // booked listings, one for the attendees' chosen answer ids.
       expect(
-        await countDatabaseCalls(0, () =>
+        await countDatabaseCalls(2, () =>
           sendRegistrationEmails([entry], "GBP", facts),
         ),
-      ).toBe(0);
+      ).toBe(2);
       const body = fetch.getFetchJsonBody();
       expect(body.subject).toContain("Supplied package");
       expect(body.html).not.toContain("Test Listing");
       expect(body.text).not.toContain("Test Listing");
+    });
+
+    test("sends the buyer's answers with their confirmation", async () => {
+      await configureTestEmail();
+      const listing = await createTestListing({ name: "Fete" });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Booked",
+        "buyer@example.com",
+      );
+      const choice = await createQuestionWithAnswer([listing.id]);
+      const freeText = await createFreeTextQuestion([listing.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [choice.answerId]]]));
+
+      const entry = makeEntry(
+        { id: listing.id, name: listing.name },
+        { id: attendee.id },
+      );
+      await sendRegistrationEmails(
+        [entry],
+        "GBP",
+        undefined,
+        new Map([[freeText, "Arriving late"]]),
+      );
+
+      // createTestAttendee books through the real form, so its own
+      // notification went out first with no answers to show. The one sent
+      // here is the second fetch.
+      const body = fetch.getFetchJsonBody(1);
+      expect(body.text).toContain("Choose one: Chosen");
+      expect(body.text).toContain("Anything else?: Arriving late");
     });
 
     test("attaches numbered tickets for multi-listing registration", async () => {

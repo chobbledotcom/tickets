@@ -9,7 +9,7 @@ import { decryptWithOwnerKey } from "#crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll } from "#db/client.ts";
-import { type ListsByIds, rowsByIds } from "#db/query.ts";
+import { type ListsByIds, rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { answersTable } from "#db/questions/tables.ts";
@@ -33,8 +33,9 @@ const selectAttendeeAnswerRows = <R>(
   column: string,
   selectColumns: string,
   join = "",
+  readRows: typeof rowsByIds = rowsByIds,
 ): Promise<R[]> =>
-  rowsByIds<R>(
+  readRows<R>(
     attendeeIds,
     (placeholders) =>
       `SELECT ${selectColumns}
@@ -44,14 +45,30 @@ const selectAttendeeAnswerRows = <R>(
         AND attendee_answer.attendee_id IN (${placeholders})`,
   );
 
-const choiceAnswerIdsBatch: ListsByIds = async (attendeeIds) =>
-  choiceAnswerMapFromRows(
-    await selectAttendeeAnswerRows<{ attendee_id: number; answer_id: number }>(
-      attendeeIds,
-      "answer_id",
-      "attendee_answer.attendee_id, attendee_answer.answer_id",
-    ),
-  );
+/** The choice-id read over the two readers: the shared shape, the caller
+ * decides which side of the replication it needs. */
+const choiceAnswerIdsWith =
+  (readRows: typeof rowsByIds): ListsByIds =>
+  async (attendeeIds) =>
+    choiceAnswerMapFromRows(
+      await selectAttendeeAnswerRows<{
+        attendee_id: number;
+        answer_id: number;
+      }>(
+        attendeeIds,
+        "answer_id",
+        "attendee_answer.attendee_id, attendee_answer.answer_id",
+        "",
+        readRows,
+      ),
+    );
+
+const choiceAnswerIdsBatch = choiceAnswerIdsWith(rowsByIds);
+
+/** Attendee → chosen-answer-ids read pinned to the primary: the registration
+ * emails read answers the booking saved earlier in the same request, before a
+ * replica can have caught up. */
+export const choiceAnswerIdsPrimary = choiceAnswerIdsWith(rowsByIdsPrimary);
 
 /**
  * Attendee → chosen-answer-ids map for every real (`kind = 'attendee'`)

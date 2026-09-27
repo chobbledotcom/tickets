@@ -209,6 +209,7 @@ const stripeReason: ExemptionReason = {
 
 const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
 const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
+const answerLineFields = exactFieldsFrom("src/shared/email/answers.ts");
 const resourceFields = exactFieldsFrom("src/shared/rest/resource.ts");
 const selectFields = exactFieldsFrom("src/shared/settings/form-schema.ts");
 const stripeFields = exactFieldsFrom("src/shared/stripe/client.ts");
@@ -233,9 +234,14 @@ const exactExemptions = exactFieldExemptions([
   ),
   liquidFields(
     templateEntryPath({ name: "attendee" }),
-    ["price_paid", "quantity"],
+    ["answers", "price_paid", "quantity"],
     liquidReason("attendee"),
   ),
+  answerLineFields([{ name: "AnswerLine" }], ["question", "text"], {
+    evidence:
+      "Liquid reads each answer row by its template name in the answers loop",
+    kind: "dynamic-read",
+  }),
   liquidFields(
     templateEntryPath({ name: "listing" }),
     ["is_paid", "name", "slug"],
