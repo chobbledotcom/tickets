@@ -1,3 +1,4 @@
+import { hmacHash } from "#crypto/hashing.ts";
 import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   type CreatedEntry,
@@ -30,9 +31,11 @@ export const completePaidBooking = async (
     ? await takeCheckoutAnswers(sessionId)
     : undefined;
   if (intent.listingTextAnswerIds && freeTexts?.size === 0) {
+    // The hashed index, not the raw session id: for SumUp the id is the
+    // checkout reference, which must not reach logs or sinks either.
     logError({
       code: ErrorCode.DATA_INVALID,
-      detail: `A paid checkout carried text answers but its staged row is gone (session ${sessionId}); its emails will show choice answers only`,
+      detail: `A paid checkout carried text answers but its staged row is gone (session index ${await hmacHash(sessionId)}); its emails will show choice answers only`,
     });
   }
   const firstEntry = createdEntries[0]!;

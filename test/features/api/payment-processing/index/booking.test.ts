@@ -7,14 +7,17 @@ import {
   takeCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne, withTransaction } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
+import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
@@ -28,7 +31,6 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
-  bookedLine,
   expectStoredRefund,
   ledgeredPaymentWithoutReservation,
   singleListingPayment,
@@ -56,7 +58,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     if (staged) {
       await stageCheckoutAnswers(id, { [String(freeText)]: "Arriving late" });
     }
-    return { data, freeText };
+    return { data, freeText, listing };
   };
 
   test("creates one paid booking and replays it without a duplicate", async () => {
@@ -125,9 +127,21 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
 
   test("a failed answer save leaves the staged plaintext for the retry", async () => {
     const id = "cs_save_fails";
-    const { data, freeText } = await checkoutWithTypedAnswer(id);
-    const { entry } = await bookedLine("Failed Save");
-
+    const { data, freeText, listing } = await checkoutWithTypedAnswer(id);
+    // A booked line on the checkout's own listing, so the completion's answer
+    // save genuinely matches the intent's refs and hits the lock below. The
+    // booking answers the listing's required question, as the real form does.
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Booked",
+      `${listing.slug}@example.com`,
+      1,
+      "",
+      { [`question_${freeText}`]: "Arriving late" },
+    );
+    const loaded = await getListingWithCount(listing.id);
+    const entry: CreatedEntry = { attendee, listing: loaded! };
     // Hold the database's single write lock while the completion tries to
     // save the booking's answers: the save exhausts its busy retries and
     // fails, the way a stalled database does in production.

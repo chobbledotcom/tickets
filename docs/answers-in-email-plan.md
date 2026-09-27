@@ -93,14 +93,14 @@ One new write beside checkout creation, and one read plus delete at completion:
 
 ## Failure table
 
-| Work completed   | Failure                                              | Required result                                                                                                                                   | Retry owner                                 |
-| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Nothing          | Question or answer read fails                        | The email send fails loudly, as contact-field sends already do                                                                                    | The existing registration failure reporting |
-| Nothing          | A question's text fails to decrypt                   | Same. No silent omission                                                                                                                          | Same                                        |
-| Checkout created | No pending row at completion                         | The email renders choice answers and omits free text. Square links never expire, so a late payment can outlive the row; the miss is logged loudly | No retry                                    |
-| Answers loaded   | Custom operator template does not use the new fields | Unchanged rendering. New fields are additive                                                                                                      | None                                        |
-| Row read         | Delete fails after the send                          | The row is swept by the stale-checkout pruning below                                                                                              | Pruning                                     |
-| Answers saved    | The staged row's take or the send fails              | The row stays or is gone, but the strings table still holds every answer, and the admin resend can rebuild the email                              | Pruning or the admin resend                 |
+| Work completed   | Failure                                              | Required result                                                                                                                                   | Retry owner                                   |
+| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Nothing          | Question or answer read fails                        | The email send fails loudly, as contact-field sends already do                                                                                    | The existing registration failure reporting   |
+| Nothing          | A question's text fails to decrypt                   | Same. No silent omission                                                                                                                          | Same                                          |
+| Checkout created | No pending row at completion                         | The email renders choice answers and omits free text. Square links never expire, so a late payment can outlive the row; the miss is logged loudly | No retry                                      |
+| Answers loaded   | Custom operator template does not use the new fields | Unchanged rendering. New fields are additive                                                                                                      | None                                          |
+| Answers saved    | The take's read-and-delete fails                     | The row stays and the completion fails loudly; a redelivery retries it, and the admin resend can rebuild the email from the strings table         | The provider's redelivery or the admin resend |
+| Row taken        | The send fails                                       | That one email lacks free text. The strings table still holds every answer, and the admin resend can rebuild it. No data is lost                  | The admin resend                              |
 
 ## Retry and replay table
 
