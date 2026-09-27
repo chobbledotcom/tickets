@@ -8,9 +8,8 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
 import {
-  getAttendeePackageRowsRaw,
+  getAttendeeRealLineRowsRaw,
   hasActiveBookingLine,
 } from "#db/attendees/queries.ts";
 import { updateCheckedIn } from "#db/attendees/update.ts";
@@ -65,6 +64,7 @@ import {
   attendeeActionPage,
   attendeeActions,
   attendeeFormAction,
+  attendeeListingEntries,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
@@ -257,22 +257,39 @@ const handleAdminResendNotificationGet = attendeeActions[
  * belonging to a package rehydrates EVERY line of that attendee's package, so
  * the confirmation doesn't treat a single member row as the whole package
  * (collapsing a hidden package to one row's quantity/price, or heading a
- * visible one with a lone member). */
+ * visible one with a lone member). Every active plan row joins either way, so
+ * a repair resend reaches the site assignment whatever row it names. */
 const resendEntries = async (
   data: AttendeeWithListing,
 ): Promise<{ attendee: typeof data.attendee; listing: ListingWithCount }[]> => {
   const groupId = data.attendee.package_group_id;
-  if (groupId <= 0) return [{ attendee: data.attendee, listing: data.listing }];
+  const covered = new Set<number>([data.listing.id]);
+  const base: AttendeeWithListing[] = [
+    { attendee: data.attendee, listing: data.listing },
+  ];
+  const rows = await getAttendeeRealLineRowsRaw(data.attendee.id);
   const pk = await requireRequestPrivateKey();
-  const rows = await getAttendeePackageRowsRaw(data.attendee.id, groupId);
-  return Promise.all(
+  if (groupId > 0) {
     // The route already verified this attendee's active line, so its package
     // rows exist, decrypt with the same key, and each names a live listing.
-    rows.map(async (row) => ({
-      attendee: (await decryptAttendeeOrNull(row, pk))!,
-      listing: await requireListingWithCount(row.listing_id),
-    })),
+    const packageRows = rows.filter((row) => row.package_group_id === groupId);
+    for (const row of packageRows) {
+      covered.add(row.listing_id);
+    }
+    base.length = 0;
+    base.push(...(await attendeeListingEntries(packageRows, pk)));
+  }
+  // A refunded plan row buys nothing now, so it must not reach the assignment.
+  const candidates = rows.filter(
+    (row) => row.quantity >= 1 && !row.refunded && !covered.has(row.listing_id),
   );
+  const listings = await Promise.all(
+    candidates.map((row) => requireListingWithCount(row.listing_id)),
+  );
+  const planRows = candidates.filter(
+    (_, index) => listings[index]!.assign_built_site,
+  );
+  return [...base, ...(await attendeeListingEntries(planRows, pk))];
 };
 
 /** Re-send an attendee's booking notification (its whole package, if any),

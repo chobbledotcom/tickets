@@ -9,6 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { insertBuiltSite } from "#db/built-sites.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -81,6 +82,56 @@ describeWithEnv("re-sending a booking made in a package", { db: true }, () => {
     expect((await registeredEntries()) - before).toBe(2);
   });
 });
+
+describeWithEnv(
+  "re-sending a booking beside an unassigned site plan",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("notifies the plan row too, so the assignment can serve it", async () => {
+      // The hidden monthly tier the plan's booking validation requires.
+      await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 300,
+      });
+      const ordinary = await createTestListing({
+        maxAttendees: 100,
+        name: "Ordinary First",
+      });
+      const plan = await createTestListing({
+        assignBuiltSite: true,
+        initialSiteMonths: 3,
+        maxAttendees: 100,
+        name: "Site Plan",
+        unitPrice: 300,
+      });
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { listingId: ordinary.id, quantity: 1 },
+          { listingId: plan.id, quantity: 1 },
+        ],
+        email: "plan-beside@example.com",
+        name: "Plan Beside",
+      });
+      if (!made.success) throw new Error("Expected the booking to work");
+      const attendee = made.attendees[0]!;
+      await insertBuiltSite("For The Plan", "plan.test", "", "", true);
+      const before = await registeredEntries();
+
+      await resend(attendee.id, "Plan Beside");
+
+      // Both rows notified, and the plan row's site is now assigned.
+      expect((await registeredEntries()) - before).toBe(2);
+      const { builtSites } = await import("#db/built-sites.ts");
+      const sites = await builtSites.getAll();
+      expect(
+        sites.find((s) => s.name === "For The Plan")!.assignedAttendeeId,
+      ).toBe(attendee.id);
+    });
+  },
+);
 
 describeWithEnv("re-sending for a line with no places", { db: true }, () => {
   test("is refused, and says why", async () => {

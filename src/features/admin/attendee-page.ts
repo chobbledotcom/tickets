@@ -252,9 +252,10 @@ const overviewTab: TabDef<AttendeePageEntity> = {
       // whether the buyer has a site at all — not per row. A sale that never
       // completed cannot owe a site, so an incomplete payment shows no cue.
       const bookings = attendeeBookingsFromLines(parsed.lines);
-      // The table gates each row on quantity and refund itself.
+      // A refunded plan's stale assignment must not read as serving an
+      // active one, so only unrefunded plan rows join the lookup.
       const planListingIds = bookings
-        .filter((booking) => booking.assignBuiltSite)
+        .filter((booking) => booking.assignBuiltSite && !booking.refunded)
         .map((booking) => booking.listingId);
       return AttendeeBookingsTable({
         bookings,

@@ -10,6 +10,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 /** The hidden monthly tier a plan booking's validation requires. */
@@ -103,6 +104,37 @@ describeWithEnv(
         const page = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await page.text();
         expect(html).toContain("Site Plan");
+        expect(html).toContain("No site assigned yet");
+      });
+
+      test("a refunded plan's stale assignment does not hide an active plan's cue", async () => {
+        using _env = withEnv({ CAN_BUILD_SITES: "true" });
+        await createTierListing();
+        const refundedPlan = await planListing("Refunded Plan");
+        const activePlan = await planListing("Active Plan");
+        const attendee = await bookTestAttendee([
+          { listingId: refundedPlan.id },
+          { listingId: activePlan.id },
+        ]);
+        // The refunded plan was paid and served before its refund.
+        await postListingSale({
+          attendeeId: attendee.id,
+          gross: 300,
+          listingId: refundedPlan.id,
+        });
+        await insertBuiltSite("Stale Claim", "stale.test", "", "", true);
+        const pool = await getAssignableBuiltSites();
+        await takePooledSiteForBuyer(
+          pool,
+          attendee.id,
+          [refundedPlan.id],
+          refundedPlan.id,
+        );
+        await refundBookedOrder(attendee.id, refundedPlan.id);
+
+        const page = await adminGet(`/admin/attendees/${attendee.id}`);
+        const html = await page.text();
+        expect(html).toContain("Active Plan");
         expect(html).toContain("No site assigned yet");
       });
 
