@@ -114,14 +114,13 @@ const denoSupportEntry = async (
 
 /** A Deno site's support message: a plain env var's value. Secrets never
  * carry their value in the API's answer, and a missing entry reads null. */
-const readDenoSupportMessage = async (
-  appId: string,
-): Promise<SupportMessageResult> => {
-  const result = await denoSupportEntry(appId);
-  if (!result.ok) return result;
-  const entry = result.value;
-  return okResult(entry === null || entry.secret ? null : entry.value);
-};
+const supportValue = (entry: DenoEnvVar | null): string | null =>
+  entry === null || entry.secret ? null : entry.value;
+
+const readDenoSupportMessage = (appId: string): Promise<SupportMessageResult> =>
+  denoSupportEntry(appId).then((existing) =>
+    existing.ok ? okResult(supportValue(existing.value)) : existing,
+  );
 
 /** Set a Deno app's support message as a plain env var. An existing record
  * is updated through its id with its own contexts, so a dashboard-created

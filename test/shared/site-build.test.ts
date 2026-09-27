@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
-import { builtSites } from "#db/built-sites.ts";
+import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import {
   type BuildSiteResult,
   builderApi,
@@ -147,6 +147,28 @@ describeWithEnv("site build", { db: true }, () => {
         expect(await builtSites.getAll()).toEqual([]);
       },
       { supportSeedResult: { error: "seed refused", ok: false } },
+    );
+  });
+
+  test("keeps the build failure first when the record cannot be deleted", async () => {
+    // A delete that cannot run appends its own failure to the answer; the
+    // provider error stays the first cause the caller reports.
+    await withBuildSiteMocks(
+      async () => {
+        using _delete = stub(builtSitesCrudTable, "deleteById", () =>
+          Promise.reject(new Error("delete boom")),
+        );
+        const { result } = await buildRetainedSite("Failed Site", {
+          siteName: "Failed Site",
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error).toContain("publish refused");
+        expect(result.error).toContain(
+          "the retained record could not be deleted: delete boom",
+        );
+      },
+      { publishResult: { error: "publish refused", ok: false } },
     );
   });
 });

@@ -329,6 +329,19 @@ describeWithEnv(
       );
     });
 
+    test("reports a failed read before the Deno write starts", async () => {
+      using _appEnvVars = stub(denoDeployApi, "getAppEnvVars", () =>
+        Promise.resolve({
+          error: "Get app failed (404): no app",
+          ok: false as const,
+        }),
+      );
+      expectErrorResult(
+        await supportMessageApi.setSupportMessage("deno", "app-1", "# New"),
+        "Get app failed (404)",
+      );
+    });
+
     test("updates the serving record in place and creates one when absent", async () => {
       // An existing record keeps its id, so a dashboard-created
       // all-contexts record is edited in place instead of shadowed by a
