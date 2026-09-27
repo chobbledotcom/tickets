@@ -111,16 +111,18 @@ One new write beside checkout creation, and one read plus delete at completion:
   shows it, and the admin resend can rebuild it. No data is lost.
 - Abandoned checkouts never complete. The pruning that already sweeps stale
   reservations also sweeps `checkout_pending_answers` rows older than the
-  payments retention cutoff, which covers provider retry windows and Square
-  links that never expire.
+  payments retention cutoff, which covers every provider retry window. A Square
+  link never expires, so a finite cutoff can still remove an unpaid link's row.
+  That late payment's miss is the logged case above, and the admin resend
+  recovers it.
 
 ## Concurrency table
 
-| Operation A                     | Operation B                     | Required result                                     | Protection                                                               |
-| ------------------------------- | ------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
-| Staged row written              | Webhook completion reads it     | One read, one delete                                | Session id is unique. The row exists before the checkout URL is returned |
-| Webhook replay after completion | Nothing to read                 | No second send                                      | The already-processed guard runs first                                   |
-| Stale row pruning               | Completion of the same checkout | The row is young enough that pruning cannot race it | The prune cutoff exceeds any checkout lifetime                           |
+| Operation A                     | Operation B                     | Required result                                     | Protection                                                                                                                      |
+| ------------------------------- | ------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Staged row written              | Webhook completion reads it     | One read, one delete                                | Session id is unique. The row exists before the checkout URL is returned                                                        |
+| Webhook replay after completion | Nothing to read                 | No second send                                      | The already-processed guard runs first                                                                                          |
+| Stale row pruning               | Completion of the same checkout | The row is young enough that pruning cannot race it | The cutoff exceeds every expired checkout's lifetime; a never-expiring Square link can outlive it, as the failure table records |
 
 ## Security and privacy
 
