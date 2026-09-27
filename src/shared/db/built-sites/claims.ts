@@ -8,16 +8,12 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   assignedBuiltSiteExistsStatement,
+  type BuyerPlanStatement,
   builtSites,
+  buyerAssignmentStatementFor,
   findBuiltSiteByIdPrimary,
 } from "#db/built-sites.ts";
 import { execute, type SqlStatement, withTransaction } from "#db/client.ts";
-
-/** A statement scoped to one buyer's claim on one plan listing. */
-type BuyerPlanStatement = (
-  attendeeId: number,
-  listingId: number,
-) => SqlStatement;
 
 /** The claim as one statement: it takes the first still-assignable candidate,
  * in the pool order the caller passes, and it bumps the blob revision so a
@@ -47,23 +43,19 @@ export const claimBuiltSiteStatement = (
 });
 
 /** The site a claim just won for this attendee: the row the claim statement
- * above now carries. Reads the plain assignment columns, not the blob. */
-export const claimedSiteIdStatement: BuyerPlanStatement = (
-  attendeeId,
-  listingId,
-) => ({
-  args: [attendeeId, listingId],
-  sql: `SELECT id FROM built_sites
-         WHERE assigned_attendee_id = ? AND assigned_listing_id = ?`,
-});
+ * above now carries, found on any of the plan listings the buyer booked — a
+ * combined purchase records only its first. Reads the plain assignment
+ * columns, not the blob. */
+export const claimedSiteIdStatement: BuyerPlanStatement =
+  buyerAssignmentStatementFor({ select: "id" });
 
-/** The site a claim gave this buyer on this plan listing, or null when the
- * buyer holds none. Reads the plain assignment columns, not the blob. */
+/** The site a claim gave this buyer on any of these plan listings, or null
+ * when the buyer holds none. */
 export const siteClaimedByBuyer = async (
   attendeeId: number,
-  listingId: number,
+  listingIds: readonly number[],
 ): Promise<BuiltSite | null> => {
-  const { args, sql } = claimedSiteIdStatement(attendeeId, listingId);
+  const { args, sql } = claimedSiteIdStatement(attendeeId, listingIds);
   const rows = (await execute(sql, args)).rows;
   const siteId = rows[0]?.id;
   if (typeof siteId !== "number") return null;
@@ -100,7 +92,7 @@ export const takePooledSiteForBuyer = async (
     );
     if (won.rowsAffected === 0) return null;
     const claimed = await tx.execute(
-      claimedSiteIdStatement(attendeeId, listingIdToRecord),
+      claimedSiteIdStatement(attendeeId, [listingIdToRecord]),
     );
     return { kind: "won", siteId: claimed.rows[0]!.id as number } as const;
   });

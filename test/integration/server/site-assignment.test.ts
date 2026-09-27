@@ -294,7 +294,7 @@ describeWithEnv(
       test("a resend whose first listing is not the claimed one still serves the buyer", async () => {
         await insertSitesAAndB();
         // The claim records the first listing; the resend lists the other
-        // one first, so the completion lookup names no claimed site.
+        // one first, so the completion lookup must span both listings.
         const entries = [
           siteEntry({ attendeeId: 10, listingId: 1, listingName: "Plan One" }),
           siteEntry({ attendeeId: 10, listingId: 2, listingName: "Plan Two" }),
