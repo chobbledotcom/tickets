@@ -7,8 +7,10 @@
  *   - Session cookie + x-csrf-token header
  */
 
+import { decryptAttendees } from "#db/attendees/pii.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
+import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
 import {
   getAllListings,
   getListingWithCount,
@@ -32,7 +34,8 @@ import {
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { withApiEntity } from "#shared/rest/crud-parsers.ts";
-import type { AdminListing, Listing, ListingWithCount } from "#types";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import type { AdminListing, Attendee, Listing, ListingWithCount } from "#types";
 
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
@@ -134,6 +137,40 @@ const toggleActiveRoute =
   (request: Request, params: RouteParams): Promise<Response> =>
     handleToggleActive(request, params.listingId as number, active);
 
+/** One attendee booking row as the admin API answers with it: the decrypted
+ * roster row minus the sealed PII blob and its blind index — storage details,
+ * the same way slug_index is stripped from listing responses. */
+export type AdminApiAttendee = Omit<
+  Attendee,
+  "pii_blob" | "ticket_token_index"
+>;
+
+const toApiAttendee = ({
+  pii_blob: _,
+  ticket_token_index: __,
+  ...attendee
+}: Attendee): AdminApiAttendee => attendee;
+
+/** Handle GET /api/admin/listings/:listingId/attendees — the listing's roster
+ * as JSON. One row per booking line, newest first; every line shows, including
+ * a quantity-0 placeholder, and a booking on another listing never appears. */
+const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
+  withApiEntity(
+    request,
+    getListingWithAttendeesRaw,
+    listingId as number,
+    "Listing",
+    async (result) =>
+      jsonResponse({
+        attendees: (
+          await decryptAttendees(
+            result.attendeesRaw,
+            await requireRequestPrivateKey(),
+          )
+        ).map(toApiAttendee),
+      }),
+  );
+
 const listingApiRoutes = defineCrudApi<
   Listing,
   ListingInput,
@@ -143,6 +180,7 @@ const listingApiRoutes = defineCrudApi<
   afterCommit: syncListingPrices,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
+    "GET /api/admin/listings/:listingId/attendees": handleListingAttendees,
     "POST /api/admin/listings/:listingId/deactivate": toggleActiveRoute(false),
     "POST /api/admin/listings/:listingId/reactivate": toggleActiveRoute(true),
   },

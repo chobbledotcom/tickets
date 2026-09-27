@@ -199,6 +199,25 @@ describe("starting stripe-mock", () => {
     });
   });
 
+  test("says why when the machine refuses to run the binary", async () => {
+    await withTempStripeMockPaths(async (paths) => {
+      // Left without execute permission, so the spawn itself is refused —
+      // the same way out a transient "Text file busy" escapes through.
+      await Deno.writeTextFile(paths.binaryPath, "#!/bin/sh\nexit 1\n");
+
+      const message = await startFailureMessage({
+        budgetMs: 50,
+        delayMs: 1,
+        env: testEnv({}),
+        paths,
+        startAttempts: 2,
+      });
+
+      expect(message).toContain(STRIPE_MOCK_FAILED_TO_START);
+      expect(message).toContain("Failed to spawn");
+    });
+  });
+
   test("says only that it failed when no try explained itself", async () => {
     await withHeldPort(async (port) => {
       const message = await startFailureMessage({
