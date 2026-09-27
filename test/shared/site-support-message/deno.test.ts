@@ -11,7 +11,7 @@ import {
   type DenoEnvVarUpdate,
   denoDeployApi,
 } from "#shared/deno-deploy-api.ts";
-import { type DenoEnvVar } from "#shared/deno-deploy-schema.ts";
+import type { DenoEnvVar } from "#shared/deno-deploy-schema.ts";
 import {
   loadSiteSupportMessage,
   SUPPORT_MESSAGE_KEY,
@@ -37,7 +37,8 @@ const record = (
 /** The getAppEnvVars stub answering `records`. */
 const appEnvVars = (records: DenoEnvVar[]) =>
   stub(denoDeployApi, "getAppEnvVars", () =>
-    Promise.resolve({ ok: true as const, value: records }));
+    Promise.resolve({ ok: true as const, value: records }),
+  );
 
 describe("site support message on Deno Deploy", () => {
   test("reads a Deno app's plain variable and masks its secrets", async () => {

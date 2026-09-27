@@ -105,17 +105,18 @@ const withDenoSupportEntry = async (
 ): Promise<SupportMessageResult> => {
   const result = await denoDeployApi.getAppEnvVars(appId);
   if (!result.ok) return result;
-  const serving = result.value
-    .filter(
-      ({ contexts, key }) =>
-        key === SUPPORT_MESSAGE_KEY &&
-        (contexts === "all" || contexts.includes("production")),
-    )
-    .sort(
-      ({ contexts: a }, { contexts: b }) =>
-        (a === "all" ? 1 : 0) - (b === "all" ? 1 : 0),
-    )[0];
-  return act(serving ?? null);
+  const candidates = result.value.filter(
+    ({ contexts, key }) =>
+      key === SUPPORT_MESSAGE_KEY &&
+      (contexts === "all" || contexts.includes("production")),
+  );
+  // A production-specific record overrides the all-context fallback on the
+  // site, so it is the one the editor reads and updates.
+  const serving =
+    candidates.find(({ contexts }) => contexts.includes("production")) ??
+    candidates[0] ??
+    null;
+  return act(serving);
 };
 
 /** A Deno site's support message: a plain env var's value. Secrets never
