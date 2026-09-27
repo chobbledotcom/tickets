@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
-import { claimBuiltSiteForAttendee, insertBuiltSite } from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { getDb, queryOne } from "#db/client.ts";
 import {
   getListingWithCount,
@@ -107,7 +108,8 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "",
       true,
     );
-    await claimBuiltSiteForAttendee(site.id, attendee.id, listing.id);
+    const pool = await getAssignableBuiltSites();
+    await takePooledSiteForBuyer(pool, attendee.id, [listing.id], listing.id);
 
     await deleteAttendee(attendee.id);
 

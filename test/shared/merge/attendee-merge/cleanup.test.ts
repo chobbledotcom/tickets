@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { claimBuiltSiteForAttendee, insertBuiltSite } from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import {
   createMergePair,
@@ -61,7 +62,12 @@ describeWithEnv("attendee merge cleanup", { db: true }, () => {
       "",
       true,
     );
-    await claimBuiltSiteForAttendee(site.id, source.id, listing2.id);
+    await takePooledSiteForBuyer(
+      await getAssignableBuiltSites(),
+      source.id,
+      [listing2.id],
+      listing2.id,
+    );
 
     const { result } = await runMerge({ source, target });
 

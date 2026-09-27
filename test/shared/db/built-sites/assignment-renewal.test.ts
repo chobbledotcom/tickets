@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import {
   builtSites,
   builtSitesCrudTable,
-  claimBuiltSiteForAttendee,
   getAssignableBuiltSites,
   getAssignedListingIdsForAttendee,
   getBuiltSiteByRenewalTokenIndex,
+  hasAssignedBuiltSite,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
@@ -36,13 +36,13 @@ describeWithEnv("assignable built sites", { db: true }, () => {
     ]);
   });
   test("getAssignedListingIdsForAttendee lists only this attendee's claimed listings", async () => {
-    const mine = await insertBuiltSite("Mine", "mine.test", "", "", true);
+    await insertBuiltSite("Mine", "mine.test", "", "", true);
     await insertBuiltSite("Theirs", "theirs.test", "", "", true);
-    const theirs = (await builtSites.getAll()).find(
-      (s) => s.name === "Theirs",
-    )!;
-    await claimBuiltSiteForAttendee(mine.id, 42, 7);
-    await claimBuiltSiteForAttendee(theirs.id, 99, 8);
+    const sites = await builtSites.getAll();
+    const mine = sites.find((s) => s.name === "Mine")!;
+    const theirs = sites.find((s) => s.name === "Theirs")!;
+    await takePooledSiteForBuyer([mine], 42, [7], 7);
+    await takePooledSiteForBuyer([theirs], 99, [8], 8);
     // A hand-repaired row can carry an attendee with no listing; the page
     // must read it as "no listing this attendee was served on".
     await execute(
@@ -53,46 +53,15 @@ describeWithEnv("assignable built sites", { db: true }, () => {
     expect(await getAssignedListingIdsForAttendee(42)).toEqual([7]);
     expect(await getAssignedListingIdsForAttendee(1234)).toEqual([]);
   });
-  test("claimBuiltSiteForAttendee stores the assignment", async () => {
-    const row = await insertBuiltSite(
-      "To Assign",
-      "assign.b-cdn.net",
-      "",
-      "",
-      true,
-    );
-    expect(await claimBuiltSiteForAttendee(row.id, 42, 7)).toBe(true);
-    expect(await builtSitesCrudTable.read.one({ id: row.id })).toMatchObject({
-      assignable: false,
-      assignedAttendeeId: 42,
-      assignedListingId: 7,
-    });
-  });
 
-  test("claimBuiltSiteForAttendee returns false for a missing site", async () => {
-    expect(await claimBuiltSiteForAttendee(999, 1, 1)).toBe(false);
-  });
+  test("hasAssignedBuiltSite reads the buyer's assignment", async () => {
+    await insertBuiltSite("Assigned", "assigned.b-cdn.net", "", "", true);
+    const pool = await getAssignableBuiltSites();
 
-  test("keeps an assignment made during scheduler-key provisioning", async () => {
-    const site = await insertBuiltSite(
-      "Concurrent assignment",
-      "concurrent.example.test",
-      "",
-      "",
-      true,
-    );
-
-    await Promise.all([
-      ensureBuiltSiteSchedulerKey(site.id),
-      claimBuiltSiteForAttendee(site.id, 42, 7),
-    ]);
-
-    expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({
-      assignable: false,
-      assignedAttendeeId: 42,
-      assignedListingId: 7,
-      siteDataRevision: 2,
-    });
+    expect(await hasAssignedBuiltSite(42, [7])).toBe(false);
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
+    expect(await hasAssignedBuiltSite(42, [7])).toBe(true);
+    expect(await hasAssignedBuiltSite(42, [8])).toBe(false);
   });
 
   test("unassigned sites have null assignment ids", async () => {

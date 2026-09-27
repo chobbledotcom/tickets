@@ -1,20 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { renderGuideSections } from "#templates/admin/guide/components.tsx";
+import {
+  type GuideHostConfig,
+  renderGuideSections,
+} from "#templates/admin/guide/components.tsx";
 import { domainsSections } from "#templates/admin/guide/domains.tsx";
 
 const hostConfig = (
-  overrides: Partial<{
-    bunnyDnsSubdomainSuffix: string | null;
-    builderEnabled: boolean;
-    hostAppleWalletPassTypeId: string | null;
-    hostEmailFromAddress: string | null;
-    hostEmailProvider: string | null;
-    hostGoogleWalletIssuerId: string | null;
-  }> = {},
-) => ({
+  overrides: Partial<GuideHostConfig> = {},
+): GuideHostConfig => ({
   builderEnabled: true,
-  bunnyDnsSubdomainSuffix: null,
   hostAppleWalletPassTypeId: null,
   hostEmailFromAddress: null,
   hostEmailProvider: null,
@@ -77,19 +72,6 @@ describe("guide domains sections", () => {
         titleKey: "built_sites",
       },
     ]);
-  });
-
-  test("renders the host-subdomain example with and without a suffix", () => {
-    const noSuffix = domainsSections(hostConfig())[0]!.entries[0]!;
-    if (!("custom" in noSuffix)) throw new Error("expected a custom entry");
-    expect(String(noSuffix.body)).toContain("my-business.example.com");
-
-    const configured = domainsSections(
-      hostConfig({ bunnyDnsSubdomainSuffix: ".chirp.zone" }),
-    )[0]!.entries[0]!;
-    if (!("custom" in configured)) throw new Error("expected a custom entry");
-    expect(String(configured.body)).toContain("my-business.chirp.zone");
-    expect(String(configured.body)).not.toContain("my-business.example.com");
   });
 
   test("drops the built-sites section when the builder is off", () => {

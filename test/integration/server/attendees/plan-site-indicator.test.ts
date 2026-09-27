@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { claimBuiltSiteForAttendee, insertBuiltSite } from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -40,14 +41,14 @@ describeWithEnv(
         expect(before).toContain("Site Plan");
         expect(before).toContain("No site assigned yet");
 
-        const pooled = await insertBuiltSite(
-          "Pooled",
-          "pooled.test",
-          "",
-          "",
-          true,
+        await insertBuiltSite("Pooled", "pooled.test", "", "", true);
+        const pool = await getAssignableBuiltSites();
+        await takePooledSiteForBuyer(
+          pool,
+          attendee.id,
+          [listing.id],
+          listing.id,
         );
-        await claimBuiltSiteForAttendee(pooled.id, attendee.id, listing.id);
 
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();

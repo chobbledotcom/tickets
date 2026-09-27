@@ -6,7 +6,13 @@
 import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { queryAll, queryOne, rowExistsForIdList } from "#db/client.ts";
+import {
+  execute,
+  inPlaceholders,
+  queryAll,
+  queryOne,
+  type SqlStatement,
+} from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
 import {
   cachedTable,
@@ -131,7 +137,9 @@ const rawFilter = (
   const named = Object.keys(notAColumn);
   if (named.length > 0) {
     throw new Error(
-      `Cannot filter built sites by ${named.join(", ")}: a site's fields are stored inside one encrypted blob, not as columns. Filter by id.`,
+      `Cannot filter built sites by ${named.join(
+        ", ",
+      )}: a site's fields are stored inside one encrypted blob, not as columns. Filter by id.`,
     );
   }
   return id === undefined ? {} : { id };
@@ -214,28 +222,6 @@ export const updateBuiltSite = (
     // nothing", or a losing edit would drop silently.
     if (!stored) return null;
     return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
-  });
-
-/**
- * Atomically take one assignable site for an attendee. The revision fence is
- * the whole claim: a request that lost the race for this site reads the site
- * back no longer assignable and wins nothing, so it must try the next pooled
- * site.
- */
-export const claimBuiltSiteForAttendee = (
-  siteId: number,
-  attendeeId: number,
-  listingId: number,
-): Promise<boolean> =>
-  retryWrite(`Could not claim built site ${String(siteId)}`, async () => {
-    const existing = await findBuiltSiteByIdPrimary(siteId);
-    if (existing?.assignable !== true) return { value: false };
-    const stored = await storeBuiltSiteChanges(siteId, existing, {
-      assignable: false,
-      assignedAttendeeId: attendeeId,
-      assignedListingId: listingId,
-    });
-    return stored ? { value: true } : null;
   });
 
 /**
@@ -338,12 +324,26 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
  * listing_attendees check) would otherwise survive behind a hidden line. One
  * query over all the IDs; callers pass a non-empty list.
  */
-export const hasAssignedBuiltSite = rowExistsForIdList(
-  (listingIdPlaceholders) =>
-    `SELECT 1 FROM built_sites
+export const assignedBuiltSiteExistsStatement = (
+  attendeeId: number,
+  listingIds: readonly number[],
+): SqlStatement => ({
+  args: [attendeeId, ...listingIds],
+  sql: `SELECT 1 FROM built_sites
      WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${listingIdPlaceholders}) LIMIT 1`,
-);
+       AND assigned_listing_id IN (${inPlaceholders(listingIds)}) LIMIT 1`,
+});
+
+export const hasAssignedBuiltSite = async (
+  attendeeId: number,
+  listingIds: number[],
+): Promise<boolean> => {
+  const { args, sql } = assignedBuiltSiteExistsStatement(
+    attendeeId,
+    listingIds,
+  );
+  return (await execute(sql, args)).rows.length > 0;
+};
 
 /** Every listing this attendee holds an assigned site from: the attendee
  * page's repair view of which plan bookings still have no site. */

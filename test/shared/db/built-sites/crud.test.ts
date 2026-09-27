@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   builtSitesCrudTable,
-  claimBuiltSiteForAttendee,
+  getAssignableBuiltSites,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
@@ -238,7 +239,8 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       "",
       true,
     );
-    await claimBuiltSiteForAttendee(row.id, 42, 7);
+    const pool = await getAssignableBuiltSites();
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
     await updateBuiltSiteRenewalState(row.id, {
       readOnlyFrom: "2027-01-01T00:00:00Z",
       renewalToken: "renewal-token",
