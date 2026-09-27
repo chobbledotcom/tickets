@@ -9,8 +9,9 @@ import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   assignedBuiltSiteExistsStatement,
   builtSites,
+  findBuiltSiteByIdPrimary,
 } from "#db/built-sites.ts";
-import { type SqlStatement, withTransaction } from "#db/client.ts";
+import { execute, type SqlStatement, withTransaction } from "#db/client.ts";
 
 /** A statement scoped to one buyer's claim on one plan listing. */
 type BuyerPlanStatement = (
@@ -40,6 +41,7 @@ export const claimBuiltSiteStatement = (
                FROM json_each(?) AS poolOrder
                JOIN built_sites AS candidate ON candidate.id = poolOrder.value
               WHERE candidate.assignable = 1
+              ORDER BY poolOrder.key
               LIMIT 1
            )`,
 });
@@ -54,6 +56,19 @@ export const claimedSiteIdStatement: BuyerPlanStatement = (
   sql: `SELECT id FROM built_sites
          WHERE assigned_attendee_id = ? AND assigned_listing_id = ?`,
 });
+
+/** The site a claim gave this buyer on this plan listing, or null when the
+ * buyer holds none. Reads the plain assignment columns, not the blob. */
+export const siteClaimedByBuyer = async (
+  attendeeId: number,
+  listingId: number,
+): Promise<BuiltSite | null> => {
+  const { args, sql } = claimedSiteIdStatement(attendeeId, listingId);
+  const rows = (await execute(sql, args)).rows;
+  const siteId = rows[0]?.id;
+  if (typeof siteId !== "number") return null;
+  return findBuiltSiteByIdPrimary(siteId);
+};
 
 /** One buyer's take from the pool: a claimed site, a read that the buyer was
  * already served, or an empty pool. */

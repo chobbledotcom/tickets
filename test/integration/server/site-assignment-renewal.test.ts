@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import {
   builtSites,
   getAssignableBuiltSites,
@@ -21,7 +21,22 @@ import {
   setUpAssignmentSuite,
   silencedErrors,
   siteEntry,
+  stubEdgeSecretSuccess,
 } from "./site-assignment-shared.ts";
+
+/** Stub the edge-secret push so the RENEWAL_URL leg fails and the rest pass. */
+const failingRenewalUrlPush = (): Stub =>
+  stub(
+    bunnyCdnApi,
+    "setEdgeScriptSecret",
+    (_scriptId: number, name: string, _value: string) =>
+      name === "RENEWAL_URL"
+        ? Promise.resolve({
+            error: "renewal url push failed",
+            ok: false as const,
+          })
+        : Promise.resolve({ ok: true as const }),
+  );
 
 describeWithEnv(
   "site-assignment renewal",
@@ -255,19 +270,7 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
 
         suite.secretStub.restore();
-        const failStub = stub(
-          bunnyCdnApi,
-          "setEdgeScriptSecret",
-          (_scriptId: number, name: string, _value: string) => {
-            if (name === "RENEWAL_URL") {
-              return Promise.resolve({
-                error: "renewal url push failed",
-                ok: false as const,
-              });
-            }
-            return Promise.resolve({ ok: true as const });
-          },
-        );
+        const failStub = failingRenewalUrlPush();
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
@@ -277,11 +280,46 @@ describeWithEnv(
           expect(assigned.renewalTokenIndex).toBeNull();
           expect(assigned.readOnlyFrom).toBe("");
           const readOnlyCalls = failStub.calls.filter(
-            (c) => c.args[1] === "READ_ONLY_FROM",
+            (c: Stub["calls"][number]) => c.args[1] === "READ_ONLY_FROM",
           );
           expect(readOnlyCalls).toHaveLength(0);
         } finally {
           failStub.restore();
+        }
+      });
+
+      test("a resend completes a renewal the first push failed to provision", async () => {
+        await createTierListing();
+
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
+
+        // First run: the RENEAL_URL push fails, so the claim stands but the
+        // renewal state stays empty.
+        suite.secretStub.restore();
+        const failStub = failingRenewalUrlPush();
+        await assignAndNotifyBuiltSites([siteEntry()]);
+        const afterFirst = (await builtSites.getAll()).find(
+          (s) => s.name === "Site A",
+        )!;
+        expect(afterFirst.assignedAttendeeId).not.toBeNull();
+        expect(afterFirst.renewalTokenIndex).toBeNull();
+
+        // Resend with pushes working: the served buyer's renewal completes.
+        failStub.restore();
+        const okStub = stubEdgeSecretSuccess();
+        try {
+          await assignAndNotifyBuiltSites([siteEntry()]);
+
+          const afterResend = (await builtSites.getAll()).find(
+            (s) => s.name === "Site A",
+          )!;
+          expect(afterResend.assignedAttendeeId).toBe(
+            afterFirst.assignedAttendeeId,
+          );
+          expect(afterResend.renewalTokenIndex).not.toBeNull();
+          expect(afterResend.readOnlyFrom).not.toBe("");
+        } finally {
+          okStub.restore();
         }
       });
     });
