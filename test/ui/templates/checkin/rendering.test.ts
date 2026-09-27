@@ -12,7 +12,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
-import { setupCheckinTest } from "./helpers.ts";
+import { setupCheckinTest } from "#test/features/checkin/helpers.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
