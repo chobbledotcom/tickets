@@ -1,13 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
-import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import {
+  siteClaimedByBuyer,
+  takePooledSiteForBuyer,
+} from "#db/built-sites/claims.ts";
 import {
   builtSitesCrudTable,
   getAssignableBuiltSites,
   insertBuiltSite,
 } from "#db/built-sites.ts";
+import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 
 describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
   test("stores the assignment and hands back the claimed site", async () => {
@@ -60,7 +65,9 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     const pool = await getAssignableBuiltSites();
 
     await takePooledSiteForBuyer(pool, 42, [7], 7);
-    const secondBuyer = await takePooledSiteForBuyer(pool, 43, [7], 7);
+    // An unchanged copy of the pool, so the second take still offers the
+    // now-taken site and exercises the conditional UPDATE's guard.
+    const secondBuyer = await takePooledSiteForBuyer([...pool], 43, [7], 7);
 
     expect(secondBuyer).toEqual({ kind: "empty" });
   });
@@ -68,6 +75,22 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
   test("reports an empty pool for a buyer with no candidates", async () => {
     const take = await takePooledSiteForBuyer([], 42, [7], 7);
     expect(take).toEqual({ kind: "empty" });
+  });
+
+  test("finds the site a claim gave the buyer on that listing", async () => {
+    const site = await insertBuiltSite(
+      "Claimed",
+      "claimed.b-cdn.net",
+      "",
+      "",
+      true,
+    );
+    const pool = await getAssignableBuiltSites();
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
+
+    const claimed = await siteClaimedByBuyer(42, 7);
+    expect(claimed?.id).toBe(site.id);
+    expect(await siteClaimedByBuyer(42, 8)).toBeNull();
   });
 
   test("keeps an assignment made during scheduler-key provisioning", async () => {
@@ -79,17 +102,49 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
       true,
     );
     const pool = await getAssignableBuiltSites();
+    const real = getDb();
 
-    await Promise.all([
-      ensureBuiltSiteSchedulerKey(site.id),
-      takePooledSiteForBuyer(pool, 42, [7], 7),
-    ]);
-
-    expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({
-      assignable: false,
-      assignedAttendeeId: 42,
-      assignedListingId: 7,
-      siteDataRevision: 2,
+    // Force the interleaving: the scheduler has read the row by the time
+    // its revision-fenced write lands, so the write gate starts the claim
+    // and holds the stale write until the claim has committed — the write
+    // must retry over the assignment instead of reverting it.
+    let startClaim: () => void = () => {};
+    const claimStarted = new Promise<void>((resolve) => {
+      startClaim = resolve;
     });
+    const claim = (async () => {
+      await claimStarted;
+      return takePooledSiteForBuyer(pool, 42, [7], 7);
+    })();
+    const restore = wrapDbClient({
+      batch: () => {},
+      execute: (statement) => {
+        const sql = typeof statement === "string" ? statement : statement.sql;
+        if (typeof sql === "string" && sql.includes("site_data_revision = ?")) {
+          startClaim();
+          return (async () => {
+            await claim;
+            return real.execute(statement);
+          })();
+        }
+        return null;
+      },
+    });
+    try {
+      const key = await ensureBuiltSiteSchedulerKey(site.id);
+      await claim;
+
+      expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject(
+        {
+          assignable: false,
+          assignedAttendeeId: 42,
+          assignedListingId: 7,
+          scheduledTaskKey: key,
+          siteDataRevision: 2,
+        },
+      );
+    } finally {
+      restore();
+    }
   });
 });

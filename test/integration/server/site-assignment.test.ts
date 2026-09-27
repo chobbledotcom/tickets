@@ -277,7 +277,8 @@ describeWithEnv(
         const site = (await builtSites.getAll())[0]!;
 
         // Sequential claims, not a race: after the first takes the site, the
-        // second's conditional UPDATE matches no row and returns false.
+        // second's conditional UPDATE matches no row, so the take reports
+        // an empty pool.
         expect((await takePooledSiteForBuyer([site], 42, [7], 7)).kind).toBe(
           "claimed",
         );
@@ -288,6 +289,19 @@ describeWithEnv(
         const sites = await builtSites.getAll();
         expect(sites[0]!.assignedAttendeeId).toBe(42);
         expect(sites[0]!.assignable).toBe(false);
+      });
+
+      test("a resend whose first listing is not the claimed one still serves the buyer", async () => {
+        await insertSitesAAndB();
+        // The claim records the first listing; the resend lists the other
+        // one first, so the completion lookup names no claimed site.
+        const entries = [
+          siteEntry({ attendeeId: 10, listingId: 1, listingName: "Plan One" }),
+          siteEntry({ attendeeId: 10, listingId: 2, listingName: "Plan Two" }),
+        ];
+        await assignAndNotifyBuiltSites(entries);
+        await assignAndNotifyBuiltSites([...entries].reverse());
+        await expectOneSiteServed();
       });
 
       test("sends email with plural subject for multiple sites", async () => {

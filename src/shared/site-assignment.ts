@@ -8,7 +8,10 @@
 /* jscpd:ignore-start */
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
-import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import {
+  siteClaimedByBuyer,
+  takePooledSiteForBuyer,
+} from "#db/built-sites/claims.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   getAssignableBuiltSites,
@@ -245,6 +248,22 @@ export const rotateRenewalToken = async (
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
+const completeUnfinishedRenewal = async (
+  attendeeId: number,
+  listingId: number,
+  months: number,
+): Promise<void> => {
+  const claimed = await siteClaimedByBuyer(attendeeId, listingId);
+  // A set renewal index means the first push already provisioned the site.
+  if (claimed !== null && !claimed.renewalTokenIndex) {
+    await provisionSiteRenewal(
+      claimed,
+      months,
+      `Failed to push renewal secrets for site ${claimed.id}`,
+    );
+  }
+};
+
 /** Every buyer's outcome from one assignment run. */
 type SiteAssignmentOutcome = {
   assignments: SiteAssignment[];
@@ -284,6 +303,10 @@ const assignSitesForEntries = async (
     );
     if (booked.length === 0) continue;
     const first = booked[0]!;
+    const months = sumOf(
+      (e: SiteAssignmentEntry) =>
+        e.listing.initial_site_months * e.attendee.quantity,
+    )(booked);
 
     const listingName = unique(booked.map((e) => e.listing.name)).join(" + ");
     const take = await takePooledSiteForBuyer(
@@ -292,16 +315,19 @@ const assignSitesForEntries = async (
       booked.map((e) => e.listing.id),
       first.listing.id,
     );
-    if (take.kind === "served") continue;
+    if (take.kind === "served") {
+      await completeUnfinishedRenewal(
+        first.attendee.id,
+        first.listing.id,
+        months,
+      );
+      continue;
+    }
     if (take.kind === "empty") {
       missedBuyers.push({ attendee: first.attendee, listingName });
       continue;
     }
     const site = take.site;
-    const months = sumOf(
-      (e: SiteAssignmentEntry) =>
-        e.listing.initial_site_months * e.attendee.quantity,
-    )(booked);
     await provisionSiteRenewal(
       site,
       months,
