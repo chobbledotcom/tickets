@@ -7,6 +7,7 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
+  createTestScannerSession,
   getTestSession,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
@@ -37,6 +38,7 @@ describeWithEnv("admin listings route", { db: true }, () => {
   test("dashboard redirects non-dashboard roles to their own landing pages", async () => {
     const { cookie: agentCookie } = await createTestAgentSession();
     const { cookie: editorCookie } = await createTestEditorSession();
+    const { cookie: scannerCookie } = await createTestScannerSession();
     expect(
       (await awaitTestRequest("/admin/", { cookie: agentCookie })).headers.get(
         "location",
@@ -47,6 +49,11 @@ describeWithEnv("admin listings route", { db: true }, () => {
         "location",
       ),
     ).toBe("/admin/listings");
+    expect(
+      (
+        await awaitTestRequest("/admin/", { cookie: scannerCookie })
+      ).headers.get("location"),
+    ).toBe("/admin/scanner");
   });
 
   test("dashboard shows only the ten newest attendees", async () => {

@@ -31,6 +31,7 @@ export const ORGANISER = "the organiser";
 export const CUSTOMER = "the customer";
 export const EDITOR = "the editor";
 export const LATECOMER = "the latecomer";
+export const SCANNER = "the scanner";
 
 /** Keep the window somebody is looking at, so the next step can read the page
  * they really ended on. */

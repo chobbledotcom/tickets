@@ -17,6 +17,7 @@ import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
+  DOOR_ADMIN_LEVELS,
   SITE_ADMIN_LEVELS,
   STAFF_ADMIN_LEVELS,
 } from "#types";
@@ -342,8 +343,11 @@ export const ADMIN_AREAS = {
     },
   },
   scanner: {
-    audience: STAFF_ADMIN_LEVELS,
+    // Every door surface in one audience: staff keep the access they had, and
+    // the door-only `scanner` reaches exactly these pages and nothing else.
+    audience: DOOR_ADMIN_LEVELS,
     view: {
+      doors: "/admin/scanner",
       groupScanner: "/admin/groups/:id/scanner",
       listingScanner: "/admin/listing/:id/scanner",
     },

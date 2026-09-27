@@ -41,6 +41,7 @@ import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
+  DOOR_ADMIN_LEVELS,
   isRecord,
   isStaffRole,
   type NagItem,
@@ -134,10 +135,12 @@ export const getAuthenticatedSession = async (
 /** Where a user should land after authenticating, based on their role.
  * Delivery agents go straight to their run sheet (the only page they may see);
  * editors go to the listings index (the dashboard shows financials they may not
- * see); staff go to the dashboard. */
+ * see); scanner users go to the doors list, where they pick a door; staff go to
+ * the dashboard. */
 export const adminLandingPath = (adminLevel: AdminLevel): string => {
   if (adminLevel === "agent") return "/admin/deliveries";
   if (adminLevel === "editor") return "/admin/listings";
+  if (adminLevel === "scanner") return "/admin/scanner";
   return "/admin";
 };
 
@@ -297,6 +300,12 @@ export const DELIVERY_FORM: AuthPolicy<"form"> = {
   body: "form",
   roles: DELIVERY_ADMIN_LEVELS,
 };
+/** Door check-in form gate: staff + the door-only `scanner`. The ticket
+ * check-in page's check-in/out toggle is the one write a scanner login makes. */
+export const DOOR_FORM: AuthPolicy<"form"> = {
+  body: "form",
+  roles: DOOR_ADMIN_LEVELS,
+};
 /** Form gate that admits any authenticated user, agents and editors included —
  * used for actions every logged-in user must reach, like logout. */
 export const ANY_USER_FORM: AuthPolicy<"form"> = {
@@ -326,11 +335,13 @@ export const OWNER_API: AuthPolicy<"json"> = {
 /**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
  * the session lifetime, so a logged-in admin can keep the scanner page open for
- * a whole listing without check-ins failing on CSRF expiry.
+ * a whole listing without check-ins failing on CSRF expiry. Door roles only —
+ * the same audience the scanner pages declare.
  */
 export const SCANNER_JSON: AuthPolicy<"json"> = {
   body: "json",
   csrfMaxAge: SCANNER_CSRF_MAX_AGE_S,
+  roles: DOOR_ADMIN_LEVELS,
 };
 
 /** Get the current cookie session, or the channel's not-authenticated failure. */
@@ -436,10 +447,17 @@ export const pageGuardFor = (
 
 /** One record page's gate: every role that can reach any route beneath it.
  * A tab open to a wider role sits under this same path and needs to get in;
- * the tab's own `visible` is what keeps the narrower tabs shut. */
+ * the tab's own `visible` is what keeps the narrower tabs shut. A page whose
+ * beneath-routes include a standalone tool rather than a tab names its own tab
+ * audience instead — the listing and group scanner doors are such routes, and
+ * the folded floor would otherwise admit the door-only `scanner` login to a
+ * page whose every tab hides from them. The role matrix still catches a page
+ * that freezes out a role one of its tab destinations declares. */
 export const recordPageGuardFor = (
   route: AdminDestinationDef,
-): SessionGuard<AuthSession> => requireRolesOr(adminPageAudience(route));
+  audience?: readonly AdminLevel[],
+): SessionGuard<AuthSession> =>
+  requireRolesOr(audience ?? adminPageAudience(route));
 
 /** A form POST's policy, admitting exactly the roles its route declares. */
 export const formPolicyFor = (

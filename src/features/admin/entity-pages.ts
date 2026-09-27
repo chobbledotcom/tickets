@@ -34,7 +34,7 @@ import {
 } from "#templates/admin/entity-pages.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
-import { isOwnerRole } from "#types";
+import { type AdminLevel, isOwnerRole } from "#types";
 
 /** Entity row key: numeric ids for ordinary tables, strings for blind-index
  * keyed pages like /admin/history/:hmac. */
@@ -135,6 +135,12 @@ export interface TabDef<E> extends AdminGatedItem<E> {
 
 /** One entity's whole page, as data. */
 export interface EntityPageDef<E, Id extends EntityId = number> {
+  /** The roles this page's tabs serve, when the folded floor of everything
+   * beneath the record path is wider than the tabs themselves. The listing and
+   * group pages need this: their scanner routes are standalone doors beneath
+   * the record path, not tabs, and the folded floor would otherwise admit the
+   * door-only `scanner` login to a page whose every tab hides from it. */
+  audience?: readonly AdminLevel[];
   /** Always-visible region above the tab strip (alerts, notes, status). */
   banner?: SlotLoader<E>;
   /** The route this page serves. Its declaration gives the page both its URLs
@@ -297,7 +303,10 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
 ): EntityPage<E, Id> => {
   const basePath = (id: Id): string => adminRecordPath(def.destination, id);
-  const guard = recordPageGuardFor(adminDestination(def.destination));
+  const guard = recordPageGuardFor(
+    adminDestination(def.destination),
+    def.audience,
+  );
   const path = (id: Id, slug = ""): string => tabPath(basePath(id), slug);
 
   const renderPage = async (

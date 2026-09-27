@@ -1,5 +1,6 @@
 /**
  * QR scanner routes for admin check-in
+ * GET /admin/scanner - The doors list a scanner login lands on
  * GET /admin/listing/:id/scanner - Scanner page with camera UI
  * POST /admin/listing/:id/scan - JSON API for processing scanned tokens
  * GET /admin/groups/:id/scanner - One scanner for every member of a group
@@ -13,12 +14,18 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateCheckedInOnListings } from "#db/attendees/update.ts";
 import { withTransaction } from "#db/client.ts";
-import { getGroupById, getListingsByGroupId } from "#db/groups.ts";
+import {
+  getAllGroupNames,
+  getGroupById,
+  getListingsByGroupId,
+} from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { filter, reduce, sumOf, unique } from "#fp";
+import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { requireSessionOr, SCANNER_JSON, withAuth } from "#routes/auth.ts";
+import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -27,13 +34,17 @@ import {
   resolveEntries,
   type TokenEntry,
 } from "#routes/tickets/token-utils.ts";
+import { adminDestination } from "#shared/admin-surface.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   getRequestPrivateKey,
   requireRequestPrivateKey,
 } from "#shared/session-private-key.ts";
 import {
+  adminScannerDoorsPage,
   adminScannerPage,
+  type ScannerDoor,
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
@@ -91,26 +102,28 @@ const manualCheckinOptions = (attendees: Attendee[]): TicketOption[] => [
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
 const handleScannerGet: IdRouteHandler = createIdEntityHandler<
   NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
->(getListingWithCount)(requireSessionOr)(async (listing, session) => {
-  const privateKey = await requireRequestPrivateKey();
-  const attendees = await decryptAttendees(
-    await getAttendeesRaw(listing.id),
-    privateKey,
-  );
-  return htmlResponse(
-    adminScannerPage(
-      listing,
-      `/admin/listing/${listing.id}/scan`,
-      session,
-      manualCheckinOptions(attendees),
-    ),
-  );
-});
+>(getListingWithCount)(pageGuardFor(adminDestination("listingScanner")))(
+  async (listing, session) => {
+    const privateKey = await requireRequestPrivateKey();
+    const attendees = await decryptAttendees(
+      await getAttendeesRaw(listing.id),
+      privateKey,
+    );
+    return htmlResponse(
+      adminScannerPage(
+        listing,
+        `/admin/listing/${listing.id}/scan`,
+        session,
+        manualCheckinOptions(attendees),
+      ),
+    );
+  },
+);
 
 /** Handle GET /admin/groups/:id/scanner - render the group scanner page */
 const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
   getGroupById,
-)(requireSessionOr)(async (group, session) => {
+)(pageGuardFor(adminDestination("groupScanner")))(async (group, session) => {
   const privateKey = await requireRequestPrivateKey();
   const scope = await groupScope(group);
   const attendees = await decryptAttendees(
@@ -286,6 +299,45 @@ const processScan = async (
   );
 };
 
+/** Every door a scanner login can work: each listing that has a door (the
+ * "No check-in" listings sell things with no door) and every group, both
+ * ordered by name so tonight's door is easy to find. */
+const loadDoors = async (): Promise<{
+  groupDoors: ScannerDoor[];
+  listingDoors: ScannerDoor[];
+}> => {
+  const [listings, groups] = await Promise.all([
+    getListingPickerNames(),
+    getAllGroupNames(),
+  ]);
+  const listingDoors = [...listings]
+    .filter(([, listing]) => !listing.purchase_only)
+    .map(
+      ([id, listing]): ScannerDoor => ({
+        name: listing.name,
+        path: `/admin/listing/${id}/scanner`,
+      }),
+    );
+  const groupDoors = [...groups].map(
+    ([id, name]): ScannerDoor => ({
+      name,
+      path: `/admin/groups/${id}/scanner`,
+    }),
+  );
+  return {
+    groupDoors: sortedByString((door: ScannerDoor) => door.name)(groupDoors),
+    listingDoors: sortedByString((door: ScannerDoor) => door.name)(
+      listingDoors,
+    ),
+  };
+};
+
+/** Handle GET /admin/scanner - the doors list a scanner login lands on */
+const handleDoorsGet: RequestRoute = (request) =>
+  pageGuardFor(adminDestination("doors"))(request, async (session) =>
+    htmlResponse(adminScannerDoorsPage(session, await loadDoors())),
+  );
+
 /**
  * Handle POST /admin/listing/:id/scan - JSON check-in API.
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
@@ -310,6 +362,7 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
 export const adminHandlers = defineRoutes({
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
+  "GET /admin/scanner": handleDoorsGet,
   "POST /admin/groups/:id/scan": handleGroupScanPost,
   "POST /admin/listing/:id/scan": handleScanPost,
 });

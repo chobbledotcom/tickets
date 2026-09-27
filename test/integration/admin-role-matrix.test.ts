@@ -33,6 +33,7 @@ import {
   createTestAgentSession,
   createTestEditorSession,
   createTestManagerSession,
+  createTestScannerSession,
   getTestSession,
 } from "#test-utils/session.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
@@ -113,6 +114,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     cookies.set("manager", await createTestManagerSession());
     cookies.set("editor", (await createTestEditorSession()).cookie);
     cookies.set("agent", (await createTestAgentSession()).cookie);
+    cookies.set("scanner", (await createTestScannerSession()).cookie);
   });
 
   /** Ask one path as one role. A write carries a real CSRF token, so the role
@@ -198,7 +200,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   test("covers every route the surface declares", () => {
     // Guards the walks below: a surface that stopped declaring its routes
     // would otherwise make this suite pass by testing nothing.
-    expect(roleOnly.length).toBe(61);
+    expect(roleOnly.length).toBe(62);
     expect(recordPages.length).toBe(90);
   });
 

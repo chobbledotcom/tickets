@@ -164,18 +164,17 @@ export const cookiesOf = (browser: TestBrowser): string =>
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
 
-/** Post one scanned ticket to a scanner page's own JSON door, as the page's
- * own script would. The page is opened first so the code and cookies are its
- * own; both the listing door and the group door go through here. */
-export const postScanAtPath = async (
-  world: TicketsWorld,
-  doorPaths: DoorPaths,
+/** Send one scanned ticket to a door's JSON API, carrying one browser's own
+ * cookies and the one-use code off that browser's page — the request the
+ * door page's own script sends. Every door reader stands on this. */
+export const sendDoorScan = async (
+  scanPath: string,
+  browser: TestBrowser,
   ticket: string,
   choices: DoorChoice = {},
 ): Promise<DoorAnswer> => {
-  const browser = await openAdminPage(world, doorPaths.page);
   const response = await handleRequest(
-    new Request(`http://localhost${doorPaths.scan}`, {
+    new Request(`http://localhost${scanPath}`, {
       body: JSON.stringify({
         token: ticket,
         ...(choices.letInAnyway === undefined
@@ -196,6 +195,22 @@ export const postScanAtPath = async (
   );
   return (await expectAccepted(response).json()) as DoorAnswer;
 };
+
+/** Post one scanned ticket to a scanner page's own JSON door, as the page's
+ * own script would. The page is opened first so the code and cookies are its
+ * own; both the listing door and the group door go through here. */
+export const postScanAtPath = async (
+  world: TicketsWorld,
+  doorPaths: DoorPaths,
+  ticket: string,
+  choices: DoorChoice,
+): Promise<DoorAnswer> =>
+  sendDoorScan(
+    doorPaths.scan,
+    await openAdminPage(world, doorPaths.page),
+    ticket,
+    choices,
+  );
 
 /** What one door's scan gives a story: whose door, whose ticket, and what the
  * organiser decided when the door asked. */

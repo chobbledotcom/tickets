@@ -14,6 +14,7 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
+  createTestScannerSession,
 } from "#test-utils/session.ts";
 
 describeWithEnv("check-in page role authorization", { db: true }, () => {
@@ -160,6 +161,29 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await response.text();
       expect(body).not.toContain("Editor Hidden");
       expect(body).not.toContain("editor-hidden@example.com");
+    });
+  });
+
+  describe("GET /checkin/:tokens (scanner session)", () => {
+    test("shows a scanner login the attendee and the check-in toggle", async () => {
+      const { token } = await createTestAttendeeWithToken(
+        "Door Guest",
+        "doorguest@example.com",
+      );
+      const { cookie } = await createTestScannerSession({
+        token: "checkin-scanner",
+      });
+
+      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
+      expect(response.status).toBe(200);
+      const body = await response.text();
+
+      expect(body).toContain("Door Guest");
+      expect(body).toContain("Check In All");
+      // The admin pages behind these links stay shut for a scanner login, so
+      // the page must not promise them (never render a forbidden link).
+      expect(body).not.toContain('href="/admin/attendees/');
+      expect(body).not.toContain('href="/admin/listing/');
     });
   });
 });

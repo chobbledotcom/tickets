@@ -257,14 +257,16 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/questions.ts"),
     ["entity-pages", "modifiers", "questions", "validation"],
   ),
-  // The scanner serves two segments: the listing page's scanner and the group
-  // page's. The group scanner page also reads the group-field copy, while the
-  // listing scanner never needs it.
+  // The scanner serves three segments: the doors list, the listing page's
+  // scanner, and the group page's. The group scanner page also reads the
+  // group-field copy, while the doors list and the listing scanner never need
+  // it.
   scanner: {
     load: async () => (await import("#routes/admin/scanner.ts")).adminHandlers,
     messageGroupsFor: messageGroupsBySegment({
       groups: ["check-in", "groups"],
       listing: ["attendees", "check-in", "listing-qr"],
+      scanner: ["check-in"],
     }),
   },
   schemaAtlas: area(

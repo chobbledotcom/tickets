@@ -25,11 +25,7 @@ import {
   putsPlainThingOnSale,
   saveListingEdit,
 } from "#test/specs/support/listings.ts";
-import {
-  createStaffInvite,
-  logStaffIn,
-  rememberAcceptedStaffInvite,
-} from "#test/specs/support/staff-accounts.ts";
+import { invitedRoleJourney } from "#test/specs/support/staff-accounts.ts";
 import {
   type ActOnOnePerson,
   type ActOnOneThing,
@@ -82,47 +78,29 @@ export const pagesOfferedTo = async (
   return asked;
 };
 
-/** The owner invites somebody to edit, and copies the link they are given.
- * The role is chosen from the roles the form itself offers, so a form that
- * stopped offering "editor" fails here. */
-export const ownerInvitesEditor: ActOnOnePerson = async (world, who) => {
-  world.editorInvite = await createStaffInvite(world, who, "editor");
-};
+/** The editor's account journey, shared with every other invited role: the
+ * owner invites them, they follow their link and choose a password, they sign
+ * in, and their pages run in a browser of their own. The role is chosen from
+ * the roles the invite form itself offers, so a form that stopped offering
+ * "editor" fails here. */
+const journey = invitedRoleJourney({
+  browserName: EDITOR,
+  inviteName: "the editor invite",
+  role: "editor",
+});
+
+export const ownerInvitesEditor: ActOnOnePerson = journey.invites;
 
 /** The invited person opens their link, chooses a password, and is now an
  * editor with an account of their own. */
-export const editorFollowsInvite: ActOnTheStory = async (world) => {
-  await rememberAcceptedStaffInvite(
-    world,
-    EDITOR,
-    requiredWorldValue(world.editorInvite, "the invite"),
-  );
-};
+export const editorFollowsInvite: ActOnTheStory = journey.followsInvite;
 
 /** The editor logs in the ordinary way, and stays logged in for the rest of
  * the story. */
-export const editorLogsIn: ActOnOnePerson = async (world, who) => {
-  await logStaffIn(world, who, EDITOR);
-};
+export const editorLogsIn: ActOnOnePerson = journey.logsIn;
 
-/** Somebody who is already an editor and already logged in. Saying it twice of
- * the same person is fine; saying it of a second person is not, because only
- * one editor is ever signed in and every later step would quietly be taken by
- * the first one. */
-export const signedInEditor: ActOnOnePerson = async (world, who) => {
-  if (world.things.recall("browser", EDITOR)) {
-    if (world.signedInEditorName !== who) {
-      throw new Error(
-        `${world.signedInEditorName} is already the signed-in editor, so ${who} cannot be as well`,
-      );
-    }
-    return;
-  }
-  world.signedInEditorName = who;
-  await ownerInvitesEditor(world, who);
-  await editorFollowsInvite(world);
-  await editorLogsIn(world, who);
-};
+/** Somebody who is already an editor and already logged in. */
+export const signedInEditor: ActOnOnePerson = journey.signedIn;
 
 /** The editor's own browser, once the story has signed them in. */
 export const editorBrowser = (world: TicketsWorld): TestBrowser =>

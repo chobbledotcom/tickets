@@ -20,7 +20,13 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
-import { isContentRole, isOwnerRole, isPaidListing, isStaffRole } from "#types";
+import {
+  CONTENT_ADMIN_LEVELS,
+  isContentRole,
+  isOwnerRole,
+  isPaidListing,
+  isStaffRole,
+} from "#types";
 import {
   type LoadedListing,
   listingHasEmailableAttendees,
@@ -162,6 +168,7 @@ const ownerFeatureWriteTab = (
 
 /** The tabbed listing page. */
 export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
+  audience: CONTENT_ADMIN_LEVELS,
   banner: ({ listing }) =>
     Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
   destination: "listing",

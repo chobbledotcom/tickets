@@ -8,6 +8,7 @@ import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession } from "#types";
 
@@ -16,6 +17,12 @@ export interface TicketOption {
   name: string;
   quantity: number;
   token: string;
+}
+
+/** One door on the doors page: its name and the scanner page that serves it. */
+export interface ScannerDoor {
+  name: string;
+  path: string;
 }
 
 /** The check-in message templates shared by both the camera scanner container
@@ -80,6 +87,23 @@ const scannerMessages = (): ScannerMessages => ({
   }),
 });
 
+/** The shell both scanner pages wrap: the admin nav over the page's title.
+ * The camera page adds its own script through `headExtra`. */
+const scannerShell = (
+  session: AdminSession,
+  opts: { headExtra?: string | undefined; title: string },
+  body: JSX.Element,
+): string =>
+  String(
+    <Layout
+      beforeContent={<AdminNav active="/admin/" session={session} />}
+      headExtra={opts.headExtra}
+      title={opts.title}
+    >
+      {body}
+    </Layout>,
+  );
+
 /**
  * Scanner page - camera feed with auto check-in + manual autocomplete.
  * `subject` is whichever door this page scans for — a listing or a group —
@@ -96,15 +120,14 @@ export const adminScannerPage = (
 ): string => {
   const messageTemplates = scannerMessages();
 
-  return String(
-    <Layout
-      beforeContent={<AdminNav active="/admin/" session={session} />}
-      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`}
-      title={t("admin.scanner.title", { name: subject.name })}
-    >
-      <div class="prose">
-        <h1>{t("admin.scanner.heading")}</h1>
-      </div>
+  return scannerShell(
+    session,
+    {
+      headExtra: `<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`,
+      title: t("admin.scanner.title", { name: subject.name }),
+    },
+    <>
+      <ProseHeading heading={t("admin.scanner.heading")} />
 
       <article>
         <div
@@ -230,9 +253,58 @@ export const adminScannerPage = (
           </SubmitButton>
         </form>
       </article>
-      <GuideFooter href="/admin/guide#checkin">
+      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#checkin">
         {t("admin.scanner.help")}
       </GuideFooter>
-    </Layout>,
+    </>,
+  );
+};
+
+/** One section of the doors page, or nothing when that kind of door has no
+ *  doors — an empty heading promises a link that is not there. */
+const doorsSection = (
+  heading: string,
+  doors: ScannerDoor[],
+): JSX.Element | null =>
+  doors.length === 0 ? null : (
+    <article>
+      <h2>{heading}</h2>
+      <ul>
+        {doors.map((door) => (
+          <li>
+            <a href={door.path}>{door.name}</a>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+
+/** The doors page — a scanner login's landing page. It lists every door the
+ *  role can work, so the person at the door can find tonight's scanner without
+ *  asking for a link. */
+export const adminScannerDoorsPage = (
+  session: AdminSession,
+  doors: { groupDoors: ScannerDoor[]; listingDoors: ScannerDoor[] },
+): string => {
+  const empty =
+    doors.groupDoors.length === 0 && doors.listingDoors.length === 0;
+  return scannerShell(
+    session,
+    { title: t("admin.scanner.doors_title") },
+    <>
+      <ProseHeading heading={t("admin.scanner.doors_heading")}>
+        <p>{t("admin.scanner.doors_intro")}</p>
+      </ProseHeading>
+      {empty ? (
+        <article>
+          <p>{t("admin.scanner.doors_empty")}</p>
+        </article>
+      ) : (
+        <>
+          {doorsSection(t("terms.listings"), doors.listingDoors)}
+          {doorsSection(t("terms.groups"), doors.groupDoors)}
+        </>
+      )}
+    </>,
   );
 };

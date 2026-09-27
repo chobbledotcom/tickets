@@ -17,9 +17,9 @@ import { userAgents } from "#db/user-agents.ts";
 /* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import {
-  AUTH_FORM,
   type AuthSession,
   authFailure,
+  DOOR_FORM,
   getAuthenticatedSession,
   withAuth,
 } from "#routes/auth.ts";
@@ -43,7 +43,7 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
-import { type Attendee, isStaffRole } from "#types";
+import { type Attendee, isDoorRole, isStaffRole } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -95,7 +95,7 @@ const entriesVisibleToSession = async (
   session: AuthSession,
   entries: TokenEntry[],
 ): Promise<TokenEntry[]> => {
-  if (isStaffRole(session.adminLevel)) return entries;
+  if (isDoorRole(session.adminLevel)) return entries;
   if (session.adminLevel !== "agent") return [];
 
   const agentIds = await userAgents.getIds(session.userId);
@@ -118,7 +118,7 @@ const renderAdminCheckin = async (
   request: Request,
   tokens: string[],
   entries: TokenEntry[],
-  canCheckIn: boolean,
+  page: { canCheckIn: boolean; linkAdminPages: boolean },
 ): Promise<Response> => {
   const decrypted = await decryptEntries(entries);
   const message = getSearchParam(request, "message");
@@ -129,7 +129,7 @@ const renderAdminCheckin = async (
       message,
       getEffectiveDomain(),
       settings.phonePrefix,
-      { canCheckIn, linkAdminPages: canCheckIn },
+      page,
     ),
   );
 };
@@ -152,15 +152,20 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
     if (!session) return htmlResponse(checkinPublicPage());
 
     const visibleEntries = await entriesVisibleToSession(session, entries);
-    const canCheckIn = isStaffRole(session.adminLevel);
+    // Door roles may toggle check-in; only staff may follow the attendee and
+    // listing links into the admin, which a scanner login cannot open.
+    const canCheckIn = isDoorRole(session.adminLevel);
     return visibleEntries.length === 0
       ? authFailure("html", "forbidden")
-      : renderAdminCheckin(request, tokens, visibleEntries, canCheckIn);
+      : renderAdminCheckin(request, tokens, visibleEntries, {
+          canCheckIn,
+          linkAdminPages: isStaffRole(session.adminLevel),
+        });
   });
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
 const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
-  withAuth(request, AUTH_FORM, (_session, form) =>
+  withAuth(request, DOOR_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptEntries(entries);
