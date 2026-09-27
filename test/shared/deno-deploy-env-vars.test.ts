@@ -33,6 +33,31 @@ describeWithEnv(
       }
     });
 
+    test("getEnvVarNames returns only the secret entries' keys", async () => {
+      // Plain entries are readable variables (the Support message tab edits
+      // one), not secrets, so they stay off the secrets list.
+      using _fetch = stubFetch(
+        new Response(
+          JSON.stringify({
+            env_vars: [
+              {
+                contexts: "all",
+                id: "env-6",
+                key: "SUPPORT_PAGE_MARKDOWN",
+                secret: false,
+                value: "# Hi",
+              },
+              { contexts: "all", id: "env-7", key: "DB_URL", secret: true },
+            ],
+            id: "app_mixed",
+            slug: "mixed-app",
+          }),
+        ),
+      );
+      const result = await denoDeployApi.getEnvVarNames("app_mixed");
+      expect(result).toEqual({ ok: true, value: ["DB_URL"] });
+    });
+
     test("getEnvVarNames returns empty array when no env vars are set", async () => {
       using _fetch = stubFetch(
         new Response(

@@ -163,9 +163,8 @@ describeWithEnv("site build", { db: true }, () => {
         });
         expect(result.ok).toBe(false);
         if (result.ok) return;
-        expect(result.error).toContain("publish refused");
-        expect(result.error).toContain(
-          "the retained record could not be deleted: delete boom",
+        expect(result.error).toBe(
+          "publish refused; the retained record could not be deleted: delete boom",
         );
       },
       { publishResult: { error: "publish refused", ok: false } },

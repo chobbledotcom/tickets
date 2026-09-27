@@ -88,12 +88,18 @@ const getAppEnvVarsImpl = async (
   return result.ok ? okResult(result.value.env_vars) : result;
 };
 
-/** The app's env var keys — the names-only view of {@link getAppEnvVarsImpl}. */
+/** The app's secret var keys — the names-only view of
+ * {@link getAppEnvVarsImpl}. Plain entries are readable variables (the
+ * Support message tab edits one), not secrets, so they stay off this list. */
 const getAppEnvVarNamesImpl = async (
   appId: string,
 ): Promise<Result<string[]>> => {
   const result = await getAppEnvVarsImpl(appId);
-  return result.ok ? okResult(result.value.map(({ key }) => key)) : result;
+  return result.ok
+    ? okResult(
+        result.value.filter(({ secret }) => secret).map(({ key }) => key),
+      )
+    : result;
 };
 
 /** One env var entry as the PATCH body sends it: an existing record's id and

@@ -95,9 +95,9 @@ const writeBunnySupportMessage = async (
 };
 
 /** Run `act` with the app's entry for the Support tab's key that the
- * production isolate serves — the all-contexts record, or a production one.
- * The documented contexts can hold the same key in other scopes (a preview
- * record beside a production one), and those are not the serving copy. A
+ * production isolate serves. A production-specific record outranks the
+ * all-context fallback (the operator set it to override that fallback); a
+ * record scoped only to other contexts is not the serving copy at all. A
  * failed read stops here, so neither reader nor writer repeats the guard. */
 const withDenoSupportEntry = async (
   appId: string,
@@ -105,13 +105,17 @@ const withDenoSupportEntry = async (
 ): Promise<SupportMessageResult> => {
   const result = await denoDeployApi.getAppEnvVars(appId);
   if (!result.ok) return result;
-  const entry =
-    result.value.find(
+  const serving = result.value
+    .filter(
       ({ contexts, key }) =>
         key === SUPPORT_MESSAGE_KEY &&
         (contexts === "all" || contexts.includes("production")),
-    ) ?? null;
-  return act(entry);
+    )
+    .sort(
+      ({ contexts: a }, { contexts: b }) =>
+        (a === "all" ? 1 : 0) - (b === "all" ? 1 : 0),
+    )[0];
+  return act(serving ?? null);
 };
 
 /** A Deno site's support message: a plain env var's value. Secrets never
