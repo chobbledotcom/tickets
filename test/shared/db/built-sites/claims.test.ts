@@ -9,10 +9,14 @@ import {
   builtSitesCrudTable,
   getAssignableBuiltSites,
   insertBuiltSite,
+  updateBuiltSite,
 } from "#db/built-sites.ts";
 import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { wrapDbClient } from "#test-utils/record-queries.ts";
+import {
+  beforeNextTransaction,
+  wrapDbClient,
+} from "#test-utils/record-queries.ts";
 
 describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
   test("stores the assignment and hands back the claimed site", async () => {
@@ -94,6 +98,34 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     // A combined purchase records only its first listing, so the lookup
     // must find the claim through any of the buyer's plan listings.
     expect((await siteClaimedByBuyer(42, [8, 7]))?.id).toBe(site.id);
+  });
+
+  test("hands back the claimed row as it stands after the claim", async () => {
+    const site = await insertBuiltSite(
+      "Fresh Read",
+      "stale.test",
+      "",
+      "",
+      true,
+    );
+    const pool = await getAssignableBuiltSites();
+    // A whole-row write lands between the pool load and the claim: the take
+    // must hand back the fresh row, not the pool snapshot. The write runs
+    // just before the claim's transaction opens.
+    const restore = beforeNextTransaction(async () => {
+      await updateBuiltSite(site.id, () => ({
+        siteUrl: "https://fresh.example.test",
+      }));
+    });
+    try {
+      const take = await takePooledSiteForBuyer(pool, 42, [7], 7);
+      expect(take.kind).toBe("claimed");
+      expect(take.kind === "claimed" && take.site.siteUrl).toBe(
+        "https://fresh.example.test",
+      );
+    } finally {
+      restore();
+    }
   });
 
   test("keeps an assignment made during scheduler-key provisioning", async () => {

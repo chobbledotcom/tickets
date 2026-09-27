@@ -6,8 +6,6 @@
  */
 
 /* jscpd:ignore-start */
-import { hmacHash } from "#crypto/hashing.ts";
-import { generateSecureToken } from "#crypto/utils.ts";
 import {
   siteClaimedByBuyer,
   takePooledSiteForBuyer,
@@ -22,11 +20,17 @@ import { sumOf, unique } from "#fp";
 import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
+import {
+  type EmailEntry,
+  getEmailConfig,
+  hostEmail,
+  sendEmail,
+} from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
+import { generateRenewalToken } from "#shared/renewal-token.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
   type MissedBuyer,
@@ -38,17 +42,6 @@ import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */
 
-/** Entry with the fields needed for site assignment */
-type SiteAssignmentEntry = {
-  listing: {
-    id: number;
-    name: string;
-    assign_built_site: boolean;
-    initial_site_months: number;
-  };
-  attendee: { id: number; name: string; email: string; quantity: number };
-};
-
 /** Info about an assigned site for email rendering */
 type SiteAssignment = {
   siteUrl: string;
@@ -56,7 +49,7 @@ type SiteAssignment = {
 };
 
 export type CdnPushResult = { ok: true } | { ok: false; error: string };
-type RenewalTokenData = { token: string; index: string };
+/** A listing selection being checked before payment/booking. */
 type SiteAssignmentConfigEntry = {
   listing: {
     assign_built_site: boolean;
@@ -105,13 +98,6 @@ export const validateSiteAssignmentConfig = async (
   }
 
   return { ok: true };
-};
-
-/** Generate a renewal token + its HMAC blind index. */
-export const generateRenewalToken = async (): Promise<RenewalTokenData> => {
-  const token = generateSecureToken();
-  const index = await hmacHash(token);
-  return { index, token };
 };
 
 /** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
@@ -273,11 +259,11 @@ type SiteAssignmentOutcome = {
 /** Assign built sites to the entries that need them. Sites come only from the
  * pool of assignable sites the operator has stocked. */
 const assignSitesForEntries = async (
-  entries: SiteAssignmentEntry[],
+  entries: EmailEntry[],
 ): Promise<SiteAssignmentOutcome> => {
   const missedBuyers: MissedBuyer[] = [];
   const needsSite = entries.filter(
-    (e: SiteAssignmentEntry) => e.listing.assign_built_site,
+    (e: EmailEntry) => e.listing.assign_built_site,
   );
   if (needsSite.length === 0) return { assignments: [], missedBuyers };
 
@@ -297,15 +283,15 @@ const assignSitesForEntries = async (
   // a 3-month listing buy one site with 15 months, never two sites.
   const plansByBuyer = Map.groupBy(needsSite, (e) => e.attendee.id);
   for (const buyerPlans of plansByBuyer.values()) {
-    // A no-quantity line buys nothing, so it books no site and no months.
+    // A no-quantity line books nothing; a refunded plan row bought
+    // nothing that lasts.
     const booked = buyerPlans.filter(
-      (e: SiteAssignmentEntry) => e.attendee.quantity >= 1,
+      (e: EmailEntry) => e.attendee.quantity >= 1 && !e.attendee.refunded,
     );
     if (booked.length === 0) continue;
     const first = booked[0]!;
     const months = sumOf(
-      (e: SiteAssignmentEntry) =>
-        e.listing.initial_site_months * e.attendee.quantity,
+      (e: EmailEntry) => e.listing.initial_site_months * e.attendee.quantity,
     )(booked);
 
     const planListingIds = booked.map((e) => e.listing.id);
@@ -386,7 +372,7 @@ const sendSiteAssignmentEmail = async (
 /** Assign pooled sites and send the notification email. Designed to be called
  * via addPendingWork. No-ops when CAN_BUILD_SITES is not enabled. */
 export const assignAndNotifyBuiltSites = async (
-  entries: SiteAssignmentEntry[],
+  entries: EmailEntry[],
 ): Promise<void> => {
   if (!isBuilderEnabled()) return;
 

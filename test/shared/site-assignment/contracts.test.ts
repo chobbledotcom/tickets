@@ -23,18 +23,23 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { testBuiltSite } from "#test-utils/factories.ts";
+import {
+  makeTestAttendee,
+  makeTestEntry,
+  testBuiltSite,
+} from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const configMessage =
   "Site assignment is not configured. Please contact the administrator.";
 
-const buyerBlank = (attendeeId = 81) => ({
-  email: "buyer@example.com",
-  id: attendeeId,
-  name: "Buyer",
-  quantity: 1,
-});
+const buyerBlank = (attendeeId = 81) =>
+  makeTestAttendee({
+    email: "buyer@example.com",
+    id: attendeeId,
+    name: "Buyer",
+    quantity: 1,
+  });
 
 const configEntry = (initialSiteMonths = 3) => ({
   listing: {
@@ -45,15 +50,16 @@ const configEntry = (initialSiteMonths = 3) => ({
   },
 });
 
-const assignmentEntry = (attendeeId = 81) => ({
-  attendee: buyerBlank(attendeeId),
-  listing: {
-    assign_built_site: true,
-    id: 71,
-    initial_site_months: 3,
-    name: "Hosted listing",
-  },
-});
+const assignmentEntry = (attendeeId = 81) =>
+  makeTestEntry(
+    {
+      assign_built_site: true,
+      id: 71,
+      initial_site_months: 3,
+      name: "Hosted listing",
+    },
+    { id: attendeeId },
+  );
 
 const tierFields = (
   overrides: Partial<Parameters<typeof isQualifyingTierListing>[0]> = {},
@@ -74,7 +80,9 @@ const expectBlockedNotification = async (
   using fetchStub = stubFetch(new Response());
   using _error = stub(console, "error", () => {});
 
-  await assignAndNotifyBuiltSites([{ attendee: buyerBlank(), ...entry }]);
+  await assignAndNotifyBuiltSites([
+    { attendee: buyerBlank(), listing: makeTestEntry(entry.listing).listing },
+  ]);
 
   expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
     notification,

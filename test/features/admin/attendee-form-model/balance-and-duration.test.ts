@@ -4,7 +4,7 @@ import {
   attendeeBalanceNotice,
   bookingDurationDays,
 } from "#routes/admin/attendee-form-model.ts";
-import { testBookingRow } from "#test-utils/attendees/helpers.ts";
+import { testBookingRow } from "#test-utils/db-helpers/booking-row.ts";
 
 describe("bookingDurationDays", () => {
   test("returns null when a range endpoint is missing or invalid", () => {

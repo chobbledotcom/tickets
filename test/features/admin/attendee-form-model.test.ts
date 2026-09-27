@@ -19,7 +19,7 @@ import {
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { testBookingRow } from "#test-utils/attendees/helpers.ts";
+import { testBookingRow } from "#test-utils/db-helpers/booking-row.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const makeForm = (data: Record<string, string>): FormParams =>
