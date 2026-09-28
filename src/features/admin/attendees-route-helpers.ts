@@ -88,12 +88,17 @@ export const loadAttendeeForListing = loadBookingWith(
 );
 
 /** Load the person's whole booking on one listing: the ticket counts summed
- * across every row the (person, listing) pair holds. */
-export const loadAttendeeBooking = loadBookingWith(({ attendee, rows }) => ({
-  ...attendee,
-  checked_in: sumOf((row: Attendee) => row.checked_in)(rows),
-  quantity: sumOf((row: Attendee) => row.quantity)(rows),
-}));
+ * across the rows the write can move — the lines no refund returned. A
+ * refunded sibling holds no movable tickets, so it stays out of the page's
+ * totals and the counts it offers. */
+export const loadAttendeeBooking = loadBookingWith(({ attendee, rows }) => {
+  const movable = rows.filter((row: Attendee) => !row.refunded);
+  return {
+    ...attendee,
+    checked_in: sumOf((row: Attendee) => row.checked_in)(movable),
+    quantity: sumOf((row: Attendee) => row.quantity)(movable),
+  };
+});
 
 /** Load attendee with auth, returning 404 if not found */
 export const withAttendee = withEntityLoader(loadAttendeeForListing);
