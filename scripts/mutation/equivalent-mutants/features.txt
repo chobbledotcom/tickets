@@ -327,3 +327,4 @@ src/features/checkin.ts::doorSafeEntries.attendee.address~0l1hej5  → "mutated"
 src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated"   # same: email is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
 src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated"   # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
 src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated"   # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → ""   # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
