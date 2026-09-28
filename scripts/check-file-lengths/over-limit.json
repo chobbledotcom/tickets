@@ -23,7 +23,7 @@
   "src/shared/db/client.ts": 932,
   "src/shared/db/groups.ts": 819,
   "src/shared/db/migrations/schema-sync.ts": 664,
-  "src/shared/db/modifier-resolve.ts": 667,
+  "src/shared/db/modifier-resolve.ts": 664,
   "src/shared/db/table.ts": 764,
   "src/shared/db/users.ts": 491,
   "src/shared/limits.ts": 692,
