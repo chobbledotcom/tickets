@@ -5,16 +5,15 @@ import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
+  moveTickets,
   recomputeListingBookingRanges,
   updateAttendeePII,
   updateAttendeeStatus,
-  updateCheckedIn,
 } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  createTestAttendee,
   createTestAttendeeDirect,
   decryptFirstAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
@@ -25,39 +24,78 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
-describeWithEnv("db > attendees > updateCheckedIn", { db: true }, () => {
-  const createAttendeeWithUpdates = async (updates: boolean[]) => {
-    const listing = await createTestListing({ maxAttendees: 100 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Check User",
-      "check@example.com",
-    );
-    for (const checked of updates) {
-      await updateCheckedIn(attendee.id, listing.id, checked);
-    }
-    return listing;
-  };
+describeWithEnv(
+  "db > attendees > admit and release tickets",
+  { db: true },
+  () => {
+    const attendeeOnListing = async (quantity = 2) => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 10,
+      });
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Check User",
+        "check@example.com",
+        quantity,
+      );
+      return { attendee, listing };
+    };
 
-  const expectFirstAttendeeCheckedIn = async (
-    listingId: number,
-    expected: boolean,
-  ) => {
-    const attendee = await decryptFirstAttendee(listingId);
-    expect(attendee.checked_in).toBe(expected);
-  };
+    const storedCheckedIn = async (
+      attendeeId: number,
+      listingId: number,
+    ): Promise<number> => {
+      const row = await queryOne<{ checked_in: number }>(
+        "SELECT checked_in FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+        [attendeeId, listingId],
+      );
+      return row!.checked_in;
+    };
 
-  test("updates checked_in to true for existing attendee", async () => {
-    const listing = await createAttendeeWithUpdates([true]);
-    await expectFirstAttendeeCheckedIn(listing.id, true);
-  });
+    test("admit adds tickets up to the line's quantity", async () => {
+      const { listing, attendee } = await attendeeOnListing(2);
 
-  test("updates checked_in back to false", async () => {
-    const listing = await createAttendeeWithUpdates([true, false]);
-    await expectFirstAttendeeCheckedIn(listing.id, false);
-  });
-});
+      await moveTickets("admit", attendee.id, listing.id, 1);
+      expect(await storedCheckedIn(attendee.id, listing.id)).toBe(1);
+
+      await moveTickets("admit", attendee.id, listing.id, 1);
+      expect(await storedCheckedIn(attendee.id, listing.id)).toBe(2);
+    });
+
+    test("admit caps at the line's quantity, so a full line stays full", async () => {
+      const { listing, attendee } = await attendeeOnListing(2);
+
+      await moveTickets("admit", attendee.id, listing.id, 2);
+      await moveTickets("admit", attendee.id, listing.id, 5);
+      expect(await storedCheckedIn(attendee.id, listing.id)).toBe(2);
+    });
+
+    test("release removes tickets and floors at zero", async () => {
+      const { listing, attendee } = await attendeeOnListing(2);
+
+      await moveTickets("admit", attendee.id, listing.id, 2);
+      await moveTickets("release", attendee.id, listing.id, 1);
+      expect(await storedCheckedIn(attendee.id, listing.id)).toBe(1);
+
+      await moveTickets("release", attendee.id, listing.id, 2);
+      expect(await storedCheckedIn(attendee.id, listing.id)).toBe(0);
+    });
+
+    test("a quantity 0 line never admits and never releases", async () => {
+      const { listing, attendee } = await attendeeOnListing(2);
+      await executeUpdate(
+        "listing_attendees",
+        { quantity: 0 },
+        { attendee_id: attendee.id, listing_id: listing.id },
+      );
+
+      await moveTickets("admit", attendee.id, listing.id, 2);
+      await moveTickets("release", attendee.id, listing.id, 2);
+      expect(await storedCheckedIn(attendee.id, listing.id)).toBe(0);
+    });
+  },
+);
 
 describeWithEnv(
   "db > attendees > incrementAttachmentDownloads",

@@ -29,7 +29,7 @@ describeWithEnv("db > attendees > create result", { db: true }, () => {
     expect(attendee).toMatchObject({
       address: "",
       attachment_downloads: 0,
-      checked_in: false,
+      checked_in: 0,
       date: null,
       email: "defaults@example.com",
       end_date: null,

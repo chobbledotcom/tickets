@@ -97,9 +97,9 @@ describeWithEnv("server listings > export", { db: true }, () => {
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
       expect(csv).toContain(",Checked In");
-      // John Doe is checked in
+      // John Doe is checked in, one place on the line
       expect(csv).toContain("John Doe");
-      expect(csv).toContain(",Yes");
+      expect(csv).toContain(",1,");
     });
 
     test("returns CSV rows in the order the roster shows them", async () => {

@@ -292,7 +292,7 @@ describe("group admin panels", () => {
     test("shows the check-in, revenue, and answer rows the shared stats build", () => {
       const html = overviewHtml({
         attendees: [
-          testAttendee({ checked_in: true, id: 1, listing_id: 1, quantity: 2 }),
+          testAttendee({ checked_in: 2, id: 1, listing_id: 1, quantity: 2 }),
         ],
         group: testGroup({ id: 8 }),
         money: moneyTotals({ recognisedIncome: 2500 }),

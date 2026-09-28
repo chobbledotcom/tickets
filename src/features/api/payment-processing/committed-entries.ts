@@ -63,7 +63,7 @@ export const committedEntries = async (
   const attendees: CreatedEntry["attendee"][] = rows.map((row) => ({
     ...contactFields(intent),
     attachment_downloads: 0,
-    checked_in: false,
+    checked_in: 0,
     created: row.created,
     date: row.date,
     end_date: row.end_date,

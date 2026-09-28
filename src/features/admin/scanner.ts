@@ -6,12 +6,13 @@
  * POST /admin/groups/:id/scan - The same JSON API over the group's members
  */
 
+import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { logActivities } from "#db/activity-log.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
-import { updateCheckedInOnListings } from "#db/attendees/update.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import { withTransaction } from "#db/client.ts";
 import { getGroupById, getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
@@ -37,7 +38,7 @@ import {
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import { decideScan, rowsByListing } from "./scan-decision.ts";
+import { decideScan, type ScanUnit } from "./scan-decision.ts";
 
 /** What one door's scan resolves against: the listings it admits, and its
  * group's stored choice between one listing per scan and all of them. */
@@ -65,25 +66,27 @@ const groupScope = async (group: Group): Promise<ScanScope> => ({
   ),
 });
 
-/** The manual check-in list: one option per person, with every one of their
- * unchecked live places on this door's listings summed into one quantity.
- * A pick from this list goes through the same scan as a camera read, so it
- * can never admit something the camera would not. */
+/** The manual check-in list: one option per person, with every place they
+ * still owe on this door's listings summed into one quantity. A pick from
+ * this list goes through the same scan as a camera read, so it can never
+ * admit something the camera would not. */
 const manualCheckinOptions = (attendees: Attendee[]): TicketOption[] => [
   ...reduce((byToken: Map<string, TicketOption>, attendee: Attendee) => {
     const known = byToken.get(attendee.ticket_token);
-    if (known) known.quantity += attendee.quantity;
+    const places = remainingTickets(attendee);
+    if (known) known.quantity += places;
     else {
       byToken.set(attendee.ticket_token, {
         name: attendee.name,
-        quantity: attendee.quantity,
+        quantity: places,
         token: attendee.ticket_token,
       });
     }
     return byToken;
   }, new Map<string, TicketOption>())(
     filter(
-      (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
+      (a: Attendee) =>
+        remainingTickets(a) > 0 && !a.refunded && hasTicketQuantity(a),
     )(attendees),
   ).values(),
 ];
@@ -176,46 +179,56 @@ const wrongListingResponse = (
 const listingNamesOf = (rows: readonly TokenEntry[]): string =>
   unique(rows.map((row) => row.listing.name)).join(", ");
 
-/** The JSON answer for one ticket: who they are, how many places the answer
- * covers, and the listing names that drove it. */
+/** The tickets the covered lines hold in total. */
+const lineTickets = sumOf((row: TokenEntry) => row.attendee.quantity);
+
+/** The JSON answer for one ticket: who they are, the tickets this answer
+ * covers, the tickets the covered lines hold in total, and the listing
+ * names that drove it. */
 const scanBody = (
   rows: readonly TokenEntry[],
   attendeeName: string,
   status: "already_checked_in" | "checked_in" | "verify_id",
+  tickets: number,
 ): Record<string, unknown> => ({
   listingName: listingNamesOf(rows),
   name: attendeeName,
-  quantity: sumOf((row: TokenEntry) => row.attendee.quantity)([...rows]),
+  quantity: tickets,
   status,
+  total: lineTickets([...rows]),
 });
 
-/** Perform one scan's whole admission as one transaction: the UPDATE that
- * covers every admitted listing and the activity rows for each admitted
- * listing carry that listing's own name, so each listing's record of the day
- * shows its own check-ins. A failure in either write rolls both back, so a
+/** Perform one scan's whole admission as one transaction: every unit's
+ * admit and the activity rows for each admitted listing carry that
+ * listing's own name and count, so each listing's record of the day shows
+ * its own check-ins. A failure in either write rolls both back, so a
  * check-in never lands without its activity record. */
-const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
-  const units = rowsByListing(rows);
+const performCheckIns = async (
+  attendeeId: number,
+  units: readonly ScanUnit[],
+): Promise<void> => {
   await withTransaction(async (tx) => {
-    await updateCheckedInOnListings(
-      rows[0]!.attendee.id,
-      units.map((unit) => unit[0]!.listing.id),
-      tx,
-    );
+    for (const unit of units) {
+      await moveTickets(
+        "admit",
+        attendeeId,
+        unit.rows[0]!.listing.id,
+        unit.tickets,
+        tx,
+      );
+    }
     await logActivities(
-      units.map((unit) => {
-        const entry = unit[0]!;
-        return {
-          attendeeId: entry.attendee.id,
-          listing: entry.listing.id,
-          message: `Attendee checked in via scanner for '${entry.listing.name}'`,
-        };
-      }),
+      units.map((unit) => ({
+        attendeeId,
+        listing: unit.rows[0]!.listing.id,
+        message: `Attendee checked in ${unit.tickets} ticket${
+          unit.tickets === 1 ? "" : "s"
+        } via scanner for '${unit.rows[0]!.listing.name}'`,
+      })),
       tx,
     );
   });
 };
-
 /** Resolve a token against one door's scope and perform its scan decision. */
 const scanToken = async (
   scope: ScanScope,
@@ -223,6 +236,7 @@ const scanToken = async (
   force: boolean,
   idVerified: boolean,
   privateKey: CryptoKey,
+  count?: number,
 ): Promise<Response> => {
   const results = await getAttendeesByTokens([token]);
   const awb = results[0];
@@ -231,11 +245,10 @@ const scanToken = async (
   const allEntries = await resolveTokenEntries(awb, privateKey);
   const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
   const decision = decideScan(
-    allEntries,
-    scope.listingIds,
-    force,
+    { entries: allEntries, force, scope: scope.listingIds },
     scope.checkInEveryListing,
     idVerified,
+    count,
   );
 
   switch (decision.kind) {
@@ -247,19 +260,49 @@ const scanToken = async (
       return jsonResponse({ name: attendeeName, status: "refunded" });
     case "already_checked_in":
       return jsonResponse(
-        scanBody(decision.live, attendeeName, "already_checked_in"),
+        scanBody(
+          decision.live,
+          attendeeName,
+          "already_checked_in",
+          lineTickets([...decision.live]),
+        ),
       );
     case "verify_id":
-      return jsonResponse(scanBody(decision.rows, attendeeName, "verify_id"));
-    case "admit": {
-      await performCheckIns(decision.rows);
+      return jsonResponse(
+        scanBody(
+          decision.rows,
+          attendeeName,
+          "verify_id",
+          lineTickets([...decision.rows]),
+        ),
+      );
+    case "select_quantity":
       return jsonResponse({
-        ...scanBody(decision.rows, attendeeName, "checked_in"),
+        listingName: listingNamesOf(decision.rows),
+        max: decision.max,
+        name: attendeeName,
+        status: "select_quantity",
+      });
+    case "admit": {
+      await performCheckIns(decision.rows[0]!.attendee.id, decision.units);
+      return jsonResponse({
+        ...scanBody(
+          decision.rows,
+          attendeeName,
+          "checked_in",
+          sumOf((unit: ScanUnit) => unit.tickets)([...decision.units]),
+        ),
         remaining: decision.remaining,
       });
     }
   }
 };
+
+/** A door's quantity pick: a whole number of tickets, at least one. Anything
+ * else fails closed — the cap at the line's quantity is the SQL write's
+ * guard, not a reason to silently fix a bad input here. */
+const isAdmitCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1;
 
 /** Validate scan controls and load the request's decryption key. */
 const processScan = async (
@@ -268,6 +311,9 @@ const processScan = async (
 ): Promise<Response> => {
   if (typeof body.token !== "string") {
     return apiErrorResponse("Missing token");
+  }
+  if (body.quantity !== undefined && !isAdmitCount(body.quantity)) {
+    return apiErrorResponse("Invalid quantity");
   }
   const privateKey = await getRequestPrivateKey();
   if (!privateKey) {
@@ -283,6 +329,7 @@ const processScan = async (
     body.force === true,
     body.id_verified === true,
     privateKey,
+    isAdmitCount(body.quantity) ? body.quantity : undefined,
   );
 };
 

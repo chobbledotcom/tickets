@@ -52,10 +52,11 @@ describeWithEnv(
           "Checked Ada Lovelace in",
         )(inResponse);
 
-        // Toggling again checks the attendee out, flashing the out confirmation.
+        // The roster's Check Out button names its direction, and the flash
+        // repeats it.
         const { response: outResponse } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          {},
+          { check_in: "false" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,

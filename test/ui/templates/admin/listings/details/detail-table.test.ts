@@ -14,8 +14,8 @@ import {
 /** One checked-in (qty 2) and one not-checked-in (qty 3) attendee — the mix the
  *  dual checked-in row tests share. */
 const multiQtyPair = () => [
-  testAttendee({ checked_in: true, id: 1, quantity: 2 }),
-  testAttendee({ checked_in: false, id: 2, quantity: 3 }),
+  testAttendee({ checked_in: 2, id: 1, quantity: 2 }),
+  testAttendee({ checked_in: 0, id: 2, quantity: 3 }),
 ];
 const dailyListingFive = () =>
   testListingWithCount({ attendee_count: 5, listing_type: "daily" });
@@ -275,9 +275,9 @@ describe("adminListingPage details table", () => {
 
   test("shows checked in count and remaining", () => {
     const attendees = [
-      testAttendee({ checked_in: true, id: 1 }),
-      testAttendee({ checked_in: false, id: 2 }),
-      testAttendee({ checked_in: false, id: 3 }),
+      testAttendee({ checked_in: 1, id: 1 }),
+      testAttendee({ checked_in: 0, id: 2 }),
+      testAttendee({ checked_in: 0, id: 3 }),
     ];
     const html = renderListingDetail({
       allowedDomain: "localhost",

@@ -137,7 +137,11 @@ export type ListingWithAttendeeRaw = {
   attendeeRaw: Attendee | null;
 };
 
-/** Read one listing and one attendee in one round-trip. */
+/** Read one listing and the attendee's booking line on it in one round-trip.
+ * The attendee half is the line for THIS listing: a person booked on several
+ * listings has one line per listing, and the listing-scoped routes act on the
+ * one the address names — never on whichever line a scan reaches first. An
+ * attendee with no booking on the listing reads as no attendee half. */
 export const getListingWithAttendeeRaw = async (
   listingId: number,
   attendeeId: number,
@@ -147,7 +151,7 @@ export const getListingWithAttendeeRaw = async (
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       join: "left",
-      where: { attendeeIds: [attendeeId] },
+      where: { attendeeIds: [attendeeId], listingIds: [listingId] },
     }),
   ]);
   return withBatchListing(results[0]!, (listing) => ({

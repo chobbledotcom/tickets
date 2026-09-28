@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { expandChildAllocations } from "#db/attendees/order-parents.ts";
-import { updateCheckedIn } from "#db/attendees/update.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import { queryAll } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -68,12 +68,12 @@ describeWithEnv(
 
     test("check-in flips every per-parent row of a listing together", async () => {
       const { attendee, child } = await bookChildUnderTwoParents();
-      await updateCheckedIn(attendee.id, child.id, true);
+      await moveTickets("admit", attendee.id, child.id, 1);
       const checkedIn = await rowsFor(attendee.id, child.id);
-      // updateCheckedIn keys on (attendee, listing), so BOTH per-parent rows
+      // admitTickets keys on (attendee, listing), so BOTH per-parent rows
       // flip — the wholesale semantic, consistent with a single quantity>1 row.
       expect(checkedIn.every((r) => Number(r.checked_in) === 1)).toBe(true);
-      await updateCheckedIn(attendee.id, child.id, false);
+      await moveTickets("release", attendee.id, child.id, 1);
       const checkedOut = await rowsFor(attendee.id, child.id);
       expect(checkedOut.every((r) => Number(r.checked_in) === 0)).toBe(true);
     });

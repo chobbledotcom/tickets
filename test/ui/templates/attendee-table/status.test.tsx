@@ -57,9 +57,10 @@ describe("attendee status cells", () => {
   test("renders an unchecked attendee with default return state", () => {
     const token = getCurrentCsrfToken();
 
-    expect(renderStatus({ checked_in: false, id: 7 })).toBe(
+    expect(renderStatus({ checked_in: 0, id: 7 })).toBe(
       '<form action="/admin/listing/9/attendee/7/checkin" autocomplete="off" method="POST" class="inline">' +
         `<input name="csrf_token" type="hidden" value="${token}">` +
+        '<input name="check_in" type="hidden" value="true">' +
         '<input name="return_filter" type="hidden" value="all">' +
         '<button class="link-button checkin" type="submit">Check in</button></form>',
     );
@@ -67,7 +68,7 @@ describe("attendee status cells", () => {
 
   test("renders a checked-in attendee with supplied return state", () => {
     const html = renderStatus(
-      { checked_in: true, id: 8 },
+      { checked_in: 1, id: 8 },
       { activeFilter: "in", returnUrl: "/admin/checkin/today" },
     );
 
@@ -81,6 +82,28 @@ describe("attendee status cells", () => {
     expect(html).toContain(
       '<button class="link-button checkout" type="submit">Check out</button>',
     );
+  });
+
+  test("links a multi-ticket line to the quantity page", () => {
+    const html = renderStatus(
+      { checked_in: 0, id: 11, quantity: 3 },
+      { activeFilter: "out", returnUrl: "/admin/checkin/today" },
+    );
+
+    expect(html).toContain(
+      'href="/admin/listing/9/attendee/11/checkin' +
+        '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out"',
+    );
+    expect(html).toContain('<a class="link-button checkin"');
+    expect(html).not.toContain("Check out");
+  });
+
+  test("a partly admitted multi-ticket line offers both directions", () => {
+    const html = renderStatus({ checked_in: 1, id: 12, quantity: 3 });
+
+    expect(html).toContain('<a class="link-button checkin"');
+    expect(html).toContain('<a class="link-button checkout"');
+    expect(html).toContain('href="/admin/listing/9/attendee/12/checkin"');
   });
 
   test("throws when a check-in row has no listing", () => {

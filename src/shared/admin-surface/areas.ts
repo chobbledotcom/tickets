@@ -4,9 +4,8 @@
  * This is the one place an admin route is declared. Its nav (`sections.ts`)
  * and its serving module (`area-loaders.ts`) are keyed by the same area names.
  *
- * An area names the role that reaches it once. A route names a role only when
- * it differs from its area. `segments` lists a URL segment the area serves
- * without a page of its own, such as a POST-only endpoint.
+ * An area names the role that reaches it once. A route names a role only
+ * when it differs. `segments` lists a URL segment with no page of its own.
  */
 
 import {
@@ -52,6 +51,7 @@ export const ADMIN_AREAS = {
     segments: ["listing"],
     view: {
       attendee: "/admin/attendees/:attendeeId",
+      attendeeCheckin: "/admin/listing/:id/attendee/:attendeeId/checkin",
       attendees: "/admin/attendees",
       attendeesCsv: "/admin/attendees/csv",
     },

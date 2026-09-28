@@ -145,7 +145,9 @@ Given(
   "Alice Smith is checked in for Art Class with two places",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await addToArtClass(this, ALICE);
-    // The roster's only attendee is Alice, so the first Check in is hers.
+    // Two places: the roster's Check in opens the count page. Its select
+    // starts on the whole party, so one submit admits both places.
+    await browser.clickLink("Check in");
     await browser.submitForm({}, "Check in");
     expect(browser.containsText(`Checked ${ALICE.oldName} in`)).toBe(true);
   },

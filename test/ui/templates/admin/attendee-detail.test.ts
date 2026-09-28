@@ -19,7 +19,7 @@ import { testAttendee } from "#test-utils/factories.ts";
 const booking = (
   overrides: Partial<AttendeeBooking> = {},
 ): AttendeeBooking => ({
-  checkedIn: false,
+  checkedIn: 0,
   endAt: null,
   listingActive: true,
   listingId: 1,
@@ -127,13 +127,13 @@ describe("BookingStatusBadges", () => {
   test("returns null when the booking is neither checked in nor refunded", () => {
     // Null lets the table swap in an em dash for the status cell.
     expect(
-      BookingStatusBadges({ checkedIn: false, refunded: false }),
+      BookingStatusBadges({ checkedIn: 0, quantity: 1, refunded: false }),
     ).toBeNull();
   });
 
   test("renders a plain badge when checked in", () => {
     const html = String(
-      BookingStatusBadges({ checkedIn: true, refunded: false }),
+      BookingStatusBadges({ checkedIn: 1, quantity: 1, refunded: false }),
     );
     expect(html).toContain(
       '<div class="muted small"><span class="badge">Checked in</span></div>',
@@ -141,9 +141,16 @@ describe("BookingStatusBadges", () => {
     expect(html).not.toContain("Refunded");
   });
 
+  test("names the count a part booking admitted", () => {
+    const html = String(
+      BookingStatusBadges({ checkedIn: 2, quantity: 3, refunded: false }),
+    );
+    expect(html).toContain("Checked in (2 of 3)");
+  });
+
   test("renders a danger badge when refunded", () => {
     const html = String(
-      BookingStatusBadges({ checkedIn: false, refunded: true }),
+      BookingStatusBadges({ checkedIn: 0, quantity: 1, refunded: true }),
     );
     expect(html).toContain('<span class="badge danger">Refunded</span>');
     expect(html).not.toContain("Checked in");
@@ -151,7 +158,7 @@ describe("BookingStatusBadges", () => {
 
   test("renders both badges when checked in and refunded", () => {
     const html = String(
-      BookingStatusBadges({ checkedIn: true, refunded: true }),
+      BookingStatusBadges({ checkedIn: 1, quantity: 1, refunded: true }),
     );
     expect(html).toContain(
       '<span class="badge">Checked in</span> <span class="badge danger">Refunded</span>',
@@ -214,7 +221,7 @@ describe("AttendeeBookingsTable", () => {
   test("shows an em dash in the date cell when a booking has no date", () => {
     // A standard (fixed-date) booking carries no start date; the status badge
     // proves the only em dash present is the date fallback.
-    const html = renderBookings([booking({ checkedIn: true, startAt: null })]);
+    const html = renderBookings([booking({ checkedIn: 1, startAt: null })]);
     expect(html).toContain("Checked in");
     expect(html).toContain("—");
   });
@@ -284,7 +291,7 @@ describe("AttendeeBookingsTable", () => {
     // Dated so the only em dash can come from the empty status cell.
     const html = renderBookings([
       booking({
-        checkedIn: false,
+        checkedIn: 0,
         endAt: "2026-06-02T00:00:00Z",
         refunded: false,
         startAt: "2026-06-01T00:00:00Z",

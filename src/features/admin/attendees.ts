@@ -9,11 +9,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
-import {
-  getAttendeePackageRowsRaw,
-  hasActiveBookingLine,
-} from "#db/attendees/queries.ts";
-import { updateCheckedIn } from "#db/attendees/update.ts";
+import { getAttendeePackageRowsRaw } from "#db/attendees/queries.ts";
 import {
   getListingWithCount,
   requireListingWithCount,
@@ -54,6 +50,11 @@ import {
 import { handleAttendeeLogisticsPost } from "./attendee-logistics-routes.ts";
 import { attendeePage } from "./attendee-page.ts";
 import { paymentReviewHandlers } from "./attendee-payment-review.ts";
+import {
+  handleAttendeeCheckin,
+  handleAttendeeCheckinGet,
+  redirectIfNoActiveBookingLine,
+} from "./attendees-checkin-routes.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
   handleAttendeesCsvExport,
@@ -100,62 +101,6 @@ const handleDeleteIncomplete = attendeeFormAction(
       `Incomplete attendee deleted from '${data.listing.name}'`,
       t("success.incomplete_removed"),
     );
-  },
-);
-
-/** Return a redirect response when the attendee has no active booking line, or null otherwise. */
-const redirectIfNoActiveBookingLine = async (
-  attendeeId: number,
-  listingId: number,
-  url: string,
-  message: string,
-  opts?: Parameters<typeof redirect>[3],
-): Promise<Response | null> => {
-  if (!(await hasActiveBookingLine(attendeeId, listingId))) {
-    return redirect(url, message, false, opts);
-  }
-  return null;
-};
-
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin */
-const handleAttendeeCheckin = attendeeFormAction(
-  async (data, _session, form, listingId, attendeeId) => {
-    // Refuse on a no-quantity ghost row (checked against the exact (attendee,
-    // listing) pair, since data.attendee is an arbitrary left-joined sibling) —
-    // updateCheckedIn would no-op anyway, but this keeps the message honest.
-    const noLineRedirect = await redirectIfNoActiveBookingLine(
-      attendeeId,
-      listingId,
-      form.getString("return_url") || `/admin/listing/${listingId}`,
-      "Cannot check in a no-quantity line",
-    );
-    if (noLineRedirect) return noLineRedirect;
-
-    const wasCheckedIn = data.attendee.checked_in;
-    const nowCheckedIn = !wasCheckedIn;
-
-    await updateCheckedIn(attendeeId, listingId, nowCheckedIn);
-
-    const status = nowCheckedIn ? "in" : "out";
-    await logActivity(
-      `Attendee checked ${status} for '${data.listing.name}'`,
-      listingId,
-      attendeeId,
-    );
-
-    // The roster's check-in form threads its filtered-view URL through
-    // return_url; when absent (e.g. the scanner) fall back to the Attendees tab,
-    // preserving any check-in filter. Either way the confirmation shows as a
-    // flash on the landing tab — the old ?checkin_name= surface is gone.
-    const returnUrl = form.getString("return_url");
-    const filterValue = form.getString("return_filter");
-    const filterQs =
-      filterValue === "in" || filterValue === "out"
-        ? `?filter=${filterValue}`
-        : "";
-    const target =
-      returnUrl || `/admin/listing/${listingId}/attendees${filterQs}`;
-    return redirect(target, `Checked ${data.attendee.name} ${status}`, true);
   },
 );
 
@@ -333,6 +278,8 @@ export const adminHandlers = defineRoutes({
     handleAdminResendNotificationGet,
   "GET /admin/attendees/csv": handleAttendeesCsvExport,
   "GET /admin/attendees/new": handleAttendeeNewGet,
+  "GET /admin/listing/:listingId/attendee/:attendeeId/checkin":
+    handleAttendeeCheckinGet,
   "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
   "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "POST /admin/attendees/:attendeeId/logistics": handleAttendeeLogisticsPost,

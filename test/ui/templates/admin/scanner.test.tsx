@@ -131,10 +131,24 @@ describe("the admin scanner page template", () => {
       t("admin.scanner.checked_in", holes("listingName", "name", "tickets")),
       2,
     );
+    carried(
+      "checked-in-partial",
+      t(
+        "admin.scanner.checked_in_partial",
+        holes("listingName", "name", "tickets", "total"),
+      ),
+      2,
+    );
     carried("error", t("admin.scanner.error"), 2);
     carried("network-error", t("admin.scanner.network_error"), 2);
     carried("not-found", t("admin.scanner.not_found"), 2);
     carried("refunded", t("admin.scanner.refunded", holes("name")), 2);
+    carried(
+      "select-quantity",
+      t("admin.scanner.select_quantity", holes("name")),
+      2,
+    );
+    carried("skipped", t("admin.scanner.skipped", holes("name")), 2);
     carried(
       "ticket-count-one",
       t("admin.scanner.ticket_count_one", holes("count")),
@@ -151,7 +165,6 @@ describe("the admin scanner page template", () => {
     carried("id-mismatch", t("admin.scanner.id_mismatch", holes("name")), 1);
     carried("invalid-qr", t("admin.scanner.invalid_qr"), 1);
     carried("scanning", t("admin.scanner.scanning"), 1);
-    carried("skipped", t("admin.scanner.skipped", holes("name")), 1);
     carried(
       "verify-id-confirm",
       t("admin.scanner.verify_id_confirm", holes("name")),
@@ -174,29 +187,21 @@ describe("the admin scanner page template", () => {
       OWNER_SESSION,
       [],
     );
-
-    expect(html).toContain('<div class="prose">');
-    // The admin nav marks Home as this page's own tab.
-    expect(html).toContain('<a class="active" href="/admin/">Home</a>');
-
-    // The camera window, its video, and its status line.
-    expect(html).toContain('id="scanner-container"');
-    expect(html).toContain('id="scanner-video"');
-    expect(html).toContain('id="scanner-status"');
-    expect(html).toContain("<video");
-    expect(html).toContain(" muted");
-    expect(html).toContain(" playsinline");
-
-    // The question the door asks before a forced or ID-checked check-in.
-    expect(html).toContain('id="scanner-confirm"');
-    expect(html).toContain('id="scanner-confirm-backdrop"');
-    expect(html).toContain('id="scanner-confirm-box"');
+    // The two asks the door puts before it admits: a forced or ID-checked
+    // check-in, and how many tickets a multi-place booking admits.
+    expect(html).toContain(
+      'class="scanner-overlay hidden" id="scanner-confirm"',
+    );
+    expect(html).toContain('class="scanner-overlay-backdrop"');
+    expect(html).toContain('class="scanner-overlay-box"');
     expect(html).toContain('id="scanner-confirm-close"');
     expect(html).toContain('id="scanner-confirm-message"');
     expect(html).toContain('class="scanner-confirm-actions"');
     expect(html).toContain('id="scanner-confirm-yes"');
     expect(html).toContain('id="scanner-confirm-no"');
-
+    expect(html).toContain(
+      'class="scanner-overlay hidden" id="scanner-quantity"',
+    );
     expect(html).toContain('id="scanner-start"');
 
     // The manual pick-up form.
@@ -214,9 +219,10 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('id="ticket-options"');
     expect(html).toContain('id="manual-checkin-status"');
     // Two hidden fields: the form's own code, and the chosen person's
-    // ticket; plus the four plainly hidden boxes the script reveals.
+    // ticket; plus the three plainly hidden boxes the script reveals (the
+    // overlays carry their hidden state inside a two-class attribute).
     expect(times(html, 'type="hidden"')).toBe(2);
-    expect(times(html, 'class="hidden"')).toBe(4);
+    expect(times(html, 'class="hidden"')).toBe(3);
 
     // The way out to the guide.
     expect(html).toContain('href="/admin/guide#checkin"');

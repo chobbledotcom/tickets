@@ -2,7 +2,7 @@
  * Shared utilities for admin attendee route handlers
  */
 
-import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
+import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -41,9 +41,10 @@ export type AttendeeWithListing = {
 };
 
 /**
- * Load attendee ensuring it belongs to the specified listing.
+ * Load the attendee's booking line for one listing.
  * Uses batched query to fetch listing + attendee in a single DB round-trip.
- * Decrypts attendee PII using the admin private key.
+ * Decrypts attendee PII using the admin private key. An attendee with no
+ * booking on the listing reads as null — the route then answers 404.
  */
 export const loadAttendeeForListing = async (
   listingId: number,
@@ -51,11 +52,11 @@ export const loadAttendeeForListing = async (
 ): Promise<AttendeeWithListing | null> => {
   const pk = await requireRequestPrivateKey();
   const result = await getListingWithAttendeeRaw(listingId, attendeeId);
-  if (!result) return null;
+  if (!result?.attendeeRaw) return null;
 
-  const attendee = await decryptAttendeeOrNull(result.attendeeRaw, pk);
-  if (!attendee || attendee.listing_id !== listingId) return null;
-
+  // The row is non-null here, so its decrypt always answers — the
+  // null-tolerant helper is for the batch reads that may hold no row.
+  const attendee = await decryptAttendeeFields(result.attendeeRaw, pk);
   return { attendee, listing: result.listing };
 };
 

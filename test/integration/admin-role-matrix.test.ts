@@ -199,7 +199,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // Guards the walks below: a surface that stopped declaring its routes
     // would otherwise make this suite pass by testing nothing.
     expect(roleOnly.length).toBe(61);
-    expect(recordPages.length).toBe(90);
+    expect(recordPages.length).toBe(91);
   });
 
   test("never serves a page to a role it does not declare", async () => {

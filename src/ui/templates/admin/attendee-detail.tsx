@@ -44,16 +44,28 @@ const DetailTableRow = ({
 /**
  * "Checked in" / "Refunded" status badges for a booking, or null when neither
  * applies. Shared by the read-only bookings summary and the listing-editor rows.
+ * A part booking names its count, so "2 of 3" cannot read as fully arrived.
  */
 export const BookingStatusBadges = ({
   checkedIn,
+  quantity,
   refunded,
 }: {
-  checkedIn: boolean;
+  checkedIn: number;
+  quantity: number;
   refunded: boolean;
 }): JSX.Element | null => {
   const badges = compact([
-    checkedIn ? <Badge>{t("attendee_form.checked_in")}</Badge> : null,
+    checkedIn > 0 ? (
+      <Badge>
+        {checkedIn < quantity
+          ? t("attendee_form.checked_in_count", {
+              count: checkedIn,
+              total: quantity,
+            })
+          : t("attendee_form.checked_in")}
+      </Badge>
+    ) : null,
     refunded ? (
       <Badge variant="danger">{t("attendee_form.refunded")}</Badge>
     ) : null,
@@ -134,6 +146,7 @@ const bookingColumns: readonly TableColumn<
     (booking) =>
       BookingStatusBadges({
         checkedIn: booking.checkedIn,
+        quantity: booking.quantity,
         refunded: booking.refunded,
       }) ?? "—",
   ),

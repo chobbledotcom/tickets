@@ -47,7 +47,9 @@ describeWithEnv("checking an attendee in", { db: true }, () => {
 
     await checkIn(listing.id, attendee.id);
     const afterIn = await isCheckedIn(listing.id, attendee.id);
-    await checkIn(listing.id, attendee.id);
+    // The roster's Check Out button names its direction, so a bare POST is
+    // always a check-in now.
+    await checkIn(listing.id, attendee.id, { check_in: "false" });
     const afterOut = await isCheckedIn(listing.id, attendee.id);
 
     expect(afterIn).toBe(true);

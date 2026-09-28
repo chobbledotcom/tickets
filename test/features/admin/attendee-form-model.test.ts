@@ -88,10 +88,10 @@ describe("attendeeBookingsFromLines", () => {
         listingId: 7,
       }),
     ]);
-    // Every stored field is carried through, with the 0/1 flags coerced to bools.
+    // Every stored field is carried through, flags coerced, the count kept.
     expect(bookings).toEqual([
       {
-        checkedIn: true,
+        checkedIn: 1,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
         listingId: 7,

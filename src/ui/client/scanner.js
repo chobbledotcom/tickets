@@ -1,5 +1,6 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import { showQuantitySelect } from "./quantity-select.ts";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
@@ -19,10 +20,11 @@ const extractToken = (data) => {
 
 /** POST to scan API — the page names it door it posts to (one listing or a
  * whole group), so the same client serves both. */
-const postScan = async (scanPath, token, csrfToken, { force, idVerified } = {}) => {
+const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}) => {
   const body = { token };
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
+  if (quantity) body.quantity = quantity;
 
   const res = await fetch(scanPath, {
     body: JSON.stringify(body),
@@ -79,13 +81,30 @@ const nameAndTicketsMessage = (messages, key, fallback, result) =>
     tickets: formatTicketCount(messages, result.quantity),
   });
 
+/** Say the door sent this person away without checking them in. */
+const skipPerson = (el, messages, name) =>
+  showStatus(
+    el,
+    interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name }),
+    "warning",
+  );
+
 /** Handle a scan result and display status */
 const handleResult = (el, result, messages) => {
   switch (result.status) {
     case "checked_in":
       showStatus(
         el,
-        nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in for {listingName} ({tickets})", result),
+        result.total > result.quantity
+          ? interpolate(
+              getMessage(
+                messages,
+                "messageCheckedInPartial",
+                "{name} checked in for {listingName} ({tickets} of {total} tickets)",
+              ),
+              { listingName: result.listingName, name: result.name, tickets: result.quantity, total: result.total },
+            )
+          : nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in for {listingName} ({tickets})", result),
         "success",
       );
       break;
@@ -165,39 +184,64 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
       lastToken = null;
     }, FADE_DELAY_MS);
 
+    // Each ask is one confirmation, then one re-POST: a wrong listing
+    // widens the door, an ID check confirms the person, and a quantity ask
+    // picks how many tickets this scan admits. Every later POST carries the
+    // answers the door already gave, so nothing re-asks.
     postScan(scanPath, token, csrfToken)
-      .then(async (result) => {
-        if (result.status === "wrong_listing") {
-          const ok = await showConfirm(
-            interpolate(
-              getMessage(
-                messages,
-                "messageWrongListingConfirm",
-                '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+      .then(async (initial) => {
+        let answer = initial;
+        let forced = false;
+        let idVerified = false;
+        while (true) {
+          if (answer.status === "wrong_listing" && !forced) {
+            const ok = await showConfirm(
+              interpolate(
+                getMessage(
+                  messages,
+                  "messageWrongListingConfirm",
+                  '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+                ),
+                { listingName: answer.listingName, name: answer.name },
               ),
-              { listingName: result.listingName, name: result.name },
-            ),
-          );
-          if (ok) {
-            const forced = await postScan(scanPath, token, csrfToken, {
-              force: true,
-            });
-            handleResult(statusEl, forced, messages);
-          } else {
-            showStatus(statusEl, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
-          }
-        } else if (result.status === "verify_id") {
-          const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
-          if (ok) {
-            const verified = await postScan(scanPath, token, csrfToken, {
+            );
+            if (!ok) {
+              skipPerson(statusEl, messages, answer.name);
+              return;
+            }
+            forced = true;
+            answer = await postScan(scanPath, token, csrfToken, { force: true });
+          } else if (answer.status === "verify_id" && !idVerified) {
+            const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: answer.name }));
+            if (!ok) {
+              showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
+              return;
+            }
+            idVerified = true;
+            answer = await postScan(scanPath, token, csrfToken, {
               idVerified: true,
             });
-            handleResult(statusEl, verified, messages);
+          } else if (answer.status === "select_quantity") {
+            const count = await showQuantitySelect(
+              answer.max,
+              interpolate(
+                getMessage(messages, "messageSelectQuantity", "How many tickets for {name}?"),
+                { name: answer.name },
+              ),
+              (count) => formatTicketCount(messages, count),
+            );
+            if (!count) {
+              skipPerson(statusEl, messages, answer.name);
+              return;
+            }
+            answer = await postScan(scanPath, token, csrfToken, {
+              idVerified,
+              quantity: count,
+            });
           } else {
-            showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
+            handleResult(statusEl, answer, messages);
+            return;
           }
-        } else {
-          handleResult(statusEl, result, messages);
         }
       })
       .catch(() => {

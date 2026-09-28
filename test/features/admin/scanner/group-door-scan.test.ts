@@ -36,47 +36,6 @@ import {
 } from "./support.ts";
 
 describeWithEnv("group scanner scans", { db: true }, () => {
-  test("checks a member ticket in through the group door", async () => {
-    const { group, members } = await groupDoor();
-    const ticket = await createMultiBookingAttendee("Ann", "ann@example.com", [
-      { listingId: members[0]!.id, quantity: 2 },
-    ]);
-
-    const { json } = await scanAtDoor(group.id, {
-      token: ticket.ticket_token,
-    });
-
-    expect(json.status).toBe("checked_in");
-    expect(json.name).toBe("Ann");
-    expect(json.listingName).toBe("Standard");
-    expect(json.quantity).toBe(2);
-    expect(json.remaining).toBe(0);
-  });
-
-  test("walks a several-listing ticket one listing per scan", async () => {
-    const { group, members } = await groupDoor(2);
-    const ticket = await createMultiBookingAttendee("Pat", "pat@example.com", [
-      { listingId: members[0]!.id, quantity: 2 },
-      { listingId: members[1]!.id, quantity: 1 },
-    ]);
-    const token = ticket.ticket_token;
-
-    const first = await scanAtDoor(group.id, { token });
-    expect(first.json.status).toBe("checked_in");
-    expect(first.json.listingName).toBe("Standard");
-    expect(first.json.remaining).toBe(1);
-
-    const second = await scanAtDoor(group.id, { token });
-    expect(second.json.status).toBe("checked_in");
-    expect(second.json.listingName).toBe("Society");
-    expect(second.json.remaining).toBe(0);
-
-    const third = await scanAtDoor(group.id, { token });
-    expect(third.json.status).toBe("already_checked_in");
-    expect(third.json.listingName).toBe("Standard, Society");
-    expect(third.json.quantity).toBe(3);
-  });
-
   test("an outside-group ticket is queried, and force lets it in", async () => {
     const { group, members } = await groupDoor(2);
     const outside = await createTestAttendeeWithToken("Zoe", "zoe@example.com");

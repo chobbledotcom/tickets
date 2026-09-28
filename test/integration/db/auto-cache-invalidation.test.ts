@@ -5,7 +5,7 @@ import { postTransfers } from "#accounting/store.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import {
   incrementAttachmentDownloads,
-  updateCheckedIn,
+  moveTickets,
 } from "#db/attendees/update.ts";
 import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -65,7 +65,7 @@ describeWithEnv(
       expect(afterSecond.income).toBe(3000);
     });
 
-    test("updateCheckedIn does not invalidate the listings cache", async () => {
+    test("admitTickets does not invalidate the listings cache", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 0,
@@ -80,7 +80,7 @@ describeWithEnv(
       const before = (await getAllListings()).find((e) => e.id === listing.id)!;
       expect(before.tickets_count).toBe(1);
 
-      await updateCheckedIn(attendee.id, listing.id, true);
+      await moveTickets("admit", attendee.id, listing.id, 1);
 
       const after = (await getAllListings()).find((e) => e.id === listing.id)!;
       expect(after).toBe(before); // same cached reference

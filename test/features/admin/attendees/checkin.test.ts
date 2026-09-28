@@ -32,11 +32,11 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     });
 
     await checkIn(listing.id, attendee.id);
-    await checkIn(listing.id, attendee.id);
+    await checkIn(listing.id, attendee.id, { check_in: "false" });
 
     const history = await activityMessages();
-    expect(history).toContain("Attendee checked in for 'Sports Day'");
-    expect(history).toContain("Attendee checked out for 'Sports Day'");
+    expect(history).toContain("Attendee checked in 1 ticket for 'Sports Day'");
+    expect(history).toContain("Attendee checked out 1 ticket for 'Sports Day'");
   });
 
   test("says which way round it went", async () => {
@@ -45,7 +45,9 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     });
 
     const { response: went } = await checkIn(listing.id, attendee.id);
-    const { response: came } = await checkIn(listing.id, attendee.id);
+    const { response: came } = await checkIn(listing.id, attendee.id, {
+      check_in: "false",
+    });
 
     expectRedirectWithFlash(
       `/admin/listing/${listing.id}/attendees`,

@@ -2,6 +2,8 @@
 /// <reference lib="dom.iterable" />
 /** Manual check-in: custom combobox + fetch-based form submission.
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
+import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
+
 type OptionDirection = "up" | "down";
 
 const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
@@ -149,18 +151,26 @@ export const initManualCheckin = (): void => {
   };
 
   /** One scan answer as the message the door reads: who they are, how many
-   * places the answer covers, and the listing names that drove it. */
+   * places the answer covers, and the listing names that drove it. A part
+   * answer names its raw counts, so "(2 of 3 tickets)" reads as counts. */
   const answerValues = (result: {
     listingName?: unknown;
     name?: string;
     quantity?: unknown;
-  }): Record<string, string | undefined> => ({
-    listingName: String(result.listingName ?? ""),
-    name: result.name,
-    tickets: formatTicketCount(
-      Number.isFinite(result.quantity) ? Number(result.quantity) : 1,
-    ),
-  });
+    total?: unknown;
+  }): Record<string, string | undefined> => {
+    const count = Number.isFinite(result.quantity)
+      ? Number(result.quantity)
+      : 1;
+    const total = Number(result.total);
+    const partial = total > count;
+    return {
+      listingName: String(result.listingName ?? ""),
+      name: result.name,
+      tickets: partial ? String(count) : formatTicketCount(count),
+      ...(partial ? { total: String(total) } : {}),
+    };
+  };
 
   const handleCheckedIn = (
     result: {
@@ -168,6 +178,7 @@ export const initManualCheckin = (): void => {
       name: string;
       quantity?: unknown;
       remaining?: unknown;
+      total?: unknown;
     },
     token: string,
     idVerified: boolean,
@@ -175,10 +186,11 @@ export const initManualCheckin = (): void => {
     const idNote = idVerified
       ? getMessage("messageVerifyIdNote", " — verify their ID")
       : "";
+    const partial = Number(result.total) > Number(result.quantity);
     showCheckinStatus(
       `${interpolate(
         getMessage(
-          "messageCheckedIn",
+          partial ? "messageCheckedInPartial" : "messageCheckedIn",
           "{name} checked in for {listingName} ({tickets})",
         ),
         answerValues(result),
@@ -280,7 +292,36 @@ export const initManualCheckin = (): void => {
         result = await postScan({ id_verified: true, token });
       }
 
-      dispatchScanResult(result, token, idVerified);
+      // A ticket that owes more than one place asks how many to admit.
+      // The pick goes through the same scan, capped by what the lines owe.
+      let cancelled = false;
+      if (result.status === "select_quantity") {
+        const count = await showQuantitySelect(
+          Number(result.max),
+          interpolate(
+            getMessage("messageSelectQuantity", "How many tickets for {name}?"),
+            { name: result.name },
+          ),
+          formatTicketCount,
+        );
+        if (count === null) {
+          cancelled = true;
+          showCheckinStatus(
+            interpolate(getMessage("messageSkipped", "Skipped {name}"), {
+              name: result.name,
+            }),
+            "warning",
+          );
+        } else {
+          result = await postScan({
+            id_verified: idVerified,
+            quantity: count,
+            token,
+          });
+        }
+      }
+
+      if (!cancelled) dispatchScanResult(result, token, idVerified);
     } catch {
       showCheckinStatus(
         getMessage("messageNetworkError", "Network error"),

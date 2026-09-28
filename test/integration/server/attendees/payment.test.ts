@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { moveTickets } from "#db/attendees/update.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { settings } from "#db/settings.ts";
@@ -24,6 +25,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
@@ -120,9 +122,7 @@ describeWithEnv(
             quantity: 1,
           }),
         );
-        const { updateCheckedIn } = await import("#db/attendees/update.ts");
-        const { refundBookedOrder } = await import("#test-utils/ledger.ts");
-        await updateCheckedIn(attendee.id, listing.id, true);
+        await moveTickets("admit", attendee.id, listing.id, 1);
         await refundBookedOrder(attendee.id, listing.id);
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();

@@ -9,49 +9,44 @@ import {
   execute,
   executeBatch,
   executeUpdate,
-  inPlaceholders,
   queryAll,
   rawSql,
   type TxScope,
   update,
+  useTransaction,
   withTransaction,
 } from "#db/client.ts";
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { clampDurationDays, type ListingType } from "#types";
 
+/** The two bounded ways a line's admitted count moves: admitting adds tickets
+ * and caps at the line's quantity, releasing removes tickets and floors at
+ * zero. One UPDATE each, so two doors that move tickets at the same time
+ * cannot pass the line's bound. */
+const TICKET_MOVE_SQL = {
+  admit: "checked_in = MIN(quantity, checked_in + ?)",
+  release: "checked_in = MAX(0, checked_in - ?)",
+} as const;
+
 /**
- * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it
- * isn't a real ticket, mirroring the refunded-ticket guard in checkin.ts. The
- * `quantity > 0` predicate scopes the write so a ghost row is a no-op (it can
- * never have been checked in, so scoping the check-OUT case too is harmless).
+ * Move `count` tickets on one booking line in one direction. A no-quantity
+ * (quantity 0) line is not a ticket and never moves, mirroring the refunded
+ * guard the routes apply first.
  */
-export const updateCheckedIn = async (
+export const moveTickets = async (
+  direction: keyof typeof TICKET_MOVE_SQL,
   attendeeId: number,
   listingId: number,
-  checkedIn: boolean,
+  count: number,
+  transaction?: TxScope,
 ): Promise<void> => {
-  await execute(
-    "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ? AND quantity > 0",
-    [checkedIn ? 1 : 0, attendeeId, listingId],
+  await useTransaction(transaction, (tx) =>
+    tx.execute({
+      args: [count, attendeeId, listingId],
+      sql: `UPDATE listing_attendees SET ${TICKET_MOVE_SQL[direction]} WHERE attendee_id = ? AND listing_id = ? AND quantity > 0`,
+    }),
   );
-};
-
-/** Check one scanned attendee in on every listing a scan admitted — one
- * statement covers the whole admission, one listing or several. The caller
- * guarantees at least one listing, so an empty admission never reaches SQL.
- * The same no-quantity guard as {@link updateCheckedIn} applies to every row.
- * Runs inside the caller's transaction, so the admission and its activity
- * rows commit together. */
-export const updateCheckedInOnListings = async (
-  attendeeId: number,
-  listingIds: readonly number[],
-  transaction: TxScope,
-): Promise<void> => {
-  await transaction.execute({
-    args: [attendeeId, ...listingIds],
-    sql: `UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`,
-  });
 };
 
 /**

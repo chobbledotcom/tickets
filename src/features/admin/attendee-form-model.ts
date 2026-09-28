@@ -106,7 +106,7 @@ export type AttendeeBooking = {
   quantity: number;
   startAt: string | null;
   endAt: string | null;
-  checkedIn: boolean;
+  checkedIn: number;
   refunded: boolean;
   /** The parent listing this booking was chosen under as an add-on (a folded
    * child), or 0 when it is an ordinary standalone booking. */
@@ -217,7 +217,7 @@ export const attendeeBookingsFromLines = (
     const { existingBooking: booking, listing } = line;
     if (!booking || !listing) return null;
     return {
-      checkedIn: Boolean(booking.checked_in),
+      checkedIn: booking.checked_in,
       endAt: booking.end_at,
       listingActive: listing.active,
       listingId: line.listingId,

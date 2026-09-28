@@ -18,10 +18,16 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
+import {
+  brunoOnTwoListings,
+  setupListingAndAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import type { Attendee, Listing } from "#types";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */
@@ -39,14 +45,14 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
   const checkinAction = adminAttendeeAction("checkin", "listing");
 
   /** Check "John Doe" in via the curried helper, then POST the checkin route
-   * again (a second POST toggles them back out) with any extra body fields.
-   * Returns that second response and the listing it happened on. */
+   * again with the direction the roster's Check Out button sends, plus any
+   * extra body fields. Returns that second response and the listing. */
   const checkInThenPost = async (body: Record<string, string> = {}) => {
     const { listing, attendee, cookie, csrfToken } = await checkinAction({})();
     const response = await handleRequest(
       mockFormRequest(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { csrf_token: csrfToken, ...body },
+        { check_in: "false", csrf_token: csrfToken, ...body },
         cookie,
       ),
     );
@@ -95,6 +101,19 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         l.message.includes("checked in"),
       );
       expect(log).toBeDefined();
+    });
+
+    // Regression: the paired load used to read the attendee's first booking
+    // line and 404 when it belonged to another listing, so pressing Check in
+    // on the roster sent the operator to the 404 page.
+    test("checks in a booking whose attendee also booked another listing", async () => {
+      const { attendee, other } = await brunoOnTwoListings(true);
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${other.id}/attendee/${attendee.id}/checkin`,
+      );
+      expectRedirect(response, `/admin/listing/${other.id}/attendees`);
+      expectFlash(response, expect.stringContaining("Checked Bruno in"));
     });
 
     test("redirects to the in-filtered roster when return_filter is set", async () => {
@@ -163,6 +182,137 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendees`,
         "Check out",
       );
+    });
+  });
+
+  describe("the quantity page a multi-ticket line opens", () => {
+    /** A listing plus one attendee holding three places on it. */
+    const threePlaceAttendee = async (): Promise<{
+      attendee: Attendee;
+      listing: Listing;
+    }> => {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const attendee = await createMultiBookingAttendee(
+        "Cara Party",
+        "cara@example.com",
+        [{ listingId: listing.id, quantity: 3 }],
+      );
+      return { attendee, listing };
+    };
+
+    /** The count the line now stores. */
+    const storedCount = async (
+      listingId: number,
+      attendeeId: number,
+    ): Promise<number> =>
+      Number(
+        (
+          await getDb().execute(
+            "SELECT checked_in FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
+            [listingId, attendeeId],
+          )
+        ).rows[0]!.checked_in,
+      );
+
+    test("offers 1 to the whole line, and no way out yet", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      const html = await expectHtmlResponse(response, 200, "Check in tickets");
+      // The line's state, the three options, the whole line selected, and no
+      // release form while nothing is admitted.
+      expect(html).toContain(`Cara Party, ${listing.name}`);
+      expect(html).toContain("Tickets to check in");
+      for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
+        expect(html).toContain(`<option selected value="3">3 tickets`);
+        expect(html).toContain(`>${option}</option>`);
+      }
+      expect(html).not.toContain("Tickets to check out");
+    });
+
+    test("offers both directions once part of the line is in", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { quantity: "1" },
+      );
+
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      const html = await expectHtmlResponse(response, 200, "Check in tickets");
+      expect(html).toContain("1 of 3 tickets checked in");
+      // The check-in select tops out at the two still owed; the release
+      // select holds the one admitted place.
+      expect(html).toContain('<option selected value="2">2 tickets');
+      expect(html).toContain("Tickets to check out");
+      expect(html).toContain('<option selected value="1">1 ticket');
+    });
+
+    test("admits the count the page names", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { quantity: "2" },
+      );
+      expectFlash(
+        response,
+        expect.stringContaining("Checked Cara Party in (2 tickets)"),
+      );
+      expect(await storedCount(listing.id, attendee.id)).toBe(2);
+      const messages = (await getListingActivityLog(listing.id))
+        .map((entry) => entry.message)
+        .join(" ");
+      expect(messages).toContain("checked in 2 tickets");
+    });
+
+    test("releases the count the page names", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        {},
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { check_in: "false", quantity: "2" },
+      );
+      expectFlash(
+        response,
+        expect.stringContaining("Checked Cara Party out (2 tickets)"),
+      );
+      expect(await storedCount(listing.id, attendee.id)).toBe(1);
+    });
+
+    test("a fully admitted line offers only the way out", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        {},
+      );
+
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      const html = await expectHtmlResponse(response, 200, "Check out tickets");
+      expect(html).toContain("3 of 3 tickets checked in");
+      expect(html).not.toContain("Tickets to check in");
+      expect(html).toContain("Tickets to check out");
+      expect(html).toContain('<option selected value="3">3 tickets');
+    });
+
+    test("refuses a count that is not a positive whole number", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { quantity: "two" },
+      );
+      expectFlash(response, "Invalid ticket count", false);
+      expect(await storedCount(listing.id, attendee.id)).toBe(0);
     });
   });
 

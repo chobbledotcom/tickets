@@ -138,19 +138,25 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee()];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("0.00,,No,");
+    expect(lines[1]).toContain("0.00,,0,");
   });
 
-  test("includes Checked In as Yes for checked-in attendee", () => {
-    const attendees = [testAttendee({ checked_in: true })];
+  test("includes Checked In as the admitted count", () => {
+    const attendees = [testAttendee({ checked_in: 1 })];
     const csv = generateAttendeesCsv(attendees);
-    expect(csv.split("\n")[1]).toContain(",Yes,");
+    expect(csv.split("\n")[1]).toContain(",1,");
   });
 
-  test("includes Checked In as No for not checked-in attendee", () => {
-    const attendees = [testAttendee({ checked_in: false })];
+  test("includes Checked In as 0 for not checked-in attendee", () => {
+    const attendees = [testAttendee({ checked_in: 0 })];
     const csv = generateAttendeesCsv(attendees);
-    expect(csv.split("\n")[1]).toContain(",No,");
+    expect(csv.split("\n")[1]).toContain(",0,");
+  });
+
+  test("a part booking exports its admitted count", () => {
+    const attendees = [testAttendee({ checked_in: 2, quantity: 3 })];
+    const csv = generateAttendeesCsv(attendees);
+    expect(csv.split("\n")[1]).toContain(",2,");
   });
 
   test("includes ticket token and URL in CSV output", () => {

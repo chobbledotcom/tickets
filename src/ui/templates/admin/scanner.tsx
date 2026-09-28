@@ -18,40 +18,41 @@ export interface TicketOption {
   token: string;
 }
 
-/** The check-in message templates shared by both the camera scanner container
- *  and the manual-checkin form, as `data-message-*` attributes to spread onto
- *  each (each form then adds its own extra messages). Keeping the common set
- *  here stops the two attribute lists drifting apart. */
-const sharedScanMessageAttrs = (messageTemplates: {
-  alreadyCheckedIn: string;
-  checkedIn: string;
-  refunded: string;
-  ticketCountOne: string;
-  ticketCountOther: string;
-}): Record<string, string> => ({
-  "data-message-already-checked-in": messageTemplates.alreadyCheckedIn,
-  "data-message-checked-in": messageTemplates.checkedIn,
-  "data-message-error": t("admin.scanner.error"),
-  "data-message-network-error": t("admin.scanner.network_error"),
-  "data-message-not-found": t("admin.scanner.not_found"),
-  "data-message-refunded": messageTemplates.refunded,
-  "data-message-ticket-count-one": messageTemplates.ticketCountOne,
-  "data-message-ticket-count-other": messageTemplates.ticketCountOther,
-});
-
 /** What one page's scanner messages say — every `{name}`-style hole below is
  * filled by the client from the scan API's answer. */
 type ScannerMessages = {
   alreadyCheckedIn: string;
   checkedIn: string;
+  checkedInPartial: string;
   idMismatch: string;
   refunded: string;
+  selectQuantity: string;
   skipped: string;
   ticketCountOne: string;
   ticketCountOther: string;
   verifyIdConfirm: string;
   wrongListingConfirm: string;
 };
+
+/** The check-in message templates shared by both the camera scanner container
+ *  and the manual-checkin form, as `data-message-*` attributes to spread onto
+ *  each (each form then adds its own extra messages). Keeping the common set
+ *  here stops the two attribute lists drifting apart. */
+const sharedScanMessageAttrs = (
+  messageTemplates: ScannerMessages,
+): Record<string, string> => ({
+  "data-message-already-checked-in": messageTemplates.alreadyCheckedIn,
+  "data-message-checked-in": messageTemplates.checkedIn,
+  "data-message-checked-in-partial": messageTemplates.checkedInPartial,
+  "data-message-error": t("admin.scanner.error"),
+  "data-message-network-error": t("admin.scanner.network_error"),
+  "data-message-not-found": t("admin.scanner.not_found"),
+  "data-message-refunded": messageTemplates.refunded,
+  "data-message-select-quantity": messageTemplates.selectQuantity,
+  "data-message-skipped": messageTemplates.skipped,
+  "data-message-ticket-count-one": messageTemplates.ticketCountOne,
+  "data-message-ticket-count-other": messageTemplates.ticketCountOther,
+});
 
 const scannerMessages = (): ScannerMessages => ({
   alreadyCheckedIn: t("admin.scanner.already_checked_in", {
@@ -64,8 +65,15 @@ const scannerMessages = (): ScannerMessages => ({
     name: "{name}",
     tickets: "{tickets}",
   }),
+  checkedInPartial: t("admin.scanner.checked_in_partial", {
+    listingName: "{listingName}",
+    name: "{name}",
+    tickets: "{tickets}",
+    total: "{total}",
+  }),
   idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
   refunded: t("admin.scanner.refunded", { name: "{name}" }),
+  selectQuantity: t("admin.scanner.select_quantity", { name: "{name}" }),
   skipped: t("admin.scanner.skipped", { name: "{name}" }),
   ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
   ticketCountOther: t("admin.scanner.ticket_count_other", {
@@ -80,6 +88,32 @@ const scannerMessages = (): ScannerMessages => ({
   }),
 });
 
+/** One centered overlay above the camera: backdrop, box, and the page's own
+ * body. The confirm and the quantity asks share it, so both overlays keep the
+ * same skeleton the client script centers. */
+const ScannerOverlay = ({
+  children,
+  name,
+}: {
+  children: JSX.Element | JSX.Element[];
+  name: string;
+}): JSX.Element => (
+  <div class="scanner-overlay hidden" id={`scanner-${name}`}>
+    <div class="scanner-overlay-backdrop"></div>
+    <div class="scanner-overlay-box">{children}</div>
+  </div>
+);
+
+/** One overlay's action button, in the door's accept or plain variant. */
+const OverlayButton = (
+  id: string,
+  label: string,
+  variant: "primary" | "secondary" = "secondary",
+): JSX.Element => (
+  <button class={variant} id={id} type="button">
+    {label}
+  </button>
+);
 /**
  * Scanner page - camera feed with auto check-in + manual autocomplete.
  * `subject` is whichever door this page scans for — a listing or a group —
@@ -113,7 +147,6 @@ export const adminScannerPage = (
           data-message-id-mismatch={messageTemplates.idMismatch}
           data-message-invalid-qr={t("admin.scanner.invalid_qr")}
           data-message-scanning={t("admin.scanner.scanning")}
-          data-message-skipped={messageTemplates.skipped}
           data-message-verify-id-confirm={messageTemplates.verifyIdConfirm}
           data-message-wrong-listing-confirm={
             messageTemplates.wrongListingConfirm
@@ -128,27 +161,49 @@ export const adminScannerPage = (
             playsinline
           ></video>
           <div class="hidden" id="scanner-status"></div>
-          <div class="hidden" id="scanner-confirm">
-            <div id="scanner-confirm-backdrop"></div>
-            <div id="scanner-confirm-box">
-              <button
-                aria-label={t("common.close")}
-                id="scanner-confirm-close"
-                type="button"
-              >
-                &times;
-              </button>
-              <p id="scanner-confirm-message"></p>
-              <div class="scanner-confirm-actions">
-                <button id="scanner-confirm-yes" type="button">
-                  {t("common.yes")}
+          {ScannerOverlay({
+            children: (
+              <>
+                <button
+                  aria-label={t("common.close")}
+                  id="scanner-confirm-close"
+                  type="button"
+                >
+                  &times;
                 </button>
-                <button id="scanner-confirm-no" type="button">
-                  {t("common.no")}
-                </button>
-              </div>
-            </div>
-          </div>
+                <p id="scanner-confirm-message"></p>
+                <div class="scanner-confirm-actions">
+                  {OverlayButton(
+                    "scanner-confirm-yes",
+                    t("common.yes"),
+                    "primary",
+                  )}
+                  {OverlayButton("scanner-confirm-no", t("common.no"))}
+                </div>
+              </>
+            ),
+            name: "confirm",
+          })}
+          {ScannerOverlay({
+            children: (
+              <>
+                <p id="scanner-quantity-message"></p>
+                <label for="scanner-quantity-select">
+                  {t("admin.scanner.quantity_label")}
+                </label>
+                <select id="scanner-quantity-select"></select>
+                <div class="scanner-confirm-actions">
+                  {OverlayButton(
+                    "scanner-quantity-confirm",
+                    t("admin.scanner.check_in"),
+                    "primary",
+                  )}
+                  {OverlayButton("scanner-quantity-cancel", t("common.cancel"))}
+                </div>
+              </>
+            ),
+            name: "quantity",
+          })}
         </div>
 
         <button id="scanner-start" type="button">

@@ -2286,26 +2286,26 @@ button.secondary:hover,
   }
 }
 
-/* Scanner confirm overlay - centered on video like scanner-status */
-#scanner-confirm {
+/* Scanner overlays (confirm, quantity) - centered on video like scanner-status */
+.scanner-overlay {
   @include fill-parent;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
+
+  &.hidden {
+    display: none;
+  }
 }
 
-#scanner-confirm.hidden {
-  display: none;
-}
-
-#scanner-confirm-backdrop {
+.scanner-overlay-backdrop {
   @include fill-parent;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 4px;
 }
 
-#scanner-confirm-box {
+.scanner-overlay-box {
   position: relative;
   border: none;
   border-radius: 8px;
@@ -2316,6 +2316,10 @@ button.secondary:hover,
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   @include surface-colors;
   @include stack;
+
+  p {
+    font-size: 1.1rem;
+  }
 }
 
 #scanner-confirm-close {
@@ -2329,10 +2333,6 @@ button.secondary:hover,
   padding: 0.25rem 0.5rem;
   cursor: pointer;
   color: var(--color-text-secondary);
-}
-
-#scanner-confirm p {
-  font-size: 1.1rem;
 }
 
 .scanner-confirm-actions {
@@ -2350,16 +2350,15 @@ button.secondary:hover,
   cursor: pointer;
 }
 
-#scanner-confirm-yes {
+.scanner-confirm-actions .primary {
   background: #155724;
   color: #fff;
   border-color: #155724;
 }
 
-#scanner-confirm-no {
+.scanner-confirm-actions .secondary {
   @include surface-colors;
 }
-
 /* Demo mode banner */
 .demo-banner {
   @include banner-bar;

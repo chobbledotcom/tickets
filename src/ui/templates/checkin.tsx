@@ -41,7 +41,11 @@ export const checkinAdminPage = (
     ),
   )(entries);
 
-  const allCheckedIn = entries.every((e) => e.attendee.checked_in);
+  // "All" means every live line fully admitted: a part booking still owes
+  // tickets, so the bulk button stays a check-in.
+  const allCheckedIn = entries.every(
+    (e) => e.attendee.checked_in >= e.attendee.quantity,
+  );
   const buttonLabel = allCheckedIn
     ? t("admin.checkin.check_out_all")
     : t("admin.checkin.check_in_all");

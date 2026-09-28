@@ -134,7 +134,7 @@ const buildAttendeeView = (
 ): Attendee => ({
   address: "",
   attachment_downloads: booking.attachment_downloads,
-  checked_in: booking.checked_in === 1,
+  checked_in: booking.checked_in,
   created: base.created,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   email: "",

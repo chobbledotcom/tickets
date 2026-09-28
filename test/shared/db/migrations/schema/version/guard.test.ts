@@ -108,6 +108,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-11_refund_order_link",
         "2026-09-14_group_show_hidden_listings",
         "2026-09-15_group_scan_checks_in_all_listings",
+        "2026-09-27_checked_in_count",
       ],
       schemaHash: "y91i2g",
     });
@@ -124,7 +125,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Let a group's booking page keep its hidden member listings off the page, one group at a time.",
+        "Admit part of a booking at the door: checked_in stores how many of a line's tickets arrived, not a flag.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

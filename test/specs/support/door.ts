@@ -35,9 +35,11 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** What the site says about one person at the door. */
 export interface DoorAnswer {
   listingName?: string;
+  max?: number;
   name?: string;
   quantity?: number;
   status: string;
+  total?: number;
 }
 
 /** An admin page belonging to one record — its listing, or the group its
@@ -59,6 +61,7 @@ const listingPath = (
 export type DoorChoice = {
   confirmedTheirId?: boolean;
   letInAnyway?: boolean;
+  tickets?: number;
 };
 
 /** One door's own pages: its scanner page, and the door that page answers. */
@@ -184,6 +187,7 @@ export const postScanAtPath = async (
         ...(choices.confirmedTheirId === undefined
           ? {}
           : { id_verified: choices.confirmedTheirId }),
+        ...(choices.tickets === undefined ? {} : { quantity: choices.tickets }),
       }),
       headers: {
         "content-type": "application/json",

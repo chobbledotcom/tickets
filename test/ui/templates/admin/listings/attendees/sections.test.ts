@@ -20,24 +20,27 @@ describe("filterAttendees", () => {
   registerListingTemplateHooks();
 
   const rows = [
-    testAttendee({ checked_in: true, id: 1 }),
-    testAttendee({ checked_in: false, id: 2 }),
-    testAttendee({ checked_in: false, id: 3, quantity: 0 }),
-    testAttendee({ checked_in: true, id: 4, quantity: 0 }),
+    testAttendee({ checked_in: 1, id: 1 }),
+    testAttendee({ checked_in: 0, id: 2 }),
+    testAttendee({ checked_in: 0, id: 3, quantity: 0 }),
+    testAttendee({ checked_in: 1, id: 4, quantity: 0 }),
+    // A part booking: one of two admitted. It still owes a ticket, so the
+    // door finds it under "out", not "in".
+    testAttendee({ checked_in: 1, id: 5, quantity: 2 }),
   ];
   const ids = (filtered: ReturnType<typeof filterAttendees>) =>
     filtered.map((a) => a.id);
 
   test("all keeps every row, quantity or not", () => {
-    expect(ids(filterAttendees(rows, "all"))).toEqual([1, 2, 3, 4]);
+    expect(ids(filterAttendees(rows, "all"))).toEqual([1, 2, 3, 4, 5]);
   });
 
-  test("in keeps only checked-in tickets", () => {
+  test("in keeps only fully checked-in tickets", () => {
     expect(ids(filterAttendees(rows, "in"))).toEqual([1]);
   });
 
-  test("out keeps only not-checked-in tickets", () => {
-    expect(ids(filterAttendees(rows, "out"))).toEqual([2]);
+  test("out keeps tickets that still owe, including part bookings", () => {
+    expect(ids(filterAttendees(rows, "out"))).toEqual([2, 5]);
   });
 });
 

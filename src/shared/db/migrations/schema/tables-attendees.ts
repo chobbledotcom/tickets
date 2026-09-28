@@ -81,6 +81,9 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["start_at", "TEXT DEFAULT NULL"],
         ["end_at", "TEXT DEFAULT NULL"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+        // How many of this row's quantity the doors admitted: 0..quantity. A
+        // quantity 0 ghost row always stores 0, and the admit write caps at
+        // quantity so concurrent doors cannot pass it.
         ["checked_in", "INTEGER NOT NULL DEFAULT 0"],
         // The ledger event group of the booking order this row belongs to, so a
         // per-row money projection (amount paid) can find exactly this booking's

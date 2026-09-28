@@ -21,9 +21,9 @@ const CSV_DOMAIN = "calendar.example.com";
 const ATTENDEE_HEADER =
   "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL";
 const CALENDAR_HEADER = `Listing,Type,Date,${ATTENDEE_HEADER}`;
-const ATTENDEE_ROW = `John Doe,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`;
+const ATTENDEE_ROW = `John Doe,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,0,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`;
 const CALENDAR_ROW = `Bouncy Castle,Attendee,2026-03-15,${ATTENDEE_ROW}`;
-const ATTENDEE_ADDRESS_ROW = `John Doe,john@example.com,,1 High St,,1,2024-01-01T12:00:00.000Z,0.00,,No,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`;
+const ATTENDEE_ADDRESS_ROW = `John Doe,john@example.com,,1 High St,,1,2024-01-01T12:00:00.000Z,0.00,,0,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`;
 const CALENDAR_ADDRESS_ROW = `Bouncy Castle,Attendee,2026-03-15,${ATTENDEE_ADDRESS_ROW}`;
 const LOGISTICS_HEADER = `${CALENDAR_HEADER},Start Agent,Start Time,End Agent,End Time,Map (Google),Map (Apple)`;
 
@@ -130,7 +130,7 @@ describe("generateCalendarCsv", () => {
   test("includes the exact standard attendee cells", () => {
     const csv = generateCalendarCsv([
       calAttendee({
-        checked_in: true,
+        checked_in: 1,
         created: "2024-01-15T10:30:00Z",
         payment_id: "pi_abc",
         price_paid: "2000",
@@ -139,7 +139,7 @@ describe("generateCalendarCsv", () => {
     ]);
     expect(csv.split("\n")).toEqual([
       CALENDAR_HEADER,
-      `Bouncy Castle,Attendee,2026-03-15,John Doe,john@example.com,,,,2,2024-01-15T10:30:00.000Z,20.00,pi_abc,Yes,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`,
+      `Bouncy Castle,Attendee,2026-03-15,John Doe,john@example.com,,,,2,2024-01-15T10:30:00.000Z,20.00,pi_abc,1,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`,
     ]);
   });
 
@@ -155,7 +155,7 @@ describe("generateCalendarCsv", () => {
     expect(csv.split("\n")).toEqual([
       CALENDAR_HEADER,
       CALENDAR_ROW,
-      `Other Listing,Attendee,2026-03-15,Jane Smith,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`,
+      `Other Listing,Attendee,2026-03-15,Jane Smith,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,0,test-token-1,https://${CSV_DOMAIN}/t/test-token-1`,
     ]);
   });
 
@@ -293,8 +293,8 @@ describe("generateCalendarCsv", () => {
       const csv = generateCalendarCsv([service, attendee]);
       expect(csv.split("\n")).toEqual([
         CALENDAR_HEADER,
-        "Boiler Room,Service event,2026-03-15,Boiler Service,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,svc-token,",
-        `Boiler Room,Attendee,2026-03-15,Jane Doe,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,att-token,https://${CSV_DOMAIN}/t/att-token`,
+        "Boiler Room,Service event,2026-03-15,Boiler Service,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,0,svc-token,",
+        `Boiler Room,Attendee,2026-03-15,Jane Doe,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,0,att-token,https://${CSV_DOMAIN}/t/att-token`,
       ]);
     });
 
@@ -315,7 +315,7 @@ describe("generateCalendarCsv", () => {
       const csv = generateCalendarCsv([service], logistics);
       expect(csv.split("\n")).toEqual([
         LOGISTICS_HEADER,
-        "Logistics Room,Service event,2026-03-15,Deep Clean,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,svc-tok,,,,,,,",
+        "Logistics Room,Service event,2026-03-15,Deep Clean,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,0,svc-tok,,,,,,,",
       ]);
     });
   });

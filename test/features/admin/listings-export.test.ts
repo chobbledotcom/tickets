@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
-import { updateCheckedIn } from "#db/attendees/update.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
@@ -27,7 +27,7 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       "alice@example.com",
     );
     await createTestAttendeeDirect(listing.id, "BobOut", "bob@example.com");
-    await updateCheckedIn(alice.id, listing.id, true);
+    await moveTickets("admit", alice.id, listing.id, 1);
     return listing;
   };
 

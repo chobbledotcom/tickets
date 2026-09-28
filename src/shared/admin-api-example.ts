@@ -142,7 +142,7 @@ const ADMIN_API_HOLIDAY_DELETE_BODY = {
 const ADMIN_API_EXAMPLE_ATTENDEE = {
   address: "12 Main Street, Springfield",
   attachment_downloads: 0,
-  checked_in: false,
+  checked_in: 0,
   created: "2026-06-01T10:00:00.000Z",
   date: null,
   email: "jane@example.com",

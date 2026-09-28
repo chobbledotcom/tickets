@@ -12,6 +12,7 @@ import {
   flashCookieHeader,
 } from "#test-utils/assertions.ts";
 import {
+  createMultiBookingAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
   getAttendeesRaw,
@@ -299,4 +300,24 @@ export const emptyBookingLine = async (
     "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
     [listingId, attendeeId],
   );
+};
+
+/** Bruno plus the two listings a listing-scoped read must choose between.
+ * He is booked on the home listing, and on the other one too when
+ * `onOtherToo` says so — a person whose lines the roster's Check in must
+ * tell apart, because it acts on the listing in the address, not whichever
+ * line the index reaches first. */
+export const brunoOnTwoListings = async (
+  onOtherToo: boolean,
+): Promise<{ attendee: Attendee; home: Listing; other: Listing }> => {
+  const home = await createTestListing({ maxAttendees: 50 });
+  const other = await createTestListing({ maxAttendees: 50 });
+  const bookings = [{ listingId: home.id }];
+  if (onOtherToo) bookings.push({ listingId: other.id });
+  const attendee = await createMultiBookingAttendee(
+    "Bruno",
+    "bruno@example.com",
+    bookings,
+  );
+  return { attendee, home, other };
 };

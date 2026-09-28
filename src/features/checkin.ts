@@ -4,7 +4,8 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { updateCheckedIn } from "#db/attendees/update.ts";
+import { remainingTickets } from "#booking/remaining-tickets.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
 import {
@@ -15,7 +16,7 @@ import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 /* jscpd:ignore-end */
 /* jscpd:ignore-start */
-import { filter, map } from "#fp";
+import { filter, map, sumOf } from "#fp";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -180,23 +181,25 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
       }
 
       const totalTickets = sumTicketCount(eligible);
-      const uncheckedTickets = sumTicketCount(
-        eligible,
-        (attendee) => !attendee.checked_in,
-      );
+      const owedTickets = sumOf((a: Attendee) => remainingTickets(a))(eligible);
       await Promise.all(
-        map((a: Attendee) => updateCheckedIn(a.id, a.listing_id, checkedIn))(
-          eligible,
-        ),
+        map((a: Attendee) =>
+          moveTickets(
+            checkedIn ? "admit" : "release",
+            a.id,
+            a.listing_id,
+            a.quantity,
+          ),
+        )(eligible),
       );
 
       let message: string;
       if (!checkedIn) {
         message = "Checked out";
-      } else if (uncheckedTickets === 0) {
+      } else if (owedTickets === 0) {
         message = `Already checked in ${formatTicketCount(totalTickets)}`;
       } else {
-        message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
+        message = `Checked in ${formatTicketCount(owedTickets)}`;
       }
       return redirectResponse(
         `${checkinPath(tokens)}?message=${encodeURIComponent(message)}`,

@@ -24,11 +24,13 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { doorPage, groupDoor, scanAtDoor } from "./support.ts";
+import {
+  doorPage,
+  groupDoor,
+  pickTicketsAtDoor,
+  scanAtDoor,
+} from "./support.ts";
 
-/** The manual check-in list's own attribute for one person's option. The page
- * also renders random tokens (CSRF, ticket tokens) that can legally contain a
- * short name, so assertions must match the attribute, never a bare name. */
 const rosterOption = (name: string): string => `data-name="${name}"`;
 
 describeWithEnv("group scanner page", { db: true }, () => {
@@ -114,10 +116,15 @@ describeWithEnv("group scanner page", { db: true }, () => {
       { listingId: members[1]!.id, quantity: 2 },
     ]);
     await updateTestGroup(group.id, { scanChecksInAllListings: true });
+    // The Society line owes two, so the door asks before it admits both.
+    const { admission, ask } = await pickTicketsAtDoor(
+      group.id,
+      ticket.ticket_token,
+      2,
+    );
+    expect(ask.json.max).toBe(2);
 
-    const { json } = await scanAtDoor(group.id, {
-      token: ticket.ticket_token,
-    });
+    const { json } = admission;
     expect(json.status).toBe("checked_in");
     expect(json.listingName).toBe("Standard, Society");
     expect(json.quantity).toBe(3);

@@ -89,7 +89,7 @@ export const testListingWithCount = (
 export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   address: "",
   attachment_downloads: 0,
-  checked_in: false,
+  checked_in: 0,
   created: "2024-01-01T12:00:00Z",
   date: null,
   email: "john@example.com",

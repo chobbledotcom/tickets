@@ -82,7 +82,11 @@ const readTicket = async function (
   this: TicketsWorld,
   who: string,
   listing: string,
-  choices: { confirmedTheirId?: boolean; letInAnyway?: boolean } = {},
+  choices: {
+    confirmedTheirId?: boolean;
+    letInAnyway?: boolean;
+    tickets?: number;
+  } = {},
 ): Promise<void> {
   this.doorAnswer = await showTicketAtDoor(
     this,
@@ -110,11 +114,44 @@ const answerTheDoor = async function (
   who: string,
   listing: string,
   asked: string,
-  choices: { confirmedTheirId?: boolean; letInAnyway?: boolean },
+  choices: {
+    confirmedTheirId?: boolean;
+    letInAnyway?: boolean;
+    tickets?: number;
+  },
 ): Promise<void> {
   expect(lastAnswer(this).status).toBe(asked);
   await readTicket.call(this, who, listing, choices);
 };
+
+Given(
+  "the organiser has checked in {int} of {word}'s tickets at the {word} door",
+  async function (
+    this: TicketsWorld,
+    tickets: number,
+    who: string,
+    listing: string,
+  ): Promise<void> {
+    await readTicket.call(this, who, listing);
+    await answerTheDoor.call(this, who, listing, "select_quantity", {
+      tickets,
+    });
+  },
+);
+
+When(
+  "the organiser says {int} ticket(s) for {word} at the {word} door",
+  function (
+    this: TicketsWorld,
+    tickets: number,
+    who: string,
+    listing: string,
+  ): Promise<void> {
+    return answerTheDoor.call(this, who, listing, "select_quantity", {
+      tickets,
+    });
+  },
+);
 
 When(
   "the organiser lets {word} in at the {word} door anyway",
@@ -188,6 +225,25 @@ Then(
 );
 
 Then(
+  "the door asks how many tickets for {word}",
+  function (this: TicketsWorld, who: string): void {
+    const answer = lastAnswer(this);
+    expect(answer.status).toBe("select_quantity");
+    expect(answer.name).toBe(who);
+    expect(answer.max).toBeGreaterThanOrEqual(2);
+  },
+);
+
+Then(
+  "the door says the ticket covers {int} of {int} place(s)",
+  function (this: TicketsWorld, places: number, total: number): void {
+    const answer = lastAnswer(this);
+    expect(answer.quantity).toBe(places);
+    expect(answer.total).toBe(total);
+  },
+);
+
+Then(
   "the {word}'s record of the day says {word} was checked in",
   async function (
     this: TicketsWorld,
@@ -196,7 +252,9 @@ Then(
   ): Promise<void> {
     const written = await dayLog(this, listing);
     expect(written).toContain(who);
-    expect(written).toContain(`checked in via scanner for '${listing}'`);
+    expect(written).toMatch(
+      new RegExp(`checked in \\d+ tickets? via scanner for '${listing}'`),
+    );
   },
 );
 

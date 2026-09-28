@@ -72,7 +72,8 @@ const listingNameCell = (
       {label ? <span class="muted small booking-path"> {label}</span> : null}
       <InactiveNote active={listing.active} />
       {BookingStatusBadges({
-        checkedIn: Boolean(line.existingBooking?.checked_in),
+        checkedIn: line.existingBooking?.checked_in ?? 0,
+        quantity: line.existingBooking?.quantity ?? 0,
         refunded: Boolean(line.existingBooking?.refunded),
       })}
     </>

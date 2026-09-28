@@ -65,7 +65,8 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   { header: t("csv.col.transaction_id"), value: (a) => a.payment_id },
   {
     header: t("common.checked_in"),
-    value: (a) => (a.checked_in ? t("csv.yes") : t("csv.no")),
+    // The count itself, so a part booking exports 2 and not a bare word.
+    value: (a) => String(a.checked_in),
   },
   { header: t("csv.col.ticket_token"), value: (a) => a.ticket_token },
   {

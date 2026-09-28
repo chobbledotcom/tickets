@@ -147,11 +147,9 @@ export const isPaidListing = (
   (listing.customisable_days &&
     Object.values(listing.day_prices).some((price) => price > 0));
 
-/** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather than
- * the no-quantity sentinel (quantity 0). The shared "is this a real ticket, not a
- * ghost" test for the readers, rosters, and exports that must skip sentinel rows —
- * one home for the rule instead of a bare `quantity > 0` plus an explanatory
- * comment at each call site. */
+/** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather
+ * than the no-quantity sentinel (quantity 0) — the one "is this a real
+ * ticket, not a ghost" test the readers, rosters, and exports share. */
 export const hasTicketQuantity = (row: { quantity: number }): boolean =>
   row.quantity > 0;
 
@@ -472,7 +470,8 @@ export interface UserLogisticsAgent {
 
 export interface Attendee extends ContactInfo {
   attachment_downloads: number;
-  checked_in: boolean;
+  /** Admitted tickets, 0..quantity; a quantity 0 ghost line stores 0. */
+  checked_in: number;
   created: string;
   date: string | null;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
