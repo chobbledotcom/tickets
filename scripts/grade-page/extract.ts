@@ -48,7 +48,7 @@ export interface PageFacts {
   nonNullAssertions: LineHit[];
   /** SQL-looking statements, template parts included. */
   sql: string[];
-  /** Batch and transaction calls, for the write-shape question. */
+  /** Calls that can write, for the write-shape question. */
   writeCalls: LineHit[];
 }
 
@@ -113,51 +113,113 @@ const assertionHits = (
 const absent = (value: unknown): boolean =>
   value === undefined || value === null;
 
-/** Where an export statement starts, as a line-addressed hit. */
-const hitAt = (content: string, statement: ParsedStatement): LineHit =>
-  hitAtIndex(content, statement.start);
+/** A function the page declares at the top level, and where it starts. The
+ * name is null for an anonymous `export default function`. */
+interface DeclaredFunction {
+  name: string | null;
+  start: number;
+  typed: boolean;
+}
 
-/** One export statement, already narrowed by the caller's filter. */
-type ExportStatement = ParsedStatement & { type: "ExportNamedDeclaration" };
-
-/** The missing-return-type hits one export statement carries. */
-const hitsFromStatement = (
-  content: string,
-  statement: ExportStatement,
-): LineHit[] => {
-  const declaration = statement.declaration;
-  if (declaration === null) return [];
-  if (declaration.type === "FunctionDeclaration") {
-    return absent(declaration.returnType) && declaration.id !== null
-      ? [hitAt(content, statement)]
-      : [];
+/** The functions one declaration names: a function, or variables holding
+ * arrow or function expressions. */
+const functionsDeclaredBy = (node: ParsedStatement): DeclaredFunction[] => {
+  if (node.type === "FunctionDeclaration") {
+    return [
+      {
+        name: node.id === null ? null : node.id.name,
+        start: node.start,
+        typed: !absent(node.returnType),
+      },
+    ];
   }
-  if (declaration.type !== "VariableDeclaration") return [];
-  return declaration.declarations
-    .filter((one) => {
-      const init = one.init;
-      if (init === null) return false;
-      const isFunction =
-        init.type === "ArrowFunctionExpression" ||
-        init.type === "FunctionExpression";
-      return (
-        isFunction && absent(init.returnType) && absent(one.id.typeAnnotation)
-      );
-    })
-    .map(() => hitAt(content, statement));
+  if (node.type !== "VariableDeclaration") return [];
+  return node.declarations.flatMap((one) => {
+    const init = one.init;
+    if (
+      one.id.type !== "Identifier" ||
+      init === null ||
+      (init.type !== "ArrowFunctionExpression" &&
+        init.type !== "FunctionExpression")
+    ) {
+      return [];
+    }
+    return [
+      {
+        name: one.id.name,
+        start: node.start,
+        typed: !absent(init.returnType) || !absent(one.id.typeAnnotation),
+      },
+    ];
+  });
+};
+
+/** Where each untyped function an export statement makes public starts:
+ * declared in place, exported by name from a list, or exported as the
+ * default. A re-export from another module is that module's to check. */
+const untypedExportStarts = (
+  content: string,
+  statement: ParsedStatement,
+  local: Map<string | null, DeclaredFunction>,
+): number[] => {
+  const untypedLocal = (name: string): number[] => {
+    const found = local.get(name);
+    return found === undefined || found.typed ? [] : [found.start];
+  };
+  const untypedDeclared = (declaration: ParsedStatement): number[] =>
+    functionsDeclaredBy(declaration)
+      .filter((declared) => !declared.typed)
+      .map(() => statement.start);
+  if (statement.type === "ExportNamedDeclaration") {
+    if (statement.declaration !== null) {
+      return untypedDeclared(statement.declaration);
+    }
+    if (statement.source !== null) return [];
+    // Without a source module, every exported name is a local identifier.
+    return statement.specifiers.flatMap(({ local: name }) =>
+      untypedLocal(content.slice(name.start, name.end)),
+    );
+  }
+  if (statement.type !== "ExportDefaultDeclaration") return [];
+  const declaration = statement.declaration;
+  if (declaration.type === "Identifier") return untypedLocal(declaration.name);
+  if (declaration.type === "FunctionDeclaration") {
+    return untypedDeclared(declaration);
+  }
+  const isFunction =
+    declaration.type === "ArrowFunctionExpression" ||
+    declaration.type === "FunctionExpression";
+  return isFunction && absent(declaration.returnType) ? [statement.start] : [];
 };
 
 /** Exported functions whose return type the page never states. */
 const missingReturnTypeHits = (
   content: string,
   statements: ParsedStatement[],
-): LineHit[] =>
-  statements
-    .filter(
-      (statement): statement is ExportStatement =>
-        statement.type === "ExportNamedDeclaration",
-    )
-    .flatMap((statement) => hitsFromStatement(content, statement));
+): LineHit[] => {
+  const local = new Map(
+    statements
+      .flatMap(functionsDeclaredBy)
+      .map((declared) => [declared.name, declared]),
+  );
+  return statements
+    .flatMap((statement) => untypedExportStarts(content, statement, local))
+    .sort((left, right) => left - right)
+    .map((start) => hitAtIndex(content, start));
+};
+
+/** A call that can write: a raw batch, transaction, or execute; a table's
+ * insert, update, or delete; or a helper named for a write, such as
+ * setAnswerModifier or logActivity. Pages mostly write through the last
+ * two, so the transaction question must see them. */
+const WRITE_CALL = new RegExp(
+  [
+    String.raw`\b(?:executeBatch(?:WithResults)?|queryBatch(?:Primary)?|withTransaction)\s*\(`,
+    String.raw`\.(?:execute|insert|update|upsert|deleteById|delete)\s*\(`,
+    String.raw`\b(?:set|save|create|delete|update|insert|upsert|remove|record|log)[A-Z]\w*\s*\(`,
+  ].join("|"),
+  "g",
+);
 
 /** A statement's first words, as SQL writes them. Bare "delete" and
  * "update" are plain words inside route strings, so each keyword demands
@@ -210,14 +272,6 @@ export const extractPage = (file: string, content: string): PageFacts => {
     missingReturnTypes: missingReturnTypeHits(content, statements),
     nonNullAssertions: assertions,
     sql: sqlStatements(content),
-    writeCalls: hitsFrom(
-      content,
-      codeOnly,
-      /\b(?:executeBatch(?:WithResults)?|queryBatch(?:Primary)?|withTransaction)\s*\(|\.execute\s*\(/g,
-    ),
+    writeCalls: hitsFrom(content, codeOnly, WRITE_CALL),
   };
 };
-
-/** Whether a path under `src/` is a page module: the page sweep's rule. */
-export const isPageModule = (file: string): boolean =>
-  file.startsWith("src/") && /(?:^|\/)[a-z0-9.-]*pages?\.tsx?$/.test(file);

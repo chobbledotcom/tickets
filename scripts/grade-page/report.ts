@@ -222,16 +222,24 @@ const topCounts = (counts: Record<string, number>): string[] => {
     .map(([label, count]) => `  x${String(count).padEnd(4)} ${label}`);
 };
 
+/** The middle score, or the mean of the two middle scores when the count is
+ * even. */
+const medianOf = (scores: number[]): number => {
+  const sorted = scores.toSorted((left, right) => left - right);
+  const middle = sorted.slice(
+    Math.ceil(sorted.length / 2) - 1,
+    Math.floor(sorted.length / 2) + 1,
+  );
+  return middle.reduce((sum, score) => sum + score, 0) / middle.length;
+};
+
 /** The median and the letter counts over complete grades, or nothing when
  * Jev failed on every page. */
 const scoreSummary = (complete: GradedPage[]): string[] => {
   if (complete.length === 0) return [];
-  const scores = complete
-    .map((result) => result.score)
-    .sort((left, right) => left - right);
   const letters = countBy((result: PageResult) => result.letter)(complete);
   return [
-    `median ${scores[Math.floor(scores.length / 2)]}`,
+    `median ${medianOf(complete.map((result) => result.score))}`,
     Object.keys(letters)
       .sort()
       .map((letter) => `${letter}:${letters[letter]}`)

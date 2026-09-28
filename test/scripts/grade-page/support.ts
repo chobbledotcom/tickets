@@ -73,7 +73,8 @@ export const depsOver = (dir: {
         status: dir.fetchStatus ?? 200,
         text: dir.fetchStatus === undefined ? jevReply() : "no credits",
       }),
-    now: Date.now,
+    // A fixed clock, so a timing line reads the same on a loaded machine.
+    now: () => 0,
     readFile: (path) => Promise.resolve(dir.files[path] ?? ""),
     sleep: () => Promise.resolve(),
   },

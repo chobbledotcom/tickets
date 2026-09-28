@@ -7,6 +7,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import * as v from "valibot";
+import { unique } from "#fp";
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
 import type { Alias } from "#scripts/check-imports/rules.ts";
 import { readAliases } from "#scripts/check-imports/run.ts";
@@ -16,7 +17,6 @@ import { readJsonOrNull } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { CHECKS, type GradeContext } from "./checks.ts";
-import { isPageModule } from "./extract.ts";
 import {
   type GradeCall,
   type GradeDeps,
@@ -35,7 +35,7 @@ import {
 
 export const USAGE = `Usage: deno task grade:page [targets] [options]
 
-Targets (default: every page module under src/):
+Targets (default: every module under src/):
   src/features/admin/attendee-page.ts   one page, full report
   src/ui/templates/admin                a directory
 
@@ -80,8 +80,8 @@ export interface GradeArgs {
 }
 
 const wholeNumber = (text: string, what: string, lowest: number): number => {
-  const value = Number.parseInt(text, 10);
-  if (!Number.isInteger(value) || value < lowest) {
+  const value = Number(text);
+  if (!/^\d+$/.test(text) || value < lowest) {
     throw new Error(
       `The ${what} value must be a whole number of at least ${lowest}, got: ${text}`,
     );
@@ -163,20 +163,15 @@ export interface ResolvedTargets {
   targets: string[];
 }
 
-/** Turn command-line targets into page paths under `src/`. */
+/** Turn command-line targets into module paths under `src/`. */
 export const resolveTargets = async (
   args: string[],
   deps: Pick<CliDeps, "listFiles" | "stat">,
 ): Promise<ResolvedTargets> => {
-  if (args.length === 0) {
-    const pages = (await deps.listFiles("src")).filter(isPageModule);
-    return pages.length > 0
-      ? { error: null, targets: pages }
-      : { error: "no page modules under src/", targets: [] };
-  }
   const targets: string[] = [];
-  for (const arg of args) {
-    if (!arg.startsWith("src/")) {
+  // With no target named, the run grades the whole of src/.
+  for (const arg of args.length === 0 ? ["src"] : args) {
+    if (arg !== "src" && !arg.startsWith("src/")) {
       return { error: `${arg} is not under src/`, targets: [] };
     }
     const kind = await deps.stat(arg);
@@ -193,7 +188,8 @@ export const resolveTargets = async (
     }
     targets.push(...inside);
   }
-  return { error: null, targets };
+  // Overlapping targets reach one module twice; it must be graded once.
+  return { error: null, targets: unique(targets) };
 };
 
 const criticalFailure = (result: PageResult): boolean =>
@@ -288,7 +284,8 @@ export const runGradePageCli = async (
   }
   const call: GradeCall = { ctx, jev: jevSettingsFor(io, args, secret) };
 
-  if (pool.length === 1 && !args.json) {
+  // A CSV is a batch output, so --csv takes the batch path even for one page.
+  if (pool.length === 1 && !args.json && args.csv === null) {
     // The length guard above holds one page; TypeScript cannot see it.
     return gradeSinglePage(io, deps.grade, call, pool[0]!);
   }

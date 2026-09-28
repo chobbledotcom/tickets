@@ -42,6 +42,11 @@ describe("parseGradeArgs", () => {
     expect(() => parseGradeArgs(["--workers", "0"])).toThrow("--workers");
     expect(() => parseGradeArgs(["--limit", "x"])).toThrow("--limit");
   });
+
+  test("refuses a number with anything after its digits", () => {
+    expect(() => parseGradeArgs(["--workers", "1.5"])).toThrow("--workers");
+    expect(() => parseGradeArgs(["--limit", "2pages"])).toThrow("--limit");
+  });
 });
 
 describe("resolveTargets", () => {
@@ -50,15 +55,22 @@ describe("resolveTargets", () => {
       "src/features/admin/a-page.ts": CLEAN_PAGE,
       "src/features/admin/b-page.ts": CLEAN_PAGE,
       "src/shared/dates.ts": CLEAN_PAGE,
+      "src/shared/db/site-pages.ts": CLEAN_PAGE,
+      "src/ui/client/nav.ts": CLEAN_PAGE,
+      "src/ui/templates/admin/dashboard.tsx": CLEAN_PAGE,
     },
   });
 
-  test("grades every page module when no target is named", async () => {
+  test("grades every module under src when no target is named", async () => {
     const resolved = await resolveTargets([], deps);
     expect(resolved.error).toBeNull();
     expect(resolved.targets).toEqual([
       "src/features/admin/a-page.ts",
       "src/features/admin/b-page.ts",
+      "src/shared/dates.ts",
+      "src/shared/db/site-pages.ts",
+      "src/ui/client/nav.ts",
+      "src/ui/templates/admin/dashboard.tsx",
     ]);
   });
 
@@ -67,6 +79,17 @@ describe("resolveTargets", () => {
     expect(one.targets).toEqual(["src/shared/dates.ts"]);
     const dir = await resolveTargets(["src/features"], deps);
     expect(dir.targets).toHaveLength(2);
+  });
+
+  test("grades a page once when two targets reach it", async () => {
+    const both = await resolveTargets(
+      ["src/features/admin", "src/features/admin/a-page.ts"],
+      deps,
+    );
+    expect(both.targets).toEqual([
+      "src/features/admin/a-page.ts",
+      "src/features/admin/b-page.ts",
+    ]);
   });
 
   test("refuses paths outside src and paths that do not read", async () => {
@@ -82,6 +105,6 @@ describe("resolveTargets", () => {
     );
     expect(empty.error).toBe("no source files under src/features");
     const none = await resolveTargets([], depsOver({ files: {} }));
-    expect(none.error).toBe("no page modules under src/");
+    expect(none.error).toBe("cannot read src");
   });
 });

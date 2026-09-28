@@ -190,7 +190,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "transaction_shape",
     instructions:
-      'Judge the write paths against "Transactions and Batches" in AGENTS.md. `write_calls` lists the batch, transaction, and execute calls with lines. Multiple statements known up front belong in one batch (executeBatch and friends), so a later failure undoes the earlier writes in one round-trip. Statements with logic between them belong in withTransaction. Penalise independent execute calls that write several rows without a shared transaction, transactions held open across expensive non-database work, and a batch of one where a single read would do.',
+      'Judge the write paths against "Transactions and Batches" in AGENTS.md. `write_calls` lists, with lines, the batch, transaction, and execute calls, the table writes (insert, update, delete), and the helpers named for a write (setX, saveX, logX, and similar). Multiple statements known up front belong in one batch (executeBatch and friends), so a later failure undoes the earlier writes in one round-trip. Statements with logic between them belong in withTransaction. Penalise independent execute calls that write several rows without a shared transaction, transactions held open across expensive non-database work, and a batch of one where a single read would do.',
     label: "Batch or transaction per write",
     requires: withWriteCalls,
     weight: 3,

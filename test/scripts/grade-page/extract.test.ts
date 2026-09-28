@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  extractPage,
-  isPageModule,
-  pageKind,
-} from "#scripts/grade-page/extract.ts";
+import { extractPage, pageKind } from "#scripts/grade-page/extract.ts";
 
 const factsOf = (source: string, file = "src/features/admin/sample.ts") =>
   extractPage(file, source);
@@ -70,11 +66,41 @@ describe("extractPage", () => {
         "export { hidden };",
       ].join("\n"),
     );
-    expect(facts.missingReturnTypes).toHaveLength(2);
-    expect(facts.missingReturnTypes.map((hit) => hit.line)).toEqual([1, 8]);
+    expect(facts.missingReturnTypes.map((hit) => hit.line)).toEqual([1, 8, 9]);
     expect(facts.missingReturnTypes[0]?.text).toBe(
       "export function loose(rows: string[]) {",
     );
+    expect(facts.missingReturnTypes[2]?.text).toBe(
+      "const hidden = (rows: string[]) => rows.length;",
+    );
+  });
+
+  test("finds untyped functions exported from a list, renamed, or as the default", () => {
+    const lines = (source: string[]): number[] =>
+      factsOf(source.join("\n")).missingReturnTypes.map((hit) => hit.line);
+    expect(
+      lines([
+        "function plain(value: number) {",
+        "  return value;",
+        "}",
+        "const typed = (): number => 1;",
+        "const held: () => number = () => 1;",
+        "export { plain as renamed, typed, held };",
+        'export { elsewhere } from "./other.ts";',
+        'export { "quoted" } from "./other.ts";',
+      ]),
+    ).toEqual([1]);
+    expect(
+      lines(["export default function (value: number) {", "  return 1;", "}"]),
+    ).toEqual([1]);
+    expect(lines(["export default (value: number) => value;"])).toEqual([1]);
+    expect(lines(["export default (value: number): number => value;"])).toEqual(
+      [],
+    );
+    expect(lines(["const loose = () => 1;", "export default loose;"])).toEqual([
+      1,
+    ]);
+    expect(lines(["export default class Keeper {}"])).toEqual([]);
   });
 
   test("keeps the last line's text when the page ends without a newline", () => {
@@ -118,6 +144,22 @@ describe("extractPage", () => {
     expect(facts.writeCalls).toHaveLength(3);
   });
 
+  test("collects table and helper writes, not reads", () => {
+    const facts = factsOf(
+      [
+        "await answersTable.update(answer.id, { text });",
+        "await setAnswerModifier(answer.id, modifierId);",
+        "await answerAggregates.update(answer.id, input);",
+        "await logActivity(`Answer updated`);",
+        "await answersTable.insert(input);",
+        "await answersTable.deleteById(id);",
+        "const rows = await answersTable.findAll();",
+        "const found = await getAnswer(id);",
+      ].join("\n"),
+    );
+    expect(facts.writeCalls.map((hit) => hit.line)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
   test("collects computer-science jargon with its line", () => {
     const facts = factsOf("// The predicate decides.\nconst value = 1;\n");
     expect(facts.jargonHits).toEqual([{ line: 1, word: "predicate" }]);
@@ -136,18 +178,5 @@ describe("pageKind", () => {
     expect(pageKind("src/features/public/order.ts")).toBe("feature");
     expect(pageKind("src/shared/dates.ts")).toBe("shared");
     expect(pageKind("cli/api.ts")).toBe("other");
-  });
-});
-
-describe("isPageModule", () => {
-  test("accepts page modules under src and refuses the rest", () => {
-    expect(isPageModule("src/features/admin/attendee-page.ts")).toBe(true);
-    expect(isPageModule("src/features/public/pages.ts")).toBe(true);
-    expect(isPageModule("src/ui/templates/admin/site-pages-page.tsx")).toBe(
-      true,
-    );
-    expect(isPageModule("src/ui/client/admin/nav.ts")).toBe(false);
-    expect(isPageModule("src/shared/dates.ts")).toBe(false);
-    expect(isPageModule("test/features/admin/page.ts")).toBe(false);
   });
 });

@@ -157,7 +157,7 @@ describe("batchReportLines", () => {
     expect(files.findIndex((line) => line.includes("admin/a.ts"))).toBe(1);
     expect(files.findIndex((line) => line.includes("src/c.ts"))).toBe(2);
     expect(lines).toContain(
-      "2 graded, 1 errored, 0 Jev failed | median 100 | A:1 F:1 | 3s total",
+      "2 graded, 1 errored, 0 Jev failed | median 70 | A:1 F:1 | 3s total",
     );
     expect(lines).toContain("Most-failed checks across the batch:");
     expect(lines).toContain("Most-warned checks across the batch:");

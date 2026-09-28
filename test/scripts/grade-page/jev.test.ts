@@ -8,7 +8,6 @@ import {
   DEFAULT_MODEL,
   gradeJevAnswers,
   loadJevKey,
-  MAX_CONTENT_CHARS,
 } from "#scripts/grade-page/jev.ts";
 
 const jevCheck = (id: string) => {
@@ -47,27 +46,39 @@ describe("loadJevKey", () => {
       ),
     ).toBeNull();
   });
+
+  test("treats a key of only spaces as no key", () => {
+    expect(
+      loadJevKey(
+        () => "   ",
+        () => "file-key",
+      ),
+    ).toBe("file-key");
+    expect(
+      loadJevKey(
+        () => undefined,
+        () => " \n",
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("buildJevState", () => {
-  test("carries the facts and the trimmed source", () => {
+  test("carries the facts and the source", () => {
     const facts = extractPage("src/features/a.ts", "// Note.\nconst a = 1;\n");
     const state = buildJevState(facts) as Record<string, unknown>;
     expect(state.file).toBe("src/features/a.ts");
     expect(state.kind).toBe("feature");
     expect(state.lines).toBe(2);
     expect(state.content).toBe("// Note.\nconst a = 1;\n");
-    expect(state.content_truncated).toBe(false);
     expect(Array.isArray(state.comments)).toBe(true);
     expect(state.standards).toContain("AGENTS.md");
   });
 
-  test("caps the source and says so", () => {
-    const source = `const value = "${"x".repeat(MAX_CONTENT_CHARS)}";\n`;
-    const facts = extractPage("src/features/a.ts", source);
-    const state = buildJevState(facts) as Record<string, unknown>;
-    expect(String(state.content).length).toBe(MAX_CONTENT_CHARS);
-    expect(state.content_truncated).toBe(true);
+  test("sends the whole source of a long page", () => {
+    const source = `const value = "${"x".repeat(60_000)}";\n`;
+    const state = buildJevState(extractPage("src/features/a.ts", source));
+    expect(state.content).toBe(source);
   });
 });
 
@@ -203,7 +214,17 @@ describe("callJev", () => {
     );
     expect(result.ok).toBe(false);
     expect(calls).toBe(3);
-    expect(sleeps).toEqual([1000, 1001, 1002]);
+    expect(sleeps).toEqual([1000, 2000]);
+  });
+
+  test("waits only between attempts when every attempt is rate limited", async () => {
+    const sleeps: number[] = [];
+    const result = await callJev(request, reply(429, "slow down"), (ms) => {
+      sleeps.push(ms);
+      return Promise.resolve();
+    });
+    expect(result).toEqual({ error: "HTTP 429: slow down", ok: false });
+    expect(sleeps).toEqual([5000, 10000]);
   });
 });
 

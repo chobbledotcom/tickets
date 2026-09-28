@@ -141,6 +141,27 @@ describe("runGradePageCli", () => {
     expect(out.join("\n")).toContain("0 graded, 0 errored, 2 Jev failed");
   });
 
+  test("writes the CSV when one page is graded with --csv", async () => {
+    const written: Record<string, string> = {};
+    const deps = {
+      ...depsOver({ files: { "src/features/admin/a-page.ts": CLEAN_PAGE } }),
+      writeTextFile: (path: string, text: string) => {
+        written[path] = text;
+        return Promise.resolve();
+      },
+    };
+    const { io } = ioWith([
+      "src/features/admin/a-page.ts",
+      "--csv",
+      "out.csv",
+      "--no-jev",
+    ]);
+    expect(await runGradePageCli(io, deps)).toBe(0);
+    expect(written["out.csv"]?.split("\n")[1]).toContain(
+      "src/features/admin/a-page.ts",
+    );
+  });
+
   test("grades mechanically when no key exists", async () => {
     const { io, err } = ioWith(["src/features/admin/a-page.ts"]);
     const code = await runGradePageCli(

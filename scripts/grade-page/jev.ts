@@ -14,26 +14,22 @@ import type { PageFacts } from "./extract.ts";
 export const ZEN_SYSTEMONE_URL = "https://opencode.ai/zen/v1/systemone";
 export const DEFAULT_MODEL = "jev-1.13";
 
-/** How much source one call carries. Sits above the longest page in `src/`
- * with headroom, so a real page never truncates: grading a partially
- * visible page is how long files get mis-scored. */
-export const MAX_CONTENT_CHARS = 24000;
-
 export type JevFetch = (
   url: string,
   init: RequestInit,
 ) => Promise<FetchTextResult>;
 export type Sleep = (ms: number) => Promise<void>;
 
-/** The key from the environment, or the shared secret file, or nothing. */
+/** The key from the environment, or the shared secret file, or nothing.
+ * A key of only spaces is no key, so it never reaches the paid endpoint. */
 export const loadJevKey = (
   getEnv: (key: string) => string | undefined,
   readSecret: () => string | null,
 ): string | null => {
-  const fromEnv = getEnv("OPENCODE_API_KEY");
-  if (fromEnv !== undefined && fromEnv !== "") return fromEnv.trim();
-  const fromFile = readSecret();
-  return fromFile === null ? null : fromFile.trim();
+  const fromEnv = getEnv("OPENCODE_API_KEY")?.trim();
+  if (fromEnv !== undefined && fromEnv !== "") return fromEnv;
+  const fromFile = readSecret()?.trim();
+  return fromFile === undefined || fromFile === "" ? null : fromFile;
 };
 
 /** Every question is a 0-3 score question, so every answer carries one. */
@@ -126,6 +122,8 @@ const postJson = (body: string, request: JevRequest): RequestInit => ({
   method: "POST",
 });
 
+const ATTEMPTS = 3;
+
 /** One TypeSafe call, with the retries a paid endpoint needs. */
 export const callJev = async (
   request: JevRequest,
@@ -138,7 +136,7 @@ export const callJev = async (
     state: request.state,
   });
   let lastError = "no attempt made";
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     const result = await fetchText(
       ZEN_SYSTEMONE_URL,
       postJson(body, request),
@@ -150,13 +148,12 @@ export const callJev = async (
     if (result?.ok) return parseJevResponse(result.text, request);
     if (result !== null) {
       lastError = `HTTP ${result.status}: ${result.text.slice(0, 300)}`;
-      if (result.status === 429) {
-        await sleep(5000 * (attempt + 1));
-        continue;
-      }
       if ([400, 401, 402].includes(result.status)) break;
     }
-    await sleep(1000 + attempt);
+    if (attempt < ATTEMPTS) {
+      const rateLimited = result?.status === 429;
+      await sleep((rateLimited ? 5000 : 1000) * attempt);
+    }
   }
   return { error: lastError, ok: false };
 };
@@ -166,8 +163,7 @@ export const buildJevState = (facts: PageFacts): Record<string, unknown> => ({
   as_casts: facts.asCasts,
   catch_clauses: facts.catchClauses,
   comments: facts.comments,
-  content: facts.content.slice(0, MAX_CONTENT_CHARS),
-  content_truncated: facts.content.length > MAX_CONTENT_CHARS,
+  content: facts.content,
   fallback_operators: facts.fallbacks,
   file: facts.file,
   for_each_calls: facts.forEachCalls,
