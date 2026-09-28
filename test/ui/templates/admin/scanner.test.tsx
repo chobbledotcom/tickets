@@ -2,11 +2,15 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
-import { adminScannerPage } from "#templates/admin/scanner.tsx";
+import {
+  adminScannerDoorsPage,
+  adminScannerPage,
+} from "#templates/admin/scanner.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import type { AdminSession } from "#types";
 
 /** The hole names the scanner script fills in, spelled as the page carries
  * them between its own braces. */
@@ -220,5 +224,67 @@ describe("the admin scanner page template", () => {
 
     // The way out to the guide.
     expect(html).toContain('href="/admin/guide#checkin"');
+  });
+});
+
+describe("the admin scanner doors page template", () => {
+  beforeAll(setupAdminPageTest);
+
+  /** The doors page serves a scanner login, whose nav carries no other
+   *  section's words for the assertions below to trip over. */
+  const SCANNER_SESSION: AdminSession = { adminLevel: "scanner" };
+
+  test("lists every door under its kind, as a link to the door", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [{ name: "Winter Social", path: "/admin/groups/7/scan" }],
+      listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
+    });
+
+    expect(html).toContain("<title>Scanner doors</title>");
+    expect(html).toContain(t("admin.scanner.doors_intro"));
+    expect(html).toContain(t("terms.listings"));
+    expect(html).toContain(t("terms.groups"));
+    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
+    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
+    // The listings section is announced before the groups section.
+    expect(html.indexOf(t("terms.listings"))).toBeLessThan(
+      html.indexOf(t("terms.groups")),
+    );
+  });
+
+  test("leaves out the kind of door that has none", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [],
+      listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
+    });
+
+    expect(html).toContain(t("terms.listings"));
+    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
+    // An empty heading would promise a link that is not there.
+    expect(html).not.toContain(t("terms.groups"));
+  });
+
+  test("lists the group doors alone when no listing has a door", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [{ name: "Winter Social", path: "/admin/groups/7/scan" }],
+      listingDoors: [],
+    });
+
+    expect(html).toContain(t("terms.groups"));
+    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
+    expect(html).not.toContain(t("terms.listings"));
+  });
+
+  test("says when there are no doors yet", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [],
+      listingDoors: [],
+    });
+
+    expect(html).toContain(t("admin.scanner.doors_empty"));
+    expect(html).not.toContain(t("terms.listings"));
+    expect(html).not.toContain(t("terms.groups"));
+    // A door's path always ends in "/scan"; the footer's Log out link stays.
+    expect(html).not.toContain("/scan");
   });
 });

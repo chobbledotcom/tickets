@@ -2,15 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestAttendeeWithToken,
-  storedCheckinRows,
-} from "#test-utils/db-helpers/attendees.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestEditorSession,
-  createTestScannerSession,
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";

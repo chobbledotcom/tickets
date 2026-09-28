@@ -8,7 +8,7 @@
   "src/features/admin/listings-parents.ts": 415,
   "src/features/admin/users.ts": 406,
   "src/features/app/routes.ts": 471,
-  "src/features/auth.ts": 790,
+  "src/features/auth.ts": 755,
   "src/features/public/ticket-payment.ts": 887,
   "src/features/public/ticket-submit.ts": 581,
   "src/fp.ts": 585,
@@ -33,7 +33,7 @@
   "src/shared/payment-helpers.ts": 704,
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 642,
-  "src/shared/types.ts": 916,
+  "src/shared/types.ts": 911,
   "src/ui/client/order.ts": 541,
   "src/ui/static/style.scss": 3363,
   "src/ui/templates/admin/bulk-actions.tsx": 445,
@@ -148,9 +148,8 @@
   "test/test-utils/mocks.ts": 569,
   "test/test-utils/parents.ts": 536,
   "test/test-utils/servicing.ts": 471,
-  "test/test-utils/session.ts": 453,
+  "test/test-utils/session.ts": 409,
   "test/test-utils/test-browser.ts": 438,
-  "e2e-payments/src/providers/sumup.ts": 404,
   "test/ui/client/order.test.ts": 414,
   "test/ui/templates/admin/attendees-list.test.ts": 428,
   "test/ui/templates/admin/dashboard.test.ts": 668,
@@ -162,5 +161,6 @@
   "scripts/mutation/runner.ts": 454,
   "e2e-payments/src/browser.ts": 473,
   "e2e-payments/src/cucumber/steps/booking.ts": 688,
-  "e2e-payments/src/providers/shared.ts": 420
+  "e2e-payments/src/providers/shared.ts": 420,
+  "e2e-payments/src/providers/sumup.ts": 404
 }

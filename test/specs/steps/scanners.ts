@@ -89,10 +89,12 @@ When(
 
 When(
   "{word} reads the QR on {word}'s ticket",
-  function (this: TicketsWorld, _who: string, guest: string): Promise<void> {
-    return openScannerPage(this, `/checkin/${ticketOf(this, guest)}`).then(
-      () => undefined,
-    );
+  async function (
+    this: TicketsWorld,
+    _who: string,
+    guest: string,
+  ): Promise<void> {
+    await openScannerPage(this, `/checkin/${ticketOf(this, guest)}`);
   },
 );
 
@@ -118,12 +120,12 @@ Then(
 
 When(
   "{word} checks them out",
-  function (this: TicketsWorld, _who: string): Promise<void> {
-    return fillInAndSend(
+  async function (this: TicketsWorld, _who: string): Promise<void> {
+    await fillInAndSend(
       scannerBrowser(this),
       {},
       t("admin.checkin.check_out_all"),
-    ).then(() => undefined);
+    );
   },
 );
 

@@ -18,11 +18,11 @@ import { userAgents } from "#db/user-agents.ts";
 import { filter, map } from "#fp";
 import {
   type AuthSession,
-  authFailure,
   DOOR_FORM,
   getAuthenticatedSession,
   withAuth,
 } from "#routes/auth.ts";
+import { authFailure } from "#routes/auth-failures.ts";
 import {
   htmlResponse,
   notFoundResponse,

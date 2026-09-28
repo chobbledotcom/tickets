@@ -29,11 +29,11 @@ import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { oneServedPath } from "#test-utils/admin-surface.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
   createTestManagerSession,
-  createTestScannerSession,
   getTestSession,
 } from "#test-utils/session.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";

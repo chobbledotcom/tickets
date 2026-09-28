@@ -11,10 +11,10 @@ import {
   insertSecondBookingRow,
 } from "#test-utils/logistics.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
-  createTestScannerSession,
 } from "#test-utils/session.ts";
 
 describeWithEnv("check-in page role authorization", { db: true }, () => {

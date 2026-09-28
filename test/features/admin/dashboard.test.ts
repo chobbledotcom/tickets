@@ -4,10 +4,10 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
-  createTestScannerSession,
   getTestSession,
   setupListingAndLogin,
 } from "#test-utils/session.ts";

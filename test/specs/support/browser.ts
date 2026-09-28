@@ -25,8 +25,7 @@ import {
 } from "./world.ts";
 // jscpd:ignore-end
 
-/** Whose browser each story keeps. The organiser's is the story's own, so a
- * step that does not say who is doing something is the organiser doing it. */
+/** Whose browser each story keeps. An unnamed step is the organiser's own. */
 export const ORGANISER = "the organiser";
 export const CUSTOMER = "the customer";
 export const EDITOR = "the editor";

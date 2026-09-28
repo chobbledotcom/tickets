@@ -7,10 +7,8 @@ import { it as test } from "@std/testing/bdd";
 import { recordPageGuardFor } from "#routes/auth.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import {
-  createTestEditorSession,
-  createTestScannerSession,
-} from "#test-utils/session.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { createTestEditorSession } from "#test-utils/session.ts";
 
 const LISTING_PATH = "/admin/listing/1";
 

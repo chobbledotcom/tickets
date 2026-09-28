@@ -15,14 +15,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
-  storedCheckinRows,
 } from "#test-utils/db-helpers/attendees.ts";
+import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
-  createTestScannerSession,
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
@@ -94,9 +94,14 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     const { cookie } = await createTestScannerSession();
     await createTestListing({ maxAttendees: 10, name: "Zumba" });
     await createTestListing({ maxAttendees: 10, name: "Archery" });
+    await createTestGroup({ name: "Winter Social" });
+    await createTestGroup({ name: "Autumn Fair" });
 
     const body = await (await getAs("/admin/scanner", cookie)).text();
     expect(body.indexOf("Archery")).toBeLessThan(body.indexOf("Zumba"));
+    expect(body.indexOf("Autumn Fair")).toBeLessThan(
+      body.indexOf("Winter Social"),
+    );
   });
 
   test("opens the listing scanner page for a scanner login", async () => {

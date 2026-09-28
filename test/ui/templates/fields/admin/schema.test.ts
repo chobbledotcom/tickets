@@ -332,6 +332,10 @@ describe("admin field schemas", () => {
             label: "Editor",
             value: "editor",
           },
+          {
+            label: "Scanner",
+            value: "scanner",
+          },
         ],
         required: true,
         type: "select",
