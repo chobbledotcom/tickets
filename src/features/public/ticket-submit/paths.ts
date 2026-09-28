@@ -9,10 +9,8 @@ import type { OrderSpan } from "#booking/order-span.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { requirePublicDefaultStatus } from "#db/attendee-statuses.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
-import {
-  groupListingAnswerSets,
-  saveAttendeeAnswers,
-} from "#db/questions/attendee-answers/save.ts";
+import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
+import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 import {
   type AnswerInfo,
   type extractContact,
@@ -153,12 +151,11 @@ export const handleFreePath = async (
     : undefined;
   await logAndNotifyRegistration(result.entries, siteTokenIndex);
 
-  if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
-    const maps = listingAnswerMaps(info, ctx.questionListingMap);
-    await saveAttendeeAnswers(
-      groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
-    );
-  }
+  const maps = listingAnswerMaps(info, ctx.questionListingMap);
+  await saveBookedAnswers(
+    result.entries,
+    groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
+  );
 
   // The caller resolves the redirect from the pre-fold listing set (a single
   // listing's — or a single parent + its folded children's — thank-you URL), so

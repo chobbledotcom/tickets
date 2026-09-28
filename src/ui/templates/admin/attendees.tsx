@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { atBookingHints } from "#templates/admin/answer-rows.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import {
@@ -358,19 +359,30 @@ const editableAnswers = (q: QuestionWithAnswers, selectedAnswerIds: number[]) =>
   q.answers.filter((a) => a.active || selectedAnswerIds.includes(a.id));
 
 export const EditQuestions = ({
+  atBooking,
   questions,
   selectedAnswerIds,
   selectedTextAnswers,
-}: SelectedQuestionAnswers): JSX.Element => (
-  <>
-    {questions.map((q) =>
-      questionControl(q, {
-        isChosen: (answerId) => selectedAnswerIds.includes(answerId),
-        options: editableAnswers(q, selectedAnswerIds),
-        placeholder: t("attendee_form.no_answer"),
-        // A saved free-text answer may legitimately not exist yet.
-        textValue: selectedTextAnswers.get(q.id) ?? "",
-      }),
-    )}
-  </>
-);
+}: SelectedQuestionAnswers): JSX.Element => {
+  const hints = atBookingHints(atBooking);
+  return (
+    <>
+      {questions.map((q) => {
+        // Only a question changed since booking has a hint.
+        const hint = hints.get(q.id);
+        return (
+          <>
+            {questionControl(q, {
+              isChosen: (answerId) => selectedAnswerIds.includes(answerId),
+              options: editableAnswers(q, selectedAnswerIds),
+              placeholder: t("attendee_form.no_answer"),
+              // A saved free-text answer may legitimately not exist yet.
+              textValue: selectedTextAnswers.get(q.id) ?? "",
+            })}
+            {hint !== undefined && <small>{hint}</small>}
+          </>
+        );
+      })}
+    </>
+  );
+};

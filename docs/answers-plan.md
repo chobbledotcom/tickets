@@ -99,19 +99,21 @@ The variable reference states the last two rows.
   asked, and the answer to each, at the moment of the booking.
 - The attendee page lists every answer, free text included. A row that differs
   from the booking shows a note under the answer.
-- The attendee edit form shows "At booking: X" under a field that differs.
+- The attendee edit form shows "Changed. At booking: X." under a field that
+  differs.
 - The listing attendee table marks a changed answer cell with "(changed)".
 
 ### The record
 
-| Column          | Content                                                |
-| --------------- | ------------------------------------------------------ |
-| `attendee_id`   | The attendee                                           |
-| `question_id`   | The question                                           |
-| `question_text` | Copy of `questions.text` ciphertext                    |
-| `answer_id`     | The chosen answer, or NULL                             |
-| `answer_text`   | Copy of `answers.text` ciphertext, NULL with no choice |
-| `free_text`     | Copy of `strings.encrypted_text` ciphertext, or NULL   |
+| Column            | Content                                                |
+| ----------------- | ------------------------------------------------------ |
+| `attendee_id`     | The attendee                                           |
+| `question_id`     | The question                                           |
+| `question_text`   | Copy of `questions.text` ciphertext                    |
+| `answer_id`       | The chosen answer, or NULL                             |
+| `answer_text`     | Copy of `answers.text` ciphertext, NULL with no choice |
+| `free_text`       | Copy of `strings.encrypted_text` ciphertext, or NULL   |
+| `free_text_index` | Copy of `strings.text_index`, NULL with no free text   |
 
 - A unique index on `(attendee_id, question_id)`.
 - A CHECK makes `answer_id` and `answer_text` both NULL or both set. A second
@@ -120,7 +122,10 @@ The variable reference states the last two rows.
   plaintext, so the webhook can write it.
 - The copy does not point at `strings`, so it needs no `used_count` trigger. A
   later prune of an unused string cannot remove it.
-- The write uses `INSERT OR IGNORE`, so a replay changes nothing.
+- The write uses `ON CONFLICT DO NOTHING`, so a replay changes nothing.
+  `INSERT OR IGNORE` is not used, because it also hides a CHECK failure.
+- Free text compares by `free_text_index`, the one-way index of the text. So the
+  table marker needs no key.
 
 ### Which bookings record it
 
@@ -135,10 +140,10 @@ The variable reference states the last two rows.
 
 ### Which questions count as asked
 
-One pure rule decides it, and the email reader uses the same rule: every
-`assign_all` question, and every question assigned to the booked listing. A
-choice question with no active answer does not count, because the form did not
-show it.
+The record statement decides it in SQL: every `assign_all` question, and every
+question assigned to the booked listing. A choice question with no active answer
+does not count, because the form did not show it. A question with a saved answer
+always counts.
 
 ### Valid states for one question on one attendee
 
@@ -150,7 +155,7 @@ state from this union:
 | `no-record`        | The attendee has no rows                           | The answer, with no note                                 |
 | `same`             | Same answer id, or same free text                  | The answer, with no note                                 |
 | `changed`          | A different answer, or a new or blank one          | "Changed. At booking: X." or "At booking: no answer."    |
-| `wording-changed`  | Same answer, but the question or answer was edited | "When they booked, it said: X."                          |
+| `reworded`         | Same answer, but the question or answer was edited | "When they booked, the question said: X."                |
 | `question-deleted` | A row exists, but the question does not            | The wording at booking, and "This question was deleted." |
 
 If a `changed` row touches an answer with a price modifier, the page adds:
@@ -178,7 +183,7 @@ edit does not change the price, so the note tells the admin to fix it.
 | Provider checkout | Staged row write fails      | Checkout error to the buyer. No URL, so no payment    | The buyer    |
 | Booking committed | Answer save or record fails | As on `main` today. Issue #2423 holds the fix         | #2423        |
 | Answers saved     | Staged row not found        | Email without free text. The site logs a warning      | Admin resend |
-| Answers saved     | Email send fails            | As on `main` today. #2428 holds email retries | Admin resend |
+| Answers saved     | Email send fails            | As on `main` today. #2428 holds email retries         | Admin resend |
 | Email sent        | Staged row delete fails     | Prune deletes it after 90 days                        | Prune        |
 | Nothing           | A question does not decrypt | Throw. The key protects all data, so the site is down | None         |
 
@@ -256,3 +261,23 @@ for an email costs a fixed number of reads for the whole order.
   read and deleted at completion, pruned at 90 days, and a warning when it is
   not found.
 - The variable reference contract test.
+
+## Built: layer 1
+
+The code is now the authority for this layer. These files hold it:
+
+| Concern                     | Where                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Table and migration         | `answers_at_booking` in `schema/tables-questions.ts`, `2026-09-28_answers_at_booking`                      |
+| Record write and reads      | `saveBookedAnswers`, `getBookedAnswers`, `attendeesWithChangedAnswers` in `attendee-answers/at-booking.ts` |
+| Booking paths               | `saveSessionAnswers` (paid) and `handleFreePath` (free) call `saveBookedAnswers`                           |
+| Compare and notes           | `answerNote`, `answerRows`, `atBookingHints` in `templates/admin/answer-rows.ts`                           |
+| Attendee page and edit form | `AttendeeAnswersTable`, `EditQuestions`, `loadQuestionsForExisting`                                        |
+| Listing table marker        | `getAnswerDisplay` in `attendee-table/values.ts`                                                           |
+
+Where the build differs from the plan above:
+
+- An answer to a question that the booking did not ask counts as changed. The
+  note reads "Changed. At booking: no answer."
+- A paid booking with no answers now costs five database calls, not four. The
+  fifth call records the questions that the booking asked.

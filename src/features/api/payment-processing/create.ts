@@ -15,10 +15,8 @@ import {
   decryptSessionTokens,
   type ProcessedPayment,
 } from "#db/processed-payments.ts";
-import {
-  groupListingAnswerSets,
-  saveAttendeeAnswers,
-} from "#db/questions/attendee-answers/save.ts";
+import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
+import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 import { requiredMapValue } from "#fp";
 import { paymentReferenceOf } from "#payment/validated-session.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
@@ -191,7 +189,6 @@ export const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
 ): Promise<void> => {
-  if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
   const grouped = groupListingAnswerSets(
     createdEntries,
     intent.listingAnswerIds ?? {},
@@ -209,7 +206,7 @@ export const saveSessionAnswers = async (
       ],
     });
   }
-  await saveAttendeeAnswers(grouped);
+  await saveBookedAnswers(createdEntries, grouped);
 };
 
 /** The identity fields every stored attendee starts from: who the buyer said
