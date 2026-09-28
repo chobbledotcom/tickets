@@ -151,7 +151,8 @@ export type AttendeeField =
   | "price_paid"
   | "end_date"
   | "attachment_downloads"
-  | "package_group_id";
+  | "package_group_id"
+  | "site_months";
 
 /** Every selectable field. */
 export const ATTENDEE_FIELDS = [
@@ -161,6 +162,7 @@ export const ATTENDEE_FIELDS = [
   "end_date",
   "attachment_downloads",
   "package_group_id",
+  "site_months",
 ] as const satisfies readonly AttendeeField[];
 
 /**
@@ -210,6 +212,7 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => string> = {
     ),
   refunded: () => refundedFromLedger(LISTING_ATTENDEE_REFUNDED_ROW),
   remaining_balance: () => remainingBalanceFromLedger("attendee.id"),
+  site_months: (join) => listingIntColumn(join, "site_months"),
 };
 
 /**
@@ -251,6 +254,8 @@ export type AttendeeWhere = {
   listingIds?: number[];
   /** Booking lines within one package group. */
   packageGroupId?: number;
+  /** Only lines outside every package group (`package_group_id <= 0`). */
+  standaloneOnly?: boolean;
   /** Drop no-quantity sentinel lines (`quantity > 0`). */
   realLinesOnly?: boolean;
   /** Keep lines starting on/after this `YYYY-MM-DD`, or with no start date. */
@@ -291,6 +296,9 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
       args: [where.packageGroupId],
       clause: "listingAttendee.package_group_id = ?",
     });
+  }
+  if (where.standaloneOnly) {
+    parts.push({ args: [], clause: "listingAttendee.package_group_id <= 0" });
   }
   if (where.realLinesOnly) {
     parts.push({ args: [], clause: "listingAttendee.quantity > 0" });

@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { addMonthsIso } from "#shared/dates.ts";
+import { nowIso } from "#shared/now.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { recordingRenewalUrlPush } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -118,6 +120,54 @@ describeWithEnv(
         );
         expect(afterResend.renewalTokenIndex).not.toBeNull();
         expect(afterResend.readOnlyFrom).not.toBe("");
+      });
+
+      test("a recovery confirms the term the claim stamped before the plan changed", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
+        await createTierListing();
+
+        // First run: the renewal push fails, so the claim stands with the
+        // buyer's 9-month term stamped and unconfirmed.
+        suite.secretStub.restore();
+        const failStub = failingRenewalUrlPush();
+        await assignAndNotifyBuiltSites([
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 3,
+            quantity: 3,
+            siteMonths: 9,
+          }),
+        ]);
+        failStub.restore();
+        const afterFirst = (await builtSites.getAll()).find(
+          (s) => s.name === "Site A",
+        )!;
+        expect(afterFirst.renewalTokenIndex).not.toBeNull();
+        expect(afterFirst.readOnlyFrom).toBe("");
+
+        // The owner retunes the plan to 1 month, then the resend confirms.
+        const okStub = stubEdgeSecretSuccess();
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({
+              attendeeId: 10,
+              initialSiteMonths: 1,
+              quantity: 3,
+              siteMonths: 9,
+            }),
+          ]);
+          const afterResend = (await builtSites.getAll()).find(
+            (s) => s.name === "Site A",
+          )!;
+          // The recovery pushed the STAMPED term, not the plan's new value,
+          // and it never minted a second token.
+          expect(afterResend.renewalToken).toBe(afterFirst.renewalToken);
+          expect(afterResend.readOnlyFrom.slice(0, 10)).toBe(
+            addMonthsIso(nowIso(), 9).slice(0, 10),
+          );
+        } finally {
+          okStub.restore();
+        }
       });
 
       test("two concurrent recovery resends push one reserved token", async () => {

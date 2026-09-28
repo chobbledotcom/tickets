@@ -57,6 +57,7 @@ const FIELD_MARKER: Record<AttendeeField, string> = {
   price_paid: "AS price_paid",
   refunded: "AS refunded",
   remaining_balance: "AS remaining_balance",
+  site_months: "site_months",
 };
 
 describe("attendeeColumns", () => {

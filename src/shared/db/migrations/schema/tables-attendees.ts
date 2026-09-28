@@ -108,6 +108,12 @@ export const attendeeTables: [name: string, table: Table][] = [
         // persisted id, so a standalone order of the same listings is not
         // mistaken for the package by membership equality.
         ["package_group_id", "INTEGER NOT NULL DEFAULT 0"],
+        // The site term this line bought at booking time (a plan listing's
+        // initial months times its quantity; 0 for non-plan lines), captured
+        // while the listing still states that term. The assignment reads this
+        // instead of the listing's current value, so a later edit cannot
+        // change what an earlier buyer was granted.
+        ["site_months", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application

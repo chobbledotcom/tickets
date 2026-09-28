@@ -85,7 +85,13 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { takePooledSiteForBuyer } = await import(
         "#db/built-sites/claims.ts"
       );
-      await takePooledSiteForBuyer([site], 42, [7], 7);
+      await takePooledSiteForBuyer(
+        [site],
+        42,
+        [7],
+        7,
+        "2099-01-01T00:00:00.000Z",
+      );
 
       const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Assigned (attendee #42)");

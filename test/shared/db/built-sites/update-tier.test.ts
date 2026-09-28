@@ -73,9 +73,17 @@ describeWithEnv("built-site update channel", { db: true }, () => {
       "beta",
     );
     const pool = await getAssignableBuiltSites();
-    expect((await takePooledSiteForBuyer(pool, 1, [2], 2)).kind).toBe(
-      "claimed",
-    );
+    expect(
+      (
+        await takePooledSiteForBuyer(
+          pool,
+          1,
+          [2],
+          2,
+          "2099-01-01T00:00:00.000Z",
+        )
+      ).kind,
+    ).toBe("claimed");
     expect((await builtSitesCrudTable.read.one({ id: row.id }))?.updates).toBe(
       "beta",
     );

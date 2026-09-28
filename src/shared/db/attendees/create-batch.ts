@@ -1,6 +1,9 @@
 import { bookingLegBatchInsert } from "#accounting/rows.ts";
 import { assertPostable } from "#accounting/store.ts";
-import type { EncryptedAttendeeData } from "#db/attendee-types.ts";
+import type {
+  EncryptedAttendeeData,
+  ListingBooking,
+} from "#db/attendee-types.ts";
 import {
   executeBatchWithResults,
   resultRows,
@@ -25,6 +28,8 @@ export type PreparedWrite = {
   attendeeInsert: SqlStatement;
   bookingStatements: SqlStatement[];
   activityStatements: SqlStatement[];
+  /** The order's booking lines with each line's site term stamped. */
+  stampedBookings: ListingBooking[];
 };
 
 export type WriteOutcome = { insertId: number };

@@ -8,8 +8,9 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
 import {
-  getAttendeeRealLineRowsRaw,
+  getAttendeeBookingRowsRaw,
   hasActiveBookingLine,
 } from "#db/attendees/queries.ts";
 import { updateCheckedIn } from "#db/attendees/update.ts";
@@ -25,6 +26,7 @@ import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
+import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
@@ -60,11 +62,10 @@ import {
 } from "./attendees-list.ts";
 import { handleMergePost } from "./attendees-merge.ts";
 import {
-  type AttendeeWithListing,
+  type AttendeeWithBooking,
   attendeeActionPage,
   attendeeActions,
   attendeeFormAction,
-  attendeeListingEntries,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
@@ -253,51 +254,41 @@ const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
 ].page(attendeeActionPage(adminResendNotificationPage));
 
-/** The entries a resend notifies. A standalone line notifies alone; a line
- * belonging to a package rehydrates EVERY line of that attendee's package, so
- * the confirmation doesn't treat a single member row as the whole package
- * (collapsing a hidden package to one row's quantity/price, or heading a
- * visible one with a lone member). Every active plan row joins either way, so
- * a repair resend reaches the site assignment whatever row it names. */
+/** The entries a resend notifies, scoped to the SELECTED booking's purchase:
+ * a package line rehydrates its own package alone (never another package the
+ * attendee holds), and a standalone line notifies every standalone line the
+ * attendee booked. Each entry is rebuilt from its own row and listing, so the
+ * confirmation never treats one member row as the whole purchase — collapsing
+ * a hidden package to one row's quantity/price, heading a visible one with a
+ * lone member, or hiding the plan line that bought a site. A refunded line
+ * bought nothing now, so the resend must not notify it again. */
 const resendEntries = async (
-  data: AttendeeWithListing,
-): Promise<{ attendee: typeof data.attendee; listing: ListingWithCount }[]> => {
-  const groupId = data.attendee.package_group_id;
-  const covered = new Set<number>([data.listing.id]);
-  const base: AttendeeWithListing[] = [
-    { attendee: data.attendee, listing: data.listing },
-  ];
-  const rows = await getAttendeeRealLineRowsRaw(data.attendee.id);
+  data: AttendeeWithBooking,
+): Promise<EmailEntry[]> => {
   const pk = await requireRequestPrivateKey();
-  if (groupId > 0) {
-    // The route already verified this attendee's active line, so its package
+  const rows = await getAttendeeBookingRowsRaw(
+    data.attendee.id,
+    data.selectedPackageGroupId > 0
+      ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
+      : { kind: "standalone" },
+  );
+  return Promise.all(
+    // The route already verified this attendee's active line, so its booking
     // rows exist, decrypt with the same key, and each names a live listing.
-    const packageRows = rows.filter((row) => row.package_group_id === groupId);
-    for (const row of packageRows) {
-      covered.add(row.listing_id);
-    }
-    base.length = 0;
-    base.push(...(await attendeeListingEntries(packageRows, pk)));
-  }
-  // A refunded plan row buys nothing now, so it must not reach the
-  // assignment; the loader kept only real lines.
-  const candidates = rows.filter(
-    (row) => !row.refunded && !covered.has(row.listing_id),
+    rows
+      .filter((row) => !row.refunded)
+      .map(async (row) => ({
+        attendee: (await decryptAttendeeOrNull(row, pk))!,
+        listing: await requireListingWithCount(row.listing_id),
+      })),
   );
-  const listings = await Promise.all(
-    candidates.map((row) => requireListingWithCount(row.listing_id)),
-  );
-  const planRows = candidates.filter(
-    (_, index) => listings[index]!.assign_built_site,
-  );
-  return [...base, ...(await attendeeListingEntries(planRows, pk))];
 };
 
 /** Re-send an attendee's booking notification (its whole package, if any),
  * refusing on a no-quantity ghost row. The verified-action wrapper below runs
  * this after confirming the typed attendee name. */
 const resendNotification = async (
-  data: AttendeeWithListing,
+  data: AttendeeWithBooking,
   form: FormParams,
 ): Promise<Response> => {
   const attendeeId = data.attendee.id;

@@ -67,6 +67,7 @@ describeWithEnv("attendee merge cleanup", { db: true }, () => {
       source.id,
       [listing2.id],
       listing2.id,
+      "2099-01-01T00:00:00.000Z",
     );
 
     const { result } = await runMerge({ source, target });

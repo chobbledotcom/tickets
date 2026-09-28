@@ -108,8 +108,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-11_refund_order_link",
         "2026-09-14_group_show_hidden_listings",
         "2026-09-15_group_scan_checks_in_all_listings",
+        "2026-09-28_site_renewal_recovery_facts",
       ],
-      schemaHash: "y91i2g",
+      schemaHash: "zc5orh",
     });
   });
 
@@ -124,7 +125,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Let a group's booking page keep its hidden member listings off the page, one group at a time.",
+        "Capture what a booking paid in site months and what a site's renewal provisioning confirmed, so a failed push recovers the buyer's original term.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

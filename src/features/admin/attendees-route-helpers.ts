@@ -117,6 +117,9 @@ const loadPaymentReviewActionData: (
 export type AttendeeWithBooking = AttendeeWithListing & {
   /** The selected booking row itself proves whether a live line remains. */
   activeBooking: boolean;
+  /** The selected booking row's package group: a resend rehydrates this
+   * package alone, or every standalone line when it holds none. */
+  selectedPackageGroupId: number;
 };
 
 /** Load the first stored booking and its listing for a booking action. */
@@ -129,7 +132,12 @@ const loadAttendeeWithBooking: (
     const listing = await getListingWithCount(booking.listingId);
     return listing === null
       ? null
-      : { activeBooking: booking.active, attendee, listing };
+      : {
+          activeBooking: booking.active,
+          attendee,
+          listing,
+          selectedPackageGroupId: booking.packageGroupId,
+        };
   },
 );
 

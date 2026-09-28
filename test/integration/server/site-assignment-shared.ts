@@ -15,7 +15,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** Assert exactly one site is assigned and Site B was never touched. */
 export const expectOneSiteClaimed = async (): Promise<void> => {
@@ -61,28 +61,34 @@ export const siteEntry = (
     quantity?: number;
     email?: string;
     refunded?: boolean;
+    /** The term the line carries as already bought, when the test simulates
+     * a listing edited after the booking. Defaults to months × quantity. */
+    siteMonths?: number;
   } = {},
-) =>
-  makeTestEntry(
+) => {
+  const initialSiteMonths = overrides.initialSiteMonths ?? 3;
+  const quantity = overrides.quantity ?? 1;
+  return makeTestEntry(
     {
       assign_built_site: overrides.assignBuiltSite ?? true,
-      initial_site_months: overrides.initialSiteMonths ?? 3,
+      initial_site_months: initialSiteMonths,
       ...(overrides.listingId !== undefined && { id: overrides.listingId }),
       ...(overrides.listingName !== undefined && {
         name: overrides.listingName,
       }),
     },
     {
+      // The line carries the term it bought at booking time.
+      site_months: overrides.siteMonths ?? initialSiteMonths * quantity,
       ...(overrides.attendeeId !== undefined && { id: overrides.attendeeId }),
       ...(overrides.email !== undefined && { email: overrides.email }),
-      ...(overrides.quantity !== undefined && {
-        quantity: overrides.quantity,
-      }),
+      quantity,
       ...(overrides.refunded !== undefined && {
         refunded: overrides.refunded,
       }),
     },
   );
+};
 
 /** Any assignment that builds a site has broken the pool-only contract. */
 export const forbidBuildDuringAssignment = (): Stub =>
@@ -128,6 +134,14 @@ export const setUpAssignmentSuite = () => {
     hostEmail.resetOverride();
   });
 
+  /** Swap what every further fetch in this test answers, counting the calls
+   * afresh — a test that first needs a failing provider and then a working
+   * one swaps instead of nesting a second stub. */
+  const reply = (first: FetchReply, ...following: FetchReply[]): void => {
+    fetchStub.restore();
+    fetchStub = stubFetch(first, ...following);
+  };
+
   const expectFlagPushOutcome = async (
     site: string,
     expected: string,
@@ -159,6 +173,7 @@ export const setUpAssignmentSuite = () => {
     get fetchStub(): Stub {
       return fetchStub;
     },
+    reply,
     get secretStub(): Stub {
       return secretStub;
     },

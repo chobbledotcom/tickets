@@ -25,7 +25,11 @@ import { isBuilderEnabled } from "#shared/config.ts";
 /* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import { isProvisioned } from "#shared/renewal-helpers.ts";
+import {
+  isProvisioned,
+  isRenewalUrlConfirmed,
+  isReservedRenewal,
+} from "#shared/renewal-helpers.ts";
 import {
   getQualifyingTierListings,
   pickTierListing,
@@ -57,6 +61,7 @@ import {
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 import {
   builtSiteAction,
+  type BuiltSitePost,
   builtSiteTabError,
   builtSiteTabResult,
   builtSiteTabSuccess,
@@ -208,10 +213,10 @@ const handleUpdateSite = builtSiteAction(async (site, _form, id) => {
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
 const handleRotateToken = builtSiteAction(async (site, _form, id) => {
-  // The empty cutoff marks a reserved-but-unconfirmed token, which the
-  // assignment recovery may be re-pushing right now; rotating then would
-  // race it. Rotation runs only on a fully confirmed provisioning.
-  if (!isProvisioned(site) || site.readOnlyFrom === "") {
+  // Rotation runs only on a fully confirmed provisioning: a reserved-but-
+  // unconfirmed token means the assignment recovery may be re-pushing it,
+  // and rotating then would race that.
+  if (!isProvisioned(site) || !isRenewalUrlConfirmed(site)) {
     return builtSiteTabError(
       id,
       "renewal",
@@ -262,40 +267,77 @@ const handleAddSecrets = builtSiteAction(async (site, _form, id) => {
   return builtSiteTabSuccess(id, "secrets", `Set ${summary}`);
 });
 
+/** A reserved-but-unconfirmed token means the renewal URL never reached the
+ * site: no deadline change may proceed while the retry path is the provision
+ * route. Returns the tab error to return, or undefined to continue. */
+const reservedRenewalError = (site: BuiltSite, id: number) =>
+  isReservedRenewal(site)
+    ? builtSiteTabError(
+        id,
+        "renewal",
+        "Renewal is not provisioned for this site",
+      )
+    : undefined;
+
+/** Run the action only when the site's renewal URL is not reserved-unconfirmed. */
+const whenProvisioned =
+  (action: BuiltSitePost): BuiltSitePost =>
+  async (site, form, id) => {
+    const blocked = reservedRenewalError(site, id);
+    return blocked ?? action(site, form, id);
+  };
+
 /** POST /admin/built-sites/:id/bump-deadline */
-const handleBumpDeadline = builtSiteAction(async (site, form, id) => {
-  const months = readClampedMonths(form);
-  const newIso = addMonthsToRenewalDeadline(site, months);
-  const result = await syncReadOnlyFrom(site, newIso);
-  if (result.ok) {
-    await logActivity(
-      `Admin bumped '${site.name}' deadline by ${months} month(s)`,
-    );
-  }
-  return renewalPushResult("Deadline bumped")(id, result);
-});
+const handleBumpDeadline = builtSiteAction(
+  whenProvisioned(async (site, form, id) => {
+    // Storing a cutoff here would let the provision route refuse the retry
+    // while the site still has no renewal link.
+    const months = readClampedMonths(form);
+    const newIso = addMonthsToRenewalDeadline(site, months);
+    const result = await syncReadOnlyFrom(site, newIso);
+    if (result.ok) {
+      await logActivity(
+        `Admin bumped '${site.name}' deadline by ${months} month(s)`,
+      );
+    }
+    return renewalPushResult("Deadline bumped")(id, result);
+  }),
+);
 
 /** POST /admin/built-sites/:id/override-deadline */
-const handleOverrideDeadline = builtSiteAction(async (site, form, id) => {
-  const dateStr = form.getString("date");
-  if (!dateStr) {
-    return builtSiteTabError(id, "renewal", "Choose a deadline date");
-  }
-  const cutoffIso = parseDeadlineDate(dateStr);
-  if (!cutoffIso) {
-    return builtSiteTabError(id, "renewal", "Choose a valid deadline date");
-  }
-  const result = await syncReadOnlyFrom(site, cutoffIso);
-  if (result.ok) {
-    await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
-  }
-  return renewalPushResult("Deadline updated")(id, result);
-});
+const handleOverrideDeadline = builtSiteAction(
+  whenProvisioned(async (site, form, id) => {
+    const dateStr = form.getString("date");
+    if (!dateStr) {
+      return builtSiteTabError(id, "renewal", "Choose a deadline date");
+    }
+    const cutoffIso = parseDeadlineDate(dateStr);
+    if (!cutoffIso) {
+      return builtSiteTabError(id, "renewal", "Choose a valid deadline date");
+    }
+    const result = await syncReadOnlyFrom(site, cutoffIso);
+    if (result.ok) {
+      await logActivity(
+        `Admin overrode '${site.name}' deadline to ${cutoffIso}`,
+      );
+    }
+    return renewalPushResult("Deadline updated")(id, result);
+  }),
+);
 
 /** POST /admin/built-sites/:id/re-sync-deadline */
 const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   if (!site.readOnlyFrom) {
     return builtSiteTabError(id, "renewal", "No deadline to re-sync");
+  }
+  // Re-syncing a reserved-but-unconfirmed token would push a renewal URL the
+  // confirmation never marked, so the retry path stays the provision route.
+  if (isReservedRenewal(site)) {
+    return builtSiteTabError(
+      id,
+      "renewal",
+      "Renewal is not provisioned for this site",
+    );
   }
   const renewalUrl =
     isProvisioned(site) && site.renewalToken
@@ -314,9 +356,10 @@ const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
  * admin doesn't generate a token that would dead-end at an empty /renew picker.
  * (The customer picks the actual tier at renew time.) */
 const handleProvisionRenewal = builtSiteAction(async (site, form, id) => {
-  // The empty cutoff marks a reserved-but-unconfirmed token — a failed push —
-  // so the route retries with the reserved token rather than refusing.
-  if (isProvisioned(site) && site.readOnlyFrom !== "") {
+  // Only a confirmed renewal-URL push marks provisioning done. A reserved-
+  // unconfirmed token — including one beside a pre-stocked deadline — is a
+  // failed push, and this route is its retry.
+  if (isRenewalUrlConfirmed(site)) {
     return builtSiteTabError(
       id,
       "renewal",

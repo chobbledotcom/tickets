@@ -220,7 +220,23 @@ const templateEntryPath = (...tail: Step[]): Step[] => [
   ...tail,
 ];
 
+const siteMonthsReason: ExemptionReason = {
+  evidence:
+    "the site assignment reads these months on the structurally identical entry types: validateSiteAssignmentConfig reads e.listing.initial_site_months and the assignment run sums e.attendee.site_months (src/shared/site-assignment.ts); EmailEntry and attendee rows supply both by structural assignment",
+  kind: "dynamic-read",
+};
+
 const exactExemptions = exactFieldExemptions([
+  exactFieldsFrom("src/shared/email.ts")(
+    [{ name: "EmailListing" }],
+    ["initial_site_months"],
+    siteMonthsReason,
+  ),
+  exactFieldsFrom("src/shared/types.ts")(
+    [{ name: "Attendee" }],
+    ["site_months"],
+    siteMonthsReason,
+  ),
   attendeeFields(
     [{ name: "DecryptedAttendeeRow" }],
     ["price_paid", "refunded"],

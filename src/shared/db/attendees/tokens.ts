@@ -57,6 +57,7 @@ const bookingRowWithoutAttendee = (
   price_paid: row.price_paid,
   quantity: row.quantity,
   refunded: row.refunded,
+  site_months: row.site_months,
   start_at: row.start_at,
 });
 

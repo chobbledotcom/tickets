@@ -3,7 +3,11 @@ import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
+import {
+  formatDeadlineLabel,
+  isProvisioned,
+  isReservedRenewal,
+} from "#shared/renewal-helpers.ts";
 /* jscpd:ignore-end */
 import { renewalUrlFor } from "#shared/site-renewal.ts";
 import {
@@ -163,11 +167,9 @@ const provisionedPanel = (site: BuiltSite): JSX.Element => {
   );
 };
 
-const unprovisionedPanel = (site: BuiltSite): JSX.Element => (
-  <ProsePanel
-    label={t("built_sites.current_deadline")}
-    value={formatDeadlineLabel(site.readOnlyFrom)}
-  >
+/** The provisioning form: the one way to push and confirm a renewal URL. */
+const provisionRenewalForm = (site: BuiltSite): JSX.Element => (
+  <>
     <h3>{t("built_sites.provision_renewal_title")}</h3>
     <SiteActionForm action="provision-renewal" siteId={site.id}>
       <label for="provision_months">{t("built_sites.initial_months")}</label>
@@ -177,15 +179,47 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element => (
         labelKey="built_sites.provision_button"
       />
     </SiteActionForm>
-    <h3>{t("built_sites.bump_deadline_title")}</h3>
-    <BumpDeadlineForm site={site} />
-    <h3>{t("built_sites.override_deadline_title")}</h3>
-    <OverrideDeadlineForm site={site} />
+  </>
+);
+
+/** The shell both renewal panels share: the deadline readout. */
+const deadlinePanel = (
+  site: BuiltSite,
+  children: JSX.Element[],
+): JSX.Element => (
+  <ProsePanel
+    label={t("built_sites.current_deadline")}
+    value={formatDeadlineLabel(site.readOnlyFrom)}
+  >
+    {children}
   </ProsePanel>
 );
 
-export const renewalPanelFor = (site: BuiltSite): JSX.Element =>
-  isProvisioned(site) ? provisionedPanel(site) : unprovisionedPanel(site);
+const unprovisionedPanel = (site: BuiltSite): JSX.Element =>
+  deadlinePanel(site, [
+    provisionRenewalForm(site),
+    <h3>{t("built_sites.bump_deadline_title")}</h3>,
+    <BumpDeadlineForm site={site} />,
+    <h3>{t("built_sites.override_deadline_title")}</h3>,
+    <OverrideDeadlineForm site={site} />,
+  ]);
+
+/** Reserved but unconfirmed: the token's URL push never reached the site, so
+ * the only way forward is provisioning again — the route re-pushes the
+ * reserved token and the buyer's stamped term. Deadline edits stay out of
+ * reach: confirming a cutoff here would make the provision retry refuse
+ * while the site still has no renewal link. */
+const pendingRenewalPanel = (site: BuiltSite): JSX.Element =>
+  deadlinePanel(site, [
+    <ErrorNote>{t("built_sites.provision_pending_note")}</ErrorNote>,
+    provisionRenewalForm(site),
+  ]);
+
+export const renewalPanelFor = (site: BuiltSite): JSX.Element => {
+  if (!isProvisioned(site)) return unprovisionedPanel(site);
+  if (isReservedRenewal(site)) return pendingRenewalPanel(site);
+  return provisionedPanel(site);
+};
 
 const formatMonitorInterval = (seconds: number): string =>
   seconds % 60 === 0

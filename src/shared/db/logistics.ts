@@ -7,6 +7,7 @@
  */
 
 import { executeBatch, inPlaceholders, queryAll, update } from "#db/client.ts";
+import { rowsToMap } from "#fp";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -113,7 +114,7 @@ export const getLogisticsAssignments = async (
      FROM listing_attendees WHERE attendee_id = ?`,
     [attendeeId],
   );
-  return new Map(rows.map((row) => [row.listing_id, rowToAssignment(row)]));
+  return rowsToMap(rows, (row) => row.listing_id, rowToAssignment);
 };
 
 /**

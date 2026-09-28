@@ -4,6 +4,7 @@ import { FakeTime } from "@std/testing/time";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { addMonthsIso } from "#shared/dates.ts";
+import { renewalPanelFor } from "#templates/admin/built-sites/panels.tsx";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -11,6 +12,7 @@ import {
   createTestBuiltSite,
   provisionTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import {
   renewalSuiteHelpers,
@@ -345,6 +347,61 @@ describeWithEnv(
 
       test("rejects a non-date-format string without pushing", () =>
         expectOverrideRejected("6024", "Override Not Date", "hello"));
+    });
+
+    describe("POST /admin/built-sites/:id/provision-renewal", () => {
+      test("a failed push renders a retryable state and the retry provisions", async () => {
+        // The provision route refuses without a qualifying renewal tier.
+        await createTestListing({
+          hidden: true,
+          monthsPerUnit: 1,
+          purchaseOnly: true,
+          unitPrice: 500,
+        });
+        const site = await createTestBuiltSite({
+          hostingId: "6031",
+          name: "Retry Site",
+        });
+
+        // The first provisioning's push fails: the token stands reserved,
+        // unconfirmed, with the buyer's term stamped and no cutoff stored.
+        await suite.withFailingSecretStub(async () => {
+          const { response } = await siteAction(site, "provision-renewal", {
+            months: "3",
+          });
+          expect(response.status).toBe(302);
+        });
+        const reserved = await findSite(site.id);
+        expect(reserved.renewalTokenIndex).not.toBeNull();
+        expect(reserved.renewalUrlConfirmed).toBe(false);
+        expect(reserved.pendingRenewalCutoff).not.toBe("");
+
+        // The page renders the pending state: the provision form is the only
+        // control — no rotate, no deadline edits, no unconfirmed URL.
+        suite.resetSecretStub();
+        const panel = String(renewalPanelFor(await findSite(site.id)));
+        expect(panel).toContain('/provision-renewal"');
+        expect(panel).not.toContain('/rotate-renewal-token"');
+        expect(panel).not.toContain('/bump-deadline"');
+        expect(panel).not.toContain('/override-deadline"');
+        expect(panel).not.toContain("Rotate token");
+
+        // A direct deadline bump cannot confirm a cutoff over the retry.
+        await siteAction(site, "bump-deadline", { months: "6" });
+        const afterBump = await findSite(site.id);
+        expect(afterBump.readOnlyFrom).toBe("");
+        expect(afterBump.renewalUrlConfirmed).toBe(false);
+
+        // The provision retry re-pushes the RESERVED token and the STAMPED
+        // term — the form's own months cannot shrink what was reserved.
+        await siteAction(site, "provision-renewal", { months: "1" });
+        const provisioned = await findSite(site.id);
+        expect(provisioned.renewalToken).toBe(reserved.renewalToken);
+        expect(provisioned.renewalUrlConfirmed).toBe(true);
+        expect(provisioned.readOnlyFrom.slice(0, 10)).toBe(
+          reserved.pendingRenewalCutoff.slice(0, 10),
+        );
+      });
     });
   },
 );

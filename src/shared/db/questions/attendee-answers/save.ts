@@ -36,13 +36,16 @@ const normalizeAnswerSet = (
 const arrayOrEmpty = <T>(value: T[] | undefined): T[] =>
   value === undefined ? [] : value;
 
-/** answer_id → question_id for the chosen ids, read on the open transaction so
- *  a deleted-between-checkout-and-finalize answer shows up as missing without
- *  starting a separate read transaction (the read shares the save's snapshot). */
+/** The question that holds each checked answer, keyed by answer id, read on
+ * the open transaction so a deleted-between-checkout-and-finalize answer
+ * shows up as missing without starting a separate read transaction (the read
+ * shares the save's snapshot). */
+type QuestionIdByAnswerId = Map<number, number>;
+
 const questionIdsByAnswerIdTx = async (
   tx: TxScope,
   answerIds: number[],
-): Promise<Map<number, number>> => {
+): Promise<QuestionIdByAnswerId> => {
   if (answerIds.length === 0) return new Map();
   const rows = resultRows<{ id: number; question_id: number }>(
     await tx.execute(

@@ -71,6 +71,7 @@
   "built_sites.override_deadline_label": "Override deadline",
   "built_sites.override_deadline_button": "Override",
   "built_sites.provision_renewal_title": "Provision renewal",
+  "built_sites.provision_pending_note": "The last provisioning did not reach the site. Provision again to retry. The buyer's paid months are kept.",
   "built_sites.initial_months": "Initial months",
   "built_sites.provision_button": "Provision",
   "built_sites.bump_deadline_title": "Bump deadline",

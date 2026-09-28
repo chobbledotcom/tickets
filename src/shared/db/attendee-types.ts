@@ -60,6 +60,8 @@ export type BuildAttendeeInput = ContactInfo & {
   statusId: number | null;
   /** Package group this booking row belongs to (0 = not a package). */
   packageGroupId: number;
+  /** The site term this line bought at booking time (0 for non-plan lines). */
+  siteMonths: number;
 };
 
 /** Result of atomic attendee creation. A failure carries the listings whose
@@ -93,6 +95,10 @@ export type ListingBooking = {
    * can carry several packages — so tickets/emails group each line under the
    * right bundle by this id. */
   packageGroupId?: number | undefined;
+  /** The site term this line buys: the plan listing's initial months times the
+   * quantity, read from the listing while it still states that term. Stamped
+   * by the booking write (defaults to 0 — not a plan line). */
+  siteMonths?: number;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field
@@ -146,6 +152,8 @@ export type ListingAttendeeRow = {
   parent_listing_id: number;
   /** The package group this order belongs to; 0 when not a package order. */
   package_group_id: number;
+  /** The site term this line bought at booking time; 0 for non-plan lines. */
+  site_months: number;
 };
 
 /** An attendee with all their listing bookings (for token resolution) */

@@ -38,5 +38,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-09-15_group_scan_checks_in_all_listings",
     () => import("./2026-09-15_group_scan_checks_in_all_listings.ts"),
   ),
+  // The paid site term each booking carries and the renewal-provisioning
+  // facts a failed push recovers from.
+  entry(
+    "2026-09-28_site_renewal_recovery_facts",
+    () => import("./2026-09-28_site_renewal_recovery_facts.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Let a group's booking page keep its hidden member listings off the page, one group at a time.";
+  "Capture what a booking paid in site months and what a site's renewal provisioning confirmed, so a failed push recovers the buyer's original term.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

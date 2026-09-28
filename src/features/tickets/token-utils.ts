@@ -153,6 +153,7 @@ const buildAttendeeView = (
   quantity: booking.quantity,
   refunded: booking.refunded === 1,
   remaining_balance: base.remaining_balance,
+  site_months: booking.site_months,
   special_instructions: "",
   split_logistics_agents: false,
   status_id: base.status_id,

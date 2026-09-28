@@ -12,12 +12,14 @@ import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import {
   type EmailEntry,
   getEmailConfig,
   hostEmail,
   sendEmail,
 } from "#shared/email.ts";
+import { nowIso } from "#shared/now.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
@@ -93,7 +95,8 @@ export const validateSiteAssignmentConfig = async (
 
 /** Every buyer's outcome from one assignment run. */
 type SiteAssignmentOutcome = {
-  assignments: SiteAssignment[];
+  /** One entry per destination address; each carries that buyer's sites. */
+  emails: { assignments: SiteAssignment[]; to: ValidEmail }[];
   missedBuyers: MissedBuyer[];
 };
 
@@ -106,16 +109,24 @@ const assignSitesForEntries = async (
   const needsSite = entries.filter(
     (e: EmailEntry) => e.listing.assign_built_site,
   );
-  if (needsSite.length === 0) return { assignments: [], missedBuyers };
+  if (needsSite.length === 0) return { emails: [], missedBuyers };
 
   // Keep async assignment aligned with the pre-checkout validation gate.
   const config = await validateSiteAssignmentConfig(needsSite);
   if (!config.ok) {
     reportSiteAssignmentFailure(config, needsSite.length);
-    return { assignments: [], missedBuyers };
+    return { emails: [], missedBuyers };
   }
 
-  const assignments: SiteAssignment[] = [];
+  // One buyer's plans combine into one site and one email; buyers sharing an
+  // address share that email.
+  const sitesByEmail = new Map<string, SiteAssignment[]>();
+  const addSite = (email: string, assignment: SiteAssignment): void => {
+    const sites = sitesByEmail.get(email) ?? [];
+    sites.push(assignment);
+    sitesByEmail.set(email, sites);
+  };
+
   // Reversed so pop() hands sites out in their original order without
   // reindexing the array on every take.
   const available = [...(await getAssignableBuiltSites())].reverse();
@@ -131,9 +142,9 @@ const assignSitesForEntries = async (
     );
     if (booked.length === 0) continue;
     const first = booked[0]!;
-    const months = sumOf(
-      (e: EmailEntry) => e.listing.initial_site_months * e.attendee.quantity,
-    )(booked);
+    // Each line carries the term it bought at booking time, so a later
+    // listing edit cannot change what an earlier buyer was granted.
+    const months = sumOf((e: EmailEntry) => e.attendee.site_months)(booked);
 
     // The claim may sit on a listing later refunded, and a refund does not
     // unassign its site, so the served check spans every plan row of this
@@ -145,13 +156,17 @@ const assignSitesForEntries = async (
       first.attendee.id,
       servedListingIds,
       first.listing.id,
+      addMonthsIso(nowIso(), months),
     );
     if (take.kind === "served") {
-      await completeUnfinishedRenewal(
-        first.attendee.id,
-        servedListingIds,
-        months,
-      );
+      // The claim from an earlier run stands: finish its renewal
+      // provisioning and re-send its setup link, because the first email
+      // may never have reached the buyer.
+      await completeUnfinishedRenewal(take.site);
+      addSite(first.attendee.email, {
+        listingName,
+        siteUrl: take.site.siteUrl,
+      });
       continue;
     }
     if (take.kind === "empty") {
@@ -164,10 +179,16 @@ const assignSitesForEntries = async (
       months,
       `Failed to push initial renewal secrets for site ${site.id}`,
     );
-    assignments.push({ listingName, siteUrl: site.siteUrl });
+    addSite(first.attendee.email, { listingName, siteUrl: site.siteUrl });
   }
 
-  return { assignments, missedBuyers };
+  const emails = [...sitesByEmail].flatMap(([email, assignments]) => {
+    const to = parseEmail(email);
+    // An unparseable address has no destination; the site stays assigned and
+    // only the email is skipped.
+    return to ? [{ assignments, to }] : [];
+  });
+  return { emails, missedBuyers };
 };
 
 /** Absolute /setup/ link for a site — siteUrl may be a bare hostname. */
@@ -226,12 +247,12 @@ export const assignAndNotifyBuiltSites = async (
   if (!isBuilderEnabled()) return;
 
   await runWithSiteBuildScope(async () => {
-    const { assignments, missedBuyers } = await assignSitesForEntries(entries);
+    const { emails, missedBuyers } = await assignSitesForEntries(entries);
     await reportOutOfStockBuyers(missedBuyers);
-    if (assignments.length === 0) return;
-
-    const email = parseEmail(entries[0]!.attendee.email);
-    if (!email) return;
-    await sendSiteAssignmentEmail(email, assignments);
+    await Promise.all(
+      emails.map(({ assignments, to }) =>
+        sendSiteAssignmentEmail(to, assignments),
+      ),
+    );
   });
 };

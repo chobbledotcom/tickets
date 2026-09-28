@@ -39,6 +39,7 @@ const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   ...overrides,
 });
 
+
 const parsedBase = (
   overrides: Partial<ParsedAttendeeForm> = {},
 ): ParsedAttendeeForm => ({

@@ -23,14 +23,42 @@ const nullStrCol = col.withDefault<string | null>(() => null);
 const passthrough = <T>(value: T): T => value;
 const nullable = <T>(value: T | null): T | null => value ?? null;
 
+/** A plain column that reads back as the given default when the row holds
+ * none. */
+const plainColumn = <DbKey extends string, SiteKey extends keyof BuiltSite & string, Value extends string | number>(
+  dbKey: DbKey,
+  siteKey: SiteKey,
+  empty: Value,
+) => ({
+  dbKey,
+  fromRow: passthrough<Value>,
+  schema: col.withDefault(() => empty),
+  siteKey,
+  toInput: passthrough<Value>,
+});
+
+/** The app↔db mappings every 0/1 boolean column shares. */
+const boolFlagMappings = {
+  fromRow: (value: number): boolean => Boolean(value),
+  toInput: (value: boolean): number => (value ? 1 : 0),
+} as const;
+
+/** A boolean stored as 0/1. */
+const boolFlagColumn = <DbKey extends string, SiteKey extends keyof BuiltSite & string>(
+  dbKey: DbKey,
+  siteKey: SiteKey,
+) => ({
+  ...plainColumn(dbKey, siteKey, 0),
+  ...boolFlagMappings,
+});
+
 export const builtSitePlainColumns = [
   {
     dbKey: "assignable",
     formDefault: false,
-    fromRow: (value: number): boolean => Boolean(value),
     schema: assignableCol,
+    ...boolFlagMappings,
     siteKey: "assignable",
-    toInput: (value: boolean): number => (value ? 1 : 0),
   },
   {
     dbKey: "assigned_attendee_id",
@@ -46,13 +74,9 @@ export const builtSitePlainColumns = [
     siteKey: "assignedListingId",
     toInput: nullable<number>,
   },
-  {
-    dbKey: "read_only_from",
-    fromRow: passthrough<string>,
-    schema: col.withDefault(() => ""),
-    siteKey: "readOnlyFrom",
-    toInput: passthrough<string>,
-  },
+  plainColumn("read_only_from", "readOnlyFrom", ""),
+  plainColumn("pending_renewal_cutoff", "pendingRenewalCutoff", ""),
+  boolFlagColumn("renewal_url_confirmed", "renewalUrlConfirmed"),
   {
     dbKey: "renewal_token_index",
     fromRow: nullable<string>,
@@ -60,13 +84,7 @@ export const builtSitePlainColumns = [
     siteKey: "renewalTokenIndex",
     toInput: nullable<string>,
   },
-  {
-    dbKey: "site_data_revision",
-    fromRow: passthrough<number>,
-    schema: col.withDefault(() => 0),
-    siteKey: "siteDataRevision",
-    toInput: passthrough<number>,
-  },
+  plainColumn("site_data_revision", "siteDataRevision", 0),
   {
     dbKey: "updates",
     formDefault: DEFAULT_UPDATE_TIER,

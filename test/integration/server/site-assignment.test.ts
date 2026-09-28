@@ -226,17 +226,16 @@ describeWithEnv(
         );
       });
 
-      /** The pool served exactly one site to the buyer, and emailed once. */
+      /** The pool served exactly one site to the buyer, and Site B still waits. */
       const expectOneSiteServed = async () => {
         const sites = await builtSites.getAll();
         expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(
           1,
         );
         expect(sites.find((s) => s.name === "Site B")!.assignable).toBe(true);
-        expect(suite.fetchStub.calls.length).toBe(1);
       };
 
-      test("a re-sent notification does not take a second site for a served buyer", async () => {
+      test("a re-sent notification re-sends the served buyer's setup email without a second claim", async () => {
         await insertSitesAAndB();
 
         const resend = () =>
@@ -247,6 +246,83 @@ describeWithEnv(
         await resend();
 
         await expectOneSiteServed();
+        // The claim stood, and each run emailed the buyer the SAME site's
+        // setup link — a lost first email must not need a second site.
+        expect(suite.fetchStub.calls.length).toBe(2);
+        for (const call of suite.fetchStub.calls) {
+          const body = JSON.parse(call.args[1].body);
+          expect(body.to).toEqual(["jane@example.com"]);
+          expect(body.html).toContain("https://a.test.net/setup/");
+        }
+      });
+
+      test("a resend re-sends the setup email after the first send failed at the provider", async () => {
+        await insertSitesAAndB();
+        using _error = silencedErrors();
+
+        // The provider refuses the send after the claim and its token
+        // reservation landed: the buyer keeps the booking and the site, but
+        // no setup email went out.
+        suite.reply(new Response(null, { status: 500 }));
+        await assignAndNotifyBuiltSites([
+          siteEntry({ attendeeId: 10, listingId: 1, listingName: "Plan" }),
+        ]);
+        const claimed = (await builtSites.getAll()).find(
+          (s) => s.name === "Site A",
+        )!;
+        expect(claimed.assignedAttendeeId).toBe(10);
+        expect(suite.fetchStub.calls.length).toBe(1);
+
+        // The admin resend re-sends the SAME site's setup link and takes no
+        // second site.
+        suite.reply(() => new Response());
+        await assignAndNotifyBuiltSites([
+          siteEntry({ attendeeId: 10, listingId: 1, listingName: "Plan" }),
+        ]);
+        await expectOneSiteServed();
+        expect(suite.fetchStub.calls.length).toBe(1);
+        const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
+        expect(body.html).toContain("https://a.test.net/setup/");
+      });
+
+      test("a repair resend grants the term the booking paid after the plan changed", async () => {
+        // Empty pool first: the booking stood with no site. Days later the
+        // owner stocks one and resends — after retuning the plan's months
+        // for future buyers. The repair must grant what was PAID.
+        await settings.update.businessEmail("biz@example.com");
+        using _build = forbidBuildDuringAssignment();
+        const errorSpy = silencedErrors();
+
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({
+              attendeeId: 10,
+              initialSiteMonths: 3,
+              quantity: 3,
+              siteMonths: 9,
+            }),
+          ]);
+        } finally {
+          errorSpy.restore();
+        }
+
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
+        // The suite's own edge-secret stub answers the recovery push.
+        await assignAndNotifyBuiltSites([
+          siteEntry({
+            attendeeId: 10,
+            initialSiteMonths: 1,
+            quantity: 3,
+            siteMonths: 9,
+          }),
+        ]);
+
+        // Three paid units of the 3-month plan buy 9 months, whatever the
+        // plan states today.
+        await suite.expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 9).slice(0, 10),
+        );
       });
 
       test("the forbidBuild guard throws if anything builds during assignment", async () => {
@@ -270,6 +346,7 @@ describeWithEnv(
         await Promise.all([run(), run()]);
 
         await expectOneSiteServed();
+        expect(suite.fetchStub.calls.length).toBe(2);
       });
 
       test("a second claim for the same site finds it already taken", async () => {
@@ -279,12 +356,28 @@ describeWithEnv(
         // Sequential claims, not a race: after the first takes the site, the
         // second's conditional UPDATE matches no row, so the take reports
         // an empty pool.
-        expect((await takePooledSiteForBuyer([site], 42, [7], 7)).kind).toBe(
-          "claimed",
-        );
-        expect((await takePooledSiteForBuyer([site], 43, [7], 7)).kind).toBe(
-          "empty",
-        );
+        expect(
+          (
+            await takePooledSiteForBuyer(
+              [site],
+              42,
+              [7],
+              7,
+              "2099-01-01T00:00:00.000Z",
+            )
+          ).kind,
+        ).toBe("claimed");
+        expect(
+          (
+            await takePooledSiteForBuyer(
+              [site],
+              43,
+              [7],
+              7,
+              "2099-01-01T00:00:00.000Z",
+            )
+          ).kind,
+        ).toBe("empty");
 
         const sites = await builtSites.getAll();
         expect(sites[0]!.assignedAttendeeId).toBe(42);
@@ -302,6 +395,7 @@ describeWithEnv(
         await assignAndNotifyBuiltSites(entries);
         await assignAndNotifyBuiltSites([...entries].reverse());
         await expectOneSiteServed();
+        expect(suite.fetchStub.calls.length).toBe(2);
       });
 
       test("sends email with plural subject for multiple sites", async () => {

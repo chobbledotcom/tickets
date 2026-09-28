@@ -241,6 +241,7 @@ const rowsToServicingEvent = async (
           price_paid: Number(row.price_paid),
           quantity: row.quantity,
           refunded: Number(row.refunded),
+          site_months: 0,
           start_at: row.date ? `${row.date}T00:00:00Z` : null,
         }),
       ),

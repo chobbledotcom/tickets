@@ -23,11 +23,14 @@ export const provisionTestBuiltSite = async (
   const { generateRenewalToken } = await import("#shared/renewal-token.ts");
   const { updateBuiltSiteRenewalState } = await import("#db/built-sites.ts");
   const { index, token } = await generateRenewalToken();
+  const readOnlyFrom = opts.readOnlyFrom ?? "2099-01-01T00:00:00.000Z";
   await updateBuiltSiteRenewalState(siteId, {
-    readOnlyFrom: "2099-01-01T00:00:00.000Z",
+    readOnlyFrom,
     renewalToken: token,
     renewalTokenIndex: index,
-    ...opts,
+    // A stored cutoff marks the push confirmed; the empty-cutoff variant
+    // reserves an unconfirmed token, the state a failed push leaves.
+    renewalUrlConfirmed: readOnlyFrom !== "",
   });
   return { token, tokenIndex: index };
 };

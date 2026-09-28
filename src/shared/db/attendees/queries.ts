@@ -52,7 +52,9 @@ export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
     column("id"),
   )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
     "order_token",
-  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+  )}, ${column("parent_listing_id")}, ${column("package_group_id")}, ${column(
+    "site_months",
+  )}`;
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =
@@ -88,22 +90,36 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
     where: { listingIds: [listingId] },
   });
 
+/** Which purchase one resend rehydrates: the member lines of one package
+ * group, or every standalone line the attendee holds. One selection can never
+ * span two packages. */
+export type BookingScope =
+  | { kind: "package"; packageGroupId: number }
+  | { kind: "standalone" };
+
 /**
- * One attendee's raw booking rows (real lines only — quantity > 0), in
- * listing order. The attendee id already pins one attendee, and its rows are
- * returned whatever its kind (`attendee-or-servicing` matches every kind the
- * CHECK constraint allows). Lets a listing-scoped action rehydrate the rows
- * it needs — a package, or the plan lines a repair resend must reach.
+ * One attendee's raw booking rows (real lines only — quantity > 0) within one
+ * resend scope. Lets a listing-scoped action rehydrate the WHOLE purchase the
+ * selected line belongs to — every standalone line for a standalone attendee,
+ * or every package member line for a package row — so a per-member
+ * notification resend doesn't treat a single member row as the complete
+ * purchase, and never pulls another package into the confirmation.
  */
-export const getAttendeeRealLineRowsRaw = (
+export const getAttendeeBookingRowsRaw = (
   attendeeId: number,
+  scope: BookingScope,
 ): Promise<Attendee[]> =>
   loadAttendeeRows({
+    // No kind filter: the attendee id already pins one attendee, and its rows
+    // are returned whatever their kind.
     order: "listing_asc",
     where: {
       attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
       realLinesOnly: true,
+      ...(scope.kind === "package"
+        ? { packageGroupId: scope.packageGroupId }
+        : { standaloneOnly: true }),
     },
   });
 
@@ -341,6 +357,9 @@ export const hasActiveBookingLine = (
 export type FirstBooking = {
   readonly active: boolean;
   readonly listingId: number;
+  /** The selected row's package group: a resend of this booking rehydrates
+   * this package alone, or every standalone line when it holds none. */
+  readonly packageGroupId: number;
 };
 
 /** The first real booking, or a no-quantity placeholder when no real one
@@ -349,8 +368,13 @@ export type FirstBooking = {
 export const getFirstBooking = async (
   attendeeId: number,
 ): Promise<FirstBooking | null> => {
-  const row = await queryOne<{ listing_id: number; quantity: number }>(
+  const row = await queryOne<{
+    listing_id: number;
+    package_group_id: number;
+    quantity: number;
+  }>(
     `SELECT listingAttendee.listing_id
+              , listingAttendee.package_group_id
               , listingAttendee.quantity
          FROM listing_attendees AS listingAttendee
         WHERE listingAttendee.attendee_id = ?
@@ -361,7 +385,11 @@ export const getFirstBooking = async (
   );
   return row === null
     ? null
-    : { active: Number(row.quantity) > 0, listingId: Number(row.listing_id) };
+    : {
+        active: Number(row.quantity) > 0,
+        listingId: Number(row.listing_id),
+        packageGroupId: Number(row.package_group_id),
+      };
 };
 
 /**
