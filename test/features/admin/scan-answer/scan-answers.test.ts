@@ -49,6 +49,24 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     expect(answer.json.status).toBe("not_found");
   });
 
+  test("a manual pick of an id no attendee holds answers not_found", async () => {
+    const { group } = await groupDoor();
+
+    const answer = await scanAtDoor(group.id, { attendee_id: 987654 });
+
+    expect(answer.response.status).toBe(404);
+    expect(answer.json.status).toBe("not_found");
+  });
+
+  test("a scan with neither token nor attendee id answers Missing token", async () => {
+    const { group } = await groupDoor();
+
+    const answer = await scanAtDoor(group.id, {});
+
+    expect(answer.response.status).toBe(400);
+    expect(answer.json.error).toBe("Missing token");
+  });
+
   test("a manual pick admits by attendee id, with no ticket token in the request", async () => {
     const door = await groupDoor(1);
     const attendee = await bookTestAttendee(

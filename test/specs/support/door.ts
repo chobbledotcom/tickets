@@ -17,7 +17,10 @@ import {
   listingNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import {
+  ticketTheirBookingHandsOver,
+  visitorBooks,
+} from "#test/specs/support/public-booking.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
   type ActOnOneThing,
@@ -99,8 +102,8 @@ export const rememberTicket = (
 };
 
 /** Someone who booked a stay of several days through the listing's own page.
- * The ticket they hold is the code the door itself offers for them when the
- * organiser looks them up by name — nothing is invented for them. */
+ * The ticket they hold is the one the site hands them on the page their
+ * booking lands on — nothing is invented for them. */
 export const personWithStayTicket = async (
   world: TicketsWorld,
   who: string,
@@ -108,16 +111,12 @@ export const personWithStayTicket = async (
   days: number,
 ): Promise<void> => {
   await openStayListing(world, listing, days, 5);
-  await visitorBooks(world, listingNamed(world, listing), {
+  const booking = await visitorBooks(world, listingNamed(world, listing), {
     day: dayFromToday(world, 10),
     email: `${who.toLowerCase()}@example.com`,
     who,
   });
-  const person = (await peopleOfferedAtDoor(world, listing)).find(
-    (row) => row.name === who,
-  );
-  if (!person) throw new Error(`The ${listing} door does not offer ${who}`);
-  rememberTicket(world, who, person.ticket);
+  rememberTicket(world, who, ticketTheirBookingHandsOver(booking));
 };
 
 /** Another listing running its own door, with nobody booked on it yet. */
@@ -248,12 +247,9 @@ export const doorPageHtml: ReadAboutOneThing = async (world, listing) =>
  * up by hand instead of reading their ticket. Each one is read from the row
  * the organiser would click, so a name shown anywhere else on the page does
  * not count as being offered. */
-export const readOfferedPeople = (
-  html: string,
-): Array<{ name: string; ticket: string }> =>
+export const readOfferedPeople = (html: string): Array<{ name: string }> =>
   [...html.matchAll(/<div[^>]*role="option"[^>]*>/g)].map(([row]) => ({
     name: readOf(row, "name"),
-    ticket: readOf(row, "token"),
   }));
 
 /** The people a door's own list offers, whatever door page the caller
@@ -261,7 +257,7 @@ export const readOfferedPeople = (
 export const offeredAt =
   (
     pageHtml: ReadAboutOneThing<string>,
-  ): ReadAboutOneThing<Array<{ name: string; ticket: string }>> =>
+  ): ReadAboutOneThing<Array<{ name: string }>> =>
   async (world, doorName) =>
     readOfferedPeople(await pageHtml(world, doorName));
 

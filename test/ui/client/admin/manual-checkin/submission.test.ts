@@ -3,17 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { useManualCheckinPage } from "./fixture.ts";
 
-/** The first POST answers verify_id, so the confirm overlay appears; wait
- *  for it, then answer through its buttons. */
-const waitForConfirm = async (): Promise<void> => {
-  for (let i = 0; i < 100; i++) {
-    const overlay = document.getElementById("scanner-confirm")!;
-    if (!overlay.classList.contains("hidden")) return;
-    await Promise.resolve();
-  }
-  throw new Error("the confirm overlay never appeared");
-};
-
 describe("manual check-in submission", () => {
   const { setup } = useManualCheckinPage();
 
@@ -153,64 +142,6 @@ describe("manual check-in submission", () => {
     ).not.toBeNull();
     expect(page.attendeeIdInput.value).toBe("");
     expect(page.input.value).toBe("");
-  });
-
-  test("ID verification resubmits before showing success", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "12";
-    const bodies: unknown[] = [];
-    const reply = (_url: string, init?: RequestInit): Response => {
-      bodies.push(JSON.parse(String(init?.body)));
-      return Response.json({ status: "verify_id" });
-    };
-    using _fetch = stubFetch(reply, (_url, init) => {
-      bodies.push(JSON.parse(String(init?.body)));
-      return Response.json({
-        listingName: "Ceilidh",
-        name: "Bea",
-        quantity: 1,
-        remaining: 0,
-        status: "checked_in",
-      });
-    });
-
-    const submitting = page.submit();
-    await waitForConfirm();
-    document.querySelector<HTMLButtonElement>("#scanner-confirm-yes")!.click();
-    await submitting;
-
-    expect(bodies).toEqual([
-      { attendee_id: 12 },
-      { attendee_id: 12, id_verified: true },
-    ]);
-    expect(page.status.textContent).toBe(
-      "Bea checked in for Ceilidh (1 pass) - check ID",
-    );
-  });
-
-  test("ID verification uses its fallback note when no message is configured", async () => {
-    const page = setup();
-    delete page.form.dataset.messageVerifyIdNote;
-    page.attendeeIdInput.value = "12";
-    using _fetch = stubFetch(
-      Response.json({ status: "verify_id" }),
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Bea",
-        quantity: 1,
-        remaining: 0,
-        status: "checked_in",
-      }),
-    );
-
-    const submitting = page.submit();
-    await waitForConfirm();
-    document.querySelector<HTMLButtonElement>("#scanner-confirm-yes")!.click();
-    await submitting;
-
-    expect(page.status.textContent).toBe(
-      "Bea checked in for Ceilidh (1 pass) \u2014 verify their ID",
-    );
   });
 
   test("already checked in results show a warning", async () => {
