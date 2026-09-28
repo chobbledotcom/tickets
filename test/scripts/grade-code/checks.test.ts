@@ -218,6 +218,15 @@ describe("select_star", () => {
     expect(verdict.status).toBe("PASS");
   });
 
+  test("passes a documented full-row backup read", () => {
+    const facts = extractCode(
+      "src/shared/db/backup-snapshot.ts",
+      "const q = `SELECT rowid AS r, * FROM t WHERE rowid > ? ORDER BY rowid LIMIT ?`;\n",
+    );
+    const verdict = runMechanical(facts, ctxOf()).select_star;
+    expect(verdict?.status).toBe("PASS");
+  });
+
   test("passes a statement that names its columns", () => {
     const verdict = verdictOf(
       "const q = `SELECT id, name FROM t`;\n",

@@ -156,37 +156,91 @@ const functionsDeclaredBy = (node: ParsedStatement): DeclaredFunction[] => {
   });
 };
 
+/** A file's top-level functions by name. */
+type DeclaredFunctions = Map<string | null, DeclaredFunction>;
+
+/** The start of a named local function, when it is untyped. */
+const untypedLocalStart = (
+  local: DeclaredFunctions,
+  name: string,
+): number[] => {
+  const found = local.get(name);
+  return found === undefined || found.typed ? [] : [found.start];
+};
+
+/** The untyped functions an exported object makes public: referenced by name,
+ * or defined inline as an arrow or function expression. A spread carries no
+ * member to check — its source object belongs to its own module. */
+const untypedObjectStarts = (
+  object: { properties: unknown },
+  local: DeclaredFunctions,
+): number[] => {
+  const properties = object.properties as Record<string, unknown>[];
+  return properties.flatMap((property) => {
+    const value = property.value as Record<string, unknown> | undefined;
+    if (value === undefined) return [];
+    if (value.type === "Identifier") {
+      return untypedLocalStart(local, value.name as string);
+    }
+    if (
+      (value.type === "ArrowFunctionExpression" ||
+        value.type === "FunctionExpression") &&
+      absent(value.returnType)
+    ) {
+      return [value.start as number];
+    }
+    return [];
+  });
+};
+
 /** Where each untyped function an export statement makes public starts:
- * declared in place, exported by name from a list, or exported as the
- * default. A re-export from another module is that module's to check. */
+ * declared in place, exported by name from a list, by value in an exported
+ * object, or as the default. A re-export from another module is that module's
+ * to check. */
 const untypedExportStarts = (
   content: string,
   statement: ParsedStatement,
-  local: Map<string | null, DeclaredFunction>,
+  local: DeclaredFunctions,
 ): number[] => {
-  const untypedLocal = (name: string): number[] => {
-    const found = local.get(name);
-    return found === undefined || found.typed ? [] : [found.start];
-  };
   const untypedDeclared = (declaration: ParsedStatement): number[] =>
     functionsDeclaredBy(declaration)
       .filter((declared) => !declared.typed)
       .map(() => statement.start);
+  const objectStarts = (declaration: ParsedStatement): number[] =>
+    declaration.type === "VariableDeclaration"
+      ? declaration.declarations.flatMap((one) =>
+          // An annotation on the variable states the members' types, the same
+          // rule an annotated `const f: T = () => ...` follows.
+          one.init !== null &&
+          one.init.type === "ObjectExpression" &&
+          absent(one.id.typeAnnotation)
+            ? untypedObjectStarts(one.init, local)
+            : [],
+        )
+      : [];
   if (statement.type === "ExportNamedDeclaration") {
     if (statement.declaration !== null) {
-      return untypedDeclared(statement.declaration);
+      return [
+        ...untypedDeclared(statement.declaration),
+        ...objectStarts(statement.declaration),
+      ];
     }
     if (statement.source !== null) return [];
     // Without a source module, every exported name is a local identifier.
     return statement.specifiers.flatMap(({ local: name }) =>
-      untypedLocal(content.slice(name.start, name.end)),
+      untypedLocalStart(local, content.slice(name.start, name.end)),
     );
   }
   if (statement.type !== "ExportDefaultDeclaration") return [];
   const declaration = statement.declaration;
-  if (declaration.type === "Identifier") return untypedLocal(declaration.name);
+  if (declaration.type === "Identifier") {
+    return untypedLocalStart(local, declaration.name);
+  }
   if (declaration.type === "FunctionDeclaration") {
     return untypedDeclared(declaration);
+  }
+  if (declaration.type === "ObjectExpression") {
+    return untypedObjectStarts(declaration, local);
   }
   const isFunction =
     declaration.type === "ArrowFunctionExpression" ||

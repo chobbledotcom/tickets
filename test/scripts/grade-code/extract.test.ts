@@ -104,6 +104,55 @@ describe("extractCode", () => {
     expect(lines(["export default class Keeper {}"])).toEqual([]);
   });
 
+  test("finds functions a file exposes through an exported object", () => {
+    const facts = factsOf(
+      [
+        "function loose(value: number) {",
+        "  return value;",
+        "}",
+        "const typed = (): number => 1;",
+        "export const api = { loose, typed, run: () => 1, count: 5 };",
+      ].join("\n"),
+    );
+    expect(facts.missingReturnTypes.map((hit) => hit.line)).toEqual([1, 5]);
+  });
+
+  test("finds functions a default-exported object exposes", () => {
+    const facts = factsOf(
+      [
+        "function loose(value: number) {",
+        "  return value;",
+        "}",
+        "export default { loose };",
+      ].join("\n"),
+    );
+    expect(facts.missingReturnTypes.map((hit) => hit.line)).toEqual([1]);
+  });
+
+  test("skips a spread member of an exported object", () => {
+    const facts = factsOf(
+      [
+        "function loose(value: number) {",
+        "  return value;",
+        "}",
+        "const base = { keep: 1 };",
+        "export const api = { ...base, loose, run: () => 1 };",
+      ].join("\n"),
+    );
+    expect(facts.missingReturnTypes.map((hit) => hit.line)).toEqual([1, 5]);
+  });
+
+  test("treats an annotated exported object as stating its members' types", () => {
+    const facts = factsOf(
+      [
+        "type Spec = { run: () => number };",
+        "export const spec: Spec = { run: () => 1 };",
+        "export const loose = { run: () => 1 };",
+      ].join("\n"),
+    );
+    expect(facts.missingReturnTypes.map((hit) => hit.line)).toEqual([3]);
+  });
+
   test("keeps the last line's text when the file ends without a newline", () => {
     const facts = factsOf("const first = 1;\nconst last = a ?? b");
     expect(facts.fallbacks).toHaveLength(1);

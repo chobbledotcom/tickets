@@ -113,6 +113,11 @@ type MechanicalCheck = Omit<CheckEntry, "engine"> & {
   fn: (facts: CodeFacts, ctx: GradeContext) => Verdict;
 };
 
+/** Files the repository documents as reading whole rows on purpose: the
+ * backup and restore family, and the table reader's whole-row reads. */
+const FULL_ROW_READ_FILE =
+  /(^|\/)db\/(?:backup|restore|table-reader)[^/]*\.ts$/;
+
 const MECHANICAL_CHECKS: MechanicalCheck[] = [
   {
     fn: (facts, ctx) => {
@@ -190,6 +195,13 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
     fn: (facts) => {
       if (facts.sql.length === 0) {
         return { goodness: 0, note: "no SQL in file", status: "SKIP" };
+      }
+      if (FULL_ROW_READ_FILE.test(facts.file)) {
+        return {
+          goodness: 1,
+          note: "documented full-row read",
+          status: "PASS",
+        };
       }
       // A star in the projection is a select-all unless it is a function
       // argument such as count(*).

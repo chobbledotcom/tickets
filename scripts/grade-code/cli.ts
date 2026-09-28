@@ -41,7 +41,7 @@ Targets (default: every module under src/):
   src/ui/templates/admin                a directory
 
 Options:
-  --limit <n>     grade at most n files
+  --limit <n>     grade at most n files (at least 1)
   --workers <n>   parallel batch workers (default 4)
   --csv <path>    write batch results to a CSV file
   --json          machine-readable output
@@ -106,7 +106,7 @@ export const parseGradeArgs = (args: string[]): GradeArgs => {
     help: flags.help === true,
     json: flags.json === true,
     limit:
-      flags.limit === undefined ? 0 : wholeNumber(flags.limit, "--limit", 0),
+      flags.limit === undefined ? 0 : wholeNumber(flags.limit, "--limit", 1),
     listChecks: flags["list-checks"] === true,
     model: flags.model ?? DEFAULT_MODEL,
     noJev: flags["no-jev"] === true,

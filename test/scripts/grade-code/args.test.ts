@@ -41,6 +41,7 @@ describe("parseGradeArgs", () => {
     expect(() => parseGradeArgs(["--nope"])).toThrow("unknown option --nope");
     expect(() => parseGradeArgs(["--workers", "0"])).toThrow("--workers");
     expect(() => parseGradeArgs(["--limit", "x"])).toThrow("--limit");
+    expect(() => parseGradeArgs(["--limit", "0"])).toThrow("--limit");
   });
 
   test("refuses a number with anything after its digits", () => {
