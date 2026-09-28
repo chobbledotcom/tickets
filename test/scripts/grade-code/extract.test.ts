@@ -197,6 +197,14 @@ describe("extractCode", () => {
     expect(facts.hrefs).toEqual(["/admin/guide", expected, nestedHref]);
   });
 
+  test("skips a valueless href attribute", () => {
+    const facts = extractCode(
+      "src/ui/templates/sample.tsx",
+      'const a = <a href>Help</a>;\nconst b = <a href="/guide">Guide</a>;\n',
+    );
+    expect(facts.hrefs).toEqual(["/guide"]);
+  });
+
   test("collects batch, transaction, and execute calls", () => {
     const facts = factsOf(
       "await executeBatch(statements);\nawait withTransaction(() => save(row));\n" +

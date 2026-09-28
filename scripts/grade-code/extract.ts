@@ -327,9 +327,8 @@ const jargonHits = (content: string): { line: number; word: string }[] =>
     word: match[0].toLowerCase(),
   }));
 
-/** The text of one JSX attribute if it is an href, or null. The parser
- * guarantees the node shapes below, so the boundary read needs no runtime
- * checks. */
+/** The text of one JSX attribute if it is an href, or null. A valueless
+ * attribute such as `<a href>` carries no text. */
 const hrefTextOf = (
   content: string,
   node: Record<string, unknown>,
@@ -341,7 +340,8 @@ const hrefTextOf = (
     type?: unknown;
     value?: unknown;
     expression: { start: number; end: number };
-  };
+  } | null;
+  if (value === null) return null;
   if (value.type === "Literal") return value.value as string;
   return content.slice(value.expression.start, value.expression.end);
 };
