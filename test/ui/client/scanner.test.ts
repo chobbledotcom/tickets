@@ -90,6 +90,7 @@ const SCANNER_PAGE = `
     data-message-id-mismatch="ID does not match {name}"
     data-message-invalid-qr="Invalid QR code"
     data-message-network-error="Network error"
+    data-message-no-door="This ticket has no door to check in at"
     data-message-not-found="Ticket not found"
     data-message-refunded="{name} has been refunded"
     data-message-scanning="Scanning..."
@@ -281,6 +282,18 @@ describe("scanner bundle", {
 
     handleResult(h.statusEl, { name: "Ada", status: "refunded" }, messages);
     expect(h.statusEl.textContent).toBe("Ada has been refunded");
+    expect(h.statusEl.className).toContain("scanner-status-error");
+
+    // The forced rescan of a ticket whose only rows are "No check-in"
+    // answers wrong_listing again; the organiser must see why, not silence.
+    handleResult(
+      h.statusEl,
+      { name: "Ada", status: "wrong_listing" },
+      messages,
+    );
+    expect(h.statusEl.textContent).toBe(
+      "This ticket has no door to check in at",
+    );
     expect(h.statusEl.className).toContain("scanner-status-error");
 
     handleResult(h.statusEl, { status: "not_found" }, messages);

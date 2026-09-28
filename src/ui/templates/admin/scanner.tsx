@@ -55,6 +55,7 @@ type ScannerMessages = {
   idMismatch: string;
   refunded: string;
   skipped: string;
+  noDoor: string;
   ticketCountOne: string;
   ticketCountOther: string;
   verifyIdConfirm: string;
@@ -73,6 +74,7 @@ const scannerMessages = (): ScannerMessages => ({
     tickets: "{tickets}",
   }),
   idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
+  noDoor: t("admin.scanner.no_door"),
   refunded: t("admin.scanner.refunded", { name: "{name}" }),
   skipped: t("admin.scanner.skipped", { name: "{name}" }),
   ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
@@ -136,6 +138,7 @@ export const adminScannerPage = (
           data-message-camera-denied={t("admin.scanner.camera_denied")}
           data-message-id-mismatch={messageTemplates.idMismatch}
           data-message-invalid-qr={t("admin.scanner.invalid_qr")}
+          data-message-no-door={messageTemplates.noDoor}
           data-message-scanning={t("admin.scanner.scanning")}
           data-message-skipped={messageTemplates.skipped}
           data-message-verify-id-confirm={messageTemplates.verifyIdConfirm}

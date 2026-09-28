@@ -24,6 +24,7 @@
   "admin.scanner.not_found": "Ticket not found",
   "admin.scanner.invalid_qr": "Invalid QR code",
   "admin.scanner.wrong_listing_confirm": "{name} is registered for \"{listingName}\", not this listing. Check in anyway?",
+  "admin.scanner.no_door": "This ticket has no door to check in at.",
   "admin.scanner.skipped": "Skipped {name}",
   "admin.scanner.verify_id_confirm": "Does their ID match \"{name}\"?",
   "admin.scanner.id_mismatch": "ID does not match {name}",
