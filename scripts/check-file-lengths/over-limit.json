@@ -46,7 +46,6 @@
   "test/features/admin/attendee-form-model.test.ts": 994,
   "test/features/admin/attendees-edit.test.ts": 404,
   "test/features/admin/builder/server.test.ts": 585,
-  "test/features/admin/built-sites/actions.test.ts": 737,
   "test/features/admin/built-sites/server.test.ts": 726,
   "test/features/admin/confirmation.test.ts": 477,
   "test/features/admin/debug/server.test.ts": 667,
@@ -149,7 +148,6 @@
   "test/test-utils/servicing.ts": 471,
   "test/test-utils/session.ts": 453,
   "test/test-utils/test-browser.ts": 438,
-  "e2e-payments/src/providers/sumup.ts": 404,
   "test/ui/client/order.test.ts": 414,
   "test/ui/templates/admin/attendees-list.test.ts": 428,
   "test/ui/templates/admin/dashboard.test.ts": 668,
@@ -161,5 +159,6 @@
   "scripts/mutation/runner.ts": 454,
   "e2e-payments/src/browser.ts": 473,
   "e2e-payments/src/cucumber/steps/booking.ts": 688,
-  "e2e-payments/src/providers/shared.ts": 420
+  "e2e-payments/src/providers/shared.ts": 420,
+  "e2e-payments/src/providers/sumup.ts": 404
 }

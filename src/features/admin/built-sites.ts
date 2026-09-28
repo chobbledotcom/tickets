@@ -208,7 +208,10 @@ const handleUpdateSite = builtSiteAction(async (site, _form, id) => {
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
 const handleRotateToken = builtSiteAction(async (site, _form, id) => {
-  if (!isProvisioned(site)) {
+  // The empty cutoff marks a reserved-but-unconfirmed token, which the
+  // assignment recovery may be re-pushing right now; rotating then would
+  // race it. Rotation runs only on a fully confirmed provisioning.
+  if (!isProvisioned(site) || site.readOnlyFrom === "") {
     return builtSiteTabError(
       id,
       "renewal",

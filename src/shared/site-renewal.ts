@@ -146,19 +146,20 @@ export const provisionSiteRenewal = async (
   return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
 };
 
-/** The token this site's renewals run on, reserved if none is yet. A row that
- * already carries one keeps it; a row without one gets a fresh token written
- * only while it still has none, so a concurrent attempt that loses the write
- * reads the winner's token back. */
+/** The token this site's renewals run on, reserved if none is yet. The
+ * index is the pair's presence signal — token and index are always written
+ * together, and only the index can resolve a renewal link. A row without
+ * one gets a fresh pair written only while it still has none, so a
+ * concurrent attempt that loses the write reads the winner's pair back. */
 const reserveRenewalToken = async (
   site: BuiltSite,
 ): Promise<RenewalTokenData> => {
-  if (site.renewalToken && site.renewalTokenIndex) {
-    return { index: site.renewalTokenIndex, token: site.renewalToken };
+  if (site.renewalTokenIndex) {
+    return { index: site.renewalTokenIndex, token: site.renewalToken! };
   }
   const candidate = await generateRenewalToken();
   const reserved = await updateBuiltSite(site.id, (existing) =>
-    existing.renewalTokenIndex || existing.renewalToken
+    existing.renewalTokenIndex
       ? null
       : { renewalToken: candidate.token, renewalTokenIndex: candidate.index },
   );

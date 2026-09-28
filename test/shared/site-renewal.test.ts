@@ -3,7 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
-import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import {
+  builtSites,
+  insertBuiltSite,
+  updateBuiltSiteRenewalState,
+} from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import {
@@ -54,6 +58,28 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     for (const pushed of recorder.pushedUrls) {
       expect(pushed).toContain(stored.renewalToken!);
     }
+  });
+
+  test("replaces an orphaned token that carries no index", async () => {
+    // A token without its index is dead — no renewal link can resolve it —
+    // so the reservation mints a complete, indexed pair in its place.
+    await insertBuiltSite("Half Pair", "half.test", "", "", false, "79");
+    const site = (await builtSites.getAll()).find(
+      ({ name }) => name === "Half Pair",
+    )!;
+    await updateBuiltSiteRenewalState(site.id, { renewalToken: "dead-token" });
+
+    using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.resolve({ ok: true as const }),
+    );
+    const result = await provisionSiteRenewal(site, 3, "Half pair failed");
+
+    const stored = (await builtSites.getAll()).find(
+      ({ name }) => name === "Half Pair",
+    )!;
+    expect(result.pushOk).toBe(true);
+    expect(stored.renewalToken).not.toBe("dead-token");
+    expect(stored.renewalTokenIndex).toBe(await hmacHash(stored.renewalToken!));
   });
 
   test("a failed push keeps the reserved token for the retry", async () => {

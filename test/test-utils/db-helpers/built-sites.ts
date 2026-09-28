@@ -24,11 +24,10 @@ export const provisionTestBuiltSite = async (
   const { updateBuiltSiteRenewalState } = await import("#db/built-sites.ts");
   const { index, token } = await generateRenewalToken();
   await updateBuiltSiteRenewalState(siteId, {
+    readOnlyFrom: "2099-01-01T00:00:00.000Z",
     renewalToken: token,
     renewalTokenIndex: index,
-    ...(opts.readOnlyFrom !== undefined
-      ? { readOnlyFrom: opts.readOnlyFrom }
-      : {}),
+    ...opts,
   });
   return { token, tokenIndex: index };
 };
