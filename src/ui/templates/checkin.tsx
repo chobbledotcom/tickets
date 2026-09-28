@@ -8,8 +8,12 @@ import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+// jscpd:ignore-start
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
+import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
+import type { TableLayout } from "#shared/tables/layout.ts";
+// jscpd:ignore-end
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AttendeeTableRow } from "#types";
@@ -21,7 +25,17 @@ import { SubmitWithHidden } from "./public/unsubscribe.tsx";
  */
 type CheckinAdminPageOptions = {
   canCheckIn: boolean;
+  doorOnly: boolean;
   linkAdminPages: boolean;
+};
+
+/** The door-safe columns a door-only login's ticket page shows, fixed so an
+ * operator's staff-table column order cannot empty it: the projection blanks
+ * contact fields, and a layout that selected only those would hide every
+ * column. The date column hides itself for date-less tickets. */
+const DOOR_SAFE_COLUMNS: TableLayout<AttendeeColumnKey> = {
+  columnKeys: ["name", "listings", "date", "qty", "status"],
+  filters: new Map(),
 };
 
 export const checkinAdminPage = (
@@ -41,12 +55,18 @@ export const checkinAdminPage = (
     ),
   )(entries);
 
+  const anyCheckedIn = entries.some((e) => e.attendee.checked_in);
   const allCheckedIn = entries.every((e) => e.attendee.checked_in);
-  const buttonLabel = allCheckedIn
+  // A door-only login has no per-row controls, so its one bulk action must
+  // be able to undo the check-ins already made: it offers checkout as soon
+  // as any row is checked. Staff keep the all-rows flip — their per-row
+  // controls do the fine-grained work.
+  const offerCheckout = options.linkAdminPages ? allCheckedIn : anyCheckedIn;
+  const buttonLabel = offerCheckout
     ? t("admin.checkin.check_out_all")
     : t("admin.checkin.check_in_all");
-  const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
-  const nextValue = allCheckedIn ? "false" : "true";
+  const buttonClass = offerCheckout ? "bulk-checkout" : "bulk-checkin";
+  const nextValue = offerCheckout ? "false" : "true";
   const heading = (
     <>
       <h1>{t("admin.checkin.heading")}</h1>
@@ -73,6 +93,9 @@ export const checkinAdminPage = (
         options={{
           adminLinks: options.linkAdminPages,
           allowedDomain,
+          // A door-only login reads the fixed door-safe columns: the staff
+          // table's configured column order must not empty their table.
+          columnLayout: options.doorOnly ? DOOR_SAFE_COLUMNS : undefined,
           phonePrefix,
           returnUrl: checkinPath,
           rows: tableRows,

@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { setupCheckinTest } from "#test/features/checkin/helpers.ts";
+import {
+  postCheckin,
+  setupCheckinTest,
+} from "#test/features/checkin/helpers.ts";
 import { tableRowContaining } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -13,7 +17,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
-import { adminGet, testCookie } from "#test-utils/session.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
@@ -259,6 +263,10 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   });
 
   describe("GET /checkin/:tokens (door-only scanner)", () => {
+    afterEach(() => {
+      settings.clearTestOverrides();
+    });
+
     test("keeps the bulk form but hides the staff-only row controls", async () => {
       const { listing, token } = await setupCheckinTest("Sam", "sam@test.com");
       const scanner = await createTestScannerSession();
@@ -272,6 +280,24 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       // The working bulk check-in stays; the per-row forms POST to a
       // staff-only admin endpoint, so a scanner is never shown one.
       expect(body).toContain("Check In All");
+      expect(body).not.toContain(`/admin/listing/${listing.id}/attendee/`);
+    });
+
+    test("offers checkout once a row is checked, with no per-row controls", async () => {
+      const { listing, token } = await setupCheckinTest(
+        "Todd",
+        "todd@test.com",
+      );
+      const { cookie } = await createTestScannerSession();
+      const session = { cookie, csrfToken: await testCsrfToken() };
+      await postCheckin(token, session, "true");
+
+      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
+      const body = await response.text();
+      // The one bulk action can undo the check-in the door just made.
+      expect(body).toContain("Check Out All");
+      expect(body).toContain('name="check_in"');
+      expect(body).toContain('value="false"');
       expect(body).not.toContain(`/admin/listing/${listing.id}/attendee/`);
     });
 
@@ -294,6 +320,25 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(body).not.toContain("555-1234");
       expect(body).not.toContain("<th>Email</th>");
       expect(body).not.toContain("<th>Phone</th>");
+    });
+
+    test("keeps its table intact under a contact-only staff column order", async () => {
+      const { token } = await setupCheckinTest("Fay", "fay@test.com");
+      const scanner = await createTestScannerSession();
+      // The staff attendee table's saved column order names only contact
+      // columns — every one of which a door-safe projection blanks.
+      settings.setForTest({
+        attendee_column_order: "{{email}}, {{phone}}",
+      });
+
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: scanner.cookie,
+      });
+      const body = await response.text();
+      // The fixed door-safe columns carry the door facts regardless.
+      expect(body).toContain("Fay");
+      expect(body).toContain(">Qty</th>");
+      expect(body).not.toContain("<th>Email</th>");
     });
   });
 });
