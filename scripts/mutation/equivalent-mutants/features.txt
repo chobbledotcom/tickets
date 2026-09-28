@@ -328,4 +328,4 @@ src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated"  
 src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated"   # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
 src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated"   # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
 src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → ""   # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
-src/features/admin/scanner.ts::processScan.load~0duwftt  ?? → ||   # the id lookup's Map.get answers an AttendeeWithBookings object or undefined, and an object is always truthy (the split moved this code to src/features/admin/scan-answer.ts)
+src/features/admin/scan-answer.ts::processScan.load~0duwftt  ?? → ||   # the id lookup's Map.get answers an AttendeeWithBookings object or undefined, and an object is always truthy
