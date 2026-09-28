@@ -1,23 +1,24 @@
 /** The operator-facing reporting for failures a background path caught and
  * contained: the code and detail reach the log with the original error. */
 
-import { ErrorCode } from "#shared/logger.ts";
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   logCaughtFailure,
   logRecoveryItemFailure,
 } from "#shared/caught-failures.ts";
-import { describe, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
 import { errorMessage } from "#shared/error-message.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describe("caught failures", () => {
   const errorLog = setupErrorSpy();
 
   test("reports a caught failure with its code and detail", () => {
-    logCaughtFailure(ErrorCode.DATA_INVALID, "the reply was lost")(
-      new Error("disk went away"),
-    );
+    logCaughtFailure(
+      ErrorCode.DATA_INVALID,
+      "the reply was lost",
+    )(new Error("disk went away"));
 
     expect(errorLog.contains("the reply was lost")).toBe(true);
     expect(errorLog.contains("DATA_INVALID")).toBe(true);

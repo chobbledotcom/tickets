@@ -3,15 +3,15 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { OrderAnswerLines } from "#shared/email/answers.ts";
 import {
   buildTemplateData,
   renderEmailContent,
   type TemplateData,
 } from "#shared/email-renderer.ts";
-import type { OrderAnswerLines } from "#shared/email/answers.ts";
+import { TICKET_URL } from "#test/shared/email-renderer/test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
-import { TICKET_URL } from "#test/shared/email-renderer/test-helpers.ts";
 
 const data = async (): Promise<TemplateData> => {
   const entries = [makeEntry()];
