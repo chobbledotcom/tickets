@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminScannerDoorsPage,
   adminScannerPage,
@@ -288,5 +289,15 @@ describe("the admin scanner doors page template", () => {
     // door (the nav's own /admin/scanner route is not a door).
     expect(html).not.toContain('href="/admin/listing/');
     expect(html).not.toContain('href="/admin/groups/');
+  });
+
+  test("the nav links a scanner back to the doors list", () => {
+    // A scanner who opens a door from a bookmark still needs the route back
+    // to /admin/scanner to pick another door: the role's only nav destination.
+    const html = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
+    );
+    expect(html).toContain('href="/admin/scanner"');
+    expect(html).toContain(t("nav.doors"));
   });
 });

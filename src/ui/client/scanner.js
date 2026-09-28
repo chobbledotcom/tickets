@@ -1,5 +1,6 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import { showConfirm } from "./confirm-dialog.ts";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
@@ -210,43 +211,6 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
   };
 
   scan();
-};
-
-/**
- * Non-blocking confirm overlay centered on the camera feed.
- * Returns a Promise<boolean> without freezing the camera feed.
- */
-const showConfirm = (message) => {
-  const overlay = document.getElementById("scanner-confirm");
-  const msgEl = document.getElementById("scanner-confirm-message");
-  const yesBtn = document.getElementById("scanner-confirm-yes");
-  const noBtn = document.getElementById("scanner-confirm-no");
-  const closeBtn = document.getElementById("scanner-confirm-close");
-
-  msgEl.textContent = message;
-
-  return new Promise((resolve) => {
-    const cleanup = (value) => {
-      yesBtn.removeEventListener("click", onYes);
-      noBtn.removeEventListener("click", onNo);
-      closeBtn.removeEventListener("click", onClose);
-      document.removeEventListener("keydown", onKeydown);
-      overlay.classList.add("hidden");
-      resolve(value);
-    };
-    const onYes = () => cleanup(true);
-    const onNo = () => cleanup(false);
-    const onClose = () => cleanup(false);
-    const onKeydown = (e) => {
-      if (e.key === "Escape") cleanup(false);
-    };
-
-    yesBtn.addEventListener("click", onYes);
-    noBtn.addEventListener("click", onNo);
-    closeBtn.addEventListener("click", onClose);
-    document.addEventListener("keydown", onKeydown);
-    overlay.classList.remove("hidden");
-  });
 };
 
 /** Initialize scanner when DOM is ready */

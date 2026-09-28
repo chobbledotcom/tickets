@@ -6,15 +6,16 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import {
+  checkOneLegAsStaff,
   postCheckin,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
-import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv(
   "check-in page (GET /checkin/:tokens) for a door-only scanner",
@@ -113,20 +114,9 @@ describeWithEnv(
         "Scanner Mixed",
         "scanner-mixed@test.com",
       );
-      const { handleRequest } = await import("#routes");
-      const staffSession = {
-        cookie: await testCookie(),
-        csrfToken: await testCsrfToken(),
-      };
       // Staff admit one leg through its own row's form; the scanner's bulk
       // actions must still cover both intents for the other leg.
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: staffSession.csrfToken },
-          staffSession.cookie,
-        ),
-      );
+      await checkOneLegAsStaff(first.id, attendee.id);
 
       const response = await awaitTestRequest(
         `/checkin/${attendee.ticket_token}`,

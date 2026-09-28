@@ -46,3 +46,18 @@ export const postCheckin = (
       session.cookie,
     ),
   );
+
+/** Staff admit one leg of a two-listing booking through its own row's form,
+ * the way the admin attendee page posts it. */
+export const checkOneLegAsStaff = async (
+  listingId: number,
+  attendeeId: number,
+): Promise<void> => {
+  await handleRequest(
+    mockFormRequest(
+      `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
+      { csrf_token: await testCsrfToken() },
+      await testCookie(),
+    ),
+  );
+};

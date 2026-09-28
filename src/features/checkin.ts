@@ -5,7 +5,7 @@
  */
 
 import { logActivities } from "#db/activity-log.ts";
-import { setCheckedInOnListings } from "#db/attendees/update.ts";
+import { setCheckedInOnBookingRows } from "#db/attendees/update.ts";
 import { withTransaction } from "#db/client.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
@@ -222,21 +222,16 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
         (attendee) => !attendee.checked_in,
       );
       // Every row's status change and every row's activity record commit as
-      // one unit, grouped per attendee the way the updates address them — a
-      // door's action on the ticket page reads in the activity log exactly
-      // like its camera-scan and per-row siblings do.
+      // one unit, by the rows the eligibility filter selected — a merged
+      // attendee's refunded order on the same listing stays untouched. The
+      // action reads in the activity log exactly like its camera-scan and
+      // per-row siblings do.
       await withTransaction(async (tx) => {
-        for (const [attendeeId, rows] of Map.groupBy(
-          eligibleEntries,
-          (e: TokenEntry) => e.attendee.id,
-        )) {
-          await setCheckedInOnListings(
-            attendeeId,
-            rows.map((e) => e.listing.id),
-            checkedIn,
-            tx,
-          );
-        }
+        await setCheckedInOnBookingRows(
+          eligibleEntries.map((e) => e.bookingRowId),
+          checkedIn,
+          tx,
+        );
         await logActivities(
           eligibleEntries.map((e) => ({
             attendeeId: e.attendee.id,

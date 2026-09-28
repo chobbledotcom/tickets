@@ -2,6 +2,8 @@
 /// <reference lib="dom.iterable" />
 /** Manual check-in: custom combobox + fetch-based form submission.
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
+import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
+
 type OptionDirection = "up" | "down";
 
 const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
@@ -273,10 +275,30 @@ export const initManualCheckin = (): void => {
       const attendeeIdNumber = Number(attendeeId);
       let result = await postScan({ attendee_id: attendeeIdNumber });
 
-      // Non-transferable listing: re-submit with id_verified since the
-      // admin already identified the attendee via the autocomplete list.
+      // Non-transferable listing: the door staff must look at the person's
+      // ID and say so — never assert it from the name pick alone.
       let idVerified = false;
       if (result.status === "verify_id") {
+        const confirmed = await showConfirm(
+          interpolate(
+            getMessage(
+              "messageVerifyIdConfirm",
+              'Does their ID match "{name}"?',
+            ),
+            { name: result.name },
+          ),
+        );
+        if (!confirmed) {
+          showCheckinStatus(
+            interpolate(getMessage("messageSkipped", "Skipped {name}"), {
+              name: result.name,
+            }),
+            "warning",
+          );
+          attendeeIdInput.value = "";
+          input.value = "";
+          return;
+        }
         idVerified = true;
         result = await postScan({
           attendee_id: attendeeIdNumber,

@@ -4,13 +4,13 @@
 
 /* jscpd:ignore-start -- imports */
 import { logActivities } from "#db/activity-log.ts";
-import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import {
+  type AttendeeWithBookingRows,
   getAttendeesByIdsWithBookings,
   getAttendeesByTokens,
 } from "#db/attendees/tokens.ts";
-import { setCheckedInOnListings } from "#db/attendees/update.ts";
+import { setCheckedInOnBookingRows } from "#db/attendees/update.ts";
 import { withTransaction } from "#db/client.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { sumOf, unique } from "#fp";
@@ -53,9 +53,9 @@ export const groupScope = async (group: Group): Promise<ScanScope> => ({
   ),
 });
 
-/** Resolve an AttendeeWithBookings to decrypted entries */
+/** Resolve an attendee's booking rows to decrypted entries */
 const resolveTokenEntries = async (
-  awb: AttendeeWithBookings,
+  awb: AttendeeWithBookingRows,
   privateKey: CryptoKey,
 ): Promise<TokenEntry[]> => {
   const entries = await resolveEntries([awb]);
@@ -65,7 +65,7 @@ const resolveTokenEntries = async (
 /** Get the attendee name from decrypted entries, falling back to raw decrypt */
 const resolveAttendeeName = async (
   allEntries: TokenEntry[],
-  awb: AttendeeWithBookings,
+  awb: AttendeeWithBookingRows,
   privateKey: CryptoKey,
 ): Promise<string> => {
   // One token belongs to one attendee, so every entry names the same person;
@@ -79,7 +79,9 @@ const resolveAttendeeName = async (
   return decrypted[0]!.name;
 };
 
-/** Build a wrong_listing response when scanned token doesn't match the listing */
+/** Build a wrong_listing response when scanned token doesn't match the listing.
+ * A wrong_listing decision always carries the ticket's own door-safe rows, so
+ * the names are never empty. */
 const wrongListingResponse = (
   allEntries: TokenEntry[],
   attendeeName: string,
@@ -113,16 +115,17 @@ const scanBody = (
 });
 
 /** Perform one scan's whole admission as one transaction: the UPDATE that
- * covers every admitted listing and the activity rows for each admitted
- * listing carry that listing's own name, so each listing's record of the day
- * shows its own check-ins. A failure in either write rolls both back, so a
- * check-in never lands without its activity record. */
+ * covers exactly the admitted booking rows — by row id, so a merged
+ * attendee's refunded order on the same listing stays untouched — and the
+ * activity rows for each admitted listing carry that listing's own name, so
+ * each listing's record of the day shows its own check-ins. A failure in
+ * either write rolls both back, so a check-in never lands without its
+ * activity record. */
 const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
   const units = rowsByListing(rows);
   await withTransaction(async (tx) => {
-    await setCheckedInOnListings(
-      rows[0]!.attendee.id,
-      units.map((unit) => unit[0]!.listing.id),
+    await setCheckedInOnBookingRows(
+      rows.map((row) => row.bookingRowId),
       true,
       tx,
     );
@@ -150,7 +153,7 @@ const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
  * door business reading. */
 const scanBy = async (
   scope: ScanScope,
-  load: () => Promise<AttendeeWithBookings | null>,
+  load: () => Promise<AttendeeWithBookingRows | null>,
   force: boolean,
   idVerified: boolean,
   privateKey: CryptoKey,
@@ -218,25 +221,27 @@ export const processScan = async (
   }
   // A camera read carries the ticket token it decoded; a manual pick
   // carries the attendee id its roster option holds.
-  const load =
-    typeof body.token === "string"
-      ? async (): Promise<AttendeeWithBookings | null> =>
-          (await getAttendeesByTokens([body.token as string]))[0] ?? null
-      : typeof body.attendee_id === "number"
-        ? async (): Promise<AttendeeWithBookings | null> =>
-            (
-              await getAttendeesByIdsWithBookings([body.attendee_id as number])
-            ).get(body.attendee_id as number) ?? null
-        : null;
+  const cameraRead = typeof body.token === "string";
+  const load = cameraRead
+    ? async (): Promise<AttendeeWithBookingRows | null> =>
+        (await getAttendeesByTokens([body.token as string]))[0] ?? null
+    : typeof body.attendee_id === "number"
+      ? async (): Promise<AttendeeWithBookingRows | null> =>
+          (
+            await getAttendeesByIdsWithBookings([body.attendee_id as number])
+          ).get(body.attendee_id as number) ?? null
+      : null;
   if (!load) return apiErrorResponse("Missing token");
   // A token is the credential the guest presented, so the answer may name a
-  // wrong door; a picked id is not, so it answers a stranger strictly.
+  // wrong door, and the guest's own credential is what force overrides. A
+  // picked id is neither — force must never widen it, or a crafted id would
+  // admit someone on another door's listings outright.
   return scanBy(
     scope,
     load,
-    body.force === true,
+    body.force === true && cameraRead,
     body.id_verified === true,
     privateKey,
-    typeof body.token !== "string",
+    !cameraRead,
   );
 };

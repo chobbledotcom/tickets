@@ -37,21 +37,20 @@ export const updateCheckedIn = async (
   );
 };
 
-/** Set one attendee's check-in state on every listing a door action covers —
- * one statement covers the whole action, one listing or several. The caller
- * guarantees at least one listing, so an empty action never reaches SQL.
- * The same no-quantity guard as {@link updateCheckedIn} applies to every row.
- * Runs inside the caller's transaction, so the action and its activity
- * rows commit together. */
-export const setCheckedInOnListings = async (
-  attendeeId: number,
-  listingIds: readonly number[],
+/** Set the check-in state on exactly the booking rows a door action
+ * selected — by row id, so a merged attendee's other order on the same
+ * listing stays untouched. The caller passes the rows its eligibility
+ * filter kept; an empty selection never reaches SQL. Runs inside the
+ * caller's transaction, so the action and its activity rows commit
+ * together. */
+export const setCheckedInOnBookingRows = async (
+  bookingRowIds: readonly number[],
   checkedIn: boolean,
   transaction: TxScope,
 ): Promise<void> => {
   await transaction.execute({
-    args: [checkedIn ? 1 : 0, attendeeId, ...listingIds],
-    sql: `UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`,
+    args: [checkedIn ? 1 : 0, ...bookingRowIds],
+    sql: `UPDATE listing_attendees SET checked_in = ? WHERE id IN (${inPlaceholders(bookingRowIds)})`,
   });
 };
 

@@ -10,6 +10,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
+import { todayInTz } from "#shared/timezone.ts";
+import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { orphanAttendeeBooking } from "#test-utils/db-fault.ts";
 import {
@@ -18,7 +21,8 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { groupDoor, scanAtDoor } from "../scanner/support.ts";
+import { refundThroughLedger } from "#test-utils/ledger.ts";
+import { insertSecondBookingRow } from "#test-utils/logistics.ts";
 
 /** An orphaned booking: a real token whose only line points at a listing
  * that no longer resolves, so the door's scope matches none of its rows and
@@ -81,14 +85,17 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
   });
 
-  test("an orphaned ticket line is queried and names no listing", async () => {
+  test("an orphaned ticket line answers wrong_listing, naming its person", async () => {
     const door = await groupDoor(2);
     const token = await orphanedTokenFrom(door.members[0]!.id);
 
     const answer = await scanAtDoor(door.group.id, { token });
 
+    // The line points at a listing that no longer resolves, so the ticket
+    // matches no door. A camera read may name the person it decoded — the
+    // guest presented the credential.
+    expect(answer.response.status).toBe(200);
     expect(answer.json.status).toBe("wrong_listing");
-    expect(answer.json.listingName).toBe("Unknown listing");
     expect(answer.json.name).toBe("Owen");
   });
 
@@ -100,6 +107,61 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     expect(answer.response.status).toBe(404);
     expect(answer.json.status).toBe("not_found");
+  });
+
+  test("a ticket with only no-check-in rows never admits, forceably too", async () => {
+    // A group whose only member sells with no door: its scope holds no
+    // listing, and the attendee's one row sits on exactly that listing.
+    const { group, members } = await groupDoor(1);
+    const { getDb } = await import("#db/client.ts");
+    await getDb().execute({
+      args: [1, members[0]!.id],
+      sql: "UPDATE listings SET purchase_only = 1 WHERE id = ?",
+    });
+    const attendee = await bookTestAttendee(
+      [members[0]!.id],
+      "No Door Person",
+      "nodoor@example.com",
+    );
+
+    for (const body of [
+      { token: attendee.ticket_token },
+      { force: true, token: attendee.ticket_token },
+    ]) {
+      const answer = await scanAtDoor(group.id, body);
+      expect(answer.response.status).toBe(200);
+      expect(answer.json.status).toBe("wrong_listing");
+      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+    }
+  });
+
+  test("a door action leaves a merged attendee's refunded order untouched", async () => {
+    // One attendee, two orders on the same listing: the first is refunded
+    // (the state an attendee merge supports), the second still waits.
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Merged Person",
+      "merged@example.com",
+    );
+    await refundThroughLedger(attendee.id, door.members[0]!.id);
+    await insertSecondBookingRow(
+      attendee.id,
+      door.members[0]!.id,
+      todayInTz(settings.timezone),
+    );
+
+    const answer = await scanAtDoor(door.group.id, {
+      token: attendee.ticket_token,
+    });
+    expect(answer.json.status).toBe("checked_in");
+
+    // The live order checked in; the refunded order kept its state.
+    const rows = await storedCheckinRows(attendee.id);
+    expect([...rows].sort((a, b) => b.checked_in - a.checked_in)).toEqual([
+      { checked_in: 1 },
+      { checked_in: 0 },
+    ]);
   });
 
   describe("the site's private key cannot be unwrapped", () => {
