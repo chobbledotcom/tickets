@@ -115,7 +115,7 @@ const pushOrLogFailure = async (
     logRenewalCdnError(errorContext, pushResult.error);
     return { pushOk: false, token };
   }
-  return undefined;
+  return;
 };
 
 /** Reserve the site's renewal token pair and its intended cutoff in one

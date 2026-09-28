@@ -25,7 +25,11 @@ const nullable = <T>(value: T | null): T | null => value ?? null;
 
 /** A plain column that reads back as the given default when the row holds
  * none. */
-const plainColumn = <DbKey extends string, SiteKey extends keyof BuiltSite & string, Value extends string | number>(
+const plainColumn = <
+  DbKey extends string,
+  SiteKey extends keyof BuiltSite & string,
+  Value extends string | number,
+>(
   dbKey: DbKey,
   siteKey: SiteKey,
   empty: Value,
@@ -44,7 +48,10 @@ const boolFlagMappings = {
 } as const;
 
 /** A boolean stored as 0/1. */
-const boolFlagColumn = <DbKey extends string, SiteKey extends keyof BuiltSite & string>(
+const boolFlagColumn = <
+  DbKey extends string,
+  SiteKey extends keyof BuiltSite & string,
+>(
   dbKey: DbKey,
   siteKey: SiteKey,
 ) => ({
