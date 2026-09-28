@@ -499,12 +499,19 @@ As-built module map:
 
   `loadPaymentReference` requires owner-key `hyb:1` ciphertext and throws at the
   storage boundary for a raw or DB-key value. There is no live plaintext
-  decoder. Historical rows with no usable owner-encrypted index remain
-  permanently unavailable to current in-app refunds. The owner refunds those
-  payments directly in Stripe, Square, SumUp, or the relevant provider. Neither
-  attendee save nor merge backfills them. There is no population decrypt,
-  request-time recovery, dual read, compatibility writer, or promised M11
-  qualification path.
+  decoder. Historical rows with no usable owner-encrypted index stay unavailable
+  to in-app refunds until the owner rebuilds them at
+  `/admin/migrate/rebuild-payment-references`. The action decrypts each stored
+  reference with the request's private key. It tags the reference with the
+  provider the owner states. It writes the encrypted value and its blind index
+  back. Guarded conditional writes stop a replayed or concurrent run from
+  overwriting a row another path has indexed. The action qualifies the attendee
+  provenance pointer with the same rule a booking finalize uses. The rebuild
+  contacts no payment provider and moves no money. Outside that action there is
+  no population decrypt, no request-time recovery, no dual read, and no
+  compatibility writer. Neither attendee save nor merge backfills them. A
+  payment stored before the reference column existed has no row to rebuild.
+  Those payments stay on the manual provider-refund path.
 
   `attendees.pii_payment_session_id` makes that boundary queryable without
   opening PII. `NULL` means historical or otherwise unqualified; `''` proves the

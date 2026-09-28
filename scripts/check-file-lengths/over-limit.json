@@ -12,7 +12,6 @@
   "src/features/public/ticket-payment.ts": 887,
   "src/features/public/ticket-submit.ts": 581,
   "src/fp.ts": 585,
-  "src/shared/admin-surface/areas.ts": 465,
   "src/shared/booking/fold-tree.ts": 485,
   "src/shared/bunny-cdn.ts": 673,
   "src/shared/crypto/keys.ts": 499,
