@@ -14,7 +14,7 @@
   "admin.scanner.search_label": "Search by name or ticket token",
   "admin.scanner.tickets_available": "{count, plural, one {1 ticket available} other {{count} tickets available}}",
   "admin.scanner.no_tickets": "No tickets to check in",
-  "admin.scanner.ticket_option": "{name} ({count, plural, one {1 attendee} other {{count} attendees}}) — {token}",
+  "admin.scanner.ticket_option": "{name} ({count, plural, one {1 attendee} other {{count} attendees}})",
   "admin.scanner.check_in": "Check In",
   "admin.scanner.ticket_count_one": "{count} ticket",
   "admin.scanner.ticket_count_other": "{count} tickets",

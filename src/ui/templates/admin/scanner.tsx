@@ -12,11 +12,12 @@ import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession } from "#types";
 
-/** Ticket option for the manual check-in autocomplete */
+/** Ticket option for the manual check-in autocomplete. It carries the
+ * attendee's internal id, never the ticket credential. */
 export interface TicketOption {
+  attendeeId: number;
   name: string;
   quantity: number;
-  token: string;
 }
 
 /** One door on the doors page: its name and the scanner page that serves it. */
@@ -207,7 +208,11 @@ export const adminScannerPage = (
             {t("admin.scanner.search_label")}
           </label>
           <div class="combobox">
-            <input id="manual-checkin-token" name="token" type="hidden" />
+            <input
+              id="manual-checkin-attendee-id"
+              name="attendee_id"
+              type="hidden"
+            />
             <input
               aria-autocomplete="list"
               aria-controls="ticket-options"
@@ -232,16 +237,15 @@ export const adminScannerPage = (
             >
               {uncheckedIn.map((ticket) => (
                 <div
+                  data-attendee-id={String(ticket.attendeeId)}
                   data-name={escapeHtml(ticket.name)}
                   data-quantity={String(ticket.quantity)}
-                  data-token={ticket.token}
                   role="option"
                   tabIndex={0}
                 >
                   {t("admin.scanner.ticket_option", {
                     count: ticket.quantity,
                     name: escapeHtml(ticket.name),
-                    token: ticket.token,
                   })}
                 </div>
               ))}

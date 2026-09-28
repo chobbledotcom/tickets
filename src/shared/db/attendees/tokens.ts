@@ -174,16 +174,31 @@ type BuildTokenResult<Row, Booking, Result> = (
   bookings: Booking[],
 ) => Result;
 
+/** Turn attendee rows plus their booking lines into results keyed by a row
+ * value (a token index, or the attendee id itself). */
+const resultsByRowKey = <Row extends { id: number }, Booking, Result, Key>(
+  rows: Row[],
+  keyOf: (row: Row) => Key,
+  bookingsByAttendee: Map<number, Booking[]>,
+  build: (row: Row, bookings: Booking[]) => Result,
+): Map<Key, Result> =>
+  new Map(
+    rows.map((row) => [
+      keyOf(row),
+      build(row, bookingsByAttendee.get(row.id) ?? []),
+    ]),
+  );
+
 const tokenResultMap = <Row extends TokenResultRow, Booking, Result>(
   rows: Row[],
   bookingsByAttendee: Map<number, Booking[]>,
   build: BuildTokenResult<Row, Booking, Result>,
 ): Map<string, Result> =>
-  new Map(
-    rows.map((row) => [
-      row.ticket_token_index,
-      build(row, bookingsByAttendee.get(row.id) ?? []),
-    ]),
+  resultsByRowKey(
+    rows,
+    (row) => row.ticket_token_index,
+    bookingsByAttendee,
+    build,
   );
 
 const resultsForTokens = async <Row extends TokenResultRow, Booking, Result>(
@@ -215,6 +230,39 @@ const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger(
   `${ATTENDEE_ALIAS}.id`,
 );
 
+/** The attendee columns a scan needs: identity, the token index its ticket
+ * resolves by, the PII blob for the name, and the ledger balance. */
+const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}`;
+
+type AttendeeScanRow = {
+  id: number;
+  created: string;
+  kind: string;
+  ticket_token_index: BlindIndex;
+  pii_blob: OwnerKeyEncrypted;
+  status_id: number | null;
+  remaining_balance: number;
+};
+
+/** Assemble one attendee's full booking view from its row and lines. */
+const attendeeWithBookingsBuild = (
+  row: AttendeeScanRow,
+  bookings: ListingAttendeeRow[],
+): AttendeeWithBookings => ({
+  bookings,
+  created: row.created,
+  id: row.id,
+  kind: row.kind,
+  pii_blob: row.pii_blob,
+  remaining_balance: row.remaining_balance,
+  status_id: row.status_id,
+  ticket_token: "",
+  ticket_token_index: row.ticket_token_index,
+});
+
+/** The booking lines behind attendee ids, in shared deterministic order. */
+const bookingsByAttendeeIds = bookingRowsByAttendeeIds;
+
 /**
  * Look up attendees by plaintext tokens, returning full booking data.
  * Two queries: attendees by token index, then all listing_attendees for those attendees.
@@ -223,36 +271,38 @@ const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger(
  */
 export const getAttendeesByTokens = async (
   tokens: string[],
-): Promise<(AttendeeWithBookings | null)[]> => {
-  type AttendeeBase = {
-    id: number;
-    created: string;
-    kind: string;
-    ticket_token_index: BlindIndex;
-    pii_blob: OwnerKeyEncrypted;
-    status_id: number | null;
-    remaining_balance: number;
-  };
-
-  return resultsForTokens<
-    AttendeeBase,
-    ListingAttendeeRow,
-    AttendeeWithBookings
-  >(
+): Promise<(AttendeeWithBookings | null)[]> =>
+  resultsForTokens<AttendeeScanRow, ListingAttendeeRow, AttendeeWithBookings>(
     tokens,
-    `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}`,
-    bookingRowsByAttendeeIds,
-    (row, bookings): AttendeeWithBookings => ({
-      bookings,
-      created: row.created,
-      id: row.id,
-      kind: row.kind,
-      pii_blob: row.pii_blob,
-      remaining_balance: row.remaining_balance,
-      status_id: row.status_id,
-      ticket_token: "",
-      ticket_token_index: row.ticket_token_index,
-    }),
+    ATTENDEE_SCAN_COLUMNS,
+    bookingsByAttendeeIds,
+    attendeeWithBookingsBuild,
+  );
+
+/**
+ * Look up one attendee by internal id with the same full booking data the
+ * token lookup returns. Backs scope-checked manual check-in picks, which
+ * must never carry the ticket credential itself.
+ */
+export const getAttendeesByIdsWithBookings = async (
+  ids: number[],
+): Promise<Map<number, AttendeeWithBookings>> => {
+  // The only caller looks up exactly one id; an empty list is a caller bug
+  // and fails loudly in SQL rather than answering an empty map.
+  const rows = await queryAll<AttendeeScanRow>(
+    `SELECT ${ATTENDEE_SCAN_COLUMNS}
+     FROM attendees AS ${ATTENDEE_ALIAS}
+     WHERE ${ATTENDEE_ALIAS}.id IN (${inPlaceholders(ids)}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
+    ids,
+  );
+  const bookingsByAttendee = await bookingsByAttendeeIds(
+    rows.map((row) => row.id),
+  );
+  return resultsByRowKey(
+    rows,
+    (row) => row.id,
+    bookingsByAttendee,
+    attendeeWithBookingsBuild,
   );
 };
 

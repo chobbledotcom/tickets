@@ -12,7 +12,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { orphanAttendeeBooking } from "#test-utils/db-fault.ts";
-import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createMultiBookingAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
+import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { groupDoor, scanAtDoor } from "./support.ts";
 
@@ -39,6 +43,42 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     expect(answer.response.status).toBe(404);
     expect(answer.json.status).toBe("not_found");
+  });
+
+  test("a manual pick admits by attendee id, with no ticket token in the request", async () => {
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Picked Person",
+      "picked@example.com",
+    );
+
+    const answer = await scanAtDoor(door.group.id, {
+      attendee_id: attendee.id,
+    });
+
+    expect(answer.json.status).toBe("checked_in");
+    expect(answer.json.name).toBe("Picked Person");
+    expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+  });
+
+  test("a manual pick for a person on another door's listings answers not_found and names nobody", async () => {
+    const door = await groupDoor(1);
+    const otherDoor = await groupDoor(1, {}, ["Stranger hall"], "Other doors");
+    const stranger = await bookTestAttendee(
+      [otherDoor.members[0]!.id],
+      "Stranger Person",
+      "stranger@example.com",
+    );
+
+    const answer = await scanAtDoor(door.group.id, {
+      attendee_id: stranger.id,
+    });
+
+    expect(answer.response.status).toBe(404);
+    expect(answer.json.status).toBe("not_found");
+    expect(answer.json.name).toBeUndefined();
+    expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
   });
 
   test("an orphaned ticket line is queried and names no listing", async () => {

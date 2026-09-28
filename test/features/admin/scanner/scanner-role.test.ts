@@ -13,6 +13,7 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  bookTestAttendee,
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
@@ -106,6 +107,11 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
 
   test("opens the listing scanner page for a scanner login", async () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "Quiz" });
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Roster Person",
+      "roster@example.com",
+    );
     const { cookie } = await createTestScannerSession();
 
     const response = await getAs(
@@ -118,6 +124,9 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     // The guide link behind this page is staff-only, so a scanner login must
     // not be promised it (never render a forbidden link).
     expect(body).not.toContain('href="/admin/guide');
+    // The manual pick list carries attendee ids, never the ticket
+    // credential: the token opens the attendee's own ticket page elsewhere.
+    expect(body).not.toContain(attendee.ticket_token);
   });
 
   test("answers 404 for a no-check-in listing's door and refuses its scan", async () => {

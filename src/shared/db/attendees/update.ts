@@ -37,20 +37,21 @@ export const updateCheckedIn = async (
   );
 };
 
-/** Check one scanned attendee in on every listing a scan admitted — one
- * statement covers the whole admission, one listing or several. The caller
- * guarantees at least one listing, so an empty admission never reaches SQL.
+/** Set one attendee's check-in state on every listing a door action covers —
+ * one statement covers the whole action, one listing or several. The caller
+ * guarantees at least one listing, so an empty action never reaches SQL.
  * The same no-quantity guard as {@link updateCheckedIn} applies to every row.
- * Runs inside the caller's transaction, so the admission and its activity
+ * Runs inside the caller's transaction, so the action and its activity
  * rows commit together. */
-export const updateCheckedInOnListings = async (
+export const setCheckedInOnListings = async (
   attendeeId: number,
   listingIds: readonly number[],
+  checkedIn: boolean,
   transaction: TxScope,
 ): Promise<void> => {
   await transaction.execute({
-    args: [attendeeId, ...listingIds],
-    sql: `UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`,
+    args: [checkedIn ? 1 : 0, attendeeId, ...listingIds],
+    sql: `UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0`,
   });
 };
 

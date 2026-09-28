@@ -14,8 +14,8 @@ export const initManualCheckin = (): void => {
   if (!form) return;
 
   const input = form.querySelector<HTMLInputElement>("#manual-checkin-input")!;
-  const tokenInput = document.getElementById(
-    "manual-checkin-token",
+  const attendeeIdInput = document.getElementById(
+    "manual-checkin-attendee-id",
   ) as HTMLInputElement;
   const listbox = document.getElementById("ticket-options")!;
   const statusEl = document.getElementById("manual-checkin-status")!;
@@ -62,13 +62,13 @@ export const initManualCheckin = (): void => {
   };
 
   const selectOption = (opt: HTMLLIElement) => {
-    tokenInput.value = opt.dataset.token!;
+    attendeeIdInput.value = opt.dataset.attendeeId!;
     input.value = `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})`;
     setListOpen(false);
   };
 
   input.addEventListener("input", () => {
-    tokenInput.value = "";
+    attendeeIdInput.value = "";
     filterOptions();
   });
 
@@ -169,7 +169,7 @@ export const initManualCheckin = (): void => {
       quantity?: unknown;
       remaining?: unknown;
     },
-    token: string,
+    attendeeId: string,
     idVerified: boolean,
   ) => {
     const idNote = idVerified
@@ -190,11 +190,11 @@ export const initManualCheckin = (): void => {
     const remaining = Number(result.remaining);
     const fullyCheckedIn = !Number.isFinite(remaining) || remaining === 0;
     for (const opt of allOptions()) {
-      if (opt.dataset.token === token && fullyCheckedIn) {
+      if (opt.dataset.attendeeId === attendeeId && fullyCheckedIn) {
         opt.remove();
       }
     }
-    tokenInput.value = "";
+    attendeeIdInput.value = "";
     input.value = "";
   };
 
@@ -207,13 +207,13 @@ export const initManualCheckin = (): void => {
       error?: string;
       quantity?: unknown;
     },
-    token: string,
+    attendeeId: string,
     idVerified: boolean,
   ) => {
     if (result.status === "checked_in") {
       handleCheckedIn(
         result as { name: string; quantity?: unknown },
-        token,
+        attendeeId,
         idVerified,
       );
     } else if (result.status === "already_checked_in") {
@@ -249,8 +249,8 @@ export const initManualCheckin = (): void => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const token = tokenInput.value.trim();
-    if (!token) return;
+    const attendeeId = attendeeIdInput.value.trim();
+    if (!attendeeId) return;
 
     const submitBtn = form.querySelector<HTMLButtonElement>(
       'button[type="submit"]',
@@ -270,17 +270,21 @@ export const initManualCheckin = (): void => {
     };
 
     try {
-      let result = await postScan({ token });
+      const attendeeIdNumber = Number(attendeeId);
+      let result = await postScan({ attendee_id: attendeeIdNumber });
 
       // Non-transferable listing: re-submit with id_verified since the
       // admin already identified the attendee via the autocomplete list.
       let idVerified = false;
       if (result.status === "verify_id") {
         idVerified = true;
-        result = await postScan({ id_verified: true, token });
+        result = await postScan({
+          attendee_id: attendeeIdNumber,
+          id_verified: true,
+        });
       }
 
-      dispatchScanResult(result, token, idVerified);
+      dispatchScanResult(result, attendeeId, idVerified);
     } catch {
       showCheckinStatus(
         getMessage("messageNetworkError", "Network error"),

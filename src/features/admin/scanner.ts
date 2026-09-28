@@ -11,8 +11,11 @@ import { logActivities } from "#db/activity-log.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
-import { updateCheckedInOnListings } from "#db/attendees/update.ts";
+import {
+  getAttendeesByIdsWithBookings,
+  getAttendeesByTokens,
+} from "#db/attendees/tokens.ts";
+import { setCheckedInOnListings } from "#db/attendees/update.ts";
 import { withTransaction } from "#db/client.ts";
 import {
   getAllGroupNames,
@@ -82,21 +85,22 @@ const groupScope = async (group: Group): Promise<ScanScope> => ({
 
 /** The manual check-in list: one option per person, with every one of their
  * unchecked live places on this door's listings summed into one quantity.
- * A pick from this list goes through the same scan as a camera read, so it
- * can never admit something the camera would not. */
+ * An option carries the attendee's internal id, never the ticket credential:
+ * the pick goes through the same scope-checked scan decision as a camera
+ * read, so it can never admit something the camera would not. */
 const manualCheckinOptions = (attendees: Attendee[]): TicketOption[] => [
-  ...reduce((byToken: Map<string, TicketOption>, attendee: Attendee) => {
-    const known = byToken.get(attendee.ticket_token);
+  ...reduce((byAttendee: Map<number, TicketOption>, attendee: Attendee) => {
+    const known = byAttendee.get(attendee.id);
     if (known) known.quantity += attendee.quantity;
     else {
-      byToken.set(attendee.ticket_token, {
+      byAttendee.set(attendee.id, {
+        attendeeId: attendee.id,
         name: attendee.name,
         quantity: attendee.quantity,
-        token: attendee.ticket_token,
       });
     }
-    return byToken;
-  }, new Map<string, TicketOption>())(
+    return byAttendee;
+  }, new Map<number, TicketOption>())(
     filter(
       (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
     )(attendees),
@@ -217,9 +221,10 @@ const scanBody = (
 const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
   const units = rowsByListing(rows);
   await withTransaction(async (tx) => {
-    await updateCheckedInOnListings(
+    await setCheckedInOnListings(
       rows[0]!.attendee.id,
       units.map((unit) => unit[0]!.listing.id),
+      true,
       tx,
     );
     await logActivities(
@@ -236,18 +241,24 @@ const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
   });
 };
 
-/** Resolve a token against one door's scope and perform its scan decision. */
-const scanToken = async (
+/** One door scan, however the request names its person: resolve that person
+ * (a camera-read token, or a manual pick's attendee id), then answer the
+ * door's decision. A camera read names the person it decoded — the guest
+ * presented the credential, so a wrong-door answer may say so. A manual pick
+ * answers a stranger strictly: an id that resolves to nobody on this door's
+ * listings answers not_found, never another door's roster — the ids are
+ * sequential, and a wrong-listing body would name people a scanner has no
+ * door business reading. */
+const scanBy = async (
   scope: ScanScope,
-  token: string,
+  load: () => Promise<AttendeeWithBookings | null>,
   force: boolean,
   idVerified: boolean,
   privateKey: CryptoKey,
+  refuseWrongListing: boolean,
 ): Promise<Response> => {
-  const results = await getAttendeesByTokens([token]);
-  const awb = results[0];
+  const awb = await load();
   if (!awb) return jsonResponse({ status: "not_found" }, 404);
-
   const allEntries = await resolveTokenEntries(awb, privateKey);
   const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
   const decision = decideScan(
@@ -257,7 +268,19 @@ const scanToken = async (
     scope.checkInEveryListing,
     idVerified,
   );
+  if (refuseWrongListing && decision.kind === "wrong_listing") {
+    return jsonResponse({ status: "not_found" }, 404);
+  }
+  return scanDecisionResponse(decision, allEntries, attendeeName);
+};
 
+/** Answer one scan's decision: the shared responses a camera read and a
+ * manual pick both reach. */
+const scanDecisionResponse = async (
+  decision: ReturnType<typeof decideScan>,
+  allEntries: TokenEntry[],
+  attendeeName: string,
+): Promise<Response> => {
   switch (decision.kind) {
     case "not_found":
       return jsonResponse({ status: "not_found" }, 404);
@@ -286,9 +309,6 @@ const processScan = async (
   scope: ScanScope,
   body: Record<string, unknown>,
 ): Promise<Response> => {
-  if (typeof body.token !== "string") {
-    return apiErrorResponse("Missing token");
-  }
   const privateKey = await getRequestPrivateKey();
   if (!privateKey) {
     logError({
@@ -297,12 +317,28 @@ const processScan = async (
     });
     return apiErrorResponse("Decryption unavailable", 500);
   }
-  return scanToken(
+  // A camera read carries the ticket token it decoded; a manual pick
+  // carries the attendee id its roster option holds.
+  const load =
+    typeof body.token === "string"
+      ? async (): Promise<AttendeeWithBookings | null> =>
+          (await getAttendeesByTokens([body.token as string]))[0] ?? null
+      : typeof body.attendee_id === "number"
+        ? async (): Promise<AttendeeWithBookings | null> =>
+            (
+              await getAttendeesByIdsWithBookings([body.attendee_id as number])
+            ).get(body.attendee_id as number) ?? null
+        : null;
+  if (!load) return apiErrorResponse("Missing token");
+  // A token is the credential the guest presented, so the answer may name a
+  // wrong door; a picked id is not, so it answers a stranger strictly.
+  return scanBy(
     scope,
-    body.token,
+    load,
     body.force === true,
     body.id_verified === true,
     privateKey,
+    typeof body.token !== "string",
   );
 };
 

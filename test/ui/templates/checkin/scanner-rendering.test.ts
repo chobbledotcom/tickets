@@ -39,6 +39,9 @@ describeWithEnv(
       // row's state reads as a badge instead.
       expect(body).toContain("Check In All");
       expect(body).toContain('class="bulk-checkin"');
+      // The hidden field's value is what the POST reads; the admit button
+      // must submit the true spelling, not any falsy stand-in.
+      expect(body).toContain('type="hidden" value="true"');
       expect(body).toContain("Not checked in");
       expect(body).not.toContain(`/admin/listing/${listing.id}/attendee/`);
     });
@@ -63,6 +66,7 @@ describeWithEnv(
       // The checked refunded row must not flip the bulk action to checkout
       // while the live row still waits at the door.
       expect(beforeBody).toContain("Check In All");
+      expect(beforeBody).not.toContain("Check Out All");
       expect(beforeBody).toContain("Refunded");
       expect(beforeBody).toContain("Not checked in");
 

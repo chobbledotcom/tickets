@@ -4,7 +4,9 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { updateCheckedIn } from "#db/attendees/update.ts";
+import { logActivities } from "#db/activity-log.ts";
+import { setCheckedInOnListings } from "#db/attendees/update.ts";
+import { withTransaction } from "#db/client.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
 import {
@@ -201,9 +203,10 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
       // Refunded rows are never touched, and purchase-only ("No Check-In")
       // listings' rows are excluded too — a package QR shared with a checkable
       // member must not silently mark the no-check-in member as attended.
-      const eligible = filter(
+      const eligibleEntries = filter(
         (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchase_only,
-      )(decrypted).map((e) => e.attendee);
+      )(decrypted);
+      const eligible = eligibleEntries.map((e) => e.attendee);
 
       if (eligible.length === 0) {
         return redirectResponse(
@@ -218,11 +221,31 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
         eligible,
         (attendee) => !attendee.checked_in,
       );
-      await Promise.all(
-        map((a: Attendee) => updateCheckedIn(a.id, a.listing_id, checkedIn))(
-          eligible,
-        ),
-      );
+      // Every row's status change and every row's activity record commit as
+      // one unit, grouped per attendee the way the updates address them — a
+      // door's action on the ticket page reads in the activity log exactly
+      // like its camera-scan and per-row siblings do.
+      await withTransaction(async (tx) => {
+        for (const [attendeeId, rows] of Map.groupBy(
+          eligibleEntries,
+          (e: TokenEntry) => e.attendee.id,
+        )) {
+          await setCheckedInOnListings(
+            attendeeId,
+            rows.map((e) => e.listing.id),
+            checkedIn,
+            tx,
+          );
+        }
+        await logActivities(
+          eligibleEntries.map((e) => ({
+            attendeeId: e.attendee.id,
+            listing: e.listing.id,
+            message: `Attendee checked ${checkedIn ? "in" : "out"} for '${e.listing.name}'`,
+          })),
+          tx,
+        );
+      });
 
       let message: string;
       if (!checkedIn) {

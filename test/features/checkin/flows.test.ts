@@ -19,6 +19,35 @@ describeWithEnv(
   { db: true },
   () => {
     describe("POST /checkin/:tokens", () => {
+      test("records each changed row in the activity log", async () => {
+        const { listing, session, token } = await setupCheckinTest(
+          "Logged",
+          "logged@test.com",
+        );
+
+        await postCheckin(token, session, "true");
+        await postCheckin(token, session, "false");
+
+        const { getAttendeesByTokens } = await import(
+          "#db/attendees/tokens.ts"
+        );
+        const { getAttendeeActivityLog } = await import("#db/activity-log.ts");
+        const [awb] = await getAttendeesByTokens([token]);
+        const { withTestSession } = await import("#test-utils/session.ts");
+        // Reading the log decrypts its messages, which needs a session's
+        // private key: run the read inside the test session's context.
+        const log = await withTestSession(() =>
+          getAttendeeActivityLog(awb!.id),
+        );
+
+        // Newest first: the checkout the door made last, then the check-in.
+        // Older rows (the attendee's own creation) sit below them.
+        expect(log.map((entry) => entry.message).slice(0, 2)).toEqual([
+          `Attendee checked out for '${listing.name}'`,
+          `Attendee checked in for '${listing.name}'`,
+        ]);
+      });
+
       test("checks in attendee with check_in=true and shows success", async () => {
         const { token, session } = await setupCheckinTest(
           "Eve",

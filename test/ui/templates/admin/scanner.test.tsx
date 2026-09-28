@@ -43,15 +43,15 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [
-        { name: "Ada", quantity: 2, token: "ada-token" },
-        { name: "Sam", quantity: 1, token: "sam-token" },
+        { attendeeId: 41, name: "Ada", quantity: 2 },
+        { attendeeId: 42, name: "Sam", quantity: 1 },
       ],
     );
 
     expect(html).toContain("2 tickets available");
     expect(html).toContain('data-name="Ada"');
     expect(html).toContain('data-quantity="2"');
-    expect(html).toContain('data-token="ada-token"');
+    expect(html).toContain('data-attendee-id="41"');
     expect(html).toContain('data-name="Sam"');
   });
 
@@ -71,7 +71,7 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [{ name: "Ada", quantity: 1, token: "ada-token" }],
+      [{ attendeeId: 41, name: "Ada", quantity: 1 }],
     );
 
     expect(html).toContain("1 ticket available");
@@ -209,8 +209,8 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('name="csrf_token"');
     expect(html).toContain('for="manual-checkin-input"');
     expect(html).toContain('class="combobox"');
-    expect(html).toContain('id="manual-checkin-token"');
-    expect(html).toContain('name="token"');
+    expect(html).toContain('id="manual-checkin-attendee-id"');
+    expect(html).toContain('name="attendee_id"');
     expect(html).toContain('autocomplete="off"');
     expect(html).toContain('id="manual-checkin-input"');
     expect(html).toContain('type="text"');
@@ -284,7 +284,9 @@ describe("the admin scanner doors page template", () => {
     expect(html).toContain(t("admin.scanner.doors_empty"));
     expect(html).not.toContain(t("terms.listings"));
     expect(html).not.toContain(t("terms.groups"));
-    // A door's path always ends in "/scan"; the footer's Log out link stays.
-    expect(html).not.toContain("/scan");
+    // A door's path always ends in "/scan"; the empty doors page links to no
+    // door (the nav's own /admin/scanner route is not a door).
+    expect(html).not.toContain('href="/admin/listing/');
+    expect(html).not.toContain('href="/admin/groups/');
   });
 });
