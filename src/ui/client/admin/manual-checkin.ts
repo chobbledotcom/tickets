@@ -312,8 +312,8 @@ export const initManualCheckin = (): void => {
         getMessage("messageNetworkError", "Network error"),
         "error",
       );
+    } finally {
+      submitBtn.disabled = false;
     }
-
-    submitBtn.disabled = false;
   });
 };

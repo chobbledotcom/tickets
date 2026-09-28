@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { useManualCheckinPage } from "./fixture.ts";
+import { type ManualCheckinPage, useManualCheckinPage } from "./fixture.ts";
 
 /** The first POST answers verify_id, so the confirm overlay appears; wait
  *  for it, then answer through its buttons. */
@@ -20,7 +20,9 @@ describe("manual check-in ID verification", () => {
   /** Submit a pick whose first answer is verify_id, then dismiss the prompt
    *  the way the organiser would. Any dismissal must skip the person: one
    *  POST, no verified resubmit, "Skipped Bea", and both inputs cleared. */
-  const dismissedPromptSkips = async (dismiss: () => void): Promise<void> => {
+  const dismissedPromptSkips = async (
+    dismiss: (page: ManualCheckinPage) => void,
+  ): Promise<void> => {
     const page = setup();
     page.attendeeIdInput.value = "12";
     const bodies: unknown[] = [];
@@ -31,7 +33,7 @@ describe("manual check-in ID verification", () => {
 
     const submitting = page.submit();
     await waitForConfirm();
-    dismiss();
+    dismiss(page);
     await submitting;
 
     expect(bodies).toEqual([{ attendee_id: 12 }]);
@@ -39,6 +41,8 @@ describe("manual check-in ID verification", () => {
     expect(page.status.className).toBe("checkin-status checkin-status-warning");
     expect(page.attendeeIdInput.value).toBe("");
     expect(page.input.value).toBe("");
+    // The early return must leave the form usable for the next pick.
+    expect(page.submitButton.disabled).toBe(false);
   };
 
   test("ID verification resubmits before showing success", async () => {
@@ -89,8 +93,14 @@ describe("manual check-in ID verification", () => {
   });
 
   test("escape closes the ID prompt and declines it", async () => {
-    await dismissedPromptSkips(() =>
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })),
+    await dismissedPromptSkips((page) =>
+      // The dialog listens on the installed window's document, so the event
+      // must come from that window's own KeyboardEvent.
+      document.dispatchEvent(
+        new page.window.KeyboardEvent("keydown", {
+          key: "Escape",
+        }) as unknown as Event,
+      ),
     );
   });
 
