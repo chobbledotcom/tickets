@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#shared/dates.ts";
-import { setupCheckinTest } from "#test/features/checkin/helpers.ts";
+import {
+  postCheckin,
+  setupCheckinTest,
+} from "#test/features/checkin/helpers.ts";
 import { tableRowContaining } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -10,9 +13,10 @@ import {
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
+import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { adminGet, testCookie } from "#test-utils/session.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
@@ -254,6 +258,72 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       });
       const body = await response.text();
       expect(body).not.toContain("<th>Date</th>");
+    });
+
+    test("keeps the check-in action while some eligible rows await check-in", async () => {
+      const { attendee, first } = await createTwoListingBooking(
+        "Staff Mixed",
+        "staffmixed@test.com",
+      );
+      const { handleRequest } = await import("#routes");
+      const session = {
+        cookie: await testCookie(),
+        csrfToken: await testCsrfToken(),
+      };
+      // Staff check in one leg through its own row's form; the other waits.
+      await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: session.csrfToken },
+          session.cookie,
+        ),
+      );
+
+      const response = await awaitTestRequest(
+        `/checkin/${attendee.ticket_token}`,
+        { cookie: session.cookie },
+      );
+      const body = await response.text();
+      // Staff have the per-row controls for fine-grained work, so the bulk
+      // action stays on check-in until EVERY eligible row is in.
+      expect(body).toContain("Check In All");
+      expect(body).toContain("Check out");
+    });
+
+    test("offers checkout when every eligible row is checked in", async () => {
+      const { token } = await setupCheckinTest("Stella", "stella@test.com");
+      const session = {
+        cookie: await testCookie(),
+        csrfToken: await testCsrfToken(),
+      };
+      await postCheckin(token, session, "true");
+
+      const body = await (await adminGet(`/checkin/${token}`)).text();
+      expect(body).toContain("Check Out All");
+      expect(body).toContain('class="bulk-checkout"');
+    });
+
+    test("hides the bulk action when no eligible row remains", async () => {
+      const { attendee, listing, token } = await createTestAttendeeWithToken(
+        "Staff Refunded",
+        "staffrefunded@test.com",
+      );
+      const cookie = await testCookie();
+      const session = { cookie, csrfToken: await testCsrfToken() };
+      await postCheckin(token, session, "true");
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      await refundThroughLedger(attendee.id, listing.id);
+
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      // The token's only row is refunded, so the POST has nothing it may
+      // change: no bulk action is advertised, for staff or scanner.
+      expect(body).toContain("Refunded");
+      expect(body).not.toContain("Check In All");
+      expect(body).not.toContain("Check Out All");
+      expect(body).not.toContain('name="check_in"');
     });
   });
 });

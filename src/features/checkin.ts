@@ -177,13 +177,17 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
     // listing links into the admin, which a scanner login cannot open. A
     // door-only login (a scanner) reads door facts only; an agent's own
     // delivery rows still show contact details, which the run sheet needs.
-    const canCheckIn = isDoorRole(session.adminLevel);
-    const doorOnly = canCheckIn && !isStaffRole(session.adminLevel);
+    // The toggle form renders only when the POST has something it can change
+    // — a token whose every row is refunded or no-check-in offers no action.
+    const door = isDoorRole(session.adminLevel);
+    const canCheckIn =
+      door &&
+      entries.some((e) => !e.attendee.refunded && !e.listing.purchase_only);
     return visibleEntries.length === 0
       ? authFailure("html", "forbidden")
       : renderAdminCheckin(request, tokens, visibleEntries, {
           canCheckIn,
-          doorOnly,
+          doorOnly: door && !isStaffRole(session.adminLevel),
           linkAdminPages: isStaffRole(session.adminLevel),
         });
   });

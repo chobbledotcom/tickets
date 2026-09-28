@@ -10,8 +10,8 @@ import {
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
@@ -38,42 +38,24 @@ describeWithEnv(
       // staff-only admin endpoint, so a scanner is never shown one. Each
       // row's state reads as a badge instead.
       expect(body).toContain("Check In All");
+      expect(body).toContain('class="bulk-checkin"');
       expect(body).toContain("Not checked in");
       expect(body).not.toContain(`/admin/listing/${listing.id}/attendee/`);
     });
 
     test("still admits the live row of a partly refunded attended ticket", async () => {
-      const first = await createTestListing({
-        maxAttendees: 10,
-        name: "Doors",
-      });
-      const second = await createTestListing({
-        maxAttendees: 10,
-        name: "Workshop",
-      });
-      const attendee = await createMultiBookingAttendee(
+      const { attendee, first } = await createTwoListingBooking(
         "Mixed",
         "mixed@test.com",
-        [{ listingId: first.id }, { listingId: second.id }],
       );
       const token = attendee.ticket_token;
       const { cookie } = await createTestScannerSession();
       const session = { cookie, csrfToken: await testCsrfToken() };
 
-      // Stamp the first leg's ledger order, so its booking can be refunded
-      // the way the admin refund flow would.
-      const { postListingSale, refundBookedOrder } = await import(
-        "#test-utils/ledger.ts"
-      );
-      await postListingSale({
-        attendeeId: attendee.id,
-        gross: 500,
-        listingId: first.id,
-      });
-
       // One leg is attended and then refunded; the other still waits.
       await postCheckin(token, session, "true");
-      await refundBookedOrder(attendee.id, first.id);
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      await refundThroughLedger(attendee.id, first.id);
       await postCheckin(token, session, "false");
 
       const before = await awaitTestRequest(`/checkin/${token}`, { cookie });
@@ -99,6 +81,29 @@ describeWithEnv(
       );
     });
 
+    test("hides the bulk action when no row can change", async () => {
+      const { attendee, listing, token } = await createTestAttendeeWithToken(
+        "Nora",
+        "nora@test.com",
+      );
+      const { cookie } = await createTestScannerSession();
+      const session = { cookie, csrfToken: await testCsrfToken() };
+
+      // The token's only leg is attended and then refunded: the POST has
+      // nothing it is allowed to change.
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      await refundThroughLedger(attendee.id, listing.id);
+      await postCheckin(token, session, "true");
+
+      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
+      const body = await response.text();
+      // The page keeps the row's refunded badge but advertises no action
+      // that the POST could never honour.
+      expect(body).toContain("Refunded");
+      expect(body).not.toContain("Check In All");
+      expect(body).not.toContain('name="check_in"');
+    });
+
     test("offers checkout once a row is checked, with no per-row controls", async () => {
       const { token } = await setupCheckinTest("Todd", "todd@test.com");
       const { cookie } = await createTestScannerSession();
@@ -109,6 +114,7 @@ describeWithEnv(
       const body = await response.text();
       // The one bulk action can undo the check-in the door just made.
       expect(body).toContain("Check Out All");
+      expect(body).toContain('class="bulk-checkout"');
       expect(body).toContain('name="check_in"');
       expect(body).toContain('value="false"');
       expect(body).not.toContain("/attendee/");

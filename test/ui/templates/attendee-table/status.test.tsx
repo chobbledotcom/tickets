@@ -54,6 +54,42 @@ describe("attendee status cells", () => {
     expect(html).not.toContain("<form");
   });
 
+  test("renders read-only state badges when the toggle form is refused", () => {
+    const checked = renderStatus(
+      { checked_in: true },
+      { showCheckinState: true },
+    );
+    expect(checked).toBe('<span class="badge-ok">Checked in</span>');
+    expect(checked).not.toContain("<form");
+
+    const unchecked = renderStatus(
+      { checked_in: false },
+      { showCheckinState: true },
+    );
+    expect(unchecked).toBe('<span class="muted small">Not checked in</span>');
+    expect(unchecked).not.toContain("<form");
+  });
+
+  test("gives the refunded badge precedence over the state badge", () => {
+    const html = renderStatus(
+      { checked_in: true, refunded: true },
+      { showCheckinState: true },
+    );
+
+    expect(html).toBe('<span class="badge-alert">Refunded</span>');
+  });
+
+  test("keeps a supplied empty active filter instead of the default", () => {
+    const html = renderStatus(
+      { checked_in: true, id: 8 },
+      { activeFilter: "" },
+    );
+
+    expect(html).toContain(
+      '<input name="return_filter" type="hidden" value="">',
+    );
+  });
+
   test("renders an unchecked attendee with default return state", () => {
     const token = getCurrentCsrfToken();
 

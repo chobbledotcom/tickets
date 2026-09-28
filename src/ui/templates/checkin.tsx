@@ -110,9 +110,9 @@ export const checkinAdminPage = (
           rows: tableRows,
           // Each row's form POSTs to a staff-only admin endpoint, so only
           // staff see it; a door-only login reads each row's state as a
-          // badge instead.
+          // badge instead — eligibility never decides the projection.
           showCheckin: canCheckIn && options.linkAdminPages,
-          showCheckinState: canCheckIn && !options.linkAdminPages,
+          showCheckinState: options.doorOnly,
           showDate,
           showListing: true,
         }}
