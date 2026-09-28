@@ -4,7 +4,10 @@ import {
   attendeeListHref,
   attendeeListOrder,
 } from "#shared/attendee-list-controls.ts";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+import {
+  attendeeLineRow,
+  withPairBookings,
+} from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import {
@@ -66,9 +69,11 @@ const listingRosterView = (opts: ListingPanelOptions) => {
       : undefined,
   });
   const returnUrl = attendeeListHref(list.setup, list.state);
-  const tableRows: AttendeeTableRow[] = pipe(
-    map((a: Attendee): AttendeeTableRow => attendeeLineRow(a, listing)),
-  )(orderedAttendees);
+  const tableRows: AttendeeTableRow[] = withPairBookings(
+    pipe(map((a: Attendee): AttendeeTableRow => attendeeLineRow(a, listing)))(
+      orderedAttendees,
+    ),
+  );
   return {
     adjustedCount,
     completeQuantitySum,

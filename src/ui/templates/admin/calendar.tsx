@@ -6,7 +6,10 @@
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+import {
+  attendeeLineRow,
+  withPairBookings,
+} from "#shared/attendee-table-rows.ts";
 /* jscpd:ignore-end */
 import { formatDateLabel } from "#shared/dates.ts";
 import { filterHref, type ParamWriter } from "#shared/filter-href.ts";
@@ -84,12 +87,14 @@ export const adminCalendarPage = (
   agents: LogisticsAgent[] = [],
   agentFilter: AgentFilter = "all",
 ): string => {
-  const tableRows: AttendeeTableRow[] = pipe(
-    map(
-      (a: CalendarAttendeeRow): AttendeeTableRow =>
-        attendeeLineRow(a, { id: a.listingId, name: a.listingName }),
-    ),
-  )(attendees);
+  const tableRows: AttendeeTableRow[] = withPairBookings(
+    pipe(
+      map(
+        (a: CalendarAttendeeRow): AttendeeTableRow =>
+          attendeeLineRow(a, { id: a.listingId, name: a.listingName }),
+      ),
+    )(attendees),
+  );
 
   const view: CalendarView = {
     agent: agentFilter,

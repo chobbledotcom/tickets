@@ -7,7 +7,10 @@
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+import {
+  attendeeLineRow,
+  withPairBookings,
+} from "#shared/attendee-table-rows.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
@@ -34,12 +37,14 @@ export const checkinAdminPage = (
 ): string => {
   const { canCheckIn } = options;
   const showDate = entries.some((e) => e.attendee.date !== null);
-  const tableRows: AttendeeTableRow[] = pipe(
-    map(
-      (e: TokenEntry): AttendeeTableRow =>
-        attendeeLineRow(e.attendee, e.listing),
-    ),
-  )(entries);
+  const tableRows: AttendeeTableRow[] = withPairBookings(
+    pipe(
+      map(
+        (e: TokenEntry): AttendeeTableRow =>
+          attendeeLineRow(e.attendee, e.listing),
+      ),
+    )(entries),
+  );
 
   // "All" means every live line fully admitted: a part booking still owes
   // tickets, so the bulk button stays a check-in.

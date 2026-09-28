@@ -106,6 +106,37 @@ describe("attendee status cells", () => {
     expect(html).toContain('href="/admin/listing/9/attendee/12/checkin"');
   });
 
+  test("picks the control from the pair's booking, not the row's line", () => {
+    // One qty-1 line of a two-line pair: the POST its toggle would make
+    // moves the whole pair, so the row links to the quantity page instead.
+    const html = String(
+      createStatusRenderer(makeOpts())(
+        makeRow({
+          attendee: testAttendee({ checked_in: 0, id: 13, quantity: 1 }),
+          booking: { checked_in: 0, quantity: 2 },
+          listings: [{ id: 9, name: "Show" }],
+        }),
+      ),
+    );
+
+    expect(html).toContain('<a class="link-button checkin"');
+    expect(html).not.toContain("<form");
+  });
+
+  test("a pair holding one ticket keeps the direct toggle", () => {
+    const html = String(
+      createStatusRenderer(makeOpts())(
+        makeRow({
+          attendee: testAttendee({ checked_in: 0, id: 14, quantity: 1 }),
+          booking: { checked_in: 0, quantity: 1 },
+          listings: [{ id: 9, name: "Show" }],
+        }),
+      ),
+    );
+
+    expect(html).toContain('<button class="link-button checkin"');
+  });
+
   test("throws when a check-in row has no listing", () => {
     expect(() => renderStatus({ id: 42 }, {}, [])).toThrow(
       "Attendee 42 has no listing",

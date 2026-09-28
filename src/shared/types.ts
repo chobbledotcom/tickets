@@ -69,10 +69,8 @@ export const CONTACT_FIELDS = ContactFieldSchema.options;
 /** Type guard: check if an arbitrary string is a valid ContactField */
 export const isContactField = guardFor(ContactFieldSchema);
 
-/**
- * A listing's contact fields, as comma-separated ContactField names, or empty
- * for name only. `parseListingFields` is what enforces it at runtime.
- */
+/** A listing's contact fields: comma-separated ContactField names, or empty
+ *  for name only. `parseListingFields` enforces it at runtime. */
 export type ListingFields = string;
 
 /** Attendee contact details — the core PII fields collected at registration */
@@ -123,15 +121,13 @@ export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 /** Type guard: check if an arbitrary string is a valid ListingType */
 export const isListingType = guardFor(ListingTypeSchema);
 
-/** The persisted email template types: the attendee confirmation and the admin
- *  notification. The discriminator the renderer, the settings store, and the
- *  admin forms all key on. A plain union rather than a picklist schema,
- *  because nothing validates a string against it — every value comes from a
- *  typed call, never from a form or a stored row. */
+/** The persisted email template types: the attendee confirmation and the
+ *  admin notification. The discriminator the renderer, the settings store,
+ *  and the admin forms all key on. A plain union, because nothing validates
+ *  a string against it — every value comes from a typed call. */
 export type EmailTemplateType = "confirmation" | "admin";
 
-/** A single part of an email template: the subject line, the html body, or the
- *  plain-text body. A plain union for the same reason. */
+/** One part of an email template: the subject, the html body, or the text. */
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
@@ -903,13 +899,16 @@ export type DisplayAttendee = Pick<
   | "ticket_token"
 >;
 
-/**
- * A single row in the attendee table: an attendee plus the listings the row
+/** The (person, listing) pair's summed booking: the pair's lines' ticket
+ * counts added together. The check-in controls pick the direct toggle from
+ * it, because the POST a control makes moves the whole pair. */
+export type PairBooking = { checked_in: number; quantity: number };
+
+/** A single row in the attendee table: an attendee plus the listings the row
  * covers, in display order. Roster/check-in tables render one row per booking
- * line (a one-listing array); the browsing tables (attendees list, dashboard)
- * group an attendee's lines into one row carrying every listing.
- */
+ * line; the browsing tables group an attendee's lines into one row. */
 export type AttendeeTableRow = {
   attendee: DisplayAttendee;
+  booking?: PairBooking;
   listings: AttendeeRowListing[];
 };

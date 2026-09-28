@@ -20,11 +20,14 @@ import {
 } from "#test-utils/assertions.ts";
 import {
   brunoOnTwoListings,
+  createDualPackageAttendee,
   setupListingAndAttendee,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */
@@ -185,6 +188,34 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendees`,
         "Check out",
       );
+    });
+
+    test("routes a qty-1 line of a multi-row pair through the quantity page", async () => {
+      // A person merged from two bookings on one listing holds two rows; the
+      // qty-1 row's old direct toggle would POST with no count and move the
+      // whole pair. Both rows must link to the quantity page instead.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "PairKit",
+      });
+      const attendee = await createDualPackageAttendee(
+        listing.id,
+        group.id,
+        "Cara Pair",
+        "cara-pair@example.com",
+      );
+
+      const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
+      const html = await expectHtmlResponse(response, 200, "Cara Pair");
+
+      expect(html).toContain(
+        `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      expect(html).not.toContain('name="check_in"');
     });
   });
 

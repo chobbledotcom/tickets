@@ -1,4 +1,3 @@
-import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { isServicing } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -10,6 +9,7 @@ import {
   type AttendeeTableRow,
   type DisplayAttendee,
   hasTicketQuantity,
+  type PairBooking,
 } from "#types";
 
 /** A no-quantity row has no live customer ticket and cannot be checked in. */
@@ -20,6 +20,9 @@ export const noQuantityIndicator = (): JSX.Element => (
 /** What one roster line's check-in controls read. */
 type CheckinControlsProps = {
   attendee: DisplayAttendee;
+  /** The (person, listing) pair's summed booking, when the table's loader
+   * grouped the pair's lines. */
+  booking?: PairBooking;
   listingId: number;
   activeFilter: string;
   returnUrl: string | undefined;
@@ -49,20 +52,26 @@ const checkinPageHref = (
  * it holds. */
 const CheckinControls = ({
   attendee,
+  booking,
   listingId,
   activeFilter,
   returnUrl,
 }: CheckinControlsProps): JSX.Element => {
-  if (attendee.quantity > 1) {
+  // The POST a control makes moves the pair's whole booking, so the control
+  // is picked from the pair's totals: a pair holding one ticket keeps the
+  // direct toggle, a larger pair links to the quantity page.
+  const bookingQuantity = booking?.quantity ?? attendee.quantity;
+  const bookingCheckedIn = booking?.checked_in ?? attendee.checked_in;
+  if (bookingQuantity > 1) {
     const href = checkinPageHref(attendee, listingId, activeFilter, returnUrl);
     return (
       <span class="checkin-links">
-        {remainingTickets(attendee) > 0 ? (
+        {bookingQuantity > bookingCheckedIn ? (
           <a class="link-button checkin" href={href}>
             {t("admin.attendee_table.check_in")}
           </a>
         ) : undefined}
-        {attendee.checked_in > 0 ? (
+        {bookingCheckedIn > 0 ? (
           <a class="link-button checkout" href={href}>
             {t("admin.attendee_table.check_out")}
           </a>
@@ -70,7 +79,7 @@ const CheckinControls = ({
       </span>
     );
   }
-  const out = attendee.checked_in > 0;
+  const out = bookingCheckedIn > 0;
   return (
     <CsrfForm
       action={`/admin/listing/${listingId}/attendee/${attendee.id}/checkin`}
@@ -119,5 +128,6 @@ export const createStatusRenderer =
         `Attendee ${attendee.id} has no listing`,
       ).id,
       returnUrl: options.returnUrl,
+      ...(row.booking !== undefined && { booking: row.booking }),
     });
   };

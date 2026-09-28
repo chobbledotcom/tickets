@@ -1,5 +1,8 @@
 import { t } from "#i18n";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+import {
+  attendeeLineRow,
+  withPairBookings,
+} from "#shared/attendee-table-rows.ts";
 import {
   AttendeeTableBlock,
   attendeeTableOptions,
@@ -21,8 +24,10 @@ const buildAttendeeRows = (
     listings.map((listing) => [listing.id, listing] as const),
   );
   // These attendees are scoped to this group's loaded listings.
-  return attendees.map((attendee) =>
-    attendeeLineRow(attendee, listingMap.get(attendee.listing_id)!),
+  return withPairBookings(
+    attendees.map((attendee) =>
+      attendeeLineRow(attendee, listingMap.get(attendee.listing_id)!),
+    ),
   );
 };
 
