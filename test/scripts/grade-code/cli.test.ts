@@ -10,6 +10,21 @@ import {
   jevReply,
 } from "./support.ts";
 
+/** A fake deps whose readSecret counts its calls. */
+const depsCountingSecretReads = () => {
+  let reads = 0;
+  return {
+    deps: {
+      ...depsOver({ files: { "src/features/admin/a-page.ts": CLEAN_CODE } }),
+      readSecret: () => {
+        reads++;
+        return Promise.resolve("file-key");
+      },
+    },
+    reads: () => reads,
+  };
+};
+
 describe("runGradeCodeCli", () => {
   test("prints usage for --help and nothing else", async () => {
     const { io, out } = ioWith(["--help"]);
@@ -175,6 +190,19 @@ describe("runGradeCodeCli", () => {
     expect(err).toEqual([
       "note: no Jev API key (set OPENCODE_API_KEY); grading mechanical checks only",
     ]);
+  });
+
+  test("does not read the secret file when it cannot be used", async () => {
+    const { deps, reads } = depsCountingSecretReads();
+    const withEnv = ioWith(["src/features/admin/a-page.ts"], {
+      OPENCODE_API_KEY: "key",
+    });
+    expect(await runGradeCodeCli(withEnv.io, deps)).toBe(0);
+    expect(reads()).toBe(0);
+    expect(withEnv.out.join("\n")).toContain("Jev: model=jev-test");
+    const off = ioWith(["src/features/admin/a-page.ts", "--no-jev"]);
+    expect(await runGradeCodeCli(off.io, deps)).toBe(0);
+    expect(reads()).toBe(0);
   });
 
   test("ranks a sweep without a key as complete mechanical grades", async () => {

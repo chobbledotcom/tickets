@@ -31,7 +31,9 @@ export interface ScoreQuestion {
   type: "score";
 }
 
-const templateOnly = (facts: CodeFacts): boolean => facts.kind === "template";
+/** A file that shows copy to a reader: a template, or JSX anywhere else. */
+const showsCopy = (facts: CodeFacts): boolean =>
+  facts.kind === "template" || facts.rendersJsx;
 
 const withWriteCalls = (facts: CodeFacts): boolean =>
   facts.writeCalls.length > 0;
@@ -220,7 +222,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     instructions:
       'Judge the template against "Where the copy lives" in AGENTS.md: every string a user reads (labels, buttons, errors, warnings, headers, empty states) comes from the message catalog through t("key"), not from a hard-coded string in the template. A string built from parts, or a value computed in the page, is data rather than copy. Attribute values and aria labels are copy too. Do not penalise developer-facing content such as a debug value or a URL.',
     label: "Copy lives in the catalog",
-    requires: templateOnly,
+    requires: showsCopy,
     weight: 4,
   },
   {
@@ -234,7 +236,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     instructions:
       'Judge the template against "Name a thing the way the site names it" in AGENTS.md: a story, comment, or column calls a thing what its label on the screen calls it, and one word keeps one meaning through the file. Penalise names and comments that call the thing on screen by a different word than the copy does (saying "name" where the label says "Username"), and identifiers leaking into reader-facing comments. Do not penalise code identifiers themselves — only the words used in comments and copy.',
     label: "Names say what the site says",
-    requires: templateOnly,
+    requires: showsCopy,
     weight: 2,
   },
   {

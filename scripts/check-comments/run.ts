@@ -48,6 +48,10 @@ const isExempt = (relative: string): boolean =>
     entry.endsWith("/") ? relative.startsWith(entry) : relative === entry,
   );
 
+/** Whether a source file under src/ is exempt from the comment length rule. */
+export const isCommentExempt = (file: string): boolean =>
+  isExempt(file.startsWith("src/") ? file.slice(4) : file);
+
 /**
  * The part of `path` below `root`. `collectSourceFiles` joins every path from
  * `root`, so the prefix is always there to drop.

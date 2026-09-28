@@ -161,7 +161,11 @@ const rankOf = (result: CodeResult): [group: number, score: number] => {
 export const worstFirst = (left: CodeResult, right: CodeResult): number => {
   const [leftGroup, leftScore] = rankOf(left);
   const [rightGroup, rightScore] = rankOf(right);
-  return leftGroup - rightGroup || leftScore - rightScore;
+  return (
+    leftGroup - rightGroup ||
+    leftScore - rightScore ||
+    left.file.localeCompare(right.file)
+  );
 };
 
 /** One row of the batch table, graded or errored. */
@@ -192,8 +196,16 @@ export const batchReportLines = (
     (result): result is GradedCode => result.score !== null,
   );
   const errored = results.length - graded.length;
+  const models = [
+    ...new Set(
+      results
+        .map((result) => result.jev?.model)
+        .filter((model): model is string => model !== undefined),
+    ),
+  ];
+  const modelLabel = models.length === 0 ? meta.model : models.join(", ");
   const lines = [
-    `Code grader - batch of ${results.length} (model=${meta.model})`,
+    `Code grader - batch of ${results.length} (model=${modelLabel})`,
     `${"Score".padStart(5)} ${"L".padEnd(2)} ${"Kind".padEnd(9)} ${"p/w/x".padEnd(
       9,
     )} Failed checks`,

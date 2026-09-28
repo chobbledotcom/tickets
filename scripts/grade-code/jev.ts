@@ -22,13 +22,13 @@ export type Sleep = (ms: number) => Promise<void>;
 
 /** The key from the environment, or the shared secret file, or nothing.
  * A key of only spaces is no key, so it never reaches the paid endpoint. */
-export const loadJevKey = (
+export const loadJevKey = async (
   getEnv: (key: string) => string | undefined,
-  readSecret: () => string | null,
-): string | null => {
+  readSecret: () => Promise<string | null>,
+): Promise<string | null> => {
   const fromEnv = getEnv("OPENCODE_API_KEY")?.trim();
   if (fromEnv !== undefined && fromEnv !== "") return fromEnv;
-  const fromFile = readSecret()?.trim();
+  const fromFile = (await readSecret())?.trim();
   return fromFile === undefined || fromFile === "" ? null : fromFile;
 };
 
@@ -122,7 +122,50 @@ const postJson = (body: string, request: JevRequest): RequestInit => ({
   method: "POST",
 });
 
-const ATTEMPTS = 3;
+export const ATTEMPTS = 3;
+
+/** How long one attempt may take before it is treated as a network failure. */
+export const ATTEMPT_TIMEOUT_MS = 60_000;
+
+/** What one attempt decided, for the retry loop to act on. */
+type AttemptOutcome =
+  | { kind: "success"; result: JevCallResult }
+  | { kind: "retry"; error: string; rateLimited: boolean }
+  | { kind: "stop"; error: string };
+
+/** One attempt: fetch under a deadline, then read the reply. A network
+ * failure, a timed-out attempt, or a reply that does not parse is worth
+ * another try; a refusal such as 400, 401, or 402 is not. */
+const attemptOnce = async (
+  request: JevRequest,
+  fetchText: JevFetch,
+  body: string,
+): Promise<AttemptOutcome> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+  try {
+    const result = await fetchText(ZEN_SYSTEMONE_URL, {
+      ...postJson(body, request),
+      signal: controller.signal,
+    }).catch((error: unknown) => ({ error: errorText(error) }));
+    if ("error" in result) {
+      return { error: result.error, kind: "retry", rateLimited: false };
+    }
+    if (!result.ok) {
+      const error = `HTTP ${result.status}: ${result.text.slice(0, 300)}`;
+      if ([400, 401, 402].includes(result.status)) {
+        return { error, kind: "stop" };
+      }
+      return { error, kind: "retry", rateLimited: result.status === 429 };
+    }
+    const parsed = parseJevResponse(result.text, request);
+    return parsed.ok
+      ? { kind: "success", result: parsed }
+      : { error: parsed.error, kind: "retry", rateLimited: false };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
 
 /** One TypeSafe call, with the retries a paid endpoint needs. */
 export const callJev = async (
@@ -137,22 +180,12 @@ export const callJev = async (
   });
   let lastError = "no attempt made";
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    const result = await fetchText(
-      ZEN_SYSTEMONE_URL,
-      postJson(body, request),
-    ).catch((error: unknown) => {
-      // A network failure is worth another attempt, unlike a refusal.
-      lastError = errorText(error);
-      return null;
-    });
-    if (result?.ok) return parseJevResponse(result.text, request);
-    if (result !== null) {
-      lastError = `HTTP ${result.status}: ${result.text.slice(0, 300)}`;
-      if ([400, 401, 402].includes(result.status)) break;
-    }
+    const outcome = await attemptOnce(request, fetchText, body);
+    if (outcome.kind === "success") return outcome.result;
+    lastError = outcome.error;
+    if (outcome.kind === "stop") break;
     if (attempt < ATTEMPTS) {
-      const rateLimited = result?.status === 429;
-      await sleep((rateLimited ? 5000 : 1000) * attempt);
+      await sleep((outcome.rateLimited ? 5000 : 1000) * attempt);
     }
   }
   return { error: lastError, ok: false };

@@ -7,7 +7,7 @@
 
 import { findIssues as findAliasExportIssues } from "#scripts/check-alias-exports/rules.ts";
 import { findCommentIssues } from "#scripts/check-comments/rules.ts";
-import { LIMITS } from "#scripts/check-comments/run.ts";
+import { isCommentExempt, LIMITS } from "#scripts/check-comments/run.ts";
 import { findIssues as findEmptyCatchIssues } from "#scripts/check-empty-catch/rules.ts";
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
 import { type Alias, findImportIssues } from "#scripts/check-imports/rules.ts";
@@ -138,13 +138,21 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
     weight: 5,
   },
   {
-    fn: (facts) =>
-      scaled(
+    fn: (facts) => {
+      if (isCommentExempt(facts.file)) {
+        return {
+          goodness: 1,
+          note: "exempt from the length rule",
+          status: "PASS",
+        };
+      }
+      return scaled(
         findCommentIssues(facts.content, LIMITS).length,
         1,
         2,
         "over-limit comments",
-      ),
+      );
+    },
     id: "comment_limits",
     label: "Comments within limits",
     weight: 3,
@@ -183,9 +191,15 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
       if (facts.sql.length === 0) {
         return { goodness: 0, note: "no SQL in file", status: "SKIP" };
       }
-      const star = facts.sql.find((statement) =>
-        /\bSELECT\s+\*/i.test(statement),
-      );
+      // A star in the projection is a select-all unless it is a function
+      // argument such as count(*).
+      const star = facts.sql.find((statement) => {
+        const match = /SELECT\s+(?:DISTINCT\s+)?(.*?)\s+FROM\b/i.exec(
+          statement,
+        );
+        if (match === null) return false;
+        return /(?<!\()\*/.test(match[1]!);
+      });
       return star === undefined
         ? {
             goodness: 1,

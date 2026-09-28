@@ -1,8 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
+import type { FetchTextResult } from "#scripts/fetch-text.ts";
 import { CHECKS } from "#scripts/grade-code/checks.ts";
 import { extractCode } from "#scripts/grade-code/extract.ts";
 import {
+  ATTEMPT_TIMEOUT_MS,
+  ATTEMPTS,
   buildJevState,
   callJev,
   DEFAULT_MODEL,
@@ -17,47 +21,47 @@ const jevCheck = (id: string) => {
 };
 
 describe("loadJevKey", () => {
-  test("takes the environment key first", () => {
+  test("takes the environment key first", async () => {
     expect(
-      loadJevKey(
+      await loadJevKey(
         () => "env-key ",
-        () => "file-key",
+        () => Promise.resolve("file-key"),
       ),
     ).toBe("env-key");
   });
 
-  test("falls to the secret file when the environment is empty", () => {
+  test("falls to the secret file when the environment is empty", async () => {
     expect(
-      loadJevKey(
+      await loadJevKey(
         () => "",
-        () => " file-key",
+        () => Promise.resolve(" file-key"),
       ),
     ).toBe("file-key");
     expect(
-      loadJevKey(
+      await loadJevKey(
         () => undefined,
-        () => "file-key",
+        () => Promise.resolve("file-key"),
       ),
     ).toBe("file-key");
     expect(
-      loadJevKey(
+      await loadJevKey(
         () => undefined,
-        () => null,
+        () => Promise.resolve(null),
       ),
     ).toBeNull();
   });
 
-  test("treats a key of only spaces as no key", () => {
+  test("treats a key of only spaces as no key", async () => {
     expect(
-      loadJevKey(
+      await loadJevKey(
         () => "   ",
-        () => "file-key",
+        () => Promise.resolve("file-key"),
       ),
     ).toBe("file-key");
     expect(
-      loadJevKey(
+      await loadJevKey(
         () => undefined,
-        () => " \n",
+        () => Promise.resolve(" \n"),
       ),
     ).toBeNull();
   });
@@ -165,6 +169,45 @@ describe("callJev", () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("the answer is not JSON");
+  });
+
+  test("retries a malformed 200 body until a healthy one arrives", async () => {
+    let calls = 0;
+    const result = await callJev(
+      request,
+      () => {
+        calls++;
+        return Promise.resolve(
+          calls === 1
+            ? { ok: true, status: 200, text: "<html>" }
+            : { ok: true, status: 200, text: okBody(answered) },
+        );
+      },
+      () => Promise.resolve(),
+    );
+    expect(result.ok).toBe(true);
+    expect(calls).toBe(2);
+  });
+
+  test("bounds a hung attempt instead of blocking forever", async () => {
+    using time = new FakeTime();
+    const resultPromise = callJev(
+      request,
+      (_url, init) =>
+        new Promise<FetchTextResult>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+      () => Promise.resolve(),
+    );
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      await time.tickAsync(ATTEMPT_TIMEOUT_MS);
+      await time.runMicrotasks();
+    }
+    const result = await resultPromise;
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("AbortError");
   });
 
   test("refuses a reply that leaves a question unanswered", async () => {

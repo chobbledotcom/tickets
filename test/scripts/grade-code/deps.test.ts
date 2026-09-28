@@ -26,4 +26,12 @@ describe("denoCliDeps", () => {
     await deps.writeTextFile(`${dir.path}/out.txt`, "kept");
     expect(await Deno.readTextFile(`${dir.path}/out.txt`)).toBe("kept");
   });
+
+  test("lists authored JavaScript but not built bundles", async () => {
+    const deps = denoCliDeps();
+    const client = await deps.listFiles("src/ui/client");
+    expect(client.some((file) => file.endsWith(".js"))).toBe(true);
+    const staticDir = await deps.listFiles("src/ui/static");
+    expect(staticDir.some((file) => file.endsWith(".js"))).toBe(false);
+  });
 });

@@ -46,6 +46,8 @@ export interface CodeFacts {
   lines: number;
   missingReturnTypes: LineHit[];
   nonNullAssertions: LineHit[];
+  /** Whether the file renders JSX, so the copy and naming questions apply. */
+  rendersJsx: boolean;
   /** SQL-looking statements, template parts included. */
   sql: string[];
   /** Calls that can write, for the write-shape question. */
@@ -208,24 +210,51 @@ const missingReturnTypeHits = (
     .map((start) => hitAtIndex(content, start));
 };
 
+/** A bare call to a helper that writes an activity row. */
+const ACTIVITY_WRITE_CALL = String.raw`(?<!\.)\b(?:logActivity|logActivities|logAttributeOptionActivity|logAndNotifyRegistration|logRefundLedgerError)\s*\(`;
+
+/** Calls that are named like a write but are not database operations. */
+const NON_WRITE_HELPERS: Record<string, true> = {
+  setImmediate: true,
+  setInterval: true,
+  setTimeout: true,
+};
+
 /** A call that can write: a raw batch, transaction, or execute; a table's
- * insert, update, or delete; or a helper named for a write, such as
+ * insert, update, or delete; or a bare helper named for a write, such as
  * setAnswerModifier or logActivity. Files mostly write through the last
- * two, so the transaction question must see them. */
+ * two, so the transaction question must see them. Member calls such as
+ * document.createElement and state setters are not writes, and a bare
+ * logging helper such as logError is not one either. */
 const WRITE_CALL = new RegExp(
   [
     String.raw`\b(?:executeBatch(?:WithResults)?|queryBatch(?:Primary)?|withTransaction)\s*\(`,
     String.raw`\.(?:execute|insert|update|upsert|deleteById|delete)\s*\(`,
-    String.raw`\b(?:set|save|create|delete|update|insert|upsert|remove|record|log)[A-Z]\w*\s*\(`,
+    String.raw`(?<!\.)\b(?:set|save|create|delete|update|insert|upsert|remove|record)[A-Z]\w*\s*\(`,
+    ACTIVITY_WRITE_CALL,
   ].join("|"),
   "g",
 );
+
+const writeCallsFrom = (content: string): LineHit[] => {
+  const codeOnly = blankSpans(content, true);
+  const hits: LineHit[] = [];
+  for (const match of codeOnly.matchAll(WRITE_CALL)) {
+    const callee = match[0]
+      .replace(/\s*\(\s*$/, "")
+      .split(".")
+      .pop()!;
+    if (NON_WRITE_HELPERS[callee] === true) continue;
+    hits.push(hitAtIndex(content, match.index));
+  }
+  return hits;
+};
 
 /** A statement's first words, as SQL writes them. Bare "delete" and
  * "update" are plain words inside route strings, so each keyword demands
  * the clause that follows it in a real statement. */
 const SQL_STATEMENT_START =
-  /^['"`]\s*(?:SELECT\s|INSERT\s+INTO\s|DELETE\s+FROM\s|UPDATE\s+\w+\s+SET\s|WITH\s+\w+\s+AS\s)/i;
+  /^['"`]\s*(?:SELECT\s|INSERT\s+INTO\s|DELETE\s+FROM\s|UPDATE\s+\w+\s+SET\s|WITH\s+\w+\s*(?:\([^)]*\))?\s+AS\s)/i;
 
 /** Statements that read as SQL, from the string and template literals the
  * lexer already found. */
@@ -244,34 +273,71 @@ const jargonHits = (content: string): { line: number; word: string }[] =>
     word: match[0].toLowerCase(),
   }));
 
+/** The text of one JSX attribute if it is an href, or null. The parser
+ * guarantees the node shapes below, so the boundary read needs no runtime
+ * checks. */
+const hrefTextOf = (
+  content: string,
+  node: Record<string, unknown>,
+): string | null => {
+  if (node.type !== "JSXAttribute") return null;
+  const name = node.name as { name?: unknown };
+  if (name.name !== "href") return null;
+  const value = node.value as {
+    type?: unknown;
+    value?: unknown;
+    expression: { start: number; end: number };
+  };
+  if (value.type === "Literal") return value.value as string;
+  return content.slice(value.expression.start, value.expression.end);
+};
+
+/** The href sources in JSX: the string of a literal, or the full text of an
+ * expression, nested braces included. */
+const jsxHrefs = (content: string, statements: ParsedStatement[]): string[] => {
+  const hrefs: string[] = [];
+  visitNodes(statements, (node) => {
+    const href = hrefTextOf(content, node);
+    if (href !== null) hrefs.push(href);
+  });
+  return hrefs;
+};
+
+/** Whether the parsed program renders JSX, so the copy questions apply. */
+const hasJsx = (statements: ParsedStatement[]): boolean => {
+  let found = false;
+  visitNodes(statements, (node) => {
+    if (node.type === "JSXElement" || node.type === "JSXFragment") found = true;
+  });
+  return found;
+};
+
 /** Read one file into every fact the grader needs. */
 export const extractCode = (file: string, content: string): CodeFacts => {
   const codeOnly = blankSpans(content, true);
-  const keepStrings = blankSpans(content, false);
   const statements = parseProgram(file, content).body;
   const { assertions, casts } = assertionHits(content, statements);
   return {
     asCasts: casts,
-    catchClauses: hitsFrom(content, codeOnly, /\bcatch\s*\(|\.catch\s*\(/g),
+    catchClauses: hitsFrom(
+      content,
+      codeOnly,
+      /\bcatch\s*\(|\.catch\s*\(|\bcatch\s*\{/g,
+    ),
     comments: readComments(content),
     content,
     fallbacks: hitsFrom(content, codeOnly, /\?\?|\|\||\?\./g),
     file,
     forEachCalls: hitsFrom(content, codeOnly, /\.forEach\s*\(/g),
-    hrefs: [
-      ...keepStrings.matchAll(
-        /href=(?:"([^"]*)"|\{((?:[^{}]|\{[^{}]*\})*)\})/g,
-      ),
-    ]
-      .map((match) => match[1] ?? match[2])
-      .filter((href): href is string => href !== undefined),
+    hrefs: jsxHrefs(content, statements),
     imports: topLevelImports(file, content).map((entry) => entry.specifier),
     jargonHits: jargonHits(content),
     kind: codeKind(file),
     lines: countLines(content),
     missingReturnTypes: missingReturnTypeHits(content, statements),
     nonNullAssertions: assertions,
+    rendersJsx: hasJsx(statements),
     sql: sqlStatements(content),
-    writeCalls: hitsFrom(content, codeOnly, WRITE_CALL),
+    writeCalls: writeCallsFrom(content),
   };
 };

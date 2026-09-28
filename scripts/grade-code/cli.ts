@@ -6,6 +6,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
+import { resolve } from "@std/path";
 import * as v from "valibot";
 import { unique } from "#fp";
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
@@ -15,7 +16,7 @@ import { fetchText } from "#scripts/fetch-text.ts";
 import { readTextFileOrNull, statOrNull } from "#scripts/not-found.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
-import { collectSourceFiles } from "#scripts/walk-files.ts";
+import { collectGateScriptFiles } from "#scripts/walk-files.ts";
 import { CHECKS, type GradeContext } from "./checks.ts";
 import {
   type GradeCall,
@@ -150,7 +151,7 @@ export const denoCliDeps = (): CliDeps => ({
       return promise;
     },
   },
-  listFiles: (root) => collectSourceFiles(root),
+  listFiles: (root) => collectGateScriptFiles(root),
   overLimit: () =>
     readJsonOrNull(OVER_LIMIT_PATH, v.record(v.string(), v.number())),
   readSecret: () => readTextFileOrNull(SECRET_FILE),
@@ -169,9 +170,13 @@ export const resolveTargets = async (
   deps: Pick<CliDeps, "listFiles" | "stat">,
 ): Promise<ResolvedTargets> => {
   const targets: string[] = [];
+  const srcRoot = resolve("src");
   // With no target named, the run grades the whole of src/.
   for (const arg of args.length === 0 ? ["src"] : args) {
-    if (arg !== "src" && !arg.startsWith("src/")) {
+    // Resolve first, so a traversal such as `src/../scripts` cannot pass the
+    // boundary check under the `src/` prefix.
+    const target = resolve(arg);
+    if (target !== srcRoot && !target.startsWith(`${srcRoot}/`)) {
       return { error: `${arg} is not under src/`, targets: [] };
     }
     const kind = await deps.stat(arg);
@@ -276,13 +281,15 @@ export const runGradeCodeCli = async (
     return 2;
   }
   const pool = args.limit > 0 ? targets.slice(0, args.limit) : targets;
-  const secret = await deps.readSecret();
   const ctx = await loadGradeContext(deps);
   if (ctx === null) {
     io.stderr(`cannot read ${ALIAS_PATH} or ${OVER_LIMIT_PATH}`);
     return 2;
   }
-  const call: GradeCall = { ctx, jev: jevSettingsFor(io, args, secret) };
+  const call: GradeCall = {
+    ctx,
+    jev: await jevSettingsFor(io, args, deps.readSecret),
+  };
 
   // A CSV is a batch output, so --csv takes the batch path even for one file.
   if (pool.length === 1 && !args.json && args.csv === null) {
@@ -294,14 +301,16 @@ export const runGradeCodeCli = async (
 };
 
 /** The run's Jev settings, or null for a mechanical-only run. A missing key
- * is said once here, so every file in the run is graded the same way. */
-const jevSettingsFor = (
+ * is said once here, so every file in the run is graded the same way. The
+ * secret file is read only when Jev is enabled and the environment has no
+ * key, so an unreadable file never blocks a mechanical run. */
+const jevSettingsFor = async (
   io: ScriptIo,
   args: GradeArgs,
-  secret: string | null,
-): JevSettings | null => {
+  readSecret: () => Promise<string | null>,
+): Promise<JevSettings | null> => {
   if (args.noJev) return null;
-  const apiKey = loadJevKey(io.getEnv, () => secret);
+  const apiKey = await loadJevKey(io.getEnv, readSecret);
   if (apiKey === null) {
     io.stderr(
       "note: no Jev API key (set OPENCODE_API_KEY); grading mechanical checks only",

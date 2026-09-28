@@ -67,6 +67,17 @@ describe("activeChecks", () => {
     expect(ids).toContain("naming_matches_site");
   });
 
+  test("keeps copy questions for JSX outside the template folder", () => {
+    const ids = activeChecks(
+      factsOf(
+        "const b = <button>Send message</button>;\n",
+        "src/shared/forms/message-fields.tsx",
+      ),
+    ).map((check) => check.id);
+    expect(ids).toContain("hard_coded_copy");
+    expect(ids).toContain("naming_matches_site");
+  });
+
   test("keeps evidence-gated questions only when the evidence exists", () => {
     const plain = activeChecks(factsOf("const a = 1;\n")).map(
       (check) => check.id,
@@ -107,6 +118,12 @@ describe("comment_limits", () => {
     expect(one.status).toBe("WARN");
     const two = verdictOf(long + long, "comment_limits");
     expect(two.status).toBe("FAIL");
+  });
+
+  test("passes a file the comment check exempts", () => {
+    const facts = extractCode("src/doc.ts", `// ${"word ".repeat(30)}\n`);
+    const verdict = runMechanical(facts, ctxOf()).comment_limits;
+    expect(verdict?.status).toBe("PASS");
   });
 });
 
@@ -170,6 +187,35 @@ describe("select_star", () => {
   test("fails a statement that selects every column", () => {
     const verdict = verdictOf("const q = `SELECT * FROM t`;\n", "select_star");
     expect(verdict.status).toBe("FAIL");
+  });
+
+  test("fails a wildcard after other selected expressions", () => {
+    const verdict = verdictOf(
+      "const q = `SELECT rowid AS r, * FROM t`;\n",
+      "select_star",
+    );
+    expect(verdict.status).toBe("FAIL");
+  });
+
+  test("fails SELECT DISTINCT *", () => {
+    const verdict = verdictOf(
+      "const q = `SELECT DISTINCT * FROM t`;\n",
+      "select_star",
+    );
+    expect(verdict.status).toBe("FAIL");
+  });
+
+  test("passes count(*) in the projection", () => {
+    const verdict = verdictOf(
+      "const q = `SELECT count(*) FROM t`;\n",
+      "select_star",
+    );
+    expect(verdict.status).toBe("PASS");
+  });
+
+  test("passes a SELECT with no FROM clause", () => {
+    const verdict = verdictOf("const q = `SELECT 1`;\n", "select_star");
+    expect(verdict.status).toBe("PASS");
   });
 
   test("passes a statement that names its columns", () => {

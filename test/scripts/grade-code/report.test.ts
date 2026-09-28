@@ -52,6 +52,10 @@ const ungraded = (parts: Partial<UngradedCode>): UngradedCode => ({
   ...parts,
 });
 
+/** The file rows of a batch table. */
+const fileRows = (lines: string[]): string[] =>
+  lines.filter((line) => line.includes("src/"));
+
 describe("summarise", () => {
   test("weights each check by the share it earned", () => {
     const summary = summarise({
@@ -152,7 +156,7 @@ describe("batchReportLines", () => {
       ].sort(worstFirst),
       { model: "jev-1.13", seconds: 3 },
     );
-    const files = lines.filter((line) => line.includes("src/"));
+    const files = fileRows(lines);
     expect(files.findIndex((line) => line.includes("src/b.ts"))).toBe(0);
     expect(files.findIndex((line) => line.includes("admin/a.ts"))).toBe(1);
     expect(files.findIndex((line) => line.includes("src/c.ts"))).toBe(2);
@@ -178,7 +182,7 @@ describe("batchReportLines", () => {
       ].sort(worstFirst),
       { model: "jev-1.13", seconds: 3 },
     );
-    const files = lines.filter((line) => line.includes("src/"));
+    const files = fileRows(lines);
     expect(files[0]).toContain("src/full.ts");
     expect(files[1]).toContain(
       "src/partial.ts - Jev failed: HTTP 429: slow down",
@@ -205,6 +209,31 @@ describe("batchReportLines", () => {
     );
     expect(lines).toHaveLength(4);
     expect(lines.join("\n")).toContain("src/c.ts - nope");
+  });
+
+  test("breaks a score tie by file path", () => {
+    const lines = batchReportLines(
+      [
+        graded({ file: "src/z.ts", score: 80 }),
+        graded({ file: "src/a.ts", score: 80 }),
+      ].sort(worstFirst),
+      { model: "jev-1.13", seconds: 3 },
+    );
+    const files = fileRows(lines);
+    expect(files[0]).toContain("src/a.ts");
+    expect(files[1]).toContain("src/z.ts");
+  });
+
+  test("names the model the rows report", () => {
+    const lines = batchReportLines(
+      [
+        graded({ jev: { model: "jev-1.13-free", seconds: 1 } }),
+        graded({ jev: { model: "jev-1.13-free", seconds: 1 } }),
+        graded({}),
+      ],
+      { model: "jev-1.13", seconds: 3 },
+    );
+    expect(lines[0]).toContain("model=jev-1.13-free");
   });
 });
 

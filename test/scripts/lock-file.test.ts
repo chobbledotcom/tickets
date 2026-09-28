@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import { withFileLock } from "#scripts/lock-file.ts";
+import { withStaticAssetBuildLock } from "#scripts/static-assets/build-lock.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 const LOCK_PATH = join(
@@ -297,5 +298,41 @@ describe("a lock that stops being the file at its path", () => {
 
       expect(await withFileLock(path, () => Promise.resolve("in"))).toBe("in");
     });
+  });
+});
+
+describe("withStaticAssetBuildLock", () => {
+  test("runs the body once and returns its result", async () => {
+    let runs = 0;
+    const value = await withStaticAssetBuildLock(() => {
+      runs++;
+      return Promise.resolve("kept");
+    });
+    expect(value).toBe("kept");
+    expect(runs).toBe(1);
+  });
+
+  test("serializes two concurrent calls", async () => {
+    const order: string[] = [];
+    const firstEntered = Promise.withResolvers<void>();
+    let releaseFirst!: () => void;
+    const first = withStaticAssetBuildLock(() => {
+      order.push("first");
+      firstEntered.resolve();
+      return new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+    });
+    await firstEntered.promise;
+    const second = withStaticAssetBuildLock(() => {
+      order.push("second");
+      return Promise.resolve();
+    });
+    // A turn of the event loop: the second call has had its chance to run.
+    await Promise.resolve();
+    expect(order).toEqual(["first"]);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(order).toEqual(["first", "second"]);
   });
 });

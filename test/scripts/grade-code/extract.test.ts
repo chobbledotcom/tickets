@@ -34,9 +34,10 @@ describe("extractCode", () => {
     const facts = factsOf(
       "try { run(); } catch (error) { throw error; }\n" +
         "work().catch(() => {});\n" +
+        "try { run(); } catch { recover(); }\n" +
         "items.forEach((item) => save(item));\n",
     );
-    expect(facts.catchClauses).toHaveLength(2);
+    expect(facts.catchClauses).toHaveLength(3);
     expect(facts.forEachCalls).toHaveLength(1);
   });
 
@@ -118,22 +119,33 @@ describe("extractCode", () => {
         'const route = "delete";',
         'const note = "Update the listing to confirm.";',
         interpolated,
+        "const cte = `WITH selected(id) AS (SELECT id FROM t) SELECT * FROM selected`;",
       ].join("\n"),
     );
-    expect(facts.sql).toHaveLength(1);
+    expect(facts.sql).toHaveLength(2);
     expect(facts.sql[0]).toContain("SELECT id FROM listings");
+    expect(facts.sql[1]).toContain("WITH selected(id) AS");
   });
 
-  test("collects href literals and expressions", () => {
+  test("collects href literals and expressions, nested braces included", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the ${token} in this fixture is page data, not a placeholder to interpolate.
     const tokenLink = "const b = <a href={`/t/${token}`}>Ticket</a>;";
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the nested ${q(...)} in this fixture is page data, not a placeholder to interpolate.
+    const nested = "const c = <a href={`/a${q({ kind })}`}>Mail</a>;";
     const facts = extractCode(
       "src/ui/templates/sample.tsx",
-      ['const a = <a href="/admin/guide">Help</a>;', tokenLink].join("\n"),
+      [
+        'const a = <a href="/admin/guide">Help</a>;',
+        'const e = <img src={icon} alt="x" />;',
+        tokenLink,
+        nested,
+      ].join("\n"),
     );
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the href the page renders carries a literal ${token}.
     const expected = "`/t/${token}`";
-    expect(facts.hrefs).toEqual(["/admin/guide", expected]);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the href the page renders carries a literal ${q(...)}.
+    const nestedHref = "`/a${q({ kind })}`";
+    expect(facts.hrefs).toEqual(["/admin/guide", expected, nestedHref]);
   });
 
   test("collects batch, transaction, and execute calls", () => {
@@ -158,6 +170,20 @@ describe("extractCode", () => {
       ].join("\n"),
     );
     expect(facts.writeCalls.map((hit) => hit.line)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  test("does not count non-database calls as writes", () => {
+    const timer = "setTimeout(work, 100);";
+    const facts = factsOf(
+      [
+        "document.createElement('div');",
+        timer,
+        "element.setAttribute('id', 'x');",
+        "logError({ code: ErrorCode.X });",
+        "answersTable.update(id, { text });",
+      ].join("\n"),
+    );
+    expect(facts.writeCalls.map((hit) => hit.line)).toEqual([5]);
   });
 
   test("collects computer-science jargon with its line", () => {

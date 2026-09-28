@@ -96,6 +96,9 @@ describe("resolveTargets", () => {
     expect((await resolveTargets(["scripts/x.ts"], deps)).error).toContain(
       "not under src/",
     );
+    expect((await resolveTargets(["src/../scripts"], deps)).error).toContain(
+      "not under src/",
+    );
     expect((await resolveTargets(["src/nope.ts"], deps)).error).toContain(
       "cannot read",
     );
