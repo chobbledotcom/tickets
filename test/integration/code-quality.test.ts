@@ -162,18 +162,16 @@ const ALLOWED_DUPLICATE_TYPE_SHAPES: { signature: string; reason: string }[] = [
 const ALLOWED_TEST_HOOKS: string[] = [
   // Database injection for test isolation
   "shared/db/client.ts:setDb",
-  // Set encryption key directly to avoid env var races between parallel tests
+  // Set key-override hooks directly to avoid env var races between tests
   "shared/crypto/encryption.ts:setEncryptionKeyForTest",
-  // Set fast PBKDF2 directly to avoid env var races between parallel tests
   "shared/crypto/hashing.ts:setFastPbkdf2ForTest",
-  // Set RSA key size directly to avoid env var races between parallel tests
   "shared/crypto/keys.ts:setRsaKeySizeForTest",
-  // Settings version bump: used in production by every settings write (same
-  // file, which the export scan doesn't credit) and by tests to simulate
-  // another isolate's write.
+  "shared/crypto/checkout-work.ts:setCheckoutWorkKeyForTest",
+  // Bounded terminal sweep used same-file in production; tests fill it
+  "shared/db/checkout-answer-cleanup.ts:TERMINAL_CHECKOUT_CLEANUP_BATCH",
+  // Settings version bump/probe: used in production within settings.ts (same
+  // file, which the export scan doesn't credit) and by tests.
   "shared/db/settings.ts:bumpSettingsVersion",
-  // Settings version probe: used in production within settings.ts (same file);
-  // exported so tests can assert its missing/unparseable/DB-error branches.
   "shared/db/settings.ts:getCurrentSettingsVersion",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",

@@ -10,10 +10,12 @@ import { hmacHash } from "#crypto/hashing.ts";
 import {
   deleteCheckoutAnswers,
   markCheckoutAnswersPaid,
+  openSquareCheckoutIdentity,
   readCheckoutAnswers,
+  type StagedCheckoutRow,
   stageCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-import { queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import type { SubmittedAnswers } from "#shared/email/answer-receipt.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_CHECKOUT_WORK_KEY } from "#test-utils/internal.ts";
@@ -22,6 +24,16 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 /** The row's lookup key, the way the module itself computes it. */
 const sessionIndexOf = (sessionId: string): Promise<string> =>
   hmacHash(sessionId);
+
+/** The sealed row as the module's readers consume it. */
+const rowOf = async (sessionId: string): Promise<StagedCheckoutRow> => {
+  const row = await queryOne<StagedCheckoutRow>(
+    "SELECT session_index, sealed, wrapped_key FROM checkout_pending_answers WHERE session_index = ?",
+    [await sessionIndexOf(sessionId)],
+  );
+  expect(row).not.toBeNull();
+  return row as StagedCheckoutRow;
+};
 
 const snapshotOf = (listingId: number): SubmittedAnswers => [
   {
@@ -156,5 +168,54 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     );
 
     expect(calls).toBe(1);
+  });
+
+  test("refuses to read a row whose index was relabelled to another session", async () => {
+    await stageCheckoutAnswers("cs_swapped", { "7": "belonging to A" });
+    await execute(
+      "UPDATE checkout_pending_answers SET session_index = ? WHERE session_index = ?",
+      [await sessionIndexOf("cs_impostor"), await sessionIndexOf("cs_swapped")],
+    );
+
+    await expect(readCheckoutAnswers("cs_impostor")).rejects.toThrow(
+      "Staged checkout identity does not match its index",
+    );
+  });
+
+  test("refuses a Square row whose payload carries no link id", async () => {
+    await stageCheckoutAnswers("cs_linkless", { "7": "no link" });
+
+    await expect(
+      openSquareCheckoutIdentity(await rowOf("cs_linkless")),
+    ).rejects.toThrow("Square checkout identity is missing or corrupt");
+  });
+
+  test("refuses a Square row whose index no longer matches its payload", async () => {
+    await stageCheckoutAnswers("cs_moved", { "7": "moved" }, [], "link_moved");
+    await execute(
+      "UPDATE checkout_pending_answers SET session_index = ? WHERE session_index = ?",
+      [await sessionIndexOf("cs_relabelled"), await sessionIndexOf("cs_moved")],
+    );
+
+    await expect(
+      openSquareCheckoutIdentity(await rowOf("cs_relabelled")),
+    ).rejects.toThrow("Square checkout identity is missing or corrupt");
+  });
+
+  test("rests an empty text record when no free text was given", async () => {
+    await stageCheckoutAnswers("cs_no_text", undefined);
+
+    expect(await readCheckoutAnswers("cs_no_text")).toEqual({
+      snapshot: [],
+      texts: new Map(),
+    });
+  });
+
+  test("returns the session and link id of a staged Square row", async () => {
+    await stageCheckoutAnswers("cs_square_ok", { "7": "text" }, [], "link_ok");
+
+    expect(
+      await openSquareCheckoutIdentity(await rowOf("cs_square_ok")),
+    ).toEqual({ linkId: "link_ok", sessionId: "cs_square_ok" });
   });
 });

@@ -64,6 +64,45 @@ const runWhileMore =
     if (await (await load())()) requestFollowUp();
   };
 
+/** The checkpoint sweeps' lazy workers, named by their task. Each literal
+ * dynamic import keeps the worker's production use visible to the export
+ * scan, and one dispatcher holds them all so no two loaders repeat. */
+const loadSweepWorker = async (
+  task: "database_pruning" | "terminal_checkout_cleanup",
+): Promise<(checkpoint: string | null) => Promise<SweepOutcome>> => {
+  if (task === "database_pruning") {
+    const { runDatabasePruning } = await import("#db/prune.ts");
+    return runDatabasePruning;
+  }
+  const { runTerminalCheckoutCleanup } = await import(
+    "#db/checkout-answer-cleanup.ts"
+  );
+  return runTerminalCheckoutCleanup;
+};
+
+/** The follow-up sweeps' lazy workers, named by their task. */
+const loadMoreWorker = async (
+  task:
+    | "sumup_checkout_recovery"
+    | "square_checkout_cancellation"
+    | "registration_email_delivery",
+): Promise<() => Promise<boolean>> => {
+  if (task === "sumup_checkout_recovery") {
+    const { runSumupRecovery } = await import("#shared/sumup/recovery-run.ts");
+    return runSumupRecovery;
+  }
+  if (task === "square_checkout_cancellation") {
+    const { runSquareCheckoutCancellation } = await import(
+      "#shared/square/cancel-old-links.ts"
+    );
+    return runSquareCheckoutCancellation;
+  }
+  const { deliverDueRegistrationEmails } = await import(
+    "#shared/email/registration-work.ts"
+  );
+  return async () => (await deliverDueRegistrationEmails()).more;
+};
+
 /** The skeleton every always-on periodic sweep shares; a task names only
  * what makes it different. */
 const sweepTask = (
@@ -90,9 +129,7 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 2,
     maxExternalCalls: 0,
     name: "database_pruning",
-    run: sweepRun(() =>
-      import("#db/prune.ts").then((module) => module.runDatabasePruning),
-    ),
+    run: sweepRun(() => loadSweepWorker("database_pruning")),
   }),
   {
     check: alwaysEnabled([CONFIG_KEYS.PUBLIC_KEY]),
@@ -141,11 +178,7 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 1 + SUMUP_RECOVERY_BATCH * 6,
     maxExternalCalls: SUMUP_RECOVERY_BATCH * 2,
     name: "sumup_checkout_recovery",
-    run: runWhileMore(() =>
-      import("#shared/sumup/recovery-run.ts").then(
-        (module) => module.runSumupRecovery,
-      ),
-    ),
+    run: runWhileMore(() => loadMoreWorker("sumup_checkout_recovery")),
     wakePolicy: "organic_safe",
   },
   {
@@ -162,22 +195,14 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 1 + SQUARE_CANCELLATION_BATCH * 5,
     maxExternalCalls: SQUARE_CANCELLATION_BATCH * 2,
     name: "square_checkout_cancellation",
-    run: runWhileMore(() =>
-      import("#shared/square/cancel-old-links.ts").then(
-        (module) => module.runSquareCheckoutCancellation,
-      ),
-    ),
+    run: runWhileMore(() => loadMoreWorker("square_checkout_cancellation")),
     wakePolicy: "scheduled_only",
   },
   sweepTask({
     maxDatabaseCalls: 4,
     maxExternalCalls: 0,
     name: "terminal_checkout_cleanup",
-    run: sweepRun(() =>
-      import("#db/checkout-answer-cleanup.ts").then(
-        (module) => module.runTerminalCheckoutCleanup,
-      ),
-    ),
+    run: sweepRun(() => loadSweepWorker("terminal_checkout_cleanup")),
   }),
   sweepTask({
     // One read for the due queue, then per message: claim, attendee check,
@@ -185,11 +210,6 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 19,
     maxExternalCalls: 6,
     name: "registration_email_delivery",
-    run: runWhileMore(() =>
-      import("#shared/email/registration-work.ts").then(
-        (module) => () =>
-          module.deliverDueRegistrationEmails().then((result) => result.more),
-      ),
-    ),
+    run: runWhileMore(() => loadMoreWorker("registration_email_delivery")),
   }),
 ]);

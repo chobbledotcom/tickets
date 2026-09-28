@@ -30,6 +30,7 @@ describeSquare(() => {
         Promise.resolve(
           jsonResponse({
             payment_link: {
+              id: "plink_rest",
               long_url: "https://checkout.square.site/rest",
               order_id: "ord_rest",
               url: "https://square.link/rest",
@@ -62,6 +63,7 @@ describeSquare(() => {
 
       // Response prefers long_url (checkout.square.site) over short url (square.link)
       expect(result).toEqual({
+        id: "plink_rest",
         orderId: "ord_rest",
         url: "https://checkout.square.site/rest",
       });
@@ -130,7 +132,11 @@ describeSquare(() => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
-            payment_link: { order_id: "ord_2", url: "https://square.link/2" },
+            payment_link: {
+              id: "plink_2",
+              order_id: "ord_2",
+              url: "https://square.link/2",
+            },
           }),
         ),
       );
@@ -156,6 +162,31 @@ describeSquare(() => {
 
       const body = JSON.parse(mockFetch.calls[0]!.args[1].body as string);
       expect(body.pre_populated_data.buyer_phone_number).toBeUndefined();
+    });
+
+    test("deletes a payment link with a DELETE request to its id", async () => {
+      mockFetch = installMockFetch(() =>
+        Promise.resolve(
+          jsonResponse({ cancelled_order_id: "ord_gone", id: "plink_gone" }),
+        ),
+      );
+
+      const client = await squareApi.getSquareClient();
+      const result = await client!.checkout.paymentLinks.delete({
+        id: "plink/gone?1",
+      });
+
+      expect(result).toEqual({
+        cancelled_order_id: "ord_gone",
+        id: "plink_gone",
+      });
+
+      const [url, opts] = mockFetch.calls[0]!.args;
+      expect(url).toBe(
+        "https://connect.squareupsandbox.com/v2/online-checkout/payment-links/plink%2Fgone%3F1",
+      );
+      expect(opts.method).toBe("DELETE");
+      expect(opts.headers!.Authorization).toBe("Bearer EAAAl_rest_test");
     });
 
     test("refuses an answer that names no payment link", async () => {

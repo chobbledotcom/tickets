@@ -17,8 +17,15 @@ import {
   setupListingAndAttendee,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestAttendee,
+  submitAttendeeEdit,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const resend = (attendeeId: number, name: string) =>
@@ -100,3 +107,55 @@ describeWithEnv("re-sending for a line with no places", { db: true }, () => {
     expect(await registeredEntries()).toBe(before);
   });
 });
+
+describeWithEnv(
+  "re-sending with a buyer's free-text answer",
+  { db: true },
+  () => {
+    const fetch = stubFetchEachTest(() => new Response("{}"));
+
+    /** The confirmation texts sent to this buyer, in send order. */
+    const buyerEmailTexts = (buyer: string): string[] =>
+      fetch.calls.flatMap(({ args }) => {
+        const [, options] = args as [string, RequestInit];
+        const body = JSON.parse(options.body as string) as {
+          to?: string[];
+          text?: string;
+        };
+        return body.to?.[0] === buyer && body.text !== undefined
+          ? [body.text]
+          : [];
+      });
+
+    test("renders the wording the buyer originally typed", async () => {
+      await configureTestEmail();
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const questionId = await createFreeTextQuestion([listing.id]);
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Original Wording",
+        "wording@example.com",
+        1,
+        "",
+        { [`question_${questionId}`]: "Coming by bus" },
+      );
+      // The operator later rewrites the answer through the edit form; the
+      // booking's receipt still holds what the buyer actually typed.
+      await submitAttendeeEdit(attendee.id, {
+        extra: { [`question_${questionId}`]: "Changed my mind" },
+      });
+
+      const { response } = await resend(attendee.id, "Original Wording");
+
+      expectRedirectWithFlash(
+        `/admin/attendees/${attendee.id}/actions`,
+        t("success.notification_resent"),
+      )(response);
+      const resent = buyerEmailTexts("wording@example.com").at(-1);
+      expect(resent).toBeDefined();
+      expect(resent).toContain("Anything else?: Coming by bus");
+      expect(resent).not.toContain("Changed my mind");
+    });
+  },
+);

@@ -4,7 +4,10 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { runTerminalCheckoutCleanup } from "#db/checkout-answer-cleanup.ts";
+import {
+  runTerminalCheckoutCleanup,
+  TERMINAL_CHECKOUT_CLEANUP_BATCH,
+} from "#db/checkout-answer-cleanup.ts";
 import {
   sessionWorkIndex,
   stageCheckoutAnswers,
@@ -83,6 +86,22 @@ describeWithEnv("terminal checkout cleanup", { db: true }, () => {
     // A finished sweep resets its checkpoint; both rows are gone.
     expect(await stagedRow("cs_checkpoint_one")).toBe(false);
     expect(await stagedRow("cs_checkpoint_two")).toBe(false);
+  });
+
+  test("a full batch hands back the last swept row as its checkpoint", async () => {
+    for (let index = 0; index < TERMINAL_CHECKOUT_CLEANUP_BATCH; index++) {
+      await recordFailure(`cs_full_batch_${index}`, NEW_FINALIZED);
+    }
+
+    const result = await runTerminalCheckoutCleanup(null);
+
+    expect(result.fullBatch).toBe(true);
+    // The checkpoint names where the next batch resumes.
+    const last = await queryOne<{ row_id: number }>(
+      "SELECT MAX(rowid) AS row_id FROM processed_payments",
+    );
+    expect(result.checkpoint).toBe(String(last!.row_id));
+    expect(await stagedRow("cs_full_batch_0")).toBe(false);
   });
 
   test("refuses an invalid checkpoint", () => {

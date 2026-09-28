@@ -109,8 +109,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-14_group_show_hidden_listings",
         "2026-09-15_group_scan_checks_in_all_listings",
         "2026-09-26_checkout_pending_answers",
+        "2026-09-28_submitted_answer_receipts",
+        "2026-09-29_registration_email_work",
       ],
-      schemaHash: "9gjt0c",
+      schemaHash: "x7rapk",
     });
   });
 

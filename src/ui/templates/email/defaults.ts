@@ -43,7 +43,7 @@ export const DEFAULT_ADMIN_HTML = `<div style="font-family:sans-serif;max-width:
 {% if attendee.phone != "" %}<li>Phone: {{ attendee.phone }}</li>{% endif %}
 {% if attendee.address != "" %}<li>Address: {{ attendee.address }}</li>{% endif %}
 {% if attendee.special_instructions != "" %}<li>Notes: {{ attendee.special_instructions }}</li>{% endif %}
-{% for entry in entries %}{% for answer in entry.attendee.answers %}<li>{{ answer.question }}: {{ answer.text }}</li>
+{% for entry in entries %}{% for answer in entry.attendee.answers %}<li>{{ answer.question }} ({{ entry.listing.name }}): {{ answer.text }}</li>
 {% endfor %}{% endfor %}</ul>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
@@ -59,7 +59,7 @@ Name: {{ attendee.name }}
 {% endif %}{% if attendee.phone != "" %}Phone: {{ attendee.phone }}
 {% endif %}{% if attendee.address != "" %}Address: {{ attendee.address }}
 {% endif %}{% if attendee.special_instructions != "" %}Notes: {{ attendee.special_instructions }}
-{% endif %}{% for entry in entries %}{% for answer in entry.attendee.answers %}{{ answer.question }}: {{ answer.text }}
+{% endif %}{% for entry in entries %}{% for answer in entry.attendee.answers %}{{ answer.question }} ({{ entry.listing.name }}): {{ answer.text }}
 {% endfor %}{% endfor %}
 {% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
 {% endfor %}{% if amount_owed != "0" %}Amount owed: {{ amount_owed | currency }}

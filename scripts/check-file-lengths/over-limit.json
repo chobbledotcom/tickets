@@ -61,7 +61,7 @@
   "test/features/public/ticket-submit/parse.test.ts": 429,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 581,
-  "test/integration/code-quality.test.ts": 690,
+  "test/integration/code-quality.test.ts": 688,
   "test/integration/db/attendees/create-attendee-atomic.test.ts": 655,
   "test/integration/db/migration-restore/helpers.ts": 508,
   "test/integration/db/migration-runtime.test.ts": 438,

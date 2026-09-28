@@ -3,6 +3,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { encryptCheckoutWork } from "#crypto/checkout-work.ts";
 import { execute, queryOne } from "#db/client.ts";
 import {
   claimRegistrationEmail,
@@ -136,5 +137,73 @@ describeWithEnv("registration email work", { db: true }, () => {
     const calls = await countDatabaseCalls(1, () => claimRegistrationEmail());
 
     expect(calls).toBe(1);
+  });
+
+  test("refuses a stored message whose recipient is not a valid address", async () => {
+    await queueRegistrationEmails("cs_bad_to", 910_015, [
+      prepared("buyer@example.com"),
+    ]);
+    const sealed = await encryptCheckoutWork(
+      JSON.stringify({
+        html: "<p>Confirmed</p>",
+        subject: "Your tickets",
+        text: "Confirmed",
+        to: "not-an-email",
+      }),
+    );
+    await execute(
+      "UPDATE registration_email_work SET sealed = ?, wrapped_key = ? WHERE attendee_id = ?",
+      [sealed.sealed, sealed.wrappedKey, 910_015],
+    );
+
+    await expect(claimRegistrationEmail()).rejects.toThrow(
+      "A stored registration email has no valid recipient",
+    );
+  });
+
+  test("refuses a stored message whose reply address is not valid", async () => {
+    await queueRegistrationEmails("cs_bad_reply", 910_016, [
+      prepared("buyer@example.com"),
+    ]);
+    const sealed = await encryptCheckoutWork(
+      JSON.stringify({
+        html: "<p>Confirmed</p>",
+        replyTo: "not-an-email",
+        subject: "Your tickets",
+        text: "Confirmed",
+        to: "buyer@example.com",
+      }),
+    );
+    await execute(
+      "UPDATE registration_email_work SET sealed = ?, wrapped_key = ? WHERE attendee_id = ?",
+      [sealed.sealed, sealed.wrappedKey, 910_016],
+    );
+
+    await expect(claimRegistrationEmail()).rejects.toThrow(
+      "A stored registration email has no valid reply address",
+    );
+  });
+
+  test("returns a stored reply address with the claimed message", async () => {
+    await queueRegistrationEmails("cs_reply", 910_017, [
+      prepared("buyer@example.com"),
+    ]);
+    const sealed = await encryptCheckoutWork(
+      JSON.stringify({
+        html: "<p>Confirmed</p>",
+        replyTo: "reply@example.com",
+        subject: "Your tickets",
+        text: "Confirmed",
+        to: "buyer@example.com",
+      }),
+    );
+    await execute(
+      "UPDATE registration_email_work SET sealed = ?, wrapped_key = ? WHERE attendee_id = ?",
+      [sealed.sealed, sealed.wrappedKey, 910_017],
+    );
+
+    const work = await claimRegistrationEmail();
+
+    expect(work?.message.replyTo).toBe("reply@example.com");
   });
 });

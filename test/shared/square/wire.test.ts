@@ -221,12 +221,14 @@ describe("squareAnswer", () => {
       expect(
         squareAnswer.paymentLink({
           payment_link: {
+            id: "plink_1",
             long_url: "https://checkout.square.site/long",
             order_id: "ord_1",
             url: "https://square.link/short",
           },
         }),
       ).toEqual({
+        id: "plink_1",
         orderId: "ord_1",
         url: "https://checkout.square.site/long",
       });
@@ -235,9 +237,17 @@ describe("squareAnswer", () => {
     test("takes the short address when Square sends only that", () => {
       expect(
         squareAnswer.paymentLink({
-          payment_link: { order_id: "ord_1", url: "https://square.link/short" },
+          payment_link: {
+            id: "plink_1",
+            order_id: "ord_1",
+            url: "https://square.link/short",
+          },
         }),
-      ).toEqual({ orderId: "ord_1", url: "https://square.link/short" });
+      ).toEqual({
+        id: "plink_1",
+        orderId: "ord_1",
+        url: "https://square.link/short",
+      });
     });
 
     for (const [name, body] of [

@@ -6,14 +6,18 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   loadSubmittedAnswerLines,
+  loadSubmittedFreeTexts,
   saveSubmittedAnswerReceipts,
+  submittedAnswersForCheckout,
 } from "#shared/email/answer-receipt.ts";
 import type { AnswerLine } from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -58,6 +62,53 @@ const bookedLine = async (): Promise<{
   const loaded = await getListingWithCount(listing.id);
   return { entry: { attendee, listing: loaded! }, listingId: listing.id };
 };
+
+/** A second listing that no booking points at. */
+const anotherListing = async () => {
+  const listing = await createTestListing({ maxAttendees: 5 });
+  const found = await getListingWithCount(listing.id);
+  if (found === null) throw new Error("The created listing vanished");
+  return found;
+};
+
+/** Cut a receipt line's tie to its interned string, the way a corrupted row
+ * reads after the sealed text vanished. */
+const severStringId = async (attendeeId: number): Promise<void> => {
+  await execute(
+    "UPDATE submitted_answer_receipt_lines SET string_id = NULL WHERE attendee_id = ?",
+    [attendeeId],
+  );
+};
+
+/** A select question fixture with one option, active unless deactivated. */
+const selectQuestion = (
+  id: number,
+  answerId: number,
+  active = true,
+): QuestionWithAnswers => ({
+  answers: [
+    {
+      active,
+      id: answerId,
+      question_id: id,
+      sort_order: 0,
+      text: `Option ${answerId}`,
+    },
+  ],
+  assign_all: true,
+  display_type: "select",
+  id,
+  text: `Question ${id}`,
+});
+
+/** A free-text question fixture assigned to specific listings unless global. */
+const freeQuestion = (id: number): QuestionWithAnswers => ({
+  answers: [],
+  assign_all: false,
+  display_type: "free_text",
+  id,
+  text: `Question ${id}`,
+});
 
 /** The receipt lines for one booked line, with its free text supplied. */
 const receiptLinesOf = async (
@@ -160,5 +211,171 @@ describeWithEnv("submitted answer receipts", { db: true }, () => {
     await expect(loadSubmittedAnswerLines([entry])).rejects.toThrow(
       "owner key or checkout snapshot",
     );
+  });
+
+  test("captures exactly what each listing asks, in server wording", () => {
+    const snapshot = submittedAnswersForCheckout(
+      [{ listingId: 7 }, { listingId: 9 }],
+      {
+        activeQuestions: [
+          selectQuestion(1, 11),
+          { ...selectQuestion(2, 22), assign_all: false },
+          freeQuestion(3),
+          { ...selectQuestion(6, 66), assign_all: false },
+          selectQuestion(5, 55, false),
+        ],
+        answerIds: [11, 22, 66],
+        textAnswers: [{ questionId: 3, text: "Typed" }],
+      },
+      new Map([
+        [2, [7]],
+        [3, [7]],
+      ]),
+    );
+
+    expect(snapshot).toEqual([
+      {
+        answers: [
+          {
+            kind: "choice",
+            question: "Question 1",
+            questionId: 1,
+            text: "Option 11",
+          },
+          {
+            kind: "choice",
+            question: "Question 2",
+            questionId: 2,
+            text: "Option 22",
+          },
+          {
+            kind: "free_text",
+            question: "Question 3",
+            questionId: 3,
+            text: "Typed",
+          },
+        ],
+        listingId: 7,
+      },
+      {
+        answers: [
+          {
+            kind: "choice",
+            question: "Question 1",
+            questionId: 1,
+            text: "Option 11",
+          },
+        ],
+        listingId: 9,
+      },
+    ]);
+  });
+
+  test("rejects an answer selection that does not match the choice questions", () => {
+    expect(() =>
+      submittedAnswersForCheckout(
+        [{ listingId: 1 }],
+        {
+          activeQuestions: [selectQuestion(1, 11)],
+          answerIds: [],
+          textAnswers: [],
+        },
+        new Map(),
+      ),
+    ).toThrow("Invalid checkout answer selection");
+  });
+
+  test("empty booking lists save and read as no-ops", async () => {
+    await saveSubmittedAnswerReceipts([], []);
+
+    expect(await loadSubmittedAnswerLines([])).toEqual(new Map());
+  });
+
+  test("re-saving a booking never rewrites or duplicates its receipt", async () => {
+    const booked = await bookedWithFreeText("Coming by bus");
+
+    await saveSubmittedAnswerReceipts(
+      [booked.entry],
+      [
+        {
+          answers: [
+            {
+              kind: "free_text",
+              question: "Rewritten?",
+              questionId: booked.questionId,
+              text: "Changed my mind",
+            },
+          ],
+          listingId: booked.listingId,
+        },
+      ],
+    );
+
+    expect(await receiptLinesOf(booked, "Coming by bus")).toEqual([
+      { question: "Anything else?", text: "Coming by bus" },
+    ]);
+  });
+
+  test("refuses a second receipt for the same attendee on another listing", async () => {
+    const booked = await bookedWithFreeText("Coming by bus");
+    const other = await anotherListing();
+
+    await expect(
+      saveSubmittedAnswerReceipts(
+        [{ attendee: booked.entry.attendee, listing: other }],
+        [{ answers: [], listingId: other.id }],
+      ),
+    ).rejects.toThrow("Receipt belongs to another listing");
+  });
+
+  test("refuses to read a receipt against a booking on another listing", async () => {
+    const booked = await bookedWithFreeText("Coming by bus");
+    const other = await anotherListing();
+
+    await expect(
+      loadSubmittedAnswerLines([
+        { attendee: booked.entry.attendee, listing: other },
+      ]),
+    ).rejects.toThrow("Receipt belongs to another listing");
+  });
+
+  test("a free-text receipt without its interned string is a hard error", async () => {
+    const booked = await bookedWithFreeText("Coming by bus");
+    await severStringId(booked.entry.attendee.id);
+
+    await expect(
+      loadSubmittedAnswerLines(
+        [booked.entry],
+        new Map([[booked.questionId, "Coming by bus"]]),
+      ),
+    ).rejects.toThrow("Missing submitted text receipt");
+  });
+
+  test("the owner key reads the free texts the buyer submitted", async () => {
+    const booked = await bookedWithFreeText("Coming by bus");
+
+    const texts = await loadSubmittedFreeTexts(
+      [booked.entry],
+      await getTestPrivateKey(),
+    );
+
+    expect(texts.get(booked.questionId)).toBe("Coming by bus");
+  });
+
+  test("a free-text receipt without its sealed text is a hard error for the owner key", async () => {
+    const booked = await bookedWithFreeText("Coming by bus");
+    await severStringId(booked.entry.attendee.id);
+
+    await expect(
+      loadSubmittedFreeTexts([booked.entry], await getTestPrivateKey()),
+    ).rejects.toThrow("Missing submitted text receipt");
+  });
+
+  test("a booking without answers contributes no free texts", async () => {
+    const { entry } = await bookedLine();
+
+    expect(
+      await loadSubmittedFreeTexts([entry], await getTestPrivateKey()),
+    ).toEqual(new Map());
   });
 });

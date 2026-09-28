@@ -16,12 +16,14 @@ import type { SquareClient } from "#shared/square/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** The client the worker sees this test holding. */
-let client: SquareClient;
+const clients: { current: SquareClient } = {
+  current: undefined as unknown as SquareClient,
+};
 
 const fakeClient = (
   deleteLink: () => Promise<{ cancelled_order_id: string; id: string }>,
   readOrder: () => Promise<{
-    order: { id: string; state: string; tenders: unknown[] } | null;
+    order: { id: string; state: string; tenders?: unknown[] } | null;
   }>,
 ): SquareClient =>
   ({
@@ -59,9 +61,9 @@ describeWithEnv("square checkout cancellation", { db: true }, () => {
   let getClient: { restore(): void };
 
   beforeEach(() => {
-    client = cancelled;
+    clients.current = cancelled;
     getClient = stub(squareApi, "getSquareClient", () =>
-      Promise.resolve(client),
+      Promise.resolve(clients.current),
     );
   });
 
@@ -91,7 +93,7 @@ describeWithEnv("square checkout cancellation", { db: true }, () => {
 
   test("keeps the staged row when the order is not cancelled", async () => {
     await stageSquare("order_3", "link_3");
-    client = fakeClient(
+    clients.current = fakeClient(
       () => Promise.resolve({ cancelled_order_id: "order_3", id: "link_3" }),
       () =>
         Promise.resolve({
@@ -106,7 +108,7 @@ describeWithEnv("square checkout cancellation", { db: true }, () => {
 
   test("keeps the staged row when Square cancelled another checkout", async () => {
     await stageSquare("order_4", "link_4");
-    client = fakeClient(
+    clients.current = fakeClient(
       () =>
         Promise.resolve({ cancelled_order_id: "other_order", id: "link_4" }),
       () =>
@@ -120,9 +122,145 @@ describeWithEnv("square checkout cancellation", { db: true }, () => {
     expect(await stagedRow("order_4")).toBe(true);
   });
 
+  // The row disappears from under the worker only in a race with another
+  // worker that already claimed it; the trigger replays losing that race.
+  test("skips a row whose claim was lost to another worker", async () => {
+    await stageSquare("order_6", "link_6");
+    let deleteCalls = 0;
+    clients.current = fakeClient(
+      () => {
+        deleteCalls += 1;
+        return Promise.resolve({
+          cancelled_order_id: "order_6",
+          id: "link_6",
+        });
+      },
+      () => Promise.resolve({ order: null }),
+    );
+    await execute(
+      `CREATE TEMP TRIGGER block_claim
+         BEFORE UPDATE ON checkout_pending_answers
+         WHEN NEW.state = 'cancelling'
+         BEGIN SELECT RAISE(IGNORE); END`,
+      [],
+    );
+    try {
+      await runSquareCheckoutCancellation();
+    } finally {
+      await execute("DROP TRIGGER block_claim", []);
+    }
+
+    expect(deleteCalls).toBe(0);
+    const row = await queryOne<{ state: string }>(
+      "SELECT state FROM checkout_pending_answers WHERE session_index = ?",
+      [await sessionWorkIndex("order_6")],
+    );
+    expect(row?.state).toBe("open");
+  });
+
+  test("reports no work without asking for a client when nothing is staged", async () => {
+    getClient.restore();
+    let clientAsked = false;
+    getClient = stub(squareApi, "getSquareClient", () => {
+      clientAsked = true;
+      return Promise.resolve(null);
+    });
+
+    expect(await runSquareCheckoutCancellation()).toBe(false);
+    expect(clientAsked).toBe(false);
+  });
+
+  test("throws when no Square client is configured", async () => {
+    await stageSquare("order_7", "link_7");
+    getClient.restore();
+    getClient = stub(squareApi, "getSquareClient", () => Promise.resolve(null));
+
+    await expect(runSquareCheckoutCancellation()).rejects.toThrow(
+      "Square cancellation needs a Square client",
+    );
+    expect(await stagedRow("order_7")).toBe(true);
+  });
+
+  test("keeps the staged row when the cancelled order carries a tender", async () => {
+    await stageSquare("order_8", "link_8");
+    clients.current = fakeClient(
+      () => Promise.resolve({ cancelled_order_id: "order_8", id: "link_8" }),
+      () =>
+        Promise.resolve({
+          order: {
+            id: "order_8",
+            state: "CANCELED",
+            tenders: [{ id: "t_1" }],
+          },
+        }),
+    );
+
+    await runSquareCheckoutCancellation();
+
+    expect(await stagedRow("order_8")).toBe(true);
+  });
+
+  test("keeps the staged row when Square no longer knows the order", async () => {
+    await stageSquare("order_9", "link_9");
+    clients.current = fakeClient(
+      () => Promise.resolve({ cancelled_order_id: "order_9", id: "link_9" }),
+      () => Promise.resolve({ order: null }),
+    );
+
+    await runSquareCheckoutCancellation();
+
+    expect(await stagedRow("order_9")).toBe(true);
+  });
+
+  test("deletes the staged row when the cancelled order omits its tenders", async () => {
+    await stageSquare("order_10", "link_10");
+    clients.current = fakeClient(
+      () => Promise.resolve({ cancelled_order_id: "order_10", id: "link_10" }),
+      () =>
+        Promise.resolve({
+          order: { id: "order_10", state: "CANCELED" },
+        }),
+    );
+
+    await runSquareCheckoutCancellation();
+
+    // An order with no tenders field counts as one with no tenders at all.
+    expect(await stagedRow("order_10")).toBe(false);
+  });
+
+  test("keeps the staged row when the order names another checkout", async () => {
+    await stageSquare("order_11", "link_11");
+    clients.current = fakeClient(
+      () => Promise.resolve({ cancelled_order_id: "order_11", id: "link_11" }),
+      () =>
+        Promise.resolve({
+          order: { id: "order_other", state: "CANCELED", tenders: [] },
+        }),
+    );
+
+    await runSquareCheckoutCancellation();
+
+    expect(await stagedRow("order_11")).toBe(true);
+  });
+
+  test("keeps the staged row when the order was never cancelled", async () => {
+    await stageSquare("order_12", "link_12");
+    clients.current = fakeClient(
+      () => Promise.resolve({ cancelled_order_id: "order_12", id: "link_12" }),
+      () =>
+        Promise.resolve({
+          order: { id: "order_12", state: "OPEN", tenders: [] },
+        }),
+    );
+
+    await runSquareCheckoutCancellation();
+
+    expect(await stagedRow("order_12")).toBe(true);
+  });
+
   test("releases its claim when the provider call fails", async () => {
     await stageSquare("order_5", "link_5");
-    client = fakeClient(
+    clients.current = fakeClient(
       () => Promise.reject(new Error("network gone")),
       () =>
         Promise.resolve({

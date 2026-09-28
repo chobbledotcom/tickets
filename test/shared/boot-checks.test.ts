@@ -12,6 +12,7 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
   test("lists the global checks run before serving requests", () => {
     expect(BOOT_CHECKS.map((check) => check.name)).toEqual([
       "DB_ENCRYPTION_KEY",
+      "CHECKOUT_WORK_KEY",
       "MAIN_INSTANCE_KEY",
       "SCHEDULED_TASK_KEY",
       "UPTIME_KUMA",

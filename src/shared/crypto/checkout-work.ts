@@ -51,9 +51,10 @@ export const encryptCheckoutWork = async (
   plaintext: string,
 ): Promise<SealedCheckoutWork> => {
   const rowKey = await generateDataKey();
+  const key = await workKey();
   const [sealed, wrappedKey] = await Promise.all([
     encryptWithKey(plaintext, rowKey),
-    workKey().then((key) => wrapKey(rowKey, key)),
+    wrapKey(rowKey, key),
   ]);
   return { sealed, wrappedKey };
 };

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { t, withMessageGroups } from "#i18n";
 import { runWithPendingWork } from "#shared/pending-work.ts";
@@ -117,6 +117,34 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
         (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
+  });
+
+  test("aborts the durable queue when a template render fails", async () => {
+    await configureTestEmail();
+    await settings.update.email.template(
+      "confirmation",
+      "subject",
+      "{{ subject | missing_subject_filter }}",
+    );
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await runWithPendingWork(() =>
+        logAndNotifyRegistration([makeEntry()], {
+          sessionId: "cs_template_error",
+        }),
+      );
+      return errorSpy.calls.map(({ args }) => String(args[0]));
+    });
+
+    expectOneError(logs, "E_REGISTRATION_DELIVERY");
+    // The throw happens before the durable rows are written, so no queued
+    // email work exists for the checkout session.
+    const queued = await queryOne<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM registration_email_work",
+    );
+    expect(queued?.n).toBe(0);
   });
 
   test("rejects an unknown stored email provider before sending", async () => {

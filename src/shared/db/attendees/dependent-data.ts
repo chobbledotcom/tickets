@@ -49,6 +49,18 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
     action: "delete",
     field: "attendee_id",
     kind: "direct",
+    table: "checkout_pending_answers",
+  },
+  {
+    action: "delete",
+    field: "attendee_id",
+    kind: "direct",
+    table: "registration_email_work",
+  },
+  {
+    action: "delete",
+    field: "attendee_id",
+    kind: "direct",
     table: "checkout_stages",
   },
   {
@@ -65,6 +77,18 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
     field: "attendee_id",
     kind: "direct",
     table: "refund_confirmations",
+  },
+  {
+    action: "delete",
+    field: "attendee_id",
+    kind: "direct",
+    table: "submitted_answer_receipts",
+  },
+  {
+    action: "delete",
+    field: "attendee_id",
+    kind: "direct",
+    table: "submitted_answer_receipt_lines",
   },
   {
     action: "delete",

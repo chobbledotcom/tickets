@@ -4,7 +4,12 @@ import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#crypto/keys.ts";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
-import { executeBatch } from "#db/client.ts";
+import {
+  sessionWorkIndex,
+  stageCheckoutAnswers,
+} from "#db/checkout-pending-answers.ts";
+import { execute, executeBatch, queryOne } from "#db/client.ts";
+import { queueRegistrationEmails } from "#db/registration-email-work.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   MAINTENANCE_PRUNE_BATCH,
@@ -16,6 +21,7 @@ import type {
 } from "#shared/maintenance/definition.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
+import { parseEmail } from "#shared/validation/email.ts";
 import {
   insertLoginAttempt,
   insertStrings,
@@ -26,6 +32,8 @@ import {
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);
@@ -50,7 +58,7 @@ const runTask = (
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded pruning, activity backfill and SumUp recovery", () => {
+  test("declares only bounded pruning, backfill, recovery, and delivery", () => {
     expect(
       MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
         ...task,
@@ -100,6 +108,51 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         maxDatabaseCalls: 19,
         maxExternalCalls: 6,
         name: "sumup_checkout_recovery",
+        wakePolicy: "organic_safe",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: ["square_access_token", "square_location_id"],
+        },
+        deadlineMs: 20_000,
+        failureRetryIntervalMs: 300_000,
+        intervalMs: 86_400_000,
+        maxDatabaseCalls: 21,
+        maxExternalCalls: 8,
+        name: "square_checkout_cancellation",
+        wakePolicy: "scheduled_only",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: [],
+        },
+        deadlineMs: 15_000,
+        failureRetryIntervalMs: 300_000,
+        intervalMs: 86_400_000,
+        maxDatabaseCalls: 4,
+        maxExternalCalls: 0,
+        name: "terminal_checkout_cleanup",
+        wakePolicy: "organic_safe",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: [],
+        },
+        deadlineMs: 15_000,
+        failureRetryIntervalMs: 300_000,
+        intervalMs: 86_400_000,
+        maxDatabaseCalls: 19,
+        maxExternalCalls: 6,
+        name: "registration_email_delivery",
         wakePolicy: "organic_safe",
       },
     ]);
@@ -166,6 +219,89 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     let followUps = 0;
 
     await runTask(taskNamed("database_pruning"), {
+      requestFollowUp: () => {
+        followUps += 1;
+      },
+    });
+
+    expect(followUps).toBe(1);
+  });
+
+  test("the terminal cleanup task sweeps its staged answers through the registry", async () => {
+    const sessionId = "cs_registry_terminal";
+    await stageCheckoutAnswers(sessionId, { "3": "staged answer" });
+    await execute(
+      `INSERT INTO processed_payments
+         (payment_session_id, processed_at, failure_data)
+       VALUES (?, ?, 'enc:1:registry:terminal')`,
+      [sessionId, nowIso()],
+    );
+    const checkpoints: (string | null)[] = [];
+    let followUps = 0;
+
+    await runTask(taskNamed("terminal_checkout_cleanup"), {
+      requestFollowUp: () => {
+        followUps += 1;
+      },
+      setCheckpoint: (checkpoint) => checkpoints.push(checkpoint),
+    });
+
+    // The loaded sweep removed the failed payment's staged answers and, with
+    // room left in its batch, asked for neither a checkpoint nor a follow-up.
+    expect(
+      await queryOne(
+        "SELECT session_index FROM checkout_pending_answers WHERE session_index = ?",
+        [await sessionWorkIndex(sessionId)],
+      ),
+    ).toBeNull();
+    expect(checkpoints).toEqual([null]);
+    expect(followUps).toBe(0);
+  });
+
+  test("the Square cancellation task is off until Square is connected", async () => {
+    expect(
+      await taskNamed("square_checkout_cancellation").check.enabled(),
+    ).toBe(false);
+  });
+
+  test("the Square cancellation task asks for no follow-up when no links wait", async () => {
+    let followUps = 0;
+
+    await runTask(taskNamed("square_checkout_cancellation"), {
+      requestFollowUp: () => {
+        followUps += 1;
+      },
+    });
+
+    expect(followUps).toBe(0);
+  });
+
+  test("the registration delivery task asks for a follow-up when its batch fills", async () => {
+    // Six claims fill the delivery worker's batch; an erased attendee ends
+    // each claim without a provider call, so the batch always reports more.
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const { attendee } = await createTestAttendeeDirect(
+      listing.id,
+      "Registry Batch Buyer",
+      "registry-batch@example.com",
+    );
+    for (let index = 0; index < 6; index++) {
+      await queueRegistrationEmails(`cs_registry_batch_${index}`, attendee.id, [
+        {
+          message: {
+            html: "<p>Welcome</p>",
+            subject: "Registration",
+            text: "Welcome",
+            to: parseEmail("registry-batch@example.com")!,
+          },
+          recipient: "buyer",
+        },
+      ]);
+    }
+    await execute("DELETE FROM attendees WHERE id = ?", [attendee.id]);
+    let followUps = 0;
+
+    await runTask(taskNamed("registration_email_delivery"), {
       requestFollowUp: () => {
         followUps += 1;
       },
