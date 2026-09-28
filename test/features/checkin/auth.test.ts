@@ -61,6 +61,9 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       expect(allowed.status).toBe(200);
       const allowedBody = await allowed.text();
       expect(allowedBody).toContain("Assigned Person");
+      // An agent's run-sheet view never carries the bulk actions: their
+      // session is not a door role, so the POST would refuse them.
+      expect(allowedBody).not.toContain('name="check_in"');
       expect(allowedBody).toContain("assigned@example.com");
       expect(allowedBody).not.toContain("Check In All");
       expect(allowedBody).not.toContain(
@@ -100,6 +103,41 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       expect(mixedBody).not.toContain(
         `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
       );
+    });
+
+    test("delivery agents see no bulk action on a fully refunded run-sheet leg", async () => {
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      const assignedAgent = (
+        await logisticsAgents.table.insert({ name: "Refunded van" })
+      ).id;
+      const { cookie } = await createTestAgentSession({
+        agentIds: [assignedAgent],
+        token: "checkin-agent-refunded",
+        username: "checkin-agent-refunded",
+      });
+      const own = await createTestAttendeeWithToken(
+        "Refunded Person",
+        "refunded-agent@example.com",
+        { usesLogistics: true },
+      );
+      await assignBookingToAgent(
+        own.attendee.id,
+        own.listing.id,
+        assignedAgent,
+        todayInTz(settings.timezone),
+      );
+      await refundThroughLedger(own.attendee.id, own.listing.id);
+
+      const response = await awaitTestRequest(`/checkin/${own.token}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("Refunded Person");
+      // A refunded leg offers nothing to change, and an agent's session is
+      // not a door role: no bulk action may appear.
+      expect(body).not.toContain("Check In All");
+      expect(body).not.toContain('name="check_in"');
     });
 
     test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {

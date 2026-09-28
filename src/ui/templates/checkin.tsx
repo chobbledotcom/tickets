@@ -56,26 +56,35 @@ export const checkinAdminPage = (
   )(entries);
 
   // The bulk action's POST only touches rows that are neither refunded nor on
-  // a "No check-in" listing, so the action's state reads those rows alone —
-  // a refunded row left checked-in must not flip the action to checkout
-  // while a checkable row still waits.
+  // a "No check-in" listing, so the actions' state reads those rows alone —
+  // a refunded row left checked-in must not hide the action a checkable row
+  // still needs.
   const eligibleRows = entries.filter(
     (e) => !e.attendee.refunded && !e.listing.purchase_only,
   );
   const anyEligibleCheckedIn = eligibleRows.some((e) => e.attendee.checked_in);
-  // A door-only login has no per-row controls, so its one bulk action must
-  // be able to undo the check-ins already made: it offers checkout as soon
-  // as any row is checked. Staff keep the all-rows flip — their per-row
-  // controls do the fine-grained work.
-  const offerCheckout = options.linkAdminPages
-    ? eligibleRows.length > 0 &&
-      eligibleRows.every((e) => e.attendee.checked_in)
-    : anyEligibleCheckedIn;
-  const buttonLabel = offerCheckout
-    ? t("admin.checkin.check_out_all")
-    : t("admin.checkin.check_in_all");
-  const buttonClass = offerCheckout ? "bulk-checkout" : "bulk-checkin";
-  const nextValue = offerCheckout ? "false" : "true";
+  const allEligibleCheckedIn = eligibleRows.length > 0 &&
+    eligibleRows.every((e) => e.attendee.checked_in);
+  // A door-only login has no per-row controls, so both bulk actions stay
+  // available and each renders only when it could change a row: admit the
+  // party, or undo the check-ins a door made — a mixed ticket shows both.
+  // Staff keep the single flipping button beside their per-row controls:
+  // checkout only once every eligible row is in.
+  const staffOfferCheckout = options.linkAdminPages && allEligibleCheckedIn;
+  const checkinForm = (
+    label: string,
+    buttonClass: string,
+    nextValue: string,
+  ): JSX.Element => (
+    <CsrfForm action={checkinPath}>
+      <SubmitWithHidden
+        buttonClass={buttonClass}
+        label={label}
+        name="check_in"
+        value={nextValue}
+      />
+    </CsrfForm>
+  );
   const heading = (
     <>
       <h1>{t("admin.checkin.heading")}</h1>
@@ -85,19 +94,43 @@ export const checkinAdminPage = (
 
   return String(
     <Layout title={t("admin.checkin.title")}>
-      {canCheckIn ? (
-        <CsrfForm action={checkinPath}>
-          {heading}
-          <SubmitWithHidden
-            buttonClass={buttonClass}
-            label={buttonLabel}
-            name="check_in"
-            value={nextValue}
-          />
-        </CsrfForm>
-      ) : (
-        heading
-      )}
+      {canCheckIn
+        ? (
+          options.doorOnly
+            ? (
+              <>
+                {heading}
+                {!allEligibleCheckedIn &&
+                  checkinForm(
+                    t("admin.checkin.check_in_all"),
+                    "bulk-checkin",
+                    "true",
+                  )}
+                {anyEligibleCheckedIn &&
+                  checkinForm(
+                    t("admin.checkin.check_out_all"),
+                    "bulk-checkout",
+                    "false",
+                  )}
+              </>
+            )
+            : (
+              <CsrfForm action={checkinPath}>
+                {heading}
+                <SubmitWithHidden
+                  buttonClass={staffOfferCheckout
+                    ? "bulk-checkout"
+                    : "bulk-checkin"}
+                  label={staffOfferCheckout
+                    ? t("admin.checkin.check_out_all")
+                    : t("admin.checkin.check_in_all")}
+                  name="check_in"
+                  value={staffOfferCheckout ? "false" : "true"}
+                />
+              </CsrfForm>
+            )
+        )
+        : heading}
       <AttendeeTableBlock
         options={{
           adminLinks: options.linkAdminPages,
@@ -110,9 +143,10 @@ export const checkinAdminPage = (
           rows: tableRows,
           // Each row's form POSTs to a staff-only admin endpoint, so only
           // staff see it; a door-only login reads each row's state as a
-          // badge instead — eligibility never decides the projection.
+          // badge instead — and staff keep the badges when no toggle could
+          // render (a token whose rows are all refunded or no-check-in).
           showCheckin: canCheckIn && options.linkAdminPages,
-          showCheckinState: options.doorOnly,
+          showCheckinState: options.doorOnly || options.linkAdminPages,
           showDate,
           showListing: true,
         }}

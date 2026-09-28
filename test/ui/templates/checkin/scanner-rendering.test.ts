@@ -12,9 +12,9 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
-import { testCsrfToken } from "#test-utils/session.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv(
   "check-in page (GET /checkin/:tokens) for a door-only scanner",
@@ -102,6 +102,41 @@ describeWithEnv(
       expect(body).toContain("Refunded");
       expect(body).not.toContain("Check In All");
       expect(body).not.toContain('name="check_in"');
+    });
+
+    test("keeps both bulk actions on a partly checked ticket", async () => {
+      const { attendee, first } = await createTwoListingBooking(
+        "Scanner Mixed",
+        "scanner-mixed@test.com",
+      );
+      const { handleRequest } = await import("#routes");
+      const staffSession = {
+        cookie: await testCookie(),
+        csrfToken: await testCsrfToken(),
+      };
+      // Staff admit one leg through its own row's form; the scanner's bulk
+      // actions must still cover both intents for the other leg.
+      await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: staffSession.csrfToken },
+          staffSession.cookie,
+        ),
+      );
+
+      const response = await awaitTestRequest(
+        `/checkin/${attendee.ticket_token}`,
+        {
+          cookie: (await createTestScannerSession()).cookie,
+        },
+      );
+      const body = await response.text();
+      // The checked leg can be undone and the waiting leg can be admitted:
+      // neither intent is hidden behind the other.
+      expect(body).toContain("Check In All");
+      expect(body).toContain("Check Out All");
+      expect(body).toContain("Checked in");
+      expect(body).toContain("Not checked in");
     });
 
     test("offers checkout once a row is checked, with no per-row controls", async () => {

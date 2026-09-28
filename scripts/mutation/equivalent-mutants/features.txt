@@ -319,3 +319,11 @@ src/features/admin/settings-domains.ts::runGuardedTask.run~0zdzaus  ?? → ||   
 src/features/admin/guide.ts::handleAdminGuideGet.hostAppleWalletPassTypeId~0fwsjhh  ?? → ||   # the env builder gates every field truthy, and even a setHostConfigForTest override cannot reach the render: the sole consumer (WalletSetup in guide/tickets.tsx) gates its paragraph on `{configuredValue && …}`, so "" and null render identically
 src/features/admin/guide.ts::handleAdminGuideGet.hostGoogleWalletIssuerId~00ncc9m  ?? → ||  # the env builder gates every field truthy, and even a setHostConfigForTest override cannot reach the render: the sole consumer (WalletSetup in guide/tickets.tsx) gates its paragraph on `{configuredValue && …}`, so "" and null render identically
 src/features/admin/guide.ts::handleAdminGuideGet.hostEmailFromAddress~1owtz5h  ?? → ||  # getHostEmailConfigFromEnv gates on parseEmail-valid fields, and the sole guide consumer renders the value inside <code>: renderChild returns "" for null and for the empty string alike, so no override makes the two operators observable
+
+# Door-safe check-in projection: the fields it blanks are contact columns the
+# fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry
+# the value and every value renders identically.
+src/features/checkin.ts::doorSafeEntries.attendee.address~0l1hej5  → "mutated"   # the door-safe layout's columnKeys exclude the contact columns, so the blanked address can never render
+src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated"   # same: email is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated"   # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated"   # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
