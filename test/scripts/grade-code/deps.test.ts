@@ -21,7 +21,8 @@ describe("denoCliDeps", () => {
     expect(Array.isArray(await deps.listFiles("scripts/grade-code"))).toBe(
       true,
     );
-    expect(["string", "null"]).toContain(typeof (await deps.readSecret()));
+    const secret = await deps.readSecret();
+    expect(secret === null || typeof secret === "string").toBe(true);
     await deps.writeTextFile(`${dir.path}/out.txt`, "kept");
     expect(await Deno.readTextFile(`${dir.path}/out.txt`)).toBe("kept");
   });
