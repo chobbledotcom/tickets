@@ -37,15 +37,25 @@ const ROOM: Record<TicketDirection, (line: StoredTicketLine) => number> = {
 
 const STEP: Record<TicketDirection, number> = { admit: 1, release: -1 };
 
+/** A ticket count is a whole number of tickets, zero or more. A negative or
+ * fractional count would write a torn booking, so the write refuses it. */
+const isWholeTicketCount = (count: number): boolean =>
+  Number.isSafeInteger(count) && count >= 0;
+
 /** Move each count over the person's lines on that listing in the order
  * given, filling (or emptying) one line before the next. Answers the lines
  * that changed, the tickets each move really moved (less than asked when the
- * lines run out of room), and what each pair still owes afterwards. */
+ * lines run out of room), and what each pair still owes afterwards. A count
+ * that is not a whole number of tickets throws. */
 export const spreadTicketMoves = (
   direction: TicketDirection,
   lines: readonly StoredTicketLine[],
   moves: readonly TicketMove[],
 ): { changed: ChangedTicketLine[]; moved: TicketMoveAnswer[] } => {
+  const bad = moves.find((move) => !isWholeTicketCount(move.count));
+  if (bad !== undefined) {
+    throw new Error(`Invalid ticket count: ${bad.count}`);
+  }
   const after = lines.map((line) => ({ ...line, before: line.checked_in }));
   const moved = moves.map((move) => {
     let left = move.count;

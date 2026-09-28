@@ -97,6 +97,28 @@ describe("booking > ticket moves", () => {
     ]);
   });
 
+  test("a negative count throws instead of writing it", () => {
+    expect(() =>
+      spreadTicketMoves("admit", [line(1, 2, 0)], [move(-1)]),
+    ).toThrow("Invalid ticket count: -1");
+  });
+
+  test("a fractional count throws instead of writing it", () => {
+    expect(() =>
+      spreadTicketMoves("admit", [line(1, 2, 0)], [move(0.5)]),
+    ).toThrow("Invalid ticket count: 0.5");
+  });
+
+  test("a zero count stays valid and moves nothing", () => {
+    const { changed, moved } = spreadTicketMoves(
+      "admit",
+      [line(1, 2, 0)],
+      [move(0)],
+    );
+    expect(changed).toEqual([]);
+    expect(moved).toEqual([answer(0, 2)]);
+  });
+
   test("counts the tickets a set of moves covers", () => {
     expect(ticketCount([move(2), move(0), move(3)])).toBe(5);
   });
