@@ -175,15 +175,12 @@ const triggerQuantity = (
   return 1;
 };
 
-/** All active modifiers keyed by id, for the re-fetch-by-id lookups. */
-const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
-  modifiersById(await getActiveModifiers());
-
 /** Resolve the in-scope listing ids (null = whole order) of every active
- * answer-trigger modifier among `ids`. Ids that aren't an active answer
- * modifier are omitted, so a stale link never contributes a quantity. */
+ * answer-trigger modifier among `ids` — keyed lookups re-fetch the active
+ * modifiers by id. Ids that aren't an active answer modifier are omitted, so
+ * a stale link never contributes a quantity. */
 const answerModifierScopes = async (ids: number[]): Promise<ListingScopes> => {
-  const byId = await activeModifiersById();
+  const byId = modifiersById(await getActiveModifiers());
   return listingIdsByModifierId(
     ids
       .map((id) => byId.get(id))
