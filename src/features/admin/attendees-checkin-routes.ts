@@ -95,11 +95,9 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
     if (direction !== "true" && direction !== "false") {
       return redirect(target, "Invalid check-in direction", false, { form });
     }
-    // The quantity page names its count. A direct toggle (the quantity 1
-    // roster button) posts none and takes the whole booking.
-    const rawCount = form.getString("quantity");
-    const count =
-      rawCount === "" ? data.attendee.quantity : parsePositiveInt(rawCount);
+    // Every form names its count, so a roster line that shows only part of
+    // the booking (one date, one filter) cannot move the rest of it.
+    const count = parsePositiveInt(form.getString("quantity"));
     if (count === null) {
       return redirect(target, "Invalid ticket count", false, { form });
     }

@@ -188,7 +188,7 @@ Two details differ from the contract's first draft:
 - The roster's Check In button posts an explicit `check_in` field, so a press
   never depends on the stored state to name its direction.
 
-Three properties the first draft did not name, which the code now pins:
+Five properties the first draft did not name, which the code now pins:
 
 - `moveTickets` skips refunded rows when it reads the lines to spread over, and
   each move answers the `owedAfter` its pair carries. The quantity page, the
@@ -199,6 +199,12 @@ Three properties the first draft did not name, which the code now pins:
 - The check-in POST names its direction with one of exactly `true` or `false`.
   Anything else redirects with "Invalid check-in direction", and a write that
   moved nothing redirects with "No tickets moved" and logs no activity.
+- Every check-in form names its ticket count. The quantity 1 toggle posts 1, and
+  a POST with no count redirects with "Invalid ticket count". A roster that
+  shows one date or one filter cannot move the tickets it hides.
+- The roster picks each line's control from `movableBooking` in
+  `src/shared/booking/remaining-tickets.ts`, through `withPairBookings`. The
+  quantity page uses the same sum, so both leave out refunded lines.
 
 ## Pull request shape
 

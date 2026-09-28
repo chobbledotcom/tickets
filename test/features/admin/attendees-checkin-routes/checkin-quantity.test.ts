@@ -158,7 +158,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true" },
+        { check_in: "true", quantity: "3" },
       );
 
       const { response } = await adminFormPost(
@@ -176,7 +176,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true" },
+        { check_in: "true", quantity: "3" },
       );
 
       const response = await adminGet(
@@ -210,6 +210,17 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         );
         expectFlash(response, "Invalid ticket count", false);
       }
+      expect(await storedCount(listing.id, attendee.id)).toBe(0);
+    });
+
+    test("refuses a post that names no count", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { check_in: "true" },
+      );
+      expectFlash(response, "Invalid ticket count", false);
       expect(await storedCount(listing.id, attendee.id)).toBe(0);
     });
   });

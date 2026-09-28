@@ -6,7 +6,8 @@
  * these helpers only reshape them.
  */
 
-import { sumOf } from "#fp";
+import { movableBooking } from "#booking/remaining-tickets.ts";
+import { groupToMap, sumOf } from "#fp";
 import type {
   AttendeeRowListing,
   AttendeeTableRow,
@@ -24,24 +25,22 @@ export const attendeeLineRow = (
   listings: [{ id: listing.id, name: listing.name }],
 });
 
-/** Attach each (person, listing) pair's summed booking to the line rows. A
+/** Attach each (person, listing) pair's movable booking to the line rows. A
  * pair can hold several lines — two dates, two parents — and the check-in
- * controls must pick the direct toggle only when the whole pair holds one
- * ticket, because the POST a control makes moves the pair's booking. */
+ * controls pick the direct toggle only when the whole pair holds one ticket,
+ * so a one-ticket line of a bigger booking opens the quantity page. */
 export const withPairBookings = (
   rows: readonly AttendeeTableRow[],
 ): AttendeeTableRow[] => {
-  const sums = new Map<string, { checked_in: number; quantity: number }>();
-  for (const row of rows) {
-    const key = `${row.attendee.id}:${row.listings[0]!.id}`;
-    const sum = sums.get(key) ?? { checked_in: 0, quantity: 0 };
-    sum.checked_in += row.attendee.checked_in;
-    sum.quantity += row.attendee.quantity;
-    sums.set(key, sum);
-  }
+  const pairKey = (row: AttendeeTableRow): string =>
+    `${row.attendee.id}:${row.listings[0]!.id}`;
+  const lines = groupToMap(
+    pairKey,
+    (row: AttendeeTableRow) => row.attendee,
+  )(rows);
   return rows.map((row) => ({
     ...row,
-    booking: sums.get(`${row.attendee.id}:${row.listings[0]!.id}`)!,
+    booking: movableBooking(lines.get(pairKey(row))!),
   }));
 };
 

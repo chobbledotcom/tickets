@@ -57,8 +57,8 @@ const CheckinControls = ({
   activeFilter,
   returnUrl,
 }: CheckinControlsProps): JSX.Element => {
-  // The POST a control makes moves the pair's whole booking, so the control
-  // is picked from the pair's totals: a pair holding one ticket keeps the
+  // The write spreads a count over all the pair's lines, so the control is
+  // picked from the pair's totals: a pair holding one ticket keeps the
   // direct toggle, a larger pair links to the quantity page.
   const bookingQuantity = booking?.quantity ?? attendee.quantity;
   const bookingCheckedIn = booking?.checked_in ?? attendee.checked_in;
@@ -86,6 +86,7 @@ const CheckinControls = ({
       class="inline"
     >
       <input name="check_in" type="hidden" value={out ? "false" : "true"} />
+      <input name="quantity" type="hidden" value="1" />
       <input name="return_filter" type="hidden" value={activeFilter} />
       <ReturnUrlField returnUrl={returnUrl} />
       <button

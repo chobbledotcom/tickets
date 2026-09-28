@@ -61,6 +61,7 @@ describe("attendee status cells", () => {
       '<form action="/admin/listing/9/attendee/7/checkin" autocomplete="off" method="POST" class="inline">' +
         `<input name="csrf_token" type="hidden" value="${token}">` +
         '<input name="check_in" type="hidden" value="true">' +
+        '<input name="quantity" type="hidden" value="1">' +
         '<input name="return_filter" type="hidden" value="all">' +
         '<button class="link-button checkin" type="submit">Check in</button></form>',
     );
@@ -107,8 +108,8 @@ describe("attendee status cells", () => {
   });
 
   test("picks the control from the pair's booking, not the row's line", () => {
-    // One qty-1 line of a two-line pair: the POST its toggle would make
-    // moves the whole pair, so the row links to the quantity page instead.
+    // One qty-1 line of a two-line pair: the check-in write moves the pair,
+    // so the row links to the quantity page instead.
     const html = String(
       createStatusRenderer(makeOpts())(
         makeRow({

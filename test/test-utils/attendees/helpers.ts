@@ -302,8 +302,8 @@ export const emptyBookingLine = async (
   );
 };
 
-/** POST the roster's check-in route for one attendee, naming the direction the
- * way the roster's buttons do. An `extra` `check_in` overrides the default. */
+/** POST the roster's check-in route for one attendee, with the direction and
+ * the one ticket the roster's toggle posts. `extra` overrides either. */
 export const adminCheckinPost = (
   listingId: number,
   attendeeId: number,
@@ -311,6 +311,7 @@ export const adminCheckinPost = (
 ) =>
   adminFormPost(`/admin/listing/${listingId}/attendee/${attendeeId}/checkin`, {
     check_in: "true",
+    quantity: "1",
     ...extra,
   });
 

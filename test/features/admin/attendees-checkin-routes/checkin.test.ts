@@ -25,9 +25,13 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */
@@ -50,11 +54,12 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
   const checkInThenPost = async (body: Record<string, string> = {}) => {
     const { listing, attendee, cookie, csrfToken } = await checkinAction({
       check_in: "true",
+      quantity: "1",
     })();
     const response = await handleRequest(
       mockFormRequest(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "false", csrf_token: csrfToken, ...body },
+        { check_in: "false", csrf_token: csrfToken, quantity: "1", ...body },
         cookie,
       ),
     );
@@ -96,6 +101,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     test("checks in an attendee and redirects to the roster with a flash", async () => {
       const { response, listing } = await checkinAction({
         check_in: "true",
+        quantity: "1",
       })();
       expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
       expectFlash(response, expect.stringContaining("Checked John Doe in"));
@@ -115,7 +121,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${other.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true" },
+        { check_in: "true", quantity: "1" },
       );
       expectRedirect(response, `/admin/listing/${other.id}/attendees`);
       expectFlash(response, expect.stringContaining("Checked Bruno in"));
@@ -156,6 +162,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     test("redirects to return_url when provided", async () => {
       const { response } = await checkinAction({
         check_in: "true",
+        quantity: "1",
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
       expectRedirect(
@@ -182,7 +189,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("roster shows Check out button for checked-in attendee", async () => {
       // Check in first, then view the roster tab
-      const { listing } = await checkinAction({ check_in: "true" })();
+      const { listing } = await checkinAction({
+        check_in: "true",
+        quantity: "1",
+      })();
 
       await assertAdminHtml(
         `/admin/listing/${listing.id}/attendees`,
@@ -191,9 +201,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     });
 
     test("routes a qty-1 line of a multi-row pair through the quantity page", async () => {
-      // A person merged from two bookings on one listing holds two rows; the
-      // qty-1 row's old direct toggle would POST with no count and move the
-      // whole pair. Both rows must link to the quantity page instead.
+      // A person merged from two bookings on one listing holds two rows. The
+      // qty-1 row belongs to a three-ticket booking, so both rows link to the
+      // quantity page.
       const listing = await createTestListing({
         maxAttendees: 10,
         maxQuantity: 5,
@@ -216,6 +226,44 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       expect(html).not.toContain('name="check_in"');
+    });
+
+    test("a date's direct toggle admits one ticket, never the other date's", async () => {
+      // Filtered to one date, the roster shows only that date's qty-1 line,
+      // so it offers the direct toggle. Its POST must move the one ticket
+      // the line holds, never the whole booking across both dates.
+      const listing = await createDailyTestListing();
+      const { attendeesApi } = await import("#db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { date: "2026-10-05", listingId: listing.id, quantity: 1 },
+          { date: "2026-10-06", listingId: listing.id, quantity: 1 },
+        ],
+        email: "dana-days@example.com",
+        name: "Dana Days",
+      });
+      if (!made.success) throw new Error("Could not book Dana Days");
+
+      const html = await expectHtmlResponse(
+        await adminGet(
+          `/admin/listing/${listing.id}/attendees?date=2026-10-05`,
+        ),
+        200,
+        "Dana Days",
+      );
+      const form = html.match(/<form\b[^>]*\/checkin"[\s\S]*?<\/form>/)![0];
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
+        Object.fromEntries(
+          extractFormEntries(form).filter(([name]) => name !== "csrf_token"),
+        ),
+      );
+
+      const admitted = await getDb().execute({
+        args: [listing.id],
+        sql: "SELECT SUM(checked_in) AS total FROM listing_attendees WHERE listing_id = ?",
+      });
+      expect(admitted.rows[0]!.total).toBe(1);
     });
   });
 

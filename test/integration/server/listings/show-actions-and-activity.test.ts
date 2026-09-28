@@ -45,7 +45,7 @@ describeWithEnv(
         // attendee and the in status — the old ?checkin_name= URL surface is gone.
         const { response: inResponse } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { check_in: "true" },
+          { check_in: "true", quantity: "1" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,
@@ -56,7 +56,7 @@ describeWithEnv(
         // repeats it.
         const { response: outResponse } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { check_in: "false" },
+          { check_in: "false", quantity: "1" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,

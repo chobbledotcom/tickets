@@ -2,6 +2,7 @@
  * Shared utilities for admin attendee route handlers
  */
 
+import { movableBooking } from "#booking/remaining-tickets.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#db/listings/attendees.ts";
@@ -10,7 +11,6 @@ import {
   getPaymentReviewState,
   type PaymentReviewState,
 } from "#db/payment-review.ts";
-import { sumOf } from "#fp";
 import type { PaymentRecoveryAction } from "#payment/admit-move.ts";
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
@@ -91,14 +91,10 @@ export const loadAttendeeForListing = loadBookingWith(
  * across the rows the write can move — the lines no refund returned. A
  * refunded sibling holds no movable tickets, so it stays out of the page's
  * totals and the counts it offers. */
-export const loadAttendeeBooking = loadBookingWith(({ attendee, rows }) => {
-  const movable = rows.filter((row: Attendee) => !row.refunded);
-  return {
-    ...attendee,
-    checked_in: sumOf((row: Attendee) => row.checked_in)(movable),
-    quantity: sumOf((row: Attendee) => row.quantity)(movable),
-  };
-});
+export const loadAttendeeBooking = loadBookingWith(({ attendee, rows }) => ({
+  ...attendee,
+  ...movableBooking(rows),
+}));
 
 /** Load attendee with auth, returning 404 if not found */
 export const withAttendee = withEntityLoader(loadAttendeeForListing);
