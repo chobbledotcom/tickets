@@ -294,18 +294,21 @@ const assignSitesForEntries = async (
       (e: EmailEntry) => e.listing.initial_site_months * e.attendee.quantity,
     )(booked);
 
-    const planListingIds = booked.map((e) => e.listing.id);
+    // The claim may sit on a listing later refunded, and a refund does not
+    // unassign its site, so the served check spans every plan row of this
+    // run — refunded ones included — while months count only the rest.
+    const servedListingIds = unique(buyerPlans.map((e) => e.listing.id));
     const listingName = unique(booked.map((e) => e.listing.name)).join(" + ");
     const take = await takePooledSiteForBuyer(
       available,
       first.attendee.id,
-      planListingIds,
+      servedListingIds,
       first.listing.id,
     );
     if (take.kind === "served") {
       await completeUnfinishedRenewal(
         first.attendee.id,
-        planListingIds,
+        servedListingIds,
         months,
       );
       continue;

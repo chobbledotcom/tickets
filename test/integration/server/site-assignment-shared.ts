@@ -17,6 +17,14 @@ import { validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
+/** Assert exactly one site is assigned and Site B was never touched. */
+export const expectOneSiteClaimed = async (): Promise<void> => {
+  const { builtSites } = await import("#db/built-sites.ts");
+  const sites = await builtSites.getAll();
+  expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(1);
+  expect(sites.find((s) => s.name === "Site B")!.assignedAttendeeId).toBe(null);
+};
+
 /** Deactivate every active, hidden, purchase-only, monthly listing — the
  *  "renewal tier" set — so tests can exercise the no-qualifying-tier path. */
 export const deactivateAllTierListings = async (): Promise<void> => {
