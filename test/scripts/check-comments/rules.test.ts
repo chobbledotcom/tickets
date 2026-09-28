@@ -5,6 +5,7 @@ import {
   type CommentLimits,
   findCommentIssues,
   findDeadLinks,
+  findGateCitations,
   formatIssue,
   namesMentioned,
   readComments,
@@ -253,6 +254,79 @@ describe("comment-dead-link rule", () => {
 
   test("ignores a comment with no links at all", () => {
     expect(links("// just prose\n")).toEqual([]);
+  });
+});
+
+describe("comment-gate-citation rule", () => {
+  const citations = (file: string, source: string): CommentIssue[] =>
+    findGateCitations(file, source);
+
+  test("flags a comment that vouches for a check", () => {
+    const [issue] = citations(
+      "src/features/auth.ts",
+      "/** Factories (avoids jscpd duplication) */\n",
+    );
+    expect(issue?.rule).toBe("gate-citation");
+    expect(issue?.problem).toBe(
+      "comment cites the jscpd check as a reason for the code's shape",
+    );
+    expect(issue?.fix).toBe(
+      "Delete the comment. The checks run on every change, so no comment needs to vouch for the code.",
+    );
+  });
+
+  test("flags a credit word before or after the tool it credits", () => {
+    expect(
+      citations("src/shared/db.ts", "// so the linter passes\n"),
+    ).toHaveLength(1);
+    expect(
+      citations("src/shared/db.ts", "// keeps biome happy\n"),
+    ).toHaveLength(1);
+  });
+
+  test("passes comments that describe the code without naming a check", () => {
+    expect(
+      citations(
+        "src/shared/db.ts",
+        "// Eliminates duplication between adapters.\n",
+      ),
+    ).toEqual([]);
+    expect(
+      citations(
+        "src/shared/db.ts",
+        "// avoid V8 coverage gaps on `throw` inside catch blocks.\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("passes the tooling trees, whose comments document the checks", () => {
+    expect(
+      citations(
+        "scripts/check-comments/rules.ts",
+        '// "avoids jscpd duplication" is the shape this rule flags.\n',
+      ),
+    ).toEqual([]);
+    expect(
+      citations(
+        "test/scripts/check-comments/rules.test.ts",
+        "// so precommit passes on a shallow clone\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("passes directives a tool reads", () => {
+    expect(
+      citations(
+        "src/shared/payments.ts",
+        '/* jscpd:ignore-start -- imports */\nimport { a } from "./a.ts";\n/* jscpd:ignore-end */\n',
+      ),
+    ).toEqual([]);
+    expect(
+      citations(
+        "src/shared/markdown.ts",
+        "// biome-ignore lint/suspicious/noControlCharactersInRegex: the whole point\n",
+      ),
+    ).toEqual([]);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   type CommentLimits,
   findCommentIssues,
   findDeadLinks,
+  findGateCitations,
   formatIssue,
   namesMentioned,
 } from "./rules.ts";
@@ -88,6 +89,7 @@ export const runCommentCheck = async (
         ? []
         : findCommentIssues(content, limits)),
       ...findDeadLinks(content, known),
+      ...findGateCitations(file, content),
     ].sort(byLine);
     for (const issue of issues) found.push(formatIssue(file, issue));
   }

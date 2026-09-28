@@ -264,6 +264,72 @@ describe("count-based checks", () => {
   });
 });
 
+describe("i18n_catalog", () => {
+  test("skips a module that carries no copy", () => {
+    expect(verdictOf("const a = 1;\n", "i18n_catalog").status).toBe("SKIP");
+  });
+
+  test("passes a template whose copy goes through t()", () => {
+    const verdict = runMechanical(
+      extractCode(
+        "src/ui/templates/sample.tsx",
+        'const a = <p>{t("guide.search_hint")}</p>;\n',
+      ),
+      ctxOf(),
+    ).i18n_catalog;
+    expect(verdict?.status).toBe("PASS");
+  });
+
+  test("fails hard-coded JSX text in a template", () => {
+    const verdict = runMechanical(
+      extractCode(
+        "src/ui/templates/sample.tsx",
+        "const a = <p>Please enter your name</p>;\n",
+      ),
+      ctxOf(),
+    ).i18n_catalog;
+    expect(verdict?.status).toBe("FAIL");
+    expect(verdict?.note).toContain('text "Please enter your name"');
+  });
+
+  test("warns within an allowlisted budget and fails over it", () => {
+    // src/ui/templates/admin/calendar.tsx carries a budget of 1.
+    const grade = (source: string) =>
+      runMechanical(
+        extractCode("src/ui/templates/admin/calendar.tsx", source),
+        ctxOf(),
+      ).i18n_catalog;
+    expect(grade("const a = <p>One leftover string</p>;\n")?.status).toBe(
+      "WARN",
+    );
+    expect(
+      grade(
+        "const a = <p>One leftover string</p>;\nconst b = <p>Another one here</p>;\n",
+      )?.status,
+    ).toBe("FAIL");
+  });
+});
+
+describe("gate_citations", () => {
+  test("fails a comment that vouches for a check", () => {
+    const verdict = verdictOf(
+      "// shared factories (avoids jscpd duplication)\nconst a = 1;\n",
+      "gate_citations",
+    );
+    expect(verdict.status).toBe("FAIL");
+    expect(verdict.note).toContain("cites the jscpd check");
+  });
+
+  test("passes prose that names no check", () => {
+    expect(
+      verdictOf(
+        "// Eliminates duplication between adapters.\n",
+        "gate_citations",
+      ).status,
+    ).toBe("PASS");
+  });
+});
+
 describe("runMechanical", () => {
   test("marks the precommit-backed checks critical", () => {
     const results = runMechanical(

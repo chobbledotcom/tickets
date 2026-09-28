@@ -180,6 +180,39 @@ export const findCommentIssues: CommentCheck<CommentLimits> = eachComment(
     ),
 );
 
+/**
+ * A repo check the comment name-drops, and a word that credits the code with
+ * passing or dodging it: "(avoids jscpd duplication)" and "so the linter
+ * passes" read this way. The checks run on every change, so a comment that
+ * vouches for one adds nothing. Directives a tool reads are already dropped
+ * by readComments, and the tooling trees are out of scope — their comments
+ * document the checks themselves.
+ */
+const GATE_TOOL =
+  /(jscpd|biome|deno[- ]lint|deno fmt|deno check|\btypecheck\b|\bprecommit\b|\blint(?:er|ing)?\b)/i;
+const GATE_CREDIT =
+  /(avoid|satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b|\bflags?\b)/i;
+
+/** Comments under src/ that justify the code by a check it passes or avoids. */
+export const findGateCitations = (
+  file: string,
+  content: string,
+): CommentIssue[] => {
+  if (!file.startsWith("src/")) return [];
+  return readComments(content).flatMap((comment) => {
+    const tool = GATE_TOOL.exec(comment.text);
+    if (tool === null || !GATE_CREDIT.test(comment.text)) return [];
+    return [
+      {
+        fix: "Delete the comment. The checks run on every change, so no comment needs to vouch for the code.",
+        line: comment.line,
+        problem: `comment cites the ${tool[0]} check as a reason for the code's shape`,
+        rule: "gate-citation",
+      },
+    ];
+  });
+};
+
 /** One issue as a reader-friendly line. */
 export const formatIssue = (file: string, issue: CommentIssue): string =>
   `${file}:${issue.line}  ${issue.problem}\n    ${issue.fix}`;

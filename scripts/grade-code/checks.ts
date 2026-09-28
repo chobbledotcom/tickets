@@ -6,10 +6,19 @@
  */
 
 import { findIssues as findAliasExportIssues } from "#scripts/check-alias-exports/rules.ts";
-import { findCommentIssues } from "#scripts/check-comments/rules.ts";
+import {
+  findCommentIssues,
+  findGateCitations,
+} from "#scripts/check-comments/rules.ts";
 import { isCommentExempt, LIMITS } from "#scripts/check-comments/run.ts";
 import { findIssues as findEmptyCatchIssues } from "#scripts/check-empty-catch/rules.ts";
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
+import {
+  isI18nScanTarget,
+  isTsModule,
+  leftoverBudget,
+  leftoverLiterals,
+} from "#scripts/check-i18n/rules.ts";
 import { type Alias, findImportIssues } from "#scripts/check-imports/rules.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import type { CodeFacts } from "./extract.ts";
@@ -252,6 +261,43 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
     id: "return_types",
     label: "Exported functions state return types",
     weight: 3,
+  },
+  {
+    fn: (facts) => {
+      if (!isI18nScanTarget(facts.file)) {
+        return {
+          goodness: 1,
+          note: "not a copy-bearing module",
+          status: "SKIP",
+        };
+      }
+      const hits = leftoverLiterals(facts.content, isTsModule(facts.file));
+      const budget = leftoverBudget(facts.file);
+      if (hits.length === 0) {
+        return { goodness: 1, note: "no hard-coded strings", status: "PASS" };
+      }
+      if (hits.length <= budget) {
+        return {
+          goodness: 0.5,
+          note: `${hits.length} hard-coded strings, accepted debt (budget ${budget})`,
+          status: "WARN",
+        };
+      }
+      return {
+        goodness: 0,
+        note: `${hits.length} hard-coded strings over the budget of ${budget}: ${firstNotes(hits, (hit) => hit)}`,
+        status: "FAIL",
+      };
+    },
+    id: "i18n_catalog",
+    label: "No hard-coded copy",
+    weight: 3,
+  },
+  {
+    fn: ruleCheck(findGateCitations, () => "no gate citations"),
+    id: "gate_citations",
+    label: "Comments never vouch for the checks",
+    weight: 2,
   },
 ];
 
