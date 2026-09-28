@@ -114,17 +114,38 @@ const entriesVisibleToSession = async (
   )(entries);
 };
 
+/** The facts a door-only login may read from a ticket row: who, which listing
+ * and day, how many places, and the check-in state. Contact details stay
+ * behind — the ticket itself never shows them either. Blank fields also hide
+ * their table columns outright. */
+const doorSafeEntries = (entries: TokenEntry[]): TokenEntry[] =>
+  map((entry: TokenEntry) => ({
+    ...entry,
+    attendee: {
+      ...entry.attendee,
+      address: "",
+      email: "",
+      phone: "",
+      special_instructions: "",
+    },
+  }))(entries);
+
 const renderAdminCheckin = async (
   request: Request,
   tokens: string[],
   entries: TokenEntry[],
-  page: { canCheckIn: boolean; linkAdminPages: boolean },
+  page: {
+    canCheckIn: boolean;
+    doorOnly: boolean;
+    linkAdminPages: boolean;
+  },
 ): Promise<Response> => {
   const decrypted = await decryptEntries(entries);
+  const shown = page.doorOnly ? doorSafeEntries(decrypted) : decrypted;
   const message = getSearchParam(request, "message");
   return htmlResponse(
     checkinAdminPage(
-      decrypted,
+      shown,
       checkinPath(tokens),
       message,
       getEffectiveDomain(),
@@ -153,12 +174,16 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
 
     const visibleEntries = await entriesVisibleToSession(session, entries);
     // Door roles may toggle check-in; only staff may follow the attendee and
-    // listing links into the admin, which a scanner login cannot open.
+    // listing links into the admin, which a scanner login cannot open. A
+    // door-only login (a scanner) reads door facts only; an agent's own
+    // delivery rows still show contact details, which the run sheet needs.
     const canCheckIn = isDoorRole(session.adminLevel);
+    const doorOnly = canCheckIn && !isStaffRole(session.adminLevel);
     return visibleEntries.length === 0
       ? authFailure("html", "forbidden")
       : renderAdminCheckin(request, tokens, visibleEntries, {
           canCheckIn,
+          doorOnly,
           linkAdminPages: isStaffRole(session.adminLevel),
         });
   });

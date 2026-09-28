@@ -120,6 +120,31 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(body).not.toContain('href="/admin/guide');
   });
 
+  test("answers 404 for a no-check-in listing's door and refuses its scan", async () => {
+    const { attendee, listing, token } = await createTestAttendeeWithToken(
+      "Ida",
+      "ida@example.com",
+      { name: "Merch Stand", purchaseOnly: true },
+    );
+    const scanner = await createTestScannerSession();
+
+    const page = await getAs(
+      `/admin/listing/${listing.id}/scanner`,
+      scanner.cookie,
+    );
+    expect(page.status).toBe(404);
+    // The door's scan API refuses the same listing: the app's ticket-QR path
+    // never marks a no-check-in row as attended, and neither does the door.
+    const scan = await scanAsScanner(
+      `/admin/listing/${listing.id}/scan`,
+      scanner.cookie,
+      token,
+    );
+    expect((await scan.json()).status).toBe("wrong_listing");
+    // The booking row is still there, and still unchecked.
+    expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+  });
+
   test("opens the group scanner page for a scanner login", async () => {
     const { group } = await groupDoor(1);
     const { cookie } = await createTestScannerSession();

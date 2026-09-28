@@ -12,6 +12,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
@@ -254,6 +255,45 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       });
       const body = await response.text();
       expect(body).not.toContain("<th>Date</th>");
+    });
+  });
+
+  describe("GET /checkin/:tokens (door-only scanner)", () => {
+    test("keeps the bulk form but hides the staff-only row controls", async () => {
+      const { listing, token } = await setupCheckinTest("Sam", "sam@test.com");
+      const scanner = await createTestScannerSession();
+
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: scanner.cookie,
+      });
+      expect(response.status).toBe(200);
+
+      const body = await response.text();
+      // The working bulk check-in stays; the per-row forms POST to a
+      // staff-only admin endpoint, so a scanner is never shown one.
+      expect(body).toContain("Check In All");
+      expect(body).not.toContain(`/admin/listing/${listing.id}/attendee/`);
+    });
+
+    test("reads the door facts and none of the contact details", async () => {
+      const { token } = await setupCheckinTest(
+        "Rae",
+        "rae@test.com",
+        { fields: "email,phone" },
+        1,
+        "555-1234",
+      );
+      const scanner = await createTestScannerSession();
+
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: scanner.cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("Rae");
+      expect(body).not.toContain("rae@test.com");
+      expect(body).not.toContain("555-1234");
+      expect(body).not.toContain("<th>Email</th>");
+      expect(body).not.toContain("<th>Phone</th>");
     });
   });
 });

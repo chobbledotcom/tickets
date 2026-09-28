@@ -76,7 +76,9 @@ export const checkinAdminPage = (
           phonePrefix,
           returnUrl: checkinPath,
           rows: tableRows,
-          showCheckin: canCheckIn,
+          // Each row's form POSTs to a staff-only admin endpoint, so only
+          // staff see it; a door-only login works the bulk form above.
+          showCheckin: canCheckIn && options.linkAdminPages,
           showDate,
           showListing: true,
         }}

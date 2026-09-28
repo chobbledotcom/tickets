@@ -27,7 +27,11 @@ import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import { htmlResponse, jsonResponse } from "#routes/response.ts";
+import {
+  htmlResponse,
+  jsonResponse,
+  notFoundResponse,
+} from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   decryptTokenEntries,
@@ -104,6 +108,9 @@ const handleScannerGet: IdRouteHandler = createIdEntityHandler<
   NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
 >(getListingWithCount)(pageGuardFor(adminDestination("listingScanner")))(
   async (listing, session) => {
+    // A "No check-in" listing has no door: the doors list hides it, and a
+    // guessed URL meets the same answer as an unknown listing.
+    if (listing.purchase_only) return notFoundResponse();
     const privateKey = await requireRequestPrivateKey();
     const attendees = await decryptAttendees(
       await getAttendeesRaw(listing.id),
