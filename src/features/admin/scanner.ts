@@ -33,11 +33,7 @@ import {
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import {
-  groupScope,
-  listingScope,
-  processScan,
-} from "./scan-answer.ts";
+import { groupScope, listingScope, processScan } from "./scan-answer.ts";
 
 const manualCheckinOptions = (attendees: Attendee[]): TicketOption[] => [
   ...reduce((byAttendee: Map<number, TicketOption>, attendee: Attendee) => {

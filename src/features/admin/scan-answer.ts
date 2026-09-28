@@ -23,7 +23,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
-import { type Attendee, type Group } from "#types";
+import type { Attendee, Group } from "#types";
 import { decideScan, rowsByListing } from "./scan-decision.ts";
 /* jscpd:ignore-end */
 
@@ -218,15 +218,16 @@ export const processScan = async (
   }
   // A camera read carries the ticket token it decoded; a manual pick
   // carries the attendee id its roster option holds.
-  const load = typeof body.token === "string"
-    ? async (): Promise<AttendeeWithBookings | null> =>
-      (await getAttendeesByTokens([body.token as string]))[0] ?? null
-    : typeof body.attendee_id === "number"
-    ? async (): Promise<AttendeeWithBookings | null> =>
-      (await getAttendeesByIdsWithBookings([body.attendee_id as number])).get(
-        body.attendee_id as number,
-      ) ?? null
-    : null;
+  const load =
+    typeof body.token === "string"
+      ? async (): Promise<AttendeeWithBookings | null> =>
+          (await getAttendeesByTokens([body.token as string]))[0] ?? null
+      : typeof body.attendee_id === "number"
+        ? async (): Promise<AttendeeWithBookings | null> =>
+            (
+              await getAttendeesByIdsWithBookings([body.attendee_id as number])
+            ).get(body.attendee_id as number) ?? null
+        : null;
   if (!load) return apiErrorResponse("Missing token");
   // A token is the credential the guest presented, so the answer may name a
   // wrong door; a picked id is not, so it answers a stranger strictly.

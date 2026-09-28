@@ -18,7 +18,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { groupDoor, scanAtDoor } from "./support.ts";
+import { groupDoor, scanAtDoor } from "../scanner/support.ts";
 
 /** An orphaned booking: a real token whose only line points at a listing
  * that no longer resolves, so the door's scope matches none of its rows and

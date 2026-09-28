@@ -33,7 +33,7 @@ import {
   groupDoor,
   scanAtDoor,
   ticketFromItsOwnGroup,
-} from "./support.ts";
+} from "../scanner/support.ts";
 
 describeWithEnv("group scanner scans", { db: true }, () => {
   test("checks a member ticket in through the group door", async () => {

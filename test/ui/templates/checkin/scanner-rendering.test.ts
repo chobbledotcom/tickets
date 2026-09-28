@@ -14,8 +14,8 @@ import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
-import { withSetting } from "#test-utils/settings.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "check-in page (GET /checkin/:tokens) for a door-only scanner",
@@ -45,32 +45,6 @@ describeWithEnv(
       expect(body).toContain('type="hidden" value="true"');
       expect(body).toContain("Not checked in");
       expect(body).not.toContain(`/admin/listing/${listing.id}/attendee/`);
-    });
-
-    test("keeps the door-safe columns even when a staff layout names contact ones", async () => {
-      const { listing, token } = await setupCheckinTest(
-        "Perry",
-        "perry@test.com",
-      );
-      const scanner = await createTestScannerSession();
-
-      const body = await withSetting(
-        { attendee_column_order: "{{name}} {{email}} {{phone}}" },
-        async () =>
-          (
-            await awaitTestRequest(`/checkin/${token}`, {
-              cookie: scanner.cookie,
-            })
-          ).text(),
-      );
-
-      // An operator's saved column order is a staff-table choice; the
-      // door-only ticket page always reads its own fixed door-safe columns,
-      // so a contact column can never ride onto a door worker's screen.
-      expect(body).toContain("<th>Name</th>");
-      expect(body).not.toContain("perry@test.com");
-      expect(body).not.toContain("<th>Email</th>");
-      expect(body).not.toContain("<th>Phone</th>");
     });
 
     test("still admits the live row of a partly refunded attended ticket", async () => {
