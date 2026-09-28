@@ -1,6 +1,6 @@
 /**
- * The Jev client: one TypeSafe call per page through the OpenCode zen API.
- * The state carries the page's source plus the line-addressed evidence the
+ * The Jev client: one TypeSafe call per file through the OpenCode zen API.
+ * The state carries the file's source plus the line-addressed evidence the
  * mechanical pass extracted, and every answer comes back as a score with a
  * confidence. A PASS or a FAIL the model itself is unsure about
  * (confidence under 0.3) becomes a WARN for human review, not a verdict.
@@ -9,7 +9,7 @@
 import * as v from "valibot";
 import type { FetchTextResult } from "#scripts/fetch-text.ts";
 import type { CheckEntry, Verdict } from "./checks.ts";
-import type { PageFacts } from "./extract.ts";
+import type { CodeFacts } from "./extract.ts";
 
 export const ZEN_SYSTEMONE_URL = "https://opencode.ai/zen/v1/systemone";
 export const DEFAULT_MODEL = "jev-1.13";
@@ -116,7 +116,7 @@ const postJson = (body: string, request: JevRequest): RequestInit => ({
   headers: {
     Authorization: `Bearer ${request.apiKey}`,
     "Content-Type": "application/json",
-    "User-Agent": "grade-page/0.1 (tickets)",
+    "User-Agent": "grade-code/0.1 (tickets)",
     "x-opencode-session": request.session,
   },
   method: "POST",
@@ -158,8 +158,8 @@ export const callJev = async (
   return { error: lastError, ok: false };
 };
 
-/** The state one page's questions are asked against. */
-export const buildJevState = (facts: PageFacts): Record<string, unknown> => ({
+/** The state one file's questions are asked against. */
+export const buildJevState = (facts: CodeFacts): Record<string, unknown> => ({
   as_casts: facts.asCasts,
   catch_clauses: facts.catchClauses,
   comments: facts.comments,
@@ -177,7 +177,7 @@ export const buildJevState = (facts: PageFacts): Record<string, unknown> => ({
   sql_statements: facts.sql,
   standards:
     "The rules judged here are the code-quality rules in this repository's " +
-    "AGENTS.md. Judge only the page in `content` and the evidence fields, " +
+    "AGENTS.md. Judge only the file in `content` and the evidence fields, " +
     "not what a perfect file would contain.",
   write_calls: facts.writeCalls,
 });

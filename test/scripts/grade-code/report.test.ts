@@ -3,13 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   batchReportLines,
   csvLines,
-  type GradedPage,
+  type GradedCode,
   type ReportRow,
   singleReportLines,
   summarise,
-  type UngradedPage,
+  type UngradedCode,
   worstFirst,
-} from "#scripts/grade-page/report.ts";
+} from "#scripts/grade-code/report.ts";
 
 const row = (parts: Partial<ReportRow>): ReportRow => ({
   critical: false,
@@ -22,7 +22,7 @@ const row = (parts: Partial<ReportRow>): ReportRow => ({
   ...parts,
 });
 
-const graded = (parts: Partial<GradedPage>): GradedPage => ({
+const graded = (parts: Partial<GradedCode>): GradedCode => ({
   checks: {},
   counts: { FAIL: 0, PASS: 0, WARN: 0 },
   error: null,
@@ -37,7 +37,7 @@ const graded = (parts: Partial<GradedPage>): GradedPage => ({
   ...parts,
 });
 
-const ungraded = (parts: Partial<UngradedPage>): UngradedPage => ({
+const ungraded = (parts: Partial<UngradedCode>): UngradedCode => ({
   checks: {},
   counts: { FAIL: 0, PASS: 0, WARN: 0 },
   error: "could not grade",
@@ -64,7 +64,7 @@ describe("summarise", () => {
     expect(summary.counts).toEqual({ FAIL: 1, PASS: 1, WARN: 1 });
   });
 
-  test("scores a page with no checks at all", () => {
+  test("scores a file with no checks at all", () => {
     expect(summarise({})).toEqual({
       counts: { FAIL: 0, PASS: 0, WARN: 0 },
       letter: "F",
@@ -93,7 +93,7 @@ describe("summarise", () => {
 });
 
 describe("singleReportLines", () => {
-  const page = graded({
+  const result = graded({
     checks: {
       a: row({ label: "Fine check", note: "all good" }),
       b: row({
@@ -112,7 +112,7 @@ describe("singleReportLines", () => {
   });
 
   test("prints every check, the score, the call, and the critical failure", () => {
-    const lines = singleReportLines(page);
+    const lines = singleReportLines(result);
     expect(lines[0]).toContain(
       "src/features/admin/a.ts (feature, 10 lines, 2 checks)",
     );
@@ -134,7 +134,7 @@ describe("singleReportLines", () => {
 });
 
 describe("batchReportLines", () => {
-  test("ranks worst first, separates errored pages, and aggregates", () => {
+  test("ranks worst first, separates errored files, and aggregates", () => {
     const lines = batchReportLines(
       [
         graded({ score: 100 }),
@@ -164,7 +164,7 @@ describe("batchReportLines", () => {
     expect(lines).toContain("  x1    Check");
   });
 
-  test("ranks a page Jev failed on apart from complete grades", () => {
+  test("ranks a file Jev failed on apart from complete grades", () => {
     const lines = batchReportLines(
       [
         ungraded({ error: "nope", file: "src/c.ts" }),
@@ -190,7 +190,7 @@ describe("batchReportLines", () => {
     expect(lines).toContain("  x1    Alpha");
   });
 
-  test("prints no median when Jev failed on every page", () => {
+  test("prints no median when Jev failed on every file", () => {
     const lines = batchReportLines(
       [graded({ jevError: "HTTP 402: no credits" })],
       { model: "jev-1.13", seconds: 3 },
@@ -198,7 +198,7 @@ describe("batchReportLines", () => {
     expect(lines).toContain("0 graded, 0 errored, 1 Jev failed | 3s total");
   });
 
-  test("stops after the table when no page could be graded", () => {
+  test("stops after the table when no file could be graded", () => {
     const lines = batchReportLines(
       [ungraded({ error: "nope", file: "src/c.ts" })],
       { model: "jev-1.13", seconds: 3 },
@@ -209,7 +209,7 @@ describe("batchReportLines", () => {
 });
 
 describe("csvLines", () => {
-  test("writes a header row and one quoted row per page", () => {
+  test("writes a header row and one quoted row per file", () => {
     const lines = csvLines([
       graded({}),
       graded({

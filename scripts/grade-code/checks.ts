@@ -1,6 +1,6 @@
 /**
  * The check schema: the mechanical half runs the repository's own rule
- * functions against one page, so a grade agrees with `deno task precommit`,
+ * functions against one file, so a grade agrees with `deno task precommit`,
  * and the judgement half asks the questions in questions.ts. Weights and
  * applicability all live in the two lists below.
  */
@@ -12,7 +12,7 @@ import { findIssues as findEmptyCatchIssues } from "#scripts/check-empty-catch/r
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
 import { type Alias, findImportIssues } from "#scripts/check-imports/rules.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
-import type { PageFacts } from "./extract.ts";
+import type { CodeFacts } from "./extract.ts";
 import {
   JEV_QUESTIONS,
   type JevQuestion,
@@ -21,9 +21,9 @@ import {
 
 export type CheckStatus = "PASS" | "WARN" | "FAIL" | "SKIP";
 
-/** What one check concluded about the page. */
+/** What one check concluded about the file. */
 export interface Verdict {
-  /** The share of the check's weight the page earned. */
+  /** The share of the check's weight the file earned. */
   goodness: number;
   note: string;
   status: CheckStatus;
@@ -40,11 +40,11 @@ export type CheckEngine = "code" | "jev";
 export interface CheckEntry {
   critical?: boolean;
   engine: CheckEngine;
-  fn?: (facts: PageFacts, ctx: GradeContext) => Verdict;
+  fn?: (facts: CodeFacts, ctx: GradeContext) => Verdict;
   id: string;
   label: string;
   question?: ScoreQuestion;
-  requires?: (facts: PageFacts) => boolean;
+  requires?: (facts: CodeFacts) => boolean;
   score_pass?: number;
   score_warn?: number;
   weight: number;
@@ -99,8 +99,8 @@ const atLine = (finding: { line: number }, words: string): string =>
 const ruleCheck =
   (
     rule: (file: string, content: string) => PerFileFinding[],
-    passNote: (facts: PageFacts) => string,
-  ): ((facts: PageFacts) => Verdict) =>
+    passNote: (facts: CodeFacts) => string,
+  ): ((facts: CodeFacts) => Verdict) =>
   (facts) =>
     findingsVerdict(
       rule(facts.file, facts.content),
@@ -110,7 +110,7 @@ const ruleCheck =
 
 /** What one mechanical check carries; its engine is added at assembly. */
 type MechanicalCheck = Omit<CheckEntry, "engine"> & {
-  fn: (facts: PageFacts, ctx: GradeContext) => Verdict;
+  fn: (facts: CodeFacts, ctx: GradeContext) => Verdict;
 };
 
 const MECHANICAL_CHECKS: MechanicalCheck[] = [
@@ -181,7 +181,7 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
   {
     fn: (facts) => {
       if (facts.sql.length === 0) {
-        return { goodness: 0, note: "no SQL in page", status: "SKIP" };
+        return { goodness: 0, note: "no SQL in file", status: "SKIP" };
       }
       const star = facts.sql.find((statement) =>
         /\bSELECT\s+\*/i.test(statement),
@@ -250,13 +250,13 @@ export const CHECKS: CheckEntry[] = [
   ...JEV_QUESTIONS.map(asCheckEntry),
 ];
 
-/** The checks that apply to one page. */
-export const activeChecks = (facts: PageFacts): CheckEntry[] =>
+/** The checks that apply to one file. */
+export const activeChecks = (facts: CodeFacts): CheckEntry[] =>
   CHECKS.filter((check) => !check.requires || check.requires(facts));
 
-/** Run every mechanical check that applies to the page. */
+/** Run every mechanical check that applies to the file. */
 export const runMechanical = (
-  facts: PageFacts,
+  facts: CodeFacts,
   ctx: GradeContext,
 ): Record<string, MechanicalCheckResult> => {
   const results: Record<string, MechanicalCheckResult> = {};

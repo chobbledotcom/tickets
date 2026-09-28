@@ -1,9 +1,9 @@
 /**
- * Turn one source page into the facts the grader checks: comments, fallback
+ * Turn one source file into the facts the grader checks: comments, fallback
  * operators, SQL, links, loops, casts, and missing return types. Pure —
  * text in, facts out — so every rule stays testable. The rules reused here
  * are the repository's own checkers, so a mechanical grade says what
- * `deno task precommit` would say about the page.
+ * `deno task precommit` would say about the file.
  */
 
 import { readComments } from "#scripts/check-comments/rules.ts";
@@ -17,24 +17,24 @@ import {
 } from "#scripts/parse-program.ts";
 import { blankSpans, stringSpanTexts } from "#scripts/typescript-lex.ts";
 
-/** Which tree a page sits in, because the rules that apply differ. */
-export type PageKind = "template" | "client" | "feature" | "shared" | "other";
+/** Which tree a file sits in, because the rules that apply differ. */
+export type CodeKind = "template" | "client" | "feature" | "shared" | "other";
 
-/** One thing the page does, at a line the reader can jump to. */
+/** One thing the file does, at a line the reader can jump to. */
 export interface LineHit {
   line: number;
   text: string;
 }
 
 /** Everything the checks and the Jev questions look at. */
-export interface PageFacts {
+export interface CodeFacts {
   asCasts: LineHit[];
   catchClauses: LineHit[];
   comments: { column: number; line: number; text: string }[];
   content: string;
   /** `??`, `||`, and `?.` in code, one hit each. */
   fallbacks: LineHit[];
-  /** The page's path from the repository root. */
+  /** The file's path from the repository root. */
   file: string;
   forEachCalls: LineHit[];
   /** `href="..."` and `href={...}` sources, in order. */
@@ -42,7 +42,7 @@ export interface PageFacts {
   imports: string[];
   /** Computer-science words AGENTS.md asks plain language to replace. */
   jargonHits: { line: number; word: string }[];
-  kind: PageKind;
+  kind: CodeKind;
   lines: number;
   missingReturnTypes: LineHit[];
   nonNullAssertions: LineHit[];
@@ -52,14 +52,14 @@ export interface PageFacts {
   writeCalls: LineHit[];
 }
 
-const KIND_BY_PREFIX: [prefix: string, kind: PageKind][] = [
+const KIND_BY_PREFIX: [prefix: string, kind: CodeKind][] = [
   ["src/ui/templates", "template"],
   ["src/ui/client", "client"],
   ["src/features", "feature"],
   ["src/shared", "shared"],
 ];
 
-export const pageKind = (file: string): PageKind =>
+export const codeKind = (file: string): CodeKind =>
   KIND_BY_PREFIX.find(([prefix]) => file.startsWith(prefix))?.[1] ?? "other";
 
 /** The trimmed source line around `index`, kept short enough to read. */
@@ -87,7 +87,7 @@ const hitsFrom = (content: string, text: string, pattern: RegExp): LineHit[] =>
 const nodeText = (content: string, node: Record<string, unknown>): string =>
   content.slice(node.start as number, node.end as number);
 
-/** Assertion and cast hits, walked from the page's syntax tree. `as const`
+/** Assertion and cast hits, walked from the file's syntax tree. `as const`
  * stays out: it states a literal's shape rather than claiming one. */
 const assertionHits = (
   content: string,
@@ -113,7 +113,7 @@ const assertionHits = (
 const absent = (value: unknown): boolean =>
   value === undefined || value === null;
 
-/** A function the page declares at the top level, and where it starts. The
+/** A function the file declares at the top level, and where it starts. The
  * name is null for an anonymous `export default function`. */
 interface DeclaredFunction {
   name: string | null;
@@ -192,7 +192,7 @@ const untypedExportStarts = (
   return isFunction && absent(declaration.returnType) ? [statement.start] : [];
 };
 
-/** Exported functions whose return type the page never states. */
+/** Exported functions whose return type the file never states. */
 const missingReturnTypeHits = (
   content: string,
   statements: ParsedStatement[],
@@ -210,7 +210,7 @@ const missingReturnTypeHits = (
 
 /** A call that can write: a raw batch, transaction, or execute; a table's
  * insert, update, or delete; or a helper named for a write, such as
- * setAnswerModifier or logActivity. Pages mostly write through the last
+ * setAnswerModifier or logActivity. Files mostly write through the last
  * two, so the transaction question must see them. */
 const WRITE_CALL = new RegExp(
   [
@@ -237,15 +237,15 @@ const sqlStatements = (content: string): string[] =>
 const JARGON_RE =
   /\b(predicate|predicates|cohort|cohorts|projection|projections|fold|folds|atom|atoms|monad|monads|functor|functors|memoize|memoizes|memoization|combinator|combinators)\b/gi;
 
-/** Computer-science words the page leans on, for the language question. */
+/** Computer-science words the file leans on, for the language question. */
 const jargonHits = (content: string): { line: number; word: string }[] =>
   [...content.matchAll(JARGON_RE)].map((match) => ({
     line: lineColumnAt(content, match.index).line,
     word: match[0].toLowerCase(),
   }));
 
-/** Read one page into every fact the grader needs. */
-export const extractPage = (file: string, content: string): PageFacts => {
+/** Read one file into every fact the grader needs. */
+export const extractCode = (file: string, content: string): CodeFacts => {
   const codeOnly = blankSpans(content, true);
   const keepStrings = blankSpans(content, false);
   const statements = parseProgram(file, content).body;
@@ -267,7 +267,7 @@ export const extractPage = (file: string, content: string): PageFacts => {
       .filter((href): href is string => href !== undefined),
     imports: topLevelImports(file, content).map((entry) => entry.specifier),
     jargonHits: jargonHits(content),
-    kind: pageKind(file),
+    kind: codeKind(file),
     lines: countLines(content),
     missingReturnTypes: missingReturnTypeHits(content, statements),
     nonNullAssertions: assertions,

@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { CHECKS } from "#scripts/grade-page/checks.ts";
-import { extractPage } from "#scripts/grade-page/extract.ts";
+import { CHECKS } from "#scripts/grade-code/checks.ts";
+import { extractCode } from "#scripts/grade-code/extract.ts";
 import {
   buildJevState,
   callJev,
   DEFAULT_MODEL,
   gradeJevAnswers,
   loadJevKey,
-} from "#scripts/grade-page/jev.ts";
+} from "#scripts/grade-code/jev.ts";
 
 const jevCheck = (id: string) => {
   const found = CHECKS.find((check) => check.id === id);
@@ -65,7 +65,7 @@ describe("loadJevKey", () => {
 
 describe("buildJevState", () => {
   test("carries the facts and the source", () => {
-    const facts = extractPage("src/features/a.ts", "// Note.\nconst a = 1;\n");
+    const facts = extractCode("src/features/a.ts", "// Note.\nconst a = 1;\n");
     const state = buildJevState(facts) as Record<string, unknown>;
     expect(state.file).toBe("src/features/a.ts");
     expect(state.kind).toBe("feature");
@@ -75,9 +75,9 @@ describe("buildJevState", () => {
     expect(state.standards).toContain("AGENTS.md");
   });
 
-  test("sends the whole source of a long page", () => {
+  test("sends the whole source of a long file", () => {
     const source = `const value = "${"x".repeat(60_000)}";\n`;
-    const state = buildJevState(extractPage("src/features/a.ts", source));
+    const state = buildJevState(extractCode("src/features/a.ts", source));
     expect(state.content).toBe(source);
   });
 });
@@ -94,7 +94,7 @@ describe("callJev", () => {
     apiKey: "key",
     model: DEFAULT_MODEL,
     questions: { q1: { type: "score" } },
-    session: "grade-page-test",
+    session: "grade-code-test",
     state: { file: "x" },
   };
   const reply = (status: number, text: string) => () =>
@@ -290,7 +290,7 @@ describe("callJev usage fallbacks", () => {
     apiKey: "key",
     model: "jev-1.13",
     questions: {},
-    session: "grade-page-test",
+    session: "grade-code-test",
     state: {},
   };
 

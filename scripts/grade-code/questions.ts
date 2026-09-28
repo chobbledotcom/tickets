@@ -1,13 +1,13 @@
 /**
  * The Jev questions: the judgement halves of the code-quality rules in
- * AGENTS.md, asked as one TypeSafe call per page. Each is a 0-3 score where
- * high is good, so a FAIL names a real gap in the page's quality and a WARN
+ * AGENTS.md, asked as one TypeSafe call per file. Each is a 0-3 score where
+ * high is good, so a FAIL names a real gap in the file's quality and a WARN
  * names a borderline one. The questions only judge what the state carries,
- * and the state carries the page's source plus line-addressed evidence the
+ * and the state carries the file's source plus line-addressed evidence the
  * mechanical pass extracted, so every answer stays grounded in the file.
  */
 
-import type { PageFacts } from "./extract.ts";
+import type { CodeFacts } from "./extract.ts";
 
 /** One judgement AGENTS.md spells out but a machine scan cannot make. The
  * TypeSafe score shape and the pass/warn thresholds are added when the
@@ -19,8 +19,8 @@ export interface JevQuestion {
   id: string;
   instructions: string;
   label: string;
-  /** Which pages the question applies to. */
-  requires?: (facts: PageFacts) => boolean;
+  /** Which files the question applies to. */
+  requires?: (facts: CodeFacts) => boolean;
   weight: number;
 }
 
@@ -31,9 +31,9 @@ export interface ScoreQuestion {
   type: "score";
 }
 
-const templateOnly = (facts: PageFacts): boolean => facts.kind === "template";
+const templateOnly = (facts: CodeFacts): boolean => facts.kind === "template";
 
-const withWriteCalls = (facts: PageFacts): boolean =>
+const withWriteCalls = (facts: CodeFacts): boolean =>
   facts.writeCalls.length > 0;
 
 export const JEV_QUESTIONS: JevQuestion[] = [
@@ -46,7 +46,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "comments_earn_place",
     instructions:
-      'Judge the comments in `comments` against "Comments are short, because the code says the rest" in AGENTS.md. A comment earns its place only when it adds what the reader cannot see: a why, a constraint, a surprise. Penalise comments that re-narrate the lines below in prose, restate a function name beside it (`/** Save the listing. */` above saveListing), or explain a language feature. A short file-header naming what the page is (`/** The owner-only attendee-status page. */`) is the house pattern, not a finding, and a schema-driven page that needs no comment between its fields is the goal, not a gap: silence where names carry the meaning scores high. The bar: would a competent reader be surprised or misled without it?',
+      'Judge the comments in `comments` against "Comments are short, because the code says the rest" in AGENTS.md. A comment earns its place only when it adds what the reader cannot see: a why, a constraint, a surprise. Penalise comments that re-narrate the lines below in prose, restate a function name beside it (`/** Save the listing. */` above saveListing), or explain a language feature. A short file-header naming what the file is (`/** The owner-only attendee-status page. */`) is the house pattern, not a finding, and a schema-driven page that needs no comment between its fields is the goal, not a gap: silence where names carry the meaning scores high. The bar: would a competent reader be surprised or misled without it?',
     label: "Comments earn their place",
     weight: 4,
   },
@@ -72,7 +72,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "plain_language",
     instructions:
-      'Judge the page against "Plain language for functional code" in AGENTS.md: helpers and comments must explain themselves in simple domain words, so a reader without a computer-science degree understands them. `jargon_hits` lists CS words the page uses (predicate, cohort, projection, fold, atom, and friends). Score a hit down only when a plain phrase works in its place; an established domain term of the site itself is fine. Also penalise helper names and comments that only a CS graduate can decode.',
+      'Judge the file against "Plain language for functional code" in AGENTS.md: helpers and comments must explain themselves in simple domain words, so a reader without a computer-science degree understands them. `jargon_hits` lists CS words the code uses (predicate, cohort, projection, fold, atom, and friends). Score a hit down only when a plain phrase works in its place; an established domain term of the site itself is fine. Also penalise helper names and comments that only a CS graduate can decode.',
     label: "Plain language, no CS jargon",
     weight: 3,
   },
@@ -85,7 +85,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "fp_composition",
     instructions:
-      'Judge the page against "Use FP methods" in AGENTS.md: prefer curried functional utilities from `#fp` and map/filter/pipe/reduce over imperative loops and manual accumulation. `for_each_calls` lists `.forEach(` uses, which the repo asks to become `for...of` or a curried helper. Penalise hand-rolled accumulation a `reduce` or `pipe` already covers, and repeated `.map(...).filter(...)` chains a curried helper would fold. A plain `for...of` that reads well is fine; the rule targets manual plumbing, not iteration itself.',
+      'Judge the file against "Use FP methods" in AGENTS.md: prefer curried functional utilities from `#fp` and map/filter/pipe/reduce over imperative loops and manual accumulation. `for_each_calls` lists `.forEach(` uses, which the repo asks to become `for...of` or a curried helper. Penalise hand-rolled accumulation a `reduce` or `pipe` already covers, and repeated `.map(...).filter(...)` chains a curried helper would fold. A plain `for...of` that reads well is fine; the rule targets manual plumbing, not iteration itself.',
     label: "FP composition over loops",
     weight: 3,
   },
@@ -98,7 +98,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "schema_over_organic",
     instructions:
-      'Judge the page against "Schema over organic structure" in AGENTS.md: model content as a typed list of data (sections, entries, fields) rendered by one shared function, rather than hand-nested repetitive markup or construction. The reference is the admin guide: each topic exports a GuideSection[] and renderGuideSections turns it into markup. Penalise long stretches of near-identical hand-written construction that a schema plus one renderer would collapse, and branching that exists only to vary one field of a shape.',
+      'Judge the file against "Schema over organic structure" in AGENTS.md: model content as a typed list of data (sections, entries, fields) rendered by one shared function, rather than hand-nested repetitive markup or construction. The reference is the admin guide: each topic exports a GuideSection[] and renderGuideSections turns it into markup. Penalise long stretches of near-identical hand-written construction that a schema plus one renderer would collapse, and branching that exists only to vary one field of a shape.',
     label: "Schema over hand-nesting",
     weight: 4,
   },
@@ -111,7 +111,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "shared_dispatch",
     instructions:
-      'Judge the page against "Shared interfaces over branch-per-case" in AGENTS.md: a typed union plus an exhaustive Record keyed by it, or per-entry handlers that carry their own rules folded uniformly, beats a chain of if/else arms bolted onto a dispatcher. A forgotten case must fail to compile or throw, not silently fall through to a default arm. Penalise long ternary or if chains that dispatch on a value, and switch statements with a default that swallows new cases.',
+      'Judge the file against "Shared interfaces over branch-per-case" in AGENTS.md: a typed union plus an exhaustive Record keyed by it, or per-entry handlers that carry their own rules folded uniformly, beats a chain of if/else arms bolted onto a dispatcher. A forgotten case must fail to compile or throw, not silently fall through to a default arm. Penalise long ternary or if chains that dispatch on a value, and switch statements with a default that swallows new cases.',
     label: "Shared interface over branch chains",
     weight: 3,
   },
@@ -124,7 +124,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "one_path_one_or_many",
     instructions:
-      'Judge the page against "One path for one-or-many — a single item is an array of one" in AGENTS.md. Penalise a separate single-item path beside a multiple-item one (getThing next to getThings, a length === 1 branch that renders or loads differently). A thin singular wrapper that delegates to the array implementation is fine. Callers passing an array of one and deriving the singular answer from its result is the pattern the repo wants.',
+      'Judge the file against "One path for one-or-many — a single item is an array of one" in AGENTS.md. Penalise a separate single-item path beside a multiple-item one (getThing next to getThings, a length === 1 branch that renders or loads differently). A thin singular wrapper that delegates to the array implementation is fine. Callers passing an array of one and deriving the singular answer from its result is the pattern the repo wants.',
     label: "One path for one-or-many",
     weight: 3,
   },
@@ -137,7 +137,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "offensive_errors",
     instructions:
-      'Judge error handling against "Offensive Programming — Never Suppress Errors" in AGENTS.md. `fallback_operators` lists every `??`, `||`, and `?.` with its line; `catch_clauses` lists catches. Score each down when it papers over a value the page treats as expected (a missing field from structured data, a lookup that must succeed), and score `??`/`||`/`?.` on genuinely optional values as fine. Penalise catch-and-continue, catch blocks wider than the recovery point, and silent stand-ins (empty string, 0, -1, empty array) returned as "not found". A documented *OrNull return or a commented fallback is the sanctioned shape.',
+      'Judge error handling against "Offensive Programming — Never Suppress Errors" in AGENTS.md. `fallback_operators` lists every `??`, `||`, and `?.` with its line; `catch_clauses` lists catches. Score each down when it papers over a value the code treats as expected (a missing field from structured data, a lookup that must succeed), and score `??`/`||`/`?.` on genuinely optional values as fine. Penalise catch-and-continue, catch blocks wider than the recovery point, and silent stand-ins (empty string, 0, -1, empty array) returned as "not found". A documented *OrNull return or a commented fallback is the sanctioned shape.',
     label: "Offensive, not defensive",
     weight: 5,
   },
@@ -150,7 +150,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "not_found_throws",
     instructions:
-      'Judge the page against "A function that looks something up, resolves, computes, or finds something must THROW when it cannot" in AGENTS.md — never return null, "", 0, -1, or [] as a "not found" stand-in, unless absence is a genuinely expected outcome the caller branches on (then the *OrNull suffix and a comment). Penalise helpers that iterate looking for a value and fall off the end returning a stand-in, and unchecked `!`/`as` claims on data not checked against a shape. `nonnull_assertions` and `as_casts` list where the page claims a shape without checking; parse-at-the-boundary (valibot, explicit checks that throw) is the wanted shape.',
+      'Judge the file against "A function that looks something up, resolves, computes, or finds something must THROW when it cannot" in AGENTS.md — never return null, "", 0, -1, or [] as a "not found" stand-in, unless absence is a genuinely expected outcome the caller branches on (then the *OrNull suffix and a comment). Penalise helpers that iterate looking for a value and fall off the end returning a stand-in, and unchecked `!`/`as` claims on data not checked against a shape. `nonnull_assertions` and `as_casts` list where the code claims a shape without checking; parse-at-the-boundary (valibot, explicit checks that throw) is the wanted shape.',
     label: "Lookups throw, not stand-ins",
     weight: 3,
   },
@@ -163,7 +163,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "no_impossible_guards",
     instructions:
-      'Judge the page against "Do not defend against the impossible" in AGENTS.md: no fallbacks, placeholders, or try/catch for failures that can only happen when a foundational system is already broken (a key that will not decrypt, a database that has vanished, an invariant the app guarantees). Such branches are unreachable in any state a request can reach, so they only hide system-wide failure behind an untestable arm. Penalise guards for states the application says are impossible; an observed impossible state must raise as an error instead.',
+      'Judge the file against "Do not defend against the impossible" in AGENTS.md: no fallbacks, placeholders, or try/catch for failures that can only happen when a foundational system is already broken (a key that will not decrypt, a database that has vanished, an invariant the app guarantees). Such branches are unreachable in any state a request can reach, so they only hide system-wide failure behind an untestable arm. Penalise guards for states the application says are impossible; an observed impossible state must raise as an error instead.',
     label: "No guards for impossible states",
     weight: 2,
   },
@@ -246,7 +246,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "type_shapes",
     instructions:
-      'Judge the page against "Use types where they remove noise" in AGENTS.md: named types or interfaces for repeated shapes, reuse of an existing type that already describes the facts, and no second vocabulary for one concept. Penalise sprawling anonymous intersections a small named type would carry, and one-off shapes easier to read inline. `missing_return_types` lists exported functions whose return type is never stated.',
+      'Judge the file against "Use types where they remove noise" in AGENTS.md: named types or interfaces for repeated shapes, reuse of an existing type that already describes the facts, and no second vocabulary for one concept. Penalise sprawling anonymous intersections a small named type would carry, and one-off shapes easier to read inline. `missing_return_types` lists exported functions whose return type is never stated.',
     label: "Types remove noise",
     weight: 2,
   },
@@ -259,7 +259,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "boundary_names",
     instructions:
-      'Judge the page against "Name positional results at the boundary" in AGENTS.md: when a library returns an ordered array of different results, destructure it into domain names as soon as it enters the code, and validate an unguaranteed count at that boundary. Penalise results[2] or rows[7] traced through later mapping code, and mixed destructure-then-index use.',
+      'Judge the file against "Name positional results at the boundary" in AGENTS.md: when a library returns an ordered array of different results, destructure it into domain names as soon as it enters the code, and validate an unguaranteed count at that boundary. Penalise results[2] or rows[7] traced through later mapping code, and mixed destructure-then-index use.',
     label: "Positional results named",
     weight: 2,
   },
@@ -272,7 +272,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "duplication_in_file",
     instructions:
-      'Judge the page against "Zero code duplication" in AGENTS.md, file-local part: two or more near-identical blocks inside this page that want a shared helper or a curry — two functions differing only in a value, a path, a field name, or a callback are one function that has not been given its parameter yet. Do not penalise differences that carry real meaning, or the import block. The whole-tree duplication gate (jscpd) runs elsewhere; score what a careful reader of this one file would merge.',
+      'Judge the file against "Zero code duplication" in AGENTS.md, file-local part: two or more near-identical blocks inside this file that want a shared helper or a curry — two functions differing only in a value, a path, a field name, or a callback are one function that has not been given its parameter yet. Do not penalise differences that carry real meaning, or the import block. The whole-tree duplication gate (jscpd) runs elsewhere; score what a careful reader of this one file would merge.',
     label: "No parallel blocks in the file",
     weight: 3,
   },
@@ -285,7 +285,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "pure_io_split",
     instructions:
-      'Judge the page against "Pure, functional" in docs/designing-systems.md: data-in/data-out logic lives in its own functions or file, with the input and output code kept in a thin shell around it. Penalise decisions interleaved with fetches and writes so no rule can be tested without a database — the shape that forces every test to be an integration test.',
+      'Judge the file against "Pure, functional" in docs/designing-systems.md: data-in/data-out logic lives in its own functions or file, with the input and output code kept in a thin shell around it. Penalise decisions interleaved with fetches and writes so no rule can be tested without a database — the shape that forces every test to be an integration test.',
     label: "Pure logic split from IO",
     weight: 2,
   },

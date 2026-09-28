@@ -1,11 +1,11 @@
 /**
- * Grade one page: the mechanical checks always run, and the Jev questions
+ * Grade one file: the mechanical checks always run, and the Jev questions
  * run when the run has Jev settings. Everything the grade needs arrives as
  * a dependency, so tests drive this without the network or the repository.
  */
 
 import { activeChecks, type GradeContext, runMechanical } from "./checks.ts";
-import { extractPage, type PageFacts, pageKind } from "./extract.ts";
+import { type CodeFacts, codeKind, extractCode } from "./extract.ts";
 import {
   buildJevState,
   callJev,
@@ -15,7 +15,7 @@ import {
   type JevFetch,
   type Sleep,
 } from "./jev.ts";
-import { type PageResult, type ReportRow, summarise } from "./report.ts";
+import { type CodeResult, type ReportRow, summarise } from "./report.ts";
 
 export interface GradeDeps {
   fetchText: JevFetch;
@@ -29,26 +29,26 @@ export interface JevSettings {
   model: string;
 }
 
-/** What one grading pass needs besides the page itself. A run without
- * Jev settings grades every page on the mechanical checks alone. */
+/** What one grading pass needs besides the file itself. A run without
+ * Jev settings grades every file on the mechanical checks alone. */
 export interface GradeCall {
   ctx: GradeContext;
   jev: JevSettings | null;
 }
 
-/** A session name per page, so one sweep stays traceable in the API logs. */
+/** A session name per file, so one sweep stays traceable in the API logs. */
 const sessionFor = (file: string): string =>
-  `grade-page-${file.replace(/[^a-z0-9]/gi, "").slice(-40)}`;
+  `grade-code-${file.replace(/[^a-z0-9]/gi, "").slice(-40)}`;
 
 /** Grade one file into a result row, mechanical checks plus Jev judgement. */
-export const gradePage = async (
+export const gradeCode = async (
   deps: GradeDeps,
   call: GradeCall,
   file: string,
-): Promise<PageResult> => {
+): Promise<CodeResult> => {
   const started = deps.now();
   try {
-    const facts = extractPage(file, await deps.readFile(file));
+    const facts = extractCode(file, await deps.readFile(file));
     const results: Record<string, ReportRow> = runMechanical(facts, call.ctx);
     const jevOutcome = await askJev(deps, call.jev, facts);
     Object.assign(results, jevOutcome.results);
@@ -74,7 +74,7 @@ export const gradePage = async (
       file,
       jev: null,
       jevError: null,
-      kind: pageKind(file),
+      kind: codeKind(file),
       letter: "E",
       lines: 0,
       score: null,
@@ -83,9 +83,9 @@ export const gradePage = async (
   }
 };
 
-/** What asking Jev added to a page's grade. */
+/** What asking Jev added to a file's grade. */
 interface JevOutcome {
-  jev: PageResult["jev"];
+  jev: CodeResult["jev"];
   jevError: string | null;
   results: Record<string, JevCheckResult>;
 }
@@ -94,7 +94,7 @@ interface JevOutcome {
 const askJev = async (
   deps: GradeDeps,
   settings: JevSettings | null,
-  facts: PageFacts,
+  facts: CodeFacts,
 ): Promise<JevOutcome> => {
   const jevChecks = activeChecks(facts).filter(
     (check) => check.engine === "jev" && check.question !== undefined,

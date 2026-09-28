@@ -1,12 +1,12 @@
 /**
- * How a grade becomes text: one page's full report, the batch table a sweep
+ * How a grade becomes text: one file's full report, the batch table a sweep
  * prints, and the CSV rows it can write. Everything returns lines, so the
  * caller decides where they go.
  */
 
 import { countBy } from "#scripts/count-by.ts";
 import type { CheckStatus } from "./checks.ts";
-import type { PageKind } from "./extract.ts";
+import type { CodeKind } from "./extract.ts";
 
 export interface ReportRow {
   critical: boolean;
@@ -25,15 +25,15 @@ interface CheckCounts {
   WARN: number;
 }
 
-/** What every page result carries, graded or not. */
-interface PageShell {
+/** What every code result carries, graded or not. */
+interface CodeShell {
   file: string;
-  kind: PageKind;
+  kind: CodeKind;
   seconds: number;
 }
 
-/** What one page earned, once every check that applies has run. */
-export interface GradedPage extends PageShell {
+/** What one file earned, once every check that applies has run. */
+export interface GradedCode extends CodeShell {
   checks: Record<string, ReportRow>;
   counts: CheckCounts;
   error: null;
@@ -44,8 +44,8 @@ export interface GradedPage extends PageShell {
   score: number;
 }
 
-/** Why one page could not be graded at all. */
-export interface UngradedPage extends PageShell {
+/** Why one file could not be graded at all. */
+export interface UngradedCode extends CodeShell {
   checks: Record<string, never>;
   counts: CheckCounts;
   error: string;
@@ -56,7 +56,7 @@ export interface UngradedPage extends PageShell {
   score: null;
 }
 
-export type PageResult = GradedPage | UngradedPage;
+export type CodeResult = GradedCode | UngradedCode;
 
 const letterFor = (score: number): string =>
   score >= 90
@@ -104,10 +104,10 @@ const MARKS: Record<CheckStatus, string> = {
   WARN: "~",
 };
 
-/** The full per-check report one page prints. */
-export const singleReportLines = (result: PageResult): string[] => {
+/** The full per-check report one file prints. */
+export const singleReportLines = (result: CodeResult): string[] => {
   const lines = [
-    `Page grader - ${result.file} (${result.kind}, ${result.lines} lines, ` +
+    `Code grader - ${result.file} (${result.kind}, ${result.lines} lines, ` +
       `${Object.keys(result.checks).length} checks)`,
     "",
   ];
@@ -140,32 +140,32 @@ export const singleReportLines = (result: PageResult): string[] => {
   return lines;
 };
 
-export const failedCheckIds = (result: PageResult): string =>
+export const failedCheckIds = (result: CodeResult): string =>
   Object.entries(result.checks)
     .filter(([, row]) => row.status === "FAIL")
     .map(([id]) => id)
     .join(",");
 
-/** Whether Jev judged the page, so its score counts every check. A page Jev
+/** Whether Jev judged the file, so its score counts every check. A file Jev
  * failed on is scored on the mechanical checks alone, and its score cannot
  * be compared with a complete one. */
-const isComplete = (result: GradedPage): boolean => result.jevError === null;
+const isComplete = (result: GradedCode): boolean => result.jevError === null;
 
-/** Complete grades first, then pages Jev failed on, then pages that could
+/** Complete grades first, then files Jev failed on, then files that could
  * not be graded; worst score first inside each group. */
-const rankOf = (result: PageResult): [group: number, score: number] => {
+const rankOf = (result: CodeResult): [group: number, score: number] => {
   if (result.score === null) return [2, 0];
   return [isComplete(result) ? 0 : 1, result.score];
 };
 
-export const worstFirst = (left: PageResult, right: PageResult): number => {
+export const worstFirst = (left: CodeResult, right: CodeResult): number => {
   const [leftGroup, leftScore] = rankOf(left);
   const [rightGroup, rightScore] = rankOf(right);
   return leftGroup - rightGroup || leftScore - rightScore;
 };
 
 /** One row of the batch table, graded or errored. */
-const tableRow = (result: PageResult): string => {
+const tableRow = (result: CodeResult): string => {
   if (result.score === null) {
     return `${"---".padStart(5)} ${"E".padEnd(2)} ${result.kind.padEnd(9)} ${"".padEnd(
       9,
@@ -185,15 +185,15 @@ const tableRow = (result: PageResult): string => {
 };
 
 export const batchReportLines = (
-  results: PageResult[],
+  results: CodeResult[],
   meta: { model: string; seconds: number },
 ): string[] => {
   const graded = results.filter(
-    (result): result is GradedPage => result.score !== null,
+    (result): result is GradedCode => result.score !== null,
   );
   const errored = results.length - graded.length;
   const lines = [
-    `Page grader - batch of ${results.length} (model=${meta.model})`,
+    `Code grader - batch of ${results.length} (model=${meta.model})`,
     `${"Score".padStart(5)} ${"L".padEnd(2)} ${"Kind".padEnd(9)} ${"p/w/x".padEnd(
       9,
     )} Failed checks`,
@@ -208,7 +208,7 @@ export const batchReportLines = (
 };
 
 /** The check rows across a sweep that finished at `status`. */
-const rowsAt = (graded: GradedPage[], status: "FAIL" | "WARN"): ReportRow[] =>
+const rowsAt = (graded: GradedCode[], status: "FAIL" | "WARN"): ReportRow[] =>
   graded
     .flatMap((result) => Object.values(result.checks))
     .filter((row) => row.status === status);
@@ -234,10 +234,10 @@ const medianOf = (scores: number[]): number => {
 };
 
 /** The median and the letter counts over complete grades, or nothing when
- * Jev failed on every page. */
-const scoreSummary = (complete: GradedPage[]): string[] => {
+ * Jev failed on every file. */
+const scoreSummary = (complete: GradedCode[]): string[] => {
   if (complete.length === 0) return [];
-  const letters = countBy((result: PageResult) => result.letter)(complete);
+  const letters = countBy((result: CodeResult) => result.letter)(complete);
   return [
     `median ${medianOf(complete.map((result) => result.score))}`,
     Object.keys(letters)
@@ -248,10 +248,10 @@ const scoreSummary = (complete: GradedPage[]): string[] => {
 };
 
 /** The summary and failure counts a sweep prints below its table. Scores
- * summarise complete grades only. Check counts cover every graded page,
+ * summarise complete grades only. Check counts cover every graded file,
  * because each counted verdict is real either way. */
 const aggregateLines = (
-  graded: GradedPage[],
+  graded: GradedCode[],
   errored: number,
   seconds: number,
 ): string[] => {
@@ -294,7 +294,7 @@ const csvCell = (value: string | number): string => {
 };
 
 /** The CSV rows a sweep can write, header first. */
-export const csvLines = (results: PageResult[]): string[] => {
+export const csvLines = (results: CodeResult[]): string[] => {
   const header = [
     "score",
     "letter",

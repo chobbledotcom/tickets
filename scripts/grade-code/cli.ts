@@ -1,5 +1,5 @@
 /**
- * The command line for the page grader: resolve the pages to grade, run
+ * The command line for the code grader: resolve the files to grade, run
  * the pipeline, and print one full report or a batch table. Every input a
  * run needs arrives as a dependency, so the tests drive the same code
  * without the network or the repository.
@@ -20,27 +20,27 @@ import { CHECKS, type GradeContext } from "./checks.ts";
 import {
   type GradeCall,
   type GradeDeps,
-  gradePage,
+  gradeCode,
   type JevSettings,
 } from "./grade.ts";
 import { DEFAULT_MODEL, errorText, loadJevKey } from "./jev.ts";
 import {
   batchReportLines,
+  type CodeResult,
   csvLines,
   failedCheckIds,
-  type PageResult,
   singleReportLines,
   worstFirst,
 } from "./report.ts";
 
-export const USAGE = `Usage: deno task grade:page [targets] [options]
+export const USAGE = `Usage: deno task grade:code [targets] [options]
 
 Targets (default: every module under src/):
-  src/features/admin/attendee-page.ts   one page, full report
+  src/features/admin/attendee-page.ts   one file, full report
   src/ui/templates/admin                a directory
 
 Options:
-  --limit <n>     grade at most n pages
+  --limit <n>     grade at most n files
   --workers <n>   parallel batch workers (default 4)
   --csv <path>    write batch results to a CSV file
   --json          machine-readable output
@@ -50,7 +50,7 @@ Options:
   --help          this message
 
 The Jev key is read from OPENCODE_API_KEY or /run/secrets/opencode_api_key.
-Batch mode always exits 0. Single-page mode exits 1 on a critical failure.`;
+Batch mode always exits 0. Single-file mode exits 1 on a critical failure.`;
 
 const SECRET_FILE = "/run/secrets/opencode_api_key";
 const OVER_LIMIT_PATH = "scripts/check-file-lengths/over-limit.json";
@@ -192,7 +192,7 @@ export const resolveTargets = async (
   return { error: null, targets: unique(targets) };
 };
 
-const criticalFailure = (result: PageResult): boolean =>
+const criticalFailure = (result: CodeResult): boolean =>
   Object.values(result.checks).some(
     (row) => row.critical && row.status === "FAIL",
   );
@@ -200,7 +200,7 @@ const criticalFailure = (result: PageResult): boolean =>
 const progressLine = (
   done: number,
   total: number,
-  result: PageResult,
+  result: CodeResult,
 ): string => {
   const fails = failedCheckIds(result);
   const jevFailed = result.jevError === null ? "" : "(Jev failed) ";
@@ -213,20 +213,20 @@ const progressLine = (
   return `[${done}/${total}] ${headline}`;
 };
 
-/** Grade every target in parallel, printing one progress line per page. */
+/** Grade every target in parallel, printing one progress line per file. */
 export const runBatch = async (
   io: ScriptIo,
   deps: CliDeps,
   call: GradeCall,
   targets: string[],
   workers: number,
-): Promise<PageResult[]> => {
-  const rows: PageResult[] = [];
+): Promise<CodeResult[]> => {
+  const rows: CodeResult[] = [];
   const queue = targets.values();
   let done = 0;
   const runner = async (): Promise<void> => {
     for (const file of queue) {
-      const row = await gradePage(deps.grade, call, file);
+      const row = await gradeCode(deps.grade, call, file);
       rows.push(row);
       done++;
       io.stderr(progressLine(done, targets.length, row));
@@ -256,7 +256,7 @@ const exitForInfoFlags = (io: ScriptIo, args: GradeArgs): number | null => {
   return 0;
 };
 
-export const runGradePageCli = async (
+export const runGradeCodeCli = async (
   io: ScriptIo,
   deps: CliDeps = denoCliDeps(),
 ): Promise<number> => {
@@ -284,17 +284,17 @@ export const runGradePageCli = async (
   }
   const call: GradeCall = { ctx, jev: jevSettingsFor(io, args, secret) };
 
-  // A CSV is a batch output, so --csv takes the batch path even for one page.
+  // A CSV is a batch output, so --csv takes the batch path even for one file.
   if (pool.length === 1 && !args.json && args.csv === null) {
-    // The length guard above holds one page; TypeScript cannot see it.
-    return gradeSinglePage(io, deps.grade, call, pool[0]!);
+    // The length guard above holds one file; TypeScript cannot see it.
+    return gradeSingleCode(io, deps.grade, call, pool[0]!);
   }
 
-  return runBatchPages(io, deps, args, call, pool);
+  return runSweep(io, deps, args, call, pool);
 };
 
 /** The run's Jev settings, or null for a mechanical-only run. A missing key
- * is said once here, so every page in the run is graded the same way. */
+ * is said once here, so every file in the run is graded the same way. */
 const jevSettingsFor = (
   io: ScriptIo,
   args: GradeArgs,
@@ -321,14 +321,14 @@ const loadGradeContext = async (
   return aliases === null || overLimit === null ? null : { aliases, overLimit };
 };
 
-/** Grade one page and print its full report. */
-const gradeSinglePage = async (
+/** Grade one file and print its full report. */
+const gradeSingleCode = async (
   io: ScriptIo,
   grade: GradeDeps,
   call: GradeCall,
   file: string,
 ): Promise<number> => {
-  const result = await gradePage(grade, call, file);
+  const result = await gradeCode(grade, call, file);
   if (result.score === null) {
     io.stderr(`ERROR grading ${result.file}: ${result.error}`);
     return 2;
@@ -343,7 +343,7 @@ const gradeSinglePage = async (
 };
 
 /** Grade the pool as a batch, then print or write the sweep's output. */
-const runBatchPages = async (
+const runSweep = async (
   io: ScriptIo,
   deps: CliDeps,
   args: GradeArgs,

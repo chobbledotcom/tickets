@@ -1,20 +1,20 @@
-/** Fixtures and helpers shared by the grade-page CLI test files. */
+/** Fixtures and helpers shared by the grade-code CLI test files. */
 
 import type { Alias } from "#scripts/check-imports/rules.ts";
-import type { CliDeps } from "#scripts/grade-page/cli.ts";
-import { JEV_QUESTIONS } from "#scripts/grade-page/questions.ts";
+import type { CliDeps } from "#scripts/grade-code/cli.ts";
+import { JEV_QUESTIONS } from "#scripts/grade-code/questions.ts";
 
-/** A page that passes every mechanical check. */
-export const CLEAN_PAGE = [
-  "/** The sample page. */",
+/** A file that passes every mechanical check. */
+export const CLEAN_CODE = [
+  "/** The sample code. */",
   'import { t } from "#i18n";',
   "",
   'export const render = (rows: string[]): string => rows.join(", ");',
   "",
 ].join("\n");
 
-/** A page that breaks the import and catch rules precommit backs. */
-export const BROKEN_PAGE = [
+/** A file that breaks the import and catch rules precommit backs. */
+export const BROKEN_CODE = [
   'import { t } from "#i18n";',
   'import type { Key } from "#i18n";',
   "try { run(); } catch {}",

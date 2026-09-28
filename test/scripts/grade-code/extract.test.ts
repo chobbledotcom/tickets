@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { extractPage, pageKind } from "#scripts/grade-page/extract.ts";
+import { codeKind, extractCode } from "#scripts/grade-code/extract.ts";
 
 const factsOf = (source: string, file = "src/features/admin/sample.ts") =>
-  extractPage(file, source);
+  extractCode(file, source);
 
-describe("extractPage", () => {
-  test("reads the page's kind, line count, and comments", () => {
+describe("extractCode", () => {
+  test("reads the file's kind, line count, and comments", () => {
     const facts = factsOf("/** Doc. */\n// Load it.\nconst value = 1;\n");
     expect(facts.kind).toBe("feature");
     expect(facts.lines).toBe(3);
@@ -103,7 +103,7 @@ describe("extractPage", () => {
     expect(lines(["export default class Keeper {}"])).toEqual([]);
   });
 
-  test("keeps the last line's text when the page ends without a newline", () => {
+  test("keeps the last line's text when the file ends without a newline", () => {
     const facts = factsOf("const first = 1;\nconst last = a ?? b");
     expect(facts.fallbacks).toHaveLength(1);
     expect(facts.fallbacks[0]?.text).toBe("const last = a ?? b");
@@ -127,7 +127,7 @@ describe("extractPage", () => {
   test("collects href literals and expressions", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the ${token} in this fixture is page data, not a placeholder to interpolate.
     const tokenLink = "const b = <a href={`/t/${token}`}>Ticket</a>;";
-    const facts = extractPage(
+    const facts = extractCode(
       "src/ui/templates/sample.tsx",
       ['const a = <a href="/admin/guide">Help</a>;', tokenLink].join("\n"),
     );
@@ -171,12 +171,12 @@ describe("extractPage", () => {
   });
 });
 
-describe("pageKind", () => {
+describe("codeKind", () => {
   test("maps each tree to its kind", () => {
-    expect(pageKind("src/ui/templates/admin/guide.tsx")).toBe("template");
-    expect(pageKind("src/ui/client/admin/nav.ts")).toBe("client");
-    expect(pageKind("src/features/public/order.ts")).toBe("feature");
-    expect(pageKind("src/shared/dates.ts")).toBe("shared");
-    expect(pageKind("cli/api.ts")).toBe("other");
+    expect(codeKind("src/ui/templates/admin/guide.tsx")).toBe("template");
+    expect(codeKind("src/ui/client/admin/nav.ts")).toBe("client");
+    expect(codeKind("src/features/public/order.ts")).toBe("feature");
+    expect(codeKind("src/shared/dates.ts")).toBe("shared");
+    expect(codeKind("cli/api.ts")).toBe("other");
   });
 });

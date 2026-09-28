@@ -6,10 +6,10 @@ import {
   CHECKS,
   type GradeContext,
   runMechanical,
-} from "#scripts/grade-page/checks.ts";
-import { extractPage } from "#scripts/grade-page/extract.ts";
+} from "#scripts/grade-code/checks.ts";
+import { extractCode } from "#scripts/grade-code/extract.ts";
 
-/** The alias table slice a page under test resolves through. */
+/** The alias table slice a file under test resolves through. */
 const ALIASES: Alias[] = [
   { name: "#i18n", target: "./src/shared/i18n.ts" },
   { name: "#shared/", target: "./src/shared/" },
@@ -26,7 +26,7 @@ const verdictOf = (
   overLimit: Record<string, number> = {},
 ) => {
   const verdict = runMechanical(
-    extractPage("src/features/admin/sample.ts", source),
+    extractCode("src/features/admin/sample.ts", source),
     ctxOf(overLimit),
   )[id];
   if (verdict === undefined) throw new Error(`the ${id} check did not run`);
@@ -49,9 +49,9 @@ describe("the check schema", () => {
 
 describe("activeChecks", () => {
   const factsOf = (source: string, file = "src/features/admin/sample.ts") =>
-    extractPage(file, source);
+    extractCode(file, source);
 
-  test("drops template-only questions for a feature page", () => {
+  test("drops template-only questions for a feature file", () => {
     const ids = activeChecks(factsOf("const a = 1;\n")).map(
       (check) => check.id,
     );
@@ -59,7 +59,7 @@ describe("activeChecks", () => {
     expect(ids).not.toContain("dead_links");
   });
 
-  test("keeps template questions for a template page", () => {
+  test("keeps template questions for a template file", () => {
     const ids = activeChecks(
       factsOf("const a = 1;\n", "src/ui/templates/a.tsx"),
     ).map((check) => check.id);
@@ -85,7 +85,7 @@ describe("activeChecks", () => {
 });
 
 describe("file_length", () => {
-  test("passes a short page", () => {
+  test("passes a short file", () => {
     expect(verdictOf("const a = 1;\n", "file_length").status).toBe("PASS");
   });
 
@@ -163,7 +163,7 @@ describe("empty_catch", () => {
 });
 
 describe("select_star", () => {
-  test("skips a page with no SQL", () => {
+  test("skips a file with no SQL", () => {
     expect(verdictOf("const a = 1;\n", "select_star").status).toBe("SKIP");
   });
 
@@ -212,7 +212,7 @@ describe("count-based checks", () => {
 describe("runMechanical", () => {
   test("marks the precommit-backed checks critical", () => {
     const results = runMechanical(
-      extractPage(
+      extractCode(
         "src/features/admin/sample.ts",
         'import { t } from "#i18n";\n',
       ),

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { parseGradeArgs, resolveTargets } from "#scripts/grade-page/cli.ts";
-import { CLEAN_PAGE, depsOver } from "./support.ts";
+import { parseGradeArgs, resolveTargets } from "#scripts/grade-code/cli.ts";
+import { CLEAN_CODE, depsOver } from "./support.ts";
 
 describe("parseGradeArgs", () => {
   test("fills the defaults", () => {
@@ -52,12 +52,12 @@ describe("parseGradeArgs", () => {
 describe("resolveTargets", () => {
   const deps = depsOver({
     files: {
-      "src/features/admin/a-page.ts": CLEAN_PAGE,
-      "src/features/admin/b-page.ts": CLEAN_PAGE,
-      "src/shared/dates.ts": CLEAN_PAGE,
-      "src/shared/db/site-pages.ts": CLEAN_PAGE,
-      "src/ui/client/nav.ts": CLEAN_PAGE,
-      "src/ui/templates/admin/dashboard.tsx": CLEAN_PAGE,
+      "src/features/admin/a-page.ts": CLEAN_CODE,
+      "src/features/admin/b-page.ts": CLEAN_CODE,
+      "src/shared/dates.ts": CLEAN_CODE,
+      "src/shared/db/site-pages.ts": CLEAN_CODE,
+      "src/ui/client/nav.ts": CLEAN_CODE,
+      "src/ui/templates/admin/dashboard.tsx": CLEAN_CODE,
     },
   });
 
@@ -81,7 +81,7 @@ describe("resolveTargets", () => {
     expect(dir.targets).toHaveLength(2);
   });
 
-  test("grades a page once when two targets reach it", async () => {
+  test("grades a file once when two targets reach it", async () => {
     const both = await resolveTargets(
       ["src/features/admin", "src/features/admin/a-page.ts"],
       deps,
