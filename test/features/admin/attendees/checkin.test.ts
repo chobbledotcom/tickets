@@ -8,21 +8,11 @@ import { it as test } from "@std/testing/bdd";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
+  adminCheckinPost as checkIn,
   emptyBookingLine,
   setupListingAndAttendee,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { adminFormPost } from "#test-utils/session.ts";
-
-const checkIn = (
-  listingId: number,
-  attendeeId: number,
-  extra: Record<string, string> = {},
-) =>
-  adminFormPost(
-    `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
-    extra,
-  );
 
 describeWithEnv("what a check-in writes down", { db: true }, () => {
   test("records the direction in the listing's history", async () => {
@@ -31,7 +21,7 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
       name: "Ada Lovelace",
     });
 
-    await checkIn(listing.id, attendee.id);
+    await checkIn(listing.id, attendee.id, { check_in: "true" });
     await checkIn(listing.id, attendee.id, { check_in: "false" });
 
     const history = await activityMessages();
@@ -44,7 +34,9 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
       name: "Grace Hopper",
     });
 
-    const { response: went } = await checkIn(listing.id, attendee.id);
+    const { response: went } = await checkIn(listing.id, attendee.id, {
+      check_in: "true",
+    });
     const { response: came } = await checkIn(listing.id, attendee.id, {
       check_in: "false",
     });
@@ -57,6 +49,48 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
       `/admin/listing/${listing.id}/attendees`,
       "Checked Grace Hopper out",
     )(came);
+  });
+
+  test("refuses a direction the forms never post", async () => {
+    const { attendee, listing } = await setupListingAndAttendee({
+      name: "Mangled Form",
+    });
+
+    const { response } = await checkIn(listing.id, attendee.id, {
+      check_in: "sideways",
+    });
+
+    expectRedirectWithFlash(
+      `/admin/listing/${listing.id}/attendees`,
+      "Invalid check-in direction",
+      false,
+    )(response);
+    const refused = await activityMessages();
+    expect(refused.filter((message) => message.includes("checked"))).toEqual(
+      [],
+    );
+  });
+
+  test("a check-in that moves nothing says so", async () => {
+    const { attendee, listing } = await setupListingAndAttendee({
+      listing: { name: "Quiet Door" },
+      name: "Twice Told",
+    });
+    await checkIn(listing.id, attendee.id, { check_in: "true" });
+
+    const { response } = await checkIn(listing.id, attendee.id, {
+      check_in: "true",
+    });
+
+    expectRedirectWithFlash(
+      `/admin/listing/${listing.id}/attendees`,
+      "No tickets moved",
+      false,
+    )(response);
+    const history = await activityMessages();
+    expect(history.filter((message) => message.includes("checked"))).toEqual([
+      "Attendee checked in 1 ticket for 'Quiet Door'",
+    ]);
   });
 });
 

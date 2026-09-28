@@ -7,6 +7,7 @@
  */
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
+import type { TicketMoveAnswer } from "#booking/ticket-moves.ts";
 import { logActivities } from "#db/activity-log.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -39,7 +40,11 @@ import {
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import { decideScan, type ScanUnit } from "./scan-decision.ts";
+import {
+  decideScan,
+  type ScanDecision,
+  type ScanUnit,
+} from "./scan-decision.ts";
 
 /** What one door's scan resolves against: the listings it admits, and its
  * group's stored choice between one listing per scan and all of them. */
@@ -212,24 +217,25 @@ const alreadyCheckedIn = (
  * admit, and one activity row per listing that really admitted tickets,
  * carrying that listing's own name and count. A failure in either write
  * rolls both back, so a check-in never lands without its activity record.
- * Answers the tickets the lines really took, which is less than planned
- * when another door admitted some of them first. */
+ * Answers the tickets the lines really took (less than planned when another
+ * door admitted some of them first) and what the booking still owes after
+ * the write, so the response never reports a door-race as tickets left. */
 const performCheckIns = (
-  attendeeId: number,
-  units: readonly ScanUnit[],
-): Promise<number> =>
-  withTransaction(async (tx) => {
+  decision: Extract<ScanDecision, { kind: "admit" }>,
+): Promise<{ admitted: number; remaining: number }> => {
+  const attendeeId = decision.rows[0]!.attendee.id;
+  return withTransaction(async (tx) => {
     const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
     const moved = await moveTickets(
       "admit",
-      units.map((unit) => ({
+      decision.units.map((unit) => ({
         attendeeId,
         count: unit.tickets,
         listingId: listingOf(unit).id,
       })),
       tx,
     );
-    const admitted = units
+    const admitted = decision.units
       .map((unit, index) => ({
         listing: listingOf(unit),
         tickets: moved[index]!.count,
@@ -245,8 +251,23 @@ const performCheckIns = (
       })),
       tx,
     );
-    return sumOf(({ tickets }: { tickets: number }) => tickets)(admitted);
+    // What the write left: the touched pairs' post-write owed (the
+    // transaction saw every ticket a racing door took), plus the owed of
+    // rows the scan did not admit — a widened scan counts every listing.
+    const plannedOwed = sumOf((unit: ScanUnit) =>
+      sumOf((row: TokenEntry) => remainingTickets(row.attendee))(unit.rows),
+    )(decision.units);
+    const untouched =
+      decision.remaining +
+      sumOf((unit: ScanUnit) => unit.tickets)(decision.units) -
+      plannedOwed;
+    return {
+      admitted: sumOf(({ tickets }: { tickets: number }) => tickets)(admitted),
+      remaining:
+        untouched + sumOf((move: TicketMoveAnswer) => move.owedAfter)(moved),
+    };
   });
+};
 
 /** Resolve a token against one door's scope and perform its scan decision. */
 const scanToken = async (
@@ -296,15 +317,12 @@ const scanToken = async (
         status: "select_quantity",
       });
     case "admit": {
-      const admitted = await performCheckIns(
-        decision.rows[0]!.attendee.id,
-        decision.units,
-      );
+      const { admitted, remaining } = await performCheckIns(decision);
       // Another door took every ticket this scan planned to admit.
       if (admitted === 0) return alreadyCheckedIn(decision.rows, attendeeName);
       return jsonResponse({
         ...scanBody(decision.rows, attendeeName, "checked_in", admitted),
-        remaining: decision.remaining,
+        remaining,
       });
     }
   }

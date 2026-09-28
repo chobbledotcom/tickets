@@ -14,11 +14,10 @@ import type { FormParams } from "#shared/form-data.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { attendeeCheckinQuantityPage } from "#templates/admin/attendees/checkin-quantity.tsx";
 import {
-  attendeeFormAction,
+  attendeeBookingFormAction,
   getReturnUrl,
-  withAttendee,
+  withAttendeeBooking,
 } from "./attendees-route-helpers.ts";
-
 /** Return a redirect response when the attendee has no active booking line, or null otherwise. */
 export const redirectIfNoActiveBookingLine = async (
   attendeeId: number,
@@ -41,7 +40,7 @@ export const handleAttendeeCheckinGet = (
   { attendeeId, listingId }: { attendeeId: number; listingId: number },
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withAttendee(
+    withAttendeeBooking(
       listingId,
       attendeeId,
     )(({ attendee, listing }) =>
@@ -70,8 +69,12 @@ const rosterLanding = (form: FormParams, listingId: number): string => {
   return `/admin/listing/${listingId}/attendees${filterQs}`;
 };
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin */
-export const handleAttendeeCheckin = attendeeFormAction(
+/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin — both
+ * the quantity page's forms and the quantity 1 toggle. The context is the
+ * person's whole booking on the listing, so a stale page's count cannot
+ * overshoot either direction: admit caps at what the pair owes and release
+ * stops at zero. */
+export const handleAttendeeCheckin = attendeeBookingFormAction(
   async (data, _session, form, listingId, attendeeId) => {
     // Refuse on a no-quantity ghost row (checked against the exact (attendee,
     // listing) pair) — moveTickets would no-op anyway, but this keeps the
@@ -84,27 +87,35 @@ export const handleAttendeeCheckin = attendeeFormAction(
     );
     if (noLineRedirect) return noLineRedirect;
 
+    const target = rosterLanding(form, listingId);
+    // The direction is the form's one choice between opposite writes, so
+    // only the exact true/false the forms post counts — anything else is a
+    // damaged form, not a silent admission.
+    const direction = form.getString("check_in");
+    if (direction !== "true" && direction !== "false") {
+      return redirect(target, "Invalid check-in direction", false, { form });
+    }
     // The quantity page names its count. A direct toggle (the quantity 1
-    // roster button) posts none and takes the whole line.
-    const checkIn = form.getString("check_in") !== "false";
+    // roster button) posts none and takes the whole booking.
     const rawCount = form.getString("quantity");
     const count =
       rawCount === "" ? data.attendee.quantity : parsePositiveInt(rawCount);
-    const target = rosterLanding(form, listingId);
-
     if (count === null) {
       return redirect(target, "Invalid ticket count", false, { form });
     }
 
-    // admit caps at the line's quantity and release stops at zero, so a
-    // stale page's count cannot overshoot either direction.
     const moved = ticketCount(
-      await moveTickets(checkIn ? "admit" : "release", [
+      await moveTickets(direction === "true" ? "admit" : "release", [
         { attendeeId, count, listingId },
       ]),
     );
+    // Another request moved every ticket first, so this one changed nothing:
+    // no activity row, and a flash that says so.
+    if (moved === 0) {
+      return redirect(target, "No tickets moved", false);
+    }
 
-    const status = checkIn ? "in" : "out";
+    const status = direction === "true" ? "in" : "out";
     const tickets = `${moved} ticket${moved === 1 ? "" : "s"}`;
     await logActivity(
       `Attendee checked ${status} ${tickets} for '${data.listing.name}'`,

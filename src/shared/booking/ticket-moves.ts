@@ -16,6 +16,10 @@ export type TicketMove = {
   listingId: number;
 };
 
+/** One move's answer from the write: the tickets it really moved, and what
+ * its (person, listing) pair still owes afterwards. */
+export type TicketMoveAnswer = TicketMove & { owedAfter: number };
+
 /** One stored booking line, as the write reads it. */
 export type StoredTicketLine = Pick<
   ListingAttendeeRow,
@@ -35,13 +39,13 @@ const STEP: Record<TicketDirection, number> = { admit: 1, release: -1 };
 
 /** Move each count over the person's lines on that listing in the order
  * given, filling (or emptying) one line before the next. Answers the lines
- * that changed and the tickets each move really moved, which is less than
- * asked when the lines run out of room. */
+ * that changed, the tickets each move really moved (less than asked when the
+ * lines run out of room), and what each pair still owes afterwards. */
 export const spreadTicketMoves = (
   direction: TicketDirection,
   lines: readonly StoredTicketLine[],
   moves: readonly TicketMove[],
-): { changed: ChangedTicketLine[]; moved: TicketMove[] } => {
+): { changed: ChangedTicketLine[]; moved: TicketMoveAnswer[] } => {
   const after = lines.map((line) => ({ ...line, before: line.checked_in }));
   const moved = moves.map((move) => {
     let left = move.count;
@@ -57,9 +61,23 @@ export const spreadTicketMoves = (
   const changed = after
     .filter((line) => line.checked_in !== line.before)
     .map(({ checked_in, id }) => ({ checked_in, id }));
-  return { changed, moved };
+  // What every touched pair still owes after the whole write: the honest
+  // remainder for a door that raced another door for the same tickets.
+  const linesByPair = Map.groupBy(
+    after,
+    (line: StoredTicketLine) => `${line.attendee_id}:${line.listing_id}`,
+  );
+  const owedIn = sumOf(
+    (line: StoredTicketLine) => line.quantity - line.checked_in,
+  );
+  const movedWithOwed = moved.map((move) => ({
+    ...move,
+    owedAfter: owedIn(
+      linesByPair.get(`${move.attendeeId}:${move.listingId}`) ?? [],
+    ),
+  }));
+  return { changed, moved: movedWithOwed };
 };
-
 /** The tickets a set of moves covers in total. */
 export const ticketCount: (moves: Iterable<TicketMove>) => number = sumOf(
   (move: TicketMove) => move.count,

@@ -8,9 +8,14 @@ import {
   spreadTicketMoves,
   type TicketDirection,
   type TicketMove,
+  type TicketMoveAnswer,
 } from "#booking/ticket-moves.ts";
 import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
+import {
+  LISTING_ATTENDEE_REFUNDED_ROW,
+  refundedForBooking,
+} from "#db/attendees/select.ts";
 import {
   execute,
   executeBatch,
@@ -32,13 +37,13 @@ import { clampDurationDays, type ListingType } from "#types";
  * Move tickets for each (person, listing) and answer what really moved. The
  * lines are read inside the write transaction, so two doors that move
  * tickets at the same time cannot pass a line's bounds. A no-quantity
- * (quantity 0) line is not a ticket and never moves.
+ * (quantity 0) line and a refunded line are not tickets and never move.
  */
 export const moveTickets = (
   direction: TicketDirection,
   moves: readonly TicketMove[],
   transaction?: TxScope,
-): Promise<TicketMove[]> =>
+): Promise<TicketMoveAnswer[]> =>
   useTransaction(transaction, async (tx) => {
     const attendeeIds = unique(moves.map((move) => move.attendeeId));
     const listingIds = unique(moves.map((move) => move.listingId));
@@ -46,11 +51,16 @@ export const moveTickets = (
       await tx.execute({
         args: [...attendeeIds, ...listingIds],
         sql: `SELECT id, attendee_id, listing_id, quantity, checked_in
-              FROM listing_attendees
-              WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
-                AND listing_id IN (${inPlaceholders(listingIds)})
-                AND quantity > 0
-              ORDER BY start_at, id`,
+              FROM listing_attendees AS listingAttendee
+              WHERE listingAttendee.attendee_id IN (${inPlaceholders(
+                attendeeIds,
+              )})
+                AND listingAttendee.listing_id IN (${inPlaceholders(
+                  listingIds,
+                )})
+                AND listingAttendee.quantity > 0
+                AND NOT (${refundedForBooking(LISTING_ATTENDEE_REFUNDED_ROW)})
+              ORDER BY listingAttendee.start_at, listingAttendee.id`,
       }),
     );
     const { changed, moved } = spreadTicketMoves(direction, lines, moves);

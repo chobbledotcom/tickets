@@ -133,15 +133,18 @@ export const getAttendeesByListingIds = (
 };
 
 export type ListingWithAttendeeRaw = {
+  /** Every row the (person, listing) pair holds — several can share the pair
+   * (two parents, two dates), so a caller that wants one line picks the first
+   * while a booking-wide caller sums them. */
+  attendeeRows: Attendee[];
   listing: ListingWithCount;
-  attendeeRaw: Attendee | null;
 };
 
-/** Read one listing and the attendee's booking line on it in one round-trip.
- * The attendee half is the line for THIS listing: a person booked on several
- * listings has one line per listing, and the listing-scoped routes act on the
- * one the address names — never on whichever line a scan reaches first. An
- * attendee with no booking on the listing reads as no attendee half. */
+/** Read one listing and the attendee's booking rows on it in one round-trip.
+ * The attendee half is every line for THIS listing: a person booked on
+ * several listings has lines per listing, and the listing-scoped routes act
+ * on the ones the address names — never on whichever line a scan reaches
+ * first. A person with no booking on the listing reads as no rows. */
 export const getListingWithAttendeeRaw = async (
   listingId: number,
   attendeeId: number,
@@ -155,7 +158,7 @@ export const getListingWithAttendeeRaw = async (
     }),
   ]);
   return withBatchListing(results[0]!, (listing) => ({
-    attendeeRaw: resultRows<Attendee>(results[1]!)[0] ?? null,
+    attendeeRows: resultRows<Attendee>(results[1]!),
     listing,
   }));
 };

@@ -3,10 +3,12 @@ import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { expandChildAllocations } from "#db/attendees/order-parents.ts";
 import { moveTickets } from "#db/attendees/update.ts";
-import { queryAll } from "#db/client.ts";
+import { getDb, queryAll } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { reverseOrderFor } from "#test/shared/db/attendees/select-refunded/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 /** The persisted rows for one listing under one attendee, with their parent. */
 const rowsFor = (attendeeId: number, listingId: number) =>
@@ -74,7 +76,9 @@ describeWithEnv(
       const { attendee, child } = await bookChildUnderTwoParents();
       const move = { attendeeId: attendee.id, count: 1, listingId: child.id };
 
-      expect(await moveTickets("admit", [move])).toEqual([move]);
+      expect(await moveTickets("admit", [move])).toEqual([
+        { ...move, owedAfter: 1 },
+      ]);
       expect(await countsFor(attendee.id, child.id)).toEqual([1, 0]);
 
       await moveTickets("admit", [move]);
@@ -82,7 +86,7 @@ describeWithEnv(
 
       // Both rows are full, so a third ticket has nowhere to go.
       expect(await moveTickets("admit", [move])).toEqual([
-        { ...move, count: 0 },
+        { ...move, count: 0, owedAfter: 0 },
       ]);
     });
 
@@ -93,6 +97,52 @@ describeWithEnv(
 
       await moveTickets("release", [{ ...move, count: 1 }]);
       expect(await countsFor(attendee.id, child.id)).toEqual([0, 1]);
+    });
+
+    test("a refunded sibling row never takes the tickets a live row owes", async () => {
+      const { attendee, child, parentB } = await bookChildUnderTwoParents();
+      // Two separate paid orders, one per row — the row shape a person
+      // merged from two bookings on one listing holds. postListingSale
+      // stamps every un-stamped row, so both rows land on the first order;
+      // point the second row at its own order to give each row one.
+      const firstOrder = await postListingSale({
+        attendeeId: attendee.id,
+        eventId: "order-a",
+        gross: 100,
+        listingId: child.id,
+      });
+      const secondOrder = await postListingSale({
+        attendeeId: attendee.id,
+        eventId: "order-b",
+        gross: 100,
+        listingId: child.id,
+      });
+      await getDb().execute({
+        args: [secondOrder, attendee.id, child.id, parentB.id],
+        sql:
+          "UPDATE listing_attendees SET ledger_event_group = ?" +
+          " WHERE attendee_id = ? AND listing_id = ? AND parent_listing_id = ?",
+      });
+      // The first-stored row's order is refunded, so that row reads
+      // refunded while the second row still owes its ticket.
+      await reverseOrderFor(attendee.id, child.id);
+
+      const moved = await moveTickets("admit", [
+        { attendeeId: attendee.id, count: 1, listingId: child.id },
+      ]);
+
+      // The refunded row sorts first in storage order; the ticket must land
+      // on the live row, never on the refunded one.
+      expect(moved).toEqual([
+        {
+          attendeeId: attendee.id,
+          count: 1,
+          listingId: child.id,
+          owedAfter: 0,
+        },
+      ]);
+      expect(await countsFor(attendee.id, child.id)).toEqual([0, 1]);
+      expect(firstOrder).not.toBe(secondOrder);
     });
   },
 );

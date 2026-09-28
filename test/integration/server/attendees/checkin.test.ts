@@ -48,7 +48,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
    * again with the direction the roster's Check Out button sends, plus any
    * extra body fields. Returns that second response and the listing. */
   const checkInThenPost = async (body: Record<string, string> = {}) => {
-    const { listing, attendee, cookie, csrfToken } = await checkinAction({})();
+    const { listing, attendee, cookie, csrfToken } = await checkinAction({
+      check_in: "true",
+    })();
     const response = await handleRequest(
       mockFormRequest(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
@@ -92,7 +94,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     });
 
     test("checks in an attendee and redirects to the roster with a flash", async () => {
-      const { response, listing } = await checkinAction({})();
+      const { response, listing } = await checkinAction({
+        check_in: "true",
+      })();
       expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
       expectFlash(response, expect.stringContaining("Checked John Doe in"));
 
@@ -111,6 +115,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${other.id}/attendee/${attendee.id}/checkin`,
+        { check_in: "true" },
       );
       expectRedirect(response, `/admin/listing/${other.id}/attendees`);
       expectFlash(response, expect.stringContaining("Checked Bruno in"));
@@ -150,6 +155,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("redirects to return_url when provided", async () => {
       const { response } = await checkinAction({
+        check_in: "true",
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
       expectRedirect(
@@ -176,7 +182,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("roster shows Check out button for checked-in attendee", async () => {
       // Check in first, then view the roster tab
-      const { listing } = await checkinAction({})();
+      const { listing } = await checkinAction({ check_in: "true" })();
 
       await assertAdminHtml(
         `/admin/listing/${listing.id}/attendees`,
@@ -236,7 +242,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { quantity: "1" },
+        { check_in: "true", quantity: "1" },
       );
 
       const response = await adminGet(
@@ -256,7 +262,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { quantity: "2" },
+        { check_in: "true", quantity: "2" },
       );
       expectFlash(
         response,
@@ -273,7 +279,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        {},
+        { check_in: "true" },
       );
 
       const { response } = await adminFormPost(
@@ -291,7 +297,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        {},
+        { check_in: "true" },
       );
 
       const response = await adminGet(
@@ -309,7 +315,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { quantity: "two" },
+        { check_in: "true", quantity: "two" },
       );
       expectFlash(response, "Invalid ticket count", false);
       expect(await storedCount(listing.id, attendee.id)).toBe(0);
@@ -321,7 +327,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       for (const quantity of ["2tickets", "1.5", "1e2"]) {
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { quantity },
+          { check_in: "true", quantity },
         );
         expectFlash(response, "Invalid ticket count", false);
       }

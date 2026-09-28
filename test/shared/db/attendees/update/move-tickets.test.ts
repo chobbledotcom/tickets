@@ -87,12 +87,13 @@ describeWithEnv(
       const move = { attendeeId: attendee.id, listingId: listing.id };
       await moveTickets("admit", [{ ...move, count: 2 }]);
 
-      // Only one ticket is left, so asking for three admits one.
+      // Only one ticket is left, so asking for three admits one, and the
+      // answer names what the line still owes afterwards.
       expect(await moveTickets("admit", [{ ...move, count: 3 }])).toEqual([
-        { ...move, count: 1 },
+        { ...move, count: 1, owedAfter: 0 },
       ]);
       expect(await moveTickets("release", [{ ...move, count: 5 }])).toEqual([
-        { ...move, count: 3 },
+        { ...move, count: 3, owedAfter: 3 },
       ]);
     });
 

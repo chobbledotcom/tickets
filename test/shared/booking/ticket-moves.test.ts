@@ -23,6 +23,12 @@ const line = (
 
 const move = (count: number) => ({ attendeeId: 1, count, listingId: 10 });
 
+/** The answer one move expects: its count and its pair's post-write owed. */
+const answer = (count: number, owedAfter: number) => ({
+  ...move(count),
+  owedAfter,
+});
+
 describe("booking > ticket moves", () => {
   test("admitting fills the first line before the next", () => {
     expect(
@@ -32,7 +38,7 @@ describe("booking > ticket moves", () => {
         { checked_in: 2, id: 1 },
         { checked_in: 2, id: 2 },
       ],
-      moved: [move(3)],
+      moved: [answer(3, 1)],
     });
   });
 
@@ -44,21 +50,20 @@ describe("booking > ticket moves", () => {
         { checked_in: 0, id: 1 },
         { checked_in: 2, id: 2 },
       ],
-      moved: [move(2)],
+      moved: [answer(2, 3)],
     });
   });
-
   test("a move answers only what the lines had room for", () => {
     const admitted = spreadTicketMoves("admit", [line(1, 2, 1)], [move(5)]);
-    expect(admitted.moved).toEqual([move(1)]);
+    expect(admitted.moved).toEqual([answer(1, 0)]);
     const released = spreadTicketMoves("release", [line(1, 2, 1)], [move(5)]);
-    expect(released.moved).toEqual([move(1)]);
+    expect(released.moved).toEqual([answer(1, 2)]);
   });
 
   test("a full line is not changed", () => {
     expect(spreadTicketMoves("admit", [line(1, 2, 2)], [move(1)])).toEqual({
       changed: [],
-      moved: [move(0)],
+      moved: [answer(0, 0)],
     });
   });
 
@@ -68,7 +73,7 @@ describe("booking > ticket moves", () => {
       [line(1, 2, 0), line(2, 2, 0)],
       [move(2), move(2)],
     );
-    expect(moved).toEqual([move(2), move(2)]);
+    expect(moved).toEqual([answer(2, 0), answer(2, 0)]);
     expect(changed).toEqual([
       { checked_in: 2, id: 1 },
       { checked_in: 2, id: 2 },
@@ -81,8 +86,14 @@ describe("booking > ticket moves", () => {
       line(2, 2, 0, { listing_id: 11 }),
       line(3, 2, 0),
     ];
-    expect(spreadTicketMoves("admit", lines, [move(1)]).changed).toEqual([
-      { checked_in: 1, id: 3 },
+    const { changed, moved } = spreadTicketMoves("admit", lines, [move(1)]);
+    expect(moved).toEqual([answer(1, 1)]);
+    expect(changed).toEqual([{ checked_in: 1, id: 3 }]);
+  });
+
+  test("a move with no lines answers zero moved and zero owed", () => {
+    expect(spreadTicketMoves("admit", [], [move(2)]).moved).toEqual([
+      answer(0, 0),
     ]);
   });
 

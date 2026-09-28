@@ -10,6 +10,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
+  adminCheckinPost as checkIn,
   setupListingAndAttendee,
   submitDeleteIncomplete,
 } from "#test-utils/attendees/helpers.ts";
@@ -28,16 +29,6 @@ const isCheckedIn = async (
   });
   return Number(rows.rows[0]!.checked_in) === 1;
 };
-
-const checkIn = (
-  listingId: number,
-  attendeeId: number,
-  extra: Record<string, string> = {},
-) =>
-  adminFormPost(
-    `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
-    extra,
-  );
 
 describeWithEnv("checking an attendee in", { db: true }, () => {
   test("marks them in, then out again on a second press", async () => {

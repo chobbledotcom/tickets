@@ -302,6 +302,18 @@ export const emptyBookingLine = async (
   );
 };
 
+/** POST the roster's check-in route for one attendee, naming the direction the
+ * way the roster's buttons do. An `extra` `check_in` overrides the default. */
+export const adminCheckinPost = (
+  listingId: number,
+  attendeeId: number,
+  extra: Record<string, string> = {},
+) =>
+  adminFormPost(`/admin/listing/${listingId}/attendee/${attendeeId}/checkin`, {
+    check_in: "true",
+    ...extra,
+  });
+
 /** Bruno plus the two listings a listing-scoped read must choose between.
  * He is booked on the home listing, and on the other one too when
  * `onOtherToo` says so — a person whose lines the roster's Check in must

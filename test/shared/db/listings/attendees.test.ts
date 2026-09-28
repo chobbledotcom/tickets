@@ -188,8 +188,9 @@ describeWithEnv(
       const result = await getListingWithAttendeeRaw(listing.id, attendee.id);
       expect(result).not.toBeNull();
       expect(result?.listing.id).toBe(listing.id);
-      expect(result?.attendeeRaw?.id).toBe(attendee.id);
-      expect(result?.attendeeRaw?.listing_id).toBe(listing.id);
+      const [row] = result?.attendeeRows ?? [];
+      expect(row?.id).toBe(attendee.id);
+      expect(row?.listing_id).toBe(listing.id);
       expect(result?.listing.attendee_count).toBe(1);
     });
 
@@ -197,7 +198,7 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 5 });
       const result = await getListingWithAttendeeRaw(listing.id, 999_999);
       expect(result?.listing.id).toBe(listing.id);
-      expect(result?.attendeeRaw).toBeNull();
+      expect(result?.attendeeRows).toEqual([]);
     });
 
     test("getListingWithAttendeeRaw returns null for non-existent listing", async () => {
@@ -213,8 +214,9 @@ describeWithEnv(
 
       const result = await getListingWithAttendeeRaw(other.id, attendee.id);
       expect(result?.listing.id).toBe(other.id);
-      expect(result?.attendeeRaw?.id).toBe(attendee.id);
-      expect(result?.attendeeRaw?.listing_id).toBe(other.id);
+      const [row] = result?.attendeeRows ?? [];
+      expect(row?.id).toBe(attendee.id);
+      expect(row?.listing_id).toBe(other.id);
     });
 
     test("getListingWithAttendeeRaw has no attendee half when the person holds no booking on the listing", async () => {
@@ -222,7 +224,7 @@ describeWithEnv(
 
       const result = await getListingWithAttendeeRaw(other.id, attendee.id);
       expect(result?.listing.id).toBe(other.id);
-      expect(result?.attendeeRaw).toBeNull();
+      expect(result?.attendeeRows).toEqual([]);
     });
 
     // Income is projected from the ledger, not stored, so a loader that skips
