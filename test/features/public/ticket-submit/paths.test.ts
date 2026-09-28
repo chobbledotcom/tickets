@@ -1,5 +1,5 @@
-/** Route-level tests of the ticket submit and quote paths in
- * `src/features/public/ticket-submit.ts`: the Square email rule, the
+/** Route-level tests of the paid and free booking paths in
+ * `src/features/public/ticket-submit/paths.ts`: the Square email rule, the
  * provider-less owed booking, the no-provider quote messages, the quote's
  * CSRF rejection, the site-menu gate, and the one-listing group page. */
 
