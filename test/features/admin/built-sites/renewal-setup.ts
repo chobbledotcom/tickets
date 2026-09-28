@@ -21,7 +21,7 @@ export const renewalSuiteHelpers = () => {
 
   /** Restore and re-install the secret stub (clears its recorded calls). */
   const resetSecretStub = () => {
-    secretStub.restore();
+    if (!secretStub.restored) secretStub.restore();
     secretStub = installSecretStub();
   };
 

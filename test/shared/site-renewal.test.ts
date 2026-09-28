@@ -9,6 +9,7 @@ import {
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { generateRenewalToken } from "#shared/renewal-token.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import {
   parseReadOnlyFromMs,
@@ -60,6 +61,123 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     }
   });
 
+  test("a rotation landing mid-provision converges on the rotated token", async () => {
+    await insertBuiltSite(
+      "Rotated Mid",
+      "rotated-mid.test",
+      "",
+      "",
+      false,
+      "80",
+    );
+    const site = (await builtSites.getAll()).find(
+      ({ name }) => name === "Rotated Mid",
+    )!;
+    // Stage a reserved token, as a failed first push leaves behind.
+    const staged = await generateRenewalToken();
+    await updateBuiltSiteRenewalState(site.id, {
+      renewalToken: staged.token,
+      renewalTokenIndex: staged.index,
+    });
+
+    // When the provision pushes the staged token, rotate first — the
+    // confirm must then fail, re-read, and push the rotated token.
+    const rotate = rotateRenewalToken;
+    using _secret = stub(
+      bunnyCdnApi,
+      "setEdgeScriptSecret",
+      (_scriptId: number, name: string, value: string) => {
+        if (name !== "RENEWAL_URL") {
+          return Promise.resolve({ ok: true as const });
+        }
+        if (value.includes(staged.token)) {
+          return (async () => {
+            await rotate(site, "Mid-provision rotation failed");
+            return { ok: true as const };
+          })();
+        }
+        return Promise.resolve({ ok: true as const });
+      },
+    );
+
+    const result = await provisionSiteRenewal(site, 3, "Mid-provision failed");
+    expect(result.pushOk).toBe(true);
+
+    const stored = (await builtSites.getAll()).find(
+      ({ name }) => name === "Rotated Mid",
+    )!;
+    // The rotated token won the row; the confirm re-pushed it, so the
+    // database and the provider hold the same token.
+    expect(stored.renewalToken).not.toBe(staged.token);
+    expect(stored.readOnlyFrom).not.toBe("");
+    const renewalUrls = _secret.calls
+      .filter((c) => c.args[1] === "RENEWAL_URL")
+      .map((c) => String(c.args[2]));
+    expect(renewalUrls.length).toBeGreaterThanOrEqual(2);
+    for (const url of renewalUrls.slice(1)) {
+      expect(url).toContain(stored.renewalToken!);
+    }
+  });
+
+  test("a provision that keeps losing to rotations reports failure", async () => {
+    await insertBuiltSite(
+      "Always Rotating",
+      "always.test",
+      "",
+      "",
+      false,
+      "81",
+    );
+    const site = (await builtSites.getAll()).find(
+      ({ name }) => name === "Always Rotating",
+    )!;
+    // Every provision push loses the row to a rotation, so the settle loop
+    // exhausts and reports the unconfirmed cutoff.
+    let rotating = false;
+    using _secret = stub(
+      bunnyCdnApi,
+      "setEdgeScriptSecret",
+      (_scriptId: number, name: string, _value: string) => {
+        if (name !== "RENEWAL_URL" || rotating) {
+          return Promise.resolve({ ok: true as const });
+        }
+        rotating = true;
+        return (async () => {
+          try {
+            await rotateRenewalToken(site, "Exhausting rotation failed");
+          } finally {
+            rotating = false;
+          }
+          return { ok: true as const };
+        })();
+      },
+    );
+
+    const errorSpy = stub(console, "error", () => {});
+    try {
+      const result = await provisionSiteRenewal(site, 3, "Exhausted provision");
+      expect(result.pushOk).toBe(false);
+      expect(result.token).toBe("");
+      // The exhausted loop says why, so an operator can tell it apart from
+      // a push failure.
+      expect(
+        errorSpy.calls.some((c) =>
+          String(c.args[0]).includes(
+            "the token kept rotating during provision",
+          ),
+        ),
+      ).toBe(true);
+    } finally {
+      errorSpy.restore();
+    }
+
+    const stored = (await builtSites.getAll()).find(
+      ({ name }) => name === "Always Rotating",
+    )!;
+    expect(stored.readOnlyFrom).toBe("");
+    expect(stored.renewalTokenIndex).not.toBeNull();
+  });
+
   test("replaces an orphaned token that carries no index", async () => {
     // A token without its index is dead — no renewal link can resolve it —
     // so the reservation mints a complete, indexed pair in its place.
@@ -96,8 +214,20 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
       ({ name }) => name === "Retry site",
     )!;
 
-    const failed = await provisionSiteRenewal(site, 3, "First push failed");
+    const errorSpy = stub(console, "error", () => {});
+    let failed: Awaited<ReturnType<typeof provisionSiteRenewal>>;
+    try {
+      failed = await provisionSiteRenewal(site, 3, "First push failed");
+    } finally {
+      errorSpy.restore();
+    }
     expect(failed.pushOk).toBe(false);
+    // The failed push says why, so an operator can tell it from a rotation.
+    expect(
+      errorSpy.calls.some((c) =>
+        String(c.args[0]).includes("First push failed"),
+      ),
+    ).toBe(true);
     const reserved = (await builtSites.getAll()).find(
       ({ name }) => name === "Retry site",
     )!;

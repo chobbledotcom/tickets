@@ -184,6 +184,22 @@ describeWithEnv(
           expect(updated.renewalTokenIndex).not.toBeNull();
           expect(updated.readOnlyFrom).toBe("");
         });
+
+        // The retry confirms the reserved token; it never mints a second one.
+        suite.resetSecretStub();
+        const reservedToken = (await findSite(site.id)).renewalToken;
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/provision-renewal`,
+          { months: "3" },
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/renewal`,
+          "Renewal provisioned",
+        )(response);
+
+        const confirmed = await findSite(site.id);
+        expect(confirmed.renewalToken).toBe(reservedToken);
+        expect(confirmed.readOnlyFrom).not.toBe("");
       });
     });
   },

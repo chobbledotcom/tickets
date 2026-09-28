@@ -207,6 +207,18 @@ const storeBuiltSiteChanges = async (
   return queryOne<BuiltSiteRow>(statement.sql, statement.args);
 };
 
+/** Apply `changes` only while the row still sits at `expectedRevision`; a
+ * concurrent write that moved it returns false, with no retry. */
+export const updateBuiltSiteIfUnchanged = async (
+  id: InValue,
+  expectedRevision: number,
+  changes: BuiltSiteUpdate,
+): Promise<boolean> => {
+  const existing = await findBuiltSiteByIdPrimary(id);
+  if (!existing || existing.siteDataRevision !== expectedRevision) return false;
+  return (await storeBuiltSiteChanges(id, existing, changes)) !== null;
+};
+
 /** Update a whole built-site record without overwriting a concurrent blob write. */
 export const updateBuiltSite = (
   id: InValue,
@@ -317,13 +329,6 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   return all.filter((s) => s.assignable);
 };
 
-/**
- * True when a built site is assigned to this attendee on any of the listings.
- * Used to forbid marking an assigned built-site line no-quantity: the assignment
- * (and the live public /renew/ path that resolves the site token with no
- * listing_attendees check) would otherwise survive behind a hidden line. One
- * query over all the IDs; callers pass a non-empty list.
- */
 /** One statement over a buyer's site assignments: the select list and the
  * trailing clause vary, the attendee and the listing filter do not. */
 export const buyerAssignmentStatement = (
@@ -356,11 +361,8 @@ export const hasAssignedBuiltSite = async (
   attendeeId: number,
   listingIds: number[],
 ): Promise<boolean> => {
-  const { args, sql } = assignedBuiltSiteExistsStatement(
-    attendeeId,
-    listingIds,
-  );
-  return (await execute(sql, args)).rows.length > 0;
+  const exists = assignedBuiltSiteExistsStatement(attendeeId, listingIds);
+  return (await execute(exists.sql, exists.args)).rows.length > 0;
 };
 
 /** Look up a built site by renewal token index (HMAC blind index) */

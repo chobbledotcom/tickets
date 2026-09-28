@@ -7,9 +7,12 @@
 import { siteClaimedByBuyer } from "#db/built-sites/claims.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
+  findBuiltSiteByIdPrimary,
   updateBuiltSite,
+  updateBuiltSiteIfUnchanged,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
+import { range } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -121,29 +124,45 @@ type RenewalPushResult = { token: string; pushOk: boolean };
  * Provision a site for renewals. The token is reserved before the push: the
  * reservation is a revision-fenced write that only lands while the row still
  * carries none, so exactly one of two concurrent attempts owns the token and
- * the other adopts it — both then push the same value, and the hosting
- * provider and the database can never end up holding different tokens. On
- * push failure the reservation stands and the cutoff stays empty, so a retry
- * re-pushes the reserved token instead of minting a second one.
+ * the other adopts it — both then push the same value. The confirm that
+ * follows persists only the cutoff, and only while the row sits at the
+ * revision it was read at: a token rotation landing mid-provision fails the
+ * confirm, and the loop re-reads and re-pushes the rotated token, so the
+ * hosting provider and the database can never end up holding different
+ * tokens. On push failure the reservation stands and the cutoff stays empty,
+ * so a retry re-pushes the reserved token instead of minting a second one.
  */
 export const provisionSiteRenewal = async (
   site: BuiltSite,
   months: number,
   errorContext: string,
 ): Promise<RenewalPushResult & { cutoff: string }> => {
-  const tokenData = await reserveRenewalToken(site);
+  await reserveRenewalToken(site);
   const cutoff = addMonthsIso(nowIso(), months);
 
-  const pushResult = await pushAndPersist(site, errorContext)(
-    { readOnlyFrom: cutoff, renewalUrl: renewalUrlFor(tokenData.token) },
-    {
+  for (const _attempt of range(0, 2)) {
+    const current = await findBuiltSiteByIdPrimary(site.id);
+    // The reservation just wrote the pair, so the row and its token exist.
+    const token = current!.renewalToken!;
+    const pushResult = await pushSiteSecrets(current!, {
       readOnlyFrom: cutoff,
-      renewalToken: tokenData.token,
-      renewalTokenIndex: tokenData.index,
-    },
-  );
-
-  return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
+      renewalUrl: renewalUrlFor(token),
+    });
+    if (!pushResult.ok) {
+      logRenewalCdnError(errorContext, pushResult.error);
+      return { cutoff, pushOk: false, token };
+    }
+    const confirmed = await updateBuiltSiteIfUnchanged(
+      site.id,
+      current!.siteDataRevision,
+      { readOnlyFrom: cutoff },
+    );
+    if (confirmed) return { cutoff, pushOk: true, token };
+    // A rotation won the row mid-provision; loop again and push its token.
+  }
+  // Rotations kept landing; the cutoff stays empty and a retry resumes.
+  logRenewalCdnError(errorContext, "the token kept rotating during provision");
+  return { cutoff, pushOk: false, token: "" };
 };
 
 /** The token this site's renewals run on, reserved if none is yet. The

@@ -314,7 +314,9 @@ const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
  * admin doesn't generate a token that would dead-end at an empty /renew picker.
  * (The customer picks the actual tier at renew time.) */
 const handleProvisionRenewal = builtSiteAction(async (site, form, id) => {
-  if (isProvisioned(site)) {
+  // The empty cutoff marks a reserved-but-unconfirmed token — a failed push —
+  // so the route retries with the reserved token rather than refusing.
+  if (isProvisioned(site) && site.readOnlyFrom !== "") {
     return builtSiteTabError(
       id,
       "renewal",
