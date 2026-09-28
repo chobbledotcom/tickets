@@ -18,12 +18,12 @@ import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { CHECKS, type GradeContext } from "./checks.ts";
 import { isPageModule } from "./extract.ts";
 import {
-  errorText,
   type GradeCall,
   type GradeDeps,
   gradePage,
+  type JevSettings,
 } from "./grade.ts";
-import { DEFAULT_MODEL, loadJevKey } from "./jev.ts";
+import { DEFAULT_MODEL, errorText, loadJevKey } from "./jev.ts";
 import {
   batchReportLines,
   csvLines,
@@ -207,12 +207,13 @@ const progressLine = (
   result: PageResult,
 ): string => {
   const fails = failedCheckIds(result);
+  const jevFailed = result.jevError === null ? "" : "(Jev failed) ";
   const headline =
     result.score === null
       ? `SKIP ${result.file} - ${result.error.slice(0, 60)}`
       : `${String(result.score).padStart(3)} ${result.letter} ${(
           fails || "-"
-        ).slice(0, 60)} ${result.file}`;
+        ).slice(0, 60)} ${jevFailed}${result.file}`;
   return `[${done}/${total}] ${headline}`;
 };
 
@@ -285,14 +286,7 @@ export const runGradePageCli = async (
     io.stderr(`cannot read ${ALIAS_PATH} or ${OVER_LIMIT_PATH}`);
     return 2;
   }
-  const call: GradeCall = {
-    ctx,
-    options: {
-      apiKey: args.noJev ? null : loadJevKey(io.getEnv, () => secret),
-      model: args.model,
-      noJev: args.noJev,
-    },
-  };
+  const call: GradeCall = { ctx, jev: jevSettingsFor(io, args, secret) };
 
   if (pool.length === 1 && !args.json) {
     // The length guard above holds one page; TypeScript cannot see it.
@@ -300,6 +294,24 @@ export const runGradePageCli = async (
   }
 
   return runBatchPages(io, deps, args, call, pool);
+};
+
+/** The run's Jev settings, or null for a mechanical-only run. A missing key
+ * is said once here, so every page in the run is graded the same way. */
+const jevSettingsFor = (
+  io: ScriptIo,
+  args: GradeArgs,
+  secret: string | null,
+): JevSettings | null => {
+  if (args.noJev) return null;
+  const apiKey = loadJevKey(io.getEnv, () => secret);
+  if (apiKey === null) {
+    io.stderr(
+      "note: no Jev API key (set OPENCODE_API_KEY); grading mechanical checks only",
+    );
+    return null;
+  }
+  return { apiKey, model: args.model };
 };
 
 /** The alias table and the accepted-over-limit list, or null when either

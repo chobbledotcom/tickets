@@ -91,11 +91,11 @@ const nodeText = (content: string, node: Record<string, unknown>): string =>
  * stays out: it states a literal's shape rather than claiming one. */
 const assertionHits = (
   content: string,
-  file: string,
+  statements: ParsedStatement[],
 ): { assertions: LineHit[]; casts: LineHit[] } => {
   const assertions: LineHit[] = [];
   const casts: LineHit[] = [];
-  visitNodes(parseProgram(file, content).body, (node) => {
+  visitNodes(statements, (node) => {
     if (node.type === "TSNonNullExpression") {
       assertions.push(hitAtIndex(content, node.start as number));
     }
@@ -148,9 +148,12 @@ const hitsFromStatement = (
 };
 
 /** Exported functions whose return type the page never states. */
-const missingReturnTypeHits = (content: string, file: string): LineHit[] =>
-  parseProgram(file, content)
-    .body.filter(
+const missingReturnTypeHits = (
+  content: string,
+  statements: ParsedStatement[],
+): LineHit[] =>
+  statements
+    .filter(
       (statement): statement is ExportStatement =>
         statement.type === "ExportNamedDeclaration",
     )
@@ -183,7 +186,8 @@ const jargonHits = (content: string): { line: number; word: string }[] =>
 export const extractPage = (file: string, content: string): PageFacts => {
   const codeOnly = blankSpans(content, true);
   const keepStrings = blankSpans(content, false);
-  const { assertions, casts } = assertionHits(content, file);
+  const statements = parseProgram(file, content).body;
+  const { assertions, casts } = assertionHits(content, statements);
   return {
     asCasts: casts,
     catchClauses: hitsFrom(content, codeOnly, /\bcatch\s*\(|\.catch\s*\(/g),
@@ -203,7 +207,7 @@ export const extractPage = (file: string, content: string): PageFacts => {
     jargonHits: jargonHits(content),
     kind: pageKind(file),
     lines: countLines(content),
-    missingReturnTypes: missingReturnTypeHits(content, file),
+    missingReturnTypes: missingReturnTypeHits(content, statements),
     nonNullAssertions: assertions,
     sql: sqlStatements(content),
     writeCalls: hitsFrom(

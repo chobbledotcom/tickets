@@ -26,7 +26,13 @@ const ALIASES: Alias[] = [
   { name: "#shared/", target: "./src/shared/" },
 ];
 
-const jevAnswers = () =>
+/** A Jev reply that answers every question well, with `extra` beside it. */
+export const jevReply = (
+  extra: Record<string, unknown> = {
+    model: "jev-test",
+    usage: { input_tokens: 10, output_tokens: 5 },
+  },
+): string =>
   JSON.stringify({
     answers: Object.fromEntries(
       JEV_QUESTIONS.map((question) => [
@@ -34,8 +40,7 @@ const jevAnswers = () =>
         { confidence: 0.9, score: 2.5, type: "score" },
       ]),
     ),
-    model: "jev-test",
-    usage: { input_tokens: 10, output_tokens: 5 },
+    ...extra,
   });
 
 export const ioWith = (args: string[], env: Record<string, string> = {}) => {
@@ -66,7 +71,7 @@ export const depsOver = (dir: {
       Promise.resolve({
         ok: dir.fetchStatus === undefined,
         status: dir.fetchStatus ?? 200,
-        text: dir.fetchStatus === undefined ? jevAnswers() : "no credits",
+        text: dir.fetchStatus === undefined ? jevReply() : "no credits",
       }),
     now: Date.now,
     readFile: (path) => Promise.resolve(dir.files[path] ?? ""),

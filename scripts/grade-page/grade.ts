@@ -1,8 +1,7 @@
 /**
  * Grade one page: the mechanical checks always run, and the Jev questions
- * run unless the caller passed --no-jev or no key exists. Everything the
- * grade needs arrives as a dependency, so tests drive this without the
- * network or the repository.
+ * run when the run has Jev settings. Everything the grade needs arrives as
+ * a dependency, so tests drive this without the network or the repository.
  */
 
 import { activeChecks, type GradeContext, runMechanical } from "./checks.ts";
@@ -10,6 +9,7 @@ import { extractPage, type PageFacts, pageKind } from "./extract.ts";
 import {
   buildJevState,
   callJev,
+  errorText,
   gradeJevAnswers,
   type JevCheckResult,
   type JevFetch,
@@ -24,24 +24,21 @@ export interface GradeDeps {
   sleep: Sleep;
 }
 
-export interface GradeOptions {
-  apiKey: string | null;
+export interface JevSettings {
+  apiKey: string;
   model: string;
-  noJev: boolean;
 }
 
-/** What one grading pass needs besides the page itself. */
+/** What one grading pass needs besides the page itself. A run without
+ * Jev settings grades every page on the mechanical checks alone. */
 export interface GradeCall {
   ctx: GradeContext;
-  options: GradeOptions;
+  jev: JevSettings | null;
 }
 
 /** A session name per page, so one sweep stays traceable in the API logs. */
 const sessionFor = (file: string): string =>
   `grade-page-${file.replace(/[^a-z0-9]/gi, "").slice(-40)}`;
-
-export const errorText = (error: unknown): string =>
-  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 
 /** Grade one file into a result row, mechanical checks plus Jev judgement. */
 export const gradePage = async (
@@ -53,7 +50,7 @@ export const gradePage = async (
   try {
     const facts = extractPage(file, await deps.readFile(file));
     const results: Record<string, ReportRow> = runMechanical(facts, call.ctx);
-    const jevOutcome = await askJev(deps, call.options, facts);
+    const jevOutcome = await askJev(deps, call.jev, facts);
     Object.assign(results, jevOutcome.results);
     const { counts, letter, score } = summarise(results);
     return {
@@ -93,30 +90,23 @@ interface JevOutcome {
   results: Record<string, JevCheckResult>;
 }
 
-/** Ask the judgement questions, unless the caller opted out or cannot. */
+/** Ask the judgement questions, when the run has Jev settings. */
 const askJev = async (
   deps: GradeDeps,
-  options: GradeOptions,
+  settings: JevSettings | null,
   facts: PageFacts,
 ): Promise<JevOutcome> => {
   const jevChecks = activeChecks(facts).filter(
     (check) => check.engine === "jev" && check.question !== undefined,
   );
-  if (jevChecks.length === 0 || options.noJev) {
+  if (jevChecks.length === 0 || settings === null) {
     return { jev: null, jevError: null, results: {} };
-  }
-  if (options.apiKey === null) {
-    return {
-      jev: null,
-      jevError: "no API key (set OPENCODE_API_KEY)",
-      results: {},
-    };
   }
   const callStarted = deps.now();
   const call = await callJev(
     {
-      apiKey: options.apiKey,
-      model: options.model,
+      apiKey: settings.apiKey,
+      model: settings.model,
       questions: Object.fromEntries(
         jevChecks.map((check) => [check.id, check.question]),
       ),

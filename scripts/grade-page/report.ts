@@ -146,12 +146,23 @@ export const failedCheckIds = (result: PageResult): string =>
     .map(([id]) => id)
     .join(",");
 
-/** Worst graded page first; a page that could not be graded sorts last. */
-const rankOf = (result: PageResult): number =>
-  result.score ?? Number.POSITIVE_INFINITY;
+/** Whether Jev judged the page, so its score counts every check. A page Jev
+ * failed on is scored on the mechanical checks alone, and its score cannot
+ * be compared with a complete one. */
+const isComplete = (result: GradedPage): boolean => result.jevError === null;
 
-export const worstFirst = (left: PageResult, right: PageResult): number =>
-  rankOf(left) - rankOf(right);
+/** Complete grades first, then pages Jev failed on, then pages that could
+ * not be graded; worst score first inside each group. */
+const rankOf = (result: PageResult): [group: number, score: number] => {
+  if (result.score === null) return [2, 0];
+  return [isComplete(result) ? 0 : 1, result.score];
+};
+
+export const worstFirst = (left: PageResult, right: PageResult): number => {
+  const [leftGroup, leftScore] = rankOf(left);
+  const [rightGroup, rightScore] = rankOf(right);
+  return leftGroup - rightGroup || leftScore - rightScore;
+};
 
 /** One row of the batch table, graded or errored. */
 const tableRow = (result: PageResult): string => {
@@ -161,11 +172,15 @@ const tableRow = (result: PageResult): string => {
     )} ${result.file} - ${result.error.slice(0, 60)}`;
   }
   const counted = result.counts;
+  const jevFailed =
+    result.jevError === null
+      ? ""
+      : ` - Jev failed: ${result.jevError.slice(0, 60)}`;
   return (
     `${String(result.score).padStart(5)} ${result.letter.padEnd(2)} ` +
     `${result.kind.padEnd(9)} ` +
     `${`${counted.PASS}/${counted.WARN}/${counted.FAIL}`.padEnd(9)} ` +
-    `${failedCheckIds(result) || "-"} ${result.file}`
+    `${failedCheckIds(result) || "-"} ${result.file}${jevFailed}`
   );
 };
 
@@ -176,7 +191,7 @@ export const batchReportLines = (
   const graded = results.filter(
     (result): result is GradedPage => result.score !== null,
   );
-  const errored = results.filter((result) => result.score === null);
+  const errored = results.length - graded.length;
   const lines = [
     `Page grader - batch of ${results.length} (model=${meta.model})`,
     `${"Score".padStart(5)} ${"L".padEnd(2)} ${"Kind".padEnd(9)} ${"p/w/x".padEnd(
@@ -188,7 +203,7 @@ export const batchReportLines = (
     lines.push(tableRow(result));
   }
   if (graded.length === 0) return lines;
-  lines.push(...aggregateLines(graded, errored.length, meta.seconds));
+  lines.push(...aggregateLines(graded, errored, meta.seconds));
   return lines;
 };
 
@@ -207,16 +222,32 @@ const topCounts = (counts: Record<string, number>): string[] => {
     .map(([label, count]) => `  x${String(count).padEnd(4)} ${label}`);
 };
 
-/** The summary and failure counts a sweep prints below its table. */
+/** The median and the letter counts over complete grades, or nothing when
+ * Jev failed on every page. */
+const scoreSummary = (complete: GradedPage[]): string[] => {
+  if (complete.length === 0) return [];
+  const scores = complete
+    .map((result) => result.score)
+    .sort((left, right) => left - right);
+  const letters = countBy((result: PageResult) => result.letter)(complete);
+  return [
+    `median ${scores[Math.floor(scores.length / 2)]}`,
+    Object.keys(letters)
+      .sort()
+      .map((letter) => `${letter}:${letters[letter]}`)
+      .join(" "),
+  ];
+};
+
+/** The summary and failure counts a sweep prints below its table. Scores
+ * summarise complete grades only. Check counts cover every graded page,
+ * because each counted verdict is real either way. */
 const aggregateLines = (
   graded: GradedPage[],
   errored: number,
   seconds: number,
 ): string[] => {
-  const scores = graded
-    .map((result) => result.score)
-    .sort((left, right) => left - right);
-  const letters = countBy((result: PageResult) => result.letter)(graded);
+  const complete = graded.filter(isComplete);
   const failCounts = countBy((row: ReportRow) => row.label)(
     rowsAt(graded, "FAIL"),
   );
@@ -225,13 +256,12 @@ const aggregateLines = (
   );
   const lines = [
     "-".repeat(100),
-    `${graded.length} graded, ${errored} errored | ` +
-      `median ${scores[Math.floor(scores.length / 2)]} | ` +
-      `${Object.keys(letters)
-        .sort()
-        .map((letter) => `${letter}:${letters[letter]}`)
-        .join(" ")} | ` +
+    [
+      `${complete.length} graded, ${errored} errored, ` +
+        `${graded.length - complete.length} Jev failed`,
+      ...scoreSummary(complete),
       `${seconds.toFixed(0)}s total`,
+    ].join(" | "),
   ];
   if (Object.keys(failCounts).length > 0) {
     lines.push(

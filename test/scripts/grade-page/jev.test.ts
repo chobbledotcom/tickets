@@ -89,8 +89,10 @@ describe("callJev", () => {
   const reply = (status: number, text: string) => () =>
     Promise.resolve({ ok: status === 200, status, text });
 
+  const answered = { q1: { score: 2, type: "score" } };
+
   test("returns the answers and usage of a good call", async () => {
-    const result = await callJev(request, reply(200, okBody({})), () =>
+    const result = await callJev(request, reply(200, okBody(answered)), () =>
       Promise.resolve(),
     );
     expect(result.ok).toBe(true);
@@ -110,7 +112,7 @@ describe("callJev", () => {
         return Promise.resolve(
           calls === 1
             ? { ok: false, status: 429, text: "slow down" }
-            : { ok: true, status: 200, text: okBody({}) },
+            : { ok: true, status: 200, text: okBody(answered) },
         );
       },
       (ms) => {
@@ -142,6 +144,47 @@ describe("callJev", () => {
       Promise.resolve(),
     );
     expect(result.ok).toBe(false);
+  });
+
+  test("reports a reply that is not JSON as a failed call", async () => {
+    const result = await callJev(
+      request,
+      reply(200, "<html>Bad gateway</html>"),
+      () => Promise.resolve(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("the answer is not JSON");
+  });
+
+  test("refuses a reply that leaves a question unanswered", async () => {
+    const result = await callJev(request, reply(200, okBody({})), () =>
+      Promise.resolve(),
+    );
+    expect(result).toEqual({ error: "no answer for q1", ok: false });
+  });
+
+  test("refuses an answer that carries no score", async () => {
+    const result = await callJev(
+      request,
+      reply(200, okBody({ q1: { type: "score" } })),
+      () => Promise.resolve(),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  test("refuses a score or a confidence outside its range", async () => {
+    for (const answer of [
+      { score: 7, type: "score" },
+      { score: -1, type: "score" },
+      { confidence: 5, score: 2, type: "score" },
+    ]) {
+      const result = await callJev(
+        request,
+        reply(200, okBody({ q1: answer })),
+        () => Promise.resolve(),
+      );
+      expect(result.ok).toBe(false);
+    }
   });
 
   test("retries a network failure and reports it", async () => {
@@ -186,25 +229,34 @@ describe("gradeJevAnswers", () => {
     expect(results.low?.note).toBe("score=0.20");
   });
 
-  test("downgrades a fail the model is unsure about", () => {
+  test("asks a person to look whenever the model is unsure", () => {
     const results = gradeJevAnswers(
-      { unsure: { confidence: 0.2, score: 0, type: "score" } },
-      [{ ...check, id: "unsure" }],
+      {
+        sureFail: { confidence: 0.9, score: 0, type: "score" },
+        surePass: { confidence: 0.9, score: 3, type: "score" },
+        unsureFail: { confidence: 0.2, score: 0, type: "score" },
+        unsurePass: { confidence: 0.2, score: 3, type: "score" },
+      },
+      ["surePass", "sureFail", "unsurePass", "unsureFail"].map((id) => ({
+        ...check,
+        id,
+      })),
     );
-    expect(results.unsure?.status).toBe("WARN");
-    expect(results.unsure?.note).toContain("conf 0.20");
+    expect(results.surePass).toMatchObject({ goodness: 1, status: "PASS" });
+    expect(results.sureFail).toMatchObject({ goodness: 0, status: "FAIL" });
+    expect(results.unsurePass).toMatchObject({ goodness: 0.5, status: "WARN" });
+    expect(results.unsureFail).toMatchObject({ goodness: 0.5, status: "WARN" });
+    expect(results.unsurePass?.note).toContain("conf 0.20");
   });
 
-  test("marks an answer that claims a score but carries none", () => {
-    const results = gradeJevAnswers({ empty: { type: "score" } }, [
-      { ...check, id: "empty" },
-    ]);
-    expect(results.empty?.status).toBe("WARN");
-    expect(results.empty?.note).toContain("no score");
+  test("throws when a question it was given has no answer", () => {
+    expect(() => gradeJevAnswers({}, [{ ...check, id: "missing" }])).toThrow(
+      "Jev returned no answer for missing",
+    );
   });
 
   test("skips a mechanical check that reaches the answer grader", () => {
-    const results = gradeJevAnswers({}, [
+    const results = gradeJevAnswers({ jev: { score: 3, type: "score" } }, [
       { ...check, engine: "code" },
       { ...check, id: "jev" },
     ]);

@@ -157,11 +157,45 @@ describe("batchReportLines", () => {
     expect(files.findIndex((line) => line.includes("admin/a.ts"))).toBe(1);
     expect(files.findIndex((line) => line.includes("src/c.ts"))).toBe(2);
     expect(lines).toContain(
-      "2 graded, 1 errored | median 100 | A:1 F:1 | 3s total",
+      "2 graded, 1 errored, 0 Jev failed | median 100 | A:1 F:1 | 3s total",
     );
     expect(lines).toContain("Most-failed checks across the batch:");
     expect(lines).toContain("Most-warned checks across the batch:");
     expect(lines).toContain("  x1    Check");
+  });
+
+  test("ranks a page Jev failed on apart from complete grades", () => {
+    const lines = batchReportLines(
+      [
+        ungraded({ error: "nope", file: "src/c.ts" }),
+        graded({ file: "src/full.ts", letter: "C", score: 60 }),
+        graded({
+          checks: { a: row({ goodness: 0, label: "Alpha", status: "FAIL" }) },
+          file: "src/partial.ts",
+          jevError: "HTTP 429: slow down",
+          score: 100,
+        }),
+      ].sort(worstFirst),
+      { model: "jev-1.13", seconds: 3 },
+    );
+    const files = lines.filter((line) => line.includes("src/"));
+    expect(files[0]).toContain("src/full.ts");
+    expect(files[1]).toContain(
+      "src/partial.ts - Jev failed: HTTP 429: slow down",
+    );
+    expect(files[2]).toContain("src/c.ts");
+    expect(lines).toContain(
+      "1 graded, 1 errored, 1 Jev failed | median 60 | C:1 | 3s total",
+    );
+    expect(lines).toContain("  x1    Alpha");
+  });
+
+  test("prints no median when Jev failed on every page", () => {
+    const lines = batchReportLines(
+      [graded({ jevError: "HTTP 402: no credits" })],
+      { model: "jev-1.13", seconds: 3 },
+    );
+    expect(lines).toContain("0 graded, 0 errored, 1 Jev failed | 3s total");
   });
 
   test("stops after the table when no page could be graded", () => {

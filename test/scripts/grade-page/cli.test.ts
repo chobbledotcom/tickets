@@ -2,7 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runGradePageCli, USAGE } from "#scripts/grade-page/cli.ts";
 import { tempDir } from "#test-utils/files.ts";
-import { BROKEN_PAGE, CLEAN_PAGE, depsOver, ioWith } from "./support.ts";
+import {
+  BROKEN_PAGE,
+  CLEAN_PAGE,
+  depsOver,
+  ioWith,
+  jevReply,
+} from "./support.ts";
 
 describe("runGradePageCli", () => {
   test("prints usage for --help and nothing else", async () => {
@@ -95,6 +101,46 @@ describe("runGradePageCli", () => {
     expect(err.join("\n")).toContain("Jev unavailable (HTTP 402");
   });
 
+  test("keeps the mechanical report when Jev replies with a page that is not JSON", async () => {
+    const { io, out, err } = ioWith(["src/features/admin/a-page.ts"], {
+      OPENCODE_API_KEY: "key",
+    });
+    const deps = depsOver({
+      files: { "src/features/admin/a-page.ts": CLEAN_PAGE },
+    });
+    const html = {
+      ...deps,
+      grade: {
+        ...deps.grade,
+        fetchText: () =>
+          Promise.resolve({ ok: true, status: 200, text: "<html>" }),
+      },
+    };
+    const code = await runGradePageCli(io, html);
+    expect(code).toBe(0);
+    expect(out.join("\n")).toContain("Score: 100/100 (A)");
+    expect(err.join("\n")).toContain("Jev unavailable (the answer is not JSON");
+  });
+
+  test("marks each batch page Jev failed on, apart from complete grades", async () => {
+    const { io, out, err } = ioWith([], { OPENCODE_API_KEY: "key" });
+    const code = await runGradePageCli(
+      io,
+      depsOver({
+        fetchStatus: 402,
+        files: {
+          "src/features/admin/a-page.ts": CLEAN_PAGE,
+          "src/features/admin/b-page.ts": CLEAN_PAGE,
+        },
+      }),
+    );
+    expect(code).toBe(0);
+    expect(err.join("\n")).toContain(
+      "(Jev failed) src/features/admin/a-page.ts",
+    );
+    expect(out.join("\n")).toContain("0 graded, 0 errored, 2 Jev failed");
+  });
+
   test("grades mechanically when no key exists", async () => {
     const { io, err } = ioWith(["src/features/admin/a-page.ts"]);
     const code = await runGradePageCli(
@@ -105,7 +151,28 @@ describe("runGradePageCli", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(err.join("\n")).toContain("no API key");
+    expect(err).toEqual([
+      "note: no Jev API key (set OPENCODE_API_KEY); grading mechanical checks only",
+    ]);
+  });
+
+  test("ranks a sweep without a key as complete mechanical grades", async () => {
+    const { io, out, err } = ioWith([]);
+    const code = await runGradePageCli(
+      io,
+      depsOver({
+        files: {
+          "src/features/admin/a-page.ts": CLEAN_PAGE,
+          "src/features/admin/b-page.ts": CLEAN_PAGE,
+        },
+        secret: null,
+      }),
+    );
+    expect(code).toBe(0);
+    expect(out.join("\n")).toContain("2 graded, 0 errored, 0 Jev failed");
+    expect(err.filter((line) => line.includes("no Jev API key"))).toHaveLength(
+      1,
+    );
   });
 
   test("sweeps the default pages as a batch, writing CSV beside JSON", async () => {
@@ -191,7 +258,7 @@ describe("runGradePageCli", () => {
           Promise.resolve({
             ok: true,
             status: 200,
-            text: JSON.stringify({ answers: {} }),
+            text: jevReply({}),
           }),
       },
     };
@@ -215,11 +282,7 @@ describe("runGradePageCli", () => {
           Promise.resolve({
             ok: true,
             status: 200,
-            text: JSON.stringify({
-              answers: {},
-              model: "jev-test",
-              usage: { input_tokens: 7 },
-            }),
+            text: jevReply({ model: "jev-test", usage: { input_tokens: 7 } }),
           }),
       },
     };
