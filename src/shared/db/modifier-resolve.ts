@@ -19,7 +19,8 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
 } from "#db/modifiers.ts";
-import { byId, requiredMapValue, unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
+import { byId } from "#fp-rows";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -62,7 +63,7 @@ type ListingScopes = Map<number, number[] | null>;
 type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
 
 /** Batched listing scopes for modifiers: null = whole order, array = scoped.
- * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing
+ * `resolveGroupScopes` picks how a "groups"-scoped modifier's member listing
  * ids are resolved (live join by default; in-memory for the would-be check). */
 const listingIdsByModifierId = async (
   modifiers: Modifier[],
@@ -174,8 +175,7 @@ const triggerQuantity = (
   return 1;
 };
 
-/** All active modifiers keyed by id, for the re-fetch-by-id lookups that
- * rebuild specs from refs and resolve answer-trigger scopes. */
+/** All active modifiers keyed by id, for the re-fetch-by-id lookups. */
 const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
   byId(await getActiveModifiers());
 

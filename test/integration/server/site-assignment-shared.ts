@@ -4,7 +4,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import { builtSites } from "#db/built-sites.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -23,6 +23,12 @@ export const expectOneSiteClaimed = async (): Promise<void> => {
   const sites = await builtSites.getAll();
   expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(1);
   expect(sites.find((s) => s.name === "Site B")!.assignedAttendeeId).toBe(null);
+};
+
+/** The two live sites every multi-site assignment test starts from. */
+export const insertSitesAAndB = async (): Promise<void> => {
+  await insertBuiltSite("Site A", "a.test.net", "", "", true);
+  await insertBuiltSite("Site B", "b.test.net", "", "", true);
 };
 
 /** Stub the edge-secret push so the RENEWAL_URL leg fails and the rest pass. */

@@ -24,10 +24,10 @@ import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import {
   MaintenancePanel,
-  renewalPanelFor,
   SecretsPanel,
   UpdatePanel,
 } from "#templates/admin/built-sites/panels.tsx";
+import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
 import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 import { Icon, type IconName } from "#templates/components/actions.tsx";

@@ -13,8 +13,9 @@ import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-a
 import { envNameSource } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
+import { mapParallel } from "#fp";
 /* jscpd:ignore-start */
-import { byId, mapParallel } from "#fp";
+import { byId } from "#fp-rows";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { requireValue } from "#shared/required-value.ts";

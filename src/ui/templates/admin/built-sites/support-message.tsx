@@ -10,10 +10,8 @@ import { isReadOnly } from "#shared/env.ts";
 import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { SupportMessageResult } from "#shared/site-support-message.ts";
-import {
-  SiteActionForm,
-  TabErrorNote,
-} from "#templates/admin/built-sites/panels.tsx";
+import { SiteActionForm } from "#templates/admin/built-sites/action-forms.tsx";
+import { TabErrorNote } from "#templates/admin/built-sites/panels.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";

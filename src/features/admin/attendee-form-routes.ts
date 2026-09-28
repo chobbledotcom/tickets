@@ -13,7 +13,7 @@ import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { hasPaidLine } from "#db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#db/attendees/update.ts";
-import { hasAssignedBuiltSite } from "#db/built-sites.ts";
+import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
 import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {

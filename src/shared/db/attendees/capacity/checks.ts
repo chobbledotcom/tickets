@@ -21,7 +21,8 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
-import { identity, map, mapById, rowsToMap, unique } from "#fp";
+import { identity, map, mapById, unique } from "#fp";
+import { rowsToMap } from "#fp-rows";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";

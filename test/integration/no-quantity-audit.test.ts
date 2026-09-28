@@ -12,8 +12,8 @@ import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
-  hasActiveBookingLine,
-} from "#db/attendees/queries.ts";
+} from "#db/attendees/pii.ts";
+import { hasActiveBookingLine } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#db/logistics-run-sheet.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

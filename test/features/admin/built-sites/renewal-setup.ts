@@ -1,6 +1,7 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { builtSites, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import {
@@ -65,6 +66,10 @@ export const siteAction = (
   action: string,
   data?: Record<string, string>,
 ) => adminFormPost(`/admin/built-sites/${site.id}/${action}`, data);
+
+/** Fetch a built site by id. */
+export const findSite = async (siteId: number): Promise<BuiltSite> =>
+  (await builtSites.getAll()).find((s) => s.id === siteId)!;
 
 /** Re-sync a site's deadline: stage the site, reset the stub, post the
  * action, and return the secret names the re-push used. */

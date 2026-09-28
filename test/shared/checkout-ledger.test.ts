@@ -4,7 +4,7 @@ import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
 import {
   pricedLine as line,
   pricedOrder as order,
-} from "#test-utils/factories.ts";
+} from "#test-utils/factories-pricing.ts";
 
 const ctx = {
   attendeeId: 42,

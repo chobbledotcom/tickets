@@ -28,22 +28,12 @@ import type { FormValues } from "#shared/forms/definition.ts";
 import {
   isProvisioned,
   isRenewalUrlConfirmed,
-  isReservedRenewal,
 } from "#shared/renewal-helpers.ts";
-import {
-  getQualifyingTierListings,
-  pickTierListing,
-} from "#shared/renewal-tier.ts";
+import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/site-hosting.ts";
-import {
-  addMonthsToRenewalDeadline,
-  provisionSiteRenewal,
-  renewalUrlFor,
-  rotateRenewalToken,
-  syncReadOnlyFrom,
-} from "#shared/site-renewal.ts";
+import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { addMissingSiteSecrets } from "#shared/site-secrets.ts";
 import { deployAndReport } from "#shared/site-update.ts";
@@ -52,7 +42,6 @@ import {
   deployLatestReleaseToScript,
 } from "#shared/update.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
 import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteNewPage,
@@ -60,13 +49,19 @@ import {
 } from "#templates/admin/built-sites.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 import {
-  type BuiltSitePost,
   builtSiteAction,
   builtSiteTabError,
   builtSiteTabResult,
   builtSiteTabSuccess,
 } from "./built-site-action.ts";
 import { builtSitePage } from "./built-site-page.tsx";
+import {
+  editPushOk,
+  handleBumpDeadline,
+  handleOverrideDeadline,
+  handleProvisionRenewal,
+  handleReSyncDeadline,
+} from "./built-site-renewal-actions.ts";
 import { handleSaveSiteSupportMessage } from "./built-site-support-message.ts";
 
 /** Extract built site input from validated form values.
@@ -118,11 +113,6 @@ const crud = createCrudHandlers({
   singular: "Built site",
 });
 
-const renewalPushResult = builtSiteTabResult(
-  "renewal",
-  (error) => `Deadline could not be pushed to the site: ${error}`,
-);
-
 const handleProvisionSiteScheduler = builtSiteAction(async (_site, _form, id) =>
   builtSiteTabResult("maintenance")(t("built_sites.maintenance_provisioned"))(
     id,
@@ -148,30 +138,6 @@ const handleAddUptimeMonitor = builtSiteAction(async (site, _form, id) => {
     ),
   );
 });
-
-const editPushOk = (
-  id: number,
-  pushOk: boolean,
-  success: string,
-  failure: string,
-): Response =>
-  pushOk
-    ? builtSiteTabSuccess(id, "renewal", success)
-    : builtSiteTabError(id, "renewal", failure);
-
-/** Max months any single bump/provision can request — guards against form tampering. */
-const MAX_RENEWAL_MONTHS = 120;
-
-const readClampedMonths = (form: {
-  getString: (key: string) => string;
-}): number => {
-  const months = Number.parseInt(form.getString("months"), 10);
-  if (!Number.isFinite(months) || months < 1) return 1;
-  return Math.min(months, MAX_RENEWAL_MONTHS);
-};
-
-const parseDeadlineDate = (dateStr: string): string | null =>
-  isIsoDate(dateStr) ? `${dateStr}T23:59:59Z` : null;
 
 type EditResult = Awaited<ReturnType<typeof builtSiteTabError>>;
 
@@ -265,132 +231,6 @@ const handleAddSecrets = builtSiteAction(async (site, _form, id) => {
   )}`;
   await logActivity(`Set ${summary} on '${site.name}'`);
   return builtSiteTabSuccess(id, "secrets", `Set ${summary}`);
-});
-
-/** A reserved-but-unconfirmed token means the renewal URL never reached the
- * site: no deadline change may proceed while the retry path is the provision
- * route. Returns the tab error to return, or undefined to continue. */
-const reservedRenewalError = (site: BuiltSite, id: number) =>
-  isReservedRenewal(site)
-    ? builtSiteTabError(
-        id,
-        "renewal",
-        "Renewal is not provisioned for this site",
-      )
-    : undefined;
-
-/** Run the action only when the site's renewal URL is not reserved-unconfirmed. */
-const whenProvisioned =
-  (action: BuiltSitePost): BuiltSitePost =>
-  async (site, form, id) => {
-    const blocked = reservedRenewalError(site, id);
-    return blocked ?? action(site, form, id);
-  };
-
-/** POST /admin/built-sites/:id/bump-deadline */
-const handleBumpDeadline = builtSiteAction(
-  whenProvisioned(async (site, form, id) => {
-    // Storing a cutoff here would let the provision route refuse the retry
-    // while the site still has no renewal link.
-    const months = readClampedMonths(form);
-    const newIso = addMonthsToRenewalDeadline(site, months);
-    const result = await syncReadOnlyFrom(site, newIso);
-    if (result.ok) {
-      await logActivity(
-        `Admin bumped '${site.name}' deadline by ${months} month(s)`,
-      );
-    }
-    return renewalPushResult("Deadline bumped")(id, result);
-  }),
-);
-
-/** POST /admin/built-sites/:id/override-deadline */
-const handleOverrideDeadline = builtSiteAction(
-  whenProvisioned(async (site, form, id) => {
-    const dateStr = form.getString("date");
-    if (!dateStr) {
-      return builtSiteTabError(id, "renewal", "Choose a deadline date");
-    }
-    const cutoffIso = parseDeadlineDate(dateStr);
-    if (!cutoffIso) {
-      return builtSiteTabError(id, "renewal", "Choose a valid deadline date");
-    }
-    const result = await syncReadOnlyFrom(site, cutoffIso);
-    if (result.ok) {
-      await logActivity(
-        `Admin overrode '${site.name}' deadline to ${cutoffIso}`,
-      );
-    }
-    return renewalPushResult("Deadline updated")(id, result);
-  }),
-);
-
-/** POST /admin/built-sites/:id/re-sync-deadline */
-const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
-  if (!site.readOnlyFrom) {
-    return builtSiteTabError(id, "renewal", "No deadline to re-sync");
-  }
-  // Re-syncing a reserved-but-unconfirmed token would push a renewal URL the
-  // confirmation never marked, so the retry path stays the provision route.
-  if (isReservedRenewal(site)) {
-    return builtSiteTabError(
-      id,
-      "renewal",
-      "Renewal is not provisioned for this site",
-    );
-  }
-  const renewalUrl =
-    isProvisioned(site) && site.renewalToken
-      ? renewalUrlFor(site.renewalToken)
-      : undefined;
-  const result = await syncReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
-  if (result.ok) {
-    await logActivity(`Admin re-synced deadline for '${site.name}'`);
-  }
-  return renewalPushResult("Deadline re-synced")(id, result);
-});
-
-/** POST /admin/built-sites/:id/provision-renewal
- *
- * Gates on the existence of at least one qualifying renewal tier listing so an
- * admin doesn't generate a token that would dead-end at an empty /renew picker.
- * (The customer picks the actual tier at renew time.) */
-const handleProvisionRenewal = builtSiteAction(async (site, form, id) => {
-  // Only a confirmed renewal-URL push marks provisioning done. A reserved-
-  // unconfirmed token — including one beside a pre-stocked deadline — is a
-  // failed push, and this route is its retry.
-  if (isRenewalUrlConfirmed(site)) {
-    return builtSiteTabError(
-      id,
-      "renewal",
-      "Renewal is already provisioned for this site",
-    );
-  }
-  const tier = await pickTierListing();
-  if (!tier) {
-    return builtSiteTabError(
-      id,
-      "renewal",
-      "Create a qualifying renewal tier listing before provisioning",
-    );
-  }
-  const months = readClampedMonths(form);
-  const result = await provisionSiteRenewal(
-    site,
-    months,
-    `Provision push failed for site ${id}`,
-  );
-  if (result.pushOk) {
-    await logActivity(
-      `Admin provisioned renewals for '${site.name}' (${months}mo)`,
-    );
-  }
-  return editPushOk(
-    id,
-    result.pushOk,
-    "Renewal provisioned",
-    "Renewal could not be pushed to the site",
-  );
 });
 
 /** GET /admin/built-sites — overrides the CRUD list so we can render the

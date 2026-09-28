@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeePiiBlobsForListings } from "#db/attendees/pii.ts";
 import {
   getAttendeeBookingRowsRaw,
   getAttendeeKindsByIds,
   getAttendeeOrNull,
-  getAttendeePiiBlobsForListings,
   getAttendeesByIds,
   getFirstBooking,
   hasPaidLine,

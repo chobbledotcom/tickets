@@ -10,7 +10,8 @@ import {
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
-import { pricedOrder, testListingWithCount } from "#test-utils/factories.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
+import { pricedOrder } from "#test-utils/factories-pricing.ts";
 
 const checkoutItem = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
   listingId: 7,

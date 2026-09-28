@@ -3,10 +3,10 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   MaintenancePanel,
-  renewalPanelFor,
   SecretsPanel,
   UpdatePanel,
 } from "#templates/admin/built-sites/panels.tsx";
+import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";

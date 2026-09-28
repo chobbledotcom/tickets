@@ -489,26 +489,21 @@ export interface Attendee extends ContactInfo {
   listing_id: number;
   /** Longitude the operator pinned for the address ("" = not pinned). */
   lng: string;
-  /** The package group this booking row belongs to (0 = not a package). Stamped
-   * on every row of a package order so tickets/emails group the order under the
-   * package by this persisted id. */
+  /** The package group this booking row belongs to (0 = not a package).
+   * Stamped on every row of a package order so tickets/emails group the order
+   * under the package by this persisted id. */
   package_group_id: number;
   payment_id: string;
-  /** Owner-key-encrypted PII blob as stored; "" only on a just-created
-   * in-memory echo (see buildAttendeeResult), never in the database. */
+  /** Owner-key-encrypted PII blob; "" only on a just-created in-memory echo. */
   pii_blob: OwnerKeyEncrypted | "";
   price_paid: string;
   quantity: number;
   refunded: boolean;
   /** Remaining balance owed in minor units (plaintext); 0 when fully paid. */
   remaining_balance: number;
-  /** The site term this line bought at booking time (a plan listing's initial
-   * months times its quantity; 0 for non-plan lines). Read instead of the
-   * listing's current value, so a later edit cannot change what an earlier
-   * buyer was granted. */
+  /** The site term this line bought at booking time; 0 for non-plan lines. */
   site_months: number;
-  /** When true, each delivered listing this attendee books carries its own
-   * drop-off/collection agents; when false a single pair applies to them all. */
+  /** Whether each delivered listing books its own drop-off/collection agents. */
   split_logistics_agents: boolean;
   /** Owner-defined status id (plaintext); null for legacy/default. */
   status_id: number | null;

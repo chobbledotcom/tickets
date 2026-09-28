@@ -5,7 +5,7 @@
 import {
   getAttendeePiiBlobsForListingDay,
   getAttendeePiiBlobsForListings,
-} from "#db/attendees/queries.ts";
+} from "#db/attendees/pii.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { formatDateLabel } from "#shared/dates.ts";

@@ -1,13 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
-import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import {
+  hasAssignedBuiltSite,
+  takePooledSiteForBuyer,
+} from "#db/built-sites/claims.ts";
 import {
   builtSites,
   builtSitesCrudTable,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
-  hasAssignedBuiltSite,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";

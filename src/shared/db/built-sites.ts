@@ -6,13 +6,7 @@
 import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import {
-  execute,
-  inPlaceholders,
-  queryAll,
-  queryOne,
-  type SqlStatement,
-} from "#db/client.ts";
+import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
 import {
   cachedTable,
@@ -327,42 +321,6 @@ export const insertBuiltSite = async (
 export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   const all = await builtSites.getAll();
   return all.filter((s) => s.assignable);
-};
-
-/** One statement over a buyer's site assignments: the select list and the
- * trailing clause vary, the attendee and the listing filter do not. */
-export const buyerAssignmentStatement = (
-  { select, tail = "" }: { select: string; tail?: string },
-  attendeeId: number,
-  listingIds: readonly number[],
-): SqlStatement => ({
-  args: [attendeeId, ...listingIds],
-  sql: `SELECT ${select} FROM built_sites
-     WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${inPlaceholders(listingIds)})${tail}`,
-});
-
-/** A statement scoped to one buyer's plan listings. */
-export type BuyerPlanStatement = (
-  attendeeId: number,
-  listingIds: readonly number[],
-) => SqlStatement;
-
-/** Curry the buyer-assignment statement over its select list and tail. */
-export const buyerAssignmentStatementFor =
-  (parts: { select: string; tail?: string }): BuyerPlanStatement =>
-  (attendeeId, listingIds) =>
-    buyerAssignmentStatement(parts, attendeeId, listingIds);
-
-export const assignedBuiltSiteExistsStatement: BuyerPlanStatement =
-  buyerAssignmentStatementFor({ select: "1", tail: " LIMIT 1" });
-
-export const hasAssignedBuiltSite = async (
-  attendeeId: number,
-  listingIds: number[],
-): Promise<boolean> => {
-  const exists = assignedBuiltSiteExistsStatement(attendeeId, listingIds);
-  return (await execute(exists.sql, exists.args)).rows.length > 0;
 };
 
 /** Look up a built site by renewal token index (HMAC blind index) */
