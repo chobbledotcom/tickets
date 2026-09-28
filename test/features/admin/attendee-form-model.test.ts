@@ -3,10 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import {
+  ATTENDEE_FORM_ID,
   type AttendeeFormLine,
-  attendeeBalanceNotice,
   attendeeBookingsFromLines,
-  bookingDurationDays,
   isBookedLine,
   isNoQuantityLine,
   isRetainedLine,
@@ -16,9 +15,11 @@ import {
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
+  toLedgerOrder,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { testBookingRow } from "#test-utils/db-helpers/booking-row.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const makeForm = (data: Record<string, string>): FormParams =>
@@ -38,24 +39,6 @@ const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   ...overrides,
 });
 
-const bookingRow = (
-  overrides: Partial<ListingAttendeeRow> = {},
-): ListingAttendeeRow => ({
-  attachment_downloads: 0,
-  checked_in: 0,
-  end_at: null,
-  ledger_event_group: "",
-  listing_id: 1,
-  order_token: "",
-  package_group_id: 0,
-  parent_listing_id: 0,
-  price_paid: 0,
-  quantity: 1,
-  refunded: 0,
-  start_at: null,
-  ...overrides,
-});
-
 const parsedBase = (
   overrides: Partial<ParsedAttendeeForm> = {},
 ): ParsedAttendeeForm => ({
@@ -72,11 +55,40 @@ const parsedBase = (
   ...overrides,
 });
 
+describe("toLedgerOrder", () => {
+  test("a zero package override keeps the leg at zero, not the listing price", () => {
+    const listing = testListingWithCount({ id: 3, unit_price: 900 });
+    const parsed = parsedBase({
+      lines: [
+        line({
+          listing,
+          listingId: 3,
+          packageGroupId: 4,
+          packagePrice: 0,
+          quantity: 2,
+        }),
+      ],
+    });
+    const order = toLedgerOrder(parsed);
+    expect(order.lines[0]!.chargedUnitAmount).toBe(0);
+    expect(order.lines[0]!.item.unitPrice).toBe(0);
+  });
+});
+
+describe("ATTENDEE_FORM_ID", () => {
+  test("matches the anchor the saved redirect scrolls to", () => {
+    // The form template renders id={ATTENDEE_FORM_ID} and attendee-edit.test.ts
+    // asserts the redirect lands on "#attendee-form", so the string is the
+    // contract between the two.
+    expect(ATTENDEE_FORM_ID).toBe("attendee-form");
+  });
+});
+
 describe("attendeeBookingsFromLines", () => {
   test("projects a booked line's stored booking onto a summary row", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: bookingRow({
+        existingBooking: testBookingRow({
           checked_in: 1,
           end_at: "2026-06-03T00:00:00Z",
           listing_id: 7,
@@ -88,9 +100,10 @@ describe("attendeeBookingsFromLines", () => {
         listingId: 7,
       }),
     ]);
-    // Every stored field is carried through, with the 0/1 flags coerced to bools.
+    // Every stored field is carried through; the 0/1 flags coerce to bools.
     expect(bookings).toEqual([
       {
+        assignBuiltSite: false,
         checkedIn: true,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
@@ -103,11 +116,13 @@ describe("attendeeBookingsFromLines", () => {
       },
     ]);
   });
-
   test("carries a folded child row's parent listing id onto the summary", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: bookingRow({ listing_id: 8, parent_listing_id: 7 }),
+        existingBooking: testBookingRow({
+          listing_id: 8,
+          parent_listing_id: 7,
+        }),
         listing: testListingWithCount({ id: 8, name: "Add-on" }),
         listingId: 8,
       }),
@@ -118,7 +133,7 @@ describe("attendeeBookingsFromLines", () => {
   test("keeps only the lines that carry a saved booking", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: bookingRow({ listing_id: 1, quantity: 2 }),
+        existingBooking: testBookingRow({ listing_id: 1, quantity: 2 }),
         listing: testListingWithCount({ id: 1, name: "Booked" }),
       }),
       // A not-yet-booked row (the quantity box left at 0) has no stored booking.
@@ -132,7 +147,7 @@ describe("attendeeBookingsFromLines", () => {
     // id; that bogus line is dropped rather than rendered with a null listing.
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: bookingRow({ listing_id: 99, quantity: 1 }),
+        existingBooking: testBookingRow({ listing_id: 99, quantity: 1 }),
         listing: null,
         listingId: 99,
       }),
@@ -153,6 +168,7 @@ describe("parseAttendeeForm", () => {
         name: "Jane",
         phone: "555",
         qty_0: "2",
+        return_url: "/admin/attendees?tab=overview",
         special_instructions: "VIP",
         start_date: "2026-03-02",
       }),
@@ -160,9 +176,11 @@ describe("parseAttendeeForm", () => {
     );
     expect(parsed.name).toBe("Jane");
     expect(parsed.email).toBe("a@b.com");
+    expect(parsed.phone).toBe("555");
     expect(parsed.address).toBe("1 St");
     expect(parsed.special_instructions).toBe("VIP");
     expect(parsed.startDate).toBe("2026-03-02");
+    expect(parsed.returnUrl).toBe("/admin/attendees?tab=overview");
     expect(parsed.dayCount).toBe(3);
     expect(parsed.lines).toHaveLength(1);
     expect(parsed.lines[0]!.listingId).toBe(5);
@@ -268,7 +286,7 @@ describe("parseAttendeeForm", () => {
   });
 
   test("an existing row's path comes from the row, never line_package", () => {
-    const row = bookingRow({ listing_id: 4, package_group_id: 7 });
+    const row = testBookingRow({ listing_id: 4, package_group_id: 7 });
     const parsed = parseAttendeeForm(
       makeForm({
         line_key_0: "4|||7",
@@ -337,6 +355,11 @@ describe("parseAttendeeForm", () => {
       parseAttendeeForm(makeForm({ name: "X", status_id: "4" }), new Map())
         .statusId,
     ).toBe(4);
+    // The lowest real id must still count as a choice, not as "none".
+    expect(
+      parseAttendeeForm(makeForm({ name: "X", status_id: "1" }), new Map())
+        .statusId,
+    ).toBe(1);
     expect(
       parseAttendeeForm(makeForm({ name: "X", status_id: "" }), new Map())
         .statusId,
@@ -348,7 +371,7 @@ describe("parseAttendeeForm", () => {
   });
 
   test("attaches an existing booking row by key", () => {
-    const booking = bookingRow({ listing_id: 5, quantity: 3 });
+    const booking = testBookingRow({ listing_id: 5, quantity: 3 });
     const parsed = parseAttendeeForm(
       makeForm({
         line_key_0: "5|||0",
@@ -613,7 +636,7 @@ describe("toDesiredLines", () => {
         dayCount: 2,
         lines: [
           line({
-            existingBooking: bookingRow({ listing_id: 1 }),
+            existingBooking: testBookingRow({ listing_id: 1 }),
             key: "1|2026-03-01T00:00:00Z",
             listing: testListingWithCount({ id: 1, listing_type: "daily" }),
             listingId: 1,
@@ -658,7 +681,7 @@ describe("toDesiredLines", () => {
       parsedBase({
         lines: [
           line({
-            existingBooking: bookingRow({ listing_id: 1 }),
+            existingBooking: testBookingRow({ listing_id: 1 }),
             key: "1|",
             noQuantity: true,
             quantity: 0,
@@ -683,7 +706,7 @@ describe("toDesiredLines", () => {
     // The editor renders one line per stored ROW, so a dual-path attendee
     // (package 7 beside the listing's own row) round-trips as two desired
     // lines, each on its own key and path.
-    const packageRow = bookingRow({
+    const packageRow = testBookingRow({
       end_at: "2026-03-03T00:00:00Z",
       listing_id: 1,
       package_group_id: 7,
@@ -694,7 +717,7 @@ describe("toDesiredLines", () => {
       parsedBase({
         lines: [
           line({
-            existingBooking: bookingRow({ listing_id: 1 }),
+            existingBooking: testBookingRow({ listing_id: 1 }),
             key: "1|||0",
             listingId: 1,
             quantity: 3,
@@ -758,7 +781,7 @@ describe("toDesiredLines", () => {
       parsedBase({
         lines: [
           line({
-            existingBooking: bookingRow({ listing_id: 1 }),
+            existingBooking: testBookingRow({ listing_id: 1 }),
             key: "1|||0",
             listingId: 1,
             quantity: 0,
@@ -799,7 +822,7 @@ describe("no-quantity persistence + paid-line guard", () => {
     const parsed = parsedBase({
       lines: [
         line({
-          existingBooking: bookingRow({ price_paid: 1500, quantity: 2 }),
+          existingBooking: testBookingRow({ price_paid: 1500, quantity: 2 }),
           noQuantity: true,
           quantity: 0,
         }),
@@ -818,11 +841,24 @@ describe("no-quantity persistence + paid-line guard", () => {
     expect(parsed.lines[0]!.error).toBe(null);
   });
 
+  test("validateParsedForm blocks a line paid a single unit from going no-quantity", () => {
+    const parsed = parsedBase({
+      lines: [
+        line({
+          existingBooking: testBookingRow({ price_paid: 1, quantity: 1 }),
+          noQuantity: true,
+          quantity: 0,
+        }),
+      ],
+    });
+    expect(validateParsedForm(parsed).valid).toBe(false);
+  });
+
   test("validateParsedForm allows marking an unpaid line no-quantity", () => {
     const parsed = parsedBase({
       lines: [
         line({
-          existingBooking: bookingRow({ price_paid: 0, quantity: 1 }),
+          existingBooking: testBookingRow({ price_paid: 0, quantity: 1 }),
           noQuantity: true,
           quantity: 0,
         }),
@@ -854,13 +890,13 @@ describe("resolveSharedDates", () => {
   };
 
   const daily = (start: string, durationDays: number): ListingAttendeeRow =>
-    bookingRow({
+    testBookingRow({
       end_at: `${addDaysIso(start, durationDays)}T00:00:00.000Z`,
       start_at: `${start}T00:00:00Z`,
     });
 
   test("returns empty defaults when there are no dated bookings", () => {
-    const result = resolveSharedDates([bookingRow({ start_at: null })]);
+    const result = resolveSharedDates([testBookingRow({ start_at: null })]);
     expect(result).toEqual({
       dayCount: 1,
       hasMixedTimings: false,
@@ -898,7 +934,7 @@ describe("resolveSharedDates", () => {
 
   test("ignores a booking with no end date", () => {
     const result = resolveSharedDates([
-      bookingRow({ end_at: null, start_at: "2026-06-14T00:00:00Z" }),
+      testBookingRow({ end_at: null, start_at: "2026-06-14T00:00:00Z" }),
     ]);
     expect(result.startDate).toBe("");
   });
@@ -910,85 +946,5 @@ describe("resolveSharedDates", () => {
     expect(result.startDate).toBe("2026-06-14");
     expect(result.dayCount).toBe(1);
     expect(result.hasMixedTimings).toBe(false);
-  });
-});
-
-describe("bookingDurationDays", () => {
-  test("returns null when a range endpoint is missing or invalid", () => {
-    expect(
-      bookingDurationDays(bookingRow({ end_at: "x", start_at: null })),
-    ).toBeNull();
-    expect(
-      bookingDurationDays(bookingRow({ end_at: null, start_at: "x" })),
-    ).toBeNull();
-    expect(
-      bookingDurationDays(bookingRow({ end_at: "bad", start_at: "bad" })),
-    ).toBeNull();
-  });
-
-  test("returns null for a zero-length range", () => {
-    expect(
-      bookingDurationDays(
-        bookingRow({
-          end_at: "2026-06-14T00:00:00Z",
-          start_at: "2026-06-14T00:00:00Z",
-        }),
-      ),
-    ).toBeNull();
-  });
-
-  test("counts whole days for a real range", () => {
-    expect(
-      bookingDurationDays(
-        bookingRow({
-          end_at: "2026-06-17T00:00:00Z",
-          start_at: "2026-06-14T00:00:00Z",
-        }),
-      ),
-    ).toBe(3);
-  });
-});
-
-describe("attendeeBalanceNotice", () => {
-  const paid = { is_paid_default: true, is_reservation: false };
-  const reservation = { is_paid_default: false, is_reservation: true };
-  const other = { is_paid_default: false, is_reservation: false };
-
-  test("is silent when there is no status", () => {
-    expect(attendeeBalanceNotice(null, 500, 1000, 100)).toBeNull();
-  });
-
-  test("warns when a paid status still owes money", () => {
-    const notice = attendeeBalanceNotice(paid, 500, 1000, 500);
-    expect(notice?.tone).toBe("warning");
-    expect(notice?.message).toContain("paid status");
-  });
-
-  test("is silent when a paid status owes nothing", () => {
-    expect(attendeeBalanceNotice(paid, 0, 1000, 1000)).toBeNull();
-  });
-
-  test("is silent for a reservation that still owes a balance", () => {
-    expect(attendeeBalanceNotice(reservation, 900, 1000, 100)).toBeNull();
-  });
-
-  test("warns when a reservation has no balance but is still unpaid", () => {
-    const notice = attendeeBalanceNotice(reservation, 0, 1000, 100);
-    expect(notice?.tone).toBe("warning");
-    expect(notice?.message).toContain("still unpaid");
-  });
-
-  test("nudges (info) when a reservation is fully paid", () => {
-    const notice = attendeeBalanceNotice(reservation, 0, 1000, 1000);
-    expect(notice?.tone).toBe("info");
-    expect(notice?.message).toContain("moving it to a paid status");
-  });
-
-  test("is silent for a free reservation with no balance", () => {
-    expect(attendeeBalanceNotice(reservation, 0, 0, 0)).toBeNull();
-  });
-
-  test("is silent for a balance on a neither-paid-nor-reservation status", () => {
-    expect(attendeeBalanceNotice(other, 500, 1000, 500)).toBeNull();
   });
 });

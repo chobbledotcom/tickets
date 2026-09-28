@@ -5,7 +5,10 @@
 import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#db/listings/attendees.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import {
+  getListingWithCount,
+  requireListingWithCount,
+} from "#db/listings/records.ts";
 import {
   getPaymentReviewState,
   type PaymentReviewState,
@@ -39,6 +42,18 @@ export type AttendeeWithListing = {
   attendee: Attendee;
   listing: ListingWithCount;
 };
+
+/** Decrypt each raw row and resolve its listing, as notification entries. */
+export const attendeeListingEntries = async (
+  rows: Attendee[],
+  pk: CryptoKey,
+): Promise<AttendeeWithListing[]> =>
+  Promise.all(
+    rows.map(async (row) => ({
+      attendee: (await decryptAttendeeOrNull(row, pk))!,
+      listing: await requireListingWithCount(row.listing_id),
+    })),
+  );
 
 /**
  * Load attendee ensuring it belongs to the specified listing.

@@ -89,24 +89,20 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   });
 
 /**
- * One attendee's raw booking rows within one package group (real lines only —
- * quantity > 0). Lets a listing-scoped action rehydrate the WHOLE package the
- * selected line belongs to, so a per-member notification resend doesn't treat
- * a single member row as the complete package.
+ * One attendee's raw booking rows (real lines only — quantity > 0), in
+ * listing order. The attendee id already pins one attendee, and its rows are
+ * returned whatever its kind (`attendee-or-servicing` matches every kind the
+ * CHECK constraint allows). Lets a listing-scoped action rehydrate the rows
+ * it needs — a package, or the plan lines a repair resend must reach.
  */
-export const getAttendeePackageRowsRaw = (
+export const getAttendeeRealLineRowsRaw = (
   attendeeId: number,
-  packageGroupId: number,
 ): Promise<Attendee[]> =>
   loadAttendeeRows({
-    // No kind filter (as the original query): the attendee id already pins one
-    // attendee, and its rows are returned whatever its kind. `attendee-or-
-    // servicing` matches every kind the CHECK constraint allows.
     order: "listing_asc",
     where: {
       attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
-      packageGroupId,
       realLinesOnly: true,
     },
   });

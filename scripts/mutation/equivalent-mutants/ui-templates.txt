@@ -113,7 +113,7 @@ src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1ra2ram  pr
 # attendee detail — booking column keys the bookings table never reads back
 # (it renders with only a context and a foot row), and two fallbacks whose
 # left side can never be falsy-but-non-null.
-src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1cgjcue  listing → ""   # the bookings table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~0ir65ye  listing → ""   # the bookings table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1tza93f  date → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns~15kw9kh  quantity → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns~029b0v4  status → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters

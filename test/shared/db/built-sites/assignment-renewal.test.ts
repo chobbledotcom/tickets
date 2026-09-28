@@ -33,7 +33,6 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       "Site C",
     ]);
   });
-
   test("hasAssignedBuiltSite reads the buyer's assignment", async () => {
     await insertBuiltSite("Assigned", "assigned.b-cdn.net", "", "", true);
     const pool = await getAssignableBuiltSites();

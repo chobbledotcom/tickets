@@ -6,13 +6,17 @@
  */
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { hasAssignedBuiltSite } from "#db/built-sites.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {
   loadPaymentMoveSnapshot,
   type PaymentMoveSnapshot,
 } from "#db/payment-admit-move.ts";
-import type { RefundPaymentReferenceSet } from "#db/payment-references.ts";
+import {
+  hasAnyPaymentReference,
+  type RefundPaymentReferenceSet,
+} from "#db/payment-references.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
@@ -50,6 +54,7 @@ import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-p
 import { adminPattern } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   AttendeeAnswersTable,
@@ -243,8 +248,27 @@ const overviewTab: TabDef<AttendeePageEntity> = {
         renderListings,
         [],
       );
+      // One site serves every plan row this buyer holds, so the cue asks
+      // whether the buyer has a site at all — not per row. A sale that never
+      // completed cannot owe a site, so an incomplete payment shows no cue.
+      const bookings = attendeeBookingsFromLines(parsed.lines);
+      // A refunded plan's stale assignment must not read as serving an
+      // active one, so only unrefunded plan rows join the lookup.
+      const planListingIds = bookings
+        .filter((booking) => booking.assignBuiltSite && !booking.refunded)
+        .map((booking) => booking.listingId);
       return AttendeeBookingsTable({
-        bookings: attendeeBookingsFromLines(parsed.lines),
+        bookings,
+        planSaleMissingSite:
+          planListingIds.length > 0 &&
+          // The same test the failed-payments delete uses.
+          !isIncompletePayment(
+            attendee,
+            // A site plan is a paid listing by definition.
+            true,
+            await hasAnyPaymentReference(attendee),
+          ) &&
+          !(await hasAssignedBuiltSite(attendee.id, planListingIds)),
       });
     }),
     customSection(async ({ attendee, existing }) => {

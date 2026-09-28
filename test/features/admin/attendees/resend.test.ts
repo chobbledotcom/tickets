@@ -9,6 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { insertBuiltSite } from "#db/built-sites.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -19,6 +20,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTierListing,
+  planListing,
+} from "#test-utils/db-helpers/site-plans.ts";
+import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const resend = (attendeeId: number, name: string) =>
@@ -81,6 +87,128 @@ describeWithEnv("re-sending a booking made in a package", { db: true }, () => {
     expect((await registeredEntries()) - before).toBe(2);
   });
 });
+
+describeWithEnv(
+  "re-sending a booking beside an unassigned site plan",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("notifies the plan row too, so the assignment can serve it", async () => {
+      // The hidden monthly tier the plan's booking validation requires.
+      await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 300,
+      });
+      const ordinary = await createTestListing({
+        maxAttendees: 100,
+        name: "Ordinary First",
+      });
+      const plan = await createTestListing({
+        assignBuiltSite: true,
+        initialSiteMonths: 3,
+        maxAttendees: 100,
+        name: "Site Plan",
+        unitPrice: 300,
+      });
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { listingId: ordinary.id, quantity: 1 },
+          { listingId: plan.id, quantity: 1 },
+        ],
+        email: "plan-beside@example.com",
+        name: "Plan Beside",
+      });
+      if (!made.success) throw new Error("Expected the booking to work");
+      const attendee = made.attendees[0]!;
+      await insertBuiltSite("For The Plan", "plan.test", "", "", true);
+      const before = await registeredEntries();
+
+      await resend(attendee.id, "Plan Beside");
+
+      // Both rows notified, and the plan row's site is now assigned.
+      expect((await registeredEntries()) - before).toBe(2);
+      const { builtSites } = await import("#db/built-sites.ts");
+      const sites = await builtSites.getAll();
+      expect(
+        sites.find((s) => s.name === "For The Plan")!.assignedAttendeeId,
+      ).toBe(attendee.id);
+    });
+  },
+);
+
+describeWithEnv(
+  "re-sending beside site-plan rows",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("skips a refunded plan row, so it assigns no site", async () => {
+      await createTierListing();
+      const ordinary = await createTestListing({
+        maxAttendees: 100,
+        name: "Ordinary First",
+      });
+      const plan = await planListing("Refunded Plan");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { listingId: ordinary.id, quantity: 1 },
+          { listingId: plan.id, pricePaid: 300, quantity: 1 },
+        ],
+        email: "refunded-plan@example.com",
+        name: "Refunded Plan Buyer",
+      });
+      if (!made.success) throw new Error("Expected the booking to work");
+      const attendee = made.attendees[0]!;
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 300,
+        listingId: plan.id,
+      });
+      await refundBookedOrder(attendee.id, plan.id);
+      await insertBuiltSite("Unwanted", "unwanted.test", "", "", true);
+
+      await resend(attendee.id, "Refunded Plan Buyer");
+
+      // Only the ordinary row is notified, and no site is assigned.
+      expect(await registeredEntries()).toBe(1);
+      const { builtSites } = await import("#db/built-sites.ts");
+      const sites = await builtSites.getAll();
+      expect(
+        sites.find((s) => s.name === "Unwanted")!.assignedAttendeeId,
+      ).toBeNull();
+    });
+
+    test("does not double-notify a package row that is already covered", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Mix" });
+      const ordinary = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 100,
+        name: "Bundled Ordinary",
+      });
+      await createTierListing();
+      const plan = await planListing("Bundled Plan");
+      const { setListingGroups } = await import("#db/groups.ts");
+      await setListingGroups(plan.id, [group.id]);
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { listingId: ordinary.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: plan.id, packageGroupId: group.id, quantity: 1 },
+        ],
+        email: "bundled-plan@example.com",
+        name: "Bundled Plan Buyer",
+      });
+      if (!made.success) throw new Error("Expected the booking to work");
+      const attendee = made.attendees[0]!;
+
+      await resend(attendee.id, "Bundled Plan Buyer");
+
+      // Both package rows once each — the plan row is covered, not repeated.
+      expect(await registeredEntries()).toBe(2);
+    });
+  },
+);
 
 describeWithEnv("re-sending for a line with no places", { db: true }, () => {
   test("is refused, and says why", async () => {
