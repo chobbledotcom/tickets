@@ -22,7 +22,10 @@ import { t } from "#i18n";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { sessionAnswerOf } from "#payment/row-state.ts";
 import { paymentReferenceOf } from "#payment/validated-session.ts";
-import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
+import {
+  completePaidBooking,
+  resumeFinalizedSession,
+} from "#routes/api/payment-processing/completion.ts";
 import {
   alreadyProcessedResult,
   createAttendeeForSession,
@@ -71,6 +74,10 @@ const handleReservationConflict = async (
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
+    // A finalized booking whose tail may have died mid-flight: resume it
+    // before reporting success, so the buyer's answers and emails are not
+    // skipped by the replay.
+    await resumeFinalizedSession(data.session.id, existing.attendee_id, data);
     return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
@@ -96,22 +103,15 @@ const handleReservationConflict = async (
   };
 };
 
-/**
- * Replay a payment session the ledger already records as resolved to
- * `attendeeId`: heal the fresh reservation at that attendee — token-safely, so a
- * racing delivery's finalized tokens survive (see {@link
- * finalizeSessionIfUnresolved}) — and return success. NEVER refunds: the money is
- * already in the ledger against this attendee. Tokens come back empty, so the
- * redirect renders directly from the attendee. Shared by the booking-replay and
- * balance-replay preflights.
- */
 const replaySuccess = async (
   sessionId: string,
   attendeeId: number,
   listingId: number,
   paymentReference: TaggedPaymentReference | null,
+  data: ValidatedSession,
 ): Promise<PaymentResult> => {
   await finalizeSessionIfUnresolved(sessionId, attendeeId, paymentReference);
+  await resumeFinalizedSession(sessionId, attendeeId, data);
   logDebug("Payment", `Replayed already-ledgered session ${sessionId}`);
   return sessionSuccess(attendeeId, listingId);
 };
@@ -150,6 +150,7 @@ const replaySessionFromLedger = async (
   listingId: number,
   paymentReference: TaggedPaymentReference | null,
   disposition: BookingLedgerDisposition,
+  data: ValidatedSession,
 ): Promise<PaymentResult | null> => {
   switch (disposition.status) {
     case "unrecorded":
@@ -160,6 +161,7 @@ const replaySessionFromLedger = async (
         disposition.attendeeId,
         listingId,
         paymentReference,
+        data,
       );
     case "orphaned":
       return alreadyHandledSession(sessionId, listingId);
@@ -184,6 +186,7 @@ const processNewBookingSession = async (
     signedListingId,
     paymentReferenceOf(session),
     snapshot.ledger,
+    data,
   );
   if (replay) return replay;
 
@@ -322,6 +325,7 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
         intent.balanceAttendeeId,
         signedListingId,
         paymentReferenceOf(session),
+        data,
       );
     }
     if (verdict.verdict === "mismatch") {

@@ -47,6 +47,7 @@ import type {
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {
   CheckoutIntent,
@@ -190,6 +191,7 @@ const textRefsWithStringId = (
 export const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
+  stagedTexts: FreeTextAnswers = new Map(),
 ): Promise<void> => {
   if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
   const grouped = groupListingAnswerSets(
@@ -201,12 +203,22 @@ export const saveSessionAnswers = async (
     const resolvedRefs = textRefsWithStringId(refs, listing.id);
     if (resolvedRefs.length === 0) continue;
     const existing = grouped.get(attendee.id) ?? { answerIds: [] };
+    // A staged text re-interns its string, so a pruned strings row cannot
+    // leave the booking pointing at a dangling string id.
+    const staged = resolvedRefs.flatMap((ref) => {
+      const text = stagedTexts.get(ref.q);
+      // A ref the staged text does not cover falls back to its stored string
+      // id below; a missing entry here is a choice, not corrupt data.
+      return text === undefined ? [] : [{ questionId: ref.q, text }];
+    });
+    const unstaged = resolvedRefs.filter((ref) => !stagedTexts.has(ref.q));
     grouped.set(attendee.id, {
       ...existing,
       textAnswerIds: [
         ...(existing.textAnswerIds ?? []),
-        ...resolvedRefs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
+        ...unstaged.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
       ],
+      textAnswers: [...(existing.textAnswers ?? []), ...staged],
     });
   }
   await saveAttendeeAnswers(grouped);

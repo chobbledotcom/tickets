@@ -37,7 +37,7 @@ describeEmailRenderer(() => {
       expect(data.attendee.answers).toEqual(data.entries[0]!.attendee.answers);
     });
 
-    test("carries no answers on a collapsed hidden package's row", async () => {
+    test("shows every answer on a collapsed hidden package's row", async () => {
       const data = await buildTestData(
         [
           makeEntry({}, { package_group_id: 5 }),
@@ -56,7 +56,13 @@ describeEmailRenderer(() => {
 
       expect(data.entries).toHaveLength(1);
       expect(data.entries[0]!.listing.name).toBe("Hidden bundle");
-      expect(data.entries[0]!.attendee.answers).toEqual([]);
+      // The buyer picked these answers, so they stay; only the member
+      // listings' names stay concealed. A question asked on both members
+      // shows once per member, in booking order.
+      expect(data.entries[0]!.attendee.answers).toEqual([
+        { question: "Diet?", text: "Vegan" },
+        { question: "Diet?", text: "Vegan" },
+      ]);
     });
 
     test("builds correct data shape from multiple entries", async () => {

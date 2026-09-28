@@ -27,17 +27,13 @@ import {
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { MaintenanceSweepOutcome } from "#shared/maintenance/definition.ts";
 import { isoBefore, now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
 
 type PruneStatement = SqlStatement;
-
-export interface DatabasePruningResult {
-  checkpoint: string | null;
-  fullBatch: boolean;
-}
 
 const boundedDelete = (
   table: string,
@@ -121,11 +117,9 @@ const pruneStatements = (): PruneStatement[] => [
     )})`,
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
-  // The payments cutoff keeps answers past the short SumUp staging window.
-  // Square links do not expire, so a late payment can still outlive this row.
-  boundedDelete("checkout_pending_answers", "created_at < ?", [
-    isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
-  ]),
+  // Staged checkout answers have no unconditional retention clock: an open
+  // Square link stays payable until Square confirms cancellation, so the
+  // cancellation worker and the terminal sweep own every deletion.
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),
@@ -244,7 +238,7 @@ const lastResultIndexes = (batches: PruneStatement[][]): number[] =>
 
 export const runDatabasePruning = async (
   checkpoint: string | null = null,
-): Promise<DatabasePruningResult> => {
+): Promise<MaintenanceSweepOutcome> => {
   const invitePage = await expiredInvitePage(checkpoint);
   const batches = [
     ...pruneStatements().map((statement) => [statement]),

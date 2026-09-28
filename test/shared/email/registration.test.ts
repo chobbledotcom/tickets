@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { sendRegistrationEmails } from "#shared/email/registration.ts";
 import {
@@ -202,13 +201,14 @@ describeWithEnv(
         pricingByGroup: new Map(),
       };
 
-      // The two reads are the order's answers: one for the questions of the
-      // booked listings, one for the attendees' chosen answer ids.
+      // The three reads are the order's answers: one for its receipt rows,
+      // one for the questions of the booked listings, and one for the
+      // attendees' chosen answer ids.
       expect(
-        await countDatabaseCalls(2, () =>
+        await countDatabaseCalls(3, () =>
           sendRegistrationEmails([entry], "GBP", facts),
         ),
-      ).toBe(2);
+      ).toBe(3);
       const body = fetch.getFetchJsonBody();
       expect(body.subject).toContain("Supplied package");
       expect(body.html).not.toContain("Test Listing");
@@ -218,15 +218,22 @@ describeWithEnv(
     test("sends the buyer's answers with their confirmation", async () => {
       await configureTestEmail();
       const listing = await createTestListing({ name: "Fete" });
+      const choice = await createQuestionWithAnswer([listing.id]);
+      const freeText = await createFreeTextQuestion([listing.id]);
+      // Book through the real form with the answers given, so the receipt
+      // the confirmation reads is the one production writes.
       const attendee = await createTestAttendee(
         listing.id,
         listing.slug,
         "Booked",
         "buyer@example.com",
+        1,
+        "",
+        {
+          [`question_${choice.questionId}`]: String(choice.answerId),
+          [`question_${freeText}`]: "Arriving late",
+        },
       );
-      const choice = await createQuestionWithAnswer([listing.id]);
-      const freeText = await createFreeTextQuestion([listing.id]);
-      await saveAttendeeAnswers(new Map([[attendee.id, [choice.answerId]]]));
 
       const entry = makeEntry(
         { id: listing.id, name: listing.name },
@@ -240,8 +247,7 @@ describeWithEnv(
       );
 
       // createTestAttendee books through the real form, so its own
-      // notification went out first with no answers to show. The one sent
-      // here is the second fetch.
+      // notification went out first. The one sent here is the second fetch.
       const body = fetch.getFetchJsonBody(1);
       expect(body.text).toContain("Choose one: Chosen");
       expect(body.text).toContain("Anything else?: Arriving late");

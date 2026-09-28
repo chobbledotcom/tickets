@@ -3,13 +3,11 @@ import {
   type StagedCheckoutRow,
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryAll, queryOne } from "#db/client.ts";
-import { errorMessage } from "#shared/error-message.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
+import { logRecoveryItemFailure } from "#shared/caught-failures.ts";
+import { SQUARE_CANCELLATION_BATCH } from "#shared/maintenance/definition.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquareClient } from "#shared/square/client.ts";
 
-/** A small batch bounds provider calls and leaves other maintenance work room. */
-export const SQUARE_CANCELLATION_BATCH = 4;
 const RETRY_MS = 30 * 60 * 1000;
 const LEASE_MS = 5 * 60 * 1000;
 
@@ -50,7 +48,7 @@ const cancelCandidate = async (
   client: SquareClient,
 ): Promise<void> => {
   const token = crypto.randomUUID();
-  if (!await claimCandidate(row, token)) return;
+  if (!(await claimCandidate(row, token))) return;
   try {
     const { sessionId, linkId } = await openSquareCheckoutIdentity(row);
     const local = await queryOne<{ failure_data: string }>(
@@ -68,7 +66,8 @@ const cancelCandidate = async (
     }
     const observed = (await client.orders.get({ orderId: sessionId })).order;
     if (
-      observed?.id !== sessionId || observed.state !== "CANCELED" ||
+      observed?.id !== sessionId ||
+      observed.state !== "CANCELED" ||
       (observed.tenders?.length ?? 0) !== 0
     ) {
       // A missing/paid/unknown order is not evidence that the link is safe.
@@ -100,15 +99,14 @@ export const runSquareCheckoutCancellation = async (): Promise<boolean> => {
   );
   if (rows.length === 0) return false;
   const client = await squareApi.getSquareClient();
-  if (client === null) throw new Error("Square cancellation needs a Square client");
+  if (client === null) {
+    throw new Error("Square cancellation needs a Square client");
+  }
   for (const row of rows) {
     try {
       await cancelCandidate(row, client);
     } catch (error) {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: `Square cancellation failed for ${row.session_index}: ${errorMessage(error)}`,
-      });
+      logRecoveryItemFailure("Square cancellation", row.session_index)(error);
     }
   }
   return rows.length === SQUARE_CANCELLATION_BATCH;

@@ -306,7 +306,10 @@ const resendNotification = async (
   const freeTexts = new Map(
     [...current.values()].flatMap((answers) => [...answers]),
   );
-  for (const [questionId, text] of await loadSubmittedFreeTexts(entries, privateKey)) {
+  for (const [questionId, text] of await loadSubmittedFreeTexts(
+    entries,
+    privateKey,
+  )) {
     freeTexts.set(questionId, text);
   }
 

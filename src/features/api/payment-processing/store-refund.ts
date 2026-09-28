@@ -11,6 +11,7 @@ import type { ResultSet } from "@libsql/client";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { attendeePaymentProvenance } from "#db/attendees/payment-provenance.ts";
+import { deleteCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import type { SqlStatement } from "#db/client.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
@@ -27,6 +28,7 @@ import {
 } from "#payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
+import { closePaidCheckoutStaging } from "#routes/api/payment-processing/completion.ts";
 /* jscpd:ignore-start -- imports */
 import {
   type AttendeeBaseFields,
@@ -143,9 +145,11 @@ export const settleBalanceSession = async (
     );
   }
 
-  // Settle + finalize already committed atomically above. The listing (which
-  // may since be deleted) is resolved lazily by the redirect for its thank-you
-  // link, so we carry only its id here.
+  // Settle + finalize already committed atomically above. A balance session
+  // sends no registration email, so its staged answers close now. The
+  // listing (which may since be deleted) is resolved lazily by the redirect
+  // for its thank-you link, so we carry only its id here.
+  await closePaidCheckoutStaging(sessionId);
   return sessionSuccess(attendeeId, listingId);
 };
 
@@ -282,6 +286,9 @@ export const storeRefundedBooking = async (
     sessionFailure,
     sessionId: session.id,
   });
+  // A refunded checkout is terminal: its staged answers go now, and the
+  // scheduled terminal sweep is only the backstop if this write fails.
+  await deleteCheckoutAnswers(session.id);
   // Status 200: a fully-handled terminal outcome (booking kept, money
   // returned or flagged). The webhook acks it (never the 409 transient-lock
   // retry nor a 503 refund retry — the booking exists, so a retry can't

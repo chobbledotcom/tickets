@@ -31,11 +31,13 @@ import type {
   PricedOrder,
   TicketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
-import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import {
   saveSubmittedAnswerReceipts,
   submittedAnswersForCheckout,
+  textsByQuestionId,
 } from "#shared/email/answer-receipt.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { computeListingTextAnswerIdMap } from "./parse.ts";
 
@@ -175,16 +177,30 @@ export const handleFreePath = async (
   // table keeps them sealed to the owner key, which no notification path can
   // spend. The answers save first, because the notification reads them the
   // moment it is queued.
-  const freeTexts = new Map(
-    info.textAnswers.map(({ questionId, text }) => [questionId, text]),
-  );
-  if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
-    const maps = listingAnswerMaps(info, ctx.questionListingMap);
-    await saveAttendeeAnswers(
-      groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
-    );
+  const freeTexts = textsByQuestionId(info.textAnswers);
+  try {
+    if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
+      const maps = listingAnswerMaps(info, ctx.questionListingMap);
+      await saveAttendeeAnswers(
+        groupListingAnswerSets(
+          result.entries,
+          maps.answerIds,
+          maps.textAnswers,
+        ),
+      );
+    }
+    await saveSubmittedAnswerReceipts(result.entries, submittedAnswers);
+  } catch (error) {
+    // The booking is already committed. Failing the request now would show
+    // the buyer an error whose retry creates a duplicate booking, so the
+    // loss is reported to the operator instead and the flow continues.
+    logError({
+      code: ErrorCode.DB_QUERY,
+      detail:
+        "A free booking's answers were not saved; the booking stands and the buyer must not retry it",
+      error,
+    });
   }
-  await saveSubmittedAnswerReceipts(result.entries, submittedAnswers);
   await logAndNotifyRegistration(result.entries, { freeTexts, siteTokenIndex });
 
   // The caller resolves the redirect from the pre-fold listing set (a single

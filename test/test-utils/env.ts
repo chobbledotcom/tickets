@@ -1,3 +1,4 @@
+import { setCheckoutWorkKeyForTest } from "#crypto/checkout-work.ts";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { setFastPbkdf2ForTest } from "#crypto/hashing.ts";
 import { setRsaKeySizeForTest } from "#crypto/keys.ts";
@@ -11,10 +12,14 @@ import {
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { setSuppressRequestLogs } from "#shared/logger.ts";
 import { setRethrowErrors, setSkipLoginDelay } from "#shared/test-overrides.ts";
-import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
+import {
+  TEST_CHECKOUT_WORK_KEY,
+  TEST_ENCRYPTION_KEY,
+} from "#test-utils/internal.ts";
 
 export const setupTestEncryptionKey = (): void => {
   setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
+  setCheckoutWorkKeyForTest(TEST_CHECKOUT_WORK_KEY);
   setFastPbkdf2ForTest(true);
   setSkipLoginDelay(true);
   setRsaKeySizeForTest(1024);
@@ -27,6 +32,7 @@ export const setupTestEncryptionKey = (): void => {
 
 export const clearTestEncryptionKey = (): void => {
   setEncryptionKeyForTest("");
+  setCheckoutWorkKeyForTest(null);
   setFastPbkdf2ForTest(null);
   setSkipLoginDelay(false);
   setRsaKeySizeForTest(null);

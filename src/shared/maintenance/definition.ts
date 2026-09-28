@@ -45,6 +45,16 @@ export interface MaintenanceTaskDeclaration {
   wakePolicy: MaintenanceWakePolicy;
 }
 
+/** What a checkpoint-driven sweep hands back: where it stopped, and whether
+ * another batch is waiting. */
+export type MaintenanceSweepOutcome = {
+  checkpoint: string | null;
+  fullBatch: boolean;
+};
+
+/** Square links old enough to cancel, one scheduled batch at a time. */
+export const SQUARE_CANCELLATION_BATCH = 4;
+
 export const maintenanceStartupCalls = (
   tasks: readonly MaintenanceTaskDeclaration[],
 ): { database: number; external: number; total: number } => {

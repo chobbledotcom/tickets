@@ -9,9 +9,9 @@ import {
   type CreatedEntry,
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
-import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import type { ListingWithCount } from "#types";
 
 type CommittedBookingRow = {
   created: string;
@@ -34,7 +34,7 @@ export const committedEntries = async (
   ticketToken: string,
   session: ValidatedSession["session"],
   intent: BookingIntent,
-  validatedItems: ValidatedItem[],
+  items: readonly { listing: ListingWithCount }[],
 ): Promise<CreatedEntry[]> => {
   const rows = await queryAllPrimary<CommittedBookingRow>({
     args: [attendeeId],
@@ -84,5 +84,5 @@ export const committedEntries = async (
     ticket_token: ticketToken,
     ticket_token_index: row.ticket_token_index,
   }));
-  return pairEntriesByListing(attendees, validatedItems);
+  return pairEntriesByListing(attendees, items);
 };

@@ -1,7 +1,8 @@
 import { toBase64 } from "#crypto/utils.ts";
+import type { PreparedRegistrationEmail } from "#db/registration-email-work.ts";
 import { settings } from "#db/settings.ts";
-import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { loadSubmittedAnswerLines } from "#shared/email/answer-receipt.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
   deliverRegistrationEmail,
   type EmailAttachment,
@@ -104,16 +105,26 @@ const buildTicketAttachments = async (
   }));
 };
 
-export const renderRegistrationEmailMessages = async (
-  entries: EmailEntry[],
-  currency: string,
-  suppliedFacts?: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
-): Promise<{
+/** What a registration email send reads: the booked lines, the currency,
+ * optional preloaded package facts, and the buyer's typed free text. */
+export interface RegistrationEmailRequest {
+  currency: string;
+  entries: EmailEntry[];
+  freeTexts?: FreeTextAnswers | undefined;
+  suppliedFacts?: RegistrationPackageFacts | undefined;
+}
+
+/** The messages one registration renders, or null when no email is due. */
+export type RenderedRegistrationEmails = {
   config: EmailConfig;
-  messages: { recipient: "buyer" | "business"; message: EmailMessage }[];
+  messages: PreparedRegistrationEmail[];
   templateErrors: unknown[];
-} | null> => {
+};
+
+export const renderRegistrationEmailMessages = async (
+  request: RegistrationEmailRequest,
+): Promise<RenderedRegistrationEmails | null> => {
+  const { currency, entries, freeTexts, suppliedFacts } = request;
   const delivery = registrationEmailDelivery(entries);
   if (!delivery) return null;
   const { attendeeEmail, businessEmail, config } = delivery;
@@ -123,7 +134,7 @@ export const renderRegistrationEmailMessages = async (
       : suppliedFacts;
   const answerLines = await loadSubmittedAnswerLines(entries, freeTexts);
   const ticketUrl = buildTicketUrl(entries);
-  const messages: { recipient: "buyer" | "business"; message: EmailMessage }[] = [];
+  const messages: PreparedRegistrationEmail[] = [];
   const templateErrors: unknown[] = [];
   const addRenderedMessage = (
     rendered: Awaited<ReturnType<typeof renderEmailContent>>,
@@ -132,7 +143,7 @@ export const renderRegistrationEmailMessages = async (
   ): void => {
     const { errors, ...content } = rendered;
     templateErrors.push(...errors);
-    messages.push({ recipient, message: { ...content, ...details } });
+    messages.push({ message: { ...content, ...details }, recipient });
   };
 
   if (attendeeEmail) {
@@ -146,11 +157,15 @@ export const renderRegistrationEmailMessages = async (
       renderEmailContent("confirmation", data),
       buildTicketAttachments(groups, currency),
     ]);
-    addRenderedMessage(rendered, {
-      attachments,
-      replyTo: businessEmail || undefined,
-      to: attendeeEmail,
-    }, "buyer");
+    addRenderedMessage(
+      rendered,
+      {
+        attachments,
+        replyTo: businessEmail || undefined,
+        to: attendeeEmail,
+      },
+      "buyer",
+    );
   }
 
   if (businessEmail) {
@@ -159,10 +174,14 @@ export const renderRegistrationEmailMessages = async (
       packageDisplays: facts.displays,
     });
     const rendered = await renderEmailContent("admin", data);
-    addRenderedMessage(rendered, {
-      replyTo: attendeeEmail || undefined,
-      to: businessEmail,
-    }, "business");
+    addRenderedMessage(
+      rendered,
+      {
+        replyTo: attendeeEmail || undefined,
+        to: businessEmail,
+      },
+      "business",
+    );
   }
 
   return { config, messages, templateErrors };
@@ -174,16 +193,16 @@ export const sendRegistrationEmails = async (
   suppliedFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
 ): Promise<RegistrationDeliveryResult> => {
-  const prepared = await renderRegistrationEmailMessages(
-    entries,
+  const prepared = await renderRegistrationEmailMessages({
     currency,
-    suppliedFacts,
+    entries,
     freeTexts,
-  );
+    suppliedFacts,
+  });
   if (!prepared) return { failed: false };
   return await waitForRegistrationDeliveries([
     ...prepared.messages.map(({ message }) =>
-      deliverRegistrationEmail(prepared.config, message)
+      deliverRegistrationEmail(prepared.config, message),
     ),
     ...prepared.templateErrors.map((error) => Promise.reject(error)),
   ]);

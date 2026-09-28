@@ -7,8 +7,9 @@
  * because these facts outlive any one provider.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
+/* jscpd:ignore-start -- imports */
+import type { SubmittedAnswers } from "#shared/email/answer-receipt.ts";
 import { parseReservationAmount } from "#shared/reservation-amount.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { optionalStringThat } from "#shared/validation/string.ts";
@@ -89,6 +90,8 @@ export type ListingAnswerRefs = {
   listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
   listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
+  /** Server-validated wording for the receipt snapshot. */
+  submittedAnswers?: SubmittedAnswers | undefined;
 };
 /**
  * Answers are filed under the listing they belong to, written the way a

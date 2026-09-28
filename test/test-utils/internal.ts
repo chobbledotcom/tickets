@@ -17,6 +17,11 @@ export const TEST_ENCRYPTION_KEY =
 export const OTHER_TEST_ENCRYPTION_KEY =
   "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
 
+// The checkout work key: a second deployment secret, distinct in bytes from
+// TEST_ENCRYPTION_KEY so work sealed under one cannot open with the other.
+export const TEST_CHECKOUT_WORK_KEY =
+  "Zm9ydHlmaXZlN3Rpc3NpeHR3b3ZlbnR5b3VuZyFwYWQ=";
+
 // The standard Bunny CDN test zone. Single source of truth shared by the
 // storage-mock helpers (as a runWithStorageConfig object) and describeWithEnv's
 // `storage: "cdn"` option (as STORAGE_ZONE_KEY/NAME env vars).

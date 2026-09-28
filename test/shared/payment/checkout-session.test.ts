@@ -1,10 +1,11 @@
-/** The checkout-session factory stages a checkout's free-text answers beside
- * the session id the provider hands back, in one write, and only when the
- * buyer typed any. */
+/** The checkout-session factory stages a checkout's answers and their
+ * snapshot beside the session id the provider hands back, in one write —
+ * every checkout stages, so a paid session always has a row its tail can
+ * resume from. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -46,17 +47,21 @@ describeWithEnv(
       );
 
       expect(calls).toBe(1);
-      expect(await takeCheckoutAnswers("cs_staging")).toEqual(
-        new Map([[7, "Coming by bus"]]),
+      expect((await readCheckoutAnswers("cs_staging"))?.texts.get(7)).toBe(
+        "Coming by bus",
       );
     });
 
-    test("spends no database call when the buyer typed no free text", async () => {
-      const calls = await countDatabaseCalls(0, () =>
+    test("stages a marker even when the buyer typed no free text", async () => {
+      const calls = await countDatabaseCalls(1, () =>
         acceptingProvider(intent(), "https://site"),
       );
 
-      expect(calls).toBe(0);
+      expect(calls).toBe(1);
+      expect(await readCheckoutAnswers("cs_staging")).toEqual({
+        snapshot: [],
+        texts: new Map(),
+      });
     });
   },
 );

@@ -1,6 +1,6 @@
 import {
-  decryptWithKey,
   decodeKeyBytes,
+  decryptWithKey,
   encryptWithKey,
   getEncryptionKeyBytes,
   parseEncryptedPayload,
@@ -27,7 +27,8 @@ export const validateCheckoutWorkKey = (): void => {
 
 const checkoutWorkKeyBytes = (): Uint8Array => {
   const value = testKey.value ?? getEnv("CHECKOUT_WORK_KEY");
-  if (!value) throw new Error("CHECKOUT_WORK_KEY is required for checkout work");
+  if (!value)
+    throw new Error("CHECKOUT_WORK_KEY is required for checkout work");
   const bytes = decodeKeyBytes(value);
   // A second spelling of the database key does not make a second secret.
   const dbBytes = getEncryptionKeyBytes();

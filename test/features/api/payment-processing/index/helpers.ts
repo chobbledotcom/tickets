@@ -1,6 +1,7 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
@@ -69,6 +70,11 @@ export const singleListingPayment = async (
   listing: Awaited<ReturnType<typeof createTestListing>>;
 }> => {
   const listing = await createTestListing({ maxAttendees: 5, unitPrice });
+  // Every real checkout stages its marker row at creation; driving the paid
+  // session directly must do the same or the tail refuses it.
+  await stageCheckoutAnswers(id, undefined, [
+    { answers: [], listingId: listing.id },
+  ]);
   return {
     data: trustedPayment(
       id,

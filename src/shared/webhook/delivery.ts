@@ -1,15 +1,19 @@
 import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
+import { queueRegistrationEmails } from "#db/registration-email-work.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
+import { logCaughtFailure } from "#shared/caught-failures.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
   registrationEmailDelivery,
+  renderRegistrationEmailMessages,
   sendRegistrationEmails,
 } from "#shared/email/registration.ts";
+import { deliverDueRegistrationEmails } from "#shared/email/registration-work.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
-import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
+import { ErrorCode, logErrorLocal } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import {
@@ -146,10 +150,12 @@ const sendRegistrationNotifications = async (
   currency: string,
   packageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
+  emailDelivery?: Promise<RegistrationDeliveryResult>,
 ): Promise<void> => {
   const [webhookResult, emailResult] = await Promise.allSettled([
     sendRegistrationWebhooks(entries, currency, packageFacts),
-    sendRegistrationEmails(entries, currency, packageFacts, freeTexts),
+    emailDelivery ??
+      sendRegistrationEmails(entries, currency, packageFacts, freeTexts),
   ]);
   const deliveries = [
     completedRegistrationDelivery(webhookResult),
@@ -166,37 +172,95 @@ const sendRegistrationNotifications = async (
   if (errors.length > 0) throw errors[0];
 };
 
-const queueRegistrationNotifications = async (
+/** The package facts a notification needs, or the failure it must report:
+ * one read shared by the direct queue and the durable one. */
+const packageFactsOrReport = async (
   entries: EmailEntry[],
-  currency: string,
-  suppliedPackageFacts?: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
+  supplied?: RegistrationPackageFacts,
+): Promise<RegistrationPackageFacts | undefined> => {
+  const needsPackageFacts =
+    registrationWebhookUrls(entries).length > 0 ||
+    registrationEmailDelivery(entries) !== null;
+  return needsPackageFacts
+    ? (supplied ?? (await loadRegistrationPackageFacts(entries)))
+    : supplied;
+};
+
+/** Load the facts a notification needs, then run the queue call inside the
+ * shared failure reporting: both queue paths use this one wrapper. */
+const queueWithFacts = async (
+  entries: EmailEntry[],
+  supplied: RegistrationPackageFacts | undefined,
+  queue: (
+    packageFacts: RegistrationPackageFacts | undefined,
+  ) => void | Promise<void>,
 ): Promise<void> => {
   let packageFacts: RegistrationPackageFacts | undefined;
   try {
-    const needsPackageFacts =
-      registrationWebhookUrls(entries).length > 0 ||
-      registrationEmailDelivery(entries) !== null;
-    packageFacts = needsPackageFacts
-      ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
-      : suppliedPackageFacts;
+    packageFacts = await packageFactsOrReport(entries, supplied);
+    await queue(packageFacts);
   } catch (error) {
     await reportRegistrationDeliveryError();
     throw error;
   }
-  addPendingWork(
-    sendRegistrationNotifications(entries, currency, packageFacts, freeTexts),
-  );
 };
+
+const queueRegistrationNotifications = (
+  entries: EmailEntry[],
+  currency: string,
+  suppliedPackageFacts?: RegistrationPackageFacts,
+  freeTexts?: FreeTextAnswers,
+): Promise<void> =>
+  queueWithFacts(entries, suppliedPackageFacts, (packageFacts) => {
+    addPendingWork(
+      sendRegistrationNotifications(entries, currency, packageFacts, freeTexts),
+    );
+  });
+
+/** Queue a paid booking's registration emails durably: render them now from
+ * the plaintext this request holds, seal them under the checkout work key,
+ * and let the worker own delivery. A lost provider reply can resend. */
+const queueDurableRegistration = (
+  sessionId: string,
+  entries: EmailEntry[],
+  currency: string,
+  options: NotifyRegistrationOptions,
+): Promise<void> =>
+  queueWithFacts(entries, options.packageFacts, async (packageFacts) => {
+    const prepared = await renderRegistrationEmailMessages({
+      currency,
+      entries,
+      freeTexts: options.freeTexts,
+      suppliedFacts: packageFacts,
+    });
+    if (prepared !== null) {
+      if (prepared.templateErrors.length > 0) {
+        throw prepared.templateErrors[0]!;
+      }
+      // Await the durable rows before the drain starts, or the claim can
+      // run ahead of the insert and find nothing due.
+      await queueRegistrationEmails(
+        sessionId,
+        entries[0]!.attendee.id,
+        prepared.messages,
+      );
+    }
+    addPendingWork(
+      sendRegistrationNotifications(
+        entries,
+        currency,
+        packageFacts,
+        undefined,
+        deliverDueRegistrationEmails(),
+      ),
+    );
+  });
 
 /** Report background work that died after a booking was already paid for.
  * addPendingWork settles rejections silently, so without this the buyer keeps
  * the ticket and the operator never learns the site or its credit was lost. */
-const reportAfterBookingFailure =
-  (detail: string) =>
-  (error: unknown): void => {
-    logError({ code: ErrorCode.SITE_ASSIGNMENT, detail, error });
-  };
+const reportAfterBookingFailure = (detail: string) =>
+  logCaughtFailure(ErrorCode.SITE_ASSIGNMENT, detail);
 
 /** What a booking passes to its notification queue. Everything is optional:
  * the plaintext free-text answers only the caller can hold, preloaded package
@@ -211,6 +275,10 @@ export interface NotifyRegistrationOptions {
   packageFacts?: RegistrationPackageFacts | undefined;
   /** Activity-log lines recorded beside the registration lines. */
   priorActivities?: readonly ActivityToLog[] | undefined;
+  /** The paid checkout's session id. Present only when the booking's emails
+   * must survive the request: they queue durably keyed by this session, and a
+   * replay never sends them twice. */
+  sessionId?: string | undefined;
   /** The hashed renewal token, when this booking came from /renew. */
   siteTokenIndex?: string | undefined;
 }
@@ -230,12 +298,14 @@ export const logAndNotifyRegistration = async (
   ]);
   const currency = settings.currency;
   addPendingWork(
-    queueRegistrationNotifications(
-      entries,
-      currency,
-      options.packageFacts,
-      options.freeTexts,
-    ),
+    options.sessionId === undefined
+      ? queueRegistrationNotifications(
+          entries,
+          currency,
+          options.packageFacts,
+          options.freeTexts,
+        )
+      : queueDurableRegistration(options.sessionId, entries, currency, options),
   );
   addPendingWork(
     assignAndNotifyBuiltSites(entries).catch(

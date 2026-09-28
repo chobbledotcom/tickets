@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute, getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
@@ -130,6 +131,14 @@ export const stageSignedMultiItemSumupCheckout = async (
     ),
   );
   await setSumupCheckoutId(reference, checkoutId);
+  // Every real checkout stages its answers row at creation, so the paid
+  // tail can resume from it; a test that stages a checkout directly must do
+  // the same, naming every booked line like the factory does.
+  await stageCheckoutAnswers(
+    reference,
+    undefined,
+    listings.map(({ id }) => ({ answers: [], listingId: id })),
+  );
   return { listings, reference };
 };
 

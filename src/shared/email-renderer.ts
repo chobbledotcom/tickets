@@ -11,8 +11,8 @@ import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { lazyRef, map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
-import { type AnswerLine, type OrderAnswerLines } from "#shared/email/answers.ts";
 import { loadSubmittedAnswerLines } from "#shared/email/answer-receipt.ts";
+import type { AnswerLine, OrderAnswerLines } from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
@@ -270,7 +270,8 @@ export const buildTemplateData = async (
 ): Promise<TemplateData> => {
   const displays =
     options.packageDisplays ?? (await packageDisplaysForRows(entries));
-  const answers = options.answerLines ?? (await loadSubmittedAnswerLines(entries));
+  const answers =
+    options.answerLines ?? (await loadSubmittedAnswerLines(entries));
   // The loader fills every (attendee, listing) pair the entries name, so a
   // miss here is broken data, not an unanswered question.
   const entryAnswers = (entry: EmailEntry): AnswerLine[] =>
@@ -290,10 +291,10 @@ export const buildTemplateData = async (
         group.hiddenPackageName === undefined
           ? toTemplateEntry(group.entries[0]!, entryAnswers(group.entries[0]!))
           : collapsedPackageEntry(
-            group.entries,
-            group.hiddenPackageName,
-            group.entries.flatMap(entryAnswers),
-          ),
+              group.entries,
+              group.hiddenPackageName,
+              group.entries.flatMap(entryAnswers),
+            ),
       )
     : map((entry: EmailEntry) => toTemplateEntry(entry, entryAnswers(entry)))(
         entries,

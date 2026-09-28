@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
@@ -16,6 +17,18 @@ import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { bookedLine, bookingIntent } from "./index/helpers.ts";
+
+/** Stage the snapshot the real checkout factory writes: one entry per booked
+ * line, here with no answers of its own. */
+const stageFor = async (
+  sessionId: string,
+  entries: readonly CreatedEntry[],
+): Promise<void> =>
+  stageCheckoutAnswers(
+    sessionId,
+    undefined,
+    entries.map(({ listing }) => ({ answers: [], listingId: listing.id })),
+  );
 
 /** What the checkout signed, with no answers and nothing added on top. */
 const bareIntent = (): BookingIntent =>
@@ -40,6 +53,8 @@ describeWithEnv(
     test("hands back the first line's booking, listing, and tickets", async () => {
       const { attendeeId, entry, listingId } = await bookedLine("First Line");
 
+      await stageFor("cs_completion_first_line", [entry]);
+
       expect(
         await completePaidBooking(
           [entry],
@@ -63,6 +78,10 @@ describeWithEnv(
       const first = await bookedLine("Leading Line");
       const second = await bookedLine("Trailing Line");
 
+      await stageFor("cs_completion_several_lines", [
+        first.entry,
+        second.entry,
+      ]);
       const result = await completePaidBooking(
         [first.entry, second.entry],
         bareIntent(),
@@ -93,6 +112,7 @@ describeWithEnv(
         text: "Peanuts",
       });
       await listingQuestions.setIds(listingId, [question.id]);
+      await stageFor("cs_completion_saves_answers", [entry]);
 
       await completePaidBooking(
         [entry],
@@ -140,8 +160,8 @@ describeWithEnv(
           scopedSubtotal: 1000,
         },
       ];
-
-      const calls = await countDatabaseCalls(1, () =>
+      await stageFor("cs_completion_promo_code", [entry]);
+      const calls = await countDatabaseCalls(8, () =>
         completePaidBooking(
           [entry],
           bareIntent(),
@@ -153,12 +173,13 @@ describeWithEnv(
         ),
       );
 
-      expect(calls).toBe(1);
+      expect(calls).toBe(8);
       expect(await logMentions("Promo code 'Ten off' used")).toBe(true);
     });
 
     test("writes down no code when the buyer used none", async () => {
       const { entry } = await bookedLine("Codeless Line");
+      await stageFor("cs_completion_no_code", [entry]);
 
       await completePaidBooking(
         [entry],
@@ -200,8 +221,8 @@ describeWithEnv(
           ],
         ]),
       };
-
-      const calls = await countDatabaseCalls(1, () =>
+      await stageFor("cs_completion_package_facts", [packagedEntry]);
+      const calls = await countDatabaseCalls(8, () =>
         runWithPendingWork(() =>
           completePaidBooking(
             [packagedEntry],
@@ -214,7 +235,7 @@ describeWithEnv(
           ),
         ),
       );
-      expect(calls).toBe(1);
+      expect(calls).toBe(8);
     });
   },
 );

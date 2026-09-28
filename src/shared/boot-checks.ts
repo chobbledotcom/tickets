@@ -4,6 +4,7 @@
  * boot invariants rather than per-request validation concerns.
  */
 
+import { validateCheckoutWorkKey } from "#crypto/checkout-work.ts";
 import { validateEncryptionKey } from "#crypto/encryption.ts";
 import { utf8ByteLength } from "#shared/bytes.ts";
 import { getEnv } from "#shared/env.ts";
@@ -35,6 +36,7 @@ export const validateOptionalMainInstanceKey = (): void => {
 
 export const BOOT_CHECKS: readonly BootCheck[] = [
   { name: "DB_ENCRYPTION_KEY", run: validateEncryptionKey },
+  { name: "CHECKOUT_WORK_KEY", run: validateCheckoutWorkKey },
   { name: "MAIN_INSTANCE_KEY", run: validateOptionalMainInstanceKey },
   { name: "SCHEDULED_TASK_KEY", run: validateScheduledTaskKey },
   { name: "UPTIME_KUMA", run: validateUptimeKumaConfig },

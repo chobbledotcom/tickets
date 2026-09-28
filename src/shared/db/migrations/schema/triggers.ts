@@ -320,8 +320,8 @@ END`,
 ];
 
 const RECEIPT_STRING_USES = {
-  submitted_answer_receipt_lines: ["string_id"],
   strings: ["used_count"],
+  submitted_answer_receipt_lines: ["string_id"],
 } as const;
 
 const RECEIPT_STRING_TRIGGERS: Trigger[] = [

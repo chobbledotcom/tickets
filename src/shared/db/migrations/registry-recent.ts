@@ -42,5 +42,15 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-09-26_checkout_pending_answers",
     () => import("./2026-09-26_checkout_pending_answers.ts"),
   ),
+  // The immutable record of the wording a buyer saw and gave at checkout.
+  entry(
+    "2026-09-28_submitted_answer_receipts",
+    () => import("./2026-09-28_submitted_answer_receipts.ts"),
+  ),
+  // Durable per-recipient registration email work sealed under that key.
+  entry(
+    "2026-09-29_registration_email_work",
+    () => import("./2026-09-29_registration_email_work.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

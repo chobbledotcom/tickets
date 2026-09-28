@@ -26,6 +26,14 @@ export type OrderAnswerLines = Map<number, Map<number, AnswerLine[]>>;
 /** The free-text answers a sender holds, keyed by question id. */
 export type FreeTextAnswers = ReadonlyMap<number, string>;
 
+/** The shared signature of every source of an order's answer lines: the
+ * current-label reader and the receipt reader declare it, so their inputs
+ * stay one vocabulary. */
+export type AnswerLineSource = (
+  entries: readonly EmailEntry[],
+  freeTexts?: FreeTextAnswers,
+) => Promise<OrderAnswerLines>;
+
 /** The loaded question and answer context every entry's lines read: the
  * questions the order's listings ask, which listings each one belongs to,
  * each attendee's chosen answer ids, and any free-text answers the sender
@@ -107,10 +115,10 @@ export const orderAnswerLines = (
  * answer ids. The choice read is pinned to the primary, because the emails go
  * out in the same request that saved the answers. The cost stays fixed
  * however many lines the order holds. */
-export const loadOrderAnswerLines = async (
-  entries: readonly EmailEntry[],
-  freeTexts: FreeTextAnswers = new Map(),
-): Promise<OrderAnswerLines> => {
+export const loadOrderAnswerLines: AnswerLineSource = async (
+  entries,
+  freeTexts = new Map(),
+) => {
   const listingIds = unique(entries.map((entry) => entry.listing.id));
   const attendeeIds = unique(entries.map((entry) => entry.attendee.id));
   const [{ questions, questionListingMap }, chosen] = await Promise.all([

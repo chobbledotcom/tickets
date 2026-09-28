@@ -65,7 +65,10 @@ export const contentTables: [name: string, table: Table][] = [
           "recipient",
           "TEXT NOT NULL CHECK (recipient IN ('buyer', 'business', 'none'))",
         ],
-        ["state", "TEXT NOT NULL CHECK (state IN ('due', 'sending', 'complete'))"],
+        [
+          "state",
+          "TEXT NOT NULL CHECK (state IN ('due', 'sending', 'complete'))",
+        ],
         ["sealed", "TEXT NOT NULL"],
         ["wrapped_key", "TEXT NOT NULL"],
         ["next_attempt_at", "TEXT NOT NULL"],

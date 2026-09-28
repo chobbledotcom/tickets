@@ -12,17 +12,18 @@ import { DAY_MS, nowIso } from "#shared/now.ts";
 
 const StoredAnswer = v.object({
   kind: v.picklist(["choice", "free_text"]),
-  listingId: v.number(),
   question: v.string(),
   questionId: v.number(),
   text: v.string(),
 });
 const StagedPayload = v.object({
   sessionId: v.string(),
-  snapshot: v.array(v.object({
-    listingId: v.number(),
-    answers: v.array(StoredAnswer),
-  })),
+  snapshot: v.array(
+    v.object({
+      answers: v.array(StoredAnswer),
+      listingId: v.number(),
+    }),
+  ),
   squareLinkId: v.optional(v.string()),
   texts: v.record(v.string(), v.string()),
 });
@@ -51,7 +52,7 @@ const openPayload = async (
   );
 
 /** The index is an HMAC only; it never provides a decryption key. */
-export const checkoutAnswerIndex = (sessionId: string): Promise<string> =>
+export const sessionWorkIndex = (sessionId: string): Promise<string> =>
   hmacHash(sessionId);
 
 /** A checkout cannot be returned to the buyer unless this write succeeds. */
@@ -67,8 +68,8 @@ export const stageCheckoutAnswers = async (
   const payload: StagedPayload = {
     sessionId,
     snapshot: snapshot.map(({ listingId, answers }) => ({
-      listingId,
       answers: [...answers],
+      listingId,
     })),
     squareLinkId,
     texts: v.parse(v.record(v.string(), v.string()), texts ?? {}),
@@ -86,7 +87,7 @@ export const stageCheckoutAnswers = async (
        next_check_at = excluded.next_check_at
      WHERE checkout_pending_answers.state = 'open'`,
     [
-      await checkoutAnswerIndex(sessionId),
+      await sessionWorkIndex(sessionId),
       sealed,
       wrappedKey,
       createdAt,
@@ -108,7 +109,7 @@ export const readCheckoutAnswers = async (
   const row = await queryOne<StagedCheckoutRow>(
     `SELECT session_index, sealed, wrapped_key FROM checkout_pending_answers
      WHERE session_index = ?`,
-    [await checkoutAnswerIndex(sessionId)],
+    [await sessionWorkIndex(sessionId)],
   );
   if (!row) return null;
   const payload = await openPayload(row);
@@ -132,12 +133,13 @@ export const openSquareCheckoutIdentity = async (
 ): Promise<{ sessionId: string; linkId: string }> => {
   const { sessionId, squareLinkId } = await openPayload(row);
   if (
-    !sessionId || !squareLinkId ||
-    row.session_index !== await checkoutAnswerIndex(sessionId)
+    !sessionId ||
+    !squareLinkId ||
+    row.session_index !== (await sessionWorkIndex(sessionId))
   ) {
     throw new Error("Square checkout identity is missing or corrupt");
   }
-  return { sessionId, linkId: squareLinkId };
+  return { linkId: squareLinkId, sessionId };
 };
 
 /** Keep the paid row discoverable until its receipt and emails are durable. */
@@ -152,16 +154,17 @@ export const markCheckoutAnswersPaid = async (
              WHERE payment_session_id = ?
            )
      WHERE session_index = ? AND state IN ('open', 'cancelling', 'paid_answers_due')`,
-    [sessionId, await checkoutAnswerIndex(sessionId)],
+    [sessionId, await sessionWorkIndex(sessionId)],
   );
   return result.rowsAffected === 1;
 };
 
 /** Remove staging only after durable paid handoff or a terminal outcome. */
-export const deleteCheckoutAnswers = async (sessionId: string): Promise<void> => {
+export const deleteCheckoutAnswers = async (
+  sessionId: string,
+): Promise<void> => {
   await execute(
     "DELETE FROM checkout_pending_answers WHERE session_index = ?",
-    [await checkoutAnswerIndex(sessionId)],
+    [await sessionWorkIndex(sessionId)],
   );
 };
-

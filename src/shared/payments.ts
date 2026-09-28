@@ -11,7 +11,6 @@ import type { AuthorizedRefundRequest } from "#payment/refund-provider-authoriza
 import type { ChargeMoney } from "#payment/resources.ts";
 import type { SessionRejection } from "#payment/validated-session.ts";
 import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
-import type { SubmittedAnswers } from "#shared/email/answer-receipt.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
@@ -123,8 +122,6 @@ type CheckoutIntentBase = ContactInfo &
     /** Free-text answers as the buyer typed them, keyed by question id. Never
      * sent to a provider: the checkout stages it locally instead. */
     textAnswers?: Record<string, string> | undefined;
-    /** Server-validated wording, one receipt snapshot per checkout line. */
-    submittedAnswers?: SubmittedAnswers | undefined;
   };
 
 /** Registration intent for checkout (one or more listings) */

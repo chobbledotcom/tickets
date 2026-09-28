@@ -168,8 +168,8 @@ const PaymentLinkAnswer = v.pipe(
 
 /** A DELETE reply names the link and cancelled order, not proof of no charge. */
 const DeletePaymentLinkAnswer = v.object({
-  id: ResourceIdSchema,
   cancelled_order_id: ResourceIdSchema,
+  id: ResourceIdSchema,
 });
 
 /** One place a merchant takes money at. */
@@ -229,10 +229,10 @@ const readAnswer =
 
 /** Read one Square answer as the resource it is meant to carry. */
 export const squareAnswer = {
+  deletedPaymentLink: readAnswer(DeletePaymentLinkAnswer),
   locations: readAnswer(LocationsAnswer),
   order: readAnswer(OrderAnswer),
   payment: readAnswer(PaymentAnswer),
   paymentLink: readAnswer(PaymentLinkAnswer),
-  deletedPaymentLink: readAnswer(DeletePaymentLinkAnswer),
   refund: readAnswer(RefundAnswer),
 };
