@@ -5,10 +5,8 @@ import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
-import {
-  syncReadOnlyFrom,
-  validateSiteAssignmentConfig,
-} from "#shared/site-assignment.ts";
+import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
+import { syncReadOnlyFrom } from "#shared/site-renewal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";

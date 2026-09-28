@@ -25,6 +25,20 @@ export const expectOneSiteClaimed = async (): Promise<void> => {
   expect(sites.find((s) => s.name === "Site B")!.assignedAttendeeId).toBe(null);
 };
 
+/** Stub the edge-secret push so the RENEWAL_URL leg fails and the rest pass. */
+export const failingRenewalUrlPush = (): Stub =>
+  stub(
+    bunnyCdnApi,
+    "setEdgeScriptSecret",
+    (_scriptId: number, name: string, _value: string) =>
+      name === "RENEWAL_URL"
+        ? Promise.resolve({
+            error: "renewal url push failed",
+            ok: false as const,
+          })
+        : Promise.resolve({ ok: true as const }),
+  );
+
 /** Deactivate every active, hidden, purchase-only, monthly listing — the
  *  "renewal tier" set — so tests can exercise the no-qualifying-tier path. */
 export const deactivateAllTierListings = async (): Promise<void> => {
