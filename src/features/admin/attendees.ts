@@ -19,6 +19,7 @@ import {
   requireListingWithCount,
 } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
+import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { t } from "#i18n";
 import { redirect } from "#routes/response.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
@@ -295,8 +296,18 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
+  // An admin session can spend the owner key, so the resend is the one path
+  // that reads the buyer's free-text answers straight from the strings table.
+  const freeTexts =
+    (
+      await getAttendeeTextAnswersBatch(
+        [attendeeId],
+        await requireRequestPrivateKey(),
+      )
+    ).get(attendeeId) ?? new Map<number, string>();
+
   await Promise.all([
-    logAndNotifyRegistration(await resendEntries(data)),
+    logAndNotifyRegistration(await resendEntries(data), { freeTexts }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,
       data.listing.id,

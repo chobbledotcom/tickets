@@ -1,6 +1,10 @@
 import { toBase64 } from "#crypto/utils.ts";
 import { settings } from "#db/settings.ts";
 import {
+  type FreeTextAnswers,
+  loadOrderAnswerLines,
+} from "#shared/email/answers.ts";
+import {
   deliverRegistrationEmail,
   type EmailAttachment,
   type EmailConfig,
@@ -17,7 +21,8 @@ import {
 } from "#shared/email-renderer.ts";
 import {
   loadRegistrationPackageFacts,
-  type RegistrationNotification,
+  type RegistrationDeliveryResult,
+  type RegistrationPackageFacts,
   waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
@@ -101,9 +106,12 @@ const buildTicketAttachments = async (
   }));
 };
 
-export const sendRegistrationEmails: RegistrationNotification<
-  EmailEntry
-> = async (entries, currency, suppliedFacts) => {
+export const sendRegistrationEmails = async (
+  entries: EmailEntry[],
+  currency: string,
+  suppliedFacts?: RegistrationPackageFacts,
+  freeTexts?: FreeTextAnswers,
+): Promise<RegistrationDeliveryResult> => {
   const delivery = registrationEmailDelivery(entries);
   if (!delivery) return { failed: false };
   const { attendeeEmail, businessEmail, config } = delivery;
@@ -111,6 +119,7 @@ export const sendRegistrationEmails: RegistrationNotification<
     suppliedFacts === undefined
       ? await loadRegistrationPackageFacts(entries)
       : suppliedFacts;
+  const answerLines = await loadOrderAnswerLines(entries, freeTexts);
   const ticketUrl = buildTicketUrl(entries);
   const messages: EmailMessage[] = [];
   const templateErrors: unknown[] = [];
@@ -126,6 +135,7 @@ export const sendRegistrationEmails: RegistrationNotification<
   if (attendeeEmail) {
     const groups = buyerEntryGroups(entries, facts.displays);
     const data = await buildTemplateData(entries, currency, ticketUrl, {
+      answerLines,
       hidePackageMembers: true,
       packageDisplays: facts.displays,
     });
@@ -142,6 +152,7 @@ export const sendRegistrationEmails: RegistrationNotification<
 
   if (businessEmail) {
     const data = await buildTemplateData(entries, currency, ticketUrl, {
+      answerLines,
       packageDisplays: facts.displays,
     });
     const rendered = await renderEmailContent("admin", data);

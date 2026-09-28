@@ -24,6 +24,51 @@ describeEmailRenderer(() => {
       expect(data.attendee.email).toBe("jane@example.com");
     });
 
+    test("carries each entry's answer lines into the attendee shape", async () => {
+      const data = await buildTestData([makeEntry()], {
+        answerLines: new Map([
+          [42, new Map([[1, [{ question: "Any allergies?", text: "None" }]]])],
+        ]),
+      });
+
+      expect(data.entries[0]!.attendee.answers).toEqual([
+        { question: "Any allergies?", text: "None" },
+      ]);
+      expect(data.attendee.answers).toEqual(data.entries[0]!.attendee.answers);
+    });
+
+    test("lists each member's answers once on a collapsed hidden package's row", async () => {
+      const diet = { question: "Diet?", text: "Vegan" };
+      const data = await buildTestData(
+        [
+          makeEntry({}, { package_group_id: 5 }),
+          makeEntry({ id: 2, name: "Member" }, { package_group_id: 5 }),
+        ],
+        {
+          answerLines: new Map([
+            [
+              42,
+              new Map([
+                [1, [diet]],
+                [2, [diet, { question: "Shoe size?", text: "9" }]],
+              ]),
+            ],
+          ]),
+          hidePackageMembers: true,
+          packageDisplays: new Map([
+            [5, { hideListings: true, name: "Hidden bundle" }],
+          ]),
+        },
+      );
+
+      expect(data.entries).toHaveLength(1);
+      expect(data.entries[0]!.listing.name).toBe("Hidden bundle");
+      expect(data.entries[0]!.attendee.answers).toEqual([
+        diet,
+        { question: "Shoe size?", text: "9" },
+      ]);
+    });
+
     test("builds correct data shape from multiple entries", async () => {
       const data = await buildTemplateData(
         [makeEntry({ name: "Listing A" }), makeEntry({ name: "Listing B" })],

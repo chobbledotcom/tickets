@@ -8,6 +8,9 @@
  * on either side fails the build.
  */
 
+import { t } from "#i18n";
+import { PRUNE_PAYMENTS_RETENTION_DAYS } from "#shared/limits.ts";
+
 /** [what the owner types, the message key describing it]. */
 export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ listing_names }}", "listing_names"],
@@ -23,6 +26,7 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ attendee.price_paid | currency }}", "entry_attendee_price_paid"],
   ["{{ attendee.date }}", "entry_attendee_date"],
   ["{{ attendee.date_range_label }}", "entry_attendee_date_range_label"],
+  ["{{ attendee.answers }}", "entry_attendee_answers"],
   ["{{ entries }}", "entries"],
   ["{{ entry.listing.name }}", "entry_listing_name"],
   ["{{ entry.listing.slug }}", "entry_listing_slug"],
@@ -39,11 +43,27 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ entry.attendee.price_paid | currency }}", "entry_attendee_price_paid"],
   ["{{ entry.attendee.date }}", "entry_attendee_date"],
   ["{{ entry.attendee.date_range_label }}", "entry_attendee_date_range_label"],
+  ["{{ entry.attendee.answers }}", "entry_attendee_answers"],
+  ["{{ answer.question }}", "answer_question"],
+  ["{{ answer.text }}", "answer_text"],
   ['{{ 2 | pluralize: "ticket", "tickets" }}', "pluralize"],
 ];
+
+/** What templates cannot show. A staged free-text answer is pruned on the
+ * payments clock, so a later payment's email leaves it out. */
+export const notAvailableNote = (): string =>
+  t("settings.advanced.email_variables.not_available", {
+    days: PRUNE_PAYMENTS_RETENTION_DAYS,
+  });
 
 /** A worked loop over `entries`: one line per booked listing, printing its
  * name, quantity, dates, and price. */
 export const LOOP_EXAMPLE = `{% for entry in entries %}
 {{ entry.listing.name }}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}, {{ entry.attendee.date_range_label }}, {{ entry.attendee.price_paid | currency }}
 {% endfor %}`;
+
+/** A worked loop over `entry.attendee.answers`: one line per question the
+ * buyer answered, printing the question and their answer. */
+export const ANSWERS_LOOP_EXAMPLE = `{% for entry in entries %}
+  {% for answer in entry.attendee.answers %}{{ answer.question }}: {{ answer.text }}
+  {% endfor %}{% endfor %}`;

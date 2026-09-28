@@ -116,9 +116,16 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
+    `created_at < ? AND recovery_state IN (${inPlaceholders(
+      RECOVERY_PRUNABLE_NODES,
+    )})`,
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
+  // The payments cutoff keeps answers past the short SumUp staging window.
+  // Square links do not expire, so a late payment can still outlive this row.
+  boundedDelete("checkout_pending_answers", "created_at < ?", [
+    isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
+  ]),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),

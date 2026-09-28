@@ -259,6 +259,7 @@ const processNewBookingSession = async (
       pricedOrder.modifierApplications,
       ticketTokens,
       snapshot.notificationPackages,
+      session.id,
     );
   const honoured = await createAttendeeForSession(
     session,
