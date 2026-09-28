@@ -34,6 +34,9 @@ describeWithEnv(
         `href="/admin/built-sites/${site.id}/secrets">Secrets</a>`,
       );
       expect(html).toContain(
+        `href="/admin/built-sites/${site.id}/support-message">Support message</a>`,
+      );
+      expect(html).toContain(
         `href="/admin/built-sites/${site.id}/update">Software update</a>`,
       );
     });

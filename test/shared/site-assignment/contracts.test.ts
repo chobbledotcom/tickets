@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
   isQualifyingTierListing,
@@ -21,7 +20,6 @@ import {
 } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
   makeTestAttendee,
@@ -29,6 +27,7 @@ import {
   testBuiltSite,
 } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { assignmentEntry } from "./contracts-setup.ts";
 
 const configMessage =
   "Site assignment is not configured. Please contact the administrator.";
@@ -49,17 +48,6 @@ const configEntry = (initialSiteMonths = 3) => ({
     name: "Hosted listing",
   },
 });
-
-const assignmentEntry = (attendeeId = 81) =>
-  makeTestEntry(
-    {
-      assign_built_site: true,
-      id: 71,
-      initial_site_months: 3,
-      name: "Hosted listing",
-    },
-    { id: attendeeId },
-  );
 
 const tierFields = (
   overrides: Partial<Parameters<typeof isQualifyingTierListing>[0]> = {},
@@ -87,29 +75,6 @@ const expectBlockedNotification = async (
   expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
     notification,
   ]);
-};
-
-const sendSetupEmail = async (siteNames: readonly string[]) => {
-  using fetchStub = stubFetch(new Response());
-  using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-    Promise.resolve({ ok: true as const }),
-  );
-  for (const [index, name] of siteNames.entries()) {
-    await insertBuiltSite(
-      `Site ${name}`,
-      `${name.toLowerCase()}.test`,
-      "",
-      "",
-      true,
-      String(101 + index),
-    );
-  }
-
-  await assignAndNotifyBuiltSites(
-    siteNames.map((_, index) => assignmentEntry(81 + index)),
-  );
-
-  return JSON.parse(fetchStub.calls[0]!.args[1].body);
 };
 
 describe("site assignment configuration contracts", () => {
@@ -310,49 +275,6 @@ describeWithEnv(
       expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
         "CDN_REQUEST",
       ]);
-    });
-  },
-);
-
-describeWithEnv(
-  "site assignment email contracts",
-  { db: true, env: { CAN_BUILD_SITES: "true" } },
-  () => {
-    beforeEach(async () => {
-      hostEmail.setOverride({
-        apiKey: "re_test",
-        fromAddress: validEmail("host@example.com"),
-        provider: "resend",
-      });
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-      });
-    });
-
-    afterEach(hostEmail.resetOverride);
-
-    test("sends the exact single-site setup message", async () => {
-      const body = await sendSetupEmail(["A"]);
-      expect(body.subject).toBe("Your new site is ready");
-      expect(body.html).toBe(
-        '<p>Your new site is ready!</p><p>Visit the setup link below to activate your site:</p><ul><li>Hosted listing: <a href="https://a.test/setup/">https://a.test/setup/</a></li></ul>',
-      );
-      expect(body.text).toBe(
-        "Your new site is ready!\n\nVisit the setup link below to activate your site:\n\n- Hosted listing: https://a.test/setup/",
-      );
-    });
-
-    test("separates every site in the exact multi-site setup message", async () => {
-      const body = await sendSetupEmail(["A", "B"]);
-      expect(body.subject).toBe("Your 2 new sites are ready");
-      expect(body.html).toBe(
-        '<p>Your new sites are ready!</p><p>Visit the setup links below to activate your sites:</p><ul><li>Hosted listing: <a href="https://a.test/setup/">https://a.test/setup/</a></li><li>Hosted listing: <a href="https://b.test/setup/">https://b.test/setup/</a></li></ul>',
-      );
-      expect(body.text).toBe(
-        "Your new sites are ready!\n\nVisit the setup links below to activate your sites:\n\n- Hosted listing: https://a.test/setup/\n- Hosted listing: https://b.test/setup/",
-      );
     });
   },
 );

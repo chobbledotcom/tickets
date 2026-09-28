@@ -16,8 +16,18 @@ export class FormParams extends URLSearchParams {
     return this.get(key)?.trim() ?? "";
   }
 
+  /** Read one field exactly as submitted — no trimming. Throws when the
+   * field never arrived: this is for fields our own form always posts, so
+   * absence means a hand-built request, not an empty message. */
+  getRaw(key: string): string {
+    const value = this.get(key);
+    if (value === null) {
+      throw new Error(`Form field missing: ${key}`);
+    }
+    return value;
+  }
+
   /** A checkbox/flag field: true only when the value is exactly "1" (how the
-   * forms submit a ticked box). One home for the "1" convention instead of
    * `getString(key) === "1"` at every call site. */
   getFlag(key: string): boolean {
     return this.getString(key) === "1";

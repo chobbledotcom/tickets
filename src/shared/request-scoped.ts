@@ -88,6 +88,22 @@ export const createScopedValue = <V>(fallback: () => V): ScopedValue<V> => {
   };
 };
 
+/** A scoped on/off switch: `runUnder(fn)` holds the switch on for `fn`'s
+ * calls, and `read()` answers whether the current async scope has it on —
+ * false outside every scope. The one shape behind every "these calls answer
+ * differently inside this scope" flag (a build's dry-run answers, database
+ * reads taken on the primary). */
+export const createBooleanScope = (): {
+  read: () => boolean;
+  runUnder: <T>(fn: () => T) => T;
+} => {
+  const flag = createScopedValue(() => false);
+  return {
+    read: () => flag.read(),
+    runUnder: <T>(fn: () => T): T => flag.run(true, fn),
+  };
+};
+
 /** A request-scoped container plus the helpers its owning module builds on. */
 export type RequestScoped<T extends object> = {
   /** Run `fn` with a fresh per-request container bound to the async scope. */

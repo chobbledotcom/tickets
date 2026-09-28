@@ -24,6 +24,18 @@ describe("FormParams.getString", () => {
   });
 });
 
+describe("FormParams.getRaw", () => {
+  test("returns the value exactly as submitted, whitespace and all", () => {
+    const form = new FormParams({ name: "  Alice  " });
+    expect(form.getRaw("name")).toBe("  Alice  ");
+  });
+
+  test("throws when the key is absent", () => {
+    const form = new FormParams();
+    expect(() => form.getRaw("missing")).toThrow("Form field missing: missing");
+  });
+});
+
 describe("FormParams.getFlag", () => {
   test('is true only when the value is exactly "1"', () => {
     const form = new FormParams({ off: "0", on: "1", other: "true" });

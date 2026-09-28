@@ -10,8 +10,10 @@ describe("AddressFieldWithLookup", () => {
   test("renders the address textarea with its label and the input cap", () => {
     const html = String(AddressFieldWithLookup({ address }));
 
+    // The textarea body opens with one spare newline for HTML parsing,
+    // which eats the first newline after a `<textarea>` start tag.
     expect(html).toContain(
-      `<label for="address">Address<textarea autocomplete="off" id="address" maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">${address}</textarea></label>`,
+      `<label for="address">Address<textarea autocomplete="off" id="address" maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n${address}</textarea></label>`,
     );
   });
 
@@ -20,7 +22,7 @@ describe("AddressFieldWithLookup", () => {
 
     expect(html).not.toContain("address-lookup");
     expect(html).toContain(
-      `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3"></textarea>`,
+      `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n</textarea>`,
     );
   });
 
@@ -36,7 +38,7 @@ describe("AddressFieldWithLookup", () => {
       );
       // The textarea stays editable and shows the saved address.
       expect(html).toContain(
-        `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">${address}</textarea>`,
+        `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n${address}</textarea>`,
       );
     });
   });

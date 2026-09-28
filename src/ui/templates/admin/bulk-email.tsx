@@ -24,6 +24,7 @@ import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
+import { textareaBody } from "#templates/components/textarea.tsx";
 import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
@@ -54,8 +55,7 @@ const bulkEmailPage = (
     </>,
   );
 
-/** "Email provider setup" deep link paragraph: appeared duplicated inside
- *  the compose and preview unavailability notices. */
+/** The email-provider-setup deep link inside a sending-unavailable notice. */
 const SetupEmailProviderLink = (): JSX.Element => (
   <p class="small">
     <a href={EMAIL_SETTINGS_LINK}>{t("bulk_email.setup_email_provider")}</a>
@@ -219,7 +219,7 @@ export const bulkEmailComposePage = (
             name="body"
             required
           >
-            {draft?.body ?? ""}
+            {textareaBody(draft?.body ?? "")}
           </textarea>
         </label>
 

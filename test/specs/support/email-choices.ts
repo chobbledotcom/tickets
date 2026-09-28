@@ -24,7 +24,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { findForms, pressableOn } from "#test-utils/test-browser/forms.ts";
+import { findForms, pressableOn } from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
