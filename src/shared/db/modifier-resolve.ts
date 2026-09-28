@@ -20,7 +20,7 @@ import {
   modifierListings,
 } from "#db/modifiers.ts";
 import { requiredMapValue, unique } from "#fp";
-import { byId } from "#fp-rows";
+import { byId as modifiersById } from "#fp-rows";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -177,7 +177,7 @@ const triggerQuantity = (
 
 /** All active modifiers keyed by id, for the re-fetch-by-id lookups. */
 const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
-  byId(await getActiveModifiers());
+  modifiersById(await getActiveModifiers());
 
 /** Resolve the in-scope listing ids (null = whole order) of every active
  * answer-trigger modifier among `ids`. Ids that aren't an active answer

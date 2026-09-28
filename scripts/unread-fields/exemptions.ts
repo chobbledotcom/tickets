@@ -226,6 +226,8 @@ const siteMonthsReason: ExemptionReason = {
   kind: "dynamic-read",
 };
 
+const attendeeTypeInTypes = [{ name: "Attendee" }];
+
 const exactExemptions = exactFieldExemptions([
   exactFieldsFrom("src/shared/email.ts")(
     [{ name: "EmailListing" }],
@@ -233,12 +235,12 @@ const exactExemptions = exactFieldExemptions([
     siteMonthsReason,
   ),
   exactFieldsFrom("src/shared/types.ts")(
-    [{ name: "Attendee" }],
+    attendeeTypeInTypes,
     ["site_months"],
     siteMonthsReason,
   ),
   exactFieldsFrom("src/shared/types.ts")(
-    [{ name: "Attendee" }],
+    attendeeTypeInTypes,
     ["attachment_downloads"],
     {
       evidence:
