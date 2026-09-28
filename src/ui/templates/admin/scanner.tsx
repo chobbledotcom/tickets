@@ -3,7 +3,6 @@
  */
 
 import { t } from "#i18n";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -53,6 +52,15 @@ const sharedScanMessageAttrs = (
   "data-message-ticket-count-one": messageTemplates.ticketCountOne,
   "data-message-ticket-count-other": messageTemplates.ticketCountOther,
 });
+
+/** "1 ticket" or "3 tickets", worded the way the door's messages say it. */
+export const ticketCountText = (count: number): string =>
+  t(
+    count === 1
+      ? "admin.scanner.ticket_count_one"
+      : "admin.scanner.ticket_count_other",
+    { count },
+  );
 
 const scannerMessages = (): ScannerMessages => ({
   alreadyCheckedIn: t("admin.scanner.already_checked_in", {
@@ -225,6 +233,11 @@ export const adminScannerPage = (
           action={scanPath}
           {...sharedScanMessageAttrs(messageTemplates)}
           data-manual-checkin
+          data-message-ticket-option={t("admin.scanner.ticket_option", {
+            name: "{name}",
+            tickets: "{tickets}",
+            token: "{token}",
+          })}
           data-message-verify-id-note={t("admin.scanner.verify_id_note")}
           data-scan-path={scanPath}
           id="manual-checkin"
@@ -264,15 +277,15 @@ export const adminScannerPage = (
             >
               {uncheckedIn.map((ticket) => (
                 <div
-                  data-name={escapeHtml(ticket.name)}
+                  data-name={ticket.name}
                   data-quantity={String(ticket.quantity)}
                   data-token={ticket.token}
                   role="option"
                   tabIndex={0}
                 >
                   {t("admin.scanner.ticket_option", {
-                    count: ticket.quantity,
-                    name: escapeHtml(ticket.name),
+                    name: ticket.name,
+                    tickets: ticketCountText(ticket.quantity),
                     token: ticket.token,
                   })}
                 </div>

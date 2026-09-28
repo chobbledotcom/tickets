@@ -5,6 +5,7 @@
  * what the story reads.
  */
 
+/* jscpd:ignore-start -- imports */
 import {
   adminPageHtmlAt,
   organiserPressesOnPage,
@@ -14,9 +15,8 @@ import { rememberListing } from "#test/specs/support/listings.ts";
 import { emailFor } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
-// jscpd:ignore-start
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-// jscpd:ignore-end
+/* jscpd:ignore-end */
 
 /** The organiser presses one of the list's Check in / Check out controls, and
  * is left looking at whatever page the site brought them to. */

@@ -65,7 +65,7 @@ describeWithEnv(
       expect(afterSecond.income).toBe(3000);
     });
 
-    test("admitTickets does not invalidate the listings cache", async () => {
+    test("moveTickets does not invalidate the listings cache", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 0,
@@ -80,7 +80,9 @@ describeWithEnv(
       const before = (await getAllListings()).find((e) => e.id === listing.id)!;
       expect(before.tickets_count).toBe(1);
 
-      await moveTickets("admit", attendee.id, listing.id, 1);
+      await moveTickets("admit", [
+        { attendeeId: attendee.id, count: 1, listingId: listing.id },
+      ]);
 
       const after = (await getAllListings()).find((e) => e.id === listing.id)!;
       expect(after).toBe(before); // same cached reference

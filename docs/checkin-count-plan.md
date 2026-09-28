@@ -65,7 +65,7 @@ owes.
 | ----------------------- | -------------------------------------------- | ---------------------------------------------------------- | -------------------- |
 | Nothing                 | Quantity is absent, not a number, or below 1 | Scan: 400 answer. Form: redirect with a message. No write. | Caller               |
 | Admit write             | Database error                               | The admit and its activity rows roll back together         | The door scans again |
-| Two doors admit at once | None                                         | Each admit adds its count. The SQL cap holds the bound.    | None                 |
+| Two doors admit at once | None                                         | Each admit adds what is left. The answer names that count. | None                 |
 
 ## Retry and replay
 
@@ -76,8 +76,11 @@ cannot admit twice.
 
 ## Concurrency
 
-- Two admits on one line: one `UPDATE` each. The write lock serialises them. The
-  statement `checked_in = MIN(quantity, checked_in + ?)` holds the bound.
+- Two admits on one line: each reads the lines and writes the new counts inside
+  one write transaction. The write lock serialises them, so the second admit
+  sees the first and takes only what is left.
+- A door that finds nothing left answers `already_checked_in` and logs nothing.
+  A door that finds less left than it planned answers the count it admitted.
 - A check-out that races an admit: the last write wins. A check-out is an
   explicit operator action, so no revision check is needed.
 
@@ -90,17 +93,20 @@ wording, not owner decisions.
 
 - The scan API keeps its scanner-level auth. The quantity page uses the same
   guard as the check-in POST route.
-- `quantity` is untrusted input. The admit accepts 1 and above, and the SQL cap
-  bounds it. A non-number or a value below 1 fails closed.
+- `quantity` is untrusted input. The admit accepts 1 and above, and the write
+  bounds it. A non-number, a fraction, digits with trailing text, or a value
+  below 1 fails closed.
 - No new personal data moves. The change stores and shows counts only.
 
 ## Shared contract
 
-- One write in `src/shared/db/attendees/update.ts`: `moveTickets` moves `count`
-  tickets in one direction — admit caps at
-  `checked_in = MIN(quantity, checked_in + ?)`, release floors at
-  `checked_in = MAX(0, checked_in - ?)`. The boolean helpers `updateCheckedIn`
-  and `updateCheckedInOnListings` are deleted.
+- One write in `src/shared/db/attendees/update.ts`: `moveTickets` moves a count
+  of tickets for each person and listing in one direction. One person can hold
+  several lines on one listing, for example two dates or two parents. The count
+  fills (or empties) those lines in booking order, so one ticket moves one
+  ticket. Admit stops at each line's quantity, and release stops at zero. The
+  write answers the count that really moved. The boolean helpers
+  `updateCheckedIn` and `updateCheckedInOnListings` are deleted.
 - `Attendee.checked_in` becomes a number in every view builder.
 - One pure helper builds the choice list 1 to N. The quantity page and the scan
   answer both use it. The camera overlay builds the same list from the `max` the
@@ -121,7 +127,8 @@ WHERE checked_in = 1
 ```
 
 Every line an operator marked as arrived held its full quantity in practice,
-because the old flag cannot record less. The statement is idempotent. The legacy
+because the old flag cannot record less. The migration runs before this build
+serves a request, so every stored `1` it reads is still a flag. The legacy
 restore path maps a stored `1` to `quantity` in the same way, so an old backup
 restores to count semantics.
 
@@ -162,7 +169,7 @@ The code below is the authority now. This section only points at it.
 
 | Concern             | Files and exported names                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| The count write     | `moveTickets(direction, attendeeId, listingId, count, tx?)` in `src/shared/db/attendees/update.ts`                                             |
+| The count write     | `moveTickets(direction, moves, tx?)` in `src/shared/db/attendees/update.ts`, `spreadTicketMoves` in `src/shared/booking/ticket-moves.ts`       |
 | The owed rule       | `remainingTickets` in `src/shared/booking/remaining-tickets.ts`                                                                                |
 | The scan rule       | `decideScan` with the `DoorAsk` object in `src/features/admin/scan-decision.ts`                                                                |
 | The scan routes     | `src/features/admin/scanner.ts` (`select_quantity` answer, per-unit admission)                                                                 |
@@ -172,10 +179,11 @@ The code below is the authority now. This section only points at it.
 | The count migration | `src/shared/db/migrations/2026-09-27_checked_in_count.ts`                                                                                      |
 | The reader sums     | `src/shared/db/listing-overview-stats.ts`, `countCheckedIn` in `src/ui/templates/admin/detail-rows.tsx`                                        |
 
-Two details differ from the contract's first draft, both simpler than it:
+Two details differ from the contract's first draft:
 
-- The write pair became one `moveTickets` call with a direction word, because
-  the two statements differed only in their SQL arms.
+- The write pair became one `moveTickets` call with a direction word. It reads
+  the lines inside its transaction and spreads each count over them, because a
+  bare `UPDATE` added the count to every line the person held on the listing.
 - The roster's Check In button posts an explicit `check_in` field, so a press
   never depends on the stored state to name its direction.
 

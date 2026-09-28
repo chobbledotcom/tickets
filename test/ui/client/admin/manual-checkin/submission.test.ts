@@ -118,7 +118,7 @@ describe("manual check-in submission", () => {
     expect(page.listbox.querySelectorAll("[data-token=ada]").length).toBe(0);
   });
 
-  test("a check-in with listings remaining keeps the person's option", async () => {
+  test("a check-in with tickets remaining keeps the person's option, showing what is left", async () => {
     const page = setup();
     page.tokenInput.value = "ada";
     using _fetch = stubFetch(
@@ -126,14 +126,16 @@ describe("manual check-in submission", () => {
         listingName: "Ceilidh",
         name: "Ada",
         quantity: 2,
-        remaining: 1,
+        remaining: 3,
         status: "checked_in",
       }),
     );
 
     await page.submit();
 
-    expect(page.listbox.querySelector("[data-token=ada]")).not.toBeNull();
+    const option = page.listbox.querySelector<HTMLElement>("[data-token=ada]")!;
+    expect(option.dataset.quantity).toBe("3");
+    expect(option.textContent).toBe("Ada (3 tickets) - ada");
     expect(page.tokenInput.value).toBe("");
     expect(page.input.value).toBe("");
   });

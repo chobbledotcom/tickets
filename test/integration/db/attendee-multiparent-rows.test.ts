@@ -66,16 +66,33 @@ describeWithEnv(
       expect(rows.every((r) => Number(r.quantity) === 1)).toBe(true);
     });
 
-    test("check-in flips every per-parent row of a listing together", async () => {
+    /** The admitted count on each per-parent row, in parent order. */
+    const countsFor = async (attendeeId: number, listingId: number) =>
+      (await rowsFor(attendeeId, listingId)).map((r) => Number(r.checked_in));
+
+    test("admitting one ticket moves one ticket across the per-parent rows", async () => {
       const { attendee, child } = await bookChildUnderTwoParents();
-      await moveTickets("admit", attendee.id, child.id, 1);
-      const checkedIn = await rowsFor(attendee.id, child.id);
-      // admitTickets keys on (attendee, listing), so BOTH per-parent rows
-      // flip — the wholesale semantic, consistent with a single quantity>1 row.
-      expect(checkedIn.every((r) => Number(r.checked_in) === 1)).toBe(true);
-      await moveTickets("release", attendee.id, child.id, 1);
-      const checkedOut = await rowsFor(attendee.id, child.id);
-      expect(checkedOut.every((r) => Number(r.checked_in) === 0)).toBe(true);
+      const move = { attendeeId: attendee.id, count: 1, listingId: child.id };
+
+      expect(await moveTickets("admit", [move])).toEqual([move]);
+      expect(await countsFor(attendee.id, child.id)).toEqual([1, 0]);
+
+      await moveTickets("admit", [move]);
+      expect(await countsFor(attendee.id, child.id)).toEqual([1, 1]);
+
+      // Both rows are full, so a third ticket has nowhere to go.
+      expect(await moveTickets("admit", [move])).toEqual([
+        { ...move, count: 0 },
+      ]);
+    });
+
+    test("releasing one ticket moves one ticket across the per-parent rows", async () => {
+      const { attendee, child } = await bookChildUnderTwoParents();
+      const move = { attendeeId: attendee.id, listingId: child.id };
+      await moveTickets("admit", [{ ...move, count: 2 }]);
+
+      await moveTickets("release", [{ ...move, count: 1 }]);
+      expect(await countsFor(attendee.id, child.id)).toEqual([0, 1]);
     });
   },
 );

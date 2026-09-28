@@ -281,7 +281,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(body).toContain('role="combobox"');
     });
 
-    test("datalist shows attendee quantity", async () => {
+    test("datalist shows the tickets each person still owes", async () => {
       const { listing } = await createTestAttendeeWithToken(
         "Dave Multi",
         "dave-multi@test.com",
@@ -289,16 +289,16 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         3,
       );
       const body = await getScannerBody(listing.id);
-      expect(body).toContain("3 attendees");
+      expect(body).toContain("Dave Multi (3 tickets)");
     });
 
-    test("datalist shows singular attendee for quantity 1", async () => {
+    test("datalist shows a single ticket in the singular", async () => {
       const { listing } = await createTestAttendeeWithToken(
         "Eve Single",
         "eve-single@test.com",
       );
       const body = await getScannerBody(listing.id);
-      expect(body).toContain("1 attendee)");
+      expect(body).toContain("Eve Single (1 ticket)");
     });
   });
 

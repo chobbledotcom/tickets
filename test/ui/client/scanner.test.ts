@@ -28,6 +28,13 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 const MODULE_MARKER = "__scannerModule";
 
 interface ScannerModule {
+  admitScan: (
+    scanPath: string,
+    token: string,
+    csrfToken: string,
+    statusEl: HTMLElement,
+    messages: Record<string, string>,
+  ) => Promise<void>;
   extractToken: (data: string) => string | null;
   handleResult: (
     el: HTMLElement,
@@ -102,7 +109,13 @@ const SCANNER_PAGE = `
   >
     <video data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
     <div id="scanner-status"></div>
-    <div id="scanner-confirm">
+    <div class="hidden" id="scanner-quantity">
+      <p id="scanner-quantity-message"></p>
+      <select id="scanner-quantity-select"></select>
+      <button id="scanner-quantity-confirm" type="button">Check in</button>
+      <button id="scanner-quantity-cancel" type="button">Cancel</button>
+    </div>
+    <div class="hidden" id="scanner-confirm">
       <button id="scanner-confirm-close" type="button">×</button>
       <p id="scanner-confirm-message"></p>
       <button id="scanner-confirm-yes" type="button">Yes</button>
@@ -118,6 +131,11 @@ const el = (document: Window["document"], id: string): HTMLElement => {
   const found = document.getElementById(id);
   if (!found) throw new Error(`The scanner page carries no ${id}`);
   return found as unknown as HTMLElement;
+};
+
+/** Let the stubbed scan answer until the page shows what the test waits on. */
+const waitFor = async (shown: () => boolean): Promise<void> => {
+  while (!shown()) await Promise.resolve();
 };
 
 const useScanner = (): ScannerHarness => {
@@ -292,6 +310,55 @@ describe("scanner bundle", {
       messages,
     );
     expect(h.statusEl.textContent).toBe("Scan failed");
+  });
+
+  test("keeps the override on every later ask, so a forced ticket can pick a count", async () => {
+    const h = fresh();
+    const answers = [
+      { listingName: "Standard", name: "Ada", status: "wrong_listing" },
+      { max: 3, name: "Ada", status: "select_quantity" },
+      {
+        listingName: "Standard",
+        name: "Ada",
+        quantity: 2,
+        status: "checked_in",
+        total: 2,
+      },
+    ];
+    const bodies: unknown[] = [];
+    using _fetch = stubFetch((_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json(answers[bodies.length - 1]);
+    });
+
+    const done = h.module.admitScan(
+      "/scan",
+      "tok",
+      "csrf",
+      h.statusEl,
+      h.messages,
+    );
+    await waitFor(
+      () => !el(h.document, "scanner-confirm").classList.contains("hidden"),
+    );
+    h.confirm.yes.click();
+    await waitFor(
+      () => !el(h.document, "scanner-quantity").classList.contains("hidden"),
+    );
+    (
+      el(h.document, "scanner-quantity-select") as unknown as HTMLSelectElement
+    ).value = "2";
+    el(h.document, "scanner-quantity-confirm").click();
+    await done;
+
+    expect(bodies).toEqual([
+      { token: "tok" },
+      { force: true, token: "tok" },
+      { force: true, quantity: 2, token: "tok" },
+    ]);
+    expect(h.statusEl.textContent).toBe(
+      "Ada checked in for Standard (2 tickets)",
+    );
   });
 
   test("asks the organiser before an override, and takes their answer", async () => {

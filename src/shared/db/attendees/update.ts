@@ -3,14 +3,22 @@
  */
 
 import { ledgerTx } from "#accounting/ledger-tx.ts";
+import {
+  type StoredTicketLine,
+  spreadTicketMoves,
+  type TicketDirection,
+  type TicketMove,
+} from "#booking/ticket-moves.ts";
 import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import {
   execute,
   executeBatch,
   executeUpdate,
+  inPlaceholders,
   queryAll,
   rawSql,
+  resultRows,
   type TxScope,
   update,
   useTransaction,
@@ -20,34 +28,42 @@ import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { clampDurationDays, type ListingType } from "#types";
 
-/** The two bounded ways a line's admitted count moves: admitting adds tickets
- * and caps at the line's quantity, releasing removes tickets and floors at
- * zero. One UPDATE each, so two doors that move tickets at the same time
- * cannot pass the line's bound. */
-const TICKET_MOVE_SQL = {
-  admit: "checked_in = MIN(quantity, checked_in + ?)",
-  release: "checked_in = MAX(0, checked_in - ?)",
-} as const;
-
 /**
- * Move `count` tickets on one booking line in one direction. A no-quantity
- * (quantity 0) line is not a ticket and never moves, mirroring the refunded
- * guard the routes apply first.
+ * Move tickets for each (person, listing) and answer what really moved. The
+ * lines are read inside the write transaction, so two doors that move
+ * tickets at the same time cannot pass a line's bounds. A no-quantity
+ * (quantity 0) line is not a ticket and never moves.
  */
-export const moveTickets = async (
-  direction: keyof typeof TICKET_MOVE_SQL,
-  attendeeId: number,
-  listingId: number,
-  count: number,
+export const moveTickets = (
+  direction: TicketDirection,
+  moves: readonly TicketMove[],
   transaction?: TxScope,
-): Promise<void> => {
-  await useTransaction(transaction, (tx) =>
-    tx.execute({
-      args: [count, attendeeId, listingId],
-      sql: `UPDATE listing_attendees SET ${TICKET_MOVE_SQL[direction]} WHERE attendee_id = ? AND listing_id = ? AND quantity > 0`,
-    }),
-  );
-};
+): Promise<TicketMove[]> =>
+  useTransaction(transaction, async (tx) => {
+    const attendeeIds = unique(moves.map((move) => move.attendeeId));
+    const listingIds = unique(moves.map((move) => move.listingId));
+    const lines = resultRows<StoredTicketLine>(
+      await tx.execute({
+        args: [...attendeeIds, ...listingIds],
+        sql: `SELECT id, attendee_id, listing_id, quantity, checked_in
+              FROM listing_attendees
+              WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
+                AND listing_id IN (${inPlaceholders(listingIds)})
+                AND quantity > 0
+              ORDER BY start_at, id`,
+      }),
+    );
+    const { changed, moved } = spreadTicketMoves(direction, lines, moves);
+    if (changed.length > 0) {
+      await tx.batch(
+        changed.map((line) => ({
+          args: [line.checked_in, line.id],
+          sql: "UPDATE listing_attendees SET checked_in = ? WHERE id = ?",
+        })),
+      );
+    }
+    return moved;
+  });
 
 /**
  * Set an attendee's status from the admin edit form (a plain column write,

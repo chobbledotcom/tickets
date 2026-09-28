@@ -52,7 +52,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(group.id);
 
-    expect(body).toContain("Sam (3 attendees)");
+    expect(body).toContain("Sam (3 tickets)");
     expect(body.match(/role="option"/g)?.length).toBe(1);
   });
 

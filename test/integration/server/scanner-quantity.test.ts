@@ -5,10 +5,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
+import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { beforeNextTransaction } from "#test-utils/record-queries.ts";
 import {
   requestAsSession,
   testCookie,
@@ -93,5 +96,67 @@ describeWithEnv("scan quantity guards", { db: true }, () => {
     expect(result.status).toBe("checked_in");
     expect(result.quantity).toBe(1);
     expect(result.total).toBe(1);
+  });
+
+  /** What the scanner wrote to the listing's activity log. */
+  const activityMessages = async (listingId: number): Promise<string[]> =>
+    (await getListingActivityLog(listingId))
+      .map((entry) => entry.message)
+      .filter((message) => message.includes("via scanner"));
+
+  /** Another door admits `count` of the line's tickets just before this
+   * scan's write, after this scan already read the line. */
+  const otherDoorAdmitsFirst = (listingId: number, count: number) =>
+    beforeNextTransaction(async () => {
+      await execute(
+        "UPDATE listing_attendees SET checked_in = checked_in + ? WHERE listing_id = ?",
+        [count, listingId],
+      );
+    });
+
+  test("a scan another door beat to the last ticket answers already checked in", async () => {
+    const { listing, token, session } = await setupScanTest(
+      "Race",
+      "race@test.com",
+    );
+
+    const restore = otherDoorAdmitsFirst(listing.id, 1);
+    const result = await scanAndGetJson(
+      listing.id,
+      { token },
+      session.cookie,
+      session.csrfToken,
+    ).finally(restore);
+
+    expect(result.status).toBe("already_checked_in");
+    expect(await activityMessages(listing.id)).toEqual([]);
+  });
+
+  test("a pick another door partly beat admits and reports only what was left", async () => {
+    const { listing, token } = await createTestAttendeeWithToken(
+      "Party",
+      "party@test.com",
+      {},
+      3,
+    );
+    const session = {
+      cookie: await testCookie(),
+      csrfToken: await testCsrfToken(),
+    };
+
+    const restore = otherDoorAdmitsFirst(listing.id, 2);
+    const result = await scanAndGetJson(
+      listing.id,
+      { quantity: 3, token },
+      session.cookie,
+      session.csrfToken,
+    ).finally(restore);
+
+    expect(result.status).toBe("checked_in");
+    expect(result.quantity).toBe(1);
+    expect(result.remaining).toBe(0);
+    expect(await activityMessages(listing.id)).toEqual([
+      `Attendee checked in 1 ticket via scanner for '${listing.name}'`,
+    ]);
   });
 });

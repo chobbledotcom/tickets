@@ -77,7 +77,9 @@ describeWithEnv(
           "Arrived",
           "arrived@example.com",
         );
-        await moveTickets("admit", attendee.id, listing.id, 1);
+        await moveTickets("admit", [
+          { attendeeId: attendee.id, count: 1, listingId: listing.id },
+        ]);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await expectHtmlResponse(response, 200, "Bookings");

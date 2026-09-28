@@ -11,6 +11,7 @@ import {
   type DisplayAttendee,
   hasTicketQuantity,
 } from "#types";
+
 /** A no-quantity row has no live customer ticket and cannot be checked in. */
 export const noQuantityIndicator = (): JSX.Element => (
   <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>

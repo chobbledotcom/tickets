@@ -50,9 +50,8 @@ describeWithEnv("group scanner multi-ticket scans", { db: true }, () => {
       expect(json.status).toBe("checked_in");
       expect(json.quantity).toBe(2);
       expect(json.total).toBe(3);
-      // The line still owes one ticket, and a line owing exactly one admits
-      // straight in — no ask, no leftover.
-      expect(json.remaining).toBe(0);
+      // The line still owes one ticket, so the manual list keeps Bea.
+      expect(json.remaining).toBe(1);
       const again = await scanAtDoor(group.id, { token: ticket.ticket_token });
       expect(again.json.status).toBe("checked_in");
       expect(again.json.quantity).toBe(1);

@@ -182,7 +182,7 @@ describe("decideScan", () => {
     const row = standard({ quantity: 4 });
     expect(scanAt([row], { count: 2 })).toEqual({
       kind: "admit",
-      remaining: 0,
+      remaining: 2,
       rows: [row],
       units: [{ rows: [row], tickets: 2 }],
     });
@@ -203,7 +203,7 @@ describe("decideScan", () => {
     const two = society({ quantity: 2 });
     expect(scanAt([four, two], { checkEvery: true, count: 3 })).toEqual({
       kind: "admit",
-      remaining: 0,
+      remaining: 1,
       rows: [four, two],
       units: [
         { rows: [four], tickets: 3 },

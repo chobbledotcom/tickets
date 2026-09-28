@@ -225,8 +225,8 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       // release form while nothing is admitted.
       expect(html).toContain(`Cara Party, ${listing.name}`);
       expect(html).toContain("Tickets to check in");
+      expect(html).toContain(`<option selected value="3">3 tickets`);
       for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
-        expect(html).toContain(`<option selected value="3">3 tickets`);
         expect(html).toContain(`>${option}</option>`);
       }
       expect(html).not.toContain("Tickets to check out");
@@ -312,6 +312,19 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         { quantity: "two" },
       );
       expectFlash(response, "Invalid ticket count", false);
+      expect(await storedCount(listing.id, attendee.id)).toBe(0);
+    });
+
+    test("refuses a count with anything after its digits", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+
+      for (const quantity of ["2tickets", "1.5", "1e2"]) {
+        const { response } = await adminFormPost(
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+          { quantity },
+        );
+        expectFlash(response, "Invalid ticket count", false);
+      }
       expect(await storedCount(listing.id, attendee.id)).toBe(0);
     });
   });

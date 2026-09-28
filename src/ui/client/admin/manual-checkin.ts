@@ -197,14 +197,24 @@ export const initManualCheckin = (): void => {
       )}${idNote}`,
       "success",
     );
-    // A scan admits one listing at a time unless the group says otherwise,
-    // so a person with more listings to check in keeps their option.
+    // A person the door still owes tickets keeps their option, showing
+    // what is left: part of a party, or listings a scan did not cover.
     const remaining = Number(result.remaining);
-    const fullyCheckedIn = !Number.isFinite(remaining) || remaining === 0;
     for (const opt of allOptions()) {
-      if (opt.dataset.token === token && fullyCheckedIn) {
+      if (opt.dataset.token !== token) continue;
+      if (!(remaining > 0)) {
         opt.remove();
+        continue;
       }
+      opt.dataset.quantity = String(remaining);
+      opt.textContent = interpolate(
+        getMessage("messageTicketOption", "{name} ({tickets}) — {token}"),
+        {
+          name: opt.dataset.name,
+          tickets: formatTicketCount(remaining),
+          token,
+        },
+      );
     }
     tokenInput.value = "";
     input.value = "";

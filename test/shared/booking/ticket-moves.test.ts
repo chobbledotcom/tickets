@@ -1,0 +1,92 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  type StoredTicketLine,
+  spreadTicketMoves,
+  ticketCount,
+} from "#booking/ticket-moves.ts";
+
+/** One stored line for person 1 on listing 10 unless the test says otherwise. */
+const line = (
+  id: number,
+  quantity: number,
+  checkedIn: number,
+  extra: Partial<StoredTicketLine> = {},
+): StoredTicketLine => ({
+  attendee_id: 1,
+  checked_in: checkedIn,
+  id,
+  listing_id: 10,
+  quantity,
+  ...extra,
+});
+
+const move = (count: number) => ({ attendeeId: 1, count, listingId: 10 });
+
+describe("booking > ticket moves", () => {
+  test("admitting fills the first line before the next", () => {
+    expect(
+      spreadTicketMoves("admit", [line(1, 2, 1), line(2, 3, 0)], [move(3)]),
+    ).toEqual({
+      changed: [
+        { checked_in: 2, id: 1 },
+        { checked_in: 2, id: 2 },
+      ],
+      moved: [move(3)],
+    });
+  });
+
+  test("releasing empties the first line before the next", () => {
+    expect(
+      spreadTicketMoves("release", [line(1, 2, 1), line(2, 3, 3)], [move(2)]),
+    ).toEqual({
+      changed: [
+        { checked_in: 0, id: 1 },
+        { checked_in: 2, id: 2 },
+      ],
+      moved: [move(2)],
+    });
+  });
+
+  test("a move answers only what the lines had room for", () => {
+    const admitted = spreadTicketMoves("admit", [line(1, 2, 1)], [move(5)]);
+    expect(admitted.moved).toEqual([move(1)]);
+    const released = spreadTicketMoves("release", [line(1, 2, 1)], [move(5)]);
+    expect(released.moved).toEqual([move(1)]);
+  });
+
+  test("a full line is not changed", () => {
+    expect(spreadTicketMoves("admit", [line(1, 2, 2)], [move(1)])).toEqual({
+      changed: [],
+      moved: [move(0)],
+    });
+  });
+
+  test("two moves on the same lines see each other's tickets", () => {
+    const { changed, moved } = spreadTicketMoves(
+      "admit",
+      [line(1, 2, 0), line(2, 2, 0)],
+      [move(2), move(2)],
+    );
+    expect(moved).toEqual([move(2), move(2)]);
+    expect(changed).toEqual([
+      { checked_in: 2, id: 1 },
+      { checked_in: 2, id: 2 },
+    ]);
+  });
+
+  test("a move touches only its own person and listing", () => {
+    const lines = [
+      line(1, 2, 0, { attendee_id: 2 }),
+      line(2, 2, 0, { listing_id: 11 }),
+      line(3, 2, 0),
+    ];
+    expect(spreadTicketMoves("admit", lines, [move(1)]).changed).toEqual([
+      { checked_in: 1, id: 3 },
+    ]);
+  });
+
+  test("counts the tickets a set of moves covers", () => {
+    expect(ticketCount([move(2), move(0), move(3)])).toBe(5);
+  });
+});

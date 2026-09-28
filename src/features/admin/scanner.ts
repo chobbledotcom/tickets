@@ -33,6 +33,7 @@ import {
   getRequestPrivateKey,
   requireRequestPrivateKey,
 } from "#shared/session-private-key.ts";
+import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import {
   adminScannerPage,
   type TicketOption,
@@ -198,37 +199,55 @@ const scanBody = (
   total: lineTickets([...rows]),
 });
 
+/** The answer for a ticket whose lines owe nothing more. */
+const alreadyCheckedIn = (
+  rows: readonly TokenEntry[],
+  attendeeName: string,
+): Response =>
+  jsonResponse(
+    scanBody(rows, attendeeName, "already_checked_in", lineTickets([...rows])),
+  );
+
 /** Perform one scan's whole admission as one transaction: every unit's
- * admit and the activity rows for each admitted listing carry that
- * listing's own name and count, so each listing's record of the day shows
- * its own check-ins. A failure in either write rolls both back, so a
- * check-in never lands without its activity record. */
-const performCheckIns = async (
+ * admit, and one activity row per listing that really admitted tickets,
+ * carrying that listing's own name and count. A failure in either write
+ * rolls both back, so a check-in never lands without its activity record.
+ * Answers the tickets the lines really took, which is less than planned
+ * when another door admitted some of them first. */
+const performCheckIns = (
   attendeeId: number,
   units: readonly ScanUnit[],
-): Promise<void> => {
-  await withTransaction(async (tx) => {
-    for (const unit of units) {
-      await moveTickets(
-        "admit",
-        attendeeId,
-        unit.rows[0]!.listing.id,
-        unit.tickets,
-        tx,
-      );
-    }
-    await logActivities(
+): Promise<number> =>
+  withTransaction(async (tx) => {
+    const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
+    const moved = await moveTickets(
+      "admit",
       units.map((unit) => ({
         attendeeId,
-        listing: unit.rows[0]!.listing.id,
-        message: `Attendee checked in ${unit.tickets} ticket${
-          unit.tickets === 1 ? "" : "s"
-        } via scanner for '${unit.rows[0]!.listing.name}'`,
+        count: unit.tickets,
+        listingId: listingOf(unit).id,
       })),
       tx,
     );
+    const admitted = units
+      .map((unit, index) => ({
+        listing: listingOf(unit),
+        tickets: moved[index]!.count,
+      }))
+      .filter(({ tickets }) => tickets > 0);
+    await logActivities(
+      admitted.map(({ listing, tickets }) => ({
+        attendeeId,
+        listing: listing.id,
+        message: `Attendee checked in ${tickets} ticket${
+          tickets === 1 ? "" : "s"
+        } via scanner for '${listing.name}'`,
+      })),
+      tx,
+    );
+    return sumOf(({ tickets }: { tickets: number }) => tickets)(admitted);
   });
-};
+
 /** Resolve a token against one door's scope and perform its scan decision. */
 const scanToken = async (
   scope: ScanScope,
@@ -259,14 +278,7 @@ const scanToken = async (
     case "refunded":
       return jsonResponse({ name: attendeeName, status: "refunded" });
     case "already_checked_in":
-      return jsonResponse(
-        scanBody(
-          decision.live,
-          attendeeName,
-          "already_checked_in",
-          lineTickets([...decision.live]),
-        ),
-      );
+      return alreadyCheckedIn(decision.live, attendeeName);
     case "verify_id":
       return jsonResponse(
         scanBody(
@@ -284,14 +296,14 @@ const scanToken = async (
         status: "select_quantity",
       });
     case "admit": {
-      await performCheckIns(decision.rows[0]!.attendee.id, decision.units);
+      const admitted = await performCheckIns(
+        decision.rows[0]!.attendee.id,
+        decision.units,
+      );
+      // Another door took every ticket this scan planned to admit.
+      if (admitted === 0) return alreadyCheckedIn(decision.rows, attendeeName);
       return jsonResponse({
-        ...scanBody(
-          decision.rows,
-          attendeeName,
-          "checked_in",
-          sumOf((unit: ScanUnit) => unit.tickets)([...decision.units]),
-        ),
+        ...scanBody(decision.rows, attendeeName, "checked_in", admitted),
         remaining: decision.remaining,
       });
     }
@@ -299,10 +311,10 @@ const scanToken = async (
 };
 
 /** A door's quantity pick: a whole number of tickets, at least one. Anything
- * else fails closed — the cap at the line's quantity is the SQL write's
- * guard, not a reason to silently fix a bad input here. */
+ * else fails closed — the cap at what the lines owe is moveTickets' guard,
+ * not a reason to silently fix a bad input here. */
 const isAdmitCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= 1;
+  typeof value === "number" && isPositiveSafeInteger(value);
 
 /** Validate scan controls and load the request's decryption key. */
 const processScan = async (

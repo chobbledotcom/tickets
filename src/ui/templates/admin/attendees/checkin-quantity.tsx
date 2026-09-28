@@ -3,10 +3,12 @@
  * release, then submit. The check-in select offers what the line still
  * owes; the check-out select offers what it still holds admitted. */
 
+import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
+import { ticketCountText } from "#templates/admin/scanner.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import type { AdminSession, DisplayAttendee } from "#types";
 
@@ -43,12 +45,7 @@ const CountForm = ({
         const count = index + 1;
         return (
           <option selected={count === max} value={String(count)}>
-            {t(
-              count === 1
-                ? "admin.scanner.ticket_count_one"
-                : "admin.scanner.ticket_count_other",
-              { count },
-            )}
+            {ticketCountText(count)}
           </option>
         );
       })}
@@ -71,7 +68,7 @@ export const attendeeCheckinQuantityPage = ({
   returnUrl: string | undefined;
   session: AdminSession;
 }): string => {
-  const remaining = attendee.quantity - attendee.checked_in;
+  const remaining = remainingTickets(attendee);
   const headingKey =
     remaining > 0
       ? "admin.checkin_quantity.title_in"

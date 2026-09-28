@@ -150,7 +150,9 @@ describeWithEnv(
           "Badge User",
           "badge@example.com",
         );
-        await moveTickets("admit", attendee.id, listing.id, 1);
+        await moveTickets("admit", [
+          { attendeeId: attendee.id, count: 1, listingId: listing.id },
+        ]);
         invalidateListingsCache();
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         await expectHtmlResponse(response, 200, "Checked in");

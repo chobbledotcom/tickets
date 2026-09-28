@@ -3,6 +3,7 @@
  * quantity 1 toggle submit. One module so the listing-scoped attendee routes
  * file stays under its line budget. */
 
+import { ticketCount } from "#booking/ticket-moves.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
 import { moveTickets } from "#db/attendees/update.ts";
@@ -10,6 +11,7 @@ import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { attendeeCheckinQuantityPage } from "#templates/admin/attendees/checkin-quantity.tsx";
 import {
   attendeeFormAction,
@@ -87,24 +89,23 @@ export const handleAttendeeCheckin = attendeeFormAction(
     const checkIn = form.getString("check_in") !== "false";
     const rawCount = form.getString("quantity");
     const count =
-      rawCount === "" ? data.attendee.quantity : Number.parseInt(rawCount, 10);
+      rawCount === "" ? data.attendee.quantity : parsePositiveInt(rawCount);
     const target = rosterLanding(form, listingId);
 
-    if (!Number.isInteger(count) || count < 1) {
+    if (count === null) {
       return redirect(target, "Invalid ticket count", false, { form });
     }
 
     // admit caps at the line's quantity and release stops at zero, so a
     // stale page's count cannot overshoot either direction.
-    await moveTickets(
-      checkIn ? "admit" : "release",
-      attendeeId,
-      listingId,
-      count,
+    const moved = ticketCount(
+      await moveTickets(checkIn ? "admit" : "release", [
+        { attendeeId, count, listingId },
+      ]),
     );
 
     const status = checkIn ? "in" : "out";
-    const tickets = `${count} ticket${count === 1 ? "" : "s"}`;
+    const tickets = `${moved} ticket${moved === 1 ? "" : "s"}`;
     await logActivity(
       `Attendee checked ${status} ${tickets} for '${data.listing.name}'`,
       listingId,

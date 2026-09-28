@@ -11,7 +11,8 @@ import type { TokenEntry } from "#routes/tickets/token-utils.ts";
  * how many tickets it admits on them — never more than those rows owe. */
 export type ScanUnit = { rows: TokenEntry[]; tickets: number };
 
-/** What one scan decided. */
+/** What one scan decided. An admit's `remaining` is every ticket the
+ * door's listings still owe the person after this scan. */
 export type ScanDecision =
   | { kind: "admit"; remaining: number; rows: TokenEntry[]; units: ScanUnit[] }
   | { kind: "select_quantity"; max: number; rows: TokenEntry[] }
@@ -109,13 +110,15 @@ export const decideScan = (
     return { kind: "select_quantity", max: Math.max(...perListing), rows };
   }
   const share = count ?? 1;
+  const units = admitted.map((unitRows, index) => ({
+    rows: unitRows,
+    tickets: Math.min(share, perListing[index]!),
+  }));
   return {
     kind: "admit",
-    remaining: owed.length - admitted.length,
+    remaining:
+      sumOf(owedTickets)(owed) - sumOf((unit: ScanUnit) => unit.tickets)(units),
     rows,
-    units: admitted.map((unitRows, index) => ({
-      rows: unitRows,
-      tickets: Math.min(share, perListing[index]!),
-    })),
+    units,
   };
 };

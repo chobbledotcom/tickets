@@ -21,6 +21,7 @@ const CHECKIN_FORM = `
     data-message-skipped="Skipped {name}"
     data-message-ticket-count-one="{count} pass"
     data-message-ticket-count-other="{count} tickets"
+    data-message-ticket-option="{name} ({tickets}) - {token}"
     data-message-verify-id-note=" - check ID"
     data-scan-path="/admin/listing/7/scan"
   >

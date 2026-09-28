@@ -51,6 +51,19 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('data-name="Sam"');
   });
 
+  test("escapes a person's name once, so the list shows it as typed", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [{ name: "Tom & Jo", quantity: 2, token: "tj-token" }],
+    );
+
+    expect(html).toContain('data-name="Tom &amp; Jo"');
+    expect(html).toContain("Tom &amp; Jo (2 tickets) — tj-token");
+    expect(html).not.toContain("&amp;amp;");
+  });
+
   test("says when nobody is left to check in", () => {
     const html = adminScannerPage(
       { name: "Doors" },
@@ -176,7 +189,12 @@ describe("the admin scanner page template", () => {
       1,
     );
 
-    // The manual pick-up's own note.
+    // The manual pick-up's own messages.
+    carried(
+      "ticket-option",
+      t("admin.scanner.ticket_option", holes("name", "tickets", "token")),
+      1,
+    );
     carried("verify-id-note", t("admin.scanner.verify_id_note"), 1);
   });
 

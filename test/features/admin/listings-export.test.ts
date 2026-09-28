@@ -27,7 +27,9 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       "alice@example.com",
     );
     await createTestAttendeeDirect(listing.id, "BobOut", "bob@example.com");
-    await moveTickets("admit", alice.id, listing.id, 1);
+    await moveTickets("admit", [
+      { attendeeId: alice.id, count: 1, listingId: listing.id },
+    ]);
     return listing;
   };
 

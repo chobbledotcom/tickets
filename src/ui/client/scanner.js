@@ -132,6 +132,60 @@ const handleResult = (el, result, messages) => {
   }
 };
 
+/** Scan one token and settle it with the door: each ask is one
+ * confirmation, then one re-POST. A wrong listing widens the door, an ID
+ * check confirms the person, and a quantity ask picks how many tickets this
+ * scan admits. Every later POST carries every answer the door already gave,
+ * so nothing re-asks and nothing is lost. */
+const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
+  let answer = await postScan(scanPath, token, csrfToken);
+  const given = {};
+  while (true) {
+    if (answer.status === "wrong_listing" && !given.force) {
+      const ok = await showConfirm(
+        interpolate(
+          getMessage(
+            messages,
+            "messageWrongListingConfirm",
+            '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+          ),
+          { listingName: answer.listingName, name: answer.name },
+        ),
+      );
+      if (!ok) {
+        skipPerson(statusEl, messages, answer.name);
+        return;
+      }
+      given.force = true;
+    } else if (answer.status === "verify_id" && !given.idVerified) {
+      const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: answer.name }));
+      if (!ok) {
+        showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
+        return;
+      }
+      given.idVerified = true;
+    } else if (answer.status === "select_quantity") {
+      const count = await showQuantitySelect(
+        answer.max,
+        interpolate(
+          getMessage(messages, "messageSelectQuantity", "How many tickets for {name}?"),
+          { name: answer.name },
+        ),
+        (count) => formatTicketCount(messages, count),
+      );
+      if (!count) {
+        skipPerson(statusEl, messages, answer.name);
+        return;
+      }
+      given.quantity = count;
+    } else {
+      handleResult(statusEl, answer, messages);
+      return;
+    }
+    answer = await postScan(scanPath, token, csrfToken, given);
+  }
+};
+
 /** Main scanner loop */
 const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) => {
   const ctx = canvas.getContext("2d");
@@ -184,66 +238,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    // Each ask is one confirmation, then one re-POST: a wrong listing
-    // widens the door, an ID check confirms the person, and a quantity ask
-    // picks how many tickets this scan admits. Every later POST carries the
-    // answers the door already gave, so nothing re-asks.
-    postScan(scanPath, token, csrfToken)
-      .then(async (initial) => {
-        let answer = initial;
-        let forced = false;
-        let idVerified = false;
-        while (true) {
-          if (answer.status === "wrong_listing" && !forced) {
-            const ok = await showConfirm(
-              interpolate(
-                getMessage(
-                  messages,
-                  "messageWrongListingConfirm",
-                  '{name} is registered for "{listingName}", not this listing. Check in anyway?',
-                ),
-                { listingName: answer.listingName, name: answer.name },
-              ),
-            );
-            if (!ok) {
-              skipPerson(statusEl, messages, answer.name);
-              return;
-            }
-            forced = true;
-            answer = await postScan(scanPath, token, csrfToken, { force: true });
-          } else if (answer.status === "verify_id" && !idVerified) {
-            const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: answer.name }));
-            if (!ok) {
-              showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
-              return;
-            }
-            idVerified = true;
-            answer = await postScan(scanPath, token, csrfToken, {
-              idVerified: true,
-            });
-          } else if (answer.status === "select_quantity") {
-            const count = await showQuantitySelect(
-              answer.max,
-              interpolate(
-                getMessage(messages, "messageSelectQuantity", "How many tickets for {name}?"),
-                { name: answer.name },
-              ),
-              (count) => formatTicketCount(messages, count),
-            );
-            if (!count) {
-              skipPerson(statusEl, messages, answer.name);
-              return;
-            }
-            answer = await postScan(scanPath, token, csrfToken, {
-              idVerified,
-              quantity: count,
-            });
-          } else {
-            handleResult(statusEl, answer, messages);
-            return;
-          }
-        }
-      })
+    admitScan(scanPath, token, csrfToken, statusEl, messages)
       .catch(() => {
         showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
       })
@@ -348,4 +343,4 @@ if (document.readyState === "loading") {
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the
 // direct test drives through the built bundle.
-export { extractToken, handleResult, postScan, showConfirm };
+export { admitScan, extractToken, handleResult, postScan, showConfirm };

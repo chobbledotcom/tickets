@@ -4,7 +4,7 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { remainingTickets } from "#booking/remaining-tickets.ts";
+import { ticketCount } from "#booking/ticket-moves.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
@@ -16,7 +16,7 @@ import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 /* jscpd:ignore-end */
 /* jscpd:ignore-start */
-import { filter, map, sumOf } from "#fp";
+import { filter, map } from "#fp";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -56,16 +56,12 @@ const formatTicketCount = (count: number): string => {
 const checkinPath = (tokens: string[]): string =>
   `/checkin/${tokens.join("+")}`;
 
-const sumTicketCount = (
-  attendees: Attendee[],
-  include: (attendee: Attendee) => boolean = () => true,
-): number => {
-  let total = 0;
-  for (const attendee of attendees) {
-    if (include(attendee)) total += attendee.quantity;
-  }
-  return total;
-};
+/** What "Check In All" tells the door: the tickets it admitted, or that
+ * every ticket on the token was already in. */
+const admitMessage = (admitted: number, total: number): string =>
+  admitted === 0
+    ? `Already checked in ${formatTicketCount(total)}`
+    : `Checked in ${formatTicketCount(admitted)}`;
 
 /** Decrypt entries' attendees using the current request's private key */
 const decryptEntries = async (entries: TokenEntry[]): Promise<TokenEntry[]> => {
@@ -180,27 +176,18 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
         );
       }
 
-      const totalTickets = sumTicketCount(eligible);
-      const owedTickets = sumOf((a: Attendee) => remainingTickets(a))(eligible);
-      await Promise.all(
-        map((a: Attendee) =>
-          moveTickets(
-            checkedIn ? "admit" : "release",
-            a.id,
-            a.listing_id,
-            a.quantity,
-          ),
-        )(eligible),
+      const moves = map((a: Attendee) => ({
+        attendeeId: a.id,
+        count: a.quantity,
+        listingId: a.listing_id,
+      }))(eligible);
+      const moved = ticketCount(
+        await moveTickets(checkedIn ? "admit" : "release", moves),
       );
 
-      let message: string;
-      if (!checkedIn) {
-        message = "Checked out";
-      } else if (owedTickets === 0) {
-        message = `Already checked in ${formatTicketCount(totalTickets)}`;
-      } else {
-        message = `Checked in ${formatTicketCount(owedTickets)}`;
-      }
+      const message = checkedIn
+        ? admitMessage(moved, ticketCount(moves))
+        : "Checked out";
       return redirectResponse(
         `${checkinPath(tokens)}?message=${encodeURIComponent(message)}`,
       );
