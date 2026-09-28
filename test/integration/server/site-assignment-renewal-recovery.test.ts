@@ -33,6 +33,24 @@ describeWithEnv(
         unitPrice,
       });
 
+    /** Run one assignment with the RENEWAL_URL push failing, so the token
+     * stands reserved but unconfirmed, and return the named site's state. */
+    const runFailedFirstPush = async (
+      firstRun: () => Promise<void>,
+      siteName: string,
+    ): Promise<import("#db/built-sites/types.ts").BuiltSite> => {
+      suite.secretStub.restore();
+      const failStub = failingRenewalUrlPush();
+      await firstRun();
+      const afterFirst = (await builtSites.getAll()).find(
+        (s) => s.name === siteName,
+      )!;
+      expect(afterFirst.renewalTokenIndex).not.toBeNull();
+      expect(afterFirst.readOnlyFrom).toBe("");
+      failStub.restore();
+      return afterFirst;
+    };
+
     /** Run one assignment with the RENEWAL_URL push failing, assert the
      * claim stands with its token reserved but unconfirmed, then re-run with
      * pushes working and return the named site's state after each run. */
@@ -44,16 +62,8 @@ describeWithEnv(
       afterFirst: import("#db/built-sites/types.ts").BuiltSite;
       afterResend: import("#db/built-sites/types.ts").BuiltSite;
     }> => {
-      suite.secretStub.restore();
-      const failStub = failingRenewalUrlPush();
-      await firstRun();
-      const afterFirst = (await builtSites.getAll()).find(
-        (s) => s.name === siteName,
-      )!;
+      const afterFirst = await runFailedFirstPush(firstRun, siteName);
       expect(afterFirst.assignedAttendeeId).not.toBeNull();
-      expect(afterFirst.renewalTokenIndex).not.toBeNull();
-      expect(afterFirst.readOnlyFrom).toBe("");
-      failStub.restore();
       const okStub = stubEdgeSecretSuccess();
       try {
         await resend();
@@ -126,29 +136,8 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
         await createTierListing();
 
-        // First run: the renewal push fails, so the claim stands with the
-        // buyer's 9-month term stamped and unconfirmed.
-        suite.secretStub.restore();
-        const failStub = failingRenewalUrlPush();
-        await assignAndNotifyBuiltSites([
-          siteEntry({
-            attendeeId: 10,
-            initialSiteMonths: 3,
-            quantity: 3,
-            siteMonths: 9,
-          }),
-        ]);
-        failStub.restore();
-        const afterFirst = (await builtSites.getAll()).find(
-          (s) => s.name === "Site A",
-        )!;
-        expect(afterFirst.renewalTokenIndex).not.toBeNull();
-        expect(afterFirst.readOnlyFrom).toBe("");
-
-        // The owner retunes the plan to 1 month, then the resend confirms.
-        const okStub = stubEdgeSecretSuccess();
-        try {
-          await assignAndNotifyBuiltSites([
+        const retunedEntry = () =>
+          assignAndNotifyBuiltSites([
             siteEntry({
               attendeeId: 10,
               initialSiteMonths: 1,
@@ -156,6 +145,23 @@ describeWithEnv(
               siteMonths: 9,
             }),
           ]);
+        const afterFirst = await runFailedFirstPush(
+          () =>
+            assignAndNotifyBuiltSites([
+              siteEntry({
+                attendeeId: 10,
+                initialSiteMonths: 3,
+                quantity: 3,
+                siteMonths: 9,
+              }),
+            ]),
+          "Site A",
+        );
+
+        // The owner retunes the plan to 1 month, then the resend confirms.
+        const okStub = stubEdgeSecretSuccess();
+        try {
+          await retunedEntry();
           const afterResend = (await builtSites.getAll()).find(
             (s) => s.name === "Site A",
           )!;
@@ -176,15 +182,10 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
 
         // First run: the push fails, so the token stands reserved unconfirmed.
-        suite.secretStub.restore();
-        const failStub = failingRenewalUrlPush();
-        await assignAndNotifyBuiltSites([siteEntry()]);
-        failStub.restore();
-        const afterFirst = (await builtSites.getAll()).find(
-          (s) => s.name === "Site A",
-        )!;
-        expect(afterFirst.renewalTokenIndex).not.toBeNull();
-        expect(afterFirst.readOnlyFrom).toBe("");
+        await runFailedFirstPush(
+          () => assignAndNotifyBuiltSites([siteEntry()]),
+          "Site A",
+        );
 
         // Two resends race to complete the renewal. Both must push the
         // reserved token — the database and the provider cannot end up on
