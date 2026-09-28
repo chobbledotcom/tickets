@@ -71,5 +71,6 @@ describe("accounts guide schema", () => {
     expect(html).toContain(
       "Because there is <strong>no password recovery</strong>",
     );
+    expect(html).toContain("(see <strong>Data &amp; Privacy</strong>)");
   });
 });
