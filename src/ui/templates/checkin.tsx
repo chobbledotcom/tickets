@@ -38,6 +38,72 @@ const DOOR_SAFE_COLUMNS: TableLayout<AttendeeColumnKey> = {
   filters: new Map(),
 };
 
+const bulkForm = (
+  checkinPath: string,
+  label: string,
+  buttonClass: string,
+  nextValue: string,
+): JSX.Element => (
+  <CsrfForm action={checkinPath}>
+    <SubmitWithHidden
+      buttonClass={buttonClass}
+      label={label}
+      name="check_in"
+      value={nextValue}
+    />
+  </CsrfForm>
+);
+
+/** The door-only bulk forms: no per-row controls, so both actions stay
+ * available and each renders only when its POST could change a row — admit
+ * a waiting party, or undo the check-ins a door made. */
+const doorBulkForms = (
+  checkinPath: string,
+  heading: JSX.Element,
+  anyCheckedIn: boolean,
+  allCheckedIn: boolean,
+): JSX.Element => (
+  <>
+    {heading}
+    {!allCheckedIn &&
+      bulkForm(
+        checkinPath,
+        t("admin.checkin.check_in_all"),
+        "bulk-checkin",
+        "true",
+      )}
+    {anyCheckedIn &&
+      bulkForm(
+        checkinPath,
+        t("admin.checkin.check_out_all"),
+        "bulk-checkout",
+        "false",
+      )}
+  </>
+);
+
+/** The staff bulk form: one flipping button beside their per-row controls,
+ * offering checkout only once every eligible row is in. */
+const staffBulkForm = (
+  checkinPath: string,
+  heading: JSX.Element,
+  offerCheckout: boolean,
+): JSX.Element => (
+  <CsrfForm action={checkinPath}>
+    {heading}
+    <SubmitWithHidden
+      buttonClass={offerCheckout ? "bulk-checkout" : "bulk-checkin"}
+      label={
+        offerCheckout
+          ? t("admin.checkin.check_out_all")
+          : t("admin.checkin.check_in_all")
+      }
+      name="check_in"
+      value={offerCheckout ? "false" : "true"}
+    />
+  </CsrfForm>
+);
+
 export const checkinAdminPage = (
   entries: TokenEntry[],
   checkinPath: string,
@@ -63,74 +129,32 @@ export const checkinAdminPage = (
     (e) => !e.attendee.refunded && !e.listing.purchase_only,
   );
   const anyEligibleCheckedIn = eligibleRows.some((e) => e.attendee.checked_in);
-  const allEligibleCheckedIn = eligibleRows.length > 0 &&
-    eligibleRows.every((e) => e.attendee.checked_in);
-  // A door-only login has no per-row controls, so both bulk actions stay
-  // available and each renders only when it could change a row: admit the
-  // party, or undo the check-ins a door made — a mixed ticket shows both.
-  // Staff keep the single flipping button beside their per-row controls:
-  // checkout only once every eligible row is in.
-  const staffOfferCheckout = options.linkAdminPages && allEligibleCheckedIn;
-  const checkinForm = (
-    label: string,
-    buttonClass: string,
-    nextValue: string,
-  ): JSX.Element => (
-    <CsrfForm action={checkinPath}>
-      <SubmitWithHidden
-        buttonClass={buttonClass}
-        label={label}
-        name="check_in"
-        value={nextValue}
-      />
-    </CsrfForm>
-  );
+  const allEligibleCheckedIn =
+    eligibleRows.length > 0 && eligibleRows.every((e) => e.attendee.checked_in);
   const heading = (
     <>
       <h1>{t("admin.checkin.heading")}</h1>
       <Flash success={message} />
     </>
   );
+  const bulkForms = canCheckIn
+    ? options.doorOnly
+      ? doorBulkForms(
+          checkinPath,
+          heading,
+          anyEligibleCheckedIn,
+          allEligibleCheckedIn,
+        )
+      : staffBulkForm(
+          checkinPath,
+          heading,
+          options.linkAdminPages && allEligibleCheckedIn,
+        )
+    : heading;
 
   return String(
     <Layout title={t("admin.checkin.title")}>
-      {canCheckIn
-        ? (
-          options.doorOnly
-            ? (
-              <>
-                {heading}
-                {!allEligibleCheckedIn &&
-                  checkinForm(
-                    t("admin.checkin.check_in_all"),
-                    "bulk-checkin",
-                    "true",
-                  )}
-                {anyEligibleCheckedIn &&
-                  checkinForm(
-                    t("admin.checkin.check_out_all"),
-                    "bulk-checkout",
-                    "false",
-                  )}
-              </>
-            )
-            : (
-              <CsrfForm action={checkinPath}>
-                {heading}
-                <SubmitWithHidden
-                  buttonClass={staffOfferCheckout
-                    ? "bulk-checkout"
-                    : "bulk-checkin"}
-                  label={staffOfferCheckout
-                    ? t("admin.checkin.check_out_all")
-                    : t("admin.checkin.check_in_all")}
-                  name="check_in"
-                  value={staffOfferCheckout ? "false" : "true"}
-                />
-              </CsrfForm>
-            )
-        )
-        : heading}
+      {bulkForms}
       <AttendeeTableBlock
         options={{
           adminLinks: options.linkAdminPages,
