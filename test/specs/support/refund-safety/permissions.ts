@@ -7,13 +7,13 @@ import { sessionCookie } from "#test/specs/support/evidence.ts";
 import { choicesForQuestion } from "#test/specs/support/form-controls/reading.ts";
 import { managerBrowser } from "#test/specs/support/staff-accounts.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
+import { stripTags } from "#test-utils/test-browser/parsing.ts";
 import {
   appendFormValue,
-  extractFormEntries,
   findFormByButton,
   findForms,
-} from "#test-utils/test-browser/forms.ts";
-import { stripTags } from "#test-utils/test-browser/parsing.ts";
+} from "#test-utils/test-browser/pressing.ts";
 import { openListedRefundCase, openOwnerAction } from "./journeys.ts";
 import {
   refundSafety,

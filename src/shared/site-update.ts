@@ -12,11 +12,11 @@
 import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
-import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEnv } from "#shared/env.ts";
 import type { Result } from "#shared/result.ts";
 import { hasSiteDbCredentials, readSiteSetting } from "#shared/site-db.ts";
+/* jscpd:ignore-start */
+import { resolveHostingProvider } from "#shared/site-hosting.ts";
 /* jscpd:ignore-end */
 import { tryStep } from "#shared/try-step.ts";
 import {

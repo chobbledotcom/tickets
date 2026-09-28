@@ -354,5 +354,58 @@ describeWithEnv(
         "Your new sites are ready!\n\nVisit the setup links below to activate your sites:\n\n- Hosted listing: https://a.test/setup/\n- Hosted listing: https://b.test/setup/",
       );
     });
+
+    test("a no-quantity line books no site and sends no email", async () => {
+      using fetchStub = stubFetch(new Response());
+      using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await insertBuiltSite("Site Z", "z.test", "", "", true, "131");
+
+      const noQuantity = assignmentEntry();
+      noQuantity.attendee = {
+        ...noQuantity.attendee,
+        email: "buyer@example.com",
+        quantity: 0,
+      };
+      await assignAndNotifyBuiltSites([noQuantity]);
+
+      const site = (await builtSites.getAll()).find(
+        ({ name }) => name === "Site Z",
+      )!;
+      expect(site.assignedAttendeeId).toBeNull();
+      expect(fetchStub.calls).toEqual([]);
+    });
+
+    test("one email names every plan listing a multi-listing buyer booked", async () => {
+      using fetchStub = stubFetch(new Response());
+      using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await insertBuiltSite("Site J", "j.test", "", "", true, "141");
+
+      const planEntry = (id: number, name: string) => ({
+        attendee: {
+          ...assignmentEntry().attendee,
+          email: "buyer@example.com",
+        },
+        listing: makeTestEntry({
+          assign_built_site: true,
+          id,
+          initial_site_months: 3,
+          name,
+        }).listing,
+      });
+      await assignAndNotifyBuiltSites([
+        planEntry(72, "Bronze plan"),
+        planEntry(73, "Gold plan"),
+      ]);
+
+      expect(fetchStub.calls).toHaveLength(1);
+      const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
+      expect(body.text).toContain(
+        "Bronze plan + Gold plan: https://j.test/setup/",
+      );
+    });
   },
 );

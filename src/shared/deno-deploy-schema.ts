@@ -5,9 +5,38 @@ export const DenoAppIdentitySchema = v.object({
   slug: v.string(),
 });
 
+/** One env var entry as the app GET answers it. The documented record
+ * carries its id and its contexts, and the secret flag decides whether the
+ * value is optional (the API omits a secret's value) or required (a plain
+ * entry without a value is a contract failure, not a message that silently
+ * reads as unset). */
+const envVarEntry = <
+  SecretSchema extends v.GenericSchema,
+  ValueSchema extends v.GenericSchema,
+>(
+  secret: SecretSchema,
+  value: ValueSchema,
+) =>
+  v.object({
+    contexts: v.union([v.literal("all"), v.array(v.string())]),
+    id: v.string(),
+    key: v.string(),
+    secret,
+    value,
+  });
+
 export const DenoAppEnvVarsSchema = v.object({
-  env_vars: v.array(v.object({ key: v.string() })),
+  env_vars: v.array(
+    v.union([
+      envVarEntry(v.literal(true), v.optional(v.string())),
+      envVarEntry(v.literal(false), v.string()),
+    ]),
+  ),
 });
+
+export type DenoEnvVar = v.InferOutput<
+  typeof DenoAppEnvVarsSchema
+>["env_vars"][number];
 
 export const DenoRevisionStatusSchema = v.picklist([
   "skipped",

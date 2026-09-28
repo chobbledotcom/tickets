@@ -132,6 +132,7 @@ const builderPost = createAuthedFormRoute({
             prepared.scheduledTaskKey,
           );
           retainedSiteId = row.id;
+          return row.id;
         },
       ),
     );

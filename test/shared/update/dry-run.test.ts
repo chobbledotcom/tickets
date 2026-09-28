@@ -14,6 +14,7 @@ import {
 } from "#shared/subrequest-budget.ts";
 import {
   deployLatestReleaseToDeno,
+  deployLatestReleaseToScript,
   fetchLatestRelease,
 } from "#shared/update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -43,7 +44,6 @@ describeWithEnv(
 
     test("deploys the latest release to a script offline", async () => {
       using _network = noNetwork();
-      const { deployLatestReleaseToScript } = await import("#shared/update.ts");
 
       expect(await deployLatestReleaseToScript(1)).toEqual({
         assetUrl: "https://dry-run.invalid/bunny-script.ts",
@@ -51,6 +51,18 @@ describeWithEnv(
         publishedAt: "",
         tagName: "dry-run",
       });
+    });
+
+    test("refuses a Deno Deploy update instead of a live write", async () => {
+      // The canned release would feed a real Deno Deploy app: the synthetic
+      // program must never leave a dry-run environment.
+      using _network = noNetwork();
+
+      // The refusal rejects from an async function, so a caller with
+      // .catch handles it like any other failure.
+      await expect(deployLatestReleaseToDeno("app-1")).rejects.toThrow(
+        "cannot update a Deno Deploy app",
+      );
     });
 
     test("the release lookup still pays the subrequest budget", async () => {
@@ -73,7 +85,7 @@ describeWithEnv(
         withSubrequestAllowance(
           // One external call covers the lookup; the download is the second.
           { database: 0, external: 1, total: 1 },
-          () => deployLatestReleaseToDeno("app-1"),
+          () => deployLatestReleaseToScript(1),
         ),
       );
 

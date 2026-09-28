@@ -17,7 +17,7 @@ import {
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
-import { resolveHostingProvider } from "#shared/builder.ts";
+import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
@@ -38,6 +38,7 @@ import {
   reportSiteAssignmentFailure,
   type SiteAssignmentConfigValidation,
 } from "#shared/site-assignment-failure.ts";
+import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */
@@ -373,17 +374,24 @@ const sendSiteAssignmentEmail = async (
 };
 
 /** Assign pooled sites and send the notification email. Designed to be called
- * via addPendingWork. No-ops when CAN_BUILD_SITES is not enabled. */
+ * via addPendingWork. No-ops when CAN_BUILD_SITES is not enabled.
+ *
+ * The whole pipeline runs inside the site-build scope: the automated machine
+ * steps a SITE_BUILD_DRY_RUN demo answers as one unit — the claim, the
+ * renewal-secret pushes, and the emails. A human's live admin action on an
+ * existing site sits outside it. */
 export const assignAndNotifyBuiltSites = async (
   entries: EmailEntry[],
 ): Promise<void> => {
   if (!isBuilderEnabled()) return;
 
-  const { assignments, missedBuyers } = await assignSitesForEntries(entries);
-  await reportOutOfStockBuyers(missedBuyers);
-  if (assignments.length === 0) return;
+  await runWithSiteBuildScope(async () => {
+    const { assignments, missedBuyers } = await assignSitesForEntries(entries);
+    await reportOutOfStockBuyers(missedBuyers);
+    if (assignments.length === 0) return;
 
-  const email = parseEmail(entries[0]!.attendee.email);
-  if (!email) return;
-  await sendSiteAssignmentEmail(email, assignments);
+    const email = parseEmail(entries[0]!.attendee.email);
+    if (!email) return;
+    await sendSiteAssignmentEmail(email, assignments);
+  });
 };

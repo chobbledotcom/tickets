@@ -27,6 +27,7 @@ import {
 } from "#templates/components/select-field.tsx";
 import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
+import { textareaBody } from "#templates/components/textarea.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 /* jscpd:ignore-end */
@@ -168,7 +169,7 @@ const textareaForm = (
         data-markdown-preview={definition.markdownPreview}
         {...fieldAttributes(definition)}
       >
-        {stringState(state, definition.stateField)}
+        {textareaBody(stringState(state, definition.stateField))}
       </textarea>
     </label>,
   );

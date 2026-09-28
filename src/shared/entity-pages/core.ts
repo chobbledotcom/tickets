@@ -8,10 +8,10 @@
  */
 
 import { filter, map, pipe } from "#fp";
+import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 
 /** One tab after its visibility predicate has been evaluated. */
 export interface TabState {
-  /** Locale key for the strip label. */
   labelKey: string;
   /** URL segment under the entity's base path; "" is the default tab. */
   slug: string;
@@ -33,6 +33,54 @@ export const tabPath = (basePath: string, slug: string): string =>
   slug === "" ? basePath : `${basePath}/${slug}`;
 
 const visibleOnly = filter((tab: TabState) => tab.visible);
+
+/** Optional controls flanking a page's title: one before the `<h1>`, one
+ * after it (a record page's previous/next pager, say). They render as the
+ * heading's siblings in one navigation row, so heading navigation announces
+ * the record's name alone. Null renders nothing on that side. */
+export interface FlankingNav {
+  after: SafeHtml | null;
+  before: SafeHtml | null;
+}
+
+/** The first item of `items`, or null when the list holds none. */
+const firstOf = <Item>(items: readonly Item[]): Item | null => {
+  for (const item of items) return item;
+  return null;
+};
+
+/**
+ * The neighbouring items of the one `isCurrent` names, with both ends of
+ * the list wrapping around — a pager built from them never falls off the
+ * list. A side is null when the current item is missing from the list or is
+ * its only item: that side has no neighbour to point at, so a pager renders
+ * no arrow for it.
+ */
+export const wrapAroundNeighbours = <Item>(
+  list: readonly Item[],
+  isCurrent: (item: Item) => boolean,
+): { next: Item | null; previous: Item | null } => {
+  let current: Item | undefined;
+  const beforeCurrent: Item[] = [];
+  const afterCurrent: Item[] = [];
+  for (const item of list) {
+    // Everything collected before the current item is found walks before it.
+    if (current === undefined && isCurrent(item)) {
+      current = item;
+    } else {
+      (current === undefined ? beforeCurrent : afterCurrent).push(item);
+    }
+  }
+  // A current item the list does not hold has no neighbours: no walk starts
+  // beside it.
+  if (current === undefined) return { next: null, previous: null };
+  return {
+    next: firstOf(afterCurrent) ?? firstOf(beforeCurrent),
+    previous:
+      firstOf([...beforeCurrent].reverse()) ??
+      firstOf([...afterCurrent].reverse()),
+  };
+};
 
 /**
  * Resolve which tab a request lands on. A bare entity URL (requested "")

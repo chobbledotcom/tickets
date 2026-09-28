@@ -28,7 +28,7 @@
     "lint:ci": "deno fmt --check && deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
     "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
     "unread-fields": "deno run -A scripts/unread-fields.ts",
-    "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.helpers.json && deno run -A scripts/cpd.ts --config .jscpd.support.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss src/ui/static/_field-visibility.scss && deno run -A scripts/cpd.ts --config .jscpd.renamed.json --baseline .jscpd.renamed-baseline.json --fail-on-new-clones",
+    "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.helpers.json && deno run -A scripts/cpd.ts --config .jscpd.support.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss src/ui/static/_entity-page.scss src/ui/static/_field-visibility.scss && deno run -A scripts/cpd.ts --config .jscpd.renamed.json --baseline .jscpd.renamed-baseline.json --fail-on-new-clones",
     "cpd:renamed": "deno run -A scripts/cpd.ts --config .jscpd.renamed.json --baseline .jscpd.renamed-baseline.json --fail-on-new-clones",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "check:ste": "deno run --allow-read=. --allow-write=scripts/check-ste/baseline.json scripts/check-ste.ts",

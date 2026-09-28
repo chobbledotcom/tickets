@@ -17,7 +17,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { tx } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
-import { findForms } from "#test-utils/test-browser/forms.ts";
+import { findForms } from "#test-utils/test-browser/pressing.ts";
 
 describeWithEnv(
   "server (admin groups) — detail & sharing",
