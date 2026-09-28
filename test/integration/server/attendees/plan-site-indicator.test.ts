@@ -119,8 +119,13 @@ describeWithEnv(
 
         const page = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await page.text();
-        expect(html).toContain("Active Plan");
-        expect(html).toContain("No site assigned yet");
+        // Scope to each row: the active plan row carries the cue, the
+        // refunded one does not.
+        const rows = html.split("<tr>").filter((row) => row.includes("Plan"));
+        const activeRow = rows.find((row) => row.includes("Active Plan"))!;
+        const refundedRow = rows.find((row) => row.includes("Refunded Plan"))!;
+        expect(activeRow).toContain("No site assigned yet");
+        expect(refundedRow).not.toContain("No site assigned yet");
       });
 
       test("one site serves a combined purchase of two plan listings", async () => {
