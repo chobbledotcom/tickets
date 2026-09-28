@@ -24,7 +24,9 @@ const listingAttendeeColumn = (name: string): string =>
 
 /** Shared ordering for an attendee's booking rows so grouped reads are
  * deterministic: date, then listing id. */
-const BOOKING_ROWS_ORDER = `${listingAttendeeColumn("start_at")}, ${listingAttendeeColumn("listing_id")}`;
+const BOOKING_ROWS_ORDER = `${listingAttendeeColumn("start_at")}, ${
+  listingAttendeeColumn("listing_id")
+}`;
 
 /** PII-free booking rows for a token-resolved attendee. */
 export type AttendeeBookingRows = {
@@ -75,9 +77,11 @@ const bookingLinesByAttendeeIds = async <
   const rows = await queryAll<Row>(
     `SELECT ${listingAttendeeColumn("attendee_id")}, ${columns}
      FROM listing_attendees AS ${LISTING_ATTENDEE_ALIAS}
-     WHERE ${listingAttendeeColumn("attendee_id")} IN (${inPlaceholders(
-       attendeeIds,
-     )})${extraWhere}
+     WHERE ${listingAttendeeColumn("attendee_id")} IN (${
+      inPlaceholders(
+        attendeeIds,
+      )
+    })${extraWhere}
      ORDER BY ${BOOKING_ROWS_ORDER}`,
     attendeeIds,
   );
@@ -95,12 +99,16 @@ const bookingRowsByAttendeeIds = (
     bookingRowWithoutAttendee,
   );
 
-const PREVIOUS_BOOKING_LINE_COLS = `${listingAttendeeColumn("listing_id")}, ${listingAttendeeColumn("quantity")}, ${pricePaidFromLedger(
-  listingAttendeeColumn("attendee_id"),
-  listingAttendeeColumn("listing_id"),
-  listingAttendeeColumn("ledger_event_group"),
-  listingAttendeeColumn("id"),
-)}`;
+const PREVIOUS_BOOKING_LINE_COLS = `${listingAttendeeColumn("listing_id")}, ${
+  listingAttendeeColumn("quantity")
+}, ${
+  pricePaidFromLedger(
+    listingAttendeeColumn("attendee_id"),
+    listingAttendeeColumn("listing_id"),
+    listingAttendeeColumn("ledger_event_group"),
+    listingAttendeeColumn("id"),
+  )
+}`;
 
 const previousBookingLineWithoutAttendee = (
   row: RowWithAttendee<PreviousBookingLine>,
@@ -143,9 +151,11 @@ const attendeeRowsForTokens = async <Row extends TokenIndexedRow>(
   const rows = await queryAll<Row>(
     `SELECT ${columns}
      FROM attendees AS ${ATTENDEE_ALIAS}
-     WHERE ${ATTENDEE_ALIAS}.ticket_token_index IN (${inPlaceholders(
-       tokenIndexes,
-     )}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
+     WHERE ${ATTENDEE_ALIAS}.ticket_token_index IN (${
+      inPlaceholders(
+        tokenIndexes,
+      )
+    }) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
     tokenIndexes,
   );
   return { rows, tokenIndexes, uniqueTokens };
@@ -232,7 +242,8 @@ const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger(
 
 /** The attendee columns a scan needs: identity, the token index its ticket
  * resolves by, the PII blob for the name, and the ledger balance. */
-const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}`;
+const ATTENDEE_SCAN_COLUMNS =
+  `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}`;
 
 type AttendeeScanRow = {
   id: number;
@@ -260,9 +271,6 @@ const attendeeWithBookingsBuild = (
   ticket_token_index: row.ticket_token_index,
 });
 
-/** The booking lines behind attendee ids, in shared deterministic order. */
-const bookingsByAttendeeIds = bookingRowsByAttendeeIds;
-
 /**
  * Look up attendees by plaintext tokens, returning full booking data.
  * Two queries: attendees by token index, then all listing_attendees for those attendees.
@@ -275,7 +283,7 @@ export const getAttendeesByTokens = async (
   resultsForTokens<AttendeeScanRow, ListingAttendeeRow, AttendeeWithBookings>(
     tokens,
     ATTENDEE_SCAN_COLUMNS,
-    bookingsByAttendeeIds,
+    bookingRowsByAttendeeIds,
     attendeeWithBookingsBuild,
   );
 
@@ -292,10 +300,12 @@ export const getAttendeesByIdsWithBookings = async (
   const rows = await queryAll<AttendeeScanRow>(
     `SELECT ${ATTENDEE_SCAN_COLUMNS}
      FROM attendees AS ${ATTENDEE_ALIAS}
-     WHERE ${ATTENDEE_ALIAS}.id IN (${inPlaceholders(ids)}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
+     WHERE ${ATTENDEE_ALIAS}.id IN (${
+      inPlaceholders(ids)
+    }) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
     ids,
   );
-  const bookingsByAttendee = await bookingsByAttendeeIds(
+  const bookingsByAttendee = await bookingRowsByAttendeeIds(
     rows.map((row) => row.id),
   );
   return resultsByRowKey(
