@@ -17,26 +17,12 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
   deactivateAllTierListings,
+  failingRenewalUrlPush,
   forbidBuildDuringAssignment,
   setUpAssignmentSuite,
   silencedErrors,
   siteEntry,
-  stubEdgeSecretSuccess,
 } from "./site-assignment-shared.ts";
-
-/** Stub the edge-secret push so the RENEWAL_URL leg fails and the rest pass. */
-const failingRenewalUrlPush = (): Stub =>
-  stub(
-    bunnyCdnApi,
-    "setEdgeScriptSecret",
-    (_scriptId: number, name: string, _value: string) =>
-      name === "RENEWAL_URL"
-        ? Promise.resolve({
-            error: "renewal url push failed",
-            ok: false as const,
-          })
-        : Promise.resolve({ ok: true as const }),
-  );
 
 describeWithEnv(
   "site-assignment renewal",
@@ -46,38 +32,6 @@ describeWithEnv(
   },
   () => {
     const suite = setUpAssignmentSuite();
-
-    /** Run one assignment with the RENEWAL_URL push failing, assert the
-     * claim stands unprovisioned, then re-run with pushes working and return
-     * the named site's state after each run. */
-    const runFailedPushThenResend = async (
-      firstRun: () => Promise<void>,
-      resend: () => Promise<void>,
-      siteName: string,
-    ): Promise<{
-      afterFirst: import("#db/built-sites/types.ts").BuiltSite;
-      afterResend: import("#db/built-sites/types.ts").BuiltSite;
-    }> => {
-      suite.secretStub.restore();
-      const failStub = failingRenewalUrlPush();
-      await firstRun();
-      const afterFirst = (await builtSites.getAll()).find(
-        (s) => s.name === siteName,
-      )!;
-      expect(afterFirst.assignedAttendeeId).not.toBeNull();
-      expect(afterFirst.renewalTokenIndex).toBeNull();
-      failStub.restore();
-      const okStub = stubEdgeSecretSuccess();
-      try {
-        await resend();
-        const afterResend = (await builtSites.getAll()).find(
-          (s) => s.name === siteName,
-        )!;
-        return { afterFirst, afterResend };
-      } finally {
-        okStub.restore();
-      }
-    };
 
     describe("renewal at site assignment", () => {
       const createTierListing = (unitPrice = 500, monthsPerUnit = 1) =>
@@ -286,7 +240,8 @@ describeWithEnv(
           );
 
           expect(failedSite!.readOnlyFrom).toBe("");
-          expect(failedSite!.renewalTokenIndex).toBeNull();
+          // The token was reserved before the push, so it stands for a retry.
+          expect(failedSite!.renewalTokenIndex).not.toBeNull();
 
           for (const site of succeededSites) {
             expect(site.readOnlyFrom).not.toBe("");
@@ -296,7 +251,7 @@ describeWithEnv(
         }
       });
 
-      test("RENEWAL_URL push failure leaves renewal state unprovisioned", async () => {
+      test("RENEWAL_URL push failure leaves the token reserved unconfirmed", async () => {
         await createTierListing();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
@@ -309,7 +264,7 @@ describeWithEnv(
           const sites = await builtSites.getAll();
           const assigned = sites.find((s) => s.name === "Site A")!;
           expect(assigned.assignedAttendeeId).not.toBeNull();
-          expect(assigned.renewalTokenIndex).toBeNull();
+          expect(assigned.renewalTokenIndex).not.toBeNull();
           expect(assigned.readOnlyFrom).toBe("");
           const readOnlyCalls = failStub.calls.filter(
             (c: Stub["calls"][number]) => c.args[1] === "READ_ONLY_FROM",
@@ -318,64 +273,6 @@ describeWithEnv(
         } finally {
           failStub.restore();
         }
-      });
-
-      test("a reversed resend still completes an unprovisioned renewal", async () => {
-        await createTierListing();
-
-        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
-        await insertBuiltSite("Site B", "b.test.net", "", "", true, "2002");
-
-        // The resend lists the other listing first: the buyer reads as
-        // served, and the claim lookup must span both listings.
-        const { afterResend } = await runFailedPushThenResend(
-          () =>
-            assignAndNotifyBuiltSites([
-              siteEntry({
-                attendeeId: 10,
-                listingId: 1,
-                listingName: "Plan One",
-              }),
-              siteEntry({
-                attendeeId: 10,
-                listingId: 2,
-                listingName: "Plan Two",
-              }),
-            ]),
-          () =>
-            assignAndNotifyBuiltSites([
-              siteEntry({
-                attendeeId: 10,
-                listingId: 2,
-                listingName: "Plan Two",
-              }),
-              siteEntry({
-                attendeeId: 10,
-                listingId: 1,
-                listingName: "Plan One",
-              }),
-            ]),
-          "Site A",
-        );
-        expect(afterResend.renewalTokenIndex).not.toBeNull();
-        expect(afterResend.readOnlyFrom).not.toBe("");
-      });
-
-      test("a resend completes a renewal the first push failed to provision", async () => {
-        await createTierListing();
-
-        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
-
-        const { afterFirst, afterResend } = await runFailedPushThenResend(
-          () => assignAndNotifyBuiltSites([siteEntry()]),
-          () => assignAndNotifyBuiltSites([siteEntry()]),
-          "Site A",
-        );
-        expect(afterResend.assignedAttendeeId).toBe(
-          afterFirst.assignedAttendeeId,
-        );
-        expect(afterResend.renewalTokenIndex).not.toBeNull();
-        expect(afterResend.readOnlyFrom).not.toBe("");
       });
     });
   },

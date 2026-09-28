@@ -31,15 +31,15 @@ import {
   pickTierListing,
 } from "#shared/renewal-tier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
+/* jscpd:ignore-end */
+import { siteHostingAccess } from "#shared/site-hosting.ts";
 import {
   addMonthsToRenewalDeadline,
   provisionSiteRenewal,
   renewalUrlFor,
   rotateRenewalToken,
   syncReadOnlyFrom,
-} from "#shared/site-assignment.ts";
-/* jscpd:ignore-end */
-import { siteHostingAccess } from "#shared/site-hosting.ts";
+} from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { addMissingSiteSecrets } from "#shared/site-secrets.ts";
 import { deployAndReport } from "#shared/site-update.ts";

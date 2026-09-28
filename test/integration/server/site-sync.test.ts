@@ -5,10 +5,7 @@ import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { nowIso } from "#shared/now.ts";
-import {
-  parseReadOnlyFromMs,
-  syncReadOnlyFrom,
-} from "#shared/site-assignment.ts";
+import { parseReadOnlyFromMs, syncReadOnlyFrom } from "#shared/site-renewal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv(

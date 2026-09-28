@@ -22,7 +22,7 @@ import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import {
   addMonthsToRenewalDeadline,
   syncReadOnlyFrom,
-} from "#shared/site-assignment.ts";
+} from "#shared/site-renewal.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
 import { type ContactInfo, type DayPrices, isPaidListing } from "#types";
 

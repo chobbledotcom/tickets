@@ -6,31 +6,19 @@
  */
 
 /* jscpd:ignore-start */
-import {
-  siteClaimedByBuyer,
-  takePooledSiteForBuyer,
-} from "#db/built-sites/claims.ts";
-import type { BuiltSite } from "#db/built-sites/types.ts";
-import {
-  getAssignableBuiltSites,
-  updateBuiltSiteRenewalState,
-} from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
-import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
-import { addMonthsIso } from "#shared/dates.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import {
   type EmailEntry,
   getEmailConfig,
   hostEmail,
   sendEmail,
 } from "#shared/email.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
-import { generateRenewalToken } from "#shared/renewal-token.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
   type MissedBuyer,
@@ -38,7 +26,10 @@ import {
   reportSiteAssignmentFailure,
   type SiteAssignmentConfigValidation,
 } from "#shared/site-assignment-failure.ts";
-import { resolveHostingProvider } from "#shared/site-hosting.ts";
+import {
+  completeUnfinishedRenewal,
+  provisionSiteRenewal,
+} from "#shared/site-renewal.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */
@@ -49,7 +40,6 @@ type SiteAssignment = {
   listingName: string;
 };
 
-export type CdnPushResult = { ok: true } | { ok: false; error: string };
 /** A listing selection being checked before payment/booking. */
 type SiteAssignmentConfigEntry = {
   listing: {
@@ -99,156 +89,6 @@ export const validateSiteAssignmentConfig = async (
   }
 
   return { ok: true };
-};
-
-/** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
-export const parseReadOnlyFromMs = (
-  site: Pick<BuiltSite, "readOnlyFrom">,
-): number | null => (site.readOnlyFrom ? parseDateMs(site.readOnlyFrom) : null);
-
-/** Stack-forward base: max(now, existing deadline). Falls back to now when missing. */
-export const renewalDeadlineBaseMs = (
-  site: Pick<BuiltSite, "readOnlyFrom">,
-): number => Math.max(nowMs(), parseReadOnlyFromMs(site) ?? 0);
-
-export const addMonthsToRenewalDeadline = (
-  site: Pick<BuiltSite, "readOnlyFrom">,
-  months: number,
-): string =>
-  addMonthsIso(new Date(renewalDeadlineBaseMs(site)).toISOString(), months);
-
-/** Build the renewal URL for a given token. */
-export const renewalUrlFor = (token: string): string =>
-  `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`;
-
-const logRenewalCdnError = (errorContext: string, error: string): void => {
-  logError({
-    code: ErrorCode.CDN_REQUEST,
-    detail: `${errorContext}: ${error}`,
-  });
-  sendNtfyError("CDN_REQUEST");
-};
-
-/** Push a subset of site secrets to the hosting provider. Pure I/O — no DB writes. */
-const pushSiteSecrets = async (
-  site: BuiltSite,
-  secrets: { readOnlyFrom?: string; renewalUrl?: string },
-): Promise<CdnPushResult> => {
-  if (!site.hostingId) return { error: "No hostingId", ok: false };
-  const pairs: [string, string][] = [];
-  if (secrets.renewalUrl !== undefined) {
-    pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
-  }
-  if (secrets.readOnlyFrom !== undefined) {
-    pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
-  }
-  return resolveHostingProvider(site.hostingProvider).setSecrets(
-    site.hostingId,
-    pairs,
-  );
-};
-
-/**
- * Push READ_ONLY_FROM (and optionally re-push RENEWAL_URL) to the edge script
- * and persist the cutoff on success. Single DB write per call.
- */
-export const syncReadOnlyFrom = async (
-  site: BuiltSite,
-  cutoffIso: string,
-  renewalUrl?: string,
-): Promise<CdnPushResult> => {
-  const pushResult = await pushSiteSecrets(site, {
-    readOnlyFrom: cutoffIso,
-    ...(renewalUrl !== undefined ? { renewalUrl } : {}),
-  });
-  if (pushResult.ok) {
-    await updateBuiltSiteRenewalState(site.id, { readOnlyFrom: cutoffIso });
-  }
-  return pushResult;
-};
-
-type RenewalStateUpdate = Parameters<typeof updateBuiltSiteRenewalState>[1];
-type SiteSecrets = { readOnlyFrom?: string; renewalUrl?: string };
-
-/**
- * Curried helper: push secrets and persist renewal state.
- * On push success, writes `onSuccess`. On failure, logs and leaves DB state
- * unchanged so an admin can retry from the unprovisioned state.
- */
-const pushAndPersist =
-  (site: BuiltSite, errorContext: string) =>
-  async (
-    secrets: SiteSecrets,
-    onSuccess: RenewalStateUpdate,
-  ): Promise<CdnPushResult> => {
-    const pushResult = await pushSiteSecrets(site, secrets);
-    if (pushResult.ok) {
-      await updateBuiltSiteRenewalState(site.id, onSuccess);
-    } else {
-      logRenewalCdnError(errorContext, pushResult.error);
-    }
-    return pushResult;
-  };
-
-/** The new renewal token and whether pushing it to the site succeeded. */
-type RenewalPushResult = { token: string; pushOk: boolean };
-
-/**
- * Provision a site for renewals: generate a token, push initial secrets,
- * persist the full renewal state. On push failure, leaves renewal state
- * untouched so an admin can retry provisioning cleanly. Single DB write.
- */
-export const provisionSiteRenewal = async (
-  site: BuiltSite,
-  months: number,
-  errorContext: string,
-): Promise<RenewalPushResult & { cutoff: string }> => {
-  const tokenData = await generateRenewalToken();
-  const cutoff = addMonthsIso(nowIso(), months);
-  const renewalState = {
-    renewalToken: tokenData.token,
-    renewalTokenIndex: tokenData.index,
-  } as const;
-
-  const pushResult = await pushAndPersist(site, errorContext)(
-    { readOnlyFrom: cutoff, renewalUrl: renewalUrlFor(tokenData.token) },
-    { readOnlyFrom: cutoff, ...renewalState },
-  );
-
-  return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
-};
-
-/**
- * Rotate a site's renewal token. Pushes the new RENEWAL_URL only — the
- * READ_ONLY_FROM cutoff is independent of token identity and is not
- * re-pushed here. Persists the new token on push success.
- */
-export const rotateRenewalToken = async (
-  site: BuiltSite,
-  errorContext: string,
-): Promise<RenewalPushResult> => {
-  const tokenData = await generateRenewalToken();
-  const pushResult = await pushAndPersist(site, errorContext)(
-    { renewalUrl: renewalUrlFor(tokenData.token) },
-    { renewalToken: tokenData.token, renewalTokenIndex: tokenData.index },
-  );
-  return { pushOk: pushResult.ok, token: tokenData.token };
-};
-
-const completeUnfinishedRenewal = async (
-  attendeeId: number,
-  listingIds: readonly number[],
-  months: number,
-): Promise<void> => {
-  const claimed = await siteClaimedByBuyer(attendeeId, listingIds);
-  // A set renewal index means the first push already provisioned the site.
-  if (claimed !== null && !claimed.renewalTokenIndex) {
-    await provisionSiteRenewal(
-      claimed,
-      months,
-      `Failed to push renewal secrets for site ${claimed.id}`,
-    );
-  }
 };
 
 /** Every buyer's outcome from one assignment run. */

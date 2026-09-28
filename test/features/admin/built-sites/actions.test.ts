@@ -540,7 +540,7 @@ describeWithEnv(
           )(response);
 
           const updated = await findSite(site.id);
-          expect(updated.renewalTokenIndex).toBeNull();
+          expect(updated.renewalTokenIndex).not.toBeNull();
           expect(updated.readOnlyFrom).toBe("");
         });
       });

@@ -5,7 +5,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 /* jscpd:ignore-end */
-import { renewalUrlFor } from "#shared/site-assignment.ts";
+import { renewalUrlFor } from "#shared/site-renewal.ts";
 import {
   hostInfraSecretNames,
   type SiteSecretsView,
