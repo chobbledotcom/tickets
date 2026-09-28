@@ -15,7 +15,6 @@ import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
-import { withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "check-in page (GET /checkin/:tokens) for a door-only scanner",
