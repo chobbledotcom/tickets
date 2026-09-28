@@ -1,6 +1,6 @@
 # Plan: answers in emails, and answers at booking for admins
 
-Status: awaiting human approval. No implementation has started.
+Status: approved by the owner.
 
 This plan replaces PR #2421. That branch grew from about 550 to about 2,200
 source lines. It added three tables, two triggers, three scheduled tasks, and a
