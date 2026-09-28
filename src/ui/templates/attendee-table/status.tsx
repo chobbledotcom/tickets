@@ -67,6 +67,15 @@ export const createStatusRenderer =
         </Badge>
       );
     }
+    if (options.showCheckinState) {
+      return attendee.checked_in ? (
+        <Badge variant="ok">{t("admin.attendee_table.checked_in_badge")}</Badge>
+      ) : (
+        <span class="muted small">
+          {t("admin.attendee_table.not_checked_in_badge")}
+        </span>
+      );
+    }
     return CheckinButton({
       activeFilter: options.activeFilter ?? "all",
       attendee,

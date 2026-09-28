@@ -55,13 +55,22 @@ export const checkinAdminPage = (
     ),
   )(entries);
 
-  const anyCheckedIn = entries.some((e) => e.attendee.checked_in);
-  const allCheckedIn = entries.every((e) => e.attendee.checked_in);
+  // The bulk action's POST only touches rows that are neither refunded nor on
+  // a "No check-in" listing, so the action's state reads those rows alone —
+  // a refunded row left checked-in must not flip the action to checkout
+  // while a checkable row still waits.
+  const eligibleRows = entries.filter(
+    (e) => !e.attendee.refunded && !e.listing.purchase_only,
+  );
+  const anyEligibleCheckedIn = eligibleRows.some((e) => e.attendee.checked_in);
   // A door-only login has no per-row controls, so its one bulk action must
   // be able to undo the check-ins already made: it offers checkout as soon
   // as any row is checked. Staff keep the all-rows flip — their per-row
   // controls do the fine-grained work.
-  const offerCheckout = options.linkAdminPages ? allCheckedIn : anyCheckedIn;
+  const offerCheckout = options.linkAdminPages
+    ? eligibleRows.length > 0 &&
+      eligibleRows.every((e) => e.attendee.checked_in)
+    : anyEligibleCheckedIn;
   const buttonLabel = offerCheckout
     ? t("admin.checkin.check_out_all")
     : t("admin.checkin.check_in_all");
@@ -100,8 +109,10 @@ export const checkinAdminPage = (
           returnUrl: checkinPath,
           rows: tableRows,
           // Each row's form POSTs to a staff-only admin endpoint, so only
-          // staff see it; a door-only login works the bulk form above.
+          // staff see it; a door-only login reads each row's state as a
+          // badge instead.
           showCheckin: canCheckIn && options.linkAdminPages,
+          showCheckinState: canCheckIn && !options.linkAdminPages,
           showDate,
           showListing: true,
         }}
