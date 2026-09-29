@@ -7,7 +7,6 @@ import type {
   BuildAttendeeInput,
   CreateAttendeeResult,
   EncryptedAttendeeData,
-  ListingBooking,
 } from "#db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
@@ -21,6 +20,7 @@ import {
   type BookingBatchPlan,
   bookingBatchCondition,
   type PreparedWrite,
+  type StampedBooking,
   type WriteOutcome,
   writeAsBatch,
   writeAsLedgerBatch,
@@ -188,7 +188,7 @@ const finishAttendeeWrite = (
   written: WriteOutcome,
   input: AttendeeInput,
   enc: EncryptedAttendeeData,
-  stampedBookings: ListingBooking[],
+  stampedBookings: StampedBooking[],
 ): CreateAttendeeResult => {
   const contactInfo = contactInfoFromInput(input);
   return {
@@ -208,7 +208,7 @@ const finishAttendeeWrite = (
         pricePaid: booking.pricePaid ?? 0,
         quantity: booking.quantity ?? 1,
         remainingBalance: input.remainingBalance ?? 0,
-        siteMonths: booking.siteMonths ?? 0,
+        siteMonths: booking.siteMonths,
         statusId: input.statusId ?? null,
         ticketToken: enc.ticketToken,
         ticketTokenIndex: enc.ticketTokenIndex,

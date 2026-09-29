@@ -223,10 +223,19 @@ export const provisionSiteRenewal = async (
  * holding different tokens. (Cross-isolate callers keep the whole-row
  * revision fence, which retries over a concurrent write rather than clobbering
  * its blob.) */
-let rotationTail: Promise<unknown> = Promise.resolve();
+const rotationTail: { current: Promise<unknown> } = {
+  current: Promise.resolve(),
+};
 const serializeRotation = <T>(run: () => Promise<T>): Promise<T> => {
-  const result = rotationTail.catch(() => undefined).then(run);
-  rotationTail = result;
+  const result = (async () => {
+    try {
+      await rotationTail.current;
+    } catch {
+      // A failed rotation must not stop the queue behind it.
+    }
+    return run();
+  })();
+  rotationTail.current = result;
   return result;
 };
 

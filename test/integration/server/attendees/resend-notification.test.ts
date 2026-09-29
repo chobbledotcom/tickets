@@ -7,6 +7,7 @@ import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
+import { stubEdgeSecretSuccess } from "#test/integration/server/site-assignment-shared.ts";
 import {
   adminAttendeeAction,
   setupAdminTest,
@@ -26,7 +27,6 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee } from "#types";
-import { stubEdgeSecretSuccess } from "../site-assignment-shared.ts";
 
 describeWithEnv(
   "server (admin attendees) > resend notification",

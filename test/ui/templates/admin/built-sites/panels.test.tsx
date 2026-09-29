@@ -140,6 +140,7 @@ describe("renewal panel", () => {
     readOnlyFrom: "2027-01-15T00:00:00Z",
     renewalToken: "real-customer-renewal-token",
     renewalTokenIndex: "some-index",
+    renewalUrlConfirmed: true,
   });
   const unprovisionedSite = testBuiltSite({
     readOnlyFrom: "",

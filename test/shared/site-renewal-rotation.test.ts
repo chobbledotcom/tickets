@@ -1,4 +1,5 @@
 import type { ResultSet } from "@libsql/client";
+import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -74,5 +75,43 @@ describeWithEnv("renewal token rotation", { db: true }, () => {
     expect(renewalUrlFor(stored.renewalToken!)).toBe(
       hostedUrls[hostedUrls.length - 1],
     );
+  });
+
+  test("a rotation that dies mid-flight does not block the queue behind it", async () => {
+    await insertBuiltSite(
+      "Crash Rotate",
+      "crash-rotate.test",
+      "",
+      "",
+      false,
+      "7002",
+    );
+    const site = (await builtSites.getAll()).find(
+      ({ name }) => name === "Crash Rotate",
+    )!;
+
+    // The first rotation's push throws — the raw provider-failure shape no
+    // error result wraps — so its promise rejects and the queue must survive.
+    let calls = 0;
+    const pushStub: Stub = stub(
+      bunnyCdnApi,
+      "setEdgeScriptSecret",
+      (): Promise<{ ok: true }> => {
+        calls++;
+        if (calls === 1) throw new Error("edge script API died");
+        return Promise.resolve({ ok: true as const });
+      },
+    );
+
+    const first = rotateRenewalToken(site, "First rotation failed");
+    const second = rotateRenewalToken(site, "Second rotation failed");
+    await assertRejects(() => first, Error, "edge script API died");
+    const result = await second;
+    pushStub.restore();
+
+    expect(result.pushOk).toBe(true);
+    const stored = (await builtSites.getAll()).find((s) => s.id === site.id)!;
+    // The surviving rotation's token is the one the row keeps.
+    expect(result.token).toBe(stored.renewalToken);
   });
 });

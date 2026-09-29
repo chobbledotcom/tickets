@@ -169,6 +169,7 @@ describe("built-site templates", () => {
       readOnlyFrom: "2027-01-15T00:00:00Z",
       renewalToken: "real-customer-renewal-token",
       renewalTokenIndex: "some-index",
+      renewalUrlConfirmed: true,
     });
 
     test("shows renewal URL and rotate/bump/override/re-sync forms; no tier picker", () => {

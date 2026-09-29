@@ -93,9 +93,8 @@ export type SiteMonthsByListing = Map<number, number>;
 
 export const siteMonthsForListings = async (
   listingIds: readonly number[],
-): Promise<SiteMonthsByListing> => {
-  if (listingIds.length === 0) return new Map();
-  return rowsToMap(
+): Promise<SiteMonthsByListing> =>
+  rowsToMap(
     await queryAll<{ id: number; initial_site_months: number }>(
       `SELECT id, initial_site_months
        FROM listings
@@ -105,7 +104,6 @@ export const siteMonthsForListings = async (
     (row) => row.id,
     (row) => row.initial_site_months,
   );
-};
 
 /** Check several capacity conditions in one query. */
 export const checkLinesCapacity = async (

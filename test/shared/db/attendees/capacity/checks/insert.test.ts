@@ -37,6 +37,7 @@ describe("buildCapacityCheckedInsert", () => {
         packageGroupId: 23,
         parentListingId: 19,
         quantity: 3,
+        siteMonths: 6,
       },
       (bind) => bind(41),
       true,
@@ -51,8 +52,11 @@ describe("buildCapacityCheckedInsert", () => {
       "order-17",
       19,
       23,
+      6,
     ]);
-    expect(statement.sql).toContain("SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8");
+    expect(statement.sql).toContain(
+      "SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9",
+    );
   });
 
   test("omits the capacity clause when overbooking is allowed", () => {

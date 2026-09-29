@@ -29,8 +29,11 @@ export type PreparedWrite = {
   bookingStatements: SqlStatement[];
   activityStatements: SqlStatement[];
   /** The order's booking lines with each line's site term stamped. */
-  stampedBookings: ListingBooking[];
+  stampedBookings: StampedBooking[];
 };
+
+/** A booking line carrying the site term it bought at write time. */
+export type StampedBooking = ListingBooking & { siteMonths: number };
 
 export type WriteOutcome = { insertId: number };
 
