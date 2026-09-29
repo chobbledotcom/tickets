@@ -15,7 +15,6 @@ import {
   type AnswerLine,
   eachAnswerOnce,
   entryAnswerLines,
-  loadOrderAnswerLines,
   type OrderAnswerLines,
 } from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
@@ -92,7 +91,7 @@ const entryIsPaid = ({ listing, attendee }: EmailEntry): boolean =>
 
 const toTemplateEntry = (
   entry: EmailEntry,
-  answers: readonly AnswerLine[],
+  answers: AnswerLine[],
 ): TemplateEntry => {
   const { listing, attendee } = entry;
   // Render the booking's actual span from its stored range, so customisable-days
@@ -106,7 +105,7 @@ const toTemplateEntry = (
   return {
     attendee: {
       address: attendee.address,
-      answers: [...answers],
+      answers,
       date: attendee.date,
       date_range_label: dateRangeLabel,
       email: attendee.email,
@@ -271,15 +270,14 @@ export const buildTemplateData = async (
   currency: string,
   ticketUrl: string,
   options: {
-    answerLines?: OrderAnswerLines;
+    answerLines: OrderAnswerLines;
     hidePackageMembers?: boolean;
     packageDisplays?: ReadonlyMap<number, PackageDisplay>;
-  } = {},
+  },
 ): Promise<TemplateData> => {
   const displays =
     options.packageDisplays ?? (await packageDisplaysForRows(entries));
-  const answers = options.answerLines ?? (await loadOrderAnswerLines(entries));
-  const entryAnswers = entryAnswerLines(answers);
+  const entryAnswers = entryAnswerLines(options.answerLines);
   // The buyer's confirmation (hidePackageMembers) collapses hidden packages'
   // rows; the admin notification keeps them.
   const templateEntries: TemplateEntry[] = options.hidePackageMembers

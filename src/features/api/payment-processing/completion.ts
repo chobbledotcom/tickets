@@ -30,7 +30,7 @@ export const completePaidBooking = async (
   const freeTexts = intent.listingTextAnswerIds
     ? await takeCheckoutAnswers(sessionId)
     : undefined;
-  if (intent.listingTextAnswerIds && freeTexts?.size === 0) {
+  if (freeTexts?.size === 0) {
     // The hashed index, not the raw session id: for SumUp the id is the
     // checkout reference, which must not reach logs or sinks either.
     logError({

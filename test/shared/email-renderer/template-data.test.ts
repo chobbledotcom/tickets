@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildTemplateData } from "#shared/email-renderer.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import {
   buildTestData,
@@ -70,11 +69,10 @@ describeEmailRenderer(() => {
     });
 
     test("builds correct data shape from multiple entries", async () => {
-      const data = await buildTemplateData(
-        [makeEntry({ name: "Listing A" }), makeEntry({ name: "Listing B" })],
-        "GBP",
-        "https://example.com/t/ABC+DEF",
-      );
+      const data = await buildTestData([
+        makeEntry({ name: "Listing A" }),
+        makeEntry({ name: "Listing B" }),
+      ]);
 
       expect(data.listing_names).toBe("Listing A and Listing B");
       expect(data.entries.length).toBe(2);
@@ -82,15 +80,11 @@ describeEmailRenderer(() => {
     });
 
     test("formats three or more listing names with commas and 'and'", async () => {
-      const data = await buildTemplateData(
-        [
-          makeEntry({ name: "Listing A" }),
-          makeEntry({ name: "Listing B" }),
-          makeEntry({ name: "Listing C" }),
-        ],
-        "GBP",
-        "https://example.com/t/ABC+DEF+GHI",
-      );
+      const data = await buildTestData([
+        makeEntry({ name: "Listing A" }),
+        makeEntry({ name: "Listing B" }),
+        makeEntry({ name: "Listing C" }),
+      ]);
 
       expect(data.listing_names).toBe("Listing A, Listing B, and Listing C");
     });

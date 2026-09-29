@@ -116,9 +116,7 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    `created_at < ? AND recovery_state IN (${inPlaceholders(
-      RECOVERY_PRUNABLE_NODES,
-    )})`,
+    `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
   // The payments cutoff keeps answers past the short SumUp staging window.

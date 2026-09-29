@@ -298,13 +298,12 @@ const resendNotification = async (
 
   // An admin session can spend the owner key, so the resend is the one path
   // that reads the buyer's free-text answers straight from the strings table.
-  const freeTexts =
-    (
-      await getAttendeeTextAnswersBatch(
-        [attendeeId],
-        await requireRequestPrivateKey(),
-      )
-    ).get(attendeeId) ?? new Map<number, string>();
+  const freeTexts = (
+    await getAttendeeTextAnswersBatch(
+      [attendeeId],
+      await requireRequestPrivateKey(),
+    )
+  ).get(attendeeId);
 
   await Promise.all([
     logAndNotifyRegistration(await resendEntries(data), { freeTexts }),
