@@ -25,9 +25,10 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
+  WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-import { isoBefore, now, nowIso, nowMs } from "#shared/now.ts";
+import { DAY_MS, isoBefore, now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
@@ -121,11 +122,15 @@ const pruneStatements = (): PruneStatement[] => [
   ),
   // The payments cutoff keeps answers past the short SumUp staging window. A
   // Square link takes payment for 180 days after its creation, or until its
-  // first payment, so its row also waits for the link to end.
+  // first payment, so its row also waits for the link to end. A payment made
+  // just before the end can still arrive through webhook retries.
   boundedDelete(
     "checkout_pending_answers",
     "created_at < ? AND (link_ends_at IS NULL OR link_ends_at < ?)",
-    [isoBefore(PRUNE_PAYMENTS_RETENTION_MS), nowIso()],
+    [
+      isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
+      isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
+    ],
   ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),

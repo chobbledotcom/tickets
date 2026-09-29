@@ -10,6 +10,7 @@ import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
+import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
 import { DAY_MS, isoBefore } from "#shared/now.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
@@ -99,10 +100,23 @@ describeWithEnv(
       );
     });
 
-    test("prunes a Square checkout's answers once its link has ended", async () => {
+    test("keeps a Square checkout's answers while a payment on the link's last day can still arrive", async () => {
+      // The link ended a day ago, but a payment made just before its end can
+      // still reach us through the provider's webhook retries.
       await squareCheckoutAgedDays("sq_day_181", 181);
 
-      expect(await takeCheckoutAnswers("sq_day_181")).toEqual(new Map());
+      expect(await takeCheckoutAnswers("sq_day_181")).toEqual(
+        new Map([[7, "Coming by bus"]]),
+      );
+    });
+
+    test("prunes a Square checkout's answers once its link has ended and the webhook retries are over", async () => {
+      await squareCheckoutAgedDays(
+        "sq_day_184",
+        180 + WEBHOOK_RETRY_WINDOW_DAYS + 1,
+      );
+
+      expect(await takeCheckoutAnswers("sq_day_184")).toEqual(new Map());
     });
   },
 );
