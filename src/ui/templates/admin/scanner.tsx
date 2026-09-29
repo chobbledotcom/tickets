@@ -16,6 +16,9 @@ import type { AdminSession } from "#types";
  * attendee's internal id, never the ticket credential. */
 export interface TicketOption {
   attendeeId: number;
+  /** The door-safe facts that tell two people with the same name apart —
+   * the listing (on a multi-listing door) and the day each place is for. */
+  details: string[];
   name: string;
   quantity: number;
 }
@@ -238,20 +241,30 @@ export const adminScannerPage = (
               id="ticket-options"
               role="listbox"
             >
-              {uncheckedIn.map((ticket) => (
-                <div
-                  data-attendee-id={String(ticket.attendeeId)}
-                  data-name={escapeHtml(ticket.name)}
-                  data-quantity={String(ticket.quantity)}
-                  role="option"
-                  tabIndex={0}
-                >
-                  {t("admin.scanner.ticket_option", {
-                    count: ticket.quantity,
-                    name: escapeHtml(ticket.name),
-                  })}
-                </div>
-              ))}
+              {uncheckedIn.map((ticket) => {
+                const detail = ticket.details.join(", ");
+                return (
+                  <div
+                    data-attendee-id={String(ticket.attendeeId)}
+                    data-detail={escapeHtml(detail)}
+                    data-name={escapeHtml(ticket.name)}
+                    data-quantity={String(ticket.quantity)}
+                    role="option"
+                    tabIndex={0}
+                  >
+                    {detail
+                      ? t("admin.scanner.ticket_option_detail", {
+                          count: ticket.quantity,
+                          detail: escapeHtml(detail),
+                          name: escapeHtml(ticket.name),
+                        })
+                      : t("admin.scanner.ticket_option", {
+                          count: ticket.quantity,
+                          name: escapeHtml(ticket.name),
+                        })}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div class="hidden" id="manual-checkin-status"></div>

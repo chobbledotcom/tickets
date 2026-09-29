@@ -129,6 +129,20 @@ describe("manual check-in combobox", () => {
     expect(page.input.value).toBe("Bea (1 pass)");
   });
 
+  test("a pick carries its day and listing beside the name", () => {
+    const page = setup();
+    const option = document.querySelector<HTMLElement>(
+      "[data-attendee-id='11']",
+    )!;
+
+    option.dispatchEvent(
+      new page.window.Event("click", { bubbles: true }) as unknown as Event,
+    );
+
+    expect(page.attendeeIdInput.value).toBe("11");
+    expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");
+  });
+
   test("clicking an option uses the singular fallback message when unset", () => {
     const page = setup();
     delete page.form.dataset.messageTicketCountOne;
@@ -152,7 +166,7 @@ describe("manual check-in combobox", () => {
 
     expect(enter.defaultPrevented).toBe(true);
     expect(page.attendeeIdInput.value).toBe("11");
-    expect(page.input.value).toBe("Ada (2 tickets)");
+    expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");
     expect(page.listbox.classList.contains("hidden")).toBe(true);
     expect(page.input.getAttribute("aria-expanded")).toBe("false");
   });

@@ -17,7 +17,7 @@ import {
   createTestEditorSession,
 } from "#test-utils/session.ts";
 import { withSetting } from "#test-utils/settings.ts";
-import { setupCheckinTest } from "./helpers.ts";
+import { readTicketPage, setupCheckinTest } from "./helpers.ts";
 
 describeWithEnv("check-in page role authorization", { db: true }, () => {
   describe("GET /checkin/:tokens (delivery agent session)", () => {
@@ -57,11 +57,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         today,
       );
 
-      const allowed = await awaitTestRequest(`/checkin/${own.token}`, {
-        cookie,
-      });
-      expect(allowed.status).toBe(200);
-      const allowedBody = await allowed.text();
+      const allowedBody = await readTicketPage(own.token, cookie);
       expect(allowedBody).toContain("Assigned Person");
       // An agent's run-sheet view never carries the bulk actions: their
       // session is not a door role, so the POST would refuse them.
@@ -130,15 +126,30 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
       await refundThroughLedger(own.attendee.id, own.listing.id);
 
-      const response = await awaitTestRequest(`/checkin/${own.token}`, {
-        cookie,
-      });
-      expect(response.status).toBe(200);
-      const body = await response.text();
+      const body = await readTicketPage(own.token, cookie);
       expect(body).toContain("Refunded Person");
       // A refunded leg offers nothing to change, and an agent's session is
       // not a door role: no bulk action may appear.
       expect(body).not.toContain("Check In All");
+      expect(body).not.toContain('name="check_in"');
+    });
+
+    test("a scanner's door role alone offers no action on a token no row can change", async () => {
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      const { attendee, token } = await createTestAttendeeWithToken(
+        "Still Home",
+        "still-home@test.com",
+      );
+      const scanner = await createTestScannerSession();
+      await refundThroughLedger(attendee.id, attendee.listing_id);
+
+      const body = await readTicketPage(token, scanner.cookie);
+      // A door role is one half of the bulk action's gate; the other half is
+      // a row the POST could change. A fully refunded token meets neither
+      // offer: the POST would refuse, so the page must not advertise it.
+      expect(body).toContain("Still Home");
+      expect(body).not.toContain("Check In All");
+      expect(body).not.toContain("Check Out All");
       expect(body).not.toContain('name="check_in"');
     });
 
@@ -192,9 +203,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // Row B (later date, quantity 3): no agent, never on the run sheet.
       await insertSecondBookingRow(attendee.id, listing.id, laterDate, 3);
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      expect(response.status).toBe(200);
-      const body = await response.text();
+      const body = await readTicketPage(token, cookie);
 
       // The agent owns only Row A, so only its quantity appears.
       expect(body).toContain("Multi Row Person");
@@ -229,9 +238,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         tomorrow,
       );
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      expect(response.status).toBe(200);
-      const body = await response.text();
+      const body = await readTicketPage(token, cookie);
       expect(body).toContain("Tomorrow Person");
     });
   });
@@ -265,9 +272,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         token: "checkin-scanner",
       });
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      expect(response.status).toBe(200);
-      const body = await response.text();
+      const body = await readTicketPage(token, cookie);
 
       expect(body).toContain("Door Guest");
       expect(body).toContain("Check In All");

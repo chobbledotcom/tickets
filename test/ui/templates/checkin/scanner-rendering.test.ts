@@ -8,6 +8,7 @@ import { settings } from "#db/settings.ts";
 import {
   checkOneLegAsStaff,
   postCheckin,
+  readTicketPage,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -29,12 +30,7 @@ describeWithEnv(
       const { listing, token } = await setupCheckinTest("Sam", "sam@test.com");
       const scanner = await createTestScannerSession();
 
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: scanner.cookie,
-      });
-      expect(response.status).toBe(200);
-
-      const body = await response.text();
+      const body = await readTicketPage(token, scanner.cookie);
       // The working bulk check-in stays; the per-row forms POST to a
       // staff-only admin endpoint, so a scanner is never shown one. Each
       // row's state reads as a badge instead.
@@ -62,8 +58,7 @@ describeWithEnv(
       await refundThroughLedger(attendee.id, first.id);
       await postCheckin(token, session, "false");
 
-      const before = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      const beforeBody = await before.text();
+      const beforeBody = await readTicketPage(token, cookie);
       // The checked refunded row must not flip the bulk action to checkout
       // while the live row still waits at the door.
       expect(beforeBody).toContain("Check In All");
@@ -77,8 +72,7 @@ describeWithEnv(
         `/checkin/${token}?message=Checked%20in%201%20ticket`,
       );
 
-      const after = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      const afterBody = await after.text();
+      const afterBody = await readTicketPage(token, cookie);
       expect(afterBody).toContain("Checked in");
       expect(afterBody).not.toContain("Not checked in");
       expect(afterBody).not.toContain(
@@ -100,8 +94,7 @@ describeWithEnv(
       await refundThroughLedger(attendee.id, listing.id);
       await postCheckin(token, session, "true");
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      const body = await response.text();
+      const body = await readTicketPage(token, cookie);
       // The page keeps the row's refunded badge but advertises no action
       // that the POST could never honour.
       expect(body).toContain("Refunded");
@@ -139,8 +132,7 @@ describeWithEnv(
       const session = { cookie, csrfToken: await testCsrfToken() };
       await postCheckin(token, session, "true");
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      const body = await response.text();
+      const body = await readTicketPage(token, cookie);
       // The one bulk action can undo the check-in the door just made.
       expect(body).toContain("Check Out All");
       expect(body).toContain('class="bulk-checkout"');
@@ -159,10 +151,7 @@ describeWithEnv(
       );
       const scanner = await createTestScannerSession();
 
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: scanner.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, scanner.cookie);
       expect(body).toContain("Rae");
       expect(body).not.toContain("rae@test.com");
       expect(body).not.toContain("555-1234");
@@ -179,10 +168,7 @@ describeWithEnv(
         attendee_column_order: "{{email}}, {{phone}}",
       });
 
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: scanner.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, scanner.cookie);
       // The fixed door-safe columns carry the door facts regardless.
       expect(body).toContain("Fay");
       expect(body).toContain(">Qty</th>");

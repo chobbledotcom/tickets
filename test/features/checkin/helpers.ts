@@ -1,6 +1,7 @@
+import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
-import { mockFormRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 import type { Listing } from "#types";
 
@@ -60,4 +61,14 @@ export const checkOneLegAsStaff = async (
       await testCookie(),
     ),
   );
+};
+
+/** Read the ticket page for a token as a signed-in session sees it. */
+export const readTicketPage = async (
+  token: string,
+  cookie: string,
+): Promise<string> => {
+  const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
+  expect(response.status).toBe(200);
+  return response.text();
 };

@@ -9,8 +9,11 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
+import { addDays, formatDateLabel } from "#shared/dates.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
@@ -19,7 +22,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { allDays, createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
@@ -27,7 +30,7 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { groupDoor } from "./support.ts";
+import { doorPage, groupDoor } from "./support.ts";
 
 /** A live door scan sent as a scanner session, the page's own script's shape. */
 const scanAsScanner = async (
@@ -200,6 +203,42 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as { status: string };
     expect(json.status).toBe("checked_in");
+  });
+
+  test("names the same-named picks apart by their day and listing on a group door", async () => {
+    const { group, members } = await groupDoor(
+      2,
+      {
+        bookableDays: allDays,
+        listingType: "daily",
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      },
+      ["Standard", "Society"],
+    );
+    const firstDay = addDays(todayInTz(settings.timezone), 10);
+    // Two people with the same name and the same number of places, booked
+    // for different days on different listings of this door. The day, and
+    // the listing on a multi-listing door, are what tell their two picks
+    // apart on the roster.
+    await bookTestAttendee(
+      [{ date: firstDay, listingId: members[0]!.id, quantity: 2 }],
+      "Ada",
+      "ada-standard@test.com",
+    );
+    await bookTestAttendee(
+      [{ date: addDays(firstDay, 1), listingId: members[1]!.id, quantity: 2 }],
+      "Ada",
+      "ada-society@test.com",
+    );
+
+    const body = await doorPage(group.id);
+    expect(body).toContain(
+      `Ada (2 attendees) — Standard · ${formatDateLabel(firstDay)}`,
+    );
+    expect(body).toContain(
+      `Ada (2 attendees) — Society · ${formatDateLabel(addDays(firstDay, 1))}`,
+    );
   });
 
   test("an editor and an agent are refused every door and every scan", async () => {

@@ -22,7 +22,7 @@ const CHECKIN_FORM = `
     <input id="manual-checkin-input" />
     <input name="csrf_token" value="csrf" />
     <div class="combobox-list hidden" id="ticket-options" role="listbox">
-      <div data-attendee-id="11" data-name="Ada" data-quantity="2" role="option" tabindex="0">Ada (2 tickets)</div>
+      <div data-attendee-id="11" data-detail="Camping · 12 Jun" data-name="Ada" data-quantity="2" role="option" tabindex="0">Ada (2 tickets)</div>
       <div data-attendee-id="12" data-name="Bea" data-quantity="1" role="option" tabindex="0">Bea (1 ticket)</div>
       <div data-attendee-id="13" data-name="Cy" data-quantity="3" role="option" tabindex="0">Cy (3 tickets)</div>
     </div>

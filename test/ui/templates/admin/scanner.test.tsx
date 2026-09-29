@@ -44,8 +44,8 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [
-        { attendeeId: 41, name: "Ada", quantity: 2 },
-        { attendeeId: 42, name: "Sam", quantity: 1 },
+        { attendeeId: 41, details: [], name: "Ada", quantity: 2 },
+        { attendeeId: 42, details: [], name: "Sam", quantity: 1 },
       ],
     );
 
@@ -54,6 +54,39 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('data-quantity="2"');
     expect(html).toContain('data-attendee-id="41"');
     expect(html).toContain('data-name="Sam"');
+  });
+
+  test("tells two people with the same name apart by their day and listing", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [
+        {
+          attendeeId: 41,
+          details: ["Camping · 12 Jun"],
+          name: "Ada",
+          quantity: 2,
+        },
+        {
+          attendeeId: 42,
+          details: ["Workshop · 14 Jun"],
+          name: "Ada",
+          quantity: 2,
+        },
+      ],
+    );
+
+    // Same name and the same number of places: only the day, and on a
+    // multi-listing door the listing, tells the two picks apart, so the
+    // roster shows it beside the name.
+    expect(html).toContain("Ada (2 attendees) — Camping · 12 Jun");
+    expect(html).toContain("Ada (2 attendees) — Workshop · 14 Jun");
+    expect(html).toContain('data-detail="Camping · 12 Jun"');
+    // The pick list searches what it shows; it no longer offers the ticket
+    // token, which the roster stopped carrying.
+    expect(html).toContain("Search by name, day, or listing");
+    expect(html).not.toContain("ticket token");
   });
 
   test("says when nobody is left to check in", () => {
@@ -72,7 +105,7 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [{ attendeeId: 41, name: "Ada", quantity: 1 }],
+      [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
     );
 
     expect(html).toContain("1 ticket available");

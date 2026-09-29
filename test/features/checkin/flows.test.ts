@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
-import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
@@ -13,68 +12,13 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import {
-  checkOneLegAsStaff,
-  postCheckin,
-  setupCheckinTest,
-} from "./helpers.ts";
+import { postCheckin, setupCheckinTest } from "./helpers.ts";
 
 describeWithEnv(
   "check-in and out (POST /checkin/:tokens)",
   { db: true },
   () => {
     describe("POST /checkin/:tokens", () => {
-      test("records each changed row in the activity log", async () => {
-        const { listing, session, token } = await setupCheckinTest(
-          "Logged",
-          "logged@test.com",
-        );
-
-        await postCheckin(token, session, "true");
-        await postCheckin(token, session, "false");
-
-        const { getAttendeesByTokens } = await import(
-          "#db/attendees/tokens.ts"
-        );
-        const { getAttendeeActivityLog } = await import("#db/activity-log.ts");
-        const [awb] = await getAttendeesByTokens([token]);
-        const { withTestSession } = await import("#test-utils/session.ts");
-        // Reading the log decrypts its messages, which needs a session's
-        // private key: run the read inside the test session's context.
-        const log = await withTestSession(() =>
-          getAttendeeActivityLog(awb!.id),
-        );
-
-        // Newest first: the checkout the door made last, then the check-in.
-        // Older rows (the attendee's own creation) sit below them.
-        expect(log.map((entry) => entry.message).slice(0, 2)).toEqual([
-          `Attendee checked out for '${listing.name}'`,
-          `Attendee checked in for '${listing.name}'`,
-        ]);
-      });
-
-      test("a refunded checked row never turns the bulk action to checkout", async () => {
-        const { attendee, first } = await createTwoListingBooking(
-          "Route Mixed",
-          "route-mixed@test.com",
-        );
-        // Staff check one leg in through its own row's form; the refund
-        // takes that leg back. The other leg still waits at the door.
-        await checkOneLegAsStaff(first.id, attendee.id);
-        const { refundThroughLedger } = await import("#test-utils/ledger.ts");
-        await refundThroughLedger(attendee.id, first.id);
-
-        const response = await awaitTestRequest(
-          `/checkin/${attendee.ticket_token}`,
-          { cookie: (await createTestScannerSession()).cookie },
-        );
-        const body = await response.text();
-        // The live row's admission stays on offer; a refunded checked row
-        // is out of the eligibility set, so it cannot flip the action.
-        expect(body).toContain("Check In All");
-        expect(body).not.toContain("Check Out All");
-      });
-
       test("checks in attendee with check_in=true and shows success", async () => {
         const { token, session } = await setupCheckinTest(
           "Eve",

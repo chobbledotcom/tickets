@@ -1,8 +1,35 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+
+/** The turn of the question now showing, or the last one answered. A dialog
+ * that fails leaves the turn failed, so every later ask on that broken page
+ * throws the same way instead of hanging the door. Kept in a closure so the
+ * browser bundle takes on no module state beyond this one dialog. */
+const queue = (() => {
+  let turn: Promise<unknown> = Promise.resolve();
+  return {
+    pass: (next: Promise<unknown>): void => {
+      turn = next;
+    },
+    wait: (): Promise<unknown> => turn,
+  };
+})();
+
 /** The door scan's confirm dialog: asks before a force or an ID-verified
- * admit, and answers only through its buttons or the Escape key. */
+ * admit, and answers only through its buttons or the Escape key. Questions
+ * queue one behind the other: the camera loop and the manual form share the
+ * one dialog, so a single click answers exactly the prompt the operator
+ * sees, never a hidden second question. */
 export const showConfirm = (message: string): Promise<boolean> => {
+  const answer = (async () => {
+    await queue.wait();
+    return openConfirm(message);
+  })();
+  queue.pass(answer);
+  return answer;
+};
+
+const openConfirm = (message: string): Promise<boolean> => {
   const overlay = document.getElementById("scanner-confirm")!;
   const msgEl = document.getElementById("scanner-confirm-message")!;
   const yesBtn = document.getElementById("scanner-confirm-yes")!;

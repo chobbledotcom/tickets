@@ -194,6 +194,33 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
         });
   });
 
+/** Write the door's status change and its activity rows as one unit, by the
+ * rows whose state the action really moves — a merged attendee's refunded
+ * order on the same listing stays untouched, and a row already in the
+ * action's state is neither written nor logged again. */
+const commitDoorCheckin = async (
+  changedEntries: readonly TokenEntry[],
+  checkedIn: boolean,
+): Promise<void> => {
+  // An empty selection never reaches SQL.
+  if (changedEntries.length === 0) return;
+  await withTransaction(async (tx) => {
+    await setCheckedInOnBookingRows(
+      changedEntries.map((e) => e.bookingRowId),
+      checkedIn,
+      tx,
+    );
+    await logActivities(
+      changedEntries.map((e) => ({
+        attendeeId: e.attendee.id,
+        listing: e.listing.id,
+        message: `Attendee checked ${checkedIn ? "in" : "out"} for '${e.listing.name}'`,
+      })),
+      tx,
+    );
+  });
+};
+
 /** Handle POST /checkin/:tokens - set check-in status from form field */
 const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
   withAuth(request, DOOR_FORM, (_session, form) =>
@@ -221,26 +248,14 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
         eligible,
         (attendee) => !attendee.checked_in,
       );
-      // Every row's status change and every row's activity record commit as
-      // one unit, by the rows the eligibility filter selected — a merged
-      // attendee's refunded order on the same listing stays untouched. The
-      // action reads in the activity log exactly like its camera-scan and
-      // per-row siblings do.
-      await withTransaction(async (tx) => {
-        await setCheckedInOnBookingRows(
-          eligibleEntries.map((e) => e.bookingRowId),
-          checkedIn,
-          tx,
-        );
-        await logActivities(
-          eligibleEntries.map((e) => ({
-            attendeeId: e.attendee.id,
-            listing: e.listing.id,
-            message: `Attendee checked ${checkedIn ? "in" : "out"} for '${e.listing.name}'`,
-          })),
-          tx,
-        );
-      });
+      // Only rows whose state the action changes are written and logged, so
+      // the activity log records what the door did, not what it left alone.
+      await commitDoorCheckin(
+        filter((e: TokenEntry) => e.attendee.checked_in !== checkedIn)(
+          eligibleEntries,
+        ),
+        checkedIn,
+      );
 
       let message: string;
       if (!checkedIn) {

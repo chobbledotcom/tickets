@@ -65,7 +65,10 @@ export const initManualCheckin = (): void => {
 
   const selectOption = (opt: HTMLLIElement) => {
     attendeeIdInput.value = opt.dataset.attendeeId!;
-    input.value = `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})`;
+    const detail = opt.dataset.detail ?? "";
+    input.value =
+      `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})` +
+      (detail ? ` — ${detail}` : "");
     setListOpen(false);
   };
 

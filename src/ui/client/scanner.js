@@ -120,6 +120,41 @@ const handleResult = (el, result, messages) => {
   }
 };
 
+/** One scan answer the door must ask about, and the answer after it: the
+ * organiser's word re-posts the scan with what they confirmed, so a forced
+ * ticket can still ask for an ID check before it admits. Every answer the
+ * door cannot act on shows as itself. */
+const answerScan = async (el, result, messages, post, confirmed = {}) => {
+  if (result.status === "wrong_listing") {
+    const ok = await showConfirm(
+      interpolate(
+        getMessage(
+          messages,
+          "messageWrongListingConfirm",
+          '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+        ),
+        { listingName: result.listingName, name: result.name },
+      ),
+    );
+    if (!ok) {
+      showStatus(el, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
+      return;
+    }
+    await answerScan(el, await post({ ...confirmed, force: true }), messages, post, { ...confirmed, force: true });
+    return;
+  }
+  if (result.status === "verify_id") {
+    const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
+    if (!ok) {
+      showStatus(el, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
+      return;
+    }
+    await answerScan(el, await post({ ...confirmed, idVerified: true }), messages, post, { ...confirmed, idVerified: true });
+    return;
+  }
+  handleResult(el, result, messages);
+};
+
 /** Main scanner loop */
 const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) => {
   const ctx = canvas.getContext("2d");
@@ -173,40 +208,11 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
     }, FADE_DELAY_MS);
 
     postScan(scanPath, token, csrfToken)
-      .then(async (result) => {
-        if (result.status === "wrong_listing") {
-          const ok = await showConfirm(
-            interpolate(
-              getMessage(
-                messages,
-                "messageWrongListingConfirm",
-                '{name} is registered for "{listingName}", not this listing. Check in anyway?',
-              ),
-              { listingName: result.listingName, name: result.name },
-            ),
-          );
-          if (ok) {
-            const forced = await postScan(scanPath, token, csrfToken, {
-              force: true,
-            });
-            handleResult(statusEl, forced, messages);
-          } else {
-            showStatus(statusEl, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
-          }
-        } else if (result.status === "verify_id") {
-          const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
-          if (ok) {
-            const verified = await postScan(scanPath, token, csrfToken, {
-              idVerified: true,
-            });
-            handleResult(statusEl, verified, messages);
-          } else {
-            showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
-          }
-        } else {
-          handleResult(statusEl, result, messages);
-        }
-      })
+      .then((result) =>
+        answerScan(statusEl, result, messages, (choices) =>
+          postScan(scanPath, token, csrfToken, choices),
+        ),
+      )
       .catch(() => {
         showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
       })
@@ -265,13 +271,11 @@ const init = () => {
   });
 };
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
-}
+// The page's only script tag is type="module", so the document has finished
+// parsing by the time this runs and init can start at once.
+init();
 
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the
 // direct test drives through the built bundle.
-export { extractToken, handleResult, postScan, showConfirm };
+export { answerScan, extractToken, handleResult, postScan, showConfirm };

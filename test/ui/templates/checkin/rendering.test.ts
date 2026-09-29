@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
   postCheckin,
+  readTicketPage,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
 import { tableRowContaining } from "#test-utils/assertions.ts";
@@ -42,12 +43,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (authenticated admin)", () => {
     test("shows current status without auto-checking-in", async () => {
       const { token, session } = await setupCheckinTest("Bob", "bob@test.com");
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      expect(response.status).toBe(200);
-
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       expect(body).toContain("Check in");
       expect(body).toContain("Check In All");
       expect(body).not.toContain('class="success"');
@@ -91,10 +87,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         1,
         "555-1234",
       );
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       expect(body).toContain("Bob");
       expect(body).toContain("bob@test.com");
       expect(body).toContain("555-1234");
@@ -140,10 +133,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         { maxQuantity: 5 },
         3,
       );
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       expect(body).toContain(listing.name);
       expect(body).toContain("3");
     });
@@ -153,19 +143,13 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "Fay",
         "fay@test.com",
       );
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       expect(body).toContain(`href="/admin/listing/${listing.id}"`);
     });
 
     test("shows green bulk check-in button when not checked in", async () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       expect(body).toContain('class="bulk-checkin"');
       expect(body).toContain("Check In All");
       // The form posts this hidden input, so the name the POST handler reads
@@ -234,7 +218,9 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       if (!withoutContact.success) throw new Error("Failed to create attendee");
 
       const response = await adminGet(
-        `/checkin/${withContact.attendees[0]!.ticket_token}+${withoutContact.attendees[0]!.ticket_token}`,
+        `/checkin/${withContact.attendees[0]!.ticket_token}+${
+          withoutContact.attendees[0]!.ticket_token
+        }`,
       );
       const body = await response.text();
       // Column headers render because at least one attendee has each field.
@@ -253,10 +239,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "Alice",
         "alice@test.com",
       );
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       expect(body).not.toContain("<th>Date</th>");
     });
 
@@ -314,10 +297,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       const { refundThroughLedger } = await import("#test-utils/ledger.ts");
       await refundThroughLedger(attendee.id, listing.id);
 
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: session.cookie,
-      });
-      const body = await response.text();
+      const body = await readTicketPage(token, session.cookie);
       // The token's only row is refunded, so the POST has nothing it may
       // change: no bulk action is advertised, for staff or scanner.
       expect(body).toContain("Refunded");
