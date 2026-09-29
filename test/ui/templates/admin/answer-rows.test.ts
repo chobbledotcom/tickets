@@ -136,6 +136,18 @@ describe("noteLines", () => {
     ]);
   });
 
+  test("quotes only the old question wording when the answer kept its words", () => {
+    expect(
+      noteLines({ answer: null, kind: "reworded", question: "Size?" }),
+    ).toEqual(['When they booked, the question said: "Size?".']);
+  });
+
+  test("quotes only the old answer wording when the question kept its words", () => {
+    expect(
+      noteLines({ answer: "Big", kind: "reworded", question: null }),
+    ).toEqual(['When they booked, the answer said: "Big".']);
+  });
+
   test("names a deleted question", () => {
     expect(noteLines({ kind: "question-deleted" })).toEqual([
       "This question was deleted.",

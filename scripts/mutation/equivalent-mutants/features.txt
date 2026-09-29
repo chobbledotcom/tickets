@@ -255,7 +255,7 @@ src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  0 → 1   # the depositPaid fallback only feeds owed = max(fullPrice, listed) - paid on a path where orderSummary is absent, so fullPrice and listed are both 0 and owed stays ≤ 0 under either value
 src/features/admin/attendee-page-data.ts::assembleTemplateData.questions~0wxrma2  ?? → ||   # opts.questions is an array or undefined, and arrays are truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedTextAnswers~0av0z2p  ?? → ||   # the value is a Map or undefined, and Maps are truthy
-src/features/admin/attendee-page-data.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # the answer map answers an array or undefined, and arrays are truthy
+src/features/admin/attendee-questions.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # the answer map answers an array or undefined, and arrays are truthy
 
 # Rejected-charge resume guard (rejected-target.ts): the guard runs only when
 # reserveSession returned an existing row, and a stored session row is in
