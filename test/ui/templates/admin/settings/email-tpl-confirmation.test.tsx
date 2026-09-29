@@ -1,12 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { PRUNE_PAYMENTS_RETENTION_DAYS } from "#shared/limits.ts";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
-import {
-  LOOP_EXAMPLE,
-  notAvailableNote,
-} from "#templates/components/email-template-reference.tsx";
+import { LOOP_EXAMPLE } from "#templates/components/email-template-reference.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import {
   expectVariablesShown,
@@ -23,9 +19,8 @@ describe("confirmation email template form", () => {
   test("the reference shows the worked loop and the notes", () => {
     expect(html).toContain(`<pre>${shown(LOOP_EXAMPLE)}</pre>`);
     expect(html).toContain(t("settings.advanced.email_variables.filters_note"));
-    expect(html).toContain(notAvailableNote());
-    expect(notAvailableNote()).toContain(
-      `Neither does a payment made ${PRUNE_PAYMENTS_RETENTION_DAYS} or more days after checkout.`,
+    expect(html).toContain(
+      t("settings.advanced.email_variables.not_available"),
     );
   });
 

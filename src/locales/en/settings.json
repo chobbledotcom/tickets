@@ -144,7 +144,7 @@
   "settings.advanced.email_variables.example_intro": "Use a loop to print each booked listing with its details:",
   "settings.advanced.email_variables.answers_example_intro": "Use a loop inside the listings loop to print each answer the buyer gave:",
   "settings.advanced.email_variables.filters_note": "The currency filter shows a number as money. The pluralize filter picks the singular or plural word for a number.",
-  "settings.advanced.email_variables.not_available": "Templates cannot show the payment id, the payment provider, or the payment time. An email that pays off a balance does not repeat the buyer's free-text answers. Neither does a payment made {days} or more days after checkout.",
+  "settings.advanced.email_variables.not_available": "Templates cannot show the payment id, the payment provider, or the payment time. An email that pays off a balance does not repeat the buyer's free-text answers.",
   "settings.advanced.subject": "Subject",
   "settings.advanced.html_body": "HTML Body",
   "settings.advanced.plain_text_body": "Plain Text Body",

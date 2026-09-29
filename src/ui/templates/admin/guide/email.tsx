@@ -13,7 +13,6 @@ import {
 import {
   ANSWERS_LOOP_EXAMPLE,
   LOOP_EXAMPLE,
-  notAvailableNote,
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
 /* jscpd:ignore-end */
@@ -96,7 +95,7 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
           <pre>
             <code>{ANSWERS_LOOP_EXAMPLE}</code>
           </pre>
-          <p>{notAvailableNote()}</p>
+          <p>{t("settings.advanced.email_variables.not_available")}</p>
         </>,
       ),
       custom(

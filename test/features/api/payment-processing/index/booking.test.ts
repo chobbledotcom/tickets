@@ -56,7 +56,11 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       [String(listing.id)]: [{ q: freeText, s: stringId }],
     };
     if (staged) {
-      await stageCheckoutAnswers(id, { [String(freeText)]: "Arriving late" });
+      await stageCheckoutAnswers(
+        id,
+        { [String(freeText)]: "Arriving late" },
+        null,
+      );
     }
     return { data, freeText, listing };
   };

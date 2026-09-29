@@ -27,7 +27,7 @@ import {
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-import { isoBefore, now, nowMs } from "#shared/now.ts";
+import { isoBefore, now, nowIso, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
@@ -119,11 +119,14 @@ const pruneStatements = (): PruneStatement[] => [
     `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
-  // The payments cutoff keeps answers past the short SumUp staging window.
-  // Square links do not expire, so a late payment can still outlive this row.
-  boundedDelete("checkout_pending_answers", "created_at < ?", [
-    isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
-  ]),
+  // The payments cutoff keeps answers past the short SumUp staging window. A
+  // Square link takes payment for 180 days after its creation, or until its
+  // first payment, so its row also waits for the link to end.
+  boundedDelete(
+    "checkout_pending_answers",
+    "created_at < ? AND (link_ends_at IS NULL OR link_ends_at < ?)",
+    [isoBefore(PRUNE_PAYMENTS_RETENTION_MS), nowIso()],
+  ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),

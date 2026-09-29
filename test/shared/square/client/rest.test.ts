@@ -30,6 +30,7 @@ describeSquare(() => {
         Promise.resolve(
           jsonResponse({
             payment_link: {
+              created_at: "2026-09-29T12:00:00Z",
               long_url: "https://checkout.square.site/rest",
               order_id: "ord_rest",
               url: "https://square.link/rest",
@@ -62,6 +63,7 @@ describeSquare(() => {
 
       // Response prefers long_url (checkout.square.site) over short url (square.link)
       expect(result).toEqual({
+        createdAt: "2026-09-29T12:00:00Z",
         orderId: "ord_rest",
         url: "https://checkout.square.site/rest",
       });
@@ -130,7 +132,11 @@ describeSquare(() => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
-            payment_link: { order_id: "ord_2", url: "https://square.link/2" },
+            payment_link: {
+              created_at: "2026-09-29T12:00:00Z",
+              order_id: "ord_2",
+              url: "https://square.link/2",
+            },
           }),
         ),
       );

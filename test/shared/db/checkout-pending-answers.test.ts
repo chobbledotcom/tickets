@@ -22,7 +22,7 @@ const sessionIndexOf = (sessionId: string): Promise<string> =>
 
 describeWithEnv("checkout pending answers", { db: true }, () => {
   test("stages sealed rows and gives them back by session id", async () => {
-    await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" });
+    await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" }, null);
 
     expect(await takeCheckoutAnswers("cs_staged")).toEqual(
       new Map([[7, "Coming by bus"]]),
@@ -30,7 +30,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("rests the text sealed, not as plaintext", async () => {
-    await stageCheckoutAnswers("cs_sealed", { "7": "Coming by bus" });
+    await stageCheckoutAnswers("cs_sealed", { "7": "Coming by bus" }, null);
 
     const row = await queryOne<{ sealed: string }>(
       "SELECT sealed FROM checkout_pending_answers WHERE session_index = ?",
@@ -41,7 +41,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("rests only the hash of the session id, never the id itself", async () => {
-    await stageCheckoutAnswers("cs_reference", { "7": "text" });
+    await stageCheckoutAnswers("cs_reference", { "7": "text" }, null);
 
     // For SumUp the session id is the checkout reference, which must never
     // rest in this database: the sumup_checkouts rows stay sealed without it.
@@ -55,7 +55,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("takes the row away, so a second take finds nothing", async () => {
-    await stageCheckoutAnswers("cs_taken", { "7": "Once only" });
+    await stageCheckoutAnswers("cs_taken", { "7": "Once only" }, null);
     expect(await takeCheckoutAnswers("cs_taken")).toEqual(
       new Map([[7, "Once only"]]),
     );
@@ -63,9 +63,9 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("replaces what an earlier session id staged, and skips empty answers", async () => {
-    await stageCheckoutAnswers("cs_replaced", { "7": "first try" });
-    await stageCheckoutAnswers("cs_replaced", { "8": "second try" });
-    await stageCheckoutAnswers("cs_empty", undefined);
+    await stageCheckoutAnswers("cs_replaced", { "7": "first try" }, null);
+    await stageCheckoutAnswers("cs_replaced", { "8": "second try" }, null);
+    await stageCheckoutAnswers("cs_empty", undefined, null);
 
     expect(await takeCheckoutAnswers("cs_replaced")).toEqual(
       new Map([[8, "second try"]]),
@@ -74,7 +74,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("spends one database call to take a row", async () => {
-    await stageCheckoutAnswers("cs_one_call", { "7": "count me" });
+    await stageCheckoutAnswers("cs_one_call", { "7": "count me" }, null);
 
     const calls = await countDatabaseCalls(1, () =>
       takeCheckoutAnswers("cs_one_call"),
@@ -84,8 +84,8 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("prunes a row older than the payments clock and keeps a younger one", async () => {
-    await stageCheckoutAnswers("cs_abandoned", { "7": "never paid" });
-    await stageCheckoutAnswers("cs_open", { "7": "still open" });
+    await stageCheckoutAnswers("cs_abandoned", { "7": "never paid" }, null);
+    await stageCheckoutAnswers("cs_open", { "7": "still open" }, null);
     await execute(
       "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
       [

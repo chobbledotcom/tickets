@@ -8,9 +8,6 @@
  * on either side fails the build.
  */
 
-import { t } from "#i18n";
-import { PRUNE_PAYMENTS_RETENTION_DAYS } from "#shared/limits.ts";
-
 /** [what the owner types, the message key describing it]. */
 export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ listing_names }}", "listing_names"],
@@ -48,13 +45,6 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ answer.text }}", "answer_text"],
   ['{{ 2 | pluralize: "ticket", "tickets" }}', "pluralize"],
 ];
-
-/** What templates cannot show. A staged free-text answer is pruned on the
- * payments clock, so a later payment's email leaves it out. */
-export const notAvailableNote = (): string =>
-  t("settings.advanced.email_variables.not_available", {
-    days: PRUNE_PAYMENTS_RETENTION_DAYS,
-  });
 
 /** A worked loop over `entries`: one line per booked listing, printing its
  * name, quantity, dates, and price. */

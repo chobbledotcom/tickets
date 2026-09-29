@@ -221,12 +221,14 @@ describe("squareAnswer", () => {
       expect(
         squareAnswer.paymentLink({
           payment_link: {
+            created_at: "2026-09-29T12:00:00Z",
             long_url: "https://checkout.square.site/long",
             order_id: "ord_1",
             url: "https://square.link/short",
           },
         }),
       ).toEqual({
+        createdAt: "2026-09-29T12:00:00Z",
         orderId: "ord_1",
         url: "https://checkout.square.site/long",
       });
@@ -235,15 +237,37 @@ describe("squareAnswer", () => {
     test("takes the short address when Square sends only that", () => {
       expect(
         squareAnswer.paymentLink({
-          payment_link: { order_id: "ord_1", url: "https://square.link/short" },
+          payment_link: {
+            created_at: "2026-09-29T12:00:00Z",
+            order_id: "ord_1",
+            url: "https://square.link/short",
+          },
         }),
-      ).toEqual({ orderId: "ord_1", url: "https://square.link/short" });
+      ).toEqual({
+        createdAt: "2026-09-29T12:00:00Z",
+        orderId: "ord_1",
+        url: "https://square.link/short",
+      });
     });
 
     for (const [name, body] of [
       ["names no link at all", {}],
       ["names no order", { payment_link: { url: "https://square.link/s" } }],
       ["names no address", { payment_link: { order_id: "ord_1" } }],
+      [
+        "names no creation time",
+        { payment_link: { order_id: "ord_1", url: "https://square.link/s" } },
+      ],
+      [
+        "names a creation time that is no real instant",
+        {
+          payment_link: {
+            created_at: "2026-02-30T12:00:00Z",
+            order_id: "ord_1",
+            url: "https://square.link/s",
+          },
+        },
+      ],
       [
         "leaves the long address blank",
         {

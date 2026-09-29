@@ -1,7 +1,7 @@
 /**
  * The free-text answers a buyer typed, staged beside their checkout: sealed
  * with `DB_ENCRYPTION_KEY`, taken back by the completion in one round trip,
- * deleted with that read, and pruned when a checkout is abandoned. The
+ * deleted with that read, and pruned once its checkout can no longer be paid. The
  * strings table keeps its owner-sealed copy, which the completion has no
  * session to spend, and checkout metadata cannot carry the text because
  * providers cap it.
@@ -30,22 +30,27 @@ interface StagedRow {
 
 /** Stage the answers a buyer typed, keyed by the checkout they belong to. The
  * row must not outlive a retry of the same checkout, so a re-created session
- * replaces what an earlier one staged. */
+ * replaces what an earlier one staged. `linkEndsAt` is when the checkout
+ * stops taking payment, or null when it ends long before the payments clock. */
 export const stageCheckoutAnswers = async (
   sessionId: string,
   texts: Record<string, string> | undefined,
+  linkEndsAt: string | null,
 ): Promise<void> => {
   if (!texts || Object.keys(texts).length === 0) return;
   await execute(
-    `INSERT INTO checkout_pending_answers (session_index, sealed, created_at)
-             VALUES (?, ?, ?)
+    `INSERT INTO checkout_pending_answers
+               (session_index, sealed, created_at, link_ends_at)
+             VALUES (?, ?, ?, ?)
              ON CONFLICT(session_index) DO UPDATE SET
                sealed = excluded.sealed,
-               created_at = excluded.created_at`,
+               created_at = excluded.created_at,
+               link_ends_at = excluded.link_ends_at`,
     [
       await hmacHash(sessionId),
       await encrypt(stringRecordJson.write(texts, "checkout answers")),
       nowIso(),
+      linkEndsAt,
     ],
   );
 };

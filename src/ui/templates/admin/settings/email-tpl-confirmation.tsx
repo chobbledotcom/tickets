@@ -9,7 +9,6 @@ import { emailTemplateFields } from "#templates/components/email-template-fields
 import {
   ANSWERS_LOOP_EXAMPLE,
   LOOP_EXAMPLE,
-  notAvailableNote,
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
@@ -55,7 +54,7 @@ export const ConfirmationEmailTemplateForm = (
       <p>{t("settings.advanced.email_variables.answers_example_intro")}</p>
       <pre>{ANSWERS_LOOP_EXAMPLE}</pre>
       <p>{t("settings.advanced.email_variables.filters_note")}</p>
-      <p>{notAvailableNote()}</p>
+      <p>{t("settings.advanced.email_variables.not_available")}</p>
     </details>
     {emailTemplateFields("confirmation")(
       s.confirmationTemplates,

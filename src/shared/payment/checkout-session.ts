@@ -43,6 +43,9 @@ export const makeCreateCheckoutSession =
     create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
     readResult: (result: Result) => {
       id: string | undefined;
+      /** When the checkout stops taking payment, for a provider whose
+       * checkout can outlive the payments clock. */
+      linkEndsAt?: string;
       url: string | undefined | null;
     },
   ): ((
@@ -53,11 +56,15 @@ export const makeCreateCheckoutSession =
     withCheckoutError(async () => {
       const result = await create(intent, baseUrl);
       if (result === null) return null;
-      const { id, url } = readResult(result);
+      const { id, linkEndsAt, url } = readResult(result);
       const checkout = createdCheckout(provider, id, url);
       // The session id exists only now, so the answers stage beside it after
       // the provider accepts the checkout — every provider shares this step,
       // whatever its metadata caps allow the checkout itself to carry.
-      await stageCheckoutAnswers(checkout.sessionId, intent.textAnswers);
+      await stageCheckoutAnswers(
+        checkout.sessionId,
+        intent.textAnswers,
+        linkEndsAt ?? null,
+      );
       return checkout;
     });

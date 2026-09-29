@@ -111,7 +111,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-28_answers_at_booking",
         "2026-09-29_checkout_pending_answers",
       ],
-      schemaHash: "160ckjs",
+      schemaHash: "1mer828",
     });
   });
 

@@ -32,6 +32,7 @@ import type {
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import {
   isSquarePaymentStatus,
   type SquarePaymentStatus,
@@ -255,7 +256,11 @@ const createSquareCheckoutSession = makeCreateCheckoutSession(
   // A lambda, not the member itself: the checkout builder is captured once
   // at module load, and resolving the member per call keeps test stubs live.
   (intent, baseUrl) => squareApi.createPaymentLink(intent, baseUrl),
-  (link) => ({ id: link.orderId, url: link.url }),
+  (link) => ({
+    id: link.orderId,
+    linkEndsAt: squareLinkEndsAt(link.createdAt),
+    url: link.url,
+  }),
 );
 
 /** Square payment provider implementation */

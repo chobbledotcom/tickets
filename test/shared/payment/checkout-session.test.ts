@@ -4,9 +4,16 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
 import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import { execute } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
+import { DAY_MS, isoBefore } from "#shared/now.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+import { squareApi } from "#shared/square/api.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -57,6 +64,45 @@ describeWithEnv(
       );
 
       expect(calls).toBe(0);
+    });
+
+    /** Stage a Square checkout whose link Square made `ageDays` ago, with its
+     * row as old as the link, then run the prune. */
+    const squareCheckoutAgedDays = async (
+      sessionId: string,
+      ageDays: number,
+    ) => {
+      const createdAt = isoBefore(ageDays * DAY_MS);
+      using _link = stub(squareApi, "createPaymentLink", () =>
+        Promise.resolve({
+          createdAt,
+          orderId: sessionId,
+          url: "https://sq.link",
+        }),
+      );
+      await squarePaymentProvider.createCheckoutSession(
+        intent({ "7": "Coming by bus" }),
+        "https://site",
+      );
+      await execute(
+        "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
+        [createdAt, await hmacHash(sessionId)],
+      );
+      await runDatabasePruning();
+    };
+
+    test("keeps a Square checkout's answers past the payments clock while its link can still take payment", async () => {
+      await squareCheckoutAgedDays("sq_day_150", 150);
+
+      expect(await takeCheckoutAnswers("sq_day_150")).toEqual(
+        new Map([[7, "Coming by bus"]]),
+      );
+    });
+
+    test("prunes a Square checkout's answers once its link has ended", async () => {
+      await squareCheckoutAgedDays("sq_day_181", 181);
+
+      expect(await takeCheckoutAnswers("sq_day_181")).toEqual(new Map());
     });
   },
 );
