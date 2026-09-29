@@ -14,10 +14,12 @@ const ATTR =
 /** Hard-coded user-facing object-property values in copy definition modules. */
 const PROP =
   /\b(placeholder|title|label|hint|hintHtml|legend|summary|description|header|empty|emptyText)\s*:\s*(["'])([^"'{][^"']*)\2/g;
-/** Table configs are object properties in both .ts and .tsx. Template strings
- * are included because a header often contains a row or attendee name. */
-const TABLE_PROP =
-  /\b(header|empty|emptyText)\s*:\s*(["'`])([^"'`{][^"'`]*)\2/g;
+/** Table configs are object properties in both .ts and .tsx. Quoted and
+ * template values both count: a header often holds a row or attendee name,
+ * and a template's interpolation may carry a quoted fallback of its own. */
+const TABLE_PROP_QUOTED =
+  /\b(header|empty|emptyText)\s*:\s*(["'])([^"'{][^"']*)\2/g;
+const TABLE_PROP_TEMPLATE = /\b(header|empty|emptyText)\s*:\s*`([^`{][^`]*)`/g;
 /** JSX text node: capitalised words containing a lowercase letter. The (?<!=)
  * skips `=> Foo<…>` arrow-return generics, which are types, not copy. */
 const TEXT = /(?<!=)>\s*([A-Z][A-Za-z][A-Za-z ,.'!?&():-]{1,})\s*</g;
@@ -104,16 +106,22 @@ const jsxLeftovers = (line: string, lineNo: number): string[] => [
   ),
 ];
 
+/** One object-property hit as the reader-facing line. */
+const propHit = (m: RegExpMatchArray, value: string, lineNo: number): string =>
+  `L${lineNo} ${m[1]}: "${value}"`;
+
 /** Hard-coded strings in object-property definitions on one line. TS copy
- * modules use the full set; TSX adds table configs to its JSX scan. */
-const propLeftovers = (line: string, lineNo: number, isTs: boolean): string[] =>
-  matchesOnLine(
-    line,
-    lineNo,
-    isTs ? PROP : TABLE_PROP,
-    3,
-    (m, v, n) => `L${n} ${m[1]}: "${v}"`,
-  );
+ * modules use the full property set; TSX adds table configs to its JSX scan.
+ * Table templates are scanned beside the quoted properties in both file
+ * kinds: the delimiters differ, so no value is counted twice. */
+const propLeftovers = (
+  line: string,
+  lineNo: number,
+  isTs: boolean,
+): string[] => [
+  ...matchesOnLine(line, lineNo, isTs ? PROP : TABLE_PROP_QUOTED, 3, propHit),
+  ...matchesOnLine(line, lineNo, TABLE_PROP_TEMPLATE, 2, propHit),
+];
 
 /** Hard-coded user-facing strings still present in a file's source. */
 export const leftoverLiterals = (src: string, isTs: boolean): string[] => {

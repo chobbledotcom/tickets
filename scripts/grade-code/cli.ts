@@ -6,7 +6,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { resolve } from "@std/path";
+import { relative, resolve } from "@std/path";
 import * as v from "valibot";
 import { unique } from "#fp";
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
@@ -184,14 +184,16 @@ export const resolveTargets = async (
       return { error: `cannot read ${arg}`, targets: [] };
     }
     if (kind === "file") {
-      targets.push(arg);
+      // Store the cwd-relative spelling the path-shape checks key on: an
+      // absolute or ./-prefixed argument would skip the i18n scan.
+      targets.push(relative(Deno.cwd(), target));
       continue;
     }
     const inside = await deps.listFiles(arg);
     if (inside.length === 0) {
       return { error: `no source files under ${arg}`, targets: [] };
     }
-    targets.push(...inside);
+    targets.push(...inside.map((file) => relative(Deno.cwd(), resolve(file))));
   }
   // Overlapping targets reach one module twice; it must be graded once.
   return { error: null, targets: unique(targets) };

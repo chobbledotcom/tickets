@@ -191,14 +191,16 @@ export const findCommentIssues: CommentCheck<CommentLimits> = eachComment(
 const GATE_TOOL =
   /(jscpd|biome|deno[- ]lint|deno fmt|deno check|\btypecheck\b|\bprecommit\b|\blint(?:er|ing)?\b)/i;
 const GATE_CREDIT =
-  /(avoid|satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b|\bflags?\b)/i;
+  /(avoid|satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b)/i;
 
 /** Comments under src/ that justify the code by a check it passes or avoids. */
 export const findGateCitations = (
   file: string,
   content: string,
 ): CommentIssue[] => {
-  if (!file.startsWith("src/")) return [];
+  // The path shape varies by caller: `src/...` from the gate, absolute from a
+  // test or another root, so the scope check looks for the src segment.
+  if (!/(?:^|\/)src\//.test(file)) return [];
   return readComments(content).flatMap((comment) => {
     const tool = GATE_TOOL.exec(comment.text);
     if (tool === null || !GATE_CREDIT.test(comment.text)) return [];

@@ -1,5 +1,6 @@
 /** Fixtures and helpers shared by the grade-code CLI test files. */
 
+import { resolve } from "@std/path";
 import type { Alias } from "#scripts/check-imports/rules.ts";
 import type { CliDeps } from "#scripts/grade-code/cli.ts";
 import { JEV_QUESTIONS } from "#scripts/grade-code/questions.ts";
@@ -78,21 +79,26 @@ export const depsOver = (dir: {
     readFile: (path) => Promise.resolve(dir.files[path] ?? ""),
     sleep: () => Promise.resolve(),
   },
-  listFiles: (root) =>
-    Promise.resolve(
-      Object.keys(dir.files).filter((file) => file.startsWith(`${root}/`)),
-    ),
+  listFiles: (root) => {
+    const wanted = `${resolve(root)}/`;
+    return Promise.resolve(
+      Object.keys(dir.files).filter((file) => resolve(file).startsWith(wanted)),
+    );
+  },
   overLimit: () => Promise.resolve({}),
   readSecret: () =>
     Promise.resolve(dir.secret === undefined ? null : dir.secret),
-  stat: (path) =>
-    Promise.resolve(
-      Object.keys(dir.files).some((file) => file === path)
+  stat: (path) => {
+    const wanted = resolve(path);
+    return Promise.resolve(
+      Object.keys(dir.files).some((file) => resolve(file) === wanted)
         ? "file"
-        : Object.keys(dir.files).some((file) => file.startsWith(`${path}/`)) ||
-            (dir.dirs ?? []).includes(path)
+        : Object.keys(dir.files).some((file) =>
+              resolve(file).startsWith(`${wanted}/`),
+            ) || (dir.dirs ?? []).some((entry) => resolve(entry) === wanted)
           ? "dir"
           : "missing",
-    ),
+    );
+  },
   writeTextFile: (_path, _text) => Promise.resolve(),
 });

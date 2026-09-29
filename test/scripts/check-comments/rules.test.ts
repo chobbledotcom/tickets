@@ -299,6 +299,21 @@ describe("comment-gate-citation rule", () => {
     ).toEqual([]);
   });
 
+  test("passes a comment that describes a tool's flags", () => {
+    expect(
+      citations("src/shared/db.ts", "// Biome flags are read from settings.\n"),
+    ).toEqual([]);
+  });
+
+  test("finds a citation however the src path is spelled", () => {
+    expect(
+      citations("/repo/src/shared/db.ts", "// so the linter passes\n"),
+    ).toHaveLength(1);
+    expect(
+      citations("src/shared/db.ts", "// so the linter passes\n"),
+    ).toHaveLength(1);
+  });
+
   test("passes the tooling trees, whose comments document the checks", () => {
     expect(
       citations(

@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseGradeArgs, resolveTargets } from "#scripts/grade-code/cli.ts";
 import { CLEAN_CODE, depsOver } from "./support.ts";
@@ -80,6 +81,21 @@ describe("resolveTargets", () => {
     expect(one.targets).toEqual(["src/shared/dates.ts"]);
     const dir = await resolveTargets(["src/features"], deps);
     expect(dir.targets).toHaveLength(2);
+  });
+
+  test("normalizes a ./-prefixed or absolute target to its src/ spelling", async () => {
+    const dotted = await resolveTargets(["./src/shared/dates.ts"], deps);
+    expect(dotted.targets).toEqual(["src/shared/dates.ts"]);
+    const absolute = await resolveTargets(
+      [resolve("src/shared/dates.ts")],
+      deps,
+    );
+    expect(absolute.targets).toEqual(["src/shared/dates.ts"]);
+    const dottedDir = await resolveTargets(["./src/features"], deps);
+    expect(dottedDir.targets).toEqual([
+      "src/features/admin/a-page.ts",
+      "src/features/admin/b-page.ts",
+    ]);
   });
 
   test("grades a file once when two targets reach it", async () => {

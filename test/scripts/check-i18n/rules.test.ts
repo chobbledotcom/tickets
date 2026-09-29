@@ -40,6 +40,23 @@ describe("leftoverLiterals", () => {
       ),
     ).toEqual([]);
   });
+
+  test("table template strings are scanned in TS as well as TSX", () => {
+    expect(
+      leftoverLiterals("const table = { header: `No results` };", true),
+    ).toEqual(['L1 header: "No results"']);
+  });
+
+  test("a quoted fallback inside a template interpolation is scanned once", () => {
+    const nameFallback = `${String.fromCodePoint(36)}{name ?? "unknown"}`;
+    const line = `const table = { header: \`Status: ${nameFallback}\` };`;
+    expect(leftoverLiterals(line, false)).toEqual([
+      `L1 header: "Status: ${nameFallback}"`,
+    ]);
+    expect(leftoverLiterals(line, true)).toEqual([
+      `L1 header: "Status: ${nameFallback}"`,
+    ]);
+  });
 });
 
 describe("isI18nScanTarget", () => {
