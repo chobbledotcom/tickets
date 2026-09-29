@@ -1,19 +1,21 @@
 /**
- * Keep code and test files under the ~400-line limit.
+ * Keep code and test files near the 400-line aim, under the 500-line limit.
  *
- * The "Keep code and test files under ~400 lines" rule in AGENTS.md says a
- * file stays under 400 lines, with Biome's hard 1,000-line ceiling as the
- * backstop. This module is the ratchet between the two: a file over the
- * limit must be on the accepted list, an entry records the count its file
- * carried when the list was last lowered, and a file that shrank must have
- * its entry lowered too. The list only shrinks. A file that is split drops
- * its entry. A file that grows fails the check.
+ * The "Keep code and test files under ~400 lines" rule in AGENTS.md aims at
+ * 400 lines but enforces 500. A small edit that pushes a file slightly over
+ * the aim owes a splitting issue, not an in-branch split, while a file past
+ * the limit must be split or accepted on the list. Biome's hard 1,000-line
+ * ceiling stays the backstop. The list only shrinks: a file that is split
+ * drops its entry, and a file that grows past its recorded count fails the
+ * check.
  */
 
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 
-/** The limit the guide aims for. */
-export const LINE_LIMIT = 400;
+/** The enforced ceiling. A file over it must be split, or sit on the
+ * accepted list at its recorded count. The 400-line aim is AGENTS.md
+ * policy, carried by splitting issues rather than this gate. */
+export const LINE_LIMIT = 500;
 
 /** The count each accepted-over-the-limit file carried when recorded. */
 export type OverLimit = Record<string, number>;

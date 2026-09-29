@@ -1,12 +1,14 @@
 #!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-write=scripts/check-file-lengths/over-limit.json
 
 /**
- * Check the source trees for files over the ~400-line limit (see "Keep code
- * and test files under ~400 lines" in AGENTS.md), against the accepted list in
- * `scripts/check-file-lengths/over-limit.json`. Run as part of
- * `deno task precommit`, or on its own with `deno task check:file-lengths`.
- * Pass `--update` after splitting a file to re-record the list. The update
- * refuses to write a list entry that grew, so growth must be split first.
+ * Check the source trees for files over the 500-line limit (see "Keep code
+ * and test files under ~400 lines" in AGENTS.md), against the accepted list
+ * in `scripts/check-file-lengths/over-limit.json`. The 400-line aim is
+ * policy, not a gate: a file slightly over it owes a splitting issue. Run as
+ * part of `deno task precommit`, or on its own with
+ * `deno task check:file-lengths`. Pass `--update` after splitting a file to
+ * re-record the list. The update refuses to write a list entry that grew,
+ * so growth must be split first.
  */
 
 import { SOURCE_DIRS } from "#scripts/source-dirs.ts";

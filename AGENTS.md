@@ -138,6 +138,11 @@ GitHub.
 
 ## Preferences
 
+These preferences are defaults, not laws. They were written when agents needed
+firmer direction than they need today. Hold them the way a senior engineer holds
+a standard: when the letter of a rule and its purpose pull apart, serve the
+purpose. Say which rule you bent and why, so a reader can check the choice.
+
 - **Plan behavior before code**: Follow [PR_WORKFLOW.md](PR_WORKFLOW.md) for
   every non-trivial change. The assigned agent must fill in the behavior
   contract, challenge it, and ask a human to approve it before implementation.
@@ -230,6 +235,12 @@ GitHub.
   pointing at a real merge to make; never restructure code so the matcher stops
   matching while two parallel implementations stay standing. Every merge is
   warranted; the merges are the whole goal.
+
+- **Never loosen a check to close a finding**: Do not raise a threshold, widen a
+  baseline, add an ignore tag, or switch a rule off so that a warning goes away.
+  Fix the code, or argue on the thread that the finding is wrong. A deliberate
+  change to a check is an owner decision in its own right, never a side effect
+  of review pressure. A gate that bends is not a gate.
 - **100% test coverage**: All code must have complete test coverage - run
   `deno coverage` to find uncovered lines/branches. Coverage must also be
   _deterministic_: a line or branch reached only through a spawned subprocess or
@@ -307,31 +318,37 @@ GitHub.
   `agentPage`/`requireAgentOr` were an agent-only page+guard pair with no route
   wiring (agents are gated via `deliveryPage`/`requireDeliveryOr`), so both were
   deleted rather than exempted.
-- **Keep code and test files under ~400 lines**: When refactoring a code or test
-  file, aim to keep it under 400 lines — and if hitting that target means
-  splitting one file into several, so be it: a new file is cheaper than an
-  overloaded one. When you end up with a handful of files all about the same
-  thing, group them in a folder and give them shorter names that do not repeat
-  the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see
-  the `src/shared/ledger/` and `src/shared/db/attendees/` examples in
+- **Keep code and test files under ~400 lines**: Aim to keep a code or test file
+  near 400 lines. A new file is cheaper than an overloaded one, so a split is
+  good work — in its own change, not inside a branch that barely touched the
+  file. When your own change adds hundreds of lines, put them in a new file from
+  the start. Do not wait for a reviewer to ask. When a small edit pushes a file
+  slightly over the aim, do not split it inside your branch: the split buries
+  your change under a refactor and makes the diff hard to review. Open an issue
+  that owns the split, or update the one that already exists, and leave the file
+  alone. When you end up with a handful of files all about the same thing, group
+  them in a folder and give them shorter names that do not repeat the folder's
+  name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see the
+  `src/shared/ledger/` and `src/shared/db/attendees/` examples in
   [Designing new systems](docs/designing-systems.md)). While you are at it, use
   the split as a chance to separate pure from non-pure code — push the
   data-in/data-out logic into its own file and keep the IO in a thin shell (see
-  [Pure, functional](docs/designing-systems.md#pure-functional)). **The same
-  400-line limit applies to test files**, and matters just as much: smaller,
-  more specific test files let us run mutation tests far faster, because a
-  source file's mutants only need to run against the narrow test file that
-  covers it, not one giant suite. Biome enforces a hard 1,000-line ceiling for
-  every code and test file; never add an override to let one past it.
-  `deno task check:file-lengths` holds the 400-line aim over every source tree,
-  against the accepted list at `scripts/check-file-lengths/over-limit.json` that
-  records where each over-limit file stands. The list only shrinks. Root
-  instruction files such as `AGENTS.md` are exempt because their policy must be
-  available as one automatically loaded document, but their sections must still
-  stay concise. (Expect a known side effect when splitting: jscpd cannot fully
-  scan very large files, so a split routinely _surfaces_ duplication that was
-  silently passing inside the monolith — budget for extracting helpers, not just
-  moving tests.)
+  [Pure, functional](docs/designing-systems.md#pure-functional)). **The same aim
+  applies to test files**, and matters just as much: smaller, more specific test
+  files let us run mutation tests far faster, because a source file's mutants
+  only need to run against the narrow test file that covers it, not one giant
+  suite. Biome enforces a hard 1,000-line ceiling for every code and test file.
+  Never add an override to let one past it. `deno task check:file-lengths`
+  enforces a 500-line limit over every source tree. A file between the aim and
+  the limit passes the gate and owes its splitting issue. A file past the limit
+  must be split, or must sit on the accepted list at
+  `scripts/check-file-lengths/over-limit.json` that records where each
+  over-limit file stands. The list only shrinks. Root instruction files such as
+  `AGENTS.md` are exempt because their policy must be available as one
+  automatically loaded document, but their sections must still stay concise.
+  (Expect a known side effect when splitting: jscpd cannot fully scan very large
+  files, so a split routinely _surfaces_ duplication that was silently passing
+  inside the monolith — budget for extracting helpers, not just moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
@@ -421,6 +438,16 @@ GitHub.
   against a placeholder or a wrong identity that a future migration must
   re-attribute. Prefer additive schema and correct attribution now over stored
   rewrites later.
+
+- **New tables and new columns are a last resort**: Every site must run a
+  migration for each one, and every reader must carry the wider row. Make the
+  fact fit the schema you have before you add to it. Add a table or a column
+  only when the fact has no honest home. A review that asks for one must name
+  the fact, and must say why no current column can hold it.
+- **New environment keys and secrets are a last resort**: Each new key must be
+  set by hand on every site in the Bunny dashboard. A site without it breaks, or
+  loses the feature that needs it. Prefer a value you can derive, or a setting
+  the site already stores. Add a key only when the value has no other home.
 - **Trust application invariants**: Do not design normal code paths around
   database states the application says are impossible. If an impossible state is
   observed, raise it as an error and repair the data explicitly rather than
@@ -437,6 +464,12 @@ GitHub.
   failures that genuinely occur in normal operation — a flaky network call, a
   provider timeout, a refund that already settled, a write that lost a race. Be
   confident in our own systems.
+
+- **A loud database failure is enough**: Database writes fail very infrequently.
+  When one fails, the error must reach the log in full: the write does not land,
+  and the admin investigates. Do not build rescue, repair, or compensation paths
+  around a failed write. Reserve retries for the fleeting locks and upstream
+  errors the client already handles.
 - **Trust request key setup**: If the site is processing a request, startup has
   already validated `DB_ENCRYPTION_KEY`. If it is processing any route other
   than setup, the atomic setup ceremony has already created the owner and public
@@ -1255,10 +1288,12 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task check:empty-catch` - Report a catch block that holds no statement
   and no comment (see
   [Offensive Programming](#offensive-programming--never-suppress-errors))
-- `deno task check:file-lengths` - Hold code and test files under ~400 lines,
-  against the accepted list that only shrinks. Pass `--update` after splitting a
-  file to re-record the list. The update refuses a rise, so growth must be split
-  first (see "Keep code and test files under ~400 lines" above)
+- `deno task check:file-lengths` - Enforce the 500-line limit over every source
+  tree, against the accepted list that only shrinks. Pass `--update` after
+  splitting a file to re-record the list. The update refuses a rise, so growth
+  must be split first. The 400-line aim is policy, not a gate: a file slightly
+  over it owes a splitting issue, not a split inside your branch (see "Keep code
+  and test files under ~400 lines" above)
 - `deno task check:ste` - Hold the repository Markdown to the mechanical
   Simplified Technical English rules, against a committed per-document baseline
   that only falls. Pass `--update` after fixing prose to record the step. The
@@ -1340,7 +1375,9 @@ STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-a
 Environment variables are configured as **Bunny native secrets** in the Bunny
 Edge Scripting dashboard. They are read at runtime via `process.env`. Three are
 required for every site: `DB_URL` (database URL), `DB_TOKEN` (database auth
-token), and `DB_ENCRYPTION_KEY` (32-byte base64 key).
+token), and `DB_ENCRYPTION_KEY` (32-byte base64 key). A new variable is a last
+resort, because each one must be set by hand on every site (see
+[Preferences](#preferences)).
 
 Every optional variable, the build-time static CDN set, and the Stripe / admin
 password configuration notes are documented in
@@ -1480,11 +1517,14 @@ the equivalent-mutants registry, and why it never judges a mutant by a clock,
 are documented in [Mutation testing](docs/mutation-testing.md).
 
 As a manual tool it is **targeted** (run `deno task mutation` on the module you
-are hardening) — running it across the whole tree would be far too slow.
-`deno task precommit:mutation` runs it automatically, but only over the files
-this branch changed (its committed diff against `origin/main`/`main`), and
+are hardening) — running it across the whole tree is far too slow. Time-box it.
+A manual run must finish in about ten minutes. When a run needs longer, stop it,
+and rely on the direct tests around the method you changed. A small edit owes
+those tests, not a mutation run, and a review that asks for more gets that
+answer. `deno task precommit:mutation` runs it automatically, but only over the
+files this branch changed (its committed diff against `origin/main`/`main`), and
 demands a 100% kill rate. Run it before merging a branch that changes `src/`
-files; the standard `deno task precommit` no longer runs it (it was too slow for
+files. The standard `deno task precommit` no longer runs it (it was too slow for
 every commit).
 
 When a manual mutation run (or the precommit gate) surfaces survivors on a file
