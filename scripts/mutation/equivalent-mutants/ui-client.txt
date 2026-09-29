@@ -117,3 +117,9 @@ src/ui/client/confirm-dialog.ts::openConfirm.cleanup~0lmo3w5 document.removeEven
 # dataset key, so a broken lookup key lands on the same words either way.
 src/ui/client/scanner.js::init~02xv58k messageCameraDenied→""   # the lookup misses into the identical fallback
 
+# The manual check-in form renders no data-message-verify-id-confirm or
+# data-message-skipped attribute at all, and server-rendered markup never sets
+# an empty dataset key, so a broken lookup key lands on the fallback either way.
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.confirmed~0xkfepv messageVerifyIdConfirm→""   # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin~1e6fg4d messageSkipped→""   # the lookup misses into the fallback copy
+

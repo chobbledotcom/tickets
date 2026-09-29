@@ -19,12 +19,14 @@ describe("manual check-in ID verification", () => {
 
   /** Submit a pick whose first answer is verify_id, then dismiss the prompt
    *  the way the organiser would. Any dismissal must skip the person: one
-   *  POST, no verified resubmit, "Skipped Bea", and both inputs cleared. */
+   *  POST, no verified resubmit, the prompt's own question, "Skipped Bea",
+   *  and both inputs cleared. */
   const dismissedPromptSkips = async (
     dismiss: (page: ManualCheckinPage) => void,
   ): Promise<void> => {
     const page = setup();
     page.attendeeIdInput.value = "12";
+    page.input.value = "Bea (1 ticket)";
     const bodies: unknown[] = [];
     using _fetch = stubFetch((_url, init) => {
       bodies.push(JSON.parse(String(init?.body)));
@@ -33,9 +35,13 @@ describe("manual check-in ID verification", () => {
 
     const submitting = page.submit();
     await waitForConfirm();
+    const prompt = document.getElementById(
+      "scanner-confirm-message",
+    )!.textContent;
     dismiss(page);
     await submitting;
 
+    expect(prompt).toBe('Does their ID match "Bea"?');
     expect(bodies).toEqual([{ attendee_id: 12 }]);
     expect(page.status.textContent).toBe("Skipped Bea");
     expect(page.status.className).toBe("checkin-status checkin-status-warning");
