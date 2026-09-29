@@ -57,10 +57,12 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
       ["2026-07-01T00:00:00.000Z", "sess_balance"],
     );
 
+    // The attendee is qualified by the row that matches its PII payment, so
+    // the older balance row it also owns leaves nobody unqualified.
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
       rebuilt: 2,
       remaining: 0,
-      unqualified: 1,
+      unqualifiedAttendees: 0,
     });
     expect(await provenancePointerOf(attendee.id)).toBe("sess_deposit");
   });
@@ -89,7 +91,7 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
       rebuilt: 1,
       remaining: 0,
-      unqualified: 1,
+      unqualifiedAttendees: 1,
     });
     expect(await provenancePointerOf(attendee.id)).toBeNull();
     // The summary keeps refusing, so the owner is never offered an action the
@@ -112,8 +114,34 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
       rebuilt: 1,
       remaining: 0,
-      unqualified: 1,
+      unqualifiedAttendees: 1,
     });
     expect(await provenancePointerOf(attendee.id)).toBeNull();
+  });
+
+  test("an attendee already pointed by earlier work is not counted again", async () => {
+    const { attendee } = await bookLegacyPaidAttendee(
+      "sess_pointed_early",
+      "pi_pointed_early",
+    );
+    await seedHistoricalProcessedPayment("sess_later", attendee.id, "pi_later");
+    await execute(
+      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
+      ["sess_later"],
+    );
+    await execute(
+      "UPDATE attendees SET pii_payment_session_id = ? WHERE id = ?",
+      ["sess_pointed_early", attendee.id],
+    );
+
+    // The later row matches no PII payment, but this attendee was never
+    // unqualified, so the run must not tell the owner it still needs the
+    // provider dashboard.
+    expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
+      rebuilt: 2,
+      remaining: 0,
+      unqualifiedAttendees: 0,
+    });
+    expect(await provenancePointerOf(attendee.id)).toBe("sess_pointed_early");
   });
 });

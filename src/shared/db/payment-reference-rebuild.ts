@@ -204,16 +204,40 @@ export type RebuiltLegacyReferences = {
   readonly rebuilt: number;
   /** Legacy rows still waiting, counted after this run's writes. */
   readonly remaining: number;
-  /** Rows tagged whose attendee's PII names a different payment, so their
-   * attendee stays unqualified and still cannot be refunded here. */
-  readonly unqualified: number;
+  /** Attendees on this page left holding no provenance pointer, so they still
+   * cannot be refunded here. */
+  readonly unqualifiedAttendees: number;
+};
+
+/** How many of the page's attendees still hold no provenance pointer. Read
+ * after the batch rather than counted in the loop: several rows can belong to
+ * one attendee, and an attendee already pointed by earlier work was never
+ * unqualified at all. */
+const countUnqualifiedAttendees = async (
+  attendeeIds: readonly number[],
+): Promise<number> => {
+  if (attendeeIds.length === 0) {
+    return 0;
+  }
+  const row = requireValue(
+    await queryOnePrimary<{ total: number }>(
+      `SELECT COUNT(*) AS total
+         FROM attendees
+        WHERE id IN (${inPlaceholders(attendeeIds)})
+          AND (pii_payment_session_id IS NULL OR pii_payment_session_id = '')`,
+      [...attendeeIds],
+    ),
+    "Unqualified attendee count returned no row",
+  );
+  return Number(row.total);
 };
 
 /** Rebuild one bounded page of legacy payment rows, oldest first. Returns the
- * rebuilt count, how many rows still wait, and how many tagged rows left their
- * attendee unqualified; an empty page reports all three as zero. The page
- * commits as one batch: a row that cannot be decrypted, or that has no stated
- * provider, fails the whole run loudly, leaving every row as it was. */
+ * rebuilt count, how many rows still wait, and how many of the page's
+ * attendees are still left unqualified; an empty page reports all three as
+ * zero. The page commits as one batch: a row that cannot be decrypted, or that
+ * has no stated provider, fails the whole run loudly, leaving every row as it
+ * was. */
 export const rebuildLegacyPaymentReferences = async (
   providers: StatedPaymentProviders,
   privateKey: CryptoKey,
@@ -222,7 +246,6 @@ export const rebuildLegacyPaymentReferences = async (
   const piiPaymentIds = await attendeePiiPaymentIds(rows, privateKey);
   const referenceWrites: SqlStatement[] = [];
   const provenanceWrites: SqlStatement[] = [];
-  let unqualified = 0;
   for (const row of rows) {
     const { payment, stored } = await rebuiltReferenceStorage(
       row,
@@ -236,7 +259,6 @@ export const rebuildLegacyPaymentReferences = async (
       `Rebuild read no PII payment id for attendee ${row.attendee_id}`,
     );
     if (payment.reference !== piiPaymentId) {
-      unqualified += 1;
       continue;
     }
     provenanceWrites.push(provenancePointerStatement(row.payment_session_id));
@@ -250,6 +272,9 @@ export const rebuildLegacyPaymentReferences = async (
   const rebuilt = results
     .slice(0, referenceWrites.length)
     .reduce((sum, result) => sum + result.rowsAffected, 0);
-  const remaining = await countLegacyPaymentReferences();
-  return { rebuilt, remaining, unqualified };
+  const [remaining, unqualifiedAttendees] = await Promise.all([
+    countLegacyPaymentReferences(),
+    countUnqualifiedAttendees([...new Set(rows.map((row) => row.attendee_id))]),
+  ]);
+  return { rebuilt, remaining, unqualifiedAttendees };
 };

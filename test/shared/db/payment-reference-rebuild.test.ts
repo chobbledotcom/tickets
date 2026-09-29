@@ -52,7 +52,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     ).toEqual({
       rebuilt: 1,
       remaining: 0,
-      unqualified: 0,
+      unqualifiedAttendees: 0,
     });
 
     const references = await getRefundPaymentReferences(
@@ -91,7 +91,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
       rebuilt: 0,
       remaining: 0,
-      unqualified: 0,
+      unqualifiedAttendees: 0,
     });
     expect(await countLegacyPaymentReferences()).toBe(0);
     expect(
@@ -152,7 +152,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     ).toEqual({
       rebuilt: 2,
       remaining: 0,
-      unqualified: 0,
+      unqualifiedAttendees: 0,
     });
 
     await expectProcessedPaymentReference(
@@ -183,7 +183,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
         ]),
         privateKey,
       ),
-    ).toEqual({ rebuilt: 2, remaining: 0, unqualified: 0 });
+    ).toEqual({ rebuilt: 2, remaining: 0, unqualifiedAttendees: 0 });
     await expectProcessedPaymentReference(
       stripeRow.attendee.id,
       "sess_mixed_st",
@@ -239,7 +239,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     ]);
 
     expect(await rebuildLegacyPaymentReferences(new Map(), privateKey)).toEqual(
-      { rebuilt: 1, remaining: 0, unqualified: 0 },
+      { rebuilt: 1, remaining: 0, unqualifiedAttendees: 0 },
     );
     await expectProcessedPaymentReference(
       tagged.id,

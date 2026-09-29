@@ -91,19 +91,25 @@ const handleRebuildPost = ownerFormHandler(async ({ form }) => {
   );
   if (mismatch !== null) return mismatch;
 
-  const { rebuilt, remaining, unqualified } =
+  const { rebuilt, remaining, unqualifiedAttendees } =
     await rebuildLegacyPaymentReferences(providers, privateKey);
   await logActivity(
-    t("migrate.rebuild.log_rebuilt", { count: rebuilt, unqualified }),
+    t("migrate.rebuild.log_rebuilt", {
+      count: rebuilt,
+      unqualifiedAttendees,
+    }),
   );
   return redirect(
     REBUILD_PATH,
     remaining === 0
-      ? t("migrate.rebuild.flash_done", { count: rebuilt, unqualified })
+      ? t("migrate.rebuild.flash_done", {
+          count: rebuilt,
+          unqualifiedAttendees,
+        })
       : t("migrate.rebuild.flash_progress", {
           rebuilt,
           remaining,
-          unqualified,
+          unqualifiedAttendees,
         }),
     true,
   );

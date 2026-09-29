@@ -133,7 +133,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
     await bookLegacyPaidAttendee("sess_route_done", "pi_route_done");
     await expectFlashRedirect(
       REBUILD_PATH,
-      t("migrate.rebuild.flash_done", { count: 1, unqualified: 0 }),
+      t("migrate.rebuild.flash_done", { count: 1, unqualifiedAttendees: 0 }),
     )(await postRebuild(await runFields()));
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
@@ -143,7 +143,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
     await bookLegacyPaidAttendee("sess_route_square", "pi_route_square");
     await expectFlashRedirect(
       REBUILD_PATH,
-      t("migrate.rebuild.flash_done", { count: 2, unqualified: 0 }),
+      t("migrate.rebuild.flash_done", { count: 2, unqualifiedAttendees: 0 }),
     )(await postRebuild(await runFields({ pi_route_square: "square" })));
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
@@ -174,7 +174,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
 
     await expectFlashRedirect(
       REBUILD_PATH,
-      t("migrate.rebuild.flash_done", { count: 1, unqualified: 0 }),
+      t("migrate.rebuild.flash_done", { count: 1, unqualifiedAttendees: 0 }),
     )(await postRebuild({ ...(await runFields()), confirm_identifier: "0" }));
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
@@ -188,14 +188,14 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
       t("migrate.rebuild.flash_progress", {
         rebuilt: 50,
         remaining: 2,
-        unqualified: 0,
+        unqualifiedAttendees: 0,
       }),
     )(await postRebuild(await runFields()));
     expect(await countLegacyPaymentReferences()).toBe(2);
 
     await expectFlashRedirect(
       REBUILD_PATH,
-      t("migrate.rebuild.flash_done", { count: 2, unqualified: 0 }),
+      t("migrate.rebuild.flash_done", { count: 2, unqualifiedAttendees: 0 }),
     )(await postRebuild(await runFields()));
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
