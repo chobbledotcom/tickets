@@ -26,11 +26,9 @@ const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
   hostingProvider: "bunny",
   id: 1,
   name: "Test",
-  pendingRenewalCutoff: "",
   readOnlyFrom: "",
   renewalToken: null,
   renewalTokenIndex: null,
-  renewalUrlConfirmed: false,
   scheduledTaskKey: null,
   siteDataRevision: 0,
   siteUrl: "test.bunny.run",
@@ -242,7 +240,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       true,
     );
     const pool = await getAssignableBuiltSites();
-    await takePooledSiteForBuyer(pool, 42, [7], 7, "2099-01-01T00:00:00.000Z");
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
     await updateBuiltSiteRenewalState(row.id, {
       readOnlyFrom: "2027-01-01T00:00:00Z",
       renewalToken: "renewal-token",

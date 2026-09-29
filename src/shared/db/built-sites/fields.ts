@@ -47,18 +47,6 @@ const boolFlagMappings = {
   toInput: (value: boolean): number => (value ? 1 : 0),
 } as const;
 
-/** A boolean stored as 0/1. */
-const boolFlagColumn = <
-  DbKey extends string,
-  SiteKey extends keyof BuiltSite & string,
->(
-  dbKey: DbKey,
-  siteKey: SiteKey,
-) => ({
-  ...plainColumn(dbKey, siteKey, 0),
-  ...boolFlagMappings,
-});
-
 export const builtSitePlainColumns = [
   {
     dbKey: "assignable",
@@ -82,8 +70,6 @@ export const builtSitePlainColumns = [
     toInput: nullable<number>,
   },
   plainColumn("read_only_from", "readOnlyFrom", ""),
-  plainColumn("pending_renewal_cutoff", "pendingRenewalCutoff", ""),
-  boolFlagColumn("renewal_url_confirmed", "renewalUrlConfirmed"),
   {
     dbKey: "renewal_token_index",
     fromRow: nullable<string>,

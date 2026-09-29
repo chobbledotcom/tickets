@@ -37,7 +37,6 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         price_paid: 0,
         quantity: 1,
         refunded: 0,
-        site_months: 0,
         start_at: null,
         ...overrides,
       };

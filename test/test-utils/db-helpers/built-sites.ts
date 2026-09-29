@@ -28,9 +28,6 @@ export const provisionTestBuiltSite = async (
     readOnlyFrom,
     renewalToken: token,
     renewalTokenIndex: index,
-    // A stored cutoff marks the push confirmed; the empty-cutoff variant
-    // reserves an unconfirmed token, the state a failed push leaves.
-    renewalUrlConfirmed: readOnlyFrom !== "",
   });
   return { token, tokenIndex: index };
 };

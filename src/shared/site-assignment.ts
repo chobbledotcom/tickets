@@ -12,14 +12,12 @@ import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-import { addMonthsIso } from "#shared/dates.ts";
 import {
   type EmailEntry,
   getEmailConfig,
   hostEmail,
   sendEmail,
 } from "#shared/email.ts";
-import { nowIso } from "#shared/now.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
@@ -142,9 +140,11 @@ const assignSitesForEntries = async (
     );
     if (booked.length === 0) continue;
     const first = booked[0]!;
-    // Each line carries the term it bought at booking time, so a later
-    // listing edit cannot change what an earlier buyer was granted.
-    const months = sumOf((e: EmailEntry) => e.attendee.site_months)(booked);
+    // The term is whatever the plan states today; a buyer whose plan was
+    // edited after booking is corrected by hand from their payment record.
+    const months = sumOf(
+      (e: EmailEntry) => e.listing.initial_site_months * e.attendee.quantity,
+    )(booked);
 
     // The claim may sit on a listing later refunded, and a refund does not
     // unassign its site, so the served check spans every plan row of this
@@ -156,13 +156,12 @@ const assignSitesForEntries = async (
       first.attendee.id,
       servedListingIds,
       first.listing.id,
-      addMonthsIso(nowIso(), months),
     );
     if (take.kind === "served") {
       // The claim from an earlier run stands: finish its renewal
       // provisioning and re-send its setup link, because the first email
       // may never have reached the buyer.
-      await completeUnfinishedRenewal(take.site);
+      await completeUnfinishedRenewal(take.site, months);
       addSite(first.attendee.email, {
         listingName,
         siteUrl: take.site.siteUrl,

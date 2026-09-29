@@ -40,7 +40,7 @@ describeWithEnv("assignable built sites", { db: true }, () => {
     const pool = await getAssignableBuiltSites();
 
     expect(await hasAssignedBuiltSite(42, [7])).toBe(false);
-    await takePooledSiteForBuyer(pool, 42, [7], 7, "2099-01-01T00:00:00.000Z");
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
     expect(await hasAssignedBuiltSite(42, [7])).toBe(true);
     expect(await hasAssignedBuiltSite(42, [8])).toBe(false);
   });

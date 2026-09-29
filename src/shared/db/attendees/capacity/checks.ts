@@ -22,7 +22,6 @@ import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { identity, map, mapById, unique } from "#fp";
-import { rowsToMap } from "#fp-rows";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -48,7 +47,6 @@ export const buildCapacityCheckedInsert = (
     orderToken = "",
     parentListingId = 0,
     packageGroupId = 0,
-    siteMonths = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   return numberedStatement((bind) => {
@@ -57,8 +55,8 @@ export const buildCapacityCheckedInsert = (
     const startAtSql = bind(startAt);
     const endAtSql = bind(endAt);
     const quantitySql = bind(quantity);
-    const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id, site_months)
-          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}, ${bind(siteMonths)}`;
+    const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
+          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
     if (allowOverbook) {
       if (extraCondition === undefined) return insertSelect;
       return `${insertSelect}\n          WHERE ${extraCondition(bind)}`;
@@ -85,25 +83,6 @@ export const buildCapacityCheckedInsert = (
     return `${insertSelect}\n          WHERE ${conditions}`;
   });
 };
-
-/** The initial site months each listing states, keyed by id: the term a
- * booking stamps at write time, so a later listing edit cannot change what
- * an earlier buyer was granted. */
-export type SiteMonthsByListing = Map<number, number>;
-
-export const siteMonthsForListings = async (
-  listingIds: readonly number[],
-): Promise<SiteMonthsByListing> =>
-  rowsToMap(
-    await queryAll<{ id: number; initial_site_months: number }>(
-      `SELECT id, initial_site_months
-       FROM listings
-      WHERE id IN (${inPlaceholders(listingIds)})`,
-      [...listingIds],
-    ),
-    (row) => row.id,
-    (row) => row.initial_site_months,
-  );
 
 /** Check several capacity conditions in one query. */
 export const checkLinesCapacity = async (

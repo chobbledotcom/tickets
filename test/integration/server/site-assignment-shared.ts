@@ -67,9 +67,6 @@ export const siteEntry = (
     quantity?: number;
     email?: string;
     refunded?: boolean;
-    /** The term the line carries as already bought, when the test simulates
-     * a listing edited after the booking. Defaults to months × quantity. */
-    siteMonths?: number;
   } = {},
 ) => {
   const initialSiteMonths = overrides.initialSiteMonths ?? 3;
@@ -84,14 +81,10 @@ export const siteEntry = (
       }),
     },
     {
-      // The line carries the term it bought at booking time.
-      site_months: overrides.siteMonths ?? initialSiteMonths * quantity,
       ...(overrides.attendeeId !== undefined && { id: overrides.attendeeId }),
       ...(overrides.email !== undefined && { email: overrides.email }),
+      ...(overrides.refunded !== undefined && { refunded: overrides.refunded }),
       quantity,
-      ...(overrides.refunded !== undefined && {
-        refunded: overrides.refunded,
-      }),
     },
   );
 };

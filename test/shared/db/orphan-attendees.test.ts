@@ -222,7 +222,6 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
         id,
         [99],
         99,
-        "2099-01-01T00:00:00.000Z",
       );
 
       await purgeOrphanedAttendees(nowIso());

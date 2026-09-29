@@ -48,9 +48,7 @@ export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
     column("id"),
   )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
     "order_token",
-  )}, ${column("parent_listing_id")}, ${column("package_group_id")}, ${column(
-    "site_months",
-  )}`;
+  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =

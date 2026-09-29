@@ -100,10 +100,8 @@ test("converts plain database values back to site fields", () => {
     assignable: 1,
     assigned_attendee_id: 42,
     assigned_listing_id: 7,
-    pending_renewal_cutoff: "",
     read_only_from: "date",
     renewal_token_index: "index",
-    renewal_url_confirmed: 0,
     site_data_revision: 3,
     updates: "alpha",
   } as const;
@@ -117,10 +115,8 @@ test("converts plain database values back to site fields", () => {
     assignable: true,
     assignedAttendeeId: 42,
     assignedListingId: 7,
-    pendingRenewalCutoff: "",
     readOnlyFrom: "date",
     renewalTokenIndex: "index",
-    renewalUrlConfirmed: false,
     siteDataRevision: 3,
     updates: "alpha",
   });
@@ -131,20 +127,15 @@ test("defines exact plain defaults and blob mappings", () => {
   expect({
     assignedAttendeeId: builtSitePlainSchema.assigned_attendee_id.default?.(),
     assignedListingId: builtSitePlainSchema.assigned_listing_id.default?.(),
-    pendingRenewalCutoff:
-      builtSitePlainSchema.pending_renewal_cutoff.default?.(),
     readOnlyFrom: builtSitePlainSchema.read_only_from.default?.(),
     renewalTokenIndex: builtSitePlainSchema.renewal_token_index.default?.(),
-    renewalUrlConfirmed: builtSitePlainSchema.renewal_url_confirmed.default?.(),
     siteDataRevision: builtSitePlainSchema.site_data_revision.default?.(),
     updates: builtSitePlainSchema.updates.default?.(),
   }).toEqual({
     assignedAttendeeId: null,
     assignedListingId: null,
-    pendingRenewalCutoff: "",
     readOnlyFrom: "",
     renewalTokenIndex: null,
-    renewalUrlConfirmed: 0,
     siteDataRevision: 0,
     updates: "release",
   });

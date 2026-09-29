@@ -22,7 +22,6 @@ type CommittedBookingRow = {
   package_group_id: number;
   price_paid: number;
   quantity: number;
-  site_months: number;
   remaining_balance: number;
   status_id: number | null;
   ticket_token_index: BlindIndex;
@@ -45,7 +44,6 @@ export const committedEntries = async (
                    attendee.kind,
                    listingAttendee.listing_id,
                    listingAttendee.package_group_id,
-                   listingAttendee.site_months,
                    ${pricePaidFromLedger(
                      "listingAttendee.attendee_id",
                      "listingAttendee.listing_id",
@@ -81,7 +79,6 @@ export const committedEntries = async (
     quantity: row.quantity,
     refunded: false,
     remaining_balance: row.remaining_balance,
-    site_months: row.site_months,
     split_logistics_agents: false,
     status_id: row.status_id,
     ticket_token: ticketToken,

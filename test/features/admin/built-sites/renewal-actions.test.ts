@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -212,7 +213,7 @@ describeWithEnv(
     });
 
     describe("POST /admin/built-sites/:id/provision-renewal", () => {
-      test("a failed push renders a retryable state and the retry provisions", async () => {
+      test("a failed push leaves the token reserved and the retry provisions", async () => {
         // The provision route refuses without a qualifying renewal tier.
         await createTestListing({
           hidden: true,
@@ -226,7 +227,7 @@ describeWithEnv(
         });
 
         // The first provisioning's push fails: the token stands reserved,
-        // unconfirmed, with the buyer's term stamped and no cutoff stored.
+        // unconfirmed, with no deadline stored.
         await suite.withFailingSecretStub(async () => {
           const { response } = await siteAction(site, "provision-renewal", {
             months: "3",
@@ -235,34 +236,44 @@ describeWithEnv(
         });
         const reserved = await findSite(site.id);
         expect(reserved.renewalTokenIndex).not.toBeNull();
-        expect(reserved.renewalUrlConfirmed).toBe(false);
-        expect(reserved.pendingRenewalCutoff).not.toBe("");
+        expect(reserved.readOnlyFrom).toBe("");
 
         // The page renders the pending state: the provision form is the only
         // control — no rotate, no deadline edits, no unconfirmed URL.
         suite.resetSecretStub();
         const panel = String(renewalPanelFor(await findSite(site.id)));
+        expect(panel).toContain("The last provisioning did not reach the site");
         expect(panel).toContain('/provision-renewal"');
         expect(panel).not.toContain('/rotate-renewal-token"');
         expect(panel).not.toContain('/bump-deadline"');
         expect(panel).not.toContain('/override-deadline"');
-        expect(panel).not.toContain("Rotate token");
 
-        // A direct deadline bump cannot confirm a cutoff over the retry.
-        await siteAction(site, "bump-deadline", { months: "6" });
-        const afterBump = await findSite(site.id);
-        expect(afterBump.readOnlyFrom).toBe("");
-        expect(afterBump.renewalUrlConfirmed).toBe(false);
+        // A direct deadline bump cannot store a cutoff over the retry.
+        const { response: bumpResponse } = await siteAction(
+          site,
+          "bump-deadline",
+          { months: "6" },
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/renewal`,
+          "Renewal is not provisioned for this site",
+          false,
+        )(bumpResponse);
+        expect((await findSite(site.id)).readOnlyFrom).toBe("");
+        expect(suite.secretStub.calls.length).toBe(0);
 
-        // The provision retry re-pushes the RESERVED token and the STAMPED
-        // term — the form's own months cannot shrink what was reserved.
+        // The provision retry re-pushes the RESERVED token with the months
+        // the operator enters — the buyer's payment record says how many,
+        // not the failed first attempt's term.
+        const before = new Date().toISOString();
         await siteAction(site, "provision-renewal", { months: "1" });
         const provisioned = await findSite(site.id);
         expect(provisioned.renewalToken).toBe(reserved.renewalToken);
-        expect(provisioned.renewalUrlConfirmed).toBe(true);
-        expect(provisioned.readOnlyFrom.slice(0, 10)).toBe(
-          reserved.pendingRenewalCutoff.slice(0, 10),
-        );
+        expect(provisioned.readOnlyFrom).not.toBe("");
+        expect(provisioned.readOnlyFrom >= addMonthsIso(before, 1)).toBe(true);
+        expect(
+          provisioned.readOnlyFrom <= addMonthsIso(new Date().toISOString(), 1),
+        ).toBe(true);
       });
     });
   },

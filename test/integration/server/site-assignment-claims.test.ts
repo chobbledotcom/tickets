@@ -88,10 +88,12 @@ describeWithEnv(
         expect(body.html).toContain("https://a.test.net/setup/");
       });
 
-      test("a repair resend grants the term the booking paid after the plan changed", async () => {
+      test("a repair resend grants the term the plan states today", async () => {
         // Empty pool first: the booking stood with no site. Days later the
         // owner stocks one and resends — after retuning the plan's months
-        // for future buyers. The repair must grant what was PAID.
+        // for future buyers. The repair reads the plan's months live, so it
+        // grants what the plan states today; a buyer whose bought term was
+        // edited is corrected by hand from the payment record.
         await settings.update.businessEmail("biz@example.com");
         using _build = forbidBuildDuringAssignment();
         const errorSpy = silencedErrors();
@@ -102,7 +104,6 @@ describeWithEnv(
               attendeeId: 10,
               initialSiteMonths: 3,
               quantity: 3,
-              siteMonths: 9,
             }),
           ]);
         } finally {
@@ -116,15 +117,13 @@ describeWithEnv(
             attendeeId: 10,
             initialSiteMonths: 1,
             quantity: 3,
-            siteMonths: 9,
           }),
         ]);
 
-        // Three paid units of the 3-month plan buy 9 months, whatever the
-        // plan states today.
+        // The plan states 1 month today, and the buyer holds 3 units.
         await suite.expectFlagPushOutcome(
           "Site A",
-          addMonthsIso(nowIso(), 9).slice(0, 10),
+          addMonthsIso(nowIso(), 3).slice(0, 10),
         );
       });
 
@@ -159,28 +158,12 @@ describeWithEnv(
         // Sequential claims, not a race: after the first takes the site, the
         // second's conditional UPDATE matches no row, so the take reports
         // an empty pool.
-        expect(
-          (
-            await takePooledSiteForBuyer(
-              [site],
-              42,
-              [7],
-              7,
-              "2099-01-01T00:00:00.000Z",
-            )
-          ).kind,
-        ).toBe("claimed");
-        expect(
-          (
-            await takePooledSiteForBuyer(
-              [site],
-              43,
-              [7],
-              7,
-              "2099-01-01T00:00:00.000Z",
-            )
-          ).kind,
-        ).toBe("empty");
+        expect((await takePooledSiteForBuyer([site], 42, [7], 7)).kind).toBe(
+          "claimed",
+        );
+        expect((await takePooledSiteForBuyer([site], 43, [7], 7)).kind).toBe(
+          "empty",
+        );
 
         const sites = await builtSites.getAll();
         expect(sites[0]!.assignedAttendeeId).toBe(42);

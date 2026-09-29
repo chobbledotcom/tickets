@@ -162,15 +162,6 @@ export const questionTables: [name: string, table: Table][] = [
         createdColumn,
         ["renewal_token_index", "TEXT DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
-        // The cutoff the site's renewal is meant to run to, written when the
-        // claim stamps the buyer's paid term and kept until the renewal URL
-        // push confirms. It survives a failed push, so a retry re-pushes the
-        // buyer's original term even if the plan's months changed meanwhile.
-        ["pending_renewal_cutoff", "TEXT NOT NULL DEFAULT ''"],
-        // Whether the RENEWAL_URL push confirmed. read_only_from alone cannot
-        // mark this: an admin may pre-stock a deadline without any renewal
-        // token, and a reserved-but-unconfirmed token must stay retryable.
-        ["renewal_url_confirmed", "INTEGER NOT NULL DEFAULT 0"],
         ["site_data_revision", "INTEGER NOT NULL DEFAULT 0"],
         // Release channel this site opts into: 'alpha' takes every deploy,
         // 'beta' takes beta + release, 'release' only stable releases. The

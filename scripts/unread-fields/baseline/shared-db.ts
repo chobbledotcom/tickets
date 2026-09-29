@@ -9,10 +9,8 @@ const BUILT_SITE_SHARED_FIELD_NAMES = [
   { input: "assignable", row: "assignable" },
   { input: "assignedAttendeeId", row: "assigned_attendee_id" },
   { input: "assignedListingId", row: "assigned_listing_id" },
-  { input: "pendingRenewalCutoff", row: "pending_renewal_cutoff" },
   { input: "readOnlyFrom", row: "read_only_from" },
   { input: "renewalTokenIndex", row: "renewal_token_index" },
-  { input: "renewalUrlConfirmed", row: "renewal_url_confirmed" },
 ] as const;
 const BUILT_SITE_INPUT_FIELDS = BUILT_SITE_SHARED_FIELD_NAMES.map(
   ({ input }) => input,

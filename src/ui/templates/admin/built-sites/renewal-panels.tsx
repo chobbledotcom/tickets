@@ -133,8 +133,8 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element =>
 
 /** Reserved but unconfirmed: the token's URL push never reached the site, so
  * the only way forward is provisioning again — the route re-pushes the
- * reserved token and the buyer's stamped term. Deadline edits stay out of
- * reach: confirming a cutoff here would make the provision retry refuse
+ * reserved token with the months the operator enters. Deadline edits stay
+ * out of reach: storing a cutoff here would make the provision retry refuse
  * while the site still has no renewal link. */
 const pendingRenewalPanel = (site: BuiltSite): JSX.Element =>
   deadlinePanel(site, [

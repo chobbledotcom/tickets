@@ -160,7 +160,6 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
   quantity: 2,
   refunded: false,
   remaining_balance: 0,
-  site_months: 0,
   special_instructions: "Vegetarian",
   split_logistics_agents: false,
   status_id: 3,

@@ -13,8 +13,7 @@ export const assignmentEntry = (attendeeId = 81) =>
       initial_site_months: 3,
       name: "Hosted listing",
     },
-    // The line carries the term it bought at booking time.
-    { id: attendeeId, site_months: 3 },
+    { id: attendeeId },
   );
 
 export const sendSetupEmail = async (siteNames: readonly string[]) => {

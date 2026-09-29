@@ -132,19 +132,10 @@ describeWithEnv(
         expect(afterResend.readOnlyFrom).not.toBe("");
       });
 
-      test("a recovery confirms the term the claim stamped before the plan changed", async () => {
+      test("a recovery finishes the provisioning with the term the plan states today", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
         await createTierListing();
 
-        const retunedEntry = () =>
-          assignAndNotifyBuiltSites([
-            siteEntry({
-              attendeeId: 10,
-              initialSiteMonths: 1,
-              quantity: 3,
-              siteMonths: 9,
-            }),
-          ]);
         const afterFirst = await runFailedFirstPush(
           () =>
             assignAndNotifyBuiltSites([
@@ -152,24 +143,29 @@ describeWithEnv(
                 attendeeId: 10,
                 initialSiteMonths: 3,
                 quantity: 3,
-                siteMonths: 9,
               }),
             ]),
           "Site A",
         );
 
-        // The owner retunes the plan to 1 month, then the resend confirms.
+        // The owner retunes the plan to 1 month, then the resend finishes
+        // the unprovisioned renewal with the term the plan states today —
+        // and it never mints a second token.
         const okStub = stubEdgeSecretSuccess();
         try {
-          await retunedEntry();
+          await assignAndNotifyBuiltSites([
+            siteEntry({
+              attendeeId: 10,
+              initialSiteMonths: 1,
+              quantity: 3,
+            }),
+          ]);
           const afterResend = (await builtSites.getAll()).find(
             (s) => s.name === "Site A",
           )!;
-          // The recovery pushed the STAMPED term, not the plan's new value,
-          // and it never minted a second token.
           expect(afterResend.renewalToken).toBe(afterFirst.renewalToken);
           expect(afterResend.readOnlyFrom.slice(0, 10)).toBe(
-            addMonthsIso(nowIso(), 9).slice(0, 10),
+            addMonthsIso(nowIso(), 3).slice(0, 10),
           );
         } finally {
           okStub.restore();

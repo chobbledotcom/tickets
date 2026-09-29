@@ -30,10 +30,8 @@ export interface BuiltSiteRow {
   assigned_listing_id: number | null;
   created: string;
   id: number;
-  pending_renewal_cutoff: string;
   read_only_from: string;
   renewal_token_index: string | null;
-  renewal_url_confirmed: number;
   site_data: string;
   site_data_revision: number;
   updates: UpdateTier;
@@ -43,10 +41,8 @@ export type BuiltSitePlainInput = {
   assignable?: number;
   assignedAttendeeId?: number | null;
   assignedListingId?: number | null;
-  pendingRenewalCutoff?: string;
   readOnlyFrom?: string;
   renewalTokenIndex?: string | null;
-  renewalUrlConfirmed?: number;
   updates?: UpdateTier;
 };
 
@@ -64,11 +60,9 @@ export interface BuiltSite {
   hostingProvider: HostingProvider;
   id: number;
   name: string;
-  pendingRenewalCutoff: string;
   readOnlyFrom: string;
   renewalToken: string | null;
   renewalTokenIndex: string | null;
-  renewalUrlConfirmed: boolean;
   scheduledTaskKey: string | null;
   siteDataRevision: number;
   siteUrl: string;
@@ -89,10 +83,8 @@ export type BuiltSitePlainFields = Pick<
   | "assignable"
   | "assignedAttendeeId"
   | "assignedListingId"
-  | "pendingRenewalCutoff"
   | "readOnlyFrom"
   | "renewalTokenIndex"
-  | "renewalUrlConfirmed"
   | "siteDataRevision"
   | "updates"
 >;

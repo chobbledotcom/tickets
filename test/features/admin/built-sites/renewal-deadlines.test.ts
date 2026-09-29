@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { builtSites, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
+import { builtSites } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -69,30 +69,6 @@ describeWithEnv(
         await expectFlashRedirect(
           `/admin/built-sites/${site.id}/renewal`,
           "No deadline to re-sync",
-          false,
-        )(response);
-
-        expect(suite.secretStub.calls.length).toBe(0);
-      });
-
-      test("refuses to re-sync a reserved token that never confirmed", async () => {
-        const site = await createTestBuiltSite({
-          hostingId: "6033",
-          name: "Resync Reserved",
-        });
-        // A deadline exists, but the renewal URL push never confirmed, so
-        // the provision retry owns the re-push — not the re-sync route.
-        await provisionTestBuiltSite(site.id, { readOnlyFrom: "" });
-        await updateBuiltSiteRenewalState(site.id, {
-          readOnlyFrom: "2027-05-01T00:00:00Z",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/re-sync-deadline`,
-        );
-        await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/renewal`,
-          "Renewal is not provisioned for this site",
           false,
         )(response);
 

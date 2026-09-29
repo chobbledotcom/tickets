@@ -51,24 +51,20 @@ export const hasAssignedBuiltSite = async (
 };
 
 /** The claim as one statement: it takes the first still-assignable candidate,
- * in the pool order the caller passes, and it stamps the buyer's paid term as
- * the pending renewal cutoff — durable from the day of purchase, so a failed
- * provider push recovers that term even when the plan's months change later.
- * It also bumps the blob revision so a concurrent whole-row write cannot land
- * a stale copy over the assignment. One statement however large the pool, so
- * the assignment transaction never grows chatty. */
+ * in the pool order the caller passes. It also bumps the blob revision so a
+ * concurrent whole-row write cannot land a stale copy over the assignment.
+ * One statement however large the pool, so the assignment transaction never
+ * grows chatty. */
 export const claimBuiltSiteStatement = (
   candidateIds: readonly number[],
   attendeeId: number,
   listingId: number,
-  pendingCutoff: string,
 ): SqlStatement => ({
-  args: [attendeeId, listingId, pendingCutoff, JSON.stringify(candidateIds)],
+  args: [attendeeId, listingId, JSON.stringify(candidateIds)],
   sql: `UPDATE built_sites
            SET assignable = 0,
                assigned_attendee_id = ?,
                assigned_listing_id = ?,
-               pending_renewal_cutoff = ?,
                site_data_revision = site_data_revision + 1
          WHERE assignable = 1
            AND id = (
@@ -97,17 +93,15 @@ export type PooledSiteTake =
   | { kind: "empty" };
 
 /** Check the buyer is not already served and claim one pooled site, inside
- * one write transaction, stamping `pendingCutoff` as the buyer's paid term on
- * the claimed row. Two racing notification runs for the same buyer serialize
- * here: the first claims, and the second reads the buyer already served and
- * wins nothing. The claim takes the first still-assignable candidate, so a
- * retried transaction re-runs identically. */
+ * one write transaction. Two racing notification runs for the same buyer
+ * serialize here: the first claims, and the second reads the buyer already
+ * served and wins nothing. The claim takes the first still-assignable
+ * candidate, so a retried transaction re-runs identically. */
 export const takePooledSiteForBuyer = async (
   available: BuiltSite[],
   attendeeId: number,
   listingIds: readonly number[],
   listingIdToRecord: number,
-  pendingCutoff: string,
 ): Promise<PooledSiteTake> => {
   // Pop order: the last entry of `available` is the first candidate.
   const candidateIds = available.map((site) => site.id).reverse();
@@ -125,12 +119,7 @@ export const takePooledSiteForBuyer = async (
       } as const;
     }
     const won = await tx.execute(
-      claimBuiltSiteStatement(
-        candidateIds,
-        attendeeId,
-        listingIdToRecord,
-        pendingCutoff,
-      ),
+      claimBuiltSiteStatement(candidateIds, attendeeId, listingIdToRecord),
     );
     if (won.rowsAffected === 0) return null;
     const claimed = await tx.execute(

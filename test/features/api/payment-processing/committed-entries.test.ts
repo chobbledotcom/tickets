@@ -95,7 +95,6 @@ describeWithEnv(
         quantity: 2,
         refunded: false,
         remaining_balance: 2000,
-        site_months: 0,
         special_instructions: "Ring the bell",
         split_logistics_agents: false,
         status_id: attendee.status_id,

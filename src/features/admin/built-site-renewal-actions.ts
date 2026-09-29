@@ -4,11 +4,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import {
-  isProvisioned,
-  isRenewalUrlConfirmed,
-  isReservedRenewal,
-} from "#shared/renewal-helpers.ts";
+import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 import {
   addMonthsToRenewalDeadline,
@@ -118,15 +114,6 @@ export const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   if (!site.readOnlyFrom) {
     return builtSiteTabError(id, "renewal", "No deadline to re-sync");
   }
-  // Re-syncing a reserved-but-unconfirmed token would push a renewal URL the
-  // confirmation never marked, so the retry path stays the provision route.
-  if (isReservedRenewal(site)) {
-    return builtSiteTabError(
-      id,
-      "renewal",
-      "Renewal is not provisioned for this site",
-    );
-  }
   const renewalUrl =
     isProvisioned(site) && site.renewalToken
       ? renewalUrlFor(site.renewalToken)
@@ -145,10 +132,10 @@ export const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
  * (The customer picks the actual tier at renew time.) */
 export const handleProvisionRenewal = builtSiteAction(
   async (site, form, id) => {
-    // Only a confirmed renewal-URL push marks provisioning done. A reserved-
-    // unconfirmed token — including one beside a pre-stocked deadline — is a
-    // failed push, and this route is its retry.
-    if (isRenewalUrlConfirmed(site)) {
+    // A provisioned site with a set deadline is confirmed. Anything else —
+    // no token yet, or a reserved token whose push never landed — is this
+    // route's to (re)provision.
+    if (isProvisioned(site) && site.readOnlyFrom !== "") {
       return builtSiteTabError(
         id,
         "renewal",

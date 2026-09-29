@@ -15,9 +15,6 @@ import {
   wrapDbClient,
 } from "#test-utils/record-queries.ts";
 
-/** The paid term a claim stamps, as the assignment computes it. */
-const STAMPED_CUTOFF = "2099-01-01T00:00:00.000Z";
-
 describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
   test("stores the assignment and hands back the claimed site", async () => {
     const row = await insertBuiltSite(
@@ -29,7 +26,7 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     );
     const pool = await getAssignableBuiltSites();
 
-    const take = await takePooledSiteForBuyer(pool, 42, [7], 7, STAMPED_CUTOFF);
+    const take = await takePooledSiteForBuyer(pool, 42, [7], 7);
 
     expect(take.kind).toBe("claimed");
     expect(take.kind === "claimed" && take.site.id).toBe(row.id);
@@ -47,20 +44,8 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     // Sorted by id, so the pool order does not depend on the read order.
     const pool = (await getAssignableBuiltSites()).sort((a, b) => a.id - b.id);
 
-    const firstTake = await takePooledSiteForBuyer(
-      pool,
-      42,
-      [7],
-      7,
-      STAMPED_CUTOFF,
-    );
-    const secondTake = await takePooledSiteForBuyer(
-      pool,
-      43,
-      [7],
-      7,
-      STAMPED_CUTOFF,
-    );
+    const firstTake = await takePooledSiteForBuyer(pool, 42, [7], 7);
+    const secondTake = await takePooledSiteForBuyer(pool, 43, [7], 7);
 
     expect(firstTake.kind === "claimed" && firstTake.site.name).toBe("Second");
     expect(secondTake.kind === "claimed" && secondTake.site.name).toBe("First");
@@ -70,14 +55,8 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     await insertBuiltSite("Serving", "serving.b-cdn.net", "", "", true);
     const pool = await getAssignableBuiltSites();
 
-    await takePooledSiteForBuyer(pool, 42, [7], 7, STAMPED_CUTOFF);
-    const second = await takePooledSiteForBuyer(
-      pool,
-      42,
-      [7],
-      7,
-      STAMPED_CUTOFF,
-    );
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
+    const second = await takePooledSiteForBuyer(pool, 42, [7], 7);
 
     expect(second.kind).toBe("served");
     // The take hands back the site the buyer's earlier claim gave them, so
@@ -91,22 +70,16 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     await insertBuiltSite("Already Taken", "taken.b-cdn.net", "", "", true);
     const pool = await getAssignableBuiltSites();
 
-    await takePooledSiteForBuyer(pool, 42, [7], 7, STAMPED_CUTOFF);
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
     // An unchanged copy of the pool, so the second take still offers the
     // now-taken site and exercises the conditional UPDATE's guard.
-    const secondBuyer = await takePooledSiteForBuyer(
-      [...pool],
-      43,
-      [7],
-      7,
-      STAMPED_CUTOFF,
-    );
+    const secondBuyer = await takePooledSiteForBuyer([...pool], 43, [7], 7);
 
     expect(secondBuyer).toEqual({ kind: "empty" });
   });
 
   test("reports an empty pool for a buyer with no candidates", async () => {
-    const take = await takePooledSiteForBuyer([], 42, [7], 7, STAMPED_CUTOFF);
+    const take = await takePooledSiteForBuyer([], 42, [7], 7);
     expect(take).toEqual({ kind: "empty" });
   });
 
@@ -128,13 +101,7 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
       }));
     });
     try {
-      const take = await takePooledSiteForBuyer(
-        pool,
-        42,
-        [7],
-        7,
-        STAMPED_CUTOFF,
-      );
+      const take = await takePooledSiteForBuyer(pool, 42, [7], 7);
       expect(take.kind).toBe("claimed");
       expect(take.kind === "claimed" && take.site.siteUrl).toBe(
         "https://fresh.example.test",
@@ -165,7 +132,7 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     });
     const claim = (async () => {
       await claimStarted;
-      return takePooledSiteForBuyer(pool, 42, [7], 7, STAMPED_CUTOFF);
+      return takePooledSiteForBuyer(pool, 42, [7], 7);
     })();
     const restore = wrapDbClient({
       batch: () => {},

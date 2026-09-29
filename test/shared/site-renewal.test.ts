@@ -1,4 +1,3 @@
-import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -245,29 +244,6 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     // The retry confirms the reserved token; it never mints a second one.
     expect(confirmed.renewalToken).toBe(reservedToken);
     expect(confirmed.readOnlyFrom).not.toBe("");
-  });
-
-  test("a reserved token with no stamped term fails loudly", async () => {
-    await insertBuiltSite("Unstamped", "unstamped.test", "", "", false, "82");
-    // Stage a token with no term and no confirmation, then read the site
-    // back so the provision sees the pair and skips its own reservation.
-    const staged = await generateRenewalToken();
-    const siteId = (await builtSites.getAll()).find(
-      ({ name }) => name === "Unstamped",
-    )!.id;
-    await updateBuiltSiteRenewalState(siteId, {
-      renewalToken: staged.token,
-      renewalTokenIndex: staged.index,
-    });
-    const site = (await builtSites.getAll()).find(
-      ({ name }) => name === "Unstamped",
-    )!;
-
-    await assertRejects(
-      () => provisionSiteRenewal(site, 3, "Unstamped provision failed"),
-      Error,
-      `No renewal cutoff stamped for site ${site.id}`,
-    );
   });
 });
 

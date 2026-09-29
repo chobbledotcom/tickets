@@ -151,8 +151,7 @@ export type AttendeeField =
   | "price_paid"
   | "end_date"
   | "attachment_downloads"
-  | "package_group_id"
-  | "site_months";
+  | "package_group_id";
 
 /** Every selectable field. */
 export const ATTENDEE_FIELDS = [
@@ -162,7 +161,6 @@ export const ATTENDEE_FIELDS = [
   "end_date",
   "attachment_downloads",
   "package_group_id",
-  "site_months",
 ] as const satisfies readonly AttendeeField[];
 
 /**
@@ -212,7 +210,6 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => string> = {
     ),
   refunded: () => refundedFromLedger(LISTING_ATTENDEE_REFUNDED_ROW),
   remaining_balance: () => remainingBalanceFromLedger("attendee.id"),
-  site_months: (join) => listingIntColumn(join, "site_months"),
 };
 
 /**

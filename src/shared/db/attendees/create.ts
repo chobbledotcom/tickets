@@ -7,12 +7,10 @@ import type {
   BuildAttendeeInput,
   CreateAttendeeResult,
   EncryptedAttendeeData,
+  ListingBooking,
 } from "#db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
-import {
-  buildCapacityCheckedInsert,
-  siteMonthsForListings,
-} from "#db/attendees/capacity/checks.ts";
+import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
@@ -20,7 +18,6 @@ import {
   type BookingBatchPlan,
   bookingBatchCondition,
   type PreparedWrite,
-  type StampedBooking,
   type WriteOutcome,
   writeAsBatch,
   writeAsLedgerBatch,
@@ -33,7 +30,6 @@ import { insert, type SqlStatement } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
-import { unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 
@@ -87,7 +83,6 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   quantity: input.quantity,
   refunded: false,
   remaining_balance: input.remainingBalance,
-  site_months: input.siteMonths,
   split_logistics_agents: false,
   status_id: input.statusId,
   ticket_token: input.ticketToken,
@@ -124,17 +119,6 @@ const prepareAttendeeWrite = async (
     rawBookings,
     input.parentIdsByChild,
   );
-  // Stamp each line's site term while the listing still states it: the term
-  // the buyer paid is the one the listing named on the day of booking.
-  const siteMonthsByListing = await siteMonthsForListings(
-    unique(bookings.map((booking) => booking.listingId)),
-  );
-  const stampedBookings = bookings.map((booking) => ({
-    ...booking,
-    siteMonths:
-      (siteMonthsByListing.get(booking.listingId) ?? 0) *
-      (booking.quantity ?? 1),
-  }));
   const contactInfo = contactInfoFromInput(input);
   const enc = await encryptAttendeeFields(
     {
@@ -144,7 +128,7 @@ const prepareAttendeeWrite = async (
     input.ticketToken ?? generateTicketToken(),
   );
 
-  const bookingStatements = stampedBookings.map((booking) => {
+  const bookingStatements = bookings.map((booking) => {
     const statement = buildCapacityCheckedInsert(
       booking,
       (bind) => ATTENDEE_BY_TOKEN_SQL.replace("?", bind(enc.ticketTokenIndex)),
@@ -153,7 +137,7 @@ const prepareAttendeeWrite = async (
     );
     return statement;
   });
-  const hasRealBooking = stampedBookings.some(
+  const hasRealBooking = bookings.some(
     (booking) => (booking.quantity ?? 1) > 0,
   );
   const activityStatements = hasRealBooking
@@ -178,8 +162,8 @@ const prepareAttendeeWrite = async (
         piiPaymentSessionId,
       ),
       bookingStatements,
+      bookings,
       enc,
-      stampedBookings,
     },
   };
 };
@@ -188,11 +172,11 @@ const finishAttendeeWrite = (
   written: WriteOutcome,
   input: AttendeeInput,
   enc: EncryptedAttendeeData,
-  stampedBookings: StampedBooking[],
+  bookings: ListingBooking[],
 ): CreateAttendeeResult => {
   const contactInfo = contactInfoFromInput(input);
   return {
-    attendees: stampedBookings.map((booking) =>
+    attendees: bookings.map((booking) =>
       buildAttendeeResult({
         insertId: written.insertId,
         listingId: booking.listingId,
@@ -208,7 +192,6 @@ const finishAttendeeWrite = (
         pricePaid: booking.pricePaid ?? 0,
         quantity: booking.quantity ?? 1,
         remainingBalance: input.remainingBalance ?? 0,
-        siteMonths: booking.siteMonths,
         statusId: input.statusId ?? null,
         ticketToken: enc.ticketToken,
         ticketTokenIndex: enc.ticketTokenIndex,
@@ -240,7 +223,7 @@ const createWith =
           written,
           input,
           prepared.prepared.enc,
-          prepared.prepared.stampedBookings,
+          prepared.prepared.bookings,
         )
       : strategy.noBooking();
   };

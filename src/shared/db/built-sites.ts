@@ -343,7 +343,6 @@ export const updateBuiltSiteRenewalState = (
     renewalTokenIndex?: string | null;
     readOnlyFrom?: string;
     renewalToken?: string;
-    renewalUrlConfirmed?: boolean;
   },
 ): Promise<BuiltSite | null> =>
   updateBuiltSite(siteId, (existing) => ({
@@ -353,8 +352,5 @@ export const updateBuiltSiteRenewalState = (
       : {}),
     ...(updates.readOnlyFrom !== undefined
       ? { readOnlyFrom: updates.readOnlyFrom }
-      : {}),
-    ...(updates.renewalUrlConfirmed !== undefined
-      ? { renewalUrlConfirmed: updates.renewalUrlConfirmed }
       : {}),
   }));

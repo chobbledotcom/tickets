@@ -99,8 +99,8 @@ export const syncReadOnlyFrom = async (
 /** The new renewal token and whether pushing it to the site succeeded. */
 type RenewalPushResult = { token: string; pushOk: boolean };
 
-/** A reserved-term push outcome: the stamped term it carried. */
-type ReservedRenewalPush = RenewalPushResult & { cutoff: string };
+/** A provisioning outcome: the token it pushed and the cutoff it carried. */
+type ProvisionedRenewal = RenewalPushResult & { cutoff: string };
 
 /** Push the given secrets and fold a failure into a logged failed push
  * result naming `token`. Returns undefined when the push landed. */
@@ -118,14 +118,13 @@ const pushOrLogFailure = async (
   return;
 };
 
-/** Reserve the site's renewal token pair and its intended cutoff in one
- * revision-fenced write. A row that already carries a token adopts it — and
- * its stamped cutoff — instead of minting a second one; a row without a token
- * gets the pair plus the cutoff the caller's months state (an admin
- * provisioning an unclaimed site), unless a claim stamped a term already. */
-const reserveRenewalTerm = async (
+/** The token this site's renewals run on, reserved if none is yet. The
+ * index is the pair's presence signal — token and index are always written
+ * together, and only the index can resolve a renewal link. A row without
+ * one gets a fresh pair written only while it still has none, so a
+ * concurrent attempt that loses the write reads the winner's pair back. */
+const reserveRenewalToken = async (
   site: BuiltSite,
-  months: number,
 ): Promise<RenewalTokenData> => {
   if (site.renewalTokenIndex) {
     return { index: site.renewalTokenIndex, token: site.renewalToken! };
@@ -133,18 +132,8 @@ const reserveRenewalTerm = async (
   const candidate = await generateRenewalToken();
   const reserved = await updateBuiltSite(site.id, (existing) =>
     existing.renewalTokenIndex
-      ? existing.pendingRenewalCutoff || existing.renewalUrlConfirmed
-        ? // Another provision owns the token and its term; adopt both.
-          null
-        : // A rotation persisted a token nobody confirmed: stamp this
-          // provision's term on it.
-          { pendingRenewalCutoff: addMonthsIso(nowIso(), months) }
-      : {
-          pendingRenewalCutoff:
-            existing.pendingRenewalCutoff || addMonthsIso(nowIso(), months),
-          renewalToken: candidate.token,
-          renewalTokenIndex: candidate.index,
-        },
+      ? null
+      : { renewalToken: candidate.token, renewalTokenIndex: candidate.index },
   );
   // The transaction just claimed this row, so the read back cannot miss it.
   return {
@@ -153,27 +142,29 @@ const reserveRenewalTerm = async (
   };
 };
 
-/** Push the stamped cutoff and the current token's renewal URL, and confirm
- * the pair in one revision-fenced write. A stamped cutoff is work to do even
- * on a confirmed site — a claim stamped it after that confirmation — so the
- * push supersedes it. On push failure the reservation stands, so a retry
- * re-pushes the same term instead of minting a second token. */
-const pushReservedRenewal = async (
+/**
+ * Provision a site for renewals. The token is reserved before the push: the
+ * reservation is a revision-fenced write that only lands while the row still
+ * carries none, so exactly one of two concurrent attempts owns the token and
+ * the other adopts it — both then push the same value. The confirm that
+ * follows persists only the cutoff, and only while the row sits at the
+ * revision it was read at: a token rotation landing mid-provision fails the
+ * confirm, and the loop re-reads and re-pushes the rotated token, so the
+ * hosting provider and the database cannot end up holding different tokens.
+ * On push failure the reservation stands with the cutoff still unset, so a
+ * retry re-pushes the reserved token instead of minting a second one.
+ */
+export const provisionSiteRenewal = async (
   site: BuiltSite,
+  months: number,
   errorContext: string,
-): Promise<ReservedRenewalPush> => {
+): Promise<ProvisionedRenewal> => {
+  await reserveRenewalToken(site);
+  const cutoff = addMonthsIso(nowIso(), months);
   for (const _attempt of range(0, 2)) {
     const current = await findBuiltSiteByIdPrimary(site.id);
-    // The reservation wrote the pair, so the row and its token exist.
+    // The reservation just wrote the pair, so the row and its token exist.
     const token = current!.renewalToken!;
-    const cutoff = current!.pendingRenewalCutoff;
-    if (cutoff === "") {
-      // Settled: a confirmed provisioning with nothing stamped awaits.
-      if (current!.renewalUrlConfirmed) {
-        return { cutoff: current!.readOnlyFrom, pushOk: true, token };
-      }
-      throw new Error(`No renewal cutoff stamped for site ${site.id}`);
-    }
     const failed = await pushOrLogFailure(
       current!,
       { readOnlyFrom: cutoff, renewalUrl: renewalUrlFor(token) },
@@ -185,36 +176,15 @@ const pushReservedRenewal = async (
       site.id,
       current!.siteDataRevision,
       {
-        pendingRenewalCutoff: "",
         readOnlyFrom: cutoff,
-        renewalUrlConfirmed: true,
       },
     );
     if (confirmed) return { cutoff, pushOk: true, token };
     // A rotation won the row mid-provision; loop again and push its token.
   }
-  // Rotations kept landing; the cutoff stays stamped and a retry resumes.
+  // Rotations kept landing; the cutoff stays unset and a retry resumes.
   logRenewalCdnError(errorContext, "the token kept rotating during provision");
   return { cutoff: "", pushOk: false, token: "" };
-};
-
-/**
- * Provision a site for renewals. The token is reserved before the push: the
- * reservation is a revision-fenced write that only lands while the row still
- * carries none, so exactly one of two concurrent attempts owns the token and
- * the other adopts it — both then push the same value. The cutoff comes from
- * the stamped term (a claim stamps the buyer's paid months); the caller's
- * months only matter when nothing is stamped yet. On push failure the
- * reservation stands and the cutoff stays stamped, so a retry re-pushes the
- * reserved token and term instead of minting a second one.
- */
-export const provisionSiteRenewal = async (
-  site: BuiltSite,
-  months: number,
-  errorContext: string,
-): Promise<ReservedRenewalPush> => {
-  await reserveRenewalTerm(site, months);
-  return pushReservedRenewal(site, errorContext);
 };
 
 /** Rotations serialize here: each reads the freshest token, pushes, and
@@ -266,13 +236,15 @@ export const rotateRenewalToken = (
 
 export const completeUnfinishedRenewal = async (
   site: BuiltSite,
+  months: number,
 ): Promise<void> => {
-  // A stamped cutoff is unfinished provisioning — a claim stamped the buyer's
-  // term and its push never confirmed. The recovery re-pushes exactly that
-  // term; a confirmed provisioning with nothing stamped needs nothing.
-  if (site.pendingRenewalCutoff !== "") {
-    await pushReservedRenewal(
+  // An empty read-only cutoff marks a provisioning whose push never
+  // confirmed, so the recovery re-pushes the reserved token with the term
+  // the buyer's plan states today.
+  if (!site.readOnlyFrom) {
+    await provisionSiteRenewal(
       site,
+      months,
       `Failed to push renewal secrets for site ${site.id}`,
     );
   }

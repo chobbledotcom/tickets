@@ -91,11 +91,6 @@ export type WebhookAttendee = ContactInfo & {
   /** Whether this booking row's payment was refunded; a refunded plan row
    * buys no site and no months. */
   refunded: boolean;
-  /** The site term this row bought at booking time (a plan listing's initial
-   * months times its quantity; 0 for non-plan lines). The assignment reads
-   * this instead of the listing's current value, so a later edit cannot
-   * change what an earlier buyer was granted. */
-  site_months: number;
 };
 
 /** Registration entry: listing + attendee pair */

@@ -44,16 +44,16 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     );
   });
 
-  test("creates a paid booking in five database calls", async () => {
+  test("creates a paid booking in four database calls", async () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
-    const calls = await countDatabaseCalls(5, async () => {
+    const calls = await countDatabaseCalls(4, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(5);
+    expect(calls).toBe(4);
   });
 
-  test("creates and answers a paid booking in six database calls", async () => {
+  test("creates and answers a paid booking in five database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
     const question = await questionsTable.insert({
@@ -67,10 +67,10 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     });
     await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
-    const calls = await countDatabaseCalls(6, async () => {
+    const calls = await countDatabaseCalls(5, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(6);
+    expect(calls).toBe(5);
   });
 
   test("heals a missing reservation from the durable booking ledger", async () => {

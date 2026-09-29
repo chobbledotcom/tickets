@@ -25,10 +25,7 @@ import { isBuilderEnabled } from "#shared/config.ts";
 /* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import {
-  isProvisioned,
-  isRenewalUrlConfirmed,
-} from "#shared/renewal-helpers.ts";
+import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 /* jscpd:ignore-end */
@@ -179,10 +176,10 @@ const handleUpdateSite = builtSiteAction(async (site, _form, id) => {
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
 const handleRotateToken = builtSiteAction(async (site, _form, id) => {
-  // Rotation runs only on a fully confirmed provisioning: a reserved-but-
-  // unconfirmed token means the assignment recovery may be re-pushing it,
-  // and rotating then would race that.
-  if (!isProvisioned(site) || !isRenewalUrlConfirmed(site)) {
+  // Rotation runs only on a fully confirmed provisioning: an empty
+  // read-only deadline marks a reserved-but-unconfirmed token, which the
+  // assignment recovery may be re-pushing, and rotating then would race it.
+  if (!isProvisioned(site) || site.readOnlyFrom === "") {
     return builtSiteTabError(
       id,
       "renewal",

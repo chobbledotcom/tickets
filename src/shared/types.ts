@@ -501,8 +501,6 @@ export interface Attendee extends ContactInfo {
   refunded: boolean;
   /** Remaining balance owed in minor units (plaintext); 0 when fully paid. */
   remaining_balance: number;
-  /** The site term this line bought at booking time; 0 for non-plan lines. */
-  site_months: number;
   /** Whether each delivered listing books its own drop-off/collection agents. */
   split_logistics_agents: boolean;
   /** Owner-defined status id (plaintext); null for legacy/default. */

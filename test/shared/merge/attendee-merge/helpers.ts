@@ -53,7 +53,6 @@ export const getBookings = (attendeeId: number) =>
     order_token: string;
     parent_listing_id: number;
     package_group_id: number;
-    site_months: number;
   }>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
