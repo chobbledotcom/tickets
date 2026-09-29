@@ -5,10 +5,10 @@ import { encrypt } from "#crypto/encryption.ts";
 import { execute, queryOne } from "#db/client.ts";
 import {
   countLegacyPaymentReferences,
+  legacyPaymentReferencePage,
   rebuildLegacyPaymentReferences,
 } from "#db/payment-reference-rebuild.ts";
 import { getRefundPaymentReferences } from "#db/payment-references.ts";
-import { getRefundAllSummary } from "#db/refund-all-candidates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -18,7 +18,10 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookLegacyPaidAttendee,
+  provenancePointerOf,
+  rebuildStatingProviderForEveryRow,
   seedHistoricalProcessedPayment,
+  statedForEveryRow,
 } from "#test-utils/historical-payment-references.ts";
 import {
   expectProcessedPaymentReference,
@@ -27,16 +30,6 @@ import {
 } from "#test-utils/processed-payments.ts";
 
 // jscpd:ignore-end
-
-const provenancePointerOf = async (
-  attendeeId: number,
-): Promise<string | null> => {
-  const row = await queryOne<{ pii_payment_session_id: string | null }>(
-    "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
-    [attendeeId],
-  );
-  return row?.pii_payment_session_id ?? null;
-};
 
 describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   test("a legacy payment is refused before the rebuild and refundable after", async () => {
@@ -51,11 +44,15 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       privateKey,
     );
     expect(before.get(attendee.id)).toEqual({ kind: "legacy_unindexed" });
-    expect(await countLegacyPaymentReferences()).toBe(1);
-
-    expect(await rebuildLegacyPaymentReferences("stripe", privateKey)).toEqual({
+    expect(
+      await rebuildLegacyPaymentReferences(
+        await statedForEveryRow("stripe"),
+        privateKey,
+      ),
+    ).toEqual({
       rebuilt: 1,
       remaining: 0,
+      unqualified: 0,
     });
 
     const references = await getRefundPaymentReferences(
@@ -80,40 +77,21 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     );
   });
 
-  test("the rebuild qualifies the attendee provenance pointer and unblocks Refund All", async () => {
-    const { attendee, listing } = await bookLegacyPaidAttendee(
-      "sess_provenance",
-      "pi_provenance",
-    );
-    expect(await getRefundAllSummary(listing.id)).toEqual({
-      blockedBy: "legacy_unindexed",
-      total: 1,
-    });
-
-    await rebuildLegacyPaymentReferences("stripe", await getTestPrivateKey());
-
-    expect(await provenancePointerOf(attendee.id)).toBe("sess_provenance");
-    expect(await getRefundAllSummary(listing.id)).toEqual({
-      blockedBy: null,
-      total: 1,
-    });
-  });
-
   test("a replayed rebuild changes nothing", async () => {
     const { attendee } = await bookLegacyPaidAttendee(
       "sess_replay",
       "pi_replay",
     );
-    const privateKey = await getTestPrivateKey();
-    await rebuildLegacyPaymentReferences("stripe", privateKey);
+    await rebuildStatingProviderForEveryRow("stripe");
     const storedIndex = await queryOne<{ payment_reference_index: string }>(
       "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
       ["sess_replay"],
     );
 
-    expect(await rebuildLegacyPaymentReferences("stripe", privateKey)).toEqual({
+    expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
       rebuilt: 0,
       remaining: 0,
+      unqualified: 0,
     });
     expect(await countLegacyPaymentReferences()).toBe(0);
     expect(
@@ -166,9 +144,15 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     );
 
     const privateKey = await getTestPrivateKey();
-    expect(await rebuildLegacyPaymentReferences("stripe", privateKey)).toEqual({
+    expect(
+      await rebuildLegacyPaymentReferences(
+        await statedForEveryRow("stripe"),
+        privateKey,
+      ),
+    ).toEqual({
       rebuilt: 2,
       remaining: 0,
+      unqualified: 0,
     });
 
     await expectProcessedPaymentReference(
@@ -180,33 +164,89 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     expect(await provenancePointerOf(pointed.id)).toBe("sess_pointed");
   });
 
-  test("an attendee with several legacy rows points at the oldest one", async () => {
-    const { attendee } = await bookLegacyPaidAttendee(
-      "sess_deposit",
-      "pi_deposit",
+  test("each row takes the provider the owner stated for it", async () => {
+    const stripeRow = await bookLegacyPaidAttendee(
+      "sess_mixed_st",
+      "pi_mixed_st",
     );
-    await seedHistoricalProcessedPayment(
-      "sess_balance",
-      attendee.id,
-      "pi_balance",
+    const squareRow = await bookLegacyPaidAttendee(
+      "sess_mixed_sq",
+      "pi_mixed_sq",
     );
-    await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_balance"],
-    );
-    await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2026-07-01T00:00:00.000Z", "sess_deposit"],
-    );
-    await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2026-07-02T00:00:00.000Z", "sess_balance"],
-    );
+    const privateKey = await getTestPrivateKey();
 
     expect(
-      await rebuildLegacyPaymentReferences("stripe", await getTestPrivateKey()),
-    ).toEqual({ rebuilt: 2, remaining: 0 });
-    expect(await provenancePointerOf(attendee.id)).toBe("sess_deposit");
+      await rebuildLegacyPaymentReferences(
+        new Map([
+          ["sess_mixed_st", "stripe"],
+          ["sess_mixed_sq", "square"],
+        ]),
+        privateKey,
+      ),
+    ).toEqual({ rebuilt: 2, remaining: 0, unqualified: 0 });
+    await expectProcessedPaymentReference(
+      stripeRow.attendee.id,
+      "sess_mixed_st",
+      taggedPaymentReference("pi_mixed_st", "stripe"),
+      privateKey,
+    );
+    await expectProcessedPaymentReference(
+      squareRow.attendee.id,
+      "sess_mixed_sq",
+      taggedPaymentReference("pi_mixed_sq", "square"),
+      privateKey,
+    );
+  });
+
+  test("an untagged row with no stated provider fails the run", async () => {
+    const { attendee } = await bookLegacyPaidAttendee(
+      "sess_unstated",
+      "pi_unstated",
+    );
+
+    await expect(
+      rebuildLegacyPaymentReferences(new Map(), await getTestPrivateKey()),
+    ).rejects.toThrow("no stated provider for payment session sess_unstated");
+
+    expect(await countLegacyPaymentReferences()).toBe(1);
+    expect(await provenancePointerOf(attendee.id)).toBeNull();
+  });
+
+  test("a row that already names its provider needs no stated choice", async () => {
+    const listing = await createTestListing();
+    const tagged = bookedAttendee(
+      await bookAttendee(listing, {
+        email: "kept-tag@example.com",
+        name: "Kept Tag",
+        paymentId: "pi_kept_tag",
+      }),
+    );
+    await finalizeProcessedPayment("sess_kept_tag", tagged.id, "", {
+      kind: "tagged",
+      provider: "square",
+      reference: "pi_kept_tag",
+    });
+    await execute(
+      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
+      ["sess_kept_tag"],
+    );
+    const privateKey = await getTestPrivateKey();
+    expect(await legacyPaymentReferencePage(privateKey)).toEqual([
+      expect.objectContaining({
+        alreadyTagged: true,
+        paymentSessionId: "sess_kept_tag",
+      }),
+    ]);
+
+    expect(await rebuildLegacyPaymentReferences(new Map(), privateKey)).toEqual(
+      { rebuilt: 1, remaining: 0, unqualified: 0 },
+    );
+    await expectProcessedPaymentReference(
+      tagged.id,
+      "sess_kept_tag",
+      taggedPaymentReference("pi_kept_tag", "square"),
+      privateKey,
+    );
   });
 
   test("a row the owner key cannot open fails the run and writes nothing", async () => {
@@ -221,7 +261,13 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     );
 
     await expect(
-      rebuildLegacyPaymentReferences("stripe", await getTestPrivateKey()),
+      rebuildLegacyPaymentReferences(
+        new Map([
+          ["sess_broken_row", "stripe"],
+          ["sess_good_row", "stripe"],
+        ]),
+        await getTestPrivateKey(),
+      ),
     ).rejects.toThrow("is not owner-key encrypted");
 
     expect(await countLegacyPaymentReferences()).toBe(2);
@@ -249,7 +295,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     );
 
     expect(await countLegacyPaymentReferences()).toBe(1);
-    await rebuildLegacyPaymentReferences("stripe", await getTestPrivateKey());
+    await rebuildStatingProviderForEveryRow("stripe");
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
 });

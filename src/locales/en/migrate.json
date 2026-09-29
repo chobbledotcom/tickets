@@ -1,14 +1,20 @@
 {
   "migrate.rebuild.heading": "Rebuild old payment records",
-  "migrate.rebuild.intro_html": "<p>An older version of this site stored less information with each payment. The app cannot refund those payments, because it cannot prove which provider took them.</p><p>This page rebuilds the old payment records. It records the provider you choose below with each payment. After that, the app can refund the payment as normal.</p><p>The rebuild never contacts the payment provider. It never moves money.</p>",
+  "migrate.rebuild.intro_html": "<p>An older version of this site stored less information with each payment. The app cannot refund those payments, because it cannot prove which provider took them.</p><p>This page lists the old payment records one run at a time. Each record needs the provider that took it, because your site may have changed provider since. After a record is rebuilt, the app can refund that payment as normal.</p><p>The rebuild never contacts the payment provider. It never moves money.</p>",
   "migrate.rebuild.records_waiting": "There {count, plural, =0 {are no payment records} =1 {is 1 payment record} other {are # payment records}} to rebuild.",
   "migrate.rebuild.nothing_to_do": "Payments this page cannot rebuild still exist. Refund those directly through the payment provider.",
-  "migrate.rebuild.provider_label": "Which provider took these payments?",
-  "migrate.rebuild.provider_hint": "The old records do not say which provider took them. Check one payment in your provider dashboard if you are not sure.",
-  "migrate.rebuild.confirm_label": "Type the provider name to confirm:",
+  "migrate.rebuild.column_reference": "Payment",
+  "migrate.rebuild.column_date": "Taken",
+  "migrate.rebuild.column_provider": "Provider",
+  "migrate.rebuild.row_provider_label": "Provider that took this payment:",
+  "migrate.rebuild.choose_provider": "Choose a provider",
+  "migrate.rebuild.already_tagged": "Already recorded",
+  "migrate.rebuild.provider_hint": "The old records do not say which provider took them. Check each payment in your provider dashboard.",
+  "migrate.rebuild.confirm_count": "Type {count} to confirm how many records this run will rebuild:",
+  "migrate.rebuild.confirm_count_label": "Record count",
   "migrate.rebuild.button": "Rebuild payment records",
-  "migrate.rebuild.error_provider": "Choose the provider that took these payments.",
-  "migrate.rebuild.flash_done": "Rebuilt {count, plural, =0 {no payment records} =1 {1 payment record} other {# payment records}}. There is nothing left to rebuild.",
-  "migrate.rebuild.flash_progress": "Rebuilt {rebuilt, plural, =1 {1 payment record} other {# payment records}}. {remaining, plural, =1 {1 payment record} other {# payment records}} still wait. Press the button again to continue.",
-  "migrate.rebuild.log_rebuilt": "Rebuilt {count} payment records for {provider}."
+  "migrate.rebuild.error_provider": "Choose the provider that took every payment listed.",
+  "migrate.rebuild.flash_done": "Rebuilt {count, plural, =0 {no payment records} =1 {1 payment record} other {# payment records}}. {unqualified, plural, =0 {Every rebuilt attendee can now be refunded here.} =1 {1 rebuilt attendee still has older payment history and must be refunded through the provider.} other {# rebuilt attendees still have older payment history and must be refunded through the provider.}}",
+  "migrate.rebuild.flash_progress": "Rebuilt {rebuilt, plural, =1 {1 payment record} other {# payment records}}. {remaining, plural, =1 {1 payment record} other {# payment records}} still wait. Press the button again to continue. {unqualified, plural, =0 {} =1 {1 rebuilt attendee still has older payment history.} other {# rebuilt attendees still have older payment history.}}",
+  "migrate.rebuild.log_rebuilt": "Rebuilt {count} payment records; {unqualified} attendees stayed unqualified."
 }
