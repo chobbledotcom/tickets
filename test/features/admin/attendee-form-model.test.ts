@@ -19,8 +19,7 @@ import {
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { testBookingRow } from "#test-utils/db-helpers/booking-row.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
 
 const makeForm = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));
@@ -38,7 +37,6 @@ const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   quantity: 1,
   ...overrides,
 });
-
 
 const parsedBase = (
   overrides: Partial<ParsedAttendeeForm> = {},
@@ -89,7 +87,7 @@ describe("attendeeBookingsFromLines", () => {
   test("projects a booked line's stored booking onto a summary row", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: testBookingRow({
+        existingBooking: bookingRow({
           checked_in: 1,
           end_at: "2026-06-03T00:00:00Z",
           listing_id: 7,
@@ -120,7 +118,7 @@ describe("attendeeBookingsFromLines", () => {
   test("carries a folded child row's parent listing id onto the summary", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: testBookingRow({
+        existingBooking: bookingRow({
           listing_id: 8,
           parent_listing_id: 7,
         }),
@@ -134,7 +132,7 @@ describe("attendeeBookingsFromLines", () => {
   test("keeps only the lines that carry a saved booking", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: testBookingRow({ listing_id: 1, quantity: 2 }),
+        existingBooking: bookingRow({ listing_id: 1, quantity: 2 }),
         listing: testListingWithCount({ id: 1, name: "Booked" }),
       }),
       // A not-yet-booked row (the quantity box left at 0) has no stored booking.
@@ -148,7 +146,7 @@ describe("attendeeBookingsFromLines", () => {
     // id; that bogus line is dropped rather than rendered with a null listing.
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: testBookingRow({ listing_id: 99, quantity: 1 }),
+        existingBooking: bookingRow({ listing_id: 99, quantity: 1 }),
         listing: null,
         listingId: 99,
       }),
@@ -287,7 +285,7 @@ describe("parseAttendeeForm", () => {
   });
 
   test("an existing row's path comes from the row, never line_package", () => {
-    const row = testBookingRow({ listing_id: 4, package_group_id: 7 });
+    const row = bookingRow({ listing_id: 4, package_group_id: 7 });
     const parsed = parseAttendeeForm(
       makeForm({
         line_key_0: "4|||7",
@@ -372,7 +370,7 @@ describe("parseAttendeeForm", () => {
   });
 
   test("attaches an existing booking row by key", () => {
-    const booking = testBookingRow({ listing_id: 5, quantity: 3 });
+    const booking = bookingRow({ listing_id: 5, quantity: 3 });
     const parsed = parseAttendeeForm(
       makeForm({
         line_key_0: "5|||0",
@@ -637,7 +635,7 @@ describe("toDesiredLines", () => {
         dayCount: 2,
         lines: [
           line({
-            existingBooking: testBookingRow({ listing_id: 1 }),
+            existingBooking: bookingRow({ listing_id: 1 }),
             key: "1|2026-03-01T00:00:00Z",
             listing: testListingWithCount({ id: 1, listing_type: "daily" }),
             listingId: 1,
@@ -682,7 +680,7 @@ describe("toDesiredLines", () => {
       parsedBase({
         lines: [
           line({
-            existingBooking: testBookingRow({ listing_id: 1 }),
+            existingBooking: bookingRow({ listing_id: 1 }),
             key: "1|",
             noQuantity: true,
             quantity: 0,
@@ -707,7 +705,7 @@ describe("toDesiredLines", () => {
     // The editor renders one line per stored ROW, so a dual-path attendee
     // (package 7 beside the listing's own row) round-trips as two desired
     // lines, each on its own key and path.
-    const packageRow = testBookingRow({
+    const packageRow = bookingRow({
       end_at: "2026-03-03T00:00:00Z",
       listing_id: 1,
       package_group_id: 7,
@@ -718,7 +716,7 @@ describe("toDesiredLines", () => {
       parsedBase({
         lines: [
           line({
-            existingBooking: testBookingRow({ listing_id: 1 }),
+            existingBooking: bookingRow({ listing_id: 1 }),
             key: "1|||0",
             listingId: 1,
             quantity: 3,
@@ -782,7 +780,7 @@ describe("toDesiredLines", () => {
       parsedBase({
         lines: [
           line({
-            existingBooking: testBookingRow({ listing_id: 1 }),
+            existingBooking: bookingRow({ listing_id: 1 }),
             key: "1|||0",
             listingId: 1,
             quantity: 0,
@@ -823,7 +821,7 @@ describe("no-quantity persistence + paid-line guard", () => {
     const parsed = parsedBase({
       lines: [
         line({
-          existingBooking: testBookingRow({ price_paid: 1500, quantity: 2 }),
+          existingBooking: bookingRow({ price_paid: 1500, quantity: 2 }),
           noQuantity: true,
           quantity: 0,
         }),
@@ -846,7 +844,7 @@ describe("no-quantity persistence + paid-line guard", () => {
     const parsed = parsedBase({
       lines: [
         line({
-          existingBooking: testBookingRow({ price_paid: 1, quantity: 1 }),
+          existingBooking: bookingRow({ price_paid: 1, quantity: 1 }),
           noQuantity: true,
           quantity: 0,
         }),
@@ -859,7 +857,7 @@ describe("no-quantity persistence + paid-line guard", () => {
     const parsed = parsedBase({
       lines: [
         line({
-          existingBooking: testBookingRow({ price_paid: 0, quantity: 1 }),
+          existingBooking: bookingRow({ price_paid: 0, quantity: 1 }),
           noQuantity: true,
           quantity: 0,
         }),
@@ -891,13 +889,13 @@ describe("resolveSharedDates", () => {
   };
 
   const daily = (start: string, durationDays: number): ListingAttendeeRow =>
-    testBookingRow({
+    bookingRow({
       end_at: `${addDaysIso(start, durationDays)}T00:00:00.000Z`,
       start_at: `${start}T00:00:00Z`,
     });
 
   test("returns empty defaults when there are no dated bookings", () => {
-    const result = resolveSharedDates([testBookingRow({ start_at: null })]);
+    const result = resolveSharedDates([bookingRow({ start_at: null })]);
     expect(result).toEqual({
       dayCount: 1,
       hasMixedTimings: false,
@@ -935,7 +933,7 @@ describe("resolveSharedDates", () => {
 
   test("ignores a booking with no end date", () => {
     const result = resolveSharedDates([
-      testBookingRow({ end_at: null, start_at: "2026-06-14T00:00:00Z" }),
+      bookingRow({ end_at: null, start_at: "2026-06-14T00:00:00Z" }),
     ]);
     expect(result.startDate).toBe("");
   });

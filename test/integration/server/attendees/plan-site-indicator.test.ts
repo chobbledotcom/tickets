@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
+import { addMonthsIso } from "#shared/dates.ts";
+import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -44,6 +46,7 @@ describeWithEnv(
           attendee.id,
           [listing.id],
           listing.id,
+          addMonthsIso(nowIso(), 3),
         );
 
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
@@ -114,6 +117,7 @@ describeWithEnv(
           attendee.id,
           [refundedPlan.id],
           refundedPlan.id,
+          addMonthsIso(nowIso(), 3),
         );
         await refundBookedOrder(attendee.id, refundedPlan.id);
 
@@ -142,7 +146,13 @@ describeWithEnv(
         const pool = await getAssignableBuiltSites();
         // The claim records the first listing only, so the cue must judge
         // the buyer as a whole — the second row may not keep its warning.
-        await takePooledSiteForBuyer(pool, attendee.id, [first.id], first.id);
+        await takePooledSiteForBuyer(
+          pool,
+          attendee.id,
+          [first.id],
+          first.id,
+          addMonthsIso(nowIso(), 3),
+        );
 
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();

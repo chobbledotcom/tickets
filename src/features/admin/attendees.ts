@@ -8,16 +8,12 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
 import {
   getAttendeeBookingRowsRaw,
   hasActiveBookingLine,
 } from "#db/attendees/queries.ts";
 import { updateCheckedIn } from "#db/attendees/update.ts";
-import {
-  getListingWithCount,
-  requireListingWithCount,
-} from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
 import { t } from "#i18n";
 import { redirect } from "#routes/response.ts";
@@ -66,6 +62,7 @@ import {
   attendeeActionPage,
   attendeeActions,
   attendeeFormAction,
+  attendeeListingEntries,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
@@ -272,15 +269,11 @@ const resendEntries = async (
       ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
       : { kind: "standalone" },
   );
-  return Promise.all(
-    // The route already verified this attendee's active line, so its booking
-    // rows exist, decrypt with the same key, and each names a live listing.
-    rows
-      .filter((row) => !row.refunded)
-      .map(async (row) => ({
-        attendee: (await decryptAttendeeOrNull(row, pk))!,
-        listing: await requireListingWithCount(row.listing_id),
-      })),
+  // The route already verified this attendee's active line, so its booking
+  // rows exist, decrypt with the same key, and each names a live listing.
+  return attendeeListingEntries(
+    rows.filter((row) => !row.refunded),
+    pk,
   );
 };
 

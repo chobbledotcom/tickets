@@ -6,7 +6,7 @@
  */
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { hasAssignedBuiltSite } from "#db/built-sites.ts";
+import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {

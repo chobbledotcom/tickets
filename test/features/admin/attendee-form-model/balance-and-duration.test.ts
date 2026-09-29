@@ -4,25 +4,25 @@ import {
   attendeeBalanceNotice,
   bookingDurationDays,
 } from "#routes/admin/attendee-form-model.ts";
-import { testBookingRow } from "#test-utils/db-helpers/booking-row.ts";
+import { bookingRow } from "#test-utils/factories.ts";
 
 describe("bookingDurationDays", () => {
   test("returns null when a range endpoint is missing or invalid", () => {
     expect(
-      bookingDurationDays(testBookingRow({ end_at: "x", start_at: null })),
+      bookingDurationDays(bookingRow({ end_at: "x", start_at: null })),
     ).toBeNull();
     expect(
-      bookingDurationDays(testBookingRow({ end_at: null, start_at: "x" })),
+      bookingDurationDays(bookingRow({ end_at: null, start_at: "x" })),
     ).toBeNull();
     expect(
-      bookingDurationDays(testBookingRow({ end_at: "bad", start_at: "bad" })),
+      bookingDurationDays(bookingRow({ end_at: "bad", start_at: "bad" })),
     ).toBeNull();
   });
 
   test("returns null for a zero-length range", () => {
     expect(
       bookingDurationDays(
-        testBookingRow({
+        bookingRow({
           end_at: "2026-06-14T00:00:00Z",
           start_at: "2026-06-14T00:00:00Z",
         }),
@@ -33,7 +33,7 @@ describe("bookingDurationDays", () => {
   test("counts whole days for a real range", () => {
     expect(
       bookingDurationDays(
-        testBookingRow({
+        bookingRow({
           end_at: "2026-06-17T00:00:00Z",
           start_at: "2026-06-14T00:00:00Z",
         }),
