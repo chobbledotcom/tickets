@@ -29,8 +29,8 @@ import {
   loadAttendeeForEdit,
   loadContactRecords,
   loadPackagePaths,
-  loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
+import { loadQuestionsForExisting } from "#routes/admin/attendee-questions.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
 import {
   attendeeActions,
@@ -247,13 +247,11 @@ const overviewTab: TabDef<AttendeePageEntity> = {
         bookings: attendeeBookingsFromLines(parsed.lines),
       });
     }),
-    customSection(async ({ attendee, existing }) => {
-      const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
-        attendee.id,
-        existing,
-      );
-      return AttendeeAnswersTable({ questions, selectedAnswerIds });
-    }),
+    customSection(async ({ attendee, existing }) =>
+      AttendeeAnswersTable(
+        await loadQuestionsForExisting(attendee.id, existing),
+      ),
+    ),
     {
       kind: "custom",
       load: ({ attendee, paymentReferences }, ctx) =>

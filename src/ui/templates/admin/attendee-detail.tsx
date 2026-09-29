@@ -9,9 +9,9 @@
  * details/summary disclosure.
  */
 
-import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { SelectedQuestionAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start -- imports */
-import { compact, mapNotNullish, sumOf } from "#fp";
+import { compact, sumOf } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
@@ -19,7 +19,7 @@ import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { questionTextFlat } from "#templates/admin/questions.tsx";
+import { answerRows } from "#templates/admin/answer-rows.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { HeaderRow } from "#templates/components/header-row.tsx";
@@ -190,34 +190,29 @@ export const AttendeeBookingsTable = ({
 };
 
 /**
- * The attendee's answers to custom questions, one row per answered question.
- * Returns null when the attendee has answered nothing, so the caller can drop
- * the section entirely.
+ * The attendee's answers to custom questions, one row per answered question,
+ * with a note under any answer that differs from the booking. Returns null
+ * when there is nothing to show, so the caller can drop the section.
  */
-export const AttendeeAnswersTable = ({
-  questions,
-  selectedAnswerIds,
-}: {
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-}): JSX.Element | null => {
-  const selected = new Set(selectedAnswerIds);
-  const answered = mapNotNullish((q: QuestionWithAnswers) => {
-    const picks = q.answers.filter((a) => selected.has(a.id));
-    return picks.length > 0
-      ? {
-          answer: picks.map((a) => a.text).join(", "),
-          question: questionTextFlat(q.text),
-        }
-      : null;
-  })(questions);
-  if (answered.length === 0) return null;
+export const AttendeeAnswersTable = (
+  selected: SelectedQuestionAnswers,
+): JSX.Element | null => {
+  const rows = answerRows(selected);
+  if (rows.length === 0) return null;
   return (
     <PageBlock>
       <h3>{t("attendee_detail.answers")}</h3>
       <DetailTable>
-        {answered.map((row) => (
-          <DetailTableRow label={row.question}>{row.answer}</DetailTableRow>
+        {rows.map((row) => (
+          <DetailTableRow label={row.question}>
+            {row.answer}
+            {row.notes.map((note) => (
+              <>
+                <br />
+                <small>{note}</small>
+              </>
+            ))}
+          </DetailTableRow>
         ))}
       </DetailTable>
     </PageBlock>

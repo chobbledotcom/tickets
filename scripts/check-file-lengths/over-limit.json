@@ -1,7 +1,7 @@
 {
   "src/features/admin/attendee-form-model.ts": 573,
   "src/features/admin/attendee-form-routes.ts": 497,
-  "src/features/admin/attendee-page-data.ts": 715,
+  "src/features/admin/attendee-page-data.ts": 679,
   "src/features/admin/attendees-merge.ts": 505,
   "src/features/admin/bulk-email.ts": 487,
   "src/features/admin/calendar.ts": 450,

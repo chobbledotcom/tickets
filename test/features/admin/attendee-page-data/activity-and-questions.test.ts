@@ -2,13 +2,17 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#db/activity-log.ts";
 import { loadExistingLines } from "#db/attendees/atomic-update.ts";
+import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { deleteQuestion } from "#db/questions/delete.ts";
 import {
-  emptySelectedQuestionAnswers,
   loadAttendeeActivity,
   loadAttendeeActivityPreview,
-  loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
+import {
+  emptySelectedQuestionAnswers,
+  loadQuestionsForExisting,
+} from "#routes/admin/attendee-questions.ts";
 import { assignQuestion } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -65,6 +69,41 @@ describeWithEnv("attendee page activity and questions", { db: true }, () => {
     expect(selected.selectedTextAnswers).toEqual(new Map());
   });
 
+  test("loads the answers at booking after the listing stops asking the question", async () => {
+    const listing = await createTestListing({ name: "Record listing" });
+    const attendee = await bookTestAttendee([listing.id], "Record attendee");
+    const { answer, question } = await assignQuestion(
+      listing.id,
+      "Which size?",
+      "Small",
+    );
+    await saveBookedAnswers(
+      [{ attendee, listing }],
+      new Map([[attendee.id, { answerIds: [answer.id] }]]),
+    );
+    await deleteQuestion(question.id);
+
+    const selected = await withTestSession(async () =>
+      loadQuestionsForExisting(
+        attendee.id,
+        await loadExistingLines(attendee.id),
+      ),
+    );
+
+    expect(selected.questions).toEqual([]);
+    expect(selected.atBooking).toEqual([
+      {
+        answer: null,
+        answerAtBooking: "Small",
+        askedAs: "Which size?",
+        changed: false,
+        changesPrice: false,
+        question: null,
+        questionId: question.id,
+      },
+    ]);
+  });
+
   test("returns independent empty question selections when no question applies", async () => {
     const first = emptySelectedQuestionAnswers();
     const second = emptySelectedQuestionAnswers();
@@ -73,6 +112,7 @@ describeWithEnv("attendee page activity and questions", { db: true }, () => {
     first.selectedTextAnswers.set(2, "changed");
 
     expect(second).toEqual({
+      atBooking: [],
       questions: [],
       selectedAnswerIds: [],
       selectedTextAnswers: new Map(),

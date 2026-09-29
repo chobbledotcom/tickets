@@ -165,7 +165,8 @@ describeWithEnv(
         },
       ];
 
-      const calls = await countDatabaseCalls(1, () =>
+      // One write records the answers at booking, one logs the activity.
+      const calls = await countDatabaseCalls(2, () =>
         completePaidBooking(
           [entry],
           bareIntent(),
@@ -176,7 +177,7 @@ describeWithEnv(
         ),
       );
 
-      expect(calls).toBe(1);
+      expect(calls).toBe(2);
       expect(await logMentions("Promo code 'Ten off' used")).toBe(true);
     });
 
@@ -223,12 +224,12 @@ describeWithEnv(
         ]),
       };
 
-      const calls = await countDatabaseCalls(1, () =>
+      const calls = await countDatabaseCalls(2, () =>
         runWithPendingWork(() =>
           completePaidBooking([packagedEntry], bareIntent(), [], [], [], facts),
         ),
       );
-      expect(calls).toBe(1);
+      expect(calls).toBe(2);
     });
   },
 );

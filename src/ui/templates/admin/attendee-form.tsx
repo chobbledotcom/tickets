@@ -237,6 +237,7 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
       ? {
           children: (
             <EditQuestions
+              atBooking={data.atBooking}
               questions={data.questions}
               selectedAnswerIds={data.selectedAnswerIds}
               selectedTextAnswers={data.selectedTextAnswers}

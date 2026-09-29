@@ -60,6 +60,7 @@ const data = (
   lines: AttendeeFormLine[],
   overrides: Partial<AttendeeFormTemplateData> = {},
 ): AttendeeFormTemplateData => ({
+  atBooking: [],
   attendee: null,
   attendeeError: null,
   balanceNotice: null,

@@ -51,13 +51,15 @@ import { attendeePage } from "#routes/admin/attendee-page.ts";
 import {
   buildCreateForm,
   buildTemplateData,
-  emptySelectedQuestionAnswers,
   getRenderListings,
   loadAttendeeForEdit,
   loadPackagePaths,
-  loadQuestionsForExisting,
   packagesByListingIdFrom,
 } from "#routes/admin/attendee-page-data.ts";
+import {
+  emptySelectedQuestionAnswers,
+  loadQuestionsForExisting,
+} from "#routes/admin/attendee-questions.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -136,16 +138,12 @@ const loadEditContext = async (
 ): Promise<EditContext | null> => {
   const loaded = await loadAttendeeForEdit(attendeeId);
   if (!loaded) return null;
-  const { questions, selectedAnswerIds, selectedTextAnswers } =
-    await loadQuestionsForExisting(attendeeId, loaded.existing);
   return {
     attendee: loaded.attendee,
     existingByKey: new Map(
       loaded.existing.map(({ key, booking }) => [key, booking]),
     ),
-    questions,
-    selectedAnswerIds,
-    selectedTextAnswers,
+    ...(await loadQuestionsForExisting(attendeeId, loaded.existing)),
   };
 };
 
@@ -185,6 +183,7 @@ const handleSubmitInner = async (
   );
   if (edit === null) return notFoundResponse();
   const {
+    atBooking,
     attendee,
     existingByKey,
     questions,
@@ -209,6 +208,7 @@ const handleSubmitInner = async (
     statusId: resolveStatusId(rawParsed.statusId, statuses),
   };
   const renderOpts = {
+    atBooking,
     questions,
     returnUrl: parsed.returnUrl,
     selectedAnswerIds,

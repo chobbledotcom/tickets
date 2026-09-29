@@ -32,16 +32,9 @@ import {
   getRefundPaymentReferencesForAttendee,
   type RefundPaymentReferenceSet,
 } from "#db/payment-references.ts";
-import type {
-  QuestionWithAnswers,
-  SelectedQuestionAnswers,
-} from "#db/question-types.ts";
-import {
-  getAttendeeTextAnswers,
-  loadAttendeeQuestionData,
-} from "#db/questions/attendee-answers/reads.ts";
+import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start */
-import { compact, filter, identity, mapById, unique } from "#fp";
+import { compact, filter, identity, mapById } from "#fp";
 import { t } from "#i18n";
 import {
   type AttendeeFormLine,
@@ -516,6 +509,7 @@ const computeWarnings = async (
 };
 
 interface BuildTemplateDataOpts {
+  atBooking?: BookedAnswer[] | undefined;
   attendeeError?: string | null | undefined;
   dateError?: string | null | undefined;
   formError?: string | null | undefined;
@@ -591,6 +585,7 @@ const assembleTemplateData = (
   const { attendee, mode, opts, parsed } = input;
   const { logistics, orderSummary, pathNames, statuses, warnings } = parts;
   return {
+    atBooking: opts.atBooking ?? [],
     attendee,
     attendeeError: opts.attendeeError ?? null,
     balanceNotice: attendeeBalanceNotice(
@@ -638,37 +633,6 @@ export const buildTemplateData = async (
     { attendee, mode, opts, parsed },
     await loadTemplateParts(parsed, attendee),
   );
-
-/** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked listings. The request's private key is only derived when
- * there are questions whose free-text answers need decrypting, so an attendee
- * with no questions never forces a key unwrap. */
-/** The empty question/answer set: no questions and nothing picked. A fresh
- * object each call, so callers can safely hold their own copy. */
-export const emptySelectedQuestionAnswers = (): SelectedQuestionAnswers => ({
-  questions: [],
-  selectedAnswerIds: [],
-  selectedTextAnswers: new Map(),
-});
-
-export const loadQuestionsForExisting = async (
-  attendeeId: number,
-  existing: ExistingLine[],
-): Promise<SelectedQuestionAnswers> => {
-  const listingIds = unique(existing.map((e) => e.booking.listing_id));
-  const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
-  if (!data) {
-    return emptySelectedQuestionAnswers();
-  }
-  return {
-    questions: data.questions,
-    selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
-    selectedTextAnswers: await getAttendeeTextAnswers(
-      attendeeId,
-      await requireRequestPrivateKey(),
-    ),
-  };
-};
 
 /** No contact history on file for either channel. */
 export const EMPTY_CONTACT_RECORDS: ContactRecordsByChannel = {

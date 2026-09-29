@@ -11,6 +11,7 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll } from "#db/client.ts";
 import { type ListsByIds, rowsByIds } from "#db/query.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { answersTable } from "#db/questions/tables.ts";
 /* jscpd:ignore-start */
@@ -158,6 +159,9 @@ export type AttendeeQuestionData = {
   /** attendeeId → (questionId → decrypted free-text answer). Present only when
    * the loader was asked to include text answers; absent/empty otherwise. */
   textAnswerMap?: Map<number, Map<number, string>>;
+  /** The attendees whose answers changed since booking. Present only when the
+   * loader feeds the answers cells, which mark a changed answer. */
+  changedAttendeeIds?: ReadonlySet<number>;
 };
 
 /**
@@ -172,19 +176,21 @@ export const loadAttendeeQuestionData = async (
   privateKey?: CryptoKey,
 ): Promise<AttendeeQuestionData | undefined> => {
   if (attendeeIds.length === 0 || listingIds.length === 0) return;
-  const [{ questions }, answers] = await Promise.all([
+  const [{ questions }, answers, changedAttendeeIds] = await Promise.all([
     getQuestionsWithListingIds(listingIds),
     privateKey
       ? getAttendeeAnswersBatch(attendeeIds, { privateKey, texts: true })
       : getAttendeeAnswersBatch(attendeeIds, { texts: false }),
+    attendeesWithChangedAnswers(attendeeIds),
   ]);
   if (questions.length === 0) return;
   // `texts: false` returns a plain choice-answer Map; `texts: true` returns the
   // choice map plus decrypted free-text answers for the table cells.
   return answers instanceof Map
-    ? { attendeeAnswerMap: answers, questions }
+    ? { attendeeAnswerMap: answers, changedAttendeeIds, questions }
     : {
         attendeeAnswerMap: answers.answerIds,
+        changedAttendeeIds,
         questions,
         textAnswerMap: answers.textAnswers,
       };
