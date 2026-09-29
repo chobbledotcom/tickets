@@ -12,7 +12,10 @@ import {
 } from "#scripts/check-comments/rules.ts";
 import { isCommentExempt, LIMITS } from "#scripts/check-comments/run.ts";
 import { findIssues as findEmptyCatchIssues } from "#scripts/check-empty-catch/rules.ts";
-import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
+import {
+  LINE_LIMIT,
+  type OverLimit,
+} from "#scripts/check-file-lengths/rules.ts";
 import {
   isI18nScanTarget,
   isTsModule,
@@ -134,6 +137,13 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
       if (facts.lines <= 400) {
         return { goodness: 1, note: `${facts.lines} lines`, status: "PASS" };
       }
+      if (facts.lines <= LINE_LIMIT) {
+        return {
+          goodness: 0.5,
+          note: `${facts.lines} lines, over the 400-line aim; owes a splitting issue`,
+          status: "WARN",
+        };
+      }
       if (recorded !== undefined && facts.lines <= recorded) {
         return {
           goodness: 0.5,
@@ -143,7 +153,7 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
       }
       return {
         goodness: 0,
-        note: `${facts.lines} lines, over the 400-line aim`,
+        note: `${facts.lines} lines, over the ${LINE_LIMIT}-line limit`,
         status: "FAIL",
       };
     },

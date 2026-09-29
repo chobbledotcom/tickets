@@ -48,7 +48,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "comments_earn_place",
     instructions:
-      'Judge the comments in `comments` against "Comments are short, because the code says the rest" in AGENTS.md. A comment earns its place only when it adds what the reader cannot see: a why, a constraint, a surprise. Penalise comments that re-narrate the lines below in prose, restate a function name beside it (`/** Save the listing. */` above saveListing), or explain a language feature. A short file-header naming what the file is (`/** The owner-only attendee-status page. */`) is the house pattern, not a finding, and a schema-driven page that needs no comment between its fields is the goal, not a gap: silence where names carry the meaning scores high. The bar: would a competent reader be surprised or misled without it?',
+      'Judge the comments in `comments` against "Comments are short" in AGENTS.md. A comment earns its place only when it adds what the reader cannot see: a why, a constraint, a surprise. Penalise comments that re-narrate the lines below in prose, restate a function name beside it (`/** Save the listing. */` above saveListing), or explain a language feature. A short file-header naming what the file is (`/** The owner-only attendee-status page. */`) is the house pattern, not a finding, and a schema-driven page that needs no comment between its fields is the goal, not a gap: silence where names carry the meaning scores high. The bar: would a competent reader be surprised or misled without it?',
     label: "Comments earn their place",
     weight: 4,
   },
@@ -126,7 +126,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "one_path_one_or_many",
     instructions:
-      'Judge the file against "One path for one-or-many — a single item is an array of one" in AGENTS.md. Penalise a separate single-item path beside a multiple-item one (getThing next to getThings, a length === 1 branch that renders or loads differently). A thin singular wrapper that delegates to the array implementation is fine. Callers passing an array of one and deriving the singular answer from its result is the pattern the repo wants.',
+      'Judge the file against "One path for one-or-many" in AGENTS.md. Penalise a separate single-item path beside a multiple-item one (getThing next to getThings, a length === 1 branch that renders or loads differently). A thin singular wrapper that delegates to the array implementation is fine. Callers passing an array of one and deriving the singular answer from its result is the pattern the repo wants.',
     label: "One path for one-or-many",
     weight: 3,
   },
@@ -152,7 +152,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "not_found_throws",
     instructions:
-      'Judge the file against "A function that looks something up, resolves, computes, or finds something must THROW when it cannot" in AGENTS.md — never return null, "", 0, -1, or [] as a "not found" stand-in, unless absence is a genuinely expected outcome the caller branches on (then the *OrNull suffix and a comment). Penalise helpers that iterate looking for a value and fall off the end returning a stand-in, and unchecked `!`/`as` claims on data not checked against a shape. `nonnull_assertions` and `as_casts` list where the code claims a shape without checking; parse-at-the-boundary (valibot, explicit checks that throw) is the wanted shape.',
+      'Judge the file against "A function that looks something up must throw when it cannot" in AGENTS.md — never return null, "", 0, -1, or [] as a "not found" stand-in, unless absence is a genuinely expected outcome the caller branches on (then the *OrNull suffix and a comment). Penalise helpers that iterate looking for a value and fall off the end returning a stand-in, and unchecked `!`/`as` claims on data not checked against a shape. `nonnull_assertions` and `as_casts` list where the code claims a shape without checking; parse-at-the-boundary (valibot, explicit checks that throw) is the wanted shape.',
     label: "Lookups throw, not stand-ins",
     weight: 3,
   },
@@ -220,7 +220,7 @@ export const JEV_QUESTIONS: JevQuestion[] = [
     ],
     id: "hard_coded_copy",
     instructions:
-      'Judge the template against "Where the copy lives" in AGENTS.md: every string a user reads (labels, buttons, errors, warnings, headers, empty states) comes from the message catalog through t("key"), not from a hard-coded string in the template. A string built from parts, or a value computed in the page, is data rather than copy. Attribute values and aria labels are copy too. Do not penalise developer-facing content such as a debug value or a URL.',
+      'Judge the template against "Simple Language — How We Talk To Users" in AGENTS.md: every string a user reads (labels, buttons, errors, warnings, headers, empty states) comes from the message catalog through t("key"), not from a hard-coded string in the template. A string built from parts, or a value computed in the page, is data rather than copy. Attribute values and aria labels are copy too. Do not penalise developer-facing content such as a debug value or a URL.',
     label: "Copy lives in the catalog",
     requires: showsCopy,
     weight: 4,
