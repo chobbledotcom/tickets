@@ -477,6 +477,10 @@ automatic.
 - `deno task check:imports` — one import spelling per module
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
+- `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
+  source files against these rules. With no target, it grades every module under
+  `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
+  gate
 - `deno task precommit` — all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` — the branch mutation gate: every `src/` file
   this branch changed, 100% kill rate (see

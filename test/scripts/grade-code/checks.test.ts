@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { LINE_LIMIT } from "#scripts/check-file-lengths/rules.ts";
 import type { Alias } from "#scripts/check-imports/rules.ts";
 import {
   activeChecks,
@@ -100,10 +101,15 @@ describe("file_length", () => {
     expect(verdictOf("const a = 1;\n", "file_length").status).toBe("PASS");
   });
 
-  test("warns on accepted debt and fails unaccepted growth", () => {
-    const source = "const a = 1;\n".repeat(450);
+  test("warns on a file over the aim that the gate still passes", () => {
+    const source = "const a = 1;\n".repeat(LINE_LIMIT - 50);
+    expect(verdictOf(source, "file_length", {}).status).toBe("WARN");
+  });
+
+  test("warns on accepted debt and fails unaccepted growth past the gate", () => {
+    const source = "const a = 1;\n".repeat(LINE_LIMIT + 50);
     const warned = verdictOf(source, "file_length", {
-      "src/features/admin/sample.ts": 500,
+      "src/features/admin/sample.ts": LINE_LIMIT + 100,
     });
     expect(warned.status).toBe("WARN");
     const failed = verdictOf(source, "file_length", {});
