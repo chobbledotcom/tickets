@@ -233,6 +233,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     ],
   ),
   markdownPreview: area(() => import("#routes/admin/markdown-preview.ts")),
+  migrate: area(() => import("#routes/admin/migrate.ts"), ["migrate"]),
   modifiers: area(
     () => import("#routes/admin/modifiers.ts"),
     [

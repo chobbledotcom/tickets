@@ -23,6 +23,7 @@ import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ProviderRefundCaseQueue } from "#templates/admin/provider-refund-cases.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { ProseHtml } from "#templates/components/prose-html.tsx";
 import {
   choiceOptions,
   SelectField,
@@ -183,11 +184,9 @@ export const adminPrivacyPage = (
     session,
     t("privacy.title"),
     <>
-      <div class="prose">
-        <Raw html={t("privacy.intro_html")} />
-      </div>
+      <ProseHtml html={t("privacy.intro_html")} />
 
-      <Flash error={data.error} info={data.info} success={data.success} />
+      <Flash {...data} />
 
       <ProviderRefundCaseQueue page={data.providerRefundCases} />
 

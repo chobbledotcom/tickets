@@ -200,7 +200,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   test("covers every route the surface declares", () => {
     // Guards the walks below: a surface that stopped declaring its routes
     // would otherwise make this suite pass by testing nothing.
-    expect(roleOnly.length).toBe(62);
+    expect(roleOnly.length).toBe(63);
     expect(recordPages.length).toBe(90);
   });
 
@@ -278,8 +278,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(92);
-    expect(insiderWritableRoutes().length).toBe(91);
+    expect(writableRoutes().length).toBe(93);
+    expect(insiderWritableRoutes().length).toBe(92);
   });
 });
 

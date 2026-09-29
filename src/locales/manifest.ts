@@ -50,6 +50,7 @@ export const MESSAGE_GROUPS = [
   "listings-table",
   "login",
   "logistics",
+  "migrate",
   "modifiers",
   "nav",
   "news",
@@ -232,6 +233,9 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   ),
   logistics: messagesFrom(
     () => import("./en/logistics.json", { with: { type: "json" } }),
+  ),
+  migrate: messagesFrom(
+    () => import("./en/migrate.json", { with: { type: "json" } }),
   ),
   modifiers: messagesFrom(
     () => import("./en/modifiers.json", { with: { type: "json" } }),
