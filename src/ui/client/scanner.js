@@ -125,7 +125,7 @@ const handleResult = (el, result, messages) => {
  * ticket can still ask for an ID check before it admits. Every answer the
  * door cannot act on shows as itself. */
 const answerScan = async (el, result, messages, post, confirmed = {}) => {
-  if (result.status === "wrong_listing") {
+  if (result.status === "wrong_listing" && !confirmed.force) {
     const ok = await showConfirm(
       interpolate(
         getMessage(

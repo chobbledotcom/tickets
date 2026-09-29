@@ -3,7 +3,6 @@
  */
 
 import { t } from "#i18n";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -246,8 +245,8 @@ export const adminScannerPage = (
                 return (
                   <div
                     data-attendee-id={String(ticket.attendeeId)}
-                    data-detail={escapeHtml(detail)}
-                    data-name={escapeHtml(ticket.name)}
+                    data-detail={detail}
+                    data-name={ticket.name}
                     data-quantity={String(ticket.quantity)}
                     role="option"
                     tabIndex={0}
@@ -255,12 +254,12 @@ export const adminScannerPage = (
                     {detail
                       ? t("admin.scanner.ticket_option_detail", {
                           count: ticket.quantity,
-                          detail: escapeHtml(detail),
-                          name: escapeHtml(ticket.name),
+                          detail,
+                          name: ticket.name,
                         })
                       : t("admin.scanner.ticket_option", {
                           count: ticket.quantity,
-                          name: escapeHtml(ticket.name),
+                          name: ticket.name,
                         })}
                   </div>
                 );

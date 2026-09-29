@@ -14,9 +14,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  forcedNoDoorScan,
   forcedVerifyScan,
   useScannerSuite,
   whenMessageShows,
+  whenTextShows,
 } from "./fixture.ts";
 
 describe("scanner confirmations", {
@@ -97,6 +99,16 @@ describe("scanner confirmations", {
     expect(h.statusEl.textContent).toBe("ID does not match Ada");
     expect(h.statusEl.className).toContain("scanner-status-error");
     // The refusal is the end: no verified rescan went out.
+    expect(fetchStub.calls.length).toBe(2);
+  });
+
+  test("a forced scan that still finds no door says so, and asks nothing more", async () => {
+    const h = fresh();
+    const { done, fetchStub } = await forcedNoDoorScan(h);
+    using _fetch = fetchStub;
+
+    await whenTextShows(h.statusEl, "This ticket has no door to check in at");
+    await done;
     expect(fetchStub.calls.length).toBe(2);
   });
 });

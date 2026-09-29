@@ -23,6 +23,7 @@
 
 import { expect } from "@std/expect";
 import { afterEach } from "@std/testing/bdd";
+import type { Stub } from "@std/testing/mock";
 import { Window } from "happy-dom";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
@@ -187,36 +188,53 @@ export const useScannerSuite = (): (() => ScannerHarness) => {
   return fresh;
 };
 
-/** Waits for the next prompt to show: the hops between a confirm answer
- * and the following dialog are promise hops (the fetch stub answers in
- * memory), so draining microtasks until the message appears needs no
- * clock. The bound turns a prompt that never shows into a failed
- * assertion rather than a hung test. */
-export const whenMessageShows = async (
-  h: ScannerHarness,
+/** Waits for an element to show the text: the hops after a confirm answer
+ * are promise hops (the fetch stub answers in memory), so draining
+ * microtasks until the text appears needs no clock. The bound turns text
+ * that never shows into a failed assertion rather than a hung test. */
+export const whenTextShows = async (
+  target: HTMLElement,
   text: string,
 ): Promise<void> => {
-  for (
-    let hops = 0;
-    hops < 100 && h.confirm.message.textContent !== text;
-    hops++
-  ) {
+  for (let hops = 0; hops < 100 && target.textContent !== text; hops++) {
     await Promise.resolve();
   }
-  expect(h.confirm.message.textContent).toBe(text);
+  expect(target.textContent).toBe(text);
+};
+
+export const whenMessageShows = (
+  h: ScannerHarness,
+  text: string,
+): Promise<void> => whenTextShows(h.confirm.message, text);
+
+const wrongDoor = (): Response =>
+  Response.json({
+    listingName: "Standard",
+    name: "Ada",
+    status: "wrong_listing",
+  });
+
+/** A wrong-door scan the organiser overrides: reads the scan, takes the
+ * override, and hands the caller the finished scan's promise and the fetch
+ * stub (dispose it with `using`). The forced rescan answers `afterForce`. */
+export const forcedScan = async (
+  h: ScannerHarness,
+  ...afterForce: Response[]
+): Promise<{ done: Promise<void>; fetchStub: Stub }> => {
+  const fetchStub = stubFetch(wrongDoor(), ...afterForce);
+  const post = (choices?: { force?: boolean; idVerified?: boolean }) =>
+    h.module.postScan("/admin/groups/5/scan", "tok", "csrf", choices);
+  const done = h.module.answerScan(h.statusEl, await post(), h.messages, post);
+  await whenMessageShows(h, "Ada is registered for Standard. Check in anyway?");
+  h.confirm.yes.click();
+  return { done, fetchStub };
 };
 
 /** A forced scan whose answer is verify_id: a ticket on another door of a
- * non-transferable listing. Reads the scan, takes the override, and waits
- * at the ID prompt, then hands the caller the finished scan's promise and
- * the fetch stub (dispose it with `using`). */
+ * non-transferable listing. Waits at the ID prompt. */
 export const forcedVerifyScan = async (h: ScannerHarness) => {
-  const fetchStub = stubFetch(
-    Response.json({
-      listingName: "Standard",
-      name: "Ada",
-      status: "wrong_listing",
-    }),
+  const forced = await forcedScan(
+    h,
     Response.json({ name: "Ada", status: "verify_id" }),
     Response.json({
       listingName: "Standard",
@@ -225,11 +243,11 @@ export const forcedVerifyScan = async (h: ScannerHarness) => {
       status: "checked_in",
     }),
   );
-  const post = (choices?: { force?: boolean; idVerified?: boolean }) =>
-    h.module.postScan("/admin/groups/5/scan", "tok", "csrf", choices);
-  const done = h.module.answerScan(h.statusEl, await post(), h.messages, post);
-  await whenMessageShows(h, "Ada is registered for Standard. Check in anyway?");
-  h.confirm.yes.click();
   await whenMessageShows(h, "Does their ID match Ada?");
-  return { done, fetchStub };
+  return forced;
 };
+
+/** A forced scan of a ticket whose only rows are "No check-in": the
+ * override still finds no door. */
+export const forcedNoDoorScan = (h: ScannerHarness) =>
+  forcedScan(h, wrongDoor());

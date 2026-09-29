@@ -89,6 +89,29 @@ describe("the admin scanner page template", () => {
     expect(html).not.toContain("ticket token");
   });
 
+  test("escapes a pick's name and day once, so the search reads the real words", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [
+        {
+          attendeeId: 41,
+          details: ["Tom & Jerry <Show>"],
+          name: "Ada & Bo",
+          quantity: 1,
+        },
+      ],
+    );
+
+    expect(html).toContain('data-name="Ada &amp; Bo"');
+    expect(html).toContain('data-detail="Tom &amp; Jerry &lt;Show&gt;"');
+    expect(html).toContain(
+      "Ada &amp; Bo (1 attendee) — Tom &amp; Jerry &lt;Show&gt;",
+    );
+    expect(html).not.toContain("&amp;amp;");
+  });
+
   test("says when nobody is left to check in", () => {
     const html = adminScannerPage(
       { name: "Doors" },
