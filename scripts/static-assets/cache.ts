@@ -186,6 +186,9 @@ const sourcesMovedUnderBuild = (
  * So no record is written at all, and the next run rebuilds. Skipping the
  * record is always safe; it only costs one build.
  *
+ * A `jsr:` or `npm:` input resolves to nothing on disk, so the skip then fires
+ * on every build and the cache never records again — see #2432.
+ *
  * The record is written under a name no other run will pick and renamed into
  * place, so neither an interrupted run nor a second runner racing this one can
  * leave half a record behind.

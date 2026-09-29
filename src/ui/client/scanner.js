@@ -1,5 +1,6 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import { showConfirm } from "./confirm-dialog.ts";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
@@ -104,6 +105,12 @@ const handleResult = (el, result, messages) => {
     case "refunded":
       showStatus(el, interpolate(getMessage(messages, "messageRefunded", "{name} has been refunded"), { name: result.name }), "error");
       break;
+    // Only the forced rescan lands here: the first wrong_listing answer asks
+    // before it re-posts, and a ticket whose only rows are "No check-in"
+    // answers wrong_listing again.
+    case "wrong_listing":
+      showStatus(el, getMessage(messages, "messageNoDoor", "This ticket has no door to check in at"), "error");
+      break;
     case "not_found":
       showStatus(el, getMessage(messages, "messageNotFound", "Ticket not found"), "error");
       break;
@@ -111,6 +118,41 @@ const handleResult = (el, result, messages) => {
       showStatus(el, result.message, "error");
       break;
   }
+};
+
+/** One scan answer the door must ask about, and the answer after it: the
+ * organiser's word re-posts the scan with what they confirmed, so a forced
+ * ticket can still ask for an ID check before it admits. Every answer the
+ * door cannot act on shows as itself. */
+const answerScan = async (el, result, messages, post, confirmed = {}) => {
+  if (result.status === "wrong_listing" && !confirmed.force) {
+    const ok = await showConfirm(
+      interpolate(
+        getMessage(
+          messages,
+          "messageWrongListingConfirm",
+          '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+        ),
+        { listingName: result.listingName, name: result.name },
+      ),
+    );
+    if (!ok) {
+      showStatus(el, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
+      return;
+    }
+    await answerScan(el, await post({ ...confirmed, force: true }), messages, post, { ...confirmed, force: true });
+    return;
+  }
+  if (result.status === "verify_id") {
+    const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
+    if (!ok) {
+      showStatus(el, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
+      return;
+    }
+    await answerScan(el, await post({ ...confirmed, idVerified: true }), messages, post, { ...confirmed, idVerified: true });
+    return;
+  }
+  handleResult(el, result, messages);
 };
 
 /** Main scanner loop */
@@ -166,40 +208,11 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
     }, FADE_DELAY_MS);
 
     postScan(scanPath, token, csrfToken)
-      .then(async (result) => {
-        if (result.status === "wrong_listing") {
-          const ok = await showConfirm(
-            interpolate(
-              getMessage(
-                messages,
-                "messageWrongListingConfirm",
-                '{name} is registered for "{listingName}", not this listing. Check in anyway?',
-              ),
-              { listingName: result.listingName, name: result.name },
-            ),
-          );
-          if (ok) {
-            const forced = await postScan(scanPath, token, csrfToken, {
-              force: true,
-            });
-            handleResult(statusEl, forced, messages);
-          } else {
-            showStatus(statusEl, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
-          }
-        } else if (result.status === "verify_id") {
-          const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
-          if (ok) {
-            const verified = await postScan(scanPath, token, csrfToken, {
-              idVerified: true,
-            });
-            handleResult(statusEl, verified, messages);
-          } else {
-            showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
-          }
-        } else {
-          handleResult(statusEl, result, messages);
-        }
-      })
+      .then((result) =>
+        answerScan(statusEl, result, messages, (choices) =>
+          postScan(scanPath, token, csrfToken, choices),
+        ),
+      )
       .catch(() => {
         showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
       })
@@ -210,43 +223,6 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
   };
 
   scan();
-};
-
-/**
- * Non-blocking confirm overlay centered on the camera feed.
- * Returns a Promise<boolean> without freezing the camera feed.
- */
-const showConfirm = (message) => {
-  const overlay = document.getElementById("scanner-confirm");
-  const msgEl = document.getElementById("scanner-confirm-message");
-  const yesBtn = document.getElementById("scanner-confirm-yes");
-  const noBtn = document.getElementById("scanner-confirm-no");
-  const closeBtn = document.getElementById("scanner-confirm-close");
-
-  msgEl.textContent = message;
-
-  return new Promise((resolve) => {
-    const cleanup = (value) => {
-      yesBtn.removeEventListener("click", onYes);
-      noBtn.removeEventListener("click", onNo);
-      closeBtn.removeEventListener("click", onClose);
-      document.removeEventListener("keydown", onKeydown);
-      overlay.classList.add("hidden");
-      resolve(value);
-    };
-    const onYes = () => cleanup(true);
-    const onNo = () => cleanup(false);
-    const onClose = () => cleanup(false);
-    const onKeydown = (e) => {
-      if (e.key === "Escape") cleanup(false);
-    };
-
-    yesBtn.addEventListener("click", onYes);
-    noBtn.addEventListener("click", onNo);
-    closeBtn.addEventListener("click", onClose);
-    document.addEventListener("keydown", onKeydown);
-    overlay.classList.remove("hidden");
-  });
 };
 
 /** Initialize scanner when DOM is ready */
@@ -295,13 +271,11 @@ const init = () => {
   });
 };
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
-}
+// The page's only script tag is type="module", so the document has finished
+// parsing by the time this runs and init can start at once.
+init();
 
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the
 // direct test drives through the built bundle.
-export { extractToken, handleResult, postScan, showConfirm };
+export { answerScan, extractToken, handleResult, postScan, showConfirm };

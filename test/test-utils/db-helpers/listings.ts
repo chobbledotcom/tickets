@@ -15,7 +15,7 @@ import {
   doAuthenticatedMultipartFormRequest,
 } from "./request.ts";
 
-const allDays: string[] = [
+export const allDays: string[] = [
   "Monday",
   "Tuesday",
   "Wednesday",

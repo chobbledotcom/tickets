@@ -31,6 +31,9 @@ export type AttendeeTableOptions = {
   phonePrefix?: string | undefined;
   /** Show the check-in/check-out status column (default: true). */
   showCheckin?: boolean | undefined;
+  /** Render each row's check-in state as a read-only badge instead of the
+   *  staff-only toggle form — for sessions the toggle endpoint refuses. */
+  showCheckinState?: boolean | undefined;
   /** Skip default sort and use rows as-is (default: false). */
   presorted?: boolean | undefined;
   questionData?: AttendeeQuestionData | undefined;

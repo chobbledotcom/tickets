@@ -245,6 +245,16 @@ export const rejection = async (promise: Promise<unknown>): Promise<Error> => {
   throw new Error("expected the promise to reject, but it resolved");
 };
 
+/** Stamp one booking leg's ledger order and refund it, the way the admin
+ * refund flow would — leaving a row the check-in paths refuse to touch. */
+export const refundThroughLedger = async (
+  attendeeId: number,
+  listingId: number,
+): Promise<void> => {
+  await postListingSale({ attendeeId, gross: 500, listingId });
+  await refundBookedOrder(attendeeId, listingId);
+};
+
 /** Give each test in the current suite a fresh transactional test database. */
 export const useTransactionalDb = (): void => {
   let cleanup: () => Promise<void>;

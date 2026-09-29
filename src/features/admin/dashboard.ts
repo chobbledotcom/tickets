@@ -98,10 +98,10 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      // Delivery agents and editors have no dashboard — agents go to their run
-      // sheet; editors go to listings (the dashboard shows ledger/income figures
-      // they may not see, and would require a private key they don't hold).
-      if (session.adminLevel === "agent" || session.adminLevel === "editor") {
+      // Restricted roles have no dashboard: their landing path is their only
+      // page (agents), a page without the dashboard's financials (editors), or
+      // the doors list (scanner users). The landing map decides who redirects.
+      if (adminLandingPath(session.adminLevel) !== "/admin") {
         return redirectResponse(adminLandingPath(session.adminLevel));
       }
       const { error: imageError, success: successMessage } = getFlash();

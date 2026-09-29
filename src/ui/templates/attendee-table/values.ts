@@ -122,7 +122,9 @@ export const hiddenAttendeeColumnKeys = (
   options: AttendeeTableOptions,
 ): Set<AttendeeColumnKey> => {
   const hidden = new Set<AttendeeColumnKey>();
-  if (options.showCheckin === false) hidden.add("status");
+  if (options.showCheckin === false && !options.showCheckinState) {
+    hidden.add("status");
+  }
   if (!options.showListing) hidden.add("listings");
   if (!options.showDate) hidden.add("date");
   for (const columnKey of [

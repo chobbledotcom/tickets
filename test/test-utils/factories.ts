@@ -118,18 +118,18 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
 });
 
 /** A {@link TokenEntry} fixture: pairs {@link testAttendee} with
- * {@link testListingWithCount} and a standalone-row `parentListingId: 0`. Each
- * nested field accepts a partial that is merged onto the default attendee or
- * listing, so callers can write `testTokenEntry({ attendee: { id: 1 },
- * listing: { date: "..." } })` without rebuilding either record. */
+ * {@link testListingWithCount} and a standalone-row `parentListingId: 0`.
+ * Nested fields accept partials merged onto the defaults. */
 export const testTokenEntry = (
   overrides: {
     attendee?: Partial<Attendee>;
     listing?: Partial<ListingWithCount>;
     parentListingId?: number;
+    bookingRowId?: number;
   } = {},
 ): TokenEntry => ({
   attendee: testAttendee(overrides.attendee),
+  bookingRowId: overrides.bookingRowId ?? 0,
   listing: testListingWithCount(overrides.listing),
   parentListingId: overrides.parentListingId ?? 0,
 });

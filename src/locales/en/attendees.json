@@ -239,6 +239,8 @@
   "admin.attendee_table.check_out": "Check out",
   "admin.attendee_table.check_in": "Check in",
   "admin.attendee_table.refunded_badge": "Refunded",
+  "admin.attendee_table.checked_in_badge": "Checked in",
+  "admin.attendee_table.not_checked_in_badge": "Not checked in",
   "admin.attendee_table.no_quantity": "No quantity",
   "admin.attendee_table.servicing": "Service",
   "admin.attendee_table.column.name.label": "Name",

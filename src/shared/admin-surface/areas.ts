@@ -1,12 +1,10 @@
 /**
- * Every admin area, and the routes it serves.
- *
- * This is the one place an admin route is declared. Its nav (`sections.ts`)
- * and its serving module (`area-loaders.ts`) are keyed by the same area names.
- *
- * An area names the role that reaches it once. A route names a role only when
- * it differs from its area. `segments` lists a URL segment the area serves
- * without a page of its own, such as a POST-only endpoint.
+ * Every admin area, and the routes it serves — the one place an admin route is
+ * declared. Its nav (`sections.ts`) and its serving module (`area-loaders.ts`)
+ * are keyed by the same area names. An area names the role that reaches it
+ * once; a route names a role only when it differs from its area. `segments`
+ * lists a URL segment the area serves without a page of its own, such as a
+ * POST-only endpoint.
  */
 
 import {
@@ -17,6 +15,7 @@ import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
+  DOOR_ADMIN_LEVELS,
   SITE_ADMIN_LEVELS,
   STAFF_ADMIN_LEVELS,
 } from "#types";
@@ -342,8 +341,9 @@ export const ADMIN_AREAS = {
     },
   },
   scanner: {
-    audience: STAFF_ADMIN_LEVELS,
+    audience: DOOR_ADMIN_LEVELS,
     view: {
+      doors: "/admin/scanner",
       groupScanner: "/admin/groups/:id/scanner",
       listingScanner: "/admin/listing/:id/scanner",
     },

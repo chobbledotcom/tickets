@@ -6,7 +6,7 @@
  */
 
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { afterEach, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
@@ -68,6 +68,14 @@ const lookupGetSignedIn = async (cookie: string): Promise<Response> => {
 };
 
 describeWithEnv("GET /address-lookup", { db: true }, () => {
+  afterEach(async () => {
+    // The lockout tests plant a counter row for the shared test IP; a row
+    // left behind would 429 the next non-staff session in this suite.
+    await execute("DELETE FROM login_attempts WHERE ip = ?", [
+      await hmacHash("address:direct"),
+    ]);
+  });
+
   test("404s while no provider is configured", async () => {
     const response = await lookupGet("SW1A 2AA");
     expect(response.status).toBe(404);

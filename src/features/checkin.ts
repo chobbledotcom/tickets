@@ -4,7 +4,9 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { updateCheckedIn } from "#db/attendees/update.ts";
+import { logActivities } from "#db/activity-log.ts";
+import { setCheckedInOnBookingRows } from "#db/attendees/update.ts";
+import { withTransaction } from "#db/client.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
 import {
@@ -17,12 +19,12 @@ import { userAgents } from "#db/user-agents.ts";
 /* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import {
-  AUTH_FORM,
   type AuthSession,
-  authFailure,
+  DOOR_FORM,
   getAuthenticatedSession,
   withAuth,
 } from "#routes/auth.ts";
+import { authFailure } from "#routes/auth-failures.ts";
 import {
   htmlResponse,
   notFoundResponse,
@@ -43,7 +45,7 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
-import { type Attendee, isStaffRole } from "#types";
+import { type Attendee, isDoorRole, isStaffRole } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -95,7 +97,7 @@ const entriesVisibleToSession = async (
   session: AuthSession,
   entries: TokenEntry[],
 ): Promise<TokenEntry[]> => {
-  if (isStaffRole(session.adminLevel)) return entries;
+  if (isDoorRole(session.adminLevel)) return entries;
   if (session.adminLevel !== "agent") return [];
 
   const agentIds = await userAgents.getIds(session.userId);
@@ -114,22 +116,43 @@ const entriesVisibleToSession = async (
   )(entries);
 };
 
+/** The facts a door-only login may read from a ticket row: who, which listing
+ * and day, how many places, and the check-in state. Contact details stay
+ * behind — the ticket itself never shows them either. Blank fields also hide
+ * their table columns outright. */
+const doorSafeEntries = (entries: TokenEntry[]): TokenEntry[] =>
+  map((entry: TokenEntry) => ({
+    ...entry,
+    attendee: {
+      ...entry.attendee,
+      address: "",
+      email: "",
+      phone: "",
+      special_instructions: "",
+    },
+  }))(entries);
+
 const renderAdminCheckin = async (
   request: Request,
   tokens: string[],
   entries: TokenEntry[],
-  canCheckIn: boolean,
+  page: {
+    canCheckIn: boolean;
+    doorOnly: boolean;
+    linkAdminPages: boolean;
+  },
 ): Promise<Response> => {
   const decrypted = await decryptEntries(entries);
+  const shown = page.doorOnly ? doorSafeEntries(decrypted) : decrypted;
   const message = getSearchParam(request, "message");
   return htmlResponse(
     checkinAdminPage(
-      decrypted,
+      shown,
       checkinPath(tokens),
       message,
       getEffectiveDomain(),
       settings.phonePrefix,
-      { canCheckIn, linkAdminPages: canCheckIn },
+      page,
     ),
   );
 };
@@ -152,24 +175,65 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
     if (!session) return htmlResponse(checkinPublicPage());
 
     const visibleEntries = await entriesVisibleToSession(session, entries);
-    const canCheckIn = isStaffRole(session.adminLevel);
+    // Door roles may toggle check-in; only staff may follow the attendee and
+    // listing links into the admin, which a scanner login cannot open. A
+    // door-only login (a scanner) reads door facts only; an agent's own
+    // delivery rows still show contact details, which the run sheet needs.
+    // The toggle form renders only when the POST has something it can change
+    // — a token whose every row is refunded or no-check-in offers no action.
+    const door = isDoorRole(session.adminLevel);
+    const canCheckIn =
+      door &&
+      entries.some((e) => !e.attendee.refunded && !e.listing.purchase_only);
     return visibleEntries.length === 0
       ? authFailure("html", "forbidden")
-      : renderAdminCheckin(request, tokens, visibleEntries, canCheckIn);
+      : renderAdminCheckin(request, tokens, visibleEntries, {
+          canCheckIn,
+          doorOnly: door && !isStaffRole(session.adminLevel),
+          linkAdminPages: isStaffRole(session.adminLevel),
+        });
   });
+
+/** Write the door's status change and its activity rows as one unit, by the
+ * rows whose state the action really moves — a merged attendee's refunded
+ * order on the same listing stays untouched, and a row already in the
+ * action's state is neither written nor logged again. */
+const commitDoorCheckin = async (
+  changedEntries: readonly TokenEntry[],
+  checkedIn: boolean,
+): Promise<void> => {
+  // An empty selection never reaches SQL.
+  if (changedEntries.length === 0) return;
+  await withTransaction(async (tx) => {
+    await setCheckedInOnBookingRows(
+      changedEntries.map((e) => e.bookingRowId),
+      checkedIn,
+      tx,
+    );
+    await logActivities(
+      changedEntries.map((e) => ({
+        attendeeId: e.attendee.id,
+        listing: e.listing.id,
+        message: `Attendee checked ${checkedIn ? "in" : "out"} for '${e.listing.name}'`,
+      })),
+      tx,
+    );
+  });
+};
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
 const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
-  withAuth(request, AUTH_FORM, (_session, form) =>
+  withAuth(request, DOOR_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptEntries(entries);
       // Refunded rows are never touched, and purchase-only ("No Check-In")
       // listings' rows are excluded too — a package QR shared with a checkable
       // member must not silently mark the no-check-in member as attended.
-      const eligible = filter(
+      const eligibleEntries = filter(
         (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchase_only,
-      )(decrypted).map((e) => e.attendee);
+      )(decrypted);
+      const eligible = eligibleEntries.map((e) => e.attendee);
 
       if (eligible.length === 0) {
         return redirectResponse(
@@ -184,10 +248,13 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
         eligible,
         (attendee) => !attendee.checked_in,
       );
-      await Promise.all(
-        map((a: Attendee) => updateCheckedIn(a.id, a.listing_id, checkedIn))(
-          eligible,
+      // Only rows whose state the action changes are written and logged, so
+      // the activity log records what the door did, not what it left alone.
+      await commitDoorCheckin(
+        filter((e: TokenEntry) => e.attendee.checked_in !== checkedIn)(
+          eligibleEntries,
         ),
+        checkedIn,
       );
 
       let message: string;

@@ -60,6 +60,7 @@
   "fields.user.owner": "Owner",
   "fields.user.agent": "Delivery agent",
   "fields.user.editor": "Editor",
+  "fields.user.scanner": "Scanner",
   "error.invalid_role": "Invalid role",
   "error.username_taken": "Username is already taken",
   "error.user_not_found": "User not found",

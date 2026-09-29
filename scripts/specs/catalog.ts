@@ -17,8 +17,9 @@ const OWNER_PATH = join(DEFAULT_SPEC_PATH, "owners.json");
 const BASE_REGISTRY: Omit<SpecRegistry, "owners"> = {
   // An editor is an organiser-side helper who may write listings and nothing
   // else, so a story about what they can reach has a different actor from one
-  // about the person who runs the site.
-  actors: ["customer", "editor", "organiser"],
+  // about the person who runs the site. A scanner is the same kind of helper
+  // for the door: they check people in and out, and nothing else.
+  actors: ["customer", "editor", "organiser", "scanner"],
   editions: ["managed", "self-hosted"],
   risks: ["high", "medium", "low"],
   // "public" is a page a customer opens themselves, without signing in and

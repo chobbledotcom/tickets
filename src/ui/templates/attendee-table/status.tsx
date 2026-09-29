@@ -47,6 +47,16 @@ const CheckinButton = ({
   );
 };
 
+/** The read-only state badge shown when the toggle form is refused. */
+const checkinStateBadge = (checkedIn: boolean): JSX.Element =>
+  checkedIn ? (
+    <Badge variant="ok">{t("admin.attendee_table.checked_in_badge")}</Badge>
+  ) : (
+    <span class="muted small">
+      {t("admin.attendee_table.not_checked_in_badge")}
+    </span>
+  );
+
 /** Build the status-cell renderer for one attendee table. */
 export const createStatusRenderer =
   (options: AttendeeTableOptions): ((row: AttendeeTableRow) => JSX.Element) =>
@@ -66,6 +76,9 @@ export const createStatusRenderer =
           {t("admin.attendee_table.refunded_badge")}
         </Badge>
       );
+    }
+    if (options.showCheckinState && options.showCheckin === false) {
+      return checkinStateBadge(attendee.checked_in);
     }
     return CheckinButton({
       activeFilter: options.activeFilter ?? "all",

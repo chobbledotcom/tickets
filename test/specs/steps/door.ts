@@ -207,9 +207,7 @@ Then(
     listing: string,
     who: string,
   ): Promise<void> {
-    expect(await peopleOfferedAtDoor(this, listing)).toEqual([
-      { name: who, ticket: ticketOf(this, who) },
-    ]);
+    expect(await peopleOfferedAtDoor(this, listing)).toEqual([{ name: who }]);
   },
 );
 

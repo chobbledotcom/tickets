@@ -34,7 +34,7 @@ import {
 } from "#templates/admin/entity-pages.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
-import { isOwnerRole } from "#types";
+import { type AdminLevel, isOwnerRole } from "#types";
 
 /** Entity row key: numeric ids for ordinary tables, strings for blind-index
  * keyed pages like /admin/history/:hmac. */
@@ -76,8 +76,6 @@ export type SlotLoader<E> = (
   ctx: PageCtx,
 ) => Promise<JSX.Element | null>;
 
-/** An operator action. `visible` must gate on the SAME condition the target
- * route enforces — a forbidden or dead action link is never rendered. */
 /** Fields shared by any admin item that shows a label and may be hidden by
  * role: its `intent`, its `labelKey`, and its server-side `visible` guard. */
 export interface AdminGatedItem<E> {
@@ -86,6 +84,8 @@ export interface AdminGatedItem<E> {
   visible?: (entity: E, session: AuthSession) => boolean;
 }
 
+/** An operator action. `visible` must gate on the same condition the target
+ * route enforces — a forbidden or dead action link is never rendered. */
 export interface ActionDef<E> extends AdminGatedItem<E> {
   /** Renders in the visually separated danger zone (delete, deactivate…). */
   danger?: boolean;
@@ -135,6 +135,9 @@ export interface TabDef<E> extends AdminGatedItem<E> {
 
 /** One entity's whole page, as data. */
 export interface EntityPageDef<E, Id extends EntityId = number> {
+  /** The roles this page's tabs serve when the folded floor beneath the record path
+   * is wider than the tabs — see `recordPageGuardFor` (the scanner doors are routes). */
+  audience?: readonly AdminLevel[];
   /** Always-visible region above the tab strip (alerts, notes, status). */
   banner?: SlotLoader<E>;
   /** The route this page serves. Its declaration gives the page both its URLs
@@ -297,7 +300,8 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
 ): EntityPage<E, Id> => {
   const basePath = (id: Id): string => adminRecordPath(def.destination, id);
-  const guard = recordPageGuardFor(adminDestination(def.destination));
+  const route = adminDestination(def.destination);
+  const guard = recordPageGuardFor(route, def.audience);
   const path = (id: Id, slug = ""): string => tabPath(basePath(id), slug);
 
   const renderPage = async (

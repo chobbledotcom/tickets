@@ -43,6 +43,12 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     nav: [{ id: "home", kind: "landing", labelKey: "nav.public.home" }],
   },
   {
+    id: "doors",
+    labelKey: "nav.doors",
+    landing: "doors",
+    nav: [{ id: "doors", kind: "landing", labelKey: "nav.doors" }],
+  },
+  {
     detail: "listing",
     id: "listings",
     labelKey: "terms.listings",
