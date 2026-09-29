@@ -11,6 +11,7 @@ import {
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { xCount } from "#shared/count-text.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
+import { DAY_MS } from "#shared/now.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -24,6 +25,10 @@ import type {
   GetSquareClient,
 } from "#shared/square/client.ts";
 import type { SquarePaymentLink } from "#shared/square/wire.ts";
+import {
+  epochMsToIso,
+  instantToEpochMs,
+} from "#shared/validation/timestamp.ts";
 
 /* jscpd:ignore-end */
 
@@ -59,6 +64,14 @@ const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
   }
   return { currency: settings.currency.toUpperCase(), locationId };
 };
+
+/** Square ends a checkout link 180 days after it makes it, or at the link's
+ * first payment, whichever comes first. Square sends no end date. */
+const SQUARE_LINK_LIFETIME_MS = 180 * DAY_MS;
+
+/** When a Square checkout link stops taking payment, on Square's own clock. */
+export const squareLinkEndsAt = (createdAt: string): string =>
+  epochMsToIso(instantToEpochMs(createdAt) + SQUARE_LINK_LIFETIME_MS);
 
 /** A created Square checkout, or nothing when Square is not configured. */
 export type PaymentLinkResult = SquarePaymentLink | null;

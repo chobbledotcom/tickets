@@ -274,9 +274,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     "date",
     "dayCount",
   ]),
-  ...identitiesAt([
-    ["src/shared/payments.ts", [{ name: "CheckoutSessionResult" }]],
-  ])(["sessionId"]),
   ...identitiesAt([["src/shared/payments.ts", [{ name: "SessionMetadata" }]]])([
     "_origin",
   ]),

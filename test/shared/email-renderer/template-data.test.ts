@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildTemplateData } from "#shared/email-renderer.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import {
   buildTestData,
@@ -24,12 +23,56 @@ describeEmailRenderer(() => {
       expect(data.attendee.email).toBe("jane@example.com");
     });
 
-    test("builds correct data shape from multiple entries", async () => {
-      const data = await buildTemplateData(
-        [makeEntry({ name: "Listing A" }), makeEntry({ name: "Listing B" })],
-        "GBP",
-        "https://example.com/t/ABC+DEF",
+    test("carries each entry's answer lines into the attendee shape", async () => {
+      const data = await buildTestData([makeEntry()], {
+        answerLines: new Map([
+          [42, new Map([[1, [{ question: "Any allergies?", text: "None" }]]])],
+        ]),
+      });
+
+      expect(data.entries[0]!.attendee.answers).toEqual([
+        { question: "Any allergies?", text: "None" },
+      ]);
+      expect(data.attendee.answers).toEqual(data.entries[0]!.attendee.answers);
+    });
+
+    test("lists each member's answers once on a collapsed hidden package's row", async () => {
+      const diet = { question: "Diet?", text: "Vegan" };
+      const data = await buildTestData(
+        [
+          makeEntry({}, { package_group_id: 5 }),
+          makeEntry({ id: 2, name: "Member" }, { package_group_id: 5 }),
+        ],
+        {
+          answerLines: new Map([
+            [
+              42,
+              new Map([
+                [1, [diet]],
+                [2, [diet, { question: "Shoe size?", text: "9" }]],
+              ]),
+            ],
+          ]),
+          hidePackageMembers: true,
+          packageDisplays: new Map([
+            [5, { hideListings: true, name: "Hidden bundle" }],
+          ]),
+        },
       );
+
+      expect(data.entries).toHaveLength(1);
+      expect(data.entries[0]!.listing.name).toBe("Hidden bundle");
+      expect(data.entries[0]!.attendee.answers).toEqual([
+        diet,
+        { question: "Shoe size?", text: "9" },
+      ]);
+    });
+
+    test("builds correct data shape from multiple entries", async () => {
+      const data = await buildTestData([
+        makeEntry({ name: "Listing A" }),
+        makeEntry({ name: "Listing B" }),
+      ]);
 
       expect(data.listing_names).toBe("Listing A and Listing B");
       expect(data.entries.length).toBe(2);
@@ -37,15 +80,11 @@ describeEmailRenderer(() => {
     });
 
     test("formats three or more listing names with commas and 'and'", async () => {
-      const data = await buildTemplateData(
-        [
-          makeEntry({ name: "Listing A" }),
-          makeEntry({ name: "Listing B" }),
-          makeEntry({ name: "Listing C" }),
-        ],
-        "GBP",
-        "https://example.com/t/ABC+DEF+GHI",
-      );
+      const data = await buildTestData([
+        makeEntry({ name: "Listing A" }),
+        makeEntry({ name: "Listing B" }),
+        makeEntry({ name: "Listing C" }),
+      ]);
 
       expect(data.listing_names).toBe("Listing A, Listing B, and Listing C");
     });

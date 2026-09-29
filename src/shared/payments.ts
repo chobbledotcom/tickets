@@ -119,6 +119,8 @@ type CheckoutIntentBase = ContactInfo &
     /** Visitor-chosen day count for "customisable days" listings (shared across
      * the checkout). Absent when no selected listing is customisable. */
     dayCount?: number | undefined;
+    /** Typed free-text answers by question id, staged locally, never sent on. */
+    textAnswers?: Record<string, string> | undefined;
   };
 
 /** Registration intent for checkout (one or more listings) */
@@ -136,11 +138,9 @@ export type CheckoutIntent = CheckoutIntentBase & {
   feeSubtotal?: number;
 };
 
-/** Result of creating a checkout session.
- * - Success: { sessionId, checkoutUrl }
- * - User-facing error (e.g. invalid phone): { error }
- * - Provider not configured: null
- * Unexpected failures throw. */
+/** Result of creating a checkout session: success carries the session id and
+ * checkout URL, a user-facing error carries `error`, and null means the
+ * provider is not configured. Unexpected failures throw. */
 export type CheckoutSessionResult =
   | {
       sessionId: string;

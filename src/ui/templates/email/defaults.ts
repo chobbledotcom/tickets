@@ -16,7 +16,8 @@ export const DEFAULT_CONFIRMATION_HTML = `<div style="font-family:sans-serif;max
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
 {% for entry in entries %}<tr><td>{{ entry.listing.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity }}</td><td style="text-align:center">{% if entry.listing.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
 {% endfor %}</table>
-{% if amount_owed != "0" %}<p><strong>Amount owed:</strong> {{ amount_owed | currency }}</p>
+{% for entry in entries %}{% for answer in entry.attendee.answers %}<p style="margin:4px 0">{{ answer.question }}: {{ answer.text }}</p>
+{% endfor %}{% endfor %}{% if amount_owed != "0" %}<p><strong>Amount owed:</strong> {{ amount_owed | currency }}</p>
 {% endif %}<p><a href="{{ ticket_url }}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px">View your tickets</a></p>
 <p style="color:#666;font-size:14px">Or copy this link: {{ ticket_url }}</p>
 </div>`;
@@ -26,7 +27,8 @@ export const DEFAULT_CONFIRMATION_TEXT = `Thanks for registering!
 You're confirmed for {{ listing_names }}.
 
 {% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
-{% endfor %}{% if amount_owed != "0" %}Amount owed: {{ amount_owed | currency }}
+{% endfor %}{% for entry in entries %}{% for answer in entry.attendee.answers %}{{ answer.question }}: {{ answer.text }}
+{% endfor %}{% endfor %}{% if amount_owed != "0" %}Amount owed: {{ amount_owed | currency }}
 {% endif %}
 View your tickets: {{ ticket_url }}`;
 
@@ -41,7 +43,8 @@ export const DEFAULT_ADMIN_HTML = `<div style="font-family:sans-serif;max-width:
 {% if attendee.phone != "" %}<li>Phone: {{ attendee.phone }}</li>{% endif %}
 {% if attendee.address != "" %}<li>Address: {{ attendee.address }}</li>{% endif %}
 {% if attendee.special_instructions != "" %}<li>Notes: {{ attendee.special_instructions }}</li>{% endif %}
-</ul>
+{% for entry in entries %}{% for answer in entry.attendee.answers %}<li>{{ answer.question }} ({{ entry.listing.name }}): {{ answer.text }}</li>
+{% endfor %}{% endfor %}</ul>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
 {% for entry in entries %}<tr><td>{{ entry.listing.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity }}</td><td style="text-align:center">{% if entry.listing.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
@@ -56,7 +59,8 @@ Name: {{ attendee.name }}
 {% endif %}{% if attendee.phone != "" %}Phone: {{ attendee.phone }}
 {% endif %}{% if attendee.address != "" %}Address: {{ attendee.address }}
 {% endif %}{% if attendee.special_instructions != "" %}Notes: {{ attendee.special_instructions }}
-{% endif %}
+{% endif %}{% for entry in entries %}{% for answer in entry.attendee.answers %}{{ answer.question }} ({{ entry.listing.name }}): {{ answer.text }}
+{% endfor %}{% endfor %}
 {% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
 {% endfor %}{% if amount_owed != "0" %}Amount owed: {{ amount_owed | currency }}
 {% endif %}`;

@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
@@ -13,12 +12,10 @@ import { runWithPendingWork } from "#shared/pending-work.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { bookingIntent } from "./index/helpers.ts";
+import { bookedLine, bookingIntent } from "./index/helpers.ts";
 
 /** What the checkout signed, with no answers and nothing added on top. */
 const bareIntent = (): BookingIntent =>
@@ -28,30 +25,6 @@ const noPackageFacts = (): RegistrationPackageFacts => ({
   displays: new Map(),
   pricingByGroup: new Map(),
 });
-
-/** One booked line, as the code that writes the booking hands it on. */
-const bookedLine = async (
-  name: string,
-): Promise<{ attendeeId: number; entry: CreatedEntry; listingId: number }> => {
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    name,
-    unitPrice: 1000,
-  });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "Booked",
-    `${listing.slug}@example.com`,
-  );
-  const loaded = await getListingWithCount(listing.id);
-  if (loaded === null) throw new Error(`Listing ${listing.id} was not created`);
-  return {
-    attendeeId: attendee.id,
-    entry: { attendee, listing: loaded } as CreatedEntry,
-    listingId: listing.id,
-  };
-};
 
 /** Whether the log mentions the given words. The log is kept encrypted, so
  *  this reads it back the way the owner's log page does. */
@@ -75,6 +48,7 @@ describeWithEnv(
           [],
           ["tok_a", "tok_b"],
           noPackageFacts(),
+          "cs_completion_first_line",
         ),
       ).toEqual({
         attendee: { id: attendeeId },
@@ -96,6 +70,7 @@ describeWithEnv(
         [],
         [],
         noPackageFacts(),
+        "cs_completion_several_lines",
       );
 
       expect(result).toMatchObject({
@@ -129,6 +104,7 @@ describeWithEnv(
         [],
         [],
         noPackageFacts(),
+        "cs_completion_saves_answers",
       );
 
       const saved = await getDb().execute({
@@ -174,6 +150,7 @@ describeWithEnv(
           applications,
           [],
           noPackageFacts(),
+          "cs_completion_promo_code",
         ),
       );
 
@@ -191,6 +168,7 @@ describeWithEnv(
         [],
         [],
         noPackageFacts(),
+        "cs_completion_no_code",
       );
 
       expect(await logMentions("Promo code")).toBe(false);
@@ -226,7 +204,15 @@ describeWithEnv(
 
       const calls = await countDatabaseCalls(2, () =>
         runWithPendingWork(() =>
-          completePaidBooking([packagedEntry], bareIntent(), [], [], [], facts),
+          completePaidBooking(
+            [packagedEntry],
+            bareIntent(),
+            [],
+            [],
+            [],
+            facts,
+            "cs_completion_package_facts",
+          ),
         ),
       );
       expect(calls).toBe(2);

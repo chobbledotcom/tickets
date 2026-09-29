@@ -2,7 +2,13 @@
 import type { InValue, Row } from "@libsql/client";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, inPlaceholders, queryAll, resultRows } from "#db/client.ts";
+import {
+  execute,
+  inPlaceholders,
+  queryAll,
+  queryAllPrimary,
+  resultRows,
+} from "#db/client.ts";
 import { mapParallel } from "#fp";
 /* jscpd:ignore-end */
 
@@ -43,11 +49,24 @@ export const columnFrom =
  * are the only query args. The base skeleton for the id-map helpers below and
  * for any read that loads rows for a caller-supplied id list.
  */
-export const rowsByIds = async <Row>(
-  ids: number[],
-  buildSql: (placeholders: string) => string,
-): Promise<Row[]> =>
-  ids.length === 0 ? [] : queryAll<Row>(buildSql(inPlaceholders(ids)), ids);
+const rowsByIdsOn =
+  (readAll: (sql: string, args: number[]) => Promise<unknown[]>) =>
+  async <Row>(
+    ids: number[],
+    buildSql: (placeholders: string) => string,
+  ): Promise<Row[]> =>
+    ids.length === 0
+      ? []
+      : ((await readAll(buildSql(inPlaceholders(ids)), ids)) as Row[]);
+
+export const rowsByIds = rowsByIdsOn(queryAll);
+
+/** The same id-keyed lookup, pinned to the primary: for a caller that must
+ * read rows this same request just wrote (the registration emails read the
+ * answers the booking saved moments earlier in the same request). */
+export const rowsByIdsPrimary = rowsByIdsOn((sql, args) =>
+  queryAllPrimary({ args, sql }),
+);
 
 /**
  * Run an integer-keyed lookup query and turn each row into a `[key, value]`
