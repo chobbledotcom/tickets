@@ -11,8 +11,6 @@ import {
   type AttendeeFormLine,
   isPaymentLockedLine,
   isRetainedLine,
-  SHOW_ALL_FIELD,
-  SHOW_PACKAGE_PATHS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -200,21 +198,13 @@ export const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
     >
       {hasBookedLines && (
         <label class="show-all">
-          <input
-            class="show-all-toggle"
-            name={SHOW_ALL_FIELD}
-            type="checkbox"
-          />
+          <input class="show-all-toggle" type="checkbox" />
           {t("attendee_form.show_all_listings")}
         </label>
       )}
       {hasPackagePathLines && (
         <label class="show-all">
-          <input
-            class="package-paths-toggle"
-            name={SHOW_PACKAGE_PATHS_FIELD}
-            type="checkbox"
-          />
+          <input class="package-paths-toggle" type="checkbox" />
           {t("attendee_form.show_package_paths")}
         </label>
       )}

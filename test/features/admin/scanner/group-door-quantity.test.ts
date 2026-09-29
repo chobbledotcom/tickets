@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { groupDoor, pickTicketsAtDoor, scanAtDoor } from "./support.ts";
@@ -58,6 +59,28 @@ describeWithEnv("group scanner multi-ticket scans", { db: true }, () => {
       expect(again.json.total).toBe(3);
       const full = await scanAtDoor(group.id, { token: ticket.ticket_token });
       expect(full.json.status).toBe("already_checked_in");
+    });
+
+    test("records each scan's ticket count in the listing's history", async () => {
+      const { group, members } = await groupDoor();
+      const ticket = await createMultiBookingAttendee(
+        "Cal",
+        "cal@example.com",
+        [{ listingId: members[0]!.id, quantity: 3 }],
+      );
+
+      await scanAtDoor(group.id, { quantity: 2, token: ticket.ticket_token });
+      await scanAtDoor(group.id, { token: ticket.ticket_token });
+
+      const messages = (await getListingActivityLog(members[0]!.id)).map(
+        (entry) => entry.message,
+      );
+      expect(messages).toContain(
+        "Attendee checked in 2 tickets via scanner for 'Standard'",
+      );
+      expect(messages).toContain(
+        "Attendee checked in 1 ticket via scanner for 'Standard'",
+      );
     });
 
     test("walks a several-listing ticket one listing per scan", async () => {

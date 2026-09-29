@@ -192,7 +192,7 @@ describeWithEnv(
       expect(standaloneIndex).not.toBe(packageIndex);
       expect(html).toContain("via Render Kit");
       // The blank package-path lines sit behind their pure-CSS toggle.
-      expect(html).toContain('name="show_package_paths"');
+      expect(html).toContain('class="package-paths-toggle"');
       expect(html).toContain("attendee-line-package-blank");
     });
 

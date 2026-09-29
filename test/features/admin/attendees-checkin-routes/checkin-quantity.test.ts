@@ -63,6 +63,24 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       expect(html).not.toContain("Tickets to check out");
     });
 
+    test("keeps the roster's filter and return link on its forms", async () => {
+      const { attendee, listing } = await threePlaceAttendee();
+
+      const html = await expectHtmlResponse(
+        await adminGet(
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin` +
+            "?return_filter=out&return_url=%2Fadmin%2Fcalendar",
+        ),
+        200,
+      );
+      expect(html).toContain(
+        '<input name="return_filter" type="hidden" value="out">',
+      );
+      expect(html).toContain(
+        '<input name="return_url" type="hidden" value="/admin/calendar">',
+      );
+    });
+
     test("offers both directions once part of the line is in", async () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(

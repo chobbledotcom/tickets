@@ -1,5 +1,5 @@
 {
-  "src/features/admin/attendee-form-model.ts": 573,
+  "src/features/admin/attendee-form-model.ts": 566,
   "src/features/admin/attendee-form-routes.ts": 497,
   "src/features/admin/attendee-page-data.ts": 715,
   "src/features/admin/attendees-merge.ts": 505,
@@ -43,7 +43,7 @@
   "src/ui/templates/fields/admin.ts": 401,
   "test/features/admin/api-listing-body.test.ts": 401,
   "test/features/admin/api.test.ts": 404,
-  "test/features/admin/attendee-form-model.test.ts": 994,
+  "test/features/admin/attendee-form-model.test.ts": 947,
   "test/features/admin/attendees-edit.test.ts": 404,
   "test/features/admin/builder/server.test.ts": 585,
   "test/features/admin/built-sites/actions.test.ts": 737,

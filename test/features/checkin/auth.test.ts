@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
@@ -141,6 +141,29 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // Row A's date label is visible; Row B's later date must not leak.
       expect(body).toContain(formatDateLabel(today));
       expect(body).not.toContain(formatDateLabel(laterDate));
+    });
+  });
+
+  describe("GET /checkin/:tokens (agent run sheet)", () => {
+    test("an agent sees a row whose leg is tomorrow", async () => {
+      const agentId = (
+        await logisticsAgents.table.insert({ name: "Tomorrow van" })
+      ).id;
+      const { cookie } = await createTestAgentSession({
+        agentIds: [agentId],
+        token: "checkin-tomorrow",
+        username: "checkin-tomorrow",
+      });
+      const tomorrow = addDays(todayInTz(settings.timezone), 1);
+      const { attendee, listing, token } = await createTestAttendeeWithToken(
+        "Tomorrow Person",
+        "tomorrow@example.com",
+        { usesLogistics: true },
+      );
+      await assignBookingToAgent(attendee.id, listing.id, agentId, tomorrow);
+
+      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
+      expect(await response.text()).toContain("Tomorrow Person");
     });
   });
 
