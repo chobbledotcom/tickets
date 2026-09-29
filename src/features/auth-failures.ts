@@ -15,7 +15,7 @@ const forbiddenBody = (detail?: ForbiddenDetail): string =>
     ? t("auth.forbidden_owner_only")
     : t("auth.forbidden_role");
 
-/** Shared auth failure response factories (avoids jscpd duplication) */
+/** Shared auth failure response factories */
 const htmlForbidden = () => htmlResponse(forbiddenBody(), 403);
 const jsonForbidden = () => apiErrorResponse("Forbidden", 403);
 

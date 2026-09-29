@@ -11,6 +11,7 @@ import {
   trackFile,
   writeStaticAssetManifest,
 } from "#scripts/static-assets/cache.ts";
+import { prepareStaticAssets } from "#scripts/static-assets/prepare.ts";
 
 const recorded = (path: string, hash: string, mtime: number) => ({
   hash,
@@ -340,6 +341,11 @@ describe("static asset cache", () => {
     });
 
     test("says yes right after the real build recorded itself", async () => {
+      // The harness may skip its record when a source settled in the same
+      // second the build began (see writeStaticAssetManifest). Preparing
+      // again builds now, when every source has long settled, so a record
+      // is certain.
+      await prepareStaticAssets({ quiet: true });
       expect(await staticAssetsAreUpToDate()).toBe(true);
     });
   });

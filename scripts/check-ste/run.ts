@@ -7,6 +7,7 @@ import {
   reportCheck,
 } from "#scripts/check-report.ts";
 import { countsRose, staleEntryLines } from "#scripts/check-runner.ts";
+import { countBy } from "#scripts/count-by.ts";
 import { collectFiles, directoryEntries } from "#scripts/walk-files.ts";
 import { findIssues, type SteIssue } from "./rules.ts";
 
@@ -79,16 +80,7 @@ export const identityOf = (issue: SteIssue): string =>
   `${issue.rule} ${issue.problem} in ${issue.context}`;
 
 /** Count one document's findings by identity. */
-const countsByIdentity = (
-  issues: readonly SteIssue[],
-): Record<string, number> => {
-  const counts: Record<string, number> = {};
-  for (const issue of issues) {
-    const identity = identityOf(issue);
-    counts[identity] = (counts[identity] ?? 0) + 1;
-  }
-  return counts;
-};
+const countsByIdentity = countBy(identityOf);
 
 /** The baseline entry one document holds today. Rules that find nothing
  * stay out of the record. */

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import { withFileLock } from "#scripts/lock-file.ts";
+import { withStaticAssetBuildLock } from "#scripts/static-assets/build-lock.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 const LOCK_PATH = join(
@@ -78,6 +79,23 @@ const stubOpenedFile = (change: (file: Deno.FsFile) => void) => {
   );
 };
 
+/** Signals `asked` when the second opened file is asked to lock. The first
+ * open stays untouched, so a test can hold that lock and prove the second
+ * call waits. */
+const signalSecondLockAsk = (asked: () => void) => {
+  let opened = 0;
+  return stubOpenedFile((file) => {
+    opened++;
+    if (opened < 2) return;
+    const lock = file.lock.bind(file);
+    file.lock = (exclusive?: boolean): Promise<void> => {
+      const held = lock(exclusive);
+      asked();
+      return held;
+    };
+  });
+};
+
 describe("withFileLock", () => {
   beforeEach(() => removeIfPresent(LOCK_PATH));
   afterEach(() => removeIfPresent(LOCK_PATH));
@@ -94,17 +112,7 @@ describe("withFileLock", () => {
     const releaseFirst = Promise.withResolvers<void>();
     const secondAsked = Promise.withResolvers<void>();
 
-    let opened = 0;
-    const openStub = stubOpenedFile((file) => {
-      opened++;
-      if (opened < 2) return;
-      const lock = file.lock.bind(file);
-      file.lock = (exclusive?: boolean): Promise<void> => {
-        const held = lock(exclusive);
-        secondAsked.resolve();
-        return held;
-      };
-    });
+    const openStub = signalSecondLockAsk(secondAsked.resolve);
 
     try {
       const first = withFileLock(LOCK_PATH, async () => {
@@ -297,5 +305,55 @@ describe("a lock that stops being the file at its path", () => {
 
       expect(await withFileLock(path, () => Promise.resolve("in"))).toBe("in");
     });
+  });
+});
+
+describe("withStaticAssetBuildLock", () => {
+  test("runs the body once and returns its result", async () => {
+    let runs = 0;
+    const value = await withStaticAssetBuildLock(() => {
+      runs++;
+      return Promise.resolve("kept");
+    });
+    expect(value).toBe("kept");
+    expect(runs).toBe(1);
+  });
+
+  test("serializes two concurrent calls", async () => {
+    const order: string[] = [];
+    const firstEntered = Promise.withResolvers<void>();
+    const secondAsked = Promise.withResolvers<void>();
+    const releaseFirst = Promise.withResolvers<void>();
+    const openStub = signalSecondLockAsk(secondAsked.resolve);
+
+    try {
+      const first = withStaticAssetBuildLock(() => {
+        order.push("first");
+        firstEntered.resolve();
+        return releaseFirst.promise;
+      });
+      await firstEntered.promise;
+      const second = withStaticAssetBuildLock(() => {
+        order.push("second");
+        return Promise.resolve();
+      });
+      // Wait for the second call to actually ask for the lock, then give the
+      // operating system time to hand it over. Both halves are needed: without
+      // the signal the check could run before the request was even made, and
+      // without the pause a lock that excludes nobody would still look like it
+      // was working.
+      await secondAsked.promise;
+      const granted = Promise.withResolvers<void>();
+      setTimeout(granted.resolve, 20);
+      await granted.promise;
+      expect(order).toEqual(["first"]);
+      releaseFirst.resolve();
+      await Promise.all([first, second]);
+    } finally {
+      openStub.restore();
+      releaseFirst.resolve();
+    }
+
+    expect(order).toEqual(["first", "second"]);
   });
 });

@@ -351,6 +351,12 @@ export function* commentSpans(content: string): Generator<LexicalSpan> {
   }
 }
 
+/** The source text of every string and template literal, in order. */
+export const stringSpanTexts = (content: string): string[] =>
+  [...lexicalSpans(content)]
+    .filter((span) => span.kind === "string")
+    .map((span) => content.slice(span.start, span.end));
+
 /** Replace lexical spans with spaces while every line offset stays fixed. */
 export const blankSpans = (content: string, blankStrings: boolean): string => {
   const characters = content.split("");
