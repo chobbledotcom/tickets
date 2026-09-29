@@ -151,7 +151,7 @@ export const handleFreePath = async (
   const siteTokenIndex = ctx.siteToken
     ? await hmacHash(ctx.siteToken)
     : undefined;
-  await logAndNotifyRegistration(result.entries, siteTokenIndex);
+  await logAndNotifyRegistration(result.entries, { siteTokenIndex });
 
   if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
     const maps = listingAnswerMaps(info, ctx.questionListingMap);

@@ -92,7 +92,7 @@ describeWithEnv(
         expect(html).toContain("No site assigned yet");
       });
 
-      test("a refunded plan's stale assignment does not hide an active plan's cue", async () => {
+      test("a claim on a refunded plan row still serves the active plan", async () => {
         using _env = withEnv({ CAN_BUILD_SITES: "true" });
         await createTierListing();
         const refundedPlan = await planListing("Refunded Plan");
@@ -119,13 +119,9 @@ describeWithEnv(
 
         const page = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await page.text();
-        // Scope to each row: the active plan row carries the cue, the
-        // refunded one does not.
-        const rows = html.split("<tr>").filter((row) => row.includes("Plan"));
-        const activeRow = rows.find((row) => row.includes("Active Plan"))!;
-        const refundedRow = rows.find((row) => row.includes("Refunded Plan"))!;
-        expect(activeRow).toContain("No site assigned yet");
-        expect(refundedRow).not.toContain("No site assigned yet");
+        // The claim on the refunded plan holds the buyer's one site, so no
+        // row asks for a second one.
+        expect(html).not.toContain("No site assigned yet");
       });
 
       test("one site serves a combined purchase of two plan listings", async () => {

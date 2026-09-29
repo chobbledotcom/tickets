@@ -92,7 +92,7 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
               purchase_only: true,
             }),
           ],
-          "stored-index",
+          { siteTokenIndex: "stored-index" },
         ),
       );
     } finally {

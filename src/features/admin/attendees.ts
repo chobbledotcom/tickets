@@ -251,15 +251,16 @@ const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
 ].page(attendeeActionPage(adminResendNotificationPage));
 
-/** The entries a resend notifies, scoped to the SELECTED booking's purchase:
+/** The entries a resend covers, scoped to the SELECTED booking's purchase:
  * a package line rehydrates its own package alone (never another package the
- * attendee holds), and a standalone line notifies every standalone line the
+ * attendee holds), and a standalone line covers every standalone line the
  * attendee booked. Each entry is rebuilt from its own row and listing, so the
  * confirmation never treats one member row as the whole purchase — collapsing
  * a hidden package to one row's quantity/price, heading a visible one with a
- * lone member, or hiding the plan line that bought a site. A refunded line
- * bought nothing now, so the resend must not notify it again. */
-const resendEntries = async (
+ * lone member, or hiding the plan line that bought a site. Refunded rows
+ * stay in the list: the email filters them out below, while the assignment's
+ * served check needs them to see a claim recorded before the refund. */
+const purchaseEntries = async (
   data: AttendeeWithBooking,
 ): Promise<EmailEntry[]> => {
   const pk = await requireRequestPrivateKey();
@@ -271,10 +272,7 @@ const resendEntries = async (
   );
   // The route already verified this attendee's active line, so its booking
   // rows exist, decrypt with the same key, and each names a live listing.
-  return attendeeListingEntries(
-    rows.filter((row) => !row.refunded),
-    pk,
-  );
+  return attendeeListingEntries(rows, pk);
 };
 
 /** Re-send an attendee's booking notification (its whole package, if any),
@@ -297,8 +295,13 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
+  // A refunded line bought nothing now, so the resend must not notify it
+  // again — but the assignment still sees it, so a claim recorded on it
+  // before the refund keeps the buyer served.
+  const entries = await purchaseEntries(data);
+  const notify = entries.filter((entry) => !entry.attendee.refunded);
   await Promise.all([
-    logAndNotifyRegistration(await resendEntries(data)),
+    logAndNotifyRegistration(notify, { siteAssignmentEntries: entries }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,
       data.listing.id,

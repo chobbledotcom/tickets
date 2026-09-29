@@ -30,12 +30,11 @@ export const completePaidBooking = async (
           firstEntry.attendee.id,
         )
       : [];
-  await logAndNotifyRegistration(
-    createdEntries,
-    intent.siteTokenIndex,
-    promoActivities,
-    notificationPackages,
-  );
+  await logAndNotifyRegistration(createdEntries, {
+    priorActivities: promoActivities,
+    siteTokenIndex: intent.siteTokenIndex,
+    suppliedPackageFacts: notificationPackages,
+  });
   return sessionSuccess(
     firstEntry.attendee.id,
     firstEntry.listing.id,

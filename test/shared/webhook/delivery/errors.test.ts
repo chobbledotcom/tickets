@@ -35,7 +35,9 @@ const registrationLogs = (
 ) =>
   withErrorSpy(async (errorSpy) => {
     await runWithPendingWork(() =>
-      logAndNotifyRegistration(entries, undefined, [], packageFacts),
+      logAndNotifyRegistration(entries, {
+        suppliedPackageFacts: packageFacts,
+      }),
     );
     return errorSpy.calls.map(({ args }) => String(args[0]));
   });

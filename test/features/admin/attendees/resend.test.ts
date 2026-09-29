@@ -9,7 +9,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { insertBuiltSite } from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -31,6 +32,23 @@ const resend = (attendeeId: number, name: string) =>
   adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
     confirm_identifier: name,
   });
+
+/** Resend, then assert only one line was notified and the named pooled site
+ * stayed unclaimed. Returns every site for further assertions. */
+const resendLeavesSiteUnclaimed = async (
+  attendeeId: number,
+  name: string,
+  siteName: string,
+) => {
+  await resend(attendeeId, name);
+  expect(await registeredEntries()).toBe(1);
+  const { builtSites } = await import("#db/built-sites.ts");
+  const sites = await builtSites.getAll();
+  expect(
+    sites.find((site) => site.name === siteName)!.assignedAttendeeId,
+  ).toBeNull();
+  return sites;
+};
 
 /** How many "registered" entries the re-send wrote — one per line it notified. */
 const registeredEntries = async (): Promise<number> =>
@@ -168,15 +186,53 @@ describeWithEnv(
       await refundBookedOrder(attendee.id, plan.id);
       await insertBuiltSite("Unwanted", "unwanted.test", "", "", true);
 
-      await resend(attendee.id, "Refunded Plan Buyer");
+      await resendLeavesSiteUnclaimed(
+        attendee.id,
+        "Refunded Plan Buyer",
+        "Unwanted",
+      );
+    });
 
-      // Only the ordinary row is notified, and no site is assigned.
-      expect(await registeredEntries()).toBe(1);
-      const { builtSites } = await import("#db/built-sites.ts");
-      const sites = await builtSites.getAll();
+    test("a claim recorded on a later-refunded plan serves the resend", async () => {
+      await createTierListing();
+      const claimed = await planListing("Claimed Plan");
+      const kept = await planListing("Kept Plan");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { listingId: claimed.id, pricePaid: 300, quantity: 1 },
+          { listingId: kept.id, pricePaid: 300, quantity: 1 },
+        ],
+        email: "refund-after-claim@example.com",
+        name: "Refund After Claim",
+      });
+      if (!made.success) throw new Error("Expected the booking to work");
+      const attendee = made.attendees[0]!;
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 300,
+        listingId: claimed.id,
+      });
+      // The purchase's first run claims a site on the first plan.
+      await insertBuiltSite("First Site", "first.test", "", "", true);
+      const pool = await getAssignableBuiltSites();
+      await takePooledSiteForBuyer(
+        pool,
+        attendee.id,
+        [claimed.id, kept.id],
+        claimed.id,
+      );
+      await refundBookedOrder(attendee.id, claimed.id);
+      await insertBuiltSite("Second Site", "second.test", "", "", true);
+
+      const sites = await resendLeavesSiteUnclaimed(
+        attendee.id,
+        "Refund After Claim",
+        "Second Site",
+      );
       expect(
-        sites.find((s) => s.name === "Unwanted")!.assignedAttendeeId,
-      ).toBeNull();
+        sites.find((site) => site.name === "First Site")!.assignedAttendeeId,
+      ).toBe(attendee.id);
     });
 
     test("does not double-notify a package row that is already covered", async () => {

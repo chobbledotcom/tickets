@@ -191,12 +191,30 @@ const reportAfterBookingFailure =
     logError({ code: ErrorCode.SITE_ASSIGNMENT, detail, error });
   };
 
+/** What a registration notifies beside its entries. */
+export type RegistrationNotifyOptions = {
+  /** The renewal-site token index the booking carried, if any. */
+  siteTokenIndex?: string | undefined;
+  /** Activity rows to log beside the per-entry registration rows. */
+  priorActivities?: readonly ActivityToLog[] | undefined;
+  /** Package facts a checkout that already knows them can pass on. */
+  suppliedPackageFacts?: RegistrationPackageFacts | undefined;
+  /** Entries only the site assignment sees, beside `entries`: the resend's
+   * refunded plan rows join the served check there, so a claim recorded on a
+   * later-refunded line still serves the buyer. The logs, the email, and the
+   * renewals keep those rows out. Defaults to `entries`. */
+  siteAssignmentEntries?: EmailEntry[] | undefined;
+};
+
 /** Record a registration and queue its external notifications. */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
-  siteTokenIndex?: string,
-  priorActivities: readonly ActivityToLog[] = [],
-  suppliedPackageFacts?: RegistrationPackageFacts,
+  {
+    priorActivities = [],
+    siteAssignmentEntries,
+    siteTokenIndex,
+    suppliedPackageFacts,
+  }: RegistrationNotifyOptions = {},
 ): Promise<void> => {
   await logActivities([
     ...priorActivities,
@@ -211,7 +229,7 @@ export const logAndNotifyRegistration = async (
     queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
   );
   addPendingWork(
-    assignAndNotifyBuiltSites(entries).catch(
+    assignAndNotifyBuiltSites(siteAssignmentEntries ?? entries).catch(
       reportAfterBookingFailure(
         "Site assignment failed after a completed booking",
       ),
