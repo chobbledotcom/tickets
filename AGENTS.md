@@ -88,8 +88,6 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   before you touch the plan. When the built behavior is wrong, fix the code and
   pin it with a regression test. Amend the contract only when the contract is
   what is wrong, and change the document and the code in the same commit.
-- **Format Markdown with Deno**: Let `deno fmt` apply its standard 80-column
-  wrapping to Markdown files. Do not hand-wrap prose to another width.
 - **Write technical text in Simplified Technical English**: Documentation,
   commit messages, pull request descriptions, and developer-facing error
   messages follow
@@ -112,13 +110,8 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Comments are short**: A comment only adds what the reader cannot see — a
   why, a constraint, a surprise. Never re-narrate the lines below in prose, and
   never restate a name. If a comment grows, fix the tangle it explains. The same
-  bar applies to commit messages and PR prose. `deno task check:comments`
-  enforces the size limits, and `docs/comment-policy.md` prices the remaining
-  steps.
-- **Zero code duplication**: jscpd holds 0%, and the threshold is
-  non-negotiable. A flagged pair is one merge: write the helper, or curry (see
-  [Code Duplication](#code-duplication)). Never restructure code so the matcher
-  stops matching.
+  bar applies to commit messages and PR prose.
+- **Zero code duplication**: See [Code Duplication](#code-duplication).
 - **100% test coverage**: Coverage must be complete and deterministic. A branch
   that only a spawned subprocess reaches gets a direct in-process unit test.
 - **Hardest first, no need to ask**: When the only open question is the order to
@@ -126,7 +119,8 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Always the complete version**: Choose the complete, correct version, even
   when it touches more files than the estimate named.
 - **Feature-complete by default**: Build the whole feature. Stop short only when
-  finishing it more branches or more special cases than the honest shape needs.
+  finishing it adds more branches or more special cases than the honest shape
+  needs.
 - **Unify systems — the answer is yes**: When two systems do almost the same
   job, find the single abstraction that does both.
 - **No alias exports**: Never export a name that only renames an imported
@@ -135,10 +129,9 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **No internal compatibility layers**: When you replace an internal API,
   migrate every caller in the same change and delete the old surface. Keep
   adapters only at true external boundaries.
-- **Imports name a module one way**: A module has one spelling: the shortest
-  alias in the `deno.json` import map that reaches it. A file must not import
-  the same module twice. Add an alias only when it removes 50 or more wrapped
-  import lines. Below that bar, keep the module under `#shared/`.
+- **Imports name a module one way**: Add an import alias only when it removes 50
+  or more wrapped import lines. Below that bar, keep the module under
+  `#shared/`.
 - **Remove dead code — always the answer**: When code has no production caller,
   delete it. Never keep it "for symmetry" or "for future use", and never paper
   over it with a test-only import or a usage-check exemption. An export that
@@ -175,8 +168,6 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **A branch fixes the defects it introduces**: A review finding about code the
   branch adds is that branch's work. Fix it and pin it there. An issue is for a
   defect that is already on main.
-- **Offensive, not defensive, programming**: Fail loudly and immediately (see
-  [Offensive Programming](#offensive-programming--never-suppress-errors)).
 - **Attribute money to its true item at write time**: A money movement lands
   against its true money item on the day it happens. Treat "we can fix the
   records up later" as a design smell.
@@ -189,9 +180,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **A loud database failure is enough**: Database writes fail very infrequently.
   Let the error reach the log in full, and let the admin investigate. Do not
   build rescue, repair, or compensation paths around a failed write.
-- **Trust request key setup**: Startup has already validated the keys. Do not
-  check them in request code, and do not test states that only corrupt setup can
-  make.
+- **Trust request key setup**: Startup validates `DB_ENCRYPTION_KEY`. On every
+  route other than setup, the setup step has already created the owner and the
+  public key. Do not check either key in request code, and do not test states
+  that only corrupt setup can make.
 - **New tables and new columns are a last resort**: Make the fact fit the schema
   you have. A review that asks for one must name the fact and say why no current
   column can hold it.
@@ -228,9 +220,6 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Use types where they remove noise**: Replace repeated inline shapes with a
   named type when that clarifies a boundary. Do not add a second vocabulary for
   one concept.
-- **Annotate return types on exported functions**: Prefer an interface others
-  extend over a large intersection or a wide bare union. Give a complex
-  conditional type its own name.
 - **Never lose work — commit WIP even if broken**: Commit and push work in
   progress before you pause, hand off, or end a turn with a dirty tree. Mark a
   known-broken checkpoint in the commit message.
@@ -440,11 +429,7 @@ automatic.
   files work
 - `deno task cov:files <file>... [--only <part>]` — same setup as `test:files`,
   then print the lines and branches this run left uncovered
-- `deno task test:screenshot-contract` — real-browser timing and layout
-  contracts. Requires Chromium
 - `deno task specs` — run every Cucumber Feature. Reports land under `reports/`
-- `deno task specs:evidence` — run the cases with declared screenshot captures.
-  Writes the manifest under `reports/evidence/`. Requires a clean worktree
 - `deno task specs:check` — parse and validate every Feature
 - `deno task specs:files <feature>... [--tags <expression>]` — run selected
   Features
@@ -452,29 +437,10 @@ automatic.
   with Biome (`check --write`). Format through this task
 - `deno task lint:ci` — the strict read-only lint that precommit runs
 - `deno task build:edge` — build for Bunny Edge deployment
-- `deno task backup [--out <path>]` — dump the database to a `.zip`
-- `deno task restore <backup.zip>` — restore the database named by `.env`. Asks
-  for typed confirmation first
-- `deno task bugs <issue-url-or-id>` — print one Bugsink issue and its latest
-  event as JSON. `deno task bugs list` prints unresolved ones
-- `deno task snapshot --out <path.sqlite>` — sync the remote database to a
-  standalone local SQLite file. Refuses to overwrite an existing path
-- `deno task migrate:turso` — interactive copy of a remote database into a new
-  Turso database
-- `deno task migrate:sites` — interactive menu that moves a built site to a new
-  Turso database and repoints its Bunny secrets. Reads `MAIN_INSTANCE_URL`,
-  `MAIN_INSTANCE_KEY`, `BUNNY_API_KEY`, `TURSO_API_TOKEN`, `TURSO_ORGANIZATION`,
-  and `TURSO_GROUP` from `.env`
-- `deno task check:copy` — mechanical Simple Language rules over the copy
-  catalog
-- `deno task check:comments` — comment length and width limits
-- `deno task check:alias-exports` — exported names that only rename an import
-- `deno task check:empty-catch` — catch blocks with no statement and no comment
 - `deno task check:file-lengths` — the 500-line limit over every source tree,
   against the accepted list that only shrinks. Pass `--update` after a split.
   The update refuses a rise. The 400-line aim is policy, not a gate: a file
   slightly over it owes a splitting issue
-- `deno task check:imports` — one import spelling per module
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
@@ -524,18 +490,9 @@ resort, because each one must be set by hand on every site (see
 Every optional variable is documented in
 [Environment variables](docs/env-vars.md).
 
-## Deno Configuration
-
-The project uses `deno.json` for configuration: import maps for `#` prefixed
-aliases, npm packages via `npm:` specifiers, and JSR packages via `jsr:`
-specifiers.
-
 ## Test Framework
 
-Tests use the Deno standard library directly: `@std/testing/bdd` (`describe`,
-`it`), `@std/expect`, `@std/testing/mock`, `@std/expect/fn`, and
-`@std/testing/time` (`FakeTime`). Use helpers from `#test-utils` instead of
-defining local ones.
+Use helpers from `#test-utils` instead of defining local ones.
 
 ### Cucumber Acceptance Specifications
 
@@ -551,12 +508,6 @@ drop you state out loud.
 
 ## Test Quality Standards
 
-- Import and call production functions. Never reimplement production logic, and
-  never hardcode a value that production code exports as a constant.
-- Assert behavior a consumer observes: HTTP status, content, persisted rows,
-  rendered output. Refactoring must not break a test.
-- One reason to fail per test. Clean up after yourself. No time-dependent
-  flakiness.
 - Prefer assertions that fail under realistic mutants: exact values, object
   shape, persisted rows. Avoid `toBeTruthy()`, compound booleans, and
   presence-only checks. Run `deno task test:quality-audit` when you bulk-add
@@ -593,11 +544,6 @@ distinguish it.
 `deno task precommit:mutation` is the branch gate. Run it before you merge a
 branch that changes `src/` files.
 
-### Coverage Requirements
-
-100% coverage is required to merge. Run `deno task test:coverage` and check
-`coverage/`.
-
 ### Fast Tests
 
 The suite prints each test slower than 500ms after every run. Treat entries as
@@ -607,6 +553,8 @@ regressions to fix.
   BDD hook at module level, and never rely on a virgin isolate: reset the state
   you change, and pin what you assert on. A file that needs its own isolate
   carries `// test-groups: run-alone`. `deno task test:files` never groups.
+  `TICKETS_TEST_UNGROUPED=1 deno task test` runs every file in its own isolate
+  to rule grouping out.
 - Never run repo tooling as a subprocess inside a test.
 - Never sleep for real. Wrap retry paths in `withVirtualBackoff` from
   `#test-utils`.
