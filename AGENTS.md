@@ -246,8 +246,9 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Finish by rewriting the PR name and description**: Make the finished PR name
   and describe what was actually built, in plain words.
 - **Final check**: Run `devenv shell deno task precommit` before you finish any
-  job with code or documentation changes. It typechecks the test files too, so
-  `deno check` plus `test:files` is not a substitute.
+  job that changes code. It typechecks the test files too, so `deno check` plus
+  `test:files` is not a substitute. A Markdown-only change needs no precommit.
+  Run `deno fmt` and `deno task check:ste` on it instead.
 
 ## Stacked Pull Requests
 
