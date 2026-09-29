@@ -4,6 +4,7 @@
  * Non-admin view: simple confirmation message
  */
 
+import type { PairBookings } from "#booking/ticket-moves.ts";
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
@@ -29,6 +30,7 @@ type CheckinAdminPageOptions = {
 
 export const checkinAdminPage = (
   entries: TokenEntry[],
+  pairBookings: PairBookings,
   checkinPath: string,
   message: string,
   allowedDomain: string,
@@ -37,7 +39,7 @@ export const checkinAdminPage = (
 ): string => {
   const { canCheckIn } = options;
   const showDate = entries.some((e) => e.attendee.date !== null);
-  const tableRows: AttendeeTableRow[] = withPairBookings(
+  const tableRows: AttendeeTableRow[] = withPairBookings(pairBookings)(
     pipe(
       map(
         (e: TokenEntry): AttendeeTableRow =>

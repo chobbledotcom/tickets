@@ -202,9 +202,10 @@ Five properties the first draft did not name, which the code now pins:
 - Every check-in form names its ticket count. The quantity 1 toggle posts 1, and
   a POST with no count redirects with "Invalid ticket count". A roster that
   shows one date or one filter cannot move the tickets it hides.
-- The roster picks each line's control from `movableBooking` in
-  `src/shared/booking/remaining-tickets.ts`, through `withPairBookings`. The
-  quantity page uses the same sum, so both leave out refunded lines.
+- Every check-in surface reads the whole booking with `getPairBookings` in
+  `src/shared/db/attendees/ticket-lines.ts`. It runs the same line read as
+  `moveTickets`. A roster, calendar, group, or token page that shows only some
+  lines of a booking still picks its control from the whole booking.
 
 ## Pull request shape
 

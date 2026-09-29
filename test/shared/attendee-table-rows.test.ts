@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { pairKey } from "#booking/ticket-moves.ts";
 import {
   attendeeLineRow,
   groupAttendeeRows,
@@ -32,46 +33,27 @@ describe("withPairBookings", () => {
   const GALA = DISPLAY_ORDER[0]!;
   const WORKSHOP = DISPLAY_ORDER[1]!;
 
-  test("gives each line its whole booking on that listing", () => {
-    const rows = withPairBookings([
-      attendeeLineRow(
-        testAttendee({ checked_in: 1, id: 1, quantity: 1 }),
-        GALA,
-      ),
-      attendeeLineRow(
-        testAttendee({ checked_in: 0, id: 1, quantity: 2 }),
-        GALA,
-      ),
+  test("gives each line the booking read for its person and listing", () => {
+    const bookings = new Map([
+      [pairKey(1, GALA.id), { checked_in: 1, quantity: 3 }],
+      [pairKey(1, WORKSHOP.id), { checked_in: 0, quantity: 2 }],
+    ]);
+    const rows = withPairBookings(bookings)([
+      attendeeLineRow(testAttendee({ id: 1, quantity: 1 }), GALA),
+      attendeeLineRow(testAttendee({ id: 1, quantity: 2 }), WORKSHOP),
     ]);
     expect(rows.map((row) => row.booking)).toEqual([
       { checked_in: 1, quantity: 3 },
-      { checked_in: 1, quantity: 3 },
+      { checked_in: 0, quantity: 2 },
     ]);
   });
 
-  test("keeps other people and other listings out of the booking", () => {
-    const rows = withPairBookings([
-      attendeeLineRow(testAttendee({ id: 1, quantity: 1 }), GALA),
-      attendeeLineRow(testAttendee({ id: 1, quantity: 2 }), WORKSHOP),
-      attendeeLineRow(testAttendee({ id: 2, quantity: 4 }), GALA),
-    ]);
-    expect(rows.map((row) => row.booking!.quantity)).toEqual([1, 2, 4]);
-  });
-
-  test("leaves a refunded line out of its sibling's booking", () => {
-    // The write never moves a refunded line, so a one-ticket line beside a
-    // refunded one keeps the direct toggle.
-    const rows = withPairBookings([
-      attendeeLineRow(
-        testAttendee({ checked_in: 1, id: 1, quantity: 1, refunded: true }),
-        GALA,
-      ),
-      attendeeLineRow(
-        testAttendee({ checked_in: 0, id: 1, quantity: 1 }),
-        GALA,
-      ),
-    ]);
-    expect(rows[1]!.booking).toEqual({ checked_in: 0, quantity: 1 });
+  test("throws for a line whose booking was never read", () => {
+    expect(() =>
+      withPairBookings(new Map())([
+        attendeeLineRow(testAttendee({ id: 4 }), GALA),
+      ]),
+    ).toThrow(`No booking read for ${pairKey(4, GALA.id)}`);
   });
 });
 

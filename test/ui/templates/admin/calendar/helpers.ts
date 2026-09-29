@@ -6,6 +6,7 @@ import {
 } from "#templates/admin/calendar.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { LogisticsAgent } from "#types";
 
@@ -41,6 +42,7 @@ export const calendarHtml = (
 ): string =>
   adminCalendarPage(
     overrides.attendees ?? [],
+    shownLineBookings(overrides.attendees ?? []),
     "localhost",
     OWNER_SESSION,
     overrides.dateFilter ?? null,

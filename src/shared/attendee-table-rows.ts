@@ -6,8 +6,9 @@
  * these helpers only reshape them.
  */
 
-import { movableBooking } from "#booking/remaining-tickets.ts";
-import { groupToMap, sumOf } from "#fp";
+import { type PairBookings, pairKey } from "#booking/ticket-moves.ts";
+import { sumOf } from "#fp";
+import { requireValue } from "#shared/required-value.ts";
 import type {
   AttendeeRowListing,
   AttendeeTableRow,
@@ -25,24 +26,19 @@ export const attendeeLineRow = (
   listings: [{ id: listing.id, name: listing.name }],
 });
 
-/** Attach each (person, listing) pair's movable booking to the line rows. A
- * pair can hold several lines — two dates, two parents — and the check-in
- * controls pick the direct toggle only when the whole pair holds one ticket,
- * so a one-ticket line of a bigger booking opens the quantity page. */
-export const withPairBookings = (
-  rows: readonly AttendeeTableRow[],
-): AttendeeTableRow[] => {
-  const pairKey = (row: AttendeeTableRow): string =>
-    `${row.attendee.id}:${row.listings[0]!.id}`;
-  const lines = groupToMap(
-    pairKey,
-    (row: AttendeeTableRow) => row.attendee,
-  )(rows);
-  return rows.map((row) => ({
-    ...row,
-    booking: movableBooking(lines.get(pairKey(row))!),
-  }));
-};
+/** Attach each line's whole booking on its listing, read by `getPairBookings`.
+ * A page can show only some of a pair's lines — one date, one filter — and
+ * the check-in controls must still see the whole booking a check-in moves. */
+export const withPairBookings =
+  (bookings: PairBookings) =>
+  (rows: readonly AttendeeTableRow[]): AttendeeTableRow[] =>
+    rows.map((row) => {
+      const key = pairKey(row.attendee.id, row.listings[0]!.id);
+      return {
+        ...row,
+        booking: requireValue(bookings.get(key), `No booking read for ${key}`),
+      };
+    });
 
 /**
  * Each row's listings keep `orderedListings` order, so the Listings cell

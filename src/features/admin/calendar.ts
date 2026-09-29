@@ -4,9 +4,11 @@ import { defineRoutes } from "#routes/router.ts";
  * Admin calendar view routes
  */
 
+import { linePair } from "#booking/ticket-moves.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 /* jscpd:ignore-start -- imports */
 import {
@@ -304,12 +306,8 @@ const buildAvailabilityRows = async (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    // The availability rows only need the listings list, so build them in a
-    // small async helper that awaits loadListingContext and runs inside the same
-    // Promise.all. It starts as soon as the listings resolve and overlaps with
-    // the date-picker and holiday queries still in flight (hiding under the
-    // slowest of them) instead of costing an extra serial round trip after this
-    // batch.
+    // The availability rows need only the listings, so they join this
+    // Promise.all and overlap the date and holiday queries, not a later trip.
     const listingCtxPromise = loadListingContext();
     const loadAvailabilityRows = async (): Promise<AvailabilityRow[]> =>
       buildAvailabilityRows((await listingCtxPromise).allListings, dateFilter);
@@ -365,17 +363,19 @@ const handleAdminCalendarGet = (request: Request) =>
       standardListings,
       holidays,
     );
-    const questionData = await loadAttendeeQuestionData(
-      attendees.map((a) => a.listingId),
-      attendees.map((a) => a.id),
-      await requireRequestPrivateKey(),
-    );
-
-    const hasPaidListing = allListings.some(isPaidListing);
+    const [questionData, pairBookings] = await Promise.all([
+      loadAttendeeQuestionData(
+        attendees.map((a) => a.listingId),
+        attendees.map((a) => a.id),
+        await requireRequestPrivateKey(),
+      ),
+      getPairBookings(attendees.map(linePair)),
+    ]);
 
     return htmlResponse(
       adminCalendarPage(
         attendees,
+        pairBookings,
         getEffectiveDomain(),
         session,
         dateFilter,
@@ -384,7 +384,7 @@ const handleAdminCalendarGet = (request: Request) =>
         getMonthFilter(request),
         settings.phonePrefix,
         questionData,
-        hasPaidListing,
+        allListings.some(isPaidListing),
         availabilityRows,
         agents,
         agentFilter,

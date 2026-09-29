@@ -2,6 +2,7 @@
  * Admin calendar view template - shows attendees across all daily listings by date
  */
 
+import type { PairBookings } from "#booking/ticket-moves.ts";
 /* jscpd:ignore-start -- imports */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
@@ -74,6 +75,7 @@ export type CalendarAttendeeRow = Attendee & {
  */
 export const adminCalendarPage = (
   attendees: CalendarAttendeeRow[],
+  pairBookings: PairBookings,
   allowedDomain: string,
   session: AdminSession,
   dateFilter: string | null,
@@ -87,7 +89,7 @@ export const adminCalendarPage = (
   agents: LogisticsAgent[] = [],
   agentFilter: AgentFilter = "all",
 ): string => {
-  const tableRows: AttendeeTableRow[] = withPairBookings(
+  const tableRows: AttendeeTableRow[] = withPairBookings(pairBookings)(
     pipe(
       map(
         (a: CalendarAttendeeRow): AttendeeTableRow =>

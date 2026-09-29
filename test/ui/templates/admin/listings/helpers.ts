@@ -1,4 +1,5 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
+import type { PairBookings } from "#booking/ticket-moves.ts";
 import { fieldById } from "#fp";
 import { rosterListSetup } from "#routes/admin/listings-view.ts";
 import type {
@@ -19,6 +20,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 /** Run fn with CAN_BUILD_SITES pinned to `value` in this worker's env overlay
@@ -37,8 +39,9 @@ export const withoutBuilder = withBuilderEnv(undefined);
  *  the shared list view (setup + state) from them. */
 type DetailOptions = Omit<
   Parameters<typeof ListingRosterPanel>[0],
-  "list" | "isOwner"
+  "list" | "isOwner" | "pairBookings"
 > & {
+  pairBookings?: PairBookings;
   activeFilter?: AttendeeFilter;
   dateFilter?: string | null;
   sort?: AttendeeSort | null;
@@ -99,6 +102,14 @@ export const renderRosterPanel = (opts: DetailOptions): string =>
       ...opts,
       isOwner: opts.isOwner ?? false,
       list: rosterListViewOf(opts),
+      pairBookings:
+        opts.pairBookings ??
+        shownLineBookings(
+          opts.attendees.map((attendee) => ({
+            ...attendee,
+            listingId: opts.listing.id,
+          })),
+        ),
     }),
   );
 

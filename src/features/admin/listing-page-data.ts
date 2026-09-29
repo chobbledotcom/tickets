@@ -13,6 +13,7 @@
 
 import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import { emptyRange } from "#accounting/range.ts";
+import { linePair } from "#booking/ticket-moves.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
@@ -20,6 +21,7 @@ import {
 } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
@@ -241,6 +243,7 @@ export const loadListingRosterPanel = async (
     groupContext,
     systemNotes,
     paymentReferenceAttendeeIds,
+    pairBookings,
   ] = await Promise.all([
     loadListingQuestionData(
       listing.id,
@@ -257,6 +260,7 @@ export const loadListingRosterPanel = async (
       requireRequestPrivateKey,
     ),
     getAttendeeIdsWithPaymentReference(filteredByDate),
+    getPairBookings(filteredByDate.map(linePair)),
   ]);
   return ListingRosterPanel({
     allowedDomain: getEffectiveDomain(),
@@ -268,6 +272,7 @@ export const loadListingRosterPanel = async (
     isOwner: isOwnerRole(ctx.session.adminLevel),
     list: { setup, state },
     listing,
+    pairBookings,
     paymentReferenceAttendeeIds,
     phonePrefix: settings.phonePrefix,
     questionData,

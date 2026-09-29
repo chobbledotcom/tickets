@@ -9,12 +9,23 @@ import { sumOf } from "#fp";
 /** Admitting fills lines up to their quantity, releasing empties them. */
 export type TicketDirection = "admit" | "release";
 
+/** One person on one listing. */
+export type TicketPair = { attendeeId: number; listingId: number };
+
+/** One person's whole booking on one listing: its lines' counts added up. */
+export type PairBooking = { checked_in: number; quantity: number };
+
+/** Each (person, listing) pair's whole booking, keyed by `pairKey`. */
+export type PairBookings = ReadonlyMap<string, PairBooking>;
+
+/** The person and listing an attendee's booking line belongs to. */
+export const linePair = (line: {
+  id: number;
+  listing_id: number;
+}): TicketPair => ({ attendeeId: line.id, listingId: line.listing_id });
+
 /** How many tickets to move for one person on one listing. */
-export type TicketMove = {
-  attendeeId: number;
-  count: number;
-  listingId: number;
-};
+export type TicketMove = TicketPair & { count: number };
 
 /** One move's answer from the write: the tickets it really moved, and what
  * its (person, listing) pair still owes afterwards. */
@@ -25,6 +36,37 @@ export type StoredTicketLine = Pick<
   ListingAttendeeRow,
   "checked_in" | "listing_id" | "quantity"
 > & { attendee_id: number; id: number };
+
+/** The key one (person, listing) pair goes by. */
+export const pairKey = (attendeeId: number, listingId: number): string =>
+  `${attendeeId}:${listingId}`;
+
+const linePairKey = (line: StoredTicketLine): string =>
+  pairKey(line.attendee_id, line.listing_id);
+
+/** Each asked pair's whole booking: its lines' counts added up, or zero for a
+ * pair that holds no line the write can move. */
+export const pairBookingsOf = (
+  pairs: readonly TicketPair[],
+  lines: readonly StoredTicketLine[],
+): Map<string, PairBooking> => {
+  const linesByPair = Map.groupBy(lines, linePairKey);
+  return new Map(
+    pairs.map(({ attendeeId, listingId }) => {
+      const key = pairKey(attendeeId, listingId);
+      const pairLines = linesByPair.get(key) ?? [];
+      return [
+        key,
+        {
+          checked_in: sumOf((line: StoredTicketLine) => line.checked_in)(
+            pairLines,
+          ),
+          quantity: sumOf((line: StoredTicketLine) => line.quantity)(pairLines),
+        },
+      ];
+    }),
+  );
+};
 
 /** A line's new admitted count. */
 export type ChangedTicketLine = { checked_in: number; id: number };
@@ -73,17 +115,11 @@ export const spreadTicketMoves = (
     .map(({ checked_in, id }) => ({ checked_in, id }));
   // What every touched pair still owes after the whole write: the honest
   // remainder for a door that raced another door for the same tickets.
-  const linesByPair = Map.groupBy(
-    after,
-    (line: StoredTicketLine) => `${line.attendee_id}:${line.listing_id}`,
-  );
-  const owedIn = sumOf(
-    (line: StoredTicketLine) => line.quantity - line.checked_in,
-  );
+  const bookings = pairBookingsOf(moves, after);
   const movedWithOwed = moved.map((move) => ({
     ...move,
-    owedAfter: owedIn(
-      linesByPair.get(`${move.attendeeId}:${move.listingId}`) ?? [],
+    owedAfter: remainingTickets(
+      bookings.get(pairKey(move.attendeeId, move.listingId))!,
     ),
   }));
   return { changed, moved: movedWithOwed };

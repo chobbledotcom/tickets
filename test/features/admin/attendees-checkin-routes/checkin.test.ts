@@ -31,7 +31,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */
@@ -228,10 +227,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       expect(html).not.toContain('name="check_in"');
     });
 
-    test("a date's direct toggle admits one ticket, never the other date's", async () => {
-      // Filtered to one date, the roster shows only that date's qty-1 line,
-      // so it offers the direct toggle. Its POST must move the one ticket
-      // the line holds, never the whole booking across both dates.
+    test("a date's line of a two-date booking opens the quantity page", async () => {
+      // Filtered to one date, the roster shows one qty-1 line, but the
+      // booking holds two tickets and a check-in moves the whole booking.
       const listing = await createDailyTestListing();
       const { attendeesApi } = await import("#db/attendees/api.ts");
       const made = await attendeesApi.createAttendeeAtomic({
@@ -251,19 +249,43 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         200,
         "Dana Days",
       );
-      const form = html.match(/<form\b[^>]*\/checkin"[\s\S]*?<\/form>/)![0];
-      await adminFormPost(
-        `/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
-        Object.fromEntries(
-          extractFormEntries(form).filter(([name]) => name !== "csrf_token"),
-        ),
+      expect(html).toContain(
+        `href="/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
       );
+      expect(html).not.toContain('name="check_in"');
+    });
 
-      const admitted = await getDb().execute({
-        args: [listing.id],
-        sql: "SELECT SUM(checked_in) AS total FROM listing_attendees WHERE listing_id = ?",
+    test("a checked-in line beside a hidden part line opens the quantity page", async () => {
+      // The "Checked In" filter hides the part-admitted package line, so the
+      // roster shows only the full qty-1 line. The booking still holds three
+      // tickets, so the line must not offer the one-ticket toggle.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
       });
-      expect(admitted.rows[0]!.total).toBe(1);
+      const group = await createTestGroup({ isPackage: true, name: "HalfKit" });
+      const attendee = await createDualPackageAttendee(
+        listing.id,
+        group.id,
+        "Hal Half",
+        "hal-half@example.com",
+      );
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: `UPDATE listing_attendees
+              SET checked_in = 1
+              WHERE attendee_id = ? AND listing_id = ?`,
+      });
+
+      const html = await expectHtmlResponse(
+        await adminGet(`/admin/listing/${listing.id}/attendees?filter=in`),
+        200,
+        "Hal Half",
+      );
+      expect(html).toContain(
+        `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      expect(html).not.toContain('name="check_in"');
     });
   });
 

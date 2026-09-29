@@ -1,3 +1,5 @@
+import { remainingTickets } from "#booking/remaining-tickets.ts";
+import type { PairBooking } from "#booking/ticket-moves.ts";
 import { isServicing } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -9,7 +11,6 @@ import {
   type AttendeeTableRow,
   type DisplayAttendee,
   hasTicketQuantity,
-  type PairBooking,
 } from "#types";
 
 /** A no-quantity row has no live customer ticket and cannot be checked in. */
@@ -20,9 +21,8 @@ export const noQuantityIndicator = (): JSX.Element => (
 /** What one roster line's check-in controls read. */
 type CheckinControlsProps = {
   attendee: DisplayAttendee;
-  /** The (person, listing) pair's summed booking, when the table's loader
-   * grouped the pair's lines. */
-  booking?: PairBooking;
+  /** The whole booking this line belongs to on its listing. */
+  booking: PairBooking;
   listingId: number;
   activeFilter: string;
   returnUrl: string | undefined;
@@ -44,12 +44,10 @@ const checkinPageHref = (
   return query ? `${href}?${query}` : href;
 };
 
-/** One roster line's check-in controls. A quantity 1 line keeps the direct
- * toggle — one POST, no page between the roster and the answer — which is
- * the journey the roster Feature pins. A line that holds more than one
- * ticket links to the quantity page instead, one link per direction the
- * line still allows, so a part booking can admit the rest or release what
- * it holds. */
+/** One roster line's check-in controls. A booking of one ticket keeps the
+ * direct toggle, one POST with no page between the roster and the answer,
+ * which is the journey the roster Feature pins. A larger booking links to the
+ * quantity page instead, one link per direction it still allows. */
 const CheckinControls = ({
   attendee,
   booking,
@@ -58,20 +56,18 @@ const CheckinControls = ({
   returnUrl,
 }: CheckinControlsProps): JSX.Element => {
   // The write spreads a count over all the pair's lines, so the control is
-  // picked from the pair's totals: a pair holding one ticket keeps the
-  // direct toggle, a larger pair links to the quantity page.
-  const bookingQuantity = booking?.quantity ?? attendee.quantity;
-  const bookingCheckedIn = booking?.checked_in ?? attendee.checked_in;
-  if (bookingQuantity > 1) {
+  // picked from the whole booking: a booking of one ticket keeps the direct
+  // toggle, a larger booking links to the quantity page.
+  if (booking.quantity > 1) {
     const href = checkinPageHref(attendee, listingId, activeFilter, returnUrl);
     return (
       <span class="checkin-links">
-        {bookingQuantity > bookingCheckedIn ? (
+        {remainingTickets(booking) > 0 ? (
           <a class="link-button checkin" href={href}>
             {t("admin.attendee_table.check_in")}
           </a>
         ) : undefined}
-        {bookingCheckedIn > 0 ? (
+        {booking.checked_in > 0 ? (
           <a class="link-button checkout" href={href}>
             {t("admin.attendee_table.check_out")}
           </a>
@@ -79,7 +75,7 @@ const CheckinControls = ({
       </span>
     );
   }
-  const out = bookingCheckedIn > 0;
+  const out = booking.checked_in > 0;
   return (
     <CsrfForm
       action={`/admin/listing/${listingId}/attendee/${attendee.id}/checkin`}
@@ -124,11 +120,14 @@ export const createStatusRenderer =
     return CheckinControls({
       activeFilter: options.activeFilter ?? "all",
       attendee,
+      booking: requireValue(
+        row.booking,
+        `Attendee ${attendee.id} has no booking read`,
+      ),
       listingId: requireValue(
         row.listings[0],
         `Attendee ${attendee.id} has no listing`,
       ).id,
       returnUrl: options.returnUrl,
-      ...(row.booking !== undefined && { booking: row.booking }),
     });
   };

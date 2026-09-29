@@ -6,9 +6,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { AttendeesSection } from "#templates/admin/listings/attendees.tsx";
 import { testRosterListSetup } from "#test-utils/attendee-list.ts";
+import { bookedLineRow } from "#test-utils/attendees/pair-bookings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 import type { AttendeeTableRow } from "#types";
 
@@ -22,9 +22,7 @@ describe("AttendeesSection", () => {
       { id: 3, name: "Zulu Person" },
       { id: 2, name: "Alpha Person" },
       { id: 1, name: "Mid Person" },
-    ].map(({ id, name }) =>
-      attendeeLineRow(testAttendee({ id, name }), listing),
-    );
+    ].map(({ id, name }) => bookedLineRow(testAttendee({ id, name }), listing));
     const setup = testRosterListSetup();
     const html = String(
       AttendeesSection({

@@ -3,6 +3,7 @@
  */
 
 import * as v from "valibot";
+import type { PairBooking } from "#booking/ticket-moves.ts";
 import type {
   BlindIndex,
   EnvKeyEncrypted,
@@ -898,11 +899,6 @@ export type DisplayAttendee = Pick<
   | "special_instructions"
   | "ticket_token"
 >;
-
-/** The (person, listing) pair's summed booking: the pair's lines' ticket
- * counts added together. The check-in controls pick the direct toggle from
- * it, because the POST a control makes moves the whole pair. */
-export type PairBooking = { checked_in: number; quantity: number };
 
 /** A single row in the attendee table: an attendee plus the listings the row
  * covers, in display order. Roster/check-in tables render one row per booking

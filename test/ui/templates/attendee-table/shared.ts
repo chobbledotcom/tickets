@@ -7,13 +7,18 @@ import type { AttendeeTableRow } from "#types";
 
 export const ALLOWED_DOMAIN = "example.com";
 
+/** A table row whose line is its whole booking, unless `booking` says more. */
 export const makeRow = (
   overrides: Partial<AttendeeTableRow> = {},
-): AttendeeTableRow => ({
-  attendee: testAttendee(),
-  listings: [{ id: 1, name: "Test Listing" }],
-  ...overrides,
-});
+): AttendeeTableRow => {
+  const attendee = overrides.attendee ?? testAttendee();
+  return {
+    attendee,
+    booking: { checked_in: attendee.checked_in, quantity: attendee.quantity },
+    listings: [{ id: 1, name: "Test Listing" }],
+    ...overrides,
+  };
+};
 
 export const namedListingRow = (
   name: string,

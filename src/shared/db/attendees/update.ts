@@ -12,15 +12,11 @@ import {
 } from "#booking/ticket-moves.ts";
 import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
-import {
-  LISTING_ATTENDEE_REFUNDED_ROW,
-  refundedForBooking,
-} from "#db/attendees/select.ts";
+import { ticketLinesQuery } from "#db/attendees/ticket-lines.ts";
 import {
   execute,
   executeBatch,
   executeUpdate,
-  inPlaceholders,
   queryAll,
   rawSql,
   resultRows,
@@ -45,23 +41,8 @@ export const moveTickets = (
   transaction?: TxScope,
 ): Promise<TicketMoveAnswer[]> =>
   useTransaction(transaction, async (tx) => {
-    const attendeeIds = unique(moves.map((move) => move.attendeeId));
-    const listingIds = unique(moves.map((move) => move.listingId));
     const lines = resultRows<StoredTicketLine>(
-      await tx.execute({
-        args: [...attendeeIds, ...listingIds],
-        sql: `SELECT id, attendee_id, listing_id, quantity, checked_in
-              FROM listing_attendees AS listingAttendee
-              WHERE listingAttendee.attendee_id IN (${inPlaceholders(
-                attendeeIds,
-              )})
-                AND listingAttendee.listing_id IN (${inPlaceholders(
-                  listingIds,
-                )})
-                AND listingAttendee.quantity > 0
-                AND NOT (${refundedForBooking(LISTING_ATTENDEE_REFUNDED_ROW)})
-              ORDER BY listingAttendee.start_at, listingAttendee.id`,
-      }),
+      await tx.execute(ticketLinesQuery(moves)),
     );
     const { changed, moved } = spreadTicketMoves(direction, lines, moves);
     if (changed.length > 0) {

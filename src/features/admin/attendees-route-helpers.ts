@@ -2,9 +2,10 @@
  * Shared utilities for admin attendee route handlers
  */
 
-import { movableBooking } from "#booking/remaining-tickets.ts";
+import { pairKey } from "#booking/ticket-moves.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getListingWithAttendeeRaw } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
@@ -41,16 +42,18 @@ export type AttendeeWithListing = {
   listing: ListingWithCount;
 };
 
-/** The listing and the decrypted person behind the pair's rows, or null when
- * the listing is gone or the person holds no booking on it. */
-const loadDecryptedRows = async (
+/** Loads one person's booking on one listing, or null when they hold none. */
+type ListingAttendeeLoader = (
   listingId: number,
   attendeeId: number,
-): Promise<{
-  attendee: Attendee;
-  listing: ListingWithCount;
-  rows: Attendee[];
-} | null> => {
+) => Promise<AttendeeWithListing | null>;
+
+/** Load the attendee's booking line for one listing. An attendee with no
+ * booking on the listing reads as null — the route then answers 404. */
+export const loadAttendeeForListing: ListingAttendeeLoader = async (
+  listingId,
+  attendeeId,
+) => {
   const result = await getListingWithAttendeeRaw(listingId, attendeeId);
   if (result === null || result.attendeeRows.length === 0) return null;
   // The row exists, so its decrypt always answers — the null-tolerant helper
@@ -59,42 +62,22 @@ const loadDecryptedRows = async (
     result.attendeeRows[0]!,
     await requireRequestPrivateKey(),
   );
-  return { attendee, listing: result.listing, rows: result.attendeeRows };
+  return { attendee, listing: result.listing };
 };
 
-/** Load the person's booking on one listing, decrypted. `toAttendee` names
- * what the pair's rows become: the line loader keeps the first row as the
- * person's line, and the booking loader sums the counts across every row the
- * pair holds. Several rows can share the pair — two parents, two dates — and
- * every check-in surface moves the booking, never one row, so the page and
- * the POST a roster line opens speak the pair's totals. */
-const loadBookingWith =
-  (
-    toAttendee: (loaded: { attendee: Attendee; rows: Attendee[] }) => Attendee,
-  ) =>
-  async (
-    listingId: number,
-    attendeeId: number,
-  ): Promise<AttendeeWithListing | null> => {
-    const loaded = await loadDecryptedRows(listingId, attendeeId);
-    if (loaded === null) return null;
-    return { attendee: toAttendee(loaded), listing: loaded.listing };
-  };
-
-/** Load the attendee's booking line for one listing. An attendee with no
- * booking on the listing reads as null — the route then answers 404. */
-export const loadAttendeeForListing = loadBookingWith(
-  ({ attendee }) => attendee,
-);
-
-/** Load the person's whole booking on one listing: the ticket counts summed
- * across the rows the write can move — the lines no refund returned. A
- * refunded sibling holds no movable tickets, so it stays out of the page's
- * totals and the counts it offers. */
-export const loadAttendeeBooking = loadBookingWith(({ attendee, rows }) => ({
-  ...attendee,
-  ...movableBooking(rows),
-}));
+/** Load the person's whole booking on one listing. Several lines can share
+ * the pair — two parents, two dates — and a check-in moves the whole
+ * booking, so the page and the POST read the counts the write moves. */
+export const loadAttendeeBooking: ListingAttendeeLoader = async (
+  listingId,
+  attendeeId,
+) => {
+  const loaded = await loadAttendeeForListing(listingId, attendeeId);
+  if (loaded === null) return null;
+  const bookings = await getPairBookings([{ attendeeId, listingId }]);
+  const booking = bookings.get(pairKey(attendeeId, listingId))!;
+  return { ...loaded, attendee: { ...loaded.attendee, ...booking } };
+};
 
 /** Load attendee with auth, returning 404 if not found */
 export const withAttendee = withEntityLoader(loadAttendeeForListing);

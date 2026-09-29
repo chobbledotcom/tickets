@@ -69,7 +69,7 @@ const listingRosterView = (opts: ListingPanelOptions) => {
       : undefined,
   });
   const returnUrl = attendeeListHref(list.setup, list.state);
-  const tableRows: AttendeeTableRow[] = withPairBookings(
+  const tableRows: AttendeeTableRow[] = withPairBookings(opts.pairBookings)(
     pipe(map((a: Attendee): AttendeeTableRow => attendeeLineRow(a, listing)))(
       orderedAttendees,
     ),

@@ -5,6 +5,7 @@
  */
 
 import { ticketCount } from "#booking/ticket-moves.ts";
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
@@ -117,11 +118,15 @@ const renderAdminCheckin = async (
   entries: TokenEntry[],
   canCheckIn: boolean,
 ): Promise<Response> => {
-  const decrypted = await decryptEntries(entries);
+  const [decrypted, pairBookings] = await Promise.all([
+    decryptEntries(entries),
+    getPairBookings(entries.map(entryBookingRef)),
+  ]);
   const message = getSearchParam(request, "message");
   return htmlResponse(
     checkinAdminPage(
       decrypted,
+      pairBookings,
       checkinPath(tokens),
       message,
       getEffectiveDomain(),

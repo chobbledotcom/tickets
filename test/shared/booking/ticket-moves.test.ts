@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  linePair,
+  pairBookingsOf,
+  pairKey,
   type StoredTicketLine,
   spreadTicketMoves,
   ticketCount,
@@ -121,5 +124,43 @@ describe("booking > ticket moves", () => {
 
   test("counts the tickets a set of moves covers", () => {
     expect(ticketCount([move(2), move(0), move(3)])).toBe(5);
+  });
+});
+
+describe("booking > pair bookings", () => {
+  test("adds up each asked pair's lines, and only that pair's", () => {
+    const bookings = pairBookingsOf(
+      [
+        { attendeeId: 1, listingId: 10 },
+        { attendeeId: 2, listingId: 10 },
+      ],
+      [
+        line(1, 2, 1),
+        line(2, 3, 2),
+        line(3, 4, 4, { attendee_id: 2 }),
+        line(4, 9, 9, { listing_id: 11 }),
+      ],
+    );
+    expect([...bookings]).toEqual([
+      [pairKey(1, 10), { checked_in: 3, quantity: 5 }],
+      [pairKey(2, 10), { checked_in: 4, quantity: 4 }],
+    ]);
+  });
+
+  test("answers an empty booking for a pair with no line", () => {
+    expect(pairBookingsOf([{ attendeeId: 7, listingId: 10 }], [])).toEqual(
+      new Map([[pairKey(7, 10), { checked_in: 0, quantity: 0 }]]),
+    );
+  });
+
+  test("keys a pair by person, then listing", () => {
+    expect(pairKey(3, 12)).toBe("3:12");
+  });
+
+  test("reads a booking line's person and listing", () => {
+    expect(linePair({ id: 3, listing_id: 12 })).toEqual({
+      attendeeId: 3,
+      listingId: 12,
+    });
   });
 });

@@ -4,7 +4,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rosterListSetup } from "#routes/admin/listings-view.ts";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import {
   AddAttendeeSection,
@@ -14,6 +13,7 @@ import {
 } from "#templates/admin/listings/attendees.tsx";
 import type { RosterListView } from "#templates/admin/listings/types.ts";
 import { registerListingTemplateHooks } from "#test/ui/templates/admin/listings/helpers.ts";
+import { bookedLineRow } from "#test-utils/attendees/pair-bookings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("filterAttendees", () => {
@@ -68,7 +68,7 @@ describe("AttendeesSection", () => {
         phonePrefix: undefined,
         questionData: undefined,
         returnUrl: "/admin/listing/7/attendees",
-        tableRows: [attendeeLineRow(testAttendee(), listing)],
+        tableRows: [bookedLineRow(testAttendee(), listing)],
       }),
     );
 

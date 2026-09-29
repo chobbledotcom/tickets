@@ -2,16 +2,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { reverseOrderFor } from "#test/shared/db/attendees/select-refunded/support.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash, expectHtmlResponse } from "#test-utils/assertions.ts";
-import { createDualPackageAttendee } from "#test-utils/attendees/helpers.ts";
+import { bookRefundedSibling } from "#test-utils/attendees/refunded-sibling.ts";
 // jscpd:ignore-end
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 
@@ -113,35 +111,12 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         isPackage: true,
         name: "RefundKit",
       });
-      const attendee = await createDualPackageAttendee(
+      const attendee = await bookRefundedSibling(
         listing.id,
         group.id,
         "Cara Merged",
         "cara-merged@example.com",
       );
-      // Two paid orders, one per row — postListingSale stamps every
-      // un-stamped row onto the first order, so point the standalone row
-      // at its own order, then reverse the first order. The package row
-      // reads refunded while the standalone row still owes its ticket.
-      await postListingSale({
-        attendeeId: attendee.id,
-        eventId: "order-a",
-        gross: 100,
-        listingId: listing.id,
-      });
-      const secondOrder = await postListingSale({
-        attendeeId: attendee.id,
-        eventId: "order-b",
-        gross: 100,
-        listingId: listing.id,
-      });
-      await getDb().execute({
-        args: [secondOrder, attendee.id, listing.id],
-        sql:
-          "UPDATE listing_attendees SET ledger_event_group = ?" +
-          " WHERE attendee_id = ? AND listing_id = ? AND package_group_id = 0",
-      });
-      await reverseOrderFor(attendee.id, listing.id);
 
       const response = await adminGet(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
