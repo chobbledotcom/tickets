@@ -14,9 +14,10 @@ const ATTR =
 /** Hard-coded user-facing object-property values in copy definition modules. */
 const PROP =
   /\b(placeholder|title|label|hint|hintHtml|legend|summary|description|header|empty|emptyText)\s*:\s*(["'])([^"'{][^"']*)\2/g;
-/** Table configs are object properties in both .ts and .tsx. Quoted and
- * template values both count: a header often holds a row or attendee name,
- * and a template's interpolation may carry a quoted fallback of its own. */
+/** Table configs are object properties in both .ts and .tsx. Quoted values
+ * sit on one line; template values are scanned whole-file below, because a
+ * header often holds a row or attendee name and may span lines or carry a
+ * quoted fallback inside its interpolation. */
 const TABLE_PROP_QUOTED =
   /\b(header|empty|emptyText)\s*:\s*(["'])([^"'{][^"']*)\2/g;
 const TABLE_PROP_TEMPLATE = /\b(header|empty|emptyText)\s*:\s*`([^`{][^`]*)`/g;
@@ -76,23 +77,47 @@ const isCommentLine = (line: string): boolean => {
 const wordy = (s: string): boolean =>
   /[a-z]/.test(s.replaceAll(/\$\{[^}]*\}/g, ""));
 
-/** Wordy matches of `re` on one line, each formatted via `label`. The captured
- * user-facing value lives in group `valueGroup` (differs per pattern). */
+/** One match as its reader-facing report line. */
+type MatchLabel = (
+  m: RegExpMatchArray,
+  value: string,
+  lineNo: number,
+) => string;
+
+/** Wordy matches of `re`, each reported through `label` with its line number.
+ * `lineAt` derives the number from the match start, so one scan serves a
+ * single line (a fixed number) and a whole file (counted from the newlines
+ * before the match). `valueOf` returns the user-facing value, or "" to drop
+ * the match. */
+const wordyMatches = (
+  src: string,
+  re: RegExp,
+  valueFrom: (m: RegExpMatchArray) => string,
+  lineAt: (start: number) => number,
+  label: MatchLabel,
+): string[] => {
+  const out: string[] = [];
+  for (const m of src.matchAll(re)) {
+    const value = valueFrom(m);
+    if (wordy(value)) out.push(label(m, value, lineAt(m.index)));
+  }
+  return out;
+};
+
 const matchesOnLine = (
   line: string,
   lineNo: number,
   re: RegExp,
   valueGroup: number,
-  label: (m: RegExpMatchArray, value: string, lineNo: number) => string,
-): string[] => {
-  const out: string[] = [];
-  for (const m of line.matchAll(re)) {
-    // Every caller's regex captures `valueGroup` in every match.
-    const value = m[valueGroup]!;
-    if (wordy(value)) out.push(label(m, value, lineNo));
-  }
-  return out;
-};
+  label: MatchLabel,
+): string[] =>
+  wordyMatches(
+    line,
+    re,
+    (m) => m[valueGroup]!,
+    () => lineNo,
+    label,
+  );
 
 /** Hard-coded strings in JSX attributes and text nodes on one line. */
 const jsxLeftovers = (line: string, lineNo: number): string[] => [
@@ -107,21 +132,33 @@ const jsxLeftovers = (line: string, lineNo: number): string[] => [
 ];
 
 /** One object-property hit as the reader-facing line. */
-const propHit = (m: RegExpMatchArray, value: string, lineNo: number): string =>
+const propHit: MatchLabel = (m, value, lineNo) =>
   `L${lineNo} ${m[1]}: "${value}"`;
 
 /** Hard-coded strings in object-property definitions on one line. TS copy
  * modules use the full property set; TSX adds table configs to its JSX scan.
- * Table templates are scanned beside the quoted properties in both file
- * kinds: the delimiters differ, so no value is counted twice. */
-const propLeftovers = (
-  line: string,
-  lineNo: number,
-  isTs: boolean,
-): string[] => [
-  ...matchesOnLine(line, lineNo, isTs ? PROP : TABLE_PROP_QUOTED, 3, propHit),
-  ...matchesOnLine(line, lineNo, TABLE_PROP_TEMPLATE, 2, propHit),
-];
+ * Table templates are scanned whole-file below, so both file kinds see them
+ * without a value being counted twice. */
+const propLeftovers = (line: string, lineNo: number, isTs: boolean): string[] =>
+  matchesOnLine(line, lineNo, isTs ? PROP : TABLE_PROP_QUOTED, 3, propHit);
+
+/** Table template strings, scanned across lines: a template's value may hold
+ * a newline, which the per-line pass cannot see. The line number stays the
+ * opening line, and a match opening on a comment line is dropped — its
+ * example is prose, not copy. */
+const templatePropLeftovers = (src: string): string[] =>
+  wordyMatches(
+    src,
+    TABLE_PROP_TEMPLATE,
+    (m) => {
+      const lineStart = src.lastIndexOf("\n", m.index) + 1;
+      if (isCommentLine(src.slice(lineStart, m.index))) return "";
+      // The template regex captures the value in every match.
+      return m[2]!.replaceAll(/\s+/g, " ").trim();
+    },
+    (start) => src.slice(0, start).split("\n").length,
+    propHit,
+  );
 
 /** Hard-coded user-facing strings still present in a file's source. */
 export const leftoverLiterals = (src: string, isTs: boolean): string[] => {
@@ -132,6 +169,7 @@ export const leftoverLiterals = (src: string, isTs: boolean): string[] => {
     hits.push(...jsxLeftovers(line, lineNo));
     hits.push(...propLeftovers(line, lineNo, isTs));
   });
+  hits.push(...templatePropLeftovers(src));
   return hits;
 };
 

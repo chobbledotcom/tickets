@@ -305,6 +305,24 @@ describe("comment-gate-citation rule", () => {
     ).toEqual([]);
   });
 
+  test("passes a comment that names a check as its topic", () => {
+    expect(
+      citations(
+        "src/shared/db.ts",
+        "// Deno lint rules: avoid nested calls in the parser.\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("passes a comment whose subject is the tool itself", () => {
+    expect(
+      citations(
+        "src/shared/db.ts",
+        "// Biome avoids duplicating the scanner.\n",
+      ),
+    ).toEqual([]);
+  });
+
   test("finds a citation however the src path is spelled", () => {
     expect(
       citations("/repo/src/shared/db.ts", "// so the linter passes\n"),

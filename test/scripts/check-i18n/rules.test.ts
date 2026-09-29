@@ -57,6 +57,28 @@ describe("leftoverLiterals", () => {
       `L1 header: "Status: ${nameFallback}"`,
     ]);
   });
+
+  test("a table template spanning lines keeps its opening line", () => {
+    const multiline = "const table = {\n  header: `No\n  results`,\n};";
+    expect(leftoverLiterals(multiline, false)).toEqual([
+      'L2 header: "No results"',
+    ]);
+    expect(leftoverLiterals(multiline, true)).toEqual([
+      'L2 header: "No results"',
+    ]);
+  });
+
+  test("a newline right after the opening backtick is still scanned", () => {
+    const afterNewline = "const table = { header: `\nNo results` };";
+    expect(leftoverLiterals(afterNewline, false)).toEqual([
+      'L1 header: "No results"',
+    ]);
+  });
+
+  test("a template example inside a comment is not copy", () => {
+    const commented = "// e.g. header: `No results`\nconst table = {};";
+    expect(leftoverLiterals(commented, false)).toEqual([]);
+  });
 });
 
 describe("isI18nScanTarget", () => {

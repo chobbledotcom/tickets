@@ -190,8 +190,27 @@ export const findCommentIssues: CommentCheck<CommentLimits> = eachComment(
  */
 const GATE_TOOL =
   /(jscpd|biome|deno[- ]lint|deno fmt|deno check|\btypecheck\b|\bprecommit\b|\blint(?:er|ing)?\b)/i;
-const GATE_CREDIT =
+/** Credit words in the object position: the code avoids, satisfies, or
+ * silences the named check. */
+const GATE_CREDIT_OBJECT =
   /(avoid|satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b)/i;
+/** Credit words in the result position, after the tool: the check passes or
+ * is kept happy. "Avoid" stays out — "Biome avoids X" describes the tool,
+ * not the code's shape. */
+const GATE_CREDIT_RESULT =
+  /(satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b)/i;
+
+/** Whether a credit word sits beside the tool it credits: right before it
+ * ("avoids jscpd duplication") or just after it ("so the linter passes").
+ * A tool named as the sentence's topic ("Deno lint rules: avoid nested
+ * calls") keeps its distance from the credit word and stays unflagged. */
+const creditsTheTool = (
+  text: string,
+  toolAt: number,
+  toolEnd: number,
+): boolean =>
+  GATE_CREDIT_OBJECT.test(text.slice(Math.max(0, toolAt - 12), toolAt)) ||
+  GATE_CREDIT_RESULT.test(text.slice(toolEnd, toolEnd + 12));
 
 /** Comments under src/ that justify the code by a check it passes or avoids. */
 export const findGateCitations = (
@@ -203,7 +222,12 @@ export const findGateCitations = (
   if (!/(?:^|\/)src\//.test(file)) return [];
   return readComments(content).flatMap((comment) => {
     const tool = GATE_TOOL.exec(comment.text);
-    if (tool === null || !GATE_CREDIT.test(comment.text)) return [];
+    if (
+      tool === null ||
+      !creditsTheTool(comment.text, tool.index, tool.index + tool[0].length)
+    ) {
+      return [];
+    }
     return [
       {
         fix: "Delete the comment. The checks run on every change, so no comment needs to vouch for the code.",
