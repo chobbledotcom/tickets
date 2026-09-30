@@ -3,7 +3,7 @@
  * row-identity filter the agent check-in uses to keep only those rows in view.
  *
  * Kept apart from `logistics.ts`, which reads and writes assignments — see
- * "Modularised" in AGENTS.md.
+ * "Modularised" in docs/designing-systems.md.
  */
 
 import { bookingSlotKey } from "#db/attendees/booking-slot.ts";

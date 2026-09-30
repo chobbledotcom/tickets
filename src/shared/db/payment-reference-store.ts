@@ -126,16 +126,23 @@ export type IndexedPaymentReferenceSource = {
   readonly payment_session_id: string;
 };
 
+/** Decrypt one processed-payment row's stored reference. */
+export const loadRowPaymentReference = async (
+  row: IndexedPaymentReferenceSource,
+  privateKey: CryptoKey,
+): Promise<PaymentReference> =>
+  loadPaymentReference(
+    row.payment_reference,
+    privateKey,
+    "processed_payments.payment_reference",
+  );
+
 /** Decrypt a row reference and verify any index it already carries. */
 export const loadIndexedPaymentReference = async (
   row: IndexedPaymentReferenceSource,
   privateKey: CryptoKey,
 ): Promise<{ readonly index: string; readonly payment: PaymentReference }> => {
-  const payment = await loadPaymentReference(
-    row.payment_reference,
-    privateKey,
-    "processed_payments.payment_reference",
-  );
+  const payment = await loadRowPaymentReference(row, privateKey);
   const index = await paymentReferenceIndex(payment);
   if (
     row.payment_reference_index !== "" &&

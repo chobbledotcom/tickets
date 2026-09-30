@@ -13,6 +13,7 @@ import {
   type CommentLimits,
   findCommentIssues,
   findDeadLinks,
+  findGateCitations,
   formatIssue,
   namesMentioned,
 } from "./rules.ts";
@@ -47,6 +48,10 @@ const isExempt = (relative: string): boolean =>
   EXEMPT.some((entry) =>
     entry.endsWith("/") ? relative.startsWith(entry) : relative === entry,
   );
+
+/** Whether a source file under src/ is exempt from the comment length rule. */
+export const isCommentExempt = (file: string): boolean =>
+  isExempt(file.startsWith("src/") ? file.slice(4) : file);
 
 /**
  * The part of `path` below `root`. `collectSourceFiles` joins every path from
@@ -84,6 +89,7 @@ export const runCommentCheck = async (
         ? []
         : findCommentIssues(content, limits)),
       ...findDeadLinks(content, known),
+      ...findGateCitations(file, content),
     ].sort(byLine);
     for (const issue of issues) found.push(formatIssue(file, issue));
   }

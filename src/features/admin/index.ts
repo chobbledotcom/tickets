@@ -75,9 +75,8 @@ export const routeAdmin: PathMethodRoute = async (
     : undefined;
   if (!segmentRouter) return null;
 
-  const { authFailure, getAuthenticatedSession } = await import(
-    "#routes/auth.ts"
-  );
+  const { authFailure } = await import("#routes/auth-failures.ts");
+  const { getAuthenticatedSession } = await import("#routes/auth.ts");
   const session = await getAuthenticatedSession(request);
   if (
     !session &&

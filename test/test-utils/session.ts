@@ -1,5 +1,3 @@
-import type { InValue } from "@libsql/client";
-import type { WrappedKey } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { createApiKey } from "#db/api-keys.ts";
 import { getSession } from "#db/sessions.ts";
@@ -26,6 +24,10 @@ import {
   mockMultipartRequest,
   testPageHtml,
 } from "#test-utils/mocks.ts";
+import {
+  createKeyedRoleSession,
+  createUserWithSession,
+} from "#test-utils/role-sessions.ts";
 import { getSetupState } from "#test-utils/test-state.ts";
 import type { Listing } from "#types";
 
@@ -126,34 +128,6 @@ export const reloginAsAdmin = async (
   setTestSession(await loginAsAdmin(username, password));
 };
 
-/** Insert a user row and open a live session for it. The role helpers below
- * differ only in the row they store and the key the session carries. */
-const createUserWithSession = async (
-  username: string,
-  row: Record<string, InValue>,
-  session: {
-    token: string;
-    csrfToken: string;
-    wrappedKey: WrappedKey | null;
-  },
-): Promise<number> => {
-  const { getDb, insert } = await import("#db/client.ts");
-  const { createSession } = await import("#db/sessions.ts");
-  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
-    await import("#db/users.ts");
-  await getDb().execute(insert("users", row));
-  invalidateUsers();
-  const userId = (await getUserByUsername(username))!.id;
-  await createSession(
-    session.token,
-    session.csrfToken,
-    Date.now() + 60_000,
-    session.wrappedKey,
-    userId,
-  );
-  return userId;
-};
-
 export const createTestManagerSession = async (
   token = "mgr-session",
   rawUsername = "testmanager",
@@ -161,30 +135,12 @@ export const createTestManagerSession = async (
   // Production stores usernames lower-cased (buildUserInsert), and the login
   // lookup hashes them lower-cased to match, so the row this writes has to be
   // indexed the same way or nothing can find it again.
-  const username = rawUsername.toLowerCase();
-  const { encrypt: enc } = await import("#crypto/encryption.ts");
-  const { hmacHash } = await import("#crypto/hashing.ts");
-  const { wrapKeyWithToken } = await import("#crypto/keys.ts");
-  const { getOwnerDataKey } = await import("#test-utils/owner-key.ts");
-
-  const dataKey = await getOwnerDataKey();
-  await createUserWithSession(
-    username,
-    {
-      admin_level: await enc("manager"),
-      password_hash: "",
-      username_hash: await enc(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: await wrapKeyWithToken(dataKey, "user-key-placeholder"),
-    },
-    {
-      csrfToken: "mgr-csrf",
-      token,
-      wrappedKey: await wrapKeyWithToken(dataKey, token),
-    },
-  );
-
-  return `${getSessionCookieName()}=${token}`;
+  const { cookie } = await createKeyedRoleSession("manager", {
+    csrfToken: "mgr-csrf",
+    token,
+    username: rawUsername.toLowerCase(),
+  });
+  return cookie;
 };
 
 /**

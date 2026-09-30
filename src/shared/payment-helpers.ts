@@ -7,7 +7,6 @@ import * as v from "valibot";
 import { signedEdgeFor } from "#booking/signed-metadata.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { lazyRef, map } from "#fp";
-import { checkoutFailure } from "#payment/checkout-failure.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -40,6 +39,7 @@ import type {
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { stringRecordSchema } from "#shared/validation/stored-json.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 
 /**
@@ -425,51 +425,6 @@ export const buildMetadata = (
     : {}),
 });
 
-type SuccessfulCheckoutResult = Exclude<
-  CheckoutSessionResult,
-  null | { error: string }
->;
-
-/** Read the created checkout a provider answered with. A checkout the buyer
- * cannot be sent to is an answer we cannot use, so it is refused in the words
- * every other unusable provider answer is refused in. */
-const createdCheckout = (
-  provider: PaymentProviderType,
-  sessionId: string | undefined,
-  url: string | undefined | null,
-): SuccessfulCheckoutResult => {
-  if (!sessionId || !url) throw checkoutFailure.invalidResponse(provider);
-  return { checkoutUrl: url, sessionId };
-};
-
-/**
- * Build a provider's `createCheckoutSession`: call the provider's own create
- * function, read the session id and URL off whatever shape it returns, and map
- * that to a shared CheckoutSessionResult — all inside the standard checkout
- * error guard. Each provider only supplies its create call and how to read the
- * id/url. A null create answer means the provider is not configured; a non-null
- * answer must contain both documented fields.
- */
-export const makeCreateCheckoutSession =
-  <Result>(
-    provider: PaymentProviderType,
-    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
-    readResult: (result: Result) => {
-      id: string | undefined;
-      url: string | undefined | null;
-    },
-  ): ((
-    intent: CheckoutIntent,
-    baseUrl: string,
-  ) => Promise<CheckoutSessionResult>) =>
-  (intent, baseUrl) =>
-    withCheckoutError(async () => {
-      const result = await create(intent, baseUrl);
-      if (result === null) return null;
-      const { id, url } = readResult(result);
-      return createdCheckout(provider, id, url);
-    });
-
 /**
  * Wrap a checkout operation, converting PaymentUserError to { error } and
  * letting unexpected failures propagate. Used by both provider adapters.
@@ -623,12 +578,10 @@ export const enforceMetadataLimits = (
 /**
  * Validate that every metadata value is text and required fields are present.
  */
-const ProviderMetadataSchema = v.record(v.string(), v.string());
-
 export const hasRequiredSessionMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
 ): metadata is SessionMetadata => {
-  if (!v.is(ProviderMetadataSchema, metadata)) return false;
+  if (!v.is(stringRecordSchema, metadata)) return false;
   return !!metadata.name && !!metadata.items;
 };
 

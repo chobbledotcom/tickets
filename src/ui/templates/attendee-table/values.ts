@@ -1,5 +1,6 @@
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { sort } from "#fp";
+import { t } from "#i18n";
 import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
 import { nonBlankLines } from "#shared/split.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
@@ -62,8 +63,12 @@ export const getAnswerDisplay = (
     if (text && questionText) tooltipParts.push(`${questionText}: ${text}`);
   }
   const freeText = freeTextAnswerParts(attendeeId, questionData);
+  const short = [...answerTexts, ...freeText.texts].join(", ");
   return {
-    short: [...answerTexts, ...freeText.texts].join(", "),
+    short:
+      questionData.changedAttendeeIds?.has(attendeeId) === true
+        ? `${short} ${t("admin.attendee_table.answers_changed")}`
+        : short,
     tooltip: [...tooltipParts, ...freeText.tooltips].join(", "),
   };
 };
@@ -122,7 +127,9 @@ export const hiddenAttendeeColumnKeys = (
   options: AttendeeTableOptions,
 ): Set<AttendeeColumnKey> => {
   const hidden = new Set<AttendeeColumnKey>();
-  if (options.showCheckin === false) hidden.add("status");
+  if (options.showCheckin === false && !options.showCheckinState) {
+    hidden.add("status");
+  }
   if (!options.showListing) hidden.add("listings");
   if (!options.showDate) hidden.add("date");
   for (const columnKey of [

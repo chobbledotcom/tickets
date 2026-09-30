@@ -42,11 +42,15 @@ export const decideScan = (
   checkInEveryListing: boolean,
   idVerified: boolean,
 ): ScanDecision => {
-  const inScope = entries.filter((entry) => scope.has(entry.listing.id));
+  // A "No check-in" listing sells with no door, so its rows never admit on
+  // any door — the ticket-QR path refuses them too, and force never widens
+  // onto them.
+  const doorSafe = entries.filter((entry) => !entry.listing.purchase_only);
+  const inScope = doorSafe.filter((entry) => scope.has(entry.listing.id));
   // `force` only ever widens: a ticket that matches in scope is decided by
   // the listings it matched, exactly as the listing scanner always has.
   const widened = force && inScope.length === 0;
-  const pool = widened ? [...entries] : inScope;
+  const pool = widened ? [...doorSafe] : inScope;
   if (pool.length === 0) {
     return entries.length === 0 && force
       ? { kind: "not_found" }

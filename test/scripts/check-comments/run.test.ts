@@ -1,11 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  isCommentExempt,
   LIMITS,
   runCommentCheck,
   SOURCE_DIR,
 } from "#scripts/check-comments/run.ts";
 import { checkScriptRun } from "#test-utils/check-script.ts";
+
+describe("isCommentExempt", () => {
+  test("exempts a src/ path and leaves an outside path alone", () => {
+    expect(isCommentExempt("src/doc.ts")).toBe(true);
+    expect(isCommentExempt("src/ui/static/style.scss")).toBe(true);
+    expect(isCommentExempt("scripts/x.ts")).toBe(false);
+  });
+});
 
 describe("runCommentCheck", () => {
   const run = checkScriptRun();

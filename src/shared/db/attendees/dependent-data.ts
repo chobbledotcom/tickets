@@ -82,6 +82,12 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
     action: "delete",
     field: "attendee_id",
     kind: "direct",
+    table: "answers_at_booking",
+  },
+  {
+    action: "delete",
+    field: "attendee_id",
+    kind: "direct",
     table: "listing_attendees",
   },
   {

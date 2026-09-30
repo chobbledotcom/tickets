@@ -19,12 +19,19 @@ import {
   setupListingAndAttendee,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestAttendee,
+  submitAttendeeEdit,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import {
   createTierListing,
   planListing,
 } from "#test-utils/db-helpers/site-plans.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -284,3 +291,55 @@ describeWithEnv("re-sending for a line with no places", { db: true }, () => {
     expect(await registeredEntries()).toBe(before);
   });
 });
+
+describeWithEnv(
+  "re-sending with a buyer's free-text answer",
+  { db: true },
+  () => {
+    const fetch = stubFetchEachTest(() => new Response("{}"));
+
+    /** The confirmation texts sent to this buyer, in send order. */
+    const buyerEmailTexts = (buyer: string): string[] =>
+      fetch.calls.flatMap(({ args }) => {
+        const [, options] = args as [string, RequestInit];
+        const body = JSON.parse(options.body as string) as {
+          to?: string[];
+          text?: string;
+        };
+        return body.to?.[0] === buyer && body.text !== undefined
+          ? [body.text]
+          : [];
+      });
+
+    test("renders the free-text answer as it stands now", async () => {
+      await configureTestEmail();
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const questionId = await createFreeTextQuestion([listing.id]);
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Current Wording",
+        "wording@example.com",
+        1,
+        "",
+        { [`question_${questionId}`]: "Coming by bus" },
+      );
+      const edited = await submitAttendeeEdit(attendee.id, {
+        email: "wording@example.com",
+        extra: { [`question_${questionId}`]: "Coming by train" },
+        name: "Current Wording",
+      });
+      expect(edited.status).toBe(302);
+
+      const { response } = await resend(attendee.id, "Current Wording");
+
+      expectRedirectWithFlash(
+        `/admin/attendees/${attendee.id}/actions`,
+        t("success.notification_resent"),
+      )(response);
+      const resent = buyerEmailTexts("wording@example.com").at(-1);
+      expect(resent).toContain("Anything else?: Coming by train");
+      expect(resent).not.toContain("Coming by bus");
+    });
+  },
+);

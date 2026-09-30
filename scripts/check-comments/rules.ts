@@ -180,6 +180,65 @@ export const findCommentIssues: CommentCheck<CommentLimits> = eachComment(
     ),
 );
 
+/**
+ * A repo check the comment name-drops, and a word that credits the code with
+ * passing or dodging it: "(avoids jscpd duplication)" and "so the linter
+ * passes" read this way. The checks run on every change, so a comment that
+ * vouches for one adds nothing. Directives a tool reads are already dropped
+ * by readComments, and the tooling trees are out of scope — their comments
+ * document the checks themselves.
+ */
+const GATE_TOOL =
+  /(jscpd|biome|deno[- ]lint|deno fmt|deno check|\btypecheck\b|\bprecommit\b|\blint(?:er|ing)?\b)/i;
+/** Credit words in the object position: the code avoids, satisfies, or
+ * silences the named check. */
+const GATE_CREDIT_OBJECT =
+  /(avoid|satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b)/i;
+/** Credit words in the result position, after the tool: the check passes or
+ * is kept happy. "Avoid" stays out — "Biome avoids X" describes the tool,
+ * not the code's shape. */
+const GATE_CREDIT_RESULT =
+  /(satisf|appeas|placat|silenc|excus|happ(?:y|i)|pleas|\bpass(?:es|ed)?\b)/i;
+
+/** Whether a credit word sits beside the tool it credits: right before it
+ * ("avoids jscpd duplication") or just after it ("so the linter passes").
+ * A tool named as the sentence's topic ("Deno lint rules: avoid nested
+ * calls") keeps its distance from the credit word and stays unflagged. */
+const creditsTheTool = (
+  text: string,
+  toolAt: number,
+  toolEnd: number,
+): boolean =>
+  GATE_CREDIT_OBJECT.test(text.slice(Math.max(0, toolAt - 12), toolAt)) ||
+  GATE_CREDIT_RESULT.test(text.slice(toolEnd, toolEnd + 12));
+
+/** Comments under src/ that justify the code by a check it passes or avoids. */
+export const findGateCitations = (
+  file: string,
+  content: string,
+): CommentIssue[] => {
+  // The path shape varies by caller: `src/...` from the gate, absolute from a
+  // test or another root, so the scope check looks for the src segment.
+  if (!/(?:^|\/)src\//.test(file)) return [];
+  return readComments(content).flatMap((comment) => {
+    const tool = GATE_TOOL.exec(comment.text);
+    if (
+      tool === null ||
+      !creditsTheTool(comment.text, tool.index, tool.index + tool[0].length)
+    ) {
+      return [];
+    }
+    return [
+      {
+        fix: "Delete the comment. The checks run on every change, so no comment needs to vouch for the code.",
+        line: comment.line,
+        problem: `comment cites the ${tool[0]} check as a reason for the code's shape`,
+        rule: "gate-citation",
+      },
+    ];
+  });
+};
+
 /** One issue as a reader-friendly line. */
 export const formatIssue = (file: string, issue: CommentIssue): string =>
   `${file}:${issue.line}  ${issue.problem}\n    ${issue.fix}`;

@@ -272,6 +272,27 @@ describe("getAnswerDisplay", () => {
     );
   });
 
+  test("marks the answers of an attendee changed since booking", () => {
+    const maps = buildAnswerMaps(questions);
+    const display = (attendeeId: number) =>
+      getAnswerDisplay(
+        attendeeId,
+        {
+          attendeeAnswerMap: new Map([
+            [7, [11]],
+            [8, [11]],
+          ]),
+          changedAttendeeIds: new Set([7]),
+          questions,
+        },
+        maps.answerTextMap,
+        maps.answerQuestionMap,
+      );
+    expect(display(7).short).toBe("Vegan (changed)");
+    expect(display(7).tooltip).toBe("Dietary needs: Vegan");
+    expect(display(8).short).toBe("Vegan");
+  });
+
   test("leaves an option without a known question out of the tooltip", () => {
     const questionData = {
       attendeeAnswerMap: new Map([[7, [99]]]),

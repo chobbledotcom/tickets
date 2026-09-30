@@ -2,6 +2,7 @@ import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
   registrationEmailDelivery,
   sendRegistrationEmails,
@@ -140,10 +141,11 @@ const sendRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
   packageFacts?: RegistrationPackageFacts,
+  freeTexts?: FreeTextAnswers,
 ): Promise<void> => {
   const [webhookResult, emailResult] = await Promise.allSettled([
     sendRegistrationWebhooks(entries, currency, packageFacts),
-    sendRegistrationEmails(entries, currency, packageFacts),
+    sendRegistrationEmails(entries, currency, packageFacts, freeTexts),
   ]);
   const deliveries = [
     completedRegistrationDelivery(webhookResult),
@@ -164,6 +166,7 @@ const queueRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
   suppliedPackageFacts?: RegistrationPackageFacts,
+  freeTexts?: FreeTextAnswers,
 ): Promise<void> => {
   let packageFacts: RegistrationPackageFacts | undefined;
   try {
@@ -178,7 +181,7 @@ const queueRegistrationNotifications = async (
     throw error;
   }
   addPendingWork(
-    sendRegistrationNotifications(entries, currency, packageFacts),
+    sendRegistrationNotifications(entries, currency, packageFacts, freeTexts),
   );
 };
 
@@ -191,33 +194,35 @@ const reportAfterBookingFailure =
     logError({ code: ErrorCode.SITE_ASSIGNMENT, detail, error });
   };
 
-/** What a registration notifies beside its entries. */
-export type RegistrationNotifyOptions = {
-  /** The renewal-site token index the booking carried, if any. */
-  siteTokenIndex?: string | undefined;
-  /** Activity rows to log beside the per-entry registration rows. */
+/** What a booking passes to its notification queue. Everything is optional:
+ * the plaintext free-text answers only the caller can hold, preloaded package
+ * facts, extra activity-log lines, the renewal token's hash, and the entries
+ * the site assignment sees. */
+export interface NotifyRegistrationOptions {
+  /** The buyer's typed free-text answers. The strings table keeps them sealed
+   * to the owner key, which no notification path can spend, so the booking
+   * request hands the plaintext it already holds to the confirmation email. */
+  freeTexts?: FreeTextAnswers | undefined;
+  /** Package facts the caller already loaded, so the queue does not re-read
+   * them. */
+  packageFacts?: RegistrationPackageFacts | undefined;
+  /** Activity-log lines recorded beside the registration lines. */
   priorActivities?: readonly ActivityToLog[] | undefined;
-  /** Package facts a checkout that already knows them can pass on. */
-  suppliedPackageFacts?: RegistrationPackageFacts | undefined;
-  /** Entries only the site assignment sees, beside `entries`: the resend's
-   * refunded plan rows join the served check there, so a claim recorded on a
-   * later-refunded line still serves the buyer. The logs, the email, and the
-   * renewals keep those rows out. Defaults to `entries`. */
+  /** Entries only the site assignment sees, in place of `entries`. The resend
+   * passes its refunded plan rows here, so a claim recorded on a line refunded
+   * later still serves the buyer. Defaults to `entries`. */
   siteAssignmentEntries?: EmailEntry[] | undefined;
-};
+  /** The hashed renewal token, when this booking came from /renew. */
+  siteTokenIndex?: string | undefined;
+}
 
 /** Record a registration and queue its external notifications. */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
-  {
-    priorActivities = [],
-    siteAssignmentEntries,
-    siteTokenIndex,
-    suppliedPackageFacts,
-  }: RegistrationNotifyOptions = {},
+  options: NotifyRegistrationOptions = {},
 ): Promise<void> => {
   await logActivities([
-    ...priorActivities,
+    ...(options.priorActivities ?? []),
     ...entries.map(({ listing, attendee }) => ({
       attendeeId: attendee.id,
       listing,
@@ -226,17 +231,22 @@ export const logAndNotifyRegistration = async (
   ]);
   const currency = settings.currency;
   addPendingWork(
-    queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
+    queueRegistrationNotifications(
+      entries,
+      currency,
+      options.packageFacts,
+      options.freeTexts,
+    ),
   );
   addPendingWork(
-    assignAndNotifyBuiltSites(siteAssignmentEntries ?? entries).catch(
+    assignAndNotifyBuiltSites(options.siteAssignmentEntries ?? entries).catch(
       reportAfterBookingFailure(
         "Site assignment failed after a completed booking",
       ),
     ),
   );
   addPendingWork(
-    applyRenewalsForEntries(entries, siteTokenIndex).catch(
+    applyRenewalsForEntries(entries, options.siteTokenIndex).catch(
       reportAfterBookingFailure(
         "Renewal was not applied after a completed booking",
       ),

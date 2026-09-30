@@ -66,6 +66,11 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   API.
 - `DENO_DEPLOY_ORG_SLUG` - Deno Deploy organization slug used in each app's
   managed `<app>.<organization>.deno.net` production domain.
+- `OPENCODE_API_KEY` - OpenCode zen API key for the `deno task grade:code`
+  command. Jev, the grader's judgment engine, sends this key to a paid endpoint.
+  The dev shell exports the value of `/run/secrets/opencode_api_key` when the
+  environment does not already set the variable. Without a key, the grader runs
+  the mechanical checks and skips Jev.
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables
   subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (for

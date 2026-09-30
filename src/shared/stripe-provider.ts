@@ -8,6 +8,7 @@
 /* jscpd:ignore-start -- imports */
 import type Stripe from "stripe";
 import * as v from "valibot";
+import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import {
   mapProviderReader,
   type ProviderRead,
@@ -16,11 +17,8 @@ import { refundWithOneReread } from "#payment/refund-attempt.ts";
 import { requireProviderRefundAuthorization } from "#payment/refund-provider-authorization.ts";
 import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
+import { hasRequiredSessionMetadata } from "#shared/payment-helpers.ts";
 /* jscpd:ignore-end */
-import {
-  hasRequiredSessionMetadata,
-  makeCreateCheckoutSession,
-} from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
   RetrieveSessionResult,

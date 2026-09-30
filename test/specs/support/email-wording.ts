@@ -9,6 +9,7 @@
 // jscpd:ignore-start
 
 import { settings } from "#db/settings.ts";
+import { loadOrderAnswerLines } from "#shared/email/answers.ts";
 import {
   buildTemplateData,
   renderEmailContent,
@@ -103,12 +104,15 @@ export const wordingTheBoxesWouldSend = async (
 /** What the site would really send for one email right now, rendered. A story
  * about the owner's wording is about the email that goes out, not the shape of
  * the row behind it. */
-export const emailTheSiteWouldSend = readsAnEmail(async (which) =>
-  renderEmailContent(
+export const emailTheSiteWouldSend = readsAnEmail(async (which) => {
+  const entries = [makeTestEntry()];
+  return renderEmailContent(
     which,
-    await buildTemplateData([makeTestEntry()], "GBP", A_TICKET_PAGE),
-  ),
-);
+    await buildTemplateData(entries, "GBP", A_TICKET_PAGE, {
+      answerLines: await loadOrderAnswerLines(entries),
+    }),
+  );
+});
 
 /** Every box the owner can start from the site's own wording, and the wording
  * each one must offer. Reading the boxes one at a time is the point: a page

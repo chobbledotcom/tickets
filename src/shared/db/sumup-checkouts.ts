@@ -11,7 +11,6 @@
  * reject checkouts we never created without an API call.
  */
 
-import * as v from "valibot";
 import { decryptWithKey, encryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
@@ -24,7 +23,7 @@ import { execute, executeUpdate, insert, queryOne } from "#db/client.ts";
 import { recoveryMoveTo } from "#payment/sumup-recovery-machine-spec.ts";
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { isoAfter, nowIso } from "#shared/now.ts";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { stringRecordJson } from "#shared/validation/stored-json.ts";
 
 type SumupCheckoutRow = {
   wrapped_key: WrappedKey;
@@ -47,8 +46,6 @@ export type SealedSumupCheckout = {
   wrappedKey: WrappedKey;
 };
 
-const metadataJson = defineStoredJson(v.record(v.string(), v.string()));
-
 /** Persist booking metadata for a checkout, encrypted under its reference. */
 export const storeSumupCheckout = async (
   reference: string,
@@ -59,7 +56,7 @@ export const storeSumupCheckout = async (
     hmacHash(reference),
     wrapKeyWithToken(dataKey, reference),
     encryptWithKey(
-      metadataJson.write(metadata, "sumup_checkouts.metadata"),
+      stringRecordJson.write(metadata, "sumup_checkouts.metadata"),
       dataKey,
     ),
   ]);
@@ -154,7 +151,7 @@ const decryptMetadata = async (
 ): Promise<Record<string, string>> => {
   const dataKey = await unwrapKeyWithToken(wrappedKey, reference);
   const json = await decryptWithKey(ciphertext, dataKey);
-  return metadataJson.read(
+  return stringRecordJson.read(
     json,
     `sumup_checkouts.metadata for reference_index ${referenceIndex}`,
   );

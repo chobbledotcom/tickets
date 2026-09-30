@@ -21,6 +21,7 @@ import {
   OptionalNullableStringSchema,
   OptionalStringSchema,
 } from "#shared/validation/string.ts";
+import { isInstant } from "#shared/validation/timestamp.ts";
 
 /** Square states money as whole minor units, so the amount is checked as a
  *  whole number and held as a bigint. */
@@ -138,8 +139,13 @@ const OrderAnswer = v.pipe(
   ),
 );
 
-/** A created Square order and the page its buyer pays on. */
-export type SquarePaymentLink = { orderId: string; url: string };
+/** A created Square order, the page its buyer pays on, and when Square made
+ * that page: its end is counted from Square's own clock. */
+export type SquarePaymentLink = {
+  createdAt: string;
+  orderId: string;
+  url: string;
+};
 
 /** Square sends a short and a long address for the same checkout page. The
  * long one carries the whole order, so it is the one the buyer is sent to. */
@@ -147,6 +153,7 @@ const PaymentLinkAnswer = v.pipe(
   v.object({
     payment_link: v.optional(
       v.object({
+        created_at: v.optional(v.string()),
         long_url: OptionalStringSchema,
         order_id: ResourceIdSchema,
         url: OptionalStringSchema,
@@ -154,10 +161,15 @@ const PaymentLinkAnswer = v.pipe(
     ),
   }),
   v.transform(({ payment_link: link }) => ({
+    createdAt: link?.created_at,
     orderId: link?.order_id,
     url: link?.long_url ?? link?.url,
   })),
-  v.object({ orderId: ResourceIdSchema, url: NonEmptyTextSchema }),
+  v.object({
+    createdAt: v.pipe(v.string(), v.check(isInstant)),
+    orderId: ResourceIdSchema,
+    url: NonEmptyTextSchema,
+  }),
 );
 
 /** One place a merchant takes money at. */

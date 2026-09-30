@@ -16,7 +16,7 @@
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
-import { parseProgram } from "#scripts/parse-program.ts";
+import { parseProgram, visitNodes } from "#scripts/parse-program.ts";
 /* jscpd:ignore-end */
 
 /** An empty catch the source says nothing about. */
@@ -24,21 +24,6 @@ export interface EmptyCatchIssue extends PerFileFinding {
   /** What the catch caught, as written: `catch`, `.catch`, or `catch (e)`. */
   caught: string;
 }
-
-/** Visit every node in one parsed program, depth-first. */
-const walkNodes = (
-  node: unknown,
-  visit: (node: Record<string, unknown>) => void,
-): void => {
-  if (Array.isArray(node)) {
-    for (const child of node) walkNodes(child, visit);
-    return;
-  }
-  if (node === null || typeof node !== "object") return;
-  const record = node as Record<string, unknown>;
-  visit(record);
-  for (const value of Object.values(record)) walkNodes(value, visit);
-};
 
 /** A node that sits between two offsets in the source it came from. */
 interface Spanned {
@@ -156,7 +141,7 @@ const catchesInNode: Record<string, NodeCatches> = {
 export const findIssues = (file: string, source: string): EmptyCatchIssue[] => {
   const program = parseProgram(file, source);
   const issues: EmptyCatchIssue[] = [];
-  walkNodes(program, (node) => {
+  visitNodes(program, (node) => {
     const catches = catchesInNode[node.type as string];
     if (catches !== undefined) issues.push(...catches(source, node));
   });

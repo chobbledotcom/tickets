@@ -3,19 +3,29 @@
  */
 
 import { t } from "#i18n";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession } from "#types";
 
-/** Ticket option for the manual check-in autocomplete */
+/** Ticket option for the manual check-in autocomplete. It carries the
+ * attendee's internal id, never the ticket credential. */
 export interface TicketOption {
+  attendeeId: number;
+  /** The door-safe facts that tell two people with the same name apart —
+   * the listing (on a multi-listing door) and the day each place is for. */
+  details: string[];
   name: string;
   quantity: number;
-  token: string;
+}
+
+/** One door on the doors page: its name and the scanner page that serves it. */
+export interface ScannerDoor {
+  name: string;
+  path: string;
 }
 
 /** The check-in message templates shared by both the camera scanner container
@@ -47,6 +57,7 @@ type ScannerMessages = {
   idMismatch: string;
   refunded: string;
   skipped: string;
+  noDoor: string;
   ticketCountOne: string;
   ticketCountOther: string;
   verifyIdConfirm: string;
@@ -65,6 +76,7 @@ const scannerMessages = (): ScannerMessages => ({
     tickets: "{tickets}",
   }),
   idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
+  noDoor: t("admin.scanner.no_door"),
   refunded: t("admin.scanner.refunded", { name: "{name}" }),
   skipped: t("admin.scanner.skipped", { name: "{name}" }),
   ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
@@ -79,6 +91,23 @@ const scannerMessages = (): ScannerMessages => ({
     name: "{name}",
   }),
 });
+
+/** The shell both scanner pages wrap: the admin nav over the page's title.
+ * The camera page adds its own script through `headExtra`. */
+const scannerShell = (
+  session: AdminSession,
+  opts: { headExtra?: string | undefined; title: string },
+  body: JSX.Element,
+): string =>
+  String(
+    <Layout
+      beforeContent={<AdminNav active="/admin/" session={session} />}
+      headExtra={opts.headExtra}
+      title={opts.title}
+    >
+      {body}
+    </Layout>,
+  );
 
 /**
  * Scanner page - camera feed with auto check-in + manual autocomplete.
@@ -96,15 +125,14 @@ export const adminScannerPage = (
 ): string => {
   const messageTemplates = scannerMessages();
 
-  return String(
-    <Layout
-      beforeContent={<AdminNav active="/admin/" session={session} />}
-      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`}
-      title={t("admin.scanner.title", { name: subject.name })}
-    >
-      <div class="prose">
-        <h1>{t("admin.scanner.heading")}</h1>
-      </div>
+  return scannerShell(
+    session,
+    {
+      headExtra: `<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`,
+      title: t("admin.scanner.title", { name: subject.name }),
+    },
+    <>
+      <ProseHeading heading={t("admin.scanner.heading")} />
 
       <article>
         <div
@@ -112,6 +140,7 @@ export const adminScannerPage = (
           data-message-camera-denied={t("admin.scanner.camera_denied")}
           data-message-id-mismatch={messageTemplates.idMismatch}
           data-message-invalid-qr={t("admin.scanner.invalid_qr")}
+          data-message-no-door={messageTemplates.noDoor}
           data-message-scanning={t("admin.scanner.scanning")}
           data-message-skipped={messageTemplates.skipped}
           data-message-verify-id-confirm={messageTemplates.verifyIdConfirm}
@@ -184,7 +213,11 @@ export const adminScannerPage = (
             {t("admin.scanner.search_label")}
           </label>
           <div class="combobox">
-            <input id="manual-checkin-token" name="token" type="hidden" />
+            <input
+              id="manual-checkin-attendee-id"
+              name="attendee_id"
+              type="hidden"
+            />
             <input
               aria-autocomplete="list"
               aria-controls="ticket-options"
@@ -207,21 +240,30 @@ export const adminScannerPage = (
               id="ticket-options"
               role="listbox"
             >
-              {uncheckedIn.map((ticket) => (
-                <div
-                  data-name={escapeHtml(ticket.name)}
-                  data-quantity={String(ticket.quantity)}
-                  data-token={ticket.token}
-                  role="option"
-                  tabIndex={0}
-                >
-                  {t("admin.scanner.ticket_option", {
-                    count: ticket.quantity,
-                    name: escapeHtml(ticket.name),
-                    token: ticket.token,
-                  })}
-                </div>
-              ))}
+              {uncheckedIn.map((ticket) => {
+                const detail = ticket.details.join(", ");
+                return (
+                  <div
+                    data-attendee-id={String(ticket.attendeeId)}
+                    data-detail={detail}
+                    data-name={ticket.name}
+                    data-quantity={String(ticket.quantity)}
+                    role="option"
+                    tabIndex={0}
+                  >
+                    {detail
+                      ? t("admin.scanner.ticket_option_detail", {
+                          count: ticket.quantity,
+                          detail,
+                          name: ticket.name,
+                        })
+                      : t("admin.scanner.ticket_option", {
+                          count: ticket.quantity,
+                          name: ticket.name,
+                        })}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div class="hidden" id="manual-checkin-status"></div>
@@ -230,9 +272,58 @@ export const adminScannerPage = (
           </SubmitButton>
         </form>
       </article>
-      <GuideFooter href="/admin/guide#checkin">
+      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#checkin">
         {t("admin.scanner.help")}
       </GuideFooter>
-    </Layout>,
+    </>,
+  );
+};
+
+/** One section of the doors page, or nothing when that kind of door has no
+ *  doors — an empty heading promises a link that is not there. */
+const doorsSection = (
+  heading: string,
+  doors: ScannerDoor[],
+): JSX.Element | null =>
+  doors.length === 0 ? null : (
+    <article>
+      <h2>{heading}</h2>
+      <ul>
+        {doors.map((door) => (
+          <li>
+            <a href={door.path}>{door.name}</a>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+
+/** The doors page — a scanner login's landing page. It lists every door the
+ *  role can work, so the person at the door can find tonight's scanner without
+ *  asking for a link. */
+export const adminScannerDoorsPage = (
+  session: AdminSession,
+  doors: { groupDoors: ScannerDoor[]; listingDoors: ScannerDoor[] },
+): string => {
+  const empty =
+    doors.groupDoors.length === 0 && doors.listingDoors.length === 0;
+  return scannerShell(
+    session,
+    { title: t("admin.scanner.doors_title") },
+    <>
+      <ProseHeading heading={t("admin.scanner.doors_heading")}>
+        <p>{t("admin.scanner.doors_intro")}</p>
+      </ProseHeading>
+      {empty ? (
+        <article>
+          <p>{t("admin.scanner.doors_empty")}</p>
+        </article>
+      ) : (
+        <>
+          {doorsSection(t("terms.listings"), doors.listingDoors)}
+          {doorsSection(t("terms.groups"), doors.groupDoors)}
+        </>
+      )}
+    </>,
   );
 };

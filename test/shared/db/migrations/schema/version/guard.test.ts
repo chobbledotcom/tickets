@@ -108,8 +108,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-11_refund_order_link",
         "2026-09-14_group_show_hidden_listings",
         "2026-09-15_group_scan_checks_in_all_listings",
+        "2026-09-28_answers_at_booking",
+        "2026-09-29_checkout_pending_answers",
       ],
-      schemaHash: "y91i2g",
+      schemaHash: "1mer828",
     });
   });
 
@@ -124,7 +126,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Let a group's booking page keep its hidden member listings off the page, one group at a time.",
+        "Stage a checkout's typed answers under the hash of its session id, so the emails can show them without the owner key.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

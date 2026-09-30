@@ -51,6 +51,7 @@ export const paymentsSections = (): GuideSection[] => [
       faq("find_square_access_token"),
       faq("find_square_location_id"),
       faq("setup_square_webhook"),
+      faq("square_link_ends"),
       faq("how_do_i_set_up_sumup"),
       faq("stripe_test_vs_live_keys"),
       faq("test_or_live_credentials"),

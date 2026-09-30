@@ -19,8 +19,7 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
 } from "#db/modifiers.ts";
-import { requiredMapValue, unique } from "#fp";
-import { byId as modifiersById } from "#fp-rows";
+import { byId, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -63,7 +62,7 @@ type ListingScopes = Map<number, number[] | null>;
 type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
 
 /** Batched listing scopes for modifiers: null = whole order, array = scoped.
- * `resolveGroupScopes` picks how a "groups"-scoped modifier's member listing
+ * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing
  * ids are resolved (live join by default; in-memory for the would-be check). */
 const listingIdsByModifierId = async (
   modifiers: Modifier[],
@@ -175,12 +174,16 @@ const triggerQuantity = (
   return 1;
 };
 
+/** All active modifiers keyed by id, for the re-fetch-by-id lookups that
+ * rebuild specs from refs and resolve answer-trigger scopes. */
+const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
+  byId(await getActiveModifiers());
+
 /** Resolve the in-scope listing ids (null = whole order) of every active
- * answer-trigger modifier among `ids` — keyed lookups re-fetch the active
- * modifiers by id. Ids that aren't an active answer modifier are omitted, so
- * a stale link never contributes a quantity. */
+ * answer-trigger modifier among `ids`. Ids that aren't an active answer
+ * modifier are omitted, so a stale link never contributes a quantity. */
 const answerModifierScopes = async (ids: number[]): Promise<ListingScopes> => {
-  const byId = modifiersById(await getActiveModifiers());
+  const byId = await activeModifiersById();
   return listingIdsByModifierId(
     ids
       .map((id) => byId.get(id))

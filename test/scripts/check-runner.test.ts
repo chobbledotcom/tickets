@@ -137,10 +137,23 @@ describe("the per-file check runners", () => {
       const { code, errors } = await check(
         (roots, output) => runFileLengthCheck(roots, {}, output),
         "big.ts",
-        "\n".repeat(401),
+        "\n".repeat(501),
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain("[over-limit]: holds 401 lines");
+      expect(errors[0]).toContain("[over-limit]: holds 501 lines");
+    });
+
+    test("passes a file between the 400-line aim and the limit", async () => {
+      const { code, errors, out } = await check(
+        (roots, output) => runFileLengthCheck(roots, {}, output),
+        "aim.ts",
+        "\n".repeat(450),
+      );
+      expect(code).toBe(0);
+      expect(errors).toEqual([]);
+      expect(out).toContain(
+        "Every source file sits at or under the limit its list holds it to.",
+      );
     });
 
     test("passes a file over the limit at its recorded count", async () => {
@@ -148,31 +161,31 @@ describe("the per-file check runners", () => {
         (roots, output) =>
           runFileLengthCheck(
             roots,
-            { [`${dir.path}/src/big.ts`]: 401 },
+            { [`${dir.path}/src/big.ts`]: 501 },
             output,
           ),
         "big.ts",
-        "\n".repeat(401),
+        "\n".repeat(501),
       );
       expect(code).toBe(0);
     });
 
     test("lists every file over the limit with its current count", async () => {
       Deno.mkdirSync(`${dir.path}/src`);
-      Deno.writeTextFileSync(`${dir.path}/src/big.ts`, "\n".repeat(401));
+      Deno.writeTextFileSync(`${dir.path}/src/big.ts`, "\n".repeat(501));
       Deno.writeTextFileSync(`${dir.path}/src/small.ts`, "\n");
       const over = await filesOverLimit([dir.path]);
-      expect(over).toEqual({ [`${dir.path}/src/big.ts`]: 401 });
+      expect(over).toEqual({ [`${dir.path}/src/big.ts`]: 501 });
     });
 
     test("reads authored shell and stylesheet files, not the frozen ones", async () => {
       Deno.mkdirSync(`${dir.path}/ui/static`, { recursive: true });
       const write = (name: string, lines: number) =>
         Deno.writeTextFileSync(`${dir.path}/${name}`, "\n".repeat(lines));
-      write("authored.css", 401);
-      write("ui/static/style.css", 401);
-      write("ui/static/logistics-map.css", 401);
-      write("run.sh", 401);
+      write("authored.css", 501);
+      write("ui/static/style.css", 501);
+      write("ui/static/logistics-map.css", 501);
+      write("run.sh", 501);
       const over = await filesOverLimit([dir.path]);
       expect(Object.keys(over)).toEqual([
         `${dir.path}/authored.css`,

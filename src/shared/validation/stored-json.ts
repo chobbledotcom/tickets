@@ -42,3 +42,10 @@ export const defineStoredJson = <TSchema extends v.GenericSchema>(
     return JSON.stringify(output);
   },
 });
+
+/** A record of string keys to string values, as JSON. */
+export const stringRecordSchema = v.record(v.string(), v.string());
+
+/** The stored record of string keys to string values — the JSON shape a
+ * checkout's metadata and its staged answers both rest in. */
+export const stringRecordJson = defineStoredJson(stringRecordSchema);

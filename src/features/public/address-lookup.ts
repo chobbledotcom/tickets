@@ -40,7 +40,11 @@ export const handleAddressLookupGet: TypedRouteHandler<
   if (!provider) return notFoundResponse();
 
   const session = await getAuthenticatedSession(request);
-  if (!session) {
+  // Staff are never throttled — the limiter guards against anonymous abuse,
+  // not the operator's own attendee forms. Any other signed-in role (agent,
+  // editor, scanner) stays under the same per-IP limit as anonymous use.
+  const staff = session !== null && isStaffRole(session.adminLevel);
+  if (!staff) {
     const ip = getClientIp(request, server);
     if (await limiter.isLimited(ip)) {
       return apiErrorResponse(t("address_lookup.rate_limited"), 429);
@@ -56,7 +60,6 @@ export const handleAddressLookupGet: TypedRouteHandler<
   // pin — gated on the back-office staff roles that can open attendee pages,
   // so neither anonymous visitors nor restricted agent/editor sessions ever
   // receive geolocation data.
-  const staff = session && isStaffRole(session.adminLevel);
   return jsonResponse({
     addresses: outcome.value.map((match) => match.line),
     ...(staff ? { matches: outcome.value } : {}),

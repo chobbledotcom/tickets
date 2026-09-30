@@ -75,3 +75,35 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
     ]);
   });
 });
+
+describeWithEnv("paid booking answers at booking", { db: true }, () => {
+  const recorded = async (entry: CreatedEntry) =>
+    (
+      await getDb().execute({
+        args: [entry.attendee.id],
+        sql: "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
+      })
+    ).rows;
+
+  test("records the chosen answer as the answer at booking", async () => {
+    const entry = await bookedEntry();
+    const { answerId, questionId } = await createQuestionWithAnswer([
+      entry.listing.id,
+    ]);
+    await saveAndReadAnswers(entry, {
+      listingAnswerIds: { [entry.listing.id]: [answerId] },
+    });
+    expect(await recorded(entry)).toEqual([
+      { answer_id: answerId, question_id: questionId },
+    ]);
+  });
+
+  test("records the asked questions of an order that answered none", async () => {
+    const entry = await bookedEntry();
+    const { questionId } = await createQuestionWithAnswer([entry.listing.id]);
+    await saveAndReadAnswers(entry, {});
+    expect(await recorded(entry)).toEqual([
+      { answer_id: null, question_id: questionId },
+    ]);
+  });
+});

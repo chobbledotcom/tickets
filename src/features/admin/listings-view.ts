@@ -9,6 +9,7 @@
 import { getGroupRemainingByGroupId } from "#db/attendees/capacity/groups.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsByIds } from "#db/groups.ts";
+import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
@@ -138,16 +139,18 @@ export const loadListingQuestionData = async (
   listingId: number,
   attendeeIds: number[],
 ): Promise<AttendeeQuestionData | undefined> => {
-  const [questions, answers] = await Promise.all([
+  const [questions, answers, changedAttendeeIds] = await Promise.all([
     getQuestionsForListing(listingId),
     getAttendeeAnswersBatch(attendeeIds, {
       privateKey: await requireRequestPrivateKey(),
       texts: true,
     }),
+    attendeesWithChangedAnswers(attendeeIds),
   ]);
   return questions.length > 0
     ? {
         attendeeAnswerMap: answers.answerIds,
+        changedAttendeeIds,
         questions,
         textAnswerMap: answers.textAnswers,
       }

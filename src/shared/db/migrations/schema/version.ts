@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Let a group's booking page keep its hidden member listings off the page, one group at a time.";
+  "Stage a checkout's typed answers under the hash of its session id, so the emails can show them without the owner key.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

@@ -41,7 +41,7 @@ src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → ||  
 # so ?? and || agree for every possible value.
 src/shared/db/attendees/tokens.ts::resultsInTokenOrder.tokenToResult~17m7xgj  ?? → ||   # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
 src/shared/db/attendees/tokens.ts::resultsInTokenOrder~0uhrwgz  ?? → ||   # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
-src/shared/db/attendees/tokens.ts::tokenResultMap~1c5bf54  ?? → ||   # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
+src/shared/db/attendees/tokens.ts::resultsByRowKey~1c5bf54  ?? → ||   # resultsByRowKey: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
 
 # db/capacity.ts — duration defaults that clampDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a

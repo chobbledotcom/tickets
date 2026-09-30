@@ -15,6 +15,7 @@ import {
 import { updateCheckedIn } from "#db/attendees/update.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
+import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { t } from "#i18n";
 import { redirect } from "#routes/response.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
@@ -295,13 +296,25 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
+  // An admin session can spend the owner key, so the resend is the one path
+  // that reads the buyer's free-text answers straight from the strings table.
+  const freeTexts = (
+    await getAttendeeTextAnswersBatch(
+      [attendeeId],
+      await requireRequestPrivateKey(),
+    )
+  ).get(attendeeId);
+
   // A refunded line bought nothing now, so the resend must not notify it
-  // again — but the assignment still sees it, so a claim recorded on it
-  // before the refund keeps the buyer served.
+  // again. The assignment still sees it, so a claim recorded on it before the
+  // refund keeps the buyer served.
   const entries = await purchaseEntries(data);
   const notify = entries.filter((entry) => !entry.attendee.refunded);
   await Promise.all([
-    logAndNotifyRegistration(notify, { siteAssignmentEntries: entries }),
+    logAndNotifyRegistration(notify, {
+      freeTexts,
+      siteAssignmentEntries: entries,
+    }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,
       data.listing.id,

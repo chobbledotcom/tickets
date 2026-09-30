@@ -1,5 +1,5 @@
 import { packageMemberMaps } from "#db/groups.ts";
-import { byId } from "#fp-rows";
+import { byId } from "#fp";
 import type {
   PaidOrderSnapshot,
   SnapshotDayPriceRow,

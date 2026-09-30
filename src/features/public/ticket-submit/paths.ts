@@ -9,10 +9,8 @@ import type { OrderSpan } from "#booking/order-span.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { requirePublicDefaultStatus } from "#db/attendee-statuses.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
-import {
-  groupListingAnswerSets,
-  saveAttendeeAnswers,
-} from "#db/questions/attendee-answers/save.ts";
+import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
+import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 import {
   type AnswerInfo,
   type extractContact,
@@ -70,6 +68,12 @@ export const handlePaidPath = async (
   const listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
   if (listingTextAnswerIds !== undefined) {
     intent.listingTextAnswerIds = listingTextAnswerIds;
+    intent.textAnswers = Object.fromEntries(
+      info.textAnswers.map(({ questionId, text }) => [
+        String(questionId),
+        text,
+      ]),
+    );
   }
   return handlePaymentFlow(request, intent, ctx);
 };
@@ -151,14 +155,18 @@ export const handleFreePath = async (
   const siteTokenIndex = ctx.siteToken
     ? await hmacHash(ctx.siteToken)
     : undefined;
-  await logAndNotifyRegistration(result.entries, { siteTokenIndex });
-
-  if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
-    const maps = listingAnswerMaps(info, ctx.questionListingMap);
-    await saveAttendeeAnswers(
-      groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
-    );
-  }
+  // The answers save first, because the notification reads them the moment it
+  // is queued. The typed free text travels with the notification, because the
+  // strings table seals it to the owner key, which no notification can spend.
+  const maps = listingAnswerMaps(info, ctx.questionListingMap);
+  await saveBookedAnswers(
+    result.entries,
+    groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
+  );
+  const freeTexts = new Map(
+    info.textAnswers.map(({ questionId, text }) => [questionId, text]),
+  );
+  await logAndNotifyRegistration(result.entries, { freeTexts, siteTokenIndex });
 
   // The caller resolves the redirect from the pre-fold listing set (a single
   // listing's — or a single parent + its folded children's — thank-you URL), so

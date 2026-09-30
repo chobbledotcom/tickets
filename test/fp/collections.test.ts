@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  byId,
   compact,
   emptyListsFor,
   fieldById,
@@ -26,7 +27,6 @@ import {
   sortedNumbers,
   sumByKey,
 } from "#fp";
-import { byId } from "#fp-rows";
 
 describe("fp collections", () => {
   describe("compact", () => {

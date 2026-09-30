@@ -9,8 +9,7 @@ import {
 } from "#db/groups/homogeneity.ts";
 import { groupListings } from "#db/groups/table.ts";
 import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
-import { mapNotNullish } from "#fp";
-import { byId } from "#fp-rows";
+import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
