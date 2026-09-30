@@ -5,6 +5,7 @@ import {
   loadExistingLines,
 } from "#db/attendees/atomic-update.ts";
 import { getAttendeeOrNull, getAttendeesRaw } from "#db/attendees/queries.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -26,6 +27,18 @@ describeWithEnv(
   "db > attendees > applyAttendeeAtomicEdit",
   { db: true },
   () => {
+    /** Keep the booking's one line at `quantity` places, apply the edit, and
+     * expect it to succeed. */
+    const keepQuantity =
+      (booking: Awaited<ReturnType<typeof bookOnNewListing>>) =>
+      async (quantity: number): Promise<void> => {
+        const { attendee, blob, existing, listing } = booking;
+        const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
+          keepLine(listing.id, existing[0]!.key, { quantity }),
+        ]);
+        expect(update.success).toBe(true);
+      };
+
     test("updates PII on a single-line attendee without touching the line", async () => {
       const { listing, attendee, blob, existing } = await bookOnNewListing(
         { maxAttendees: 10 },
@@ -34,10 +47,7 @@ describeWithEnv(
         "after@example.com",
       );
 
-      const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
-        keepLine(listing.id, existing[0]!.key, { quantity: 2 }),
-      ]);
-      expect(update.success).toBe(true);
+      await keepQuantity({ attendee, blob, existing, listing })(2);
 
       // PII changed
       const updated = await getAttendeeOrNull(
@@ -57,11 +67,38 @@ describeWithEnv(
         "Qty",
       );
 
-      const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
-        keepLine(listing.id, existing[0]!.key, { quantity: 4 }),
-      ]);
-      expect(update.success).toBe(true);
+      await keepQuantity({ attendee, blob, existing, listing })(4);
       expect((await getAttendeesRaw(listing.id))[0]!.quantity).toBe(4);
+    });
+
+    test("lowers the admitted count with a smaller quantity, so it never exceeds it", async () => {
+      const { listing, attendee, blob, existing } = await bookOnNewListing(
+        { maxAttendees: 10, maxQuantity: 5 },
+        { name: "Party", quantity: 5 },
+        "Party",
+      );
+      await moveTickets("admit", [
+        { attendeeId: attendee.id, count: 5, listingId: listing.id },
+      ]);
+
+      await keepQuantity({ attendee, blob, existing, listing })(2);
+      const [line] = await getAttendeesRaw(listing.id);
+      expect(line!.quantity).toBe(2);
+      expect(line!.checked_in).toBe(2);
+    });
+
+    test("keeps the admitted count when a larger quantity still holds it", async () => {
+      const { listing, attendee, blob, existing } = await bookOnNewListing(
+        { maxAttendees: 10, maxQuantity: 5 },
+        { name: "Party", quantity: 2 },
+        "Party",
+      );
+      await moveTickets("admit", [
+        { attendeeId: attendee.id, count: 2, listingId: listing.id },
+      ]);
+
+      await keepQuantity({ attendee, blob, existing, listing })(4);
+      expect((await getAttendeesRaw(listing.id))[0]!.checked_in).toBe(2);
     });
 
     test("adds a new line alongside an existing one", async () => {

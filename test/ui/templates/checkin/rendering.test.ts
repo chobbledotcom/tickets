@@ -257,7 +257,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: session.csrfToken },
+          { check_in: "true", csrf_token: session.csrfToken, quantity: "1" },
           session.cookie,
         ),
       );

@@ -4,10 +4,15 @@
  * Non-admin view: simple confirmation message
  */
 
+import { remainingTickets } from "#booking/remaining-tickets.ts";
+import type { PairBookings } from "#booking/ticket-moves.ts";
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+import {
+  attendeeLineRow,
+  withPairBookings,
+} from "#shared/attendee-table-rows.ts";
 // jscpd:ignore-start
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -106,6 +111,7 @@ const staffBulkForm = (
 
 export const checkinAdminPage = (
   entries: TokenEntry[],
+  pairBookings: PairBookings,
   checkinPath: string,
   message: string,
   allowedDomain: string,
@@ -114,12 +120,14 @@ export const checkinAdminPage = (
 ): string => {
   const { canCheckIn } = options;
   const showDate = entries.some((e) => e.attendee.date !== null);
-  const tableRows: AttendeeTableRow[] = pipe(
-    map(
-      (e: TokenEntry): AttendeeTableRow =>
-        attendeeLineRow(e.attendee, e.listing),
-    ),
-  )(entries);
+  const tableRows: AttendeeTableRow[] = withPairBookings(pairBookings)(
+    pipe(
+      map(
+        (e: TokenEntry): AttendeeTableRow =>
+          attendeeLineRow(e.attendee, e.listing),
+      ),
+    )(entries),
+  );
 
   // The bulk action's POST only touches rows that are neither refunded nor on
   // a "No check-in" listing, so the actions' state reads those rows alone —
@@ -128,9 +136,14 @@ export const checkinAdminPage = (
   const eligibleRows = entries.filter(
     (e) => !e.attendee.refunded && !e.listing.purchase_only,
   );
-  const anyEligibleCheckedIn = eligibleRows.some((e) => e.attendee.checked_in);
+  // "All" means every live line fully admitted: a part booking still owes
+  // tickets, so the check-in action stays.
+  const anyEligibleCheckedIn = eligibleRows.some(
+    (e) => e.attendee.checked_in > 0,
+  );
   const allEligibleCheckedIn =
-    eligibleRows.length > 0 && eligibleRows.every((e) => e.attendee.checked_in);
+    eligibleRows.length > 0 &&
+    eligibleRows.every((e) => remainingTickets(e.attendee) === 0);
   const heading = (
     <>
       <h1>{t("admin.checkin.heading")}</h1>

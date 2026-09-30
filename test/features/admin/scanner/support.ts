@@ -58,6 +58,23 @@ export const scanAtDoor = async (
   return { json: await response.json(), response };
 };
 
+/** Read a ticket whose line owes more than one place and answer the door's
+ * "how many" ask with the given count. Asserts the ask happened, so a door
+ * that stopped asking fails here. Hands back the ask and the admission. */
+export const pickTicketsAtDoor = async (
+  groupId: number,
+  token: string,
+  count: number,
+): Promise<{
+  admission: Awaited<ReturnType<typeof scanAtDoor>>;
+  ask: Awaited<ReturnType<typeof scanAtDoor>>;
+}> => {
+  const ask = await scanAtDoor(groupId, { token });
+  expect(ask.json.status).toBe("select_quantity");
+  const admission = await scanAtDoor(groupId, { quantity: count, token });
+  return { admission, ask };
+};
+
 /** Someone holding one place on each of two listings in their own separate
  * group — a ticket this door does not own, whatever it scans next. */
 export const ticketFromItsOwnGroup = async (

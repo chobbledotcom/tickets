@@ -139,7 +139,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     expect(attendee.address).toBe("123 Main St\nSpringfield\nIL 62701");
   });
 
-  test("treats empty checked_in as false for pre-migration attendees", async () => {
+  test("treats empty checked_in as zero for pre-migration attendees", async () => {
     const listing = await createTestListing({ maxAttendees: 100 });
     await createTestAttendee(
       listing.id,
@@ -165,7 +165,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     expect((rows[0] as unknown as Record<string, unknown>).checked_in).toBe(0);
 
     const decrypted = await decryptAttendees(rows, privateKey);
-    expect(decrypted[0]?.checked_in).toBe(false);
+    expect(decrypted[0]?.checked_in).toBe(0);
   });
 });
 

@@ -3,17 +3,17 @@
  * `src/features/admin/scanner.ts` hand these their request bodies. */
 
 /* jscpd:ignore-start -- imports */
-import { logActivities } from "#db/activity-log.ts";
+import { remainingTickets } from "#booking/remaining-tickets.ts";
+import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
+import type { AttendeeWithBookings } from "#db/attendee-types.ts";
+import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import {
-  type AttendeeWithBookingRows,
   getAttendeesByIdsWithBookings,
   getAttendeesByTokens,
 } from "#db/attendees/tokens.ts";
-import { setCheckedInOnBookingRows } from "#db/attendees/update.ts";
-import { withTransaction } from "#db/client.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
-import { sumOf, unique } from "#fp";
+import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import {
@@ -23,8 +23,13 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
+import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { Attendee, Group } from "#types";
-import { decideScan, rowsByListing } from "./scan-decision.ts";
+import {
+  decideScan,
+  type ScanDecision,
+  type ScanUnit,
+} from "./scan-decision.ts";
 /* jscpd:ignore-end */
 
 /** What one door's scan resolves against: the listings it admits, and its
@@ -55,7 +60,7 @@ export const groupScope = async (group: Group): Promise<ScanScope> => ({
 
 /** Resolve an attendee's booking rows to decrypted entries */
 const resolveTokenEntries = async (
-  awb: AttendeeWithBookingRows,
+  awb: AttendeeWithBookings,
   privateKey: CryptoKey,
 ): Promise<TokenEntry[]> => {
   const entries = await resolveEntries([awb]);
@@ -65,7 +70,7 @@ const resolveTokenEntries = async (
 /** Get the attendee name from decrypted entries, falling back to raw decrypt */
 const resolveAttendeeName = async (
   allEntries: TokenEntry[],
-  awb: AttendeeWithBookingRows,
+  awb: AttendeeWithBookings,
   privateKey: CryptoKey,
 ): Promise<string> => {
   // One token belongs to one attendee, so every entry names the same person;
@@ -101,46 +106,88 @@ const wrongListingResponse = (
 const listingNamesOf = (rows: readonly TokenEntry[]): string =>
   unique(rows.map((row) => row.listing.name)).join(", ");
 
-/** The JSON answer for one ticket: who they are, how many places the answer
- * covers, and the listing names that drove it. */
+/** The tickets the covered lines hold in total. */
+const lineTickets = sumOf((row: TokenEntry) => row.attendee.quantity);
+
+/** The JSON answer for one ticket: who they are, the tickets this answer
+ * covers, the tickets the covered lines hold in total, and the listing
+ * names that drove it. */
 const scanBody = (
   rows: readonly TokenEntry[],
   attendeeName: string,
   status: "already_checked_in" | "checked_in" | "verify_id",
+  tickets: number,
 ): Record<string, unknown> => ({
   listingName: listingNamesOf(rows),
   name: attendeeName,
-  quantity: sumOf((row: TokenEntry) => row.attendee.quantity)([...rows]),
+  quantity: tickets,
   status,
+  total: lineTickets([...rows]),
 });
 
-/** Perform one scan's whole admission as one transaction: the UPDATE that
- * covers exactly the admitted booking rows — by row id, so a merged
- * attendee's refunded order on the same listing stays untouched — and the
- * activity rows for each admitted listing carry that listing's own name, so
- * each listing's record of the day shows its own check-ins. A failure in
- * either write rolls both back, so a check-in never lands without its
- * activity record. */
-const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
-  const units = rowsByListing(rows);
-  await withTransaction(async (tx) => {
-    await setCheckedInOnBookingRows(
-      rows.map((row) => row.bookingRowId),
-      true,
-      tx,
-    );
-    await logActivities(
-      units.map((unit) => {
-        const entry = unit[0]!;
-        return {
-          attendeeId: entry.attendee.id,
-          listing: entry.listing.id,
-          message: `Attendee checked in via scanner for '${entry.listing.name}'`,
-        };
-      }),
-      tx,
-    );
-  });
+/** The answer for a ticket whose lines owe nothing more. */
+const alreadyCheckedIn = (
+  rows: readonly TokenEntry[],
+  attendeeName: string,
+): Response =>
+  jsonResponse(
+    scanBody(rows, attendeeName, "already_checked_in", lineTickets([...rows])),
+  );
+
+/** Perform one scan's whole admission as one transaction: every unit's
+ * admit, and one activity row per listing that really admitted tickets,
+ * carrying that listing's own name and count. The write skips refunded
+ * lines, so a merged attendee's refunded order on the same listing stays
+ * untouched. A failure in either write rolls both back, so a check-in never
+ * lands without its activity record. Answers the tickets the lines really
+ * took (less than planned when another door admitted some first) and what
+ * the booking still owes after the write, so the response never reports a
+ * door race as tickets left. */
+const performCheckIns = async (
+  decision: Extract<ScanDecision, { kind: "admit" }>,
+): Promise<{ admitted: number; remaining: number }> => {
+  const attendeeId = decision.rows[0]!.attendee.id;
+  const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
+  const listingNames = new Map(
+    decision.units.map((unit) => [listingOf(unit).id, listingOf(unit).name]),
+  );
+  const moved = await moveTicketsAndLog(
+    "admit",
+    decision.units.map((unit) => ({
+      attendeeId,
+      count: unit.tickets,
+      listingId: listingOf(unit).id,
+    })),
+    (move) =>
+      `Attendee checked in ${ticketsWord(move.count)} via scanner for '${requiredMapValue(
+        listingNames,
+        move.listingId,
+        `Listing ${move.listingId} is no unit of this scan`,
+      )}'`,
+  );
+  // What the write left: the touched pairs' post-write owed (the
+  // transaction saw every ticket a racing door took), plus the owed of
+  // rows the scan did not admit — a widened scan counts every listing.
+  const plannedOwed = sumOf((unit: ScanUnit) =>
+    sumOf((row: TokenEntry) => remainingTickets(row.attendee))(unit.rows),
+  )(decision.units);
+  const untouched =
+    decision.remaining +
+    sumOf((unit: ScanUnit) => unit.tickets)(decision.units) -
+    plannedOwed;
+  return {
+    admitted: ticketCount(moved),
+    remaining:
+      untouched + sumOf((move: TicketMoveAnswer) => move.owedAfter)(moved),
+  };
+};
+
+/** The door staff's choices a scan carries: force a ticket that matched
+ * nowhere in scope, the ID check they made, and a quantity pick. */
+type ScanControls = {
+  count: number | undefined;
+  force: boolean;
+  idVerified: boolean;
 };
 
 /** One door scan, however the request names its person: resolve that person
@@ -153,9 +200,8 @@ const performCheckIns = async (rows: readonly TokenEntry[]): Promise<void> => {
  * door business reading. */
 const scanBy = async (
   scope: ScanScope,
-  load: () => Promise<AttendeeWithBookingRows | null>,
-  force: boolean,
-  idVerified: boolean,
+  load: () => Promise<AttendeeWithBookings | null>,
+  controls: ScanControls,
   privateKey: CryptoKey,
   refuseWrongListing: boolean,
 ): Promise<Response> => {
@@ -164,11 +210,10 @@ const scanBy = async (
   const allEntries = await resolveTokenEntries(awb, privateKey);
   const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
   const decision = decideScan(
-    allEntries,
-    scope.listingIds,
-    force,
+    { entries: allEntries, force: controls.force, scope: scope.listingIds },
     scope.checkInEveryListing,
-    idVerified,
+    controls.idVerified,
+    controls.count,
   );
   if (refuseWrongListing && decision.kind === "wrong_listing") {
     return jsonResponse({ status: "not_found" }, 404);
@@ -179,7 +224,7 @@ const scanBy = async (
 /** Answer one scan's decision: the shared responses a camera read and a
  * manual pick both reach. */
 const scanDecisionResponse = async (
-  decision: ReturnType<typeof decideScan>,
+  decision: ScanDecision,
   allEntries: TokenEntry[],
   attendeeName: string,
 ): Promise<Response> => {
@@ -191,26 +236,49 @@ const scanDecisionResponse = async (
     case "refunded":
       return jsonResponse({ name: attendeeName, status: "refunded" });
     case "already_checked_in":
-      return jsonResponse(
-        scanBody(decision.live, attendeeName, "already_checked_in"),
-      );
+      return alreadyCheckedIn(decision.live, attendeeName);
     case "verify_id":
-      return jsonResponse(scanBody(decision.rows, attendeeName, "verify_id"));
-    case "admit": {
-      await performCheckIns(decision.rows);
+      return jsonResponse(
+        scanBody(
+          decision.rows,
+          attendeeName,
+          "verify_id",
+          lineTickets([...decision.rows]),
+        ),
+      );
+    case "select_quantity":
       return jsonResponse({
-        ...scanBody(decision.rows, attendeeName, "checked_in"),
-        remaining: decision.remaining,
+        listingName: listingNamesOf(decision.rows),
+        max: decision.max,
+        name: attendeeName,
+        status: "select_quantity",
+      });
+    case "admit": {
+      const { admitted, remaining } = await performCheckIns(decision);
+      // Another door took every ticket this scan planned to admit.
+      if (admitted === 0) return alreadyCheckedIn(decision.rows, attendeeName);
+      return jsonResponse({
+        ...scanBody(decision.rows, attendeeName, "checked_in", admitted),
+        remaining,
       });
     }
   }
 };
+
+/** A door's quantity pick: a whole number of tickets, at least one. Anything
+ * else fails closed — the cap at what the lines owe is moveTickets' guard,
+ * not a reason to silently fix a bad input here. */
+const isAdmitCount = (value: unknown): value is number =>
+  typeof value === "number" && isPositiveSafeInteger(value);
 
 /** Validate scan controls and load the request's decryption key. */
 export const processScan = async (
   scope: ScanScope,
   body: Record<string, unknown>,
 ): Promise<Response> => {
+  if (body.quantity !== undefined && !isAdmitCount(body.quantity)) {
+    return apiErrorResponse("Invalid quantity");
+  }
   const privateKey = await getRequestPrivateKey();
   if (!privateKey) {
     logError({
@@ -223,10 +291,10 @@ export const processScan = async (
   // carries the attendee id its roster option holds.
   const cameraRead = typeof body.token === "string";
   const load = cameraRead
-    ? async (): Promise<AttendeeWithBookingRows | null> =>
+    ? async (): Promise<AttendeeWithBookings | null> =>
         (await getAttendeesByTokens([body.token as string]))[0] ?? null
     : typeof body.attendee_id === "number"
-      ? async (): Promise<AttendeeWithBookingRows | null> =>
+      ? async (): Promise<AttendeeWithBookings | null> =>
           (
             await getAttendeesByIdsWithBookings([body.attendee_id as number])
           ).get(body.attendee_id as number) ?? null
@@ -239,8 +307,11 @@ export const processScan = async (
   return scanBy(
     scope,
     load,
-    body.force === true && cameraRead,
-    body.id_verified === true,
+    {
+      count: isAdmitCount(body.quantity) ? body.quantity : undefined,
+      force: body.force === true && cameraRead,
+      idVerified: body.id_verified === true,
+    },
     privateKey,
     !cameraRead,
   );

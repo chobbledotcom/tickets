@@ -247,7 +247,6 @@ src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → ||   # `pattern.mat
 # falsy-but-present value that differs from the fallback itself.
 src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → ||   # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
 src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → ||   # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
-src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1f1  ?? → ||   # the row is an Attendee object or undefined, and an object is always truthy
 
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.

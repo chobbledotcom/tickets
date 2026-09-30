@@ -44,6 +44,7 @@ export const AREAS_A_L = {
     segments: ["listing"],
     view: {
       attendee: "/admin/attendees/:attendeeId",
+      attendeeCheckin: "/admin/listing/:id/attendee/:attendeeId/checkin",
       attendees: "/admin/attendees",
       attendeesCsv: "/admin/attendees/csv",
     },

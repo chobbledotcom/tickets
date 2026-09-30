@@ -11,8 +11,9 @@ Feature: An organiser checks people in at the door
   @rule:attendees.a-ticket-for-this-listing-lets-them-in
   @surface:admin
   Rule: A ticket for this listing lets the person in
-    The organiser is told the name on the ticket and how many places it covers,
-    so they know how many people to wave through.
+    The organiser is told the name on the ticket and how many places it covers.
+    A ticket that covers several people asks how many are at the door, so part
+    of a party can arrive first and the rest still gets in later.
 
     @case:door.the-first-look-at-a-ticket
     Scenario: The organiser reads a ticket for the listing they are running
@@ -25,15 +26,26 @@ Feature: An organiser checks people in at the door
     Scenario: The organiser reads a ticket that covers several people
       Given Bruno has a ticket for 4 places at the Ceilidh
       When the organiser reads Bruno's ticket at the Ceilidh door
+      Then the door asks how many tickets for Bruno
+      When the organiser says 4 tickets for Bruno at the Ceilidh door
       Then the door lets Bruno in
       And the door says the ticket covers 4 places
 
-    @case:door.the-day-is-written-down
-    Scenario: The listing's own record of the day shows the check-in
-      Given Alice has a ticket for the Ceilidh
-      When the organiser reads Alice's ticket at the Ceilidh door
-      Then the Ceilidh's record of the day says Alice was checked in
+    @case:door.part-of-a-party-arrives-first
+    Scenario: The organiser checks in part of a party
+      Given Cara has a ticket for 3 places at the Ceilidh
+      When the organiser reads Cara's ticket at the Ceilidh door
+      And the organiser says 2 tickets for Cara at the Ceilidh door
+      Then the door lets Cara in
+      And the door says the ticket covers 2 of 3 places
 
+    @case:door.the-rest-of-a-party-arrives-later
+    Scenario: The rest of the party arrives later
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And the organiser has checked in 2 of Cara's tickets at the Ceilidh door
+      When the organiser reads Cara's ticket at the Ceilidh door
+      Then the door lets Cara in
+      And the door says the ticket covers 1 of 3 places
     @case:door.a-ticket-for-a-stay-of-several-days
     Scenario: The organiser reads a ticket for a stay of several days
       Given Alice has a ticket for a 3-day stay at the Cabin
@@ -42,6 +54,11 @@ Feature: An organiser checks people in at the door
       When the organiser reads Alice's ticket at the Cabin door
       Then the door says Alice is already in
 
+    @case:door.the-day-is-written-down
+    Scenario: The listing's own record of the day shows the check-in
+      Given Alice has a ticket for the Ceilidh
+      When the organiser reads Alice's ticket at the Ceilidh door
+      Then the Ceilidh's record of the day says Alice was checked in
   @rule:attendees.a-ticket-already-used-says-so
   @surface:admin
   Rule: A ticket already used says so
@@ -125,6 +142,12 @@ Feature: An organiser checks people in at the door
       Given Alice has a ticket for the Ceilidh
       And the organiser reads Alice's ticket at the Ceilidh door
       Then the Ceilidh door does not offer Alice
+
+    @case:door.a-part-party-is-offered-for-the-rest
+    Scenario: The organiser looks for a party that is partly in
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And the organiser has checked in 2 of Cara's tickets at the Ceilidh door
+      Then the Ceilidh door offers Cara for 1 ticket
 
     @case:door.a-refunded-person-is-not-offered
     Scenario: The organiser looks for someone whose money was given back

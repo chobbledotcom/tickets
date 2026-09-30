@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -24,7 +25,7 @@ import {
  * follows the ledger, and storage details stay on the server. */
 type ApiAttendeeRow = {
   address: string;
-  checked_in: boolean;
+  checked_in: number;
   created: string;
   date: string | null;
   email: string;
@@ -96,6 +97,24 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(row.listing_id).toBe(listing.id);
         expect(row.kind).toBe("attendee");
       }
+    });
+
+    test("reports how many of a line's tickets the doors admitted", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Part Party",
+        "part@example.com",
+        3,
+      );
+      await moveTickets("admit", [
+        { attendeeId: attendee.id, count: 2, listingId: listing.id },
+      ]);
+
+      const [row] = await listingAttendees(listing.id);
+      // A count out of the line's quantity, not a yes or no.
+      expect(row!.checked_in).toBe(2);
+      expect(row!.quantity).toBe(3);
     });
 
     test("reports the amount paid and the payment reference", async () => {

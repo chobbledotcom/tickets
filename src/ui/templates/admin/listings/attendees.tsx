@@ -59,12 +59,13 @@ export const emailDayHrefFor = (
     : undefined;
 };
 
+/** A line reads as checked in only when every ticket on it is admitted, so
+ * the door can filter for people who still owe tickets. */
 const keepByRosterFilter: Record<AttendeeFilter, (a: Attendee) => boolean> = {
   all: () => true,
-  in: (a) => a.checked_in && hasTicketQuantity(a),
-  out: (a) => !a.checked_in && hasTicketQuantity(a),
+  in: (a) => a.checked_in === a.quantity && hasTicketQuantity(a),
+  out: (a) => a.checked_in < a.quantity && hasTicketQuantity(a),
 };
-
 const hasKnownPaymentReference =
   (paymentReferenceAttendeeIds: ReadonlySet<number>) =>
   (attendee: Attendee): boolean =>

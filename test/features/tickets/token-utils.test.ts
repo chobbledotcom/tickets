@@ -69,8 +69,8 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     // start_at/end_at are sliced to YYYY-MM-DD.
     expect(view.date).toBe("2026-06-21");
     expect(view.end_date).toBe("2026-06-23");
-    // Flags derive from the 0/1 columns.
-    expect(view.checked_in).toBe(false);
+    // The count derives from the stored column; the flags from 0/1 columns.
+    expect(view.checked_in).toBe(0);
     expect(view.refunded).toBe(false);
     expect(view.split_logistics_agents).toBe(false);
     // Every PII field is blanked in the view.

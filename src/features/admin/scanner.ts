@@ -7,13 +7,14 @@
  * POST /admin/groups/:id/scan - The same JSON API over the group's members
  */
 
+import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { filter, groupToMap, reduce } from "#fp";
+import { filter, groupToMap, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
@@ -65,17 +66,16 @@ const manualCheckinOptions = (
       (a: Attendee) => a,
     )(
       filter(
-        (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
+        (a: Attendee) =>
+          remainingTickets(a) > 0 && !a.refunded && hasTicketQuantity(a),
       )(attendees),
     ).values(),
   ].map((rows: Attendee[]) => ({
     attendeeId: rows[0]!.id,
     details: optionDetails(rows, listingNames),
     name: rows[0]!.name,
-    quantity: reduce(
-      (total: number, row: Attendee) => total + row.quantity,
-      0,
-    )(rows),
+    // Every place the person still owes on this door's listings.
+    quantity: sumOf(remainingTickets)(rows),
   }));
 
 /** Handle GET /admin/listing/:id/scanner - render scanner page */

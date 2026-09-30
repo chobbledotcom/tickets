@@ -348,17 +348,17 @@ const backfillListingAttendees = fromAttendeeColumns(
       ],
     );
 
-    // refunded and price_paid were both dropped from listing_attendees (refund
-    // status and per-row amount paid are now projected from the transfers ledger),
-    // so the legacy attendees.refunded_v2 / price_paid_v2 values are not restored —
-    // a historical paid or refunded booking re-surfaces via its backfilled sale /
-    // refund_cash leg, not a per-row column.
+    // refunded and price_paid were both dropped from listing_attendees (both
+    // project from the transfers ledger), so the legacy refunded_v2 /
+    // price_paid_v2 values are not restored. A historical paid or refunded
+    // booking re-surfaces via its backfilled ledger legs, not a per-row column.
     await getDb().execute(
       `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
      SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity, checked_in_v2, attachment_downloads
+       quantity, CASE WHEN checked_in_v2 = '1' AND quantity > 0 THEN quantity ELSE 0 END,
+       attachment_downloads
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)`,
     );

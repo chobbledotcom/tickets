@@ -3,18 +3,26 @@ import type { Window } from "happy-dom";
 import { initManualCheckin } from "#src/ui/client/admin/manual-checkin.ts";
 import {
   createDomInstaller,
+  createGlobalStash,
   type DomInstaller,
 } from "#test-utils/happy-dom.ts";
 
 const CHECKIN_FORM = `
   <form
     data-manual-checkin
+    data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
+    data-message-checked-in="{name} checked in for {listingName} ({tickets})"
+    data-message-checked-in-partial="{name} checked in for {listingName} ({tickets} of {total} tickets)"
     data-message-error="Check-in failed"
     data-message-network-error="Could not reach server"
     data-message-not-found="No matching ticket"
     data-message-refunded="{name} was refunded."
+    data-message-select-quantity="How many tickets for {name}?"
+    data-message-skipped="Skipped {name}"
     data-message-ticket-count-one="{count} pass"
     data-message-ticket-count-other="{count} tickets"
+    data-message-ticket-option="{name} ({tickets})"
+    data-message-ticket-option-detail="{name} ({tickets}) - {detail}"
     data-message-verify-id-note=" - check ID"
     data-scan-path="/admin/listing/7/scan"
   >
@@ -29,6 +37,15 @@ const CHECKIN_FORM = `
     <p class="hidden checkin-status-error checkin-status-success checkin-status-warning" id="manual-checkin-status">Waiting</p>
     <button type="submit">Check in</button>
   </form>
+  <div class="scanner-overlay hidden" id="scanner-quantity">
+    <div class="scanner-overlay-backdrop"></div>
+    <div class="scanner-overlay-box">
+      <p id="scanner-quantity-message"></p>
+      <select id="scanner-quantity-select"></select>
+      <button id="scanner-quantity-confirm" type="button">Check In</button>
+      <button id="scanner-quantity-cancel" type="button">Cancel</button>
+    </div>
+  </div>
   <div class="hidden" id="scanner-confirm">
     <span id="scanner-confirm-message"></span>
     <button id="scanner-confirm-yes">Yes</button>
@@ -102,11 +119,34 @@ const setupManualCheckin = (dom: DomInstaller): ManualCheckinPage => {
   };
 };
 
-export const useManualCheckinPage = (): {
+export interface ManualCheckinHarness {
   dom: DomInstaller;
   setup: () => ManualCheckinPage;
-} => {
+  /** Serve the given JSON answers to the scan API, one per POST, recording
+   * each request body the page sends. */
+  stubScans: (answers: Record<string, unknown>[]) => Record<string, unknown>[];
+}
+
+/** Install a fresh manual check-in page for each test in the current suite. */
+export const useManualCheckinPage = (): ManualCheckinHarness => {
   const dom = createDomInstaller();
-  afterEach(() => dom.cleanup());
-  return { dom, setup: () => setupManualCheckin(dom) };
+  const stash = createGlobalStash();
+  afterEach(async () => {
+    await dom.cleanup();
+    stash.restore();
+  });
+  return {
+    dom,
+    setup: () => setupManualCheckin(dom),
+    stubScans: (answers) => {
+      const sent: Record<string, unknown>[] = [];
+      let served = 0;
+      stash.set("fetch", async (_url: string, init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        const answer = answers[Math.min(served++, answers.length - 1)]!;
+        return { json: async () => answer } as Response;
+      });
+      return sent;
+    },
+  };
 };

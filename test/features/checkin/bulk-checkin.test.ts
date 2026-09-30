@@ -40,8 +40,8 @@ describeWithEnv(
         // Newest first: the checkout the door made last, then the check-in.
         // Older rows (the attendee's own creation) sit below them.
         expect(log.map((entry) => entry.message).slice(0, 2)).toEqual([
-          `Attendee checked out for '${listing.name}'`,
-          `Attendee checked in for '${listing.name}'`,
+          `Attendee checked out 1 ticket for '${listing.name}'`,
+          `Attendee checked in 1 ticket for '${listing.name}'`,
         ]);
       });
 
@@ -72,18 +72,18 @@ describeWithEnv(
         // The leg the row-toggle checked in keeps its one record; the bulk
         // action adds none for it and records only the waiting leg.
         expect(await doorEntries()).toEqual([
-          `Attendee checked in for '${second.name}'`,
-          `Attendee checked in for '${first.name}'`,
+          `Attendee checked in 1 ticket for '${second.name}'`,
+          `Attendee checked in 1 ticket for '${first.name}'`,
         ]);
 
         await postCheckin(attendee.ticket_token, session, "false");
         // Both legs were in, so the checkout moves both — and records both.
         const afterCheckout = await doorEntries();
         expect(afterCheckout).toEqual([
-          `Attendee checked out for '${second.name}'`,
-          `Attendee checked out for '${first.name}'`,
-          `Attendee checked in for '${second.name}'`,
-          `Attendee checked in for '${first.name}'`,
+          `Attendee checked out 1 ticket for '${second.name}'`,
+          `Attendee checked out 1 ticket for '${first.name}'`,
+          `Attendee checked in 1 ticket for '${second.name}'`,
+          `Attendee checked in 1 ticket for '${first.name}'`,
         ]);
 
         await postCheckin(attendee.ticket_token, session, "false");

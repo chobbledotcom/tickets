@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { pairKey } from "#booking/ticket-moves.ts";
 import {
   attendeeLineRow,
   groupAttendeeRows,
+  withPairBookings,
 } from "#shared/attendee-table-rows.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { AttendeeRowListing } from "#types";
@@ -24,6 +26,34 @@ describe("attendeeLineRow", () => {
     } as AttendeeRowListing);
     expect(row.attendee).toBe(attendee);
     expect(row.listings).toEqual([{ id: 7, name: "Workshop" }]);
+  });
+});
+
+describe("withPairBookings", () => {
+  const GALA = DISPLAY_ORDER[0]!;
+  const WORKSHOP = DISPLAY_ORDER[1]!;
+
+  test("gives each line the booking read for its person and listing", () => {
+    const bookings = new Map([
+      [pairKey(1, GALA.id), { checked_in: 1, quantity: 3 }],
+      [pairKey(1, WORKSHOP.id), { checked_in: 0, quantity: 2 }],
+    ]);
+    const rows = withPairBookings(bookings)([
+      attendeeLineRow(testAttendee({ id: 1, quantity: 1 }), GALA),
+      attendeeLineRow(testAttendee({ id: 1, quantity: 2 }), WORKSHOP),
+    ]);
+    expect(rows.map((row) => row.booking)).toEqual([
+      { checked_in: 1, quantity: 3 },
+      { checked_in: 0, quantity: 2 },
+    ]);
+  });
+
+  test("throws for a line whose booking was never read", () => {
+    expect(() =>
+      withPairBookings(new Map())([
+        attendeeLineRow(testAttendee({ id: 4 }), GALA),
+      ]),
+    ).toThrow(`No booking read for ${pairKey(4, GALA.id)}`);
   });
 });
 

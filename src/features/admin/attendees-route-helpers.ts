@@ -2,8 +2,10 @@
  * Shared utilities for admin attendee route handlers
  */
 
-import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
+import { pairKey } from "#booking/ticket-moves.ts";
+import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getListingWithAttendeeRaw } from "#db/listings/attendees.ts";
 import {
   getListingWithCount,
@@ -13,6 +15,7 @@ import {
   getPaymentReviewState,
   type PaymentReviewState,
 } from "#db/payment-review.ts";
+import { requiredMapValue } from "#fp";
 import type { PaymentRecoveryAction } from "#payment/admit-move.ts";
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
@@ -50,32 +53,57 @@ export const attendeeListingEntries = async (
 ): Promise<AttendeeWithListing[]> =>
   Promise.all(
     rows.map(async (row) => ({
-      attendee: (await decryptAttendeeOrNull(row, pk))!,
+      attendee: await decryptAttendeeFields(row, pk),
       listing: await requireListingWithCount(row.listing_id),
     })),
   );
 
-/**
- * Load attendee ensuring it belongs to the specified listing.
- * Uses batched query to fetch listing + attendee in a single DB round-trip.
- * Decrypts attendee PII using the admin private key.
- */
-export const loadAttendeeForListing = async (
+/** Loads one person's booking on one listing, or null when they hold none. */
+type ListingAttendeeLoader = (
   listingId: number,
   attendeeId: number,
-): Promise<AttendeeWithListing | null> => {
-  const pk = await requireRequestPrivateKey();
+) => Promise<AttendeeWithListing | null>;
+
+/** Load the attendee's booking line for one listing. An attendee with no
+ * booking on the listing reads as null — the route then answers 404. */
+export const loadAttendeeForListing: ListingAttendeeLoader = async (
+  listingId,
+  attendeeId,
+) => {
   const result = await getListingWithAttendeeRaw(listingId, attendeeId);
-  if (!result) return null;
-
-  const attendee = await decryptAttendeeOrNull(result.attendeeRaw, pk);
-  if (!attendee || attendee.listing_id !== listingId) return null;
-
+  if (result === null || result.attendeeRows.length === 0) return null;
+  // The row exists, so its decrypt always answers — the null-tolerant helper
+  // is for the batch reads that may hold no row.
+  const attendee = await decryptAttendeeFields(
+    result.attendeeRows[0]!,
+    await requireRequestPrivateKey(),
+  );
   return { attendee, listing: result.listing };
+};
+
+/** Load the person's whole booking on one listing. Several lines can share
+ * the pair — two parents, two dates — and a check-in moves the whole
+ * booking, so the page and the POST read the counts the write moves. */
+export const loadAttendeeBooking: ListingAttendeeLoader = async (
+  listingId,
+  attendeeId,
+) => {
+  const loaded = await loadAttendeeForListing(listingId, attendeeId);
+  if (loaded === null) return null;
+  const bookings = await getPairBookings([{ attendeeId, listingId }]);
+  const booking = requiredMapValue(
+    bookings,
+    pairKey(attendeeId, listingId),
+    `Attendee ${attendeeId} has no booking read on listing ${listingId}`,
+  );
+  return { ...loaded, attendee: { ...loaded.attendee, ...booking } };
 };
 
 /** Load attendee with auth, returning 404 if not found */
 export const withAttendee = withEntityLoader(loadAttendeeForListing);
+
+/** Load the person's whole booking with auth, answering 404 when absent. */
+export const withAttendeeBooking = withEntityLoader(loadAttendeeBooking);
 
 /** Load and decrypt one attendee by id with the request's session key. */
 const getDecryptedAttendee = async (
@@ -342,13 +370,31 @@ type AttendeeFormAction = ResponseHandler<
   ]
 >;
 
+/** Create an attendee form handler with typed IDs, loading its context with
+ * `load` — the line loader for row-scoped actions, the booking loader for
+ * check-in actions that move the whole (person, listing) booking. */
+const attendeeFormActionLoading =
+  (
+    load: (
+      listingId: number,
+      attendeeId: number,
+    ) => Promise<AttendeeWithListing | null>,
+  ) =>
+  (
+    handler: AttendeeFormAction,
+  ): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
+    createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
+      handle: ({ context, form, params, session }) =>
+        handler(context, session, form, params.listingId, params.attendeeId),
+      loadContext: ({ listingId, attendeeId }) => load(listingId, attendeeId),
+    });
+
 /** Create an attendee form handler with typed IDs */
-export const attendeeFormAction = (
-  handler: AttendeeFormAction,
-): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
-  createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
-    handle: ({ context, form, params, session }) =>
-      handler(context, session, form, params.listingId, params.attendeeId),
-    loadContext: ({ listingId, attendeeId }) =>
-      loadAttendeeForListing(listingId, attendeeId),
-  });
+export const attendeeFormAction = attendeeFormActionLoading(
+  loadAttendeeForListing,
+);
+
+/** Create a check-in form handler: its context is the person's whole booking
+ * on the listing, ticket counts summed across every row the pair holds. */
+export const attendeeBookingFormAction =
+  attendeeFormActionLoading(loadAttendeeBooking);

@@ -10,6 +10,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
+  adminCheckinPost as checkIn,
   setupListingAndAttendee,
   submitDeleteIncomplete,
 } from "#test-utils/attendees/helpers.ts";
@@ -29,16 +30,6 @@ const isCheckedIn = async (
   return Number(rows.rows[0]!.checked_in) === 1;
 };
 
-const checkIn = (
-  listingId: number,
-  attendeeId: number,
-  extra: Record<string, string> = {},
-) =>
-  adminFormPost(
-    `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
-    extra,
-  );
-
 describeWithEnv("checking an attendee in", { db: true }, () => {
   test("marks them in, then out again on a second press", async () => {
     const { attendee, listing } = await setupListingAndAttendee({
@@ -47,7 +38,9 @@ describeWithEnv("checking an attendee in", { db: true }, () => {
 
     await checkIn(listing.id, attendee.id);
     const afterIn = await isCheckedIn(listing.id, attendee.id);
-    await checkIn(listing.id, attendee.id);
+    // The roster's Check Out button names its direction, so a bare POST is
+    // always a check-in now.
+    await checkIn(listing.id, attendee.id, { check_in: "false" });
     const afterOut = await isCheckedIn(listing.id, attendee.id);
 
     expect(afterIn).toBe(true);

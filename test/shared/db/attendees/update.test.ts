@@ -8,13 +8,11 @@ import {
   recomputeListingBookingRanges,
   updateAttendeePII,
   updateAttendeeStatus,
-  updateCheckedIn,
 } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  createTestAttendee,
   createTestAttendeeDirect,
   decryptFirstAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
@@ -24,40 +22,6 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-
-describeWithEnv("db > attendees > updateCheckedIn", { db: true }, () => {
-  const createAttendeeWithUpdates = async (updates: boolean[]) => {
-    const listing = await createTestListing({ maxAttendees: 100 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Check User",
-      "check@example.com",
-    );
-    for (const checked of updates) {
-      await updateCheckedIn(attendee.id, listing.id, checked);
-    }
-    return listing;
-  };
-
-  const expectFirstAttendeeCheckedIn = async (
-    listingId: number,
-    expected: boolean,
-  ) => {
-    const attendee = await decryptFirstAttendee(listingId);
-    expect(attendee.checked_in).toBe(expected);
-  };
-
-  test("updates checked_in to true for existing attendee", async () => {
-    const listing = await createAttendeeWithUpdates([true]);
-    await expectFirstAttendeeCheckedIn(listing.id, true);
-  });
-
-  test("updates checked_in back to false", async () => {
-    const listing = await createAttendeeWithUpdates([true, false]);
-    await expectFirstAttendeeCheckedIn(listing.id, false);
-  });
-});
 
 describeWithEnv(
   "db > attendees > incrementAttachmentDownloads",

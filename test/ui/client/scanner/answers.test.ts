@@ -13,7 +13,10 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
+  el,
   forcedNoDoorScan,
   forcedVerifyScan,
   useScannerSuite,
@@ -110,5 +113,72 @@ describe("scanner confirmations", {
     await whenTextShows(h.statusEl, "This ticket has no door to check in at");
     await done;
     expect(fetchStub.calls.length).toBe(2);
+  });
+
+  test("keeps the override on every later ask, so a forced ticket can pick a count", async () => {
+    const h = fresh();
+    const answers = [
+      { listingName: "Standard", name: "Ada", status: "wrong_listing" },
+      { max: 3, name: "Ada", status: "select_quantity" },
+      {
+        listingName: "Standard",
+        name: "Ada",
+        quantity: 2,
+        status: "checked_in",
+        total: 2,
+      },
+    ];
+    const bodies: unknown[] = [];
+    using _fetch = stubFetch((_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json(answers[bodies.length - 1]);
+    });
+
+    const done = h.module.admitScan(
+      "/scan",
+      "tok",
+      "csrf",
+      h.statusEl,
+      h.messages,
+    );
+    await whenMessageShows(
+      h,
+      "Ada is registered for Standard. Check in anyway?",
+    );
+    h.confirm.yes.click();
+    const quantity = el(h.document, "scanner-quantity");
+    while (quantity.classList.contains("hidden")) await Promise.resolve();
+    (
+      el(h.document, "scanner-quantity-select") as unknown as HTMLSelectElement
+    ).value = "2";
+    el(h.document, "scanner-quantity-confirm").click();
+    await done;
+
+    expect(bodies).toEqual([
+      { token: "tok" },
+      { force: true, token: "tok" },
+      { force: true, quantity: 2, token: "tok" },
+    ]);
+    expect(h.statusEl.textContent).toBe(
+      "Ada checked in for Standard (2 tickets)",
+    );
+  });
+
+  test("the camera and the manual form share one question queue", async () => {
+    // The camera loop ships in the scanner bundle and the manual form in the
+    // admin bundle, so each carries its own copy of the dialog code. A click
+    // must still answer only the question the operator sees.
+    const h = fresh();
+
+    const camera = h.module.showConfirm("Let this person in anyway?");
+    const manual = showConfirm("Check her ID?");
+
+    await whenMessageShows(h, "Let this person in anyway?");
+    h.confirm.yes.click();
+    expect(await camera).toBe(true);
+
+    await whenMessageShows(h, "Check her ID?");
+    h.confirm.no.click();
+    expect(await manual).toBe(false);
   });
 });

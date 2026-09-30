@@ -28,14 +28,6 @@ import { ErrorAlert } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 
-/** Checkbox that reveals the not-booked listing rows when at least one line is
- * already booked (pure-CSS, never parsed; omitted on a bare create form, which
- * shows every listing). */
-const SHOW_ALL_FIELD = "show_all";
-/** Checkbox that reveals the blank package-path lines (pure CSS, never
- * parsed) — one line per (package, member) path the attendee could book. */
-const SHOW_PACKAGE_PATHS_FIELD = "show_package_paths";
-
 /* jscpd:ignore-end */
 
 /** The booking path shown beside a listing when it is not a standalone row. */
@@ -78,7 +70,8 @@ const listingNameCell = (
       {label ? <span class="muted small booking-path"> {label}</span> : null}
       <InactiveNote active={listing.active} />
       {BookingStatusBadges({
-        checkedIn: Boolean(line.existingBooking?.checked_in),
+        checkedIn: line.existingBooking?.checked_in ?? 0,
+        quantity: line.existingBooking?.quantity ?? 0,
         refunded: Boolean(line.existingBooking?.refunded),
       })}
     </>
@@ -205,21 +198,13 @@ export const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
     >
       {hasBookedLines && (
         <label class="show-all">
-          <input
-            class="show-all-toggle"
-            name={SHOW_ALL_FIELD}
-            type="checkbox"
-          />
+          <input class="show-all-toggle" type="checkbox" />
           {t("attendee_form.show_all_listings")}
         </label>
       )}
       {hasPackagePathLines && (
         <label class="show-all">
-          <input
-            class="package-paths-toggle"
-            name={SHOW_PACKAGE_PATHS_FIELD}
-            type="checkbox"
-          />
+          <input class="package-paths-toggle" type="checkbox" />
           {t("attendee_form.show_package_paths")}
         </label>
       )}

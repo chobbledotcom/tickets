@@ -38,7 +38,7 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
     // Check in the first attendee
     await adminFormPost(
       `/admin/listing/${listing.id}/attendee/${checkedInAttendee.id}/checkin`,
-      {},
+      { check_in: "true", quantity: "1" },
     );
 
     return { cookie, listing };

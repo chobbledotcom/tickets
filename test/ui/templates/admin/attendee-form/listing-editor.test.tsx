@@ -110,7 +110,7 @@ describe("ListingEditor", () => {
     expect(html).toContain('class="listing-editor show-all-listings"');
     expect(html).not.toContain('class="show-all-toggle"');
     expect(html).toContain(
-      '<label class="show-all"><input class="package-paths-toggle" name="show_package_paths" type="checkbox">',
+      '<label class="show-all"><input class="package-paths-toggle" type="checkbox">',
     );
     expect(html).toContain(
       '<span class="muted small booking-path"> via Weekend pass</span>',
@@ -211,7 +211,7 @@ describe("ListingEditor", () => {
 
     expect(html).toContain('class="listing-editor"');
     expect(html).toContain(
-      '<label class="show-all"><input class="show-all-toggle" name="show_all" type="checkbox">',
+      '<label class="show-all"><input class="show-all-toggle" type="checkbox">',
     );
     expect(html.match(/class="attendee-line"/g)).toHaveLength(3);
     expect(html).not.toContain("attendee-line-empty");

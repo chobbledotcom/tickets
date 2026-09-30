@@ -3,17 +3,26 @@
  */
 
 import { ledgerTx } from "#accounting/ledger-tx.ts";
+import {
+  type StoredTicketLine,
+  spreadTicketMoves,
+  type TicketDirection,
+  type TicketMove,
+  type TicketMoveAnswer,
+} from "#booking/ticket-moves.ts";
 import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
+import { ticketLinesQuery } from "#db/attendees/ticket-lines.ts";
 import {
   execute,
   executeBatch,
   executeUpdate,
-  inPlaceholders,
   queryAll,
   rawSql,
+  resultRows,
   type TxScope,
   update,
+  useTransaction,
   withTransaction,
 } from "#db/client.ts";
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
@@ -21,38 +30,31 @@ import { countsPerDate } from "#shared/capacity-rules.ts";
 import { clampDurationDays, type ListingType } from "#types";
 
 /**
- * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it
- * isn't a real ticket, mirroring the refunded-ticket guard in checkin.ts. The
- * `quantity > 0` predicate scopes the write so a ghost row is a no-op (it can
- * never have been checked in, so scoping the check-OUT case too is harmless).
+ * Move tickets for each (person, listing) and answer what really moved. The
+ * lines are read inside the write transaction, so two doors that move
+ * tickets at the same time cannot pass a line's bounds. A no-quantity
+ * (quantity 0) line and a refunded line are not tickets and never move.
  */
-export const updateCheckedIn = async (
-  attendeeId: number,
-  listingId: number,
-  checkedIn: boolean,
-): Promise<void> => {
-  await execute(
-    "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ? AND quantity > 0",
-    [checkedIn ? 1 : 0, attendeeId, listingId],
-  );
-};
-
-/** Set the check-in state on exactly the booking rows a door action
- * selected — by row id, so a merged attendee's other order on the same
- * listing stays untouched. The caller passes the rows its eligibility
- * filter kept; an empty selection never reaches SQL. Runs inside the
- * caller's transaction, so the action and its activity rows commit
- * together. */
-export const setCheckedInOnBookingRows = async (
-  bookingRowIds: readonly number[],
-  checkedIn: boolean,
-  transaction: TxScope,
-): Promise<void> => {
-  await transaction.execute({
-    args: [checkedIn ? 1 : 0, ...bookingRowIds],
-    sql: `UPDATE listing_attendees SET checked_in = ? WHERE id IN (${inPlaceholders(bookingRowIds)})`,
+export const moveTickets = (
+  direction: TicketDirection,
+  moves: readonly TicketMove[],
+  transaction?: TxScope,
+): Promise<TicketMoveAnswer[]> =>
+  useTransaction(transaction, async (tx) => {
+    const lines = resultRows<StoredTicketLine>(
+      await tx.execute(ticketLinesQuery(moves)),
+    );
+    const { changed, moved } = spreadTicketMoves(direction, lines, moves);
+    if (changed.length > 0) {
+      await tx.batch(
+        changed.map((line) => ({
+          args: [line.checked_in, line.id],
+          sql: "UPDATE listing_attendees SET checked_in = ? WHERE id = ?",
+        })),
+      );
+    }
+    return moved;
   });
-};
 
 /**
  * Set an attendee's status from the admin edit form (a plain column write,

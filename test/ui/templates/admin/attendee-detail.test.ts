@@ -103,13 +103,13 @@ describe("BookingStatusBadges", () => {
   test("returns null when the booking is neither checked in nor refunded", () => {
     // Null lets the table swap in an em dash for the status cell.
     expect(
-      BookingStatusBadges({ checkedIn: false, refunded: false }),
+      BookingStatusBadges({ checkedIn: 0, quantity: 1, refunded: false }),
     ).toBeNull();
   });
 
   test("renders a plain badge when checked in", () => {
     const html = String(
-      BookingStatusBadges({ checkedIn: true, refunded: false }),
+      BookingStatusBadges({ checkedIn: 1, quantity: 1, refunded: false }),
     );
     expect(html).toContain(
       '<div class="muted small"><span class="badge">Checked in</span></div>',
@@ -117,9 +117,16 @@ describe("BookingStatusBadges", () => {
     expect(html).not.toContain("Refunded");
   });
 
+  test("names the count a part booking admitted", () => {
+    const html = String(
+      BookingStatusBadges({ checkedIn: 2, quantity: 3, refunded: false }),
+    );
+    expect(html).toContain("Checked in (2 of 3)");
+  });
+
   test("renders a danger badge when refunded", () => {
     const html = String(
-      BookingStatusBadges({ checkedIn: false, refunded: true }),
+      BookingStatusBadges({ checkedIn: 0, quantity: 1, refunded: true }),
     );
     expect(html).toContain('<span class="badge danger">Refunded</span>');
     expect(html).not.toContain("Checked in");
@@ -127,7 +134,7 @@ describe("BookingStatusBadges", () => {
 
   test("renders both badges when checked in and refunded", () => {
     const html = String(
-      BookingStatusBadges({ checkedIn: true, refunded: true }),
+      BookingStatusBadges({ checkedIn: 1, quantity: 1, refunded: true }),
     );
     expect(html).toContain(
       '<span class="badge">Checked in</span> <span class="badge danger">Refunded</span>',

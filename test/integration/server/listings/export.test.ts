@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
@@ -89,17 +90,19 @@ describeWithEnv("server listings > export", { db: true }, () => {
         "john@example.com",
       );
 
-      // Check in the attendee
+      // Check in the attendee's one ticket, the way the roster's toggle does.
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        {},
+        { check_in: "true", quantity: "1" },
       );
 
-      const csv = await fetchListingExportCsv(listing.id, cookie);
-      expect(csv).toContain(",Checked In");
-      // John Doe is checked in
-      expect(csv).toContain("John Doe");
-      expect(csv).toContain(",Yes");
+      const [header, ...rows] = parse(
+        await fetchListingExportCsv(listing.id, cookie),
+      );
+      const john = rows.find((row) => row.includes("John Doe"))!;
+      // The Checked In cell holds the admitted count, read from its own
+      // column so no other number on the row can stand in for it.
+      expect(john[header!.indexOf("Checked In")]).toBe("1");
     });
 
     test("returns CSV rows in the order the roster shows them", async () => {

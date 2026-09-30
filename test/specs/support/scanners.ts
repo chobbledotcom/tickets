@@ -12,7 +12,10 @@ import {
   SCANNER,
   visiting,
 } from "#test/specs/support/browser.ts";
-import { type DoorAnswer, sendDoorScan } from "#test/specs/support/door.ts";
+import {
+  type ShowTicketAtDoor,
+  sendDoorScan,
+} from "#test/specs/support/door.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import { invitedRoleJourney } from "#test/specs/support/staff-accounts.ts";
 import type {
@@ -71,15 +74,17 @@ export const openScannerDoor = async (
 
 /** One scan the scanner's own door page would send: the page is opened first
  * so the code and cookies are the scanner's own. */
-export const scanAtDoorAsScanner = async (
-  world: TicketsWorld,
-  listing: string,
-  ticket: string,
-): Promise<DoorAnswer> => {
+export const scanAtDoorAsScanner: ShowTicketAtDoor = async (
+  world,
+  listing,
+  ticket,
+  choices = {},
+) => {
   const browser = await openScannerDoor(world, listing);
   return await sendDoorScan(
     `/admin/listing/${listingIdNamed(world, listing)}/scan`,
     browser,
     ticket,
+    choices,
   );
 };

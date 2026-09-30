@@ -166,8 +166,8 @@ export const getListingOverviewStats = async (
        COALESCE(SUM(CASE WHEN NOT ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS complete_quantity_sum,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN listingAttendee.quantity ELSE 0 END), 0) AS tickets_total,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN 1 ELSE 0 END), 0) AS rows_total,
-       COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = 1 THEN listingAttendee.quantity ELSE 0 END), 0) AS tickets_checked_in,
-       COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = 1 THEN 1 ELSE 0 END), 0) AS rows_checked_in
+       COALESCE(SUM(CASE WHEN ${confirmed} THEN listingAttendee.checked_in ELSE 0 END), 0) AS tickets_checked_in,
+       COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = listingAttendee.quantity THEN 1 ELSE 0 END), 0) AS rows_checked_in
      FROM listing_attendees AS listingAttendee
      JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
      WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,

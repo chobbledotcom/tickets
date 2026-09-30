@@ -38,9 +38,11 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** What the site says about one person at the door. */
 export interface DoorAnswer {
   listingName?: string;
+  max?: number;
   name?: string;
   quantity?: number;
   status: string;
+  total?: number;
 }
 
 /** An admin page belonging to one record — its listing, or the group its
@@ -62,6 +64,7 @@ const listingPath = (
 export type DoorChoice = {
   confirmedTheirId?: boolean;
   letInAnyway?: boolean;
+  tickets?: number;
 };
 
 /** One door's own pages: its scanner page, and the door that page answers. */
@@ -182,6 +185,7 @@ export const sendDoorScan = async (
         ...(choices.confirmedTheirId === undefined
           ? {}
           : { id_verified: choices.confirmedTheirId }),
+        ...(choices.tickets === undefined ? {} : { quantity: choices.tickets }),
       }),
       headers: {
         "content-type": "application/json",
@@ -272,6 +276,23 @@ const readOf = (row: string, what: string): string => {
 /** The people the listing's door offers when the organiser looks someone up by
  * hand instead of reading their ticket. */
 export const peopleOfferedAtDoor = offeredAt(doorPageHtml);
+
+/** How many tickets the listing's door offers one person for when the
+ * organiser looks them up by hand: what their party still owes. */
+export const ticketsOfferedAtDoor = async (
+  world: TicketsWorld,
+  listing: string,
+  who: string,
+): Promise<number> => {
+  const rows = [
+    ...(await doorPageHtml(world, listing)).matchAll(
+      /<div[^>]*role="option"[^>]*>/g,
+    ),
+  ].map(([row]) => row);
+  const row = rows.find((one) => readOf(one, "name") === who);
+  if (!row) throw new Error(`The door does not offer ${who}`);
+  return Number(readOf(row, "quantity"));
+};
 
 /** What the listing's own record of the day says happened. */
 export const dayLog: ReadAboutOneThing = async (world, listing) => {

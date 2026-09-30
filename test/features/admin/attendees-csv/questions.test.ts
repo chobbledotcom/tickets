@@ -159,6 +159,16 @@ describe("CSV with custom questions", () => {
     expect(row).not.toContain("undefined");
   });
 
+  test("leaves a free-text cell empty when the attendee wrote nothing", () => {
+    const [, row] = generateAttendeesCsv(
+      [testAttendee({ id: 1 })],
+      false,
+      undefined,
+      { attendeeAnswerMap: new Map(), questions: [NOTES_Q] },
+    ).split("\n");
+    expect(row!.endsWith(",")).toBe(true);
+  });
+
   test("omits question columns entirely when questionData is not provided", () => {
     const [header, row] = generateAttendeesCsv([testAttendee()]).split("\n");
     // The header should end with "Ticket URL" — no trailing question columns

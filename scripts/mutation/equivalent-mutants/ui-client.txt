@@ -104,22 +104,20 @@ src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f =
 # answer: the stale resolve is a no-op on its settled promise, and re-hiding
 # the overlay is idempotent. The buttons answer, the overlay hides, and the
 # next dialog opens exactly as with the removal in place.
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~0z6xs9m yesBtn.removeEventListener("click", onY…→(removed)   # a stale Yes listener repeats the live cleanup
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~1uz6zb9 click→""   # a misnamed removal detaches nothing, and the stale listener is unobservable
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~14emmpm noBtn.removeEventListener("click", onNo…→(removed)   # a stale No listener repeats the live cleanup
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~0wjyu3p click→""   # a misnamed removal detaches nothing, and the stale listener is unobservable
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~07arvzq closeBtn.removeEventListener("click", o…→(removed)   # a stale Close listener repeats the live cleanup
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~0uasah5 click→""   # a misnamed removal detaches nothing, and the stale listener is unobservable
-src/ui/client/confirm-dialog.ts::openConfirm.cleanup~0lmo3w5 document.removeEventListener("keydown",…→(removed)   # a stale Escape handler fires only beside the live one, or with no dialog open, where cleanup only re-hides
+src/ui/client/confirm-dialog.ts::askOverlay.finish~0trf4gl click→""   # a misnamed removal leaves a stale answer listener; a later click on that button reaches the live question too, which answers it and hides the same overlay, so the stale call only repeats the hide
+src/ui/client/confirm-dialog.ts::askOverlay.finish~0lmo3w5 document.removeEventListener("keydown",…→(removed)   # a stale Escape handler only re-hides its own overlay and resolves a promise already resolved, while the live question gets the same key
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+=   # a fresh option starts with an empty value, so appending writes the same string
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+=   # a fresh option starts with empty text, so appending writes the same string
 
 # The camera page renders data-message-camera-denied with the same words as
 # the script's fallback, and server-rendered markup never sets an empty
 # dataset key, so a broken lookup key lands on the same words either way.
 src/ui/client/scanner.js::init~02xv58k messageCameraDenied→""   # the lookup misses into the identical fallback
 
-# The manual check-in form renders no data-message-verify-id-confirm or
-# data-message-skipped attribute at all, and server-rendered markup never sets
-# an empty dataset key, so a broken lookup key lands on the fallback either way.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.confirmed~0xkfepv messageVerifyIdConfirm→""   # the lookup misses into the fallback copy
-src/ui/client/admin/manual-checkin.ts::initManualCheckin~1e6fg4d messageSkipped→""   # the lookup misses into the fallback copy
+# The manual check-in form renders no data-message-verify-id-confirm
+# attribute, and its data-message-skipped copy is the same "Skipped {name}" as
+# the fallback. Server-rendered markup never sets an empty dataset key, so a
+# broken lookup key lands on the same words either way.
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→""   # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d messageSkipped→""   # the lookup misses into the fallback copy
 

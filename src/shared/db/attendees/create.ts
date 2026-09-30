@@ -67,7 +67,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   listing_id: input.listingId,
   ...contactFields(input),
   attachment_downloads: 0,
-  checked_in: false,
+  checked_in: 0,
   created: input.created,
   date: input.date,
   end_date: input.date

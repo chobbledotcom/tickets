@@ -79,13 +79,18 @@ describe("detail-rows", () => {
       expect(countCheckedIn([])).toBe(0);
     });
 
-    test("sums quantity of checked-in attendees", () => {
+    test("sums each line's admitted count", () => {
       const attendees = [
-        testAttendee({ checked_in: true, id: 1, quantity: 2 }),
-        testAttendee({ checked_in: false, id: 2, quantity: 3 }),
-        testAttendee({ checked_in: true, id: 3, quantity: 1 }),
+        testAttendee({ checked_in: 2, id: 1, quantity: 2 }),
+        testAttendee({ checked_in: 0, id: 2, quantity: 3 }),
+        testAttendee({ checked_in: 1, id: 3, quantity: 1 }),
       ];
       expect(countCheckedIn(attendees)).toBe(3);
+    });
+
+    test("counts only the tickets a part line admitted", () => {
+      const attendees = [testAttendee({ checked_in: 2, quantity: 3 })];
+      expect(countCheckedIn(attendees)).toBe(2);
     });
   });
 
@@ -94,13 +99,13 @@ describe("detail-rows", () => {
       expect(countCheckedInRows([])).toBe(0);
     });
 
-    test("counts rows regardless of quantity", () => {
+    test("counts only fully admitted lines", () => {
       const attendees = [
-        testAttendee({ checked_in: true, id: 1, quantity: 5 }),
-        testAttendee({ checked_in: false, id: 2, quantity: 1 }),
-        testAttendee({ checked_in: true, id: 3, quantity: 3 }),
+        testAttendee({ checked_in: 5, id: 1, quantity: 5 }),
+        testAttendee({ checked_in: 0, id: 2, quantity: 1 }),
+        testAttendee({ checked_in: 2, id: 3, quantity: 3 }),
       ];
-      expect(countCheckedInRows(attendees)).toBe(2);
+      expect(countCheckedInRows(attendees)).toBe(1);
     });
   });
 
@@ -225,8 +230,8 @@ describe("detail-rows", () => {
 
     test("shows single checked-in row when no multi-quantity", () => {
       const attendees = [
-        testAttendee({ checked_in: true, id: 1, quantity: 1 }),
-        testAttendee({ checked_in: false, id: 2, quantity: 1 }),
+        testAttendee({ checked_in: 1, id: 1, quantity: 1 }),
+        testAttendee({ checked_in: 0, id: 2, quantity: 1 }),
       ];
       const rows = buildSharedDetailRows({
         attendeeCount: 2,
@@ -244,8 +249,8 @@ describe("detail-rows", () => {
       // One real (checked-in) line + one no-quantity sentinel. The ghost must
       // not inflate the row total or force a spurious multi-quantity split.
       const attendees = [
-        testAttendee({ checked_in: true, id: 1, quantity: 1 }),
-        testAttendee({ checked_in: false, id: 2, quantity: 0 }),
+        testAttendee({ checked_in: 1, id: 1, quantity: 1 }),
+        testAttendee({ checked_in: 0, id: 2, quantity: 0 }),
       ];
       const rows = buildSharedDetailRows({
         attendeeCount: 1,
@@ -261,8 +266,8 @@ describe("detail-rows", () => {
 
     test("shows split checked-in rows for multi-quantity", () => {
       const attendees = [
-        testAttendee({ checked_in: true, id: 1, quantity: 3 }),
-        testAttendee({ checked_in: false, id: 2, quantity: 2 }),
+        testAttendee({ checked_in: 3, id: 1, quantity: 3 }),
+        testAttendee({ checked_in: 0, id: 2, quantity: 2 }),
       ];
       const rows = buildSharedDetailRows({
         attendeeCount: 5,
@@ -273,6 +278,21 @@ describe("detail-rows", () => {
       expect(rows.find((r) => r.key === "Tickets Checked In")).toBeDefined();
       expect(rows.find((r) => r.key === "Attendees Checked In")).toBeDefined();
       expect(rows.find((r) => r.key === "Checked In")).toBeUndefined();
+    });
+
+    test("a part line counts its people but not as a checked-in line", () => {
+      // 2 of 3 admitted: the people row counts 2, the line row still owes.
+      const attendees = [testAttendee({ checked_in: 2, quantity: 3 })];
+      const rows = buildSharedDetailRows({
+        attendeeCount: 1,
+        attendees,
+        hasPaidListing: false,
+        maxCapacity: 0,
+      });
+      const people = rows.find((r) => r.key === "Attendees Checked In");
+      const lines = rows.find((r) => r.key === "Tickets Checked In");
+      expect(people!.value).toContain("2 / 3");
+      expect(lines!.value).toContain("0 / 1");
     });
 
     test("includes revenue row when hasPaidListing is true", () => {

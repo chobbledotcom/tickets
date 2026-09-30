@@ -234,10 +234,10 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
 
     const body = await doorPage(group.id);
     expect(body).toContain(
-      `Ada (2 attendees) — Standard · ${formatDateLabel(firstDay)}`,
+      `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
     );
     expect(body).toContain(
-      `Ada (2 attendees) — Society · ${formatDateLabel(addDays(firstDay, 1))}`,
+      `Ada (2 tickets) — Society · ${formatDateLabel(addDays(firstDay, 1))}`,
     );
   });
 

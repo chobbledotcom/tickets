@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
 import {
   testAttendee,
   testGroup,
@@ -29,6 +30,9 @@ describe("GroupAttendeesPanel", () => {
         attendees,
         group,
         listings,
+        pairBookings: shownLineBookings(
+          attendees.map((a) => ({ ...a, listingId: a.listing_id })),
+        ),
       }),
     );
     // Per-line check-in is the point of this roster: the attendee's two
@@ -42,12 +46,14 @@ describe("GroupAttendeesPanel", () => {
   test("returns operator actions to the Attendees tab, not the old detail anchor", () => {
     const group = testGroup({ id: 5, name: "Return Group" });
     const listings = [testListingWithCount({ id: 1, name: "Only Listing" })];
+    const guest = testAttendee({ id: 3, listing_id: 1, name: "Guest" });
     const html = String(
       GroupAttendeesPanel({
         allowedDomain: "localhost",
-        attendees: [testAttendee({ id: 3, listing_id: 1, name: "Guest" })],
+        attendees: [guest],
         group,
         listings,
+        pairBookings: shownLineBookings([{ ...guest, listingId: 1 }]),
       }),
     );
     expect(html).toContain('name="return_url"');

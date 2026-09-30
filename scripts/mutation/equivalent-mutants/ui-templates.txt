@@ -116,9 +116,9 @@ src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1ra2ram  pr
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns~0ir65ye  listing → ""   # the bookings table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1tza93f  date → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns~15kw9kh  quantity → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-detail.tsx::bookingColumns~029b0v4  status → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1qmkhvv  status → ""   # same as the listing key — the bookings table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/attendee-detail.tsx::bookingColumns.parent~0t7jibv  ?? → ||   # nameByListingId holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the empty fallback is the only falsy string, and it cannot occur
-src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1dkqpm3  ?? → ||   # BookingStatusBadges returns a div element or null, and an element object is always truthy, so ?? and || pick the same side
+src/ui/templates/admin/attendee-detail.tsx::bookingColumns~1ehb1cm  ?? → ||   # BookingStatusBadges returns a div element or null, and an element object is always truthy, so ?? and || pick the same side
 src/ui/templates/admin/attendee-detail.tsx::AttendeeBookingsTable.names~1d4a28o  ?? → ||   # childNamesByParentId.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
 
 # attendee-form listing editor — column keys the editor table never reads

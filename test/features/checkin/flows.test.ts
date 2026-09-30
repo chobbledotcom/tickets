@@ -113,6 +113,17 @@ describeWithEnv(
         );
       });
 
+      test("a two-ticket page checks both in and returns to both", async () => {
+        const first = await setupCheckinTest("Ida", "ida@test.com");
+        const second = await createTestAttendeeWithToken("Jon", "jon@test.com");
+        const tokens = `${first.token}+${second.token}`;
+
+        const response = await postCheckin(tokens, first.session, "true");
+        expect(response.headers.get("location")).toBe(
+          `/checkin/${tokens}?message=Checked%20in%202%20tickets`,
+        );
+      });
+
       test("blocks check-in for refunded attendee", async () => {
         const { getAttendeesByTokens } = await import(
           "#db/attendees/tokens.ts"

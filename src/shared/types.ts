@@ -3,6 +3,7 @@
  */
 
 import * as v from "valibot";
+import type { PairBooking } from "#booking/ticket-moves.ts";
 import type {
   BlindIndex,
   EnvKeyEncrypted,
@@ -69,10 +70,8 @@ export const CONTACT_FIELDS = ContactFieldSchema.options;
 /** Type guard: check if an arbitrary string is a valid ContactField */
 export const isContactField = guardFor(ContactFieldSchema);
 
-/**
- * A listing's contact fields, as comma-separated ContactField names, or empty
- * for name only. `parseListingFields` is what enforces it at runtime.
- */
+/** A listing's contact fields: comma-separated ContactField names, or empty
+ *  for name only. `parseListingFields` enforces it at runtime. */
 export type ListingFields = string;
 
 /** Attendee contact details — the core PII fields collected at registration */
@@ -123,15 +122,13 @@ export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 /** Type guard: check if an arbitrary string is a valid ListingType */
 export const isListingType = guardFor(ListingTypeSchema);
 
-/** The persisted email template types: the attendee confirmation and the admin
- *  notification. The discriminator the renderer, the settings store, and the
- *  admin forms all key on. A plain union rather than a picklist schema,
- *  because nothing validates a string against it — every value comes from a
- *  typed call, never from a form or a stored row. */
+/** The persisted email template types: the attendee confirmation and the
+ *  admin notification. The discriminator the renderer, the settings store,
+ *  and the admin forms all key on. A plain union, because nothing validates
+ *  a string against it — every value comes from a typed call. */
 export type EmailTemplateType = "confirmation" | "admin";
 
-/** A single part of an email template: the subject line, the html body, or the
- *  plain-text body. A plain union for the same reason. */
+/** One part of an email template: the subject, the html body, or the text. */
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
@@ -147,11 +144,9 @@ export const isPaidListing = (
   (listing.customisable_days &&
     Object.values(listing.day_prices).some((price) => price > 0));
 
-/** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather than
- * the no-quantity sentinel (quantity 0). The shared "is this a real ticket, not a
- * ghost" test for the readers, rosters, and exports that must skip sentinel rows —
- * one home for the rule instead of a bare `quantity > 0` plus an explanatory
- * comment at each call site. */
+/** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather
+ * than the no-quantity sentinel (quantity 0) — the one "is this a real
+ * ticket, not a ghost" test the readers, rosters, and exports share. */
 export const hasTicketQuantity = (row: { quantity: number }): boolean =>
   row.quantity > 0;
 
@@ -472,7 +467,8 @@ export interface UserLogisticsAgent {
 
 export interface Attendee extends ContactInfo {
   attachment_downloads: number;
-  checked_in: boolean;
+  /** Admitted tickets, 0..quantity; a quantity 0 ghost line stores 0. */
+  checked_in: number;
   created: string;
   date: string | null;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
@@ -897,13 +893,11 @@ export type DisplayAttendee = Pick<
   | "ticket_token"
 >;
 
-/**
- * A single row in the attendee table: an attendee plus the listings the row
+/** A single row in the attendee table: an attendee plus the listings the row
  * covers, in display order. Roster/check-in tables render one row per booking
- * line (a one-listing array); the browsing tables (attendees list, dashboard)
- * group an attendee's lines into one row carrying every listing.
- */
+ * line; the browsing tables group an attendee's lines into one row. */
 export type AttendeeTableRow = {
   attendee: DisplayAttendee;
+  booking?: PairBooking;
   listings: AttendeeRowListing[];
 };

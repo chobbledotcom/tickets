@@ -9,6 +9,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { selectOptionLabels } from "#test-utils/assertions.ts";
+import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
 import {
   calendarAttendee,
   calendarDate,
@@ -96,8 +97,10 @@ describe("adminCalendarPage", () => {
   test("renders the roster with no date column, plain count, no revenue", () => {
     // The day is already chosen and listings carry their own dates, so the
     // roster omits the Date column, and a day holds no capacity or revenue.
+    const attendees = [calendarAttendee()];
     const html = adminCalendarPage(
-      [calendarAttendee()],
+      attendees,
+      shownLineBookings(attendees),
       "localhost",
       OWNER_SESSION,
       "2026-03-15",

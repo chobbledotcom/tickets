@@ -30,17 +30,18 @@ export type DetailRow = {
 /** Sum the quantity field across a list of attendees */
 export const sumQuantity = sumOf((a: Attendee) => a.quantity);
 
-/** Count how many people are checked in (summing quantity per registration) */
-export const countCheckedIn = (attendees: Attendee[]): number =>
-  sumQuantity(attendees.filter((a) => a.checked_in));
+/** How many people the doors admitted: the sum of every line's count. */
+export const countCheckedIn = sumOf((a: Attendee) => a.checked_in);
 
-/** Count how many attendee rows are checked in (ignoring quantity) */
+/** How many attendee rows are fully checked in — a part booking still owes
+ * tickets, so it does not count until every ticket on it is admitted. */
 export const countCheckedInRows = (attendees: Attendee[]): number =>
-  attendees.filter((a) => a.checked_in).length;
+  attendees.filter((a) => a.checked_in === a.quantity).length;
 
 /** Calculate total revenue in cents from attendees */
-export const calculateTotalRevenue = (attendees: Attendee[]): number =>
-  sumOf((a: Attendee) => Number.parseInt(a.price_paid, 10))(attendees);
+export const calculateTotalRevenue = sumOf((a: Attendee) =>
+  Number.parseInt(a.price_paid, 10),
+);
 
 // ---------------------------------------------------------------------------
 // Checked-in stats

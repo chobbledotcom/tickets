@@ -14,6 +14,7 @@ import {
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
 } from "#db/listings/attendees.ts";
+import { brunoOnTwoListings } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -187,8 +188,9 @@ describeWithEnv(
       const result = await getListingWithAttendeeRaw(listing.id, attendee.id);
       expect(result).not.toBeNull();
       expect(result?.listing.id).toBe(listing.id);
-      expect(result?.attendeeRaw?.id).toBe(attendee.id);
-      expect(result?.attendeeRaw?.listing_id).toBe(listing.id);
+      const [row] = result?.attendeeRows ?? [];
+      expect(row?.id).toBe(attendee.id);
+      expect(row?.listing_id).toBe(listing.id);
       expect(result?.listing.attendee_count).toBe(1);
     });
 
@@ -196,12 +198,33 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 5 });
       const result = await getListingWithAttendeeRaw(listing.id, 999_999);
       expect(result?.listing.id).toBe(listing.id);
-      expect(result?.attendeeRaw).toBeNull();
+      expect(result?.attendeeRows).toEqual([]);
     });
 
     test("getListingWithAttendeeRaw returns null for non-existent listing", async () => {
       const result = await getListingWithAttendeeRaw(999, 1);
       expect(result).toBeNull();
+    });
+
+    // The roster's check-in acts on the listing in the address, so the paired
+    // read must return that listing's booking line — not whichever of the
+    // person's lines the scan reaches first.
+    test("getListingWithAttendeeRaw returns the attendee's line for the requested listing", async () => {
+      const { attendee, other } = await brunoOnTwoListings(true);
+
+      const result = await getListingWithAttendeeRaw(other.id, attendee.id);
+      expect(result?.listing.id).toBe(other.id);
+      const [row] = result?.attendeeRows ?? [];
+      expect(row?.id).toBe(attendee.id);
+      expect(row?.listing_id).toBe(other.id);
+    });
+
+    test("getListingWithAttendeeRaw has no attendee half when the person holds no booking on the listing", async () => {
+      const { attendee, other } = await brunoOnTwoListings(false);
+
+      const result = await getListingWithAttendeeRaw(other.id, attendee.id);
+      expect(result?.listing.id).toBe(other.id);
+      expect(result?.attendeeRows).toEqual([]);
     });
 
     // Income is projected from the ledger, not stored, so a loader that skips

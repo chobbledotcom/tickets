@@ -4,12 +4,10 @@ import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import {
   ATTENDEE_FORM_ID,
-  type AttendeeFormLine,
   attendeeBookingsFromLines,
   isBookedLine,
   isNoQuantityLine,
   isRetainedLine,
-  type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveSharedDates,
   resolveStatusId,
@@ -19,40 +17,12 @@ import {
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
+import {
+  line,
+  makeForm,
+  parsedBase,
+} from "#test/features/admin/attendee-form-model/fixtures.ts";
 import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
-
-const makeForm = (data: Record<string, string>): FormParams =>
-  new FormParams(new URLSearchParams(data));
-
-const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
-  error: null,
-  existingBooking: null,
-  key: "",
-  listing: testListingWithCount({ id: 1, max_quantity: 5 }),
-  listingId: 1,
-  noQuantity: false,
-  packageGroupId: 0,
-  packagePrice: null,
-  parentListingId: 0,
-  quantity: 1,
-  ...overrides,
-});
-
-const parsedBase = (
-  overrides: Partial<ParsedAttendeeForm> = {},
-): ParsedAttendeeForm => ({
-  address: "",
-  dayCount: 1,
-  email: "",
-  lines: [],
-  name: "Test",
-  phone: "",
-  returnUrl: "",
-  special_instructions: "",
-  startDate: "",
-  statusId: null,
-  ...overrides,
-});
 
 describe("toLedgerOrder", () => {
   test("a zero package override keeps the leg at zero, not the listing price", () => {
@@ -99,11 +69,11 @@ describe("attendeeBookingsFromLines", () => {
         listingId: 7,
       }),
     ]);
-    // Every stored field is carried through; the 0/1 flags coerce to bools.
+    // Every stored field is carried through, flags coerced, the count kept.
     expect(bookings).toEqual([
       {
         assignBuiltSite: false,
-        checkedIn: true,
+        checkedIn: 1,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
         listingId: 7,

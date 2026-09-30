@@ -76,7 +76,7 @@ describeWithEnv(
       expect(entries[0]?.attendee).toEqual({
         address: "1 Test Street",
         attachment_downloads: 0,
-        checked_in: false,
+        checked_in: 0,
         created: entries[0]?.attendee.created,
         date: null,
         email: "buyer@example.com",

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { CreateAttendeeResult } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { moveTickets } from "#db/attendees/update.ts";
 import {
   expectHtmlResponse,
   expectListingRowQuantity,
@@ -76,8 +77,9 @@ describeWithEnv(
           "Arrived",
           "arrived@example.com",
         );
-        const { updateCheckedIn } = await import("#db/attendees/update.ts");
-        await updateCheckedIn(attendee.id, listing.id, true);
+        await moveTickets("admit", [
+          { attendeeId: attendee.id, count: 1, listingId: listing.id },
+        ]);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await expectHtmlResponse(response, 200, "Bookings");

@@ -21,8 +21,9 @@ import type {
 
 // jscpd:ignore-end
 
-/** The listing's roster — where the add form and the download both live. */
-const rosterPath = (world: TicketsWorld, name: string): string =>
+/** The listing's roster — where the add form, the download, and the check-in
+ * controls all live. */
+export const rosterPath = (world: TicketsWorld, name: string): string =>
   `/admin/listing/${listingIdNamed(world, name)}/attendees`;
 
 /** The organiser adds a booking through the form on the listing's roster. Keeps

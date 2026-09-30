@@ -1,5 +1,6 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import { showQuantitySelect } from "./quantity-select.ts";
 import { showConfirm } from "./confirm-dialog.ts";
 
 const COOLDOWN_MS = 2000;
@@ -20,10 +21,11 @@ const extractToken = (data) => {
 
 /** POST to scan API — the page names it door it posts to (one listing or a
  * whole group), so the same client serves both. */
-const postScan = async (scanPath, token, csrfToken, { force, idVerified } = {}) => {
+const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}) => {
   const body = { token };
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
+  if (quantity) body.quantity = quantity;
 
   const res = await fetch(scanPath, {
     body: JSON.stringify(body),
@@ -80,13 +82,30 @@ const nameAndTicketsMessage = (messages, key, fallback, result) =>
     tickets: formatTicketCount(messages, result.quantity),
   });
 
+/** Say the door sent this person away without checking them in. */
+const skipPerson = (el, messages, name) =>
+  showStatus(
+    el,
+    interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name }),
+    "warning",
+  );
+
 /** Handle a scan result and display status */
 const handleResult = (el, result, messages) => {
   switch (result.status) {
     case "checked_in":
       showStatus(
         el,
-        nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in for {listingName} ({tickets})", result),
+        result.total > result.quantity
+          ? interpolate(
+              getMessage(
+                messages,
+                "messageCheckedInPartial",
+                "{name} checked in for {listingName} ({tickets} of {total} tickets)",
+              ),
+              { listingName: result.listingName, name: result.name, tickets: result.quantity, total: result.total },
+            )
+          : nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in for {listingName} ({tickets})", result),
         "success",
       );
       break;
@@ -120,39 +139,58 @@ const handleResult = (el, result, messages) => {
   }
 };
 
-/** One scan answer the door must ask about, and the answer after it: the
- * organiser's word re-posts the scan with what they confirmed, so a forced
- * ticket can still ask for an ID check before it admits. Every answer the
- * door cannot act on shows as itself. */
-const answerScan = async (el, result, messages, post, confirmed = {}) => {
-  if (result.status === "wrong_listing" && !confirmed.force) {
-    const ok = await showConfirm(
-      interpolate(
-        getMessage(
-          messages,
-          "messageWrongListingConfirm",
-          '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+/** Scan one token and settle it with the door: each ask is one
+ * confirmation, then one re-POST. A wrong listing widens the door, an ID
+ * check confirms the person, and a quantity ask picks how many tickets this
+ * scan admits. Every later POST carries every answer the door already gave,
+ * so nothing re-asks and nothing is lost. */
+const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
+  let answer = await postScan(scanPath, token, csrfToken);
+  const given = {};
+  while (true) {
+    if (answer.status === "wrong_listing" && !given.force) {
+      const ok = await showConfirm(
+        interpolate(
+          getMessage(
+            messages,
+            "messageWrongListingConfirm",
+            '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+          ),
+          { listingName: answer.listingName, name: answer.name },
         ),
-        { listingName: result.listingName, name: result.name },
-      ),
-    );
-    if (!ok) {
-      showStatus(el, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
+      );
+      if (!ok) {
+        skipPerson(statusEl, messages, answer.name);
+        return;
+      }
+      given.force = true;
+    } else if (answer.status === "verify_id" && !given.idVerified) {
+      const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: answer.name }));
+      if (!ok) {
+        showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
+        return;
+      }
+      given.idVerified = true;
+    } else if (answer.status === "select_quantity") {
+      const count = await showQuantitySelect(
+        answer.max,
+        interpolate(
+          getMessage(messages, "messageSelectQuantity", "How many tickets for {name}?"),
+          { name: answer.name },
+        ),
+        (count) => formatTicketCount(messages, count),
+      );
+      if (!count) {
+        skipPerson(statusEl, messages, answer.name);
+        return;
+      }
+      given.quantity = count;
+    } else {
+      handleResult(statusEl, answer, messages);
       return;
     }
-    await answerScan(el, await post({ ...confirmed, force: true }), messages, post, { ...confirmed, force: true });
-    return;
+    answer = await postScan(scanPath, token, csrfToken, given);
   }
-  if (result.status === "verify_id") {
-    const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
-    if (!ok) {
-      showStatus(el, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
-      return;
-    }
-    await answerScan(el, await post({ ...confirmed, idVerified: true }), messages, post, { ...confirmed, idVerified: true });
-    return;
-  }
-  handleResult(el, result, messages);
 };
 
 /** Main scanner loop */
@@ -207,12 +245,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    postScan(scanPath, token, csrfToken)
-      .then((result) =>
-        answerScan(statusEl, result, messages, (choices) =>
-          postScan(scanPath, token, csrfToken, choices),
-        ),
-      )
+    admitScan(scanPath, token, csrfToken, statusEl, messages)
       .catch(() => {
         showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
       })
@@ -278,4 +311,4 @@ init();
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the
 // direct test drives through the built bundle.
-export { answerScan, extractToken, handleResult, postScan, showConfirm };
+export { admitScan, extractToken, handleResult, postScan, showConfirm };

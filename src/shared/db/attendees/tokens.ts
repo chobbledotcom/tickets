@@ -43,22 +43,12 @@ type PreviousBookingLine = Pick<
 >;
 
 type BookingRowWithAttendee = ListingAttendeeRow & { attendee_id: number };
-type BookingRowWithId = BookingRowWithAttendee & { booking_row_id: number };
 type RowWithAttendee<Row> = Row & { attendee_id: number };
 
-/** A token path's booking row: the stored row plus its own id, the identity
- * every per-row door write targets. */
-export type TokenBookingRow = ListingAttendeeRow & { booking_row_id: number };
-
-/** An attendee whose bookings carry their row ids — the shape the door
- * flows resolve and the per-row writes consume. */
-export type AttendeeWithBookingRows = AttendeeWithBookings & {
-  bookings: TokenBookingRow[];
-};
-
-const bookingRowWithoutAttendee = (row: BookingRowWithId): TokenBookingRow => ({
+const bookingRowWithoutAttendee = (
+  row: BookingRowWithAttendee,
+): ListingAttendeeRow => ({
   attachment_downloads: row.attachment_downloads,
-  booking_row_id: row.booking_row_id,
   checked_in: row.checked_in,
   end_at: row.end_at,
   ledger_event_group: row.ledger_event_group,
@@ -99,10 +89,10 @@ const bookingLinesByAttendeeIds = async <
 
 const bookingRowsByAttendeeIds = (
   attendeeIds: number[],
-): Promise<Map<number, TokenBookingRow[]>> =>
-  bookingLinesByAttendeeIds<BookingRowWithId, TokenBookingRow>(
+): Promise<Map<number, ListingAttendeeRow[]>> =>
+  bookingLinesByAttendeeIds<BookingRowWithAttendee, ListingAttendeeRow>(
     attendeeIds,
-    `${listingAttendeeRowColumnsFrom(LISTING_ATTENDEE_ALIAS)}, ${listingAttendeeColumn("id")} AS booking_row_id`,
+    listingAttendeeRowColumnsFrom(LISTING_ATTENDEE_ALIAS),
     "",
     bookingRowWithoutAttendee,
   );
@@ -261,8 +251,8 @@ type AttendeeScanRow = {
 /** Assemble one attendee's full booking view from its row and lines. */
 const attendeeWithBookingsBuild = (
   row: AttendeeScanRow,
-  bookings: TokenBookingRow[],
-): AttendeeWithBookingRows => ({
+  bookings: ListingAttendeeRow[],
+): AttendeeWithBookings => ({
   bookings,
   created: row.created,
   id: row.id,
@@ -282,8 +272,8 @@ const attendeeWithBookingsBuild = (
  */
 export const getAttendeesByTokens = async (
   tokens: string[],
-): Promise<(AttendeeWithBookingRows | null)[]> =>
-  resultsForTokens<AttendeeScanRow, TokenBookingRow, AttendeeWithBookingRows>(
+): Promise<(AttendeeWithBookings | null)[]> =>
+  resultsForTokens<AttendeeScanRow, ListingAttendeeRow, AttendeeWithBookings>(
     tokens,
     ATTENDEE_SCAN_COLUMNS,
     bookingRowsByAttendeeIds,
@@ -297,7 +287,7 @@ export const getAttendeesByTokens = async (
  */
 export const getAttendeesByIdsWithBookings = async (
   ids: number[],
-): Promise<Map<number, AttendeeWithBookingRows>> => {
+): Promise<Map<number, AttendeeWithBookings>> => {
   // The only caller looks up exactly one id; an empty list is a caller bug
   // and fails loudly in SQL rather than answering an empty map.
   const rows = await queryAll<AttendeeScanRow>(

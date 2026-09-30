@@ -9,7 +9,7 @@ const booking = (
   overrides: Partial<AttendeeBooking> = {},
 ): AttendeeBooking => ({
   assignBuiltSite: false,
-  checkedIn: false,
+  checkedIn: 0,
   endAt: null,
   listingActive: true,
   listingId: 1,
@@ -68,7 +68,7 @@ describe("AttendeeBookingsTable", () => {
   test("shows an em dash in the date cell when a booking has no date", () => {
     // A standard (fixed-date) booking carries no start date; the status badge
     // proves the only em dash present is the date fallback.
-    const html = renderBookings([booking({ checkedIn: true, startAt: null })]);
+    const html = renderBookings([booking({ checkedIn: 1, startAt: null })]);
     expect(html).toContain("Checked in");
     expect(html).toContain("—");
   });
@@ -169,7 +169,7 @@ describe("AttendeeBookingsTable", () => {
     // Dated so the only em dash can come from the empty status cell.
     const html = renderBookings([
       booking({
-        checkedIn: false,
+        checkedIn: 0,
         endAt: "2026-06-02T00:00:00Z",
         refunded: false,
         startAt: "2026-06-01T00:00:00Z",

@@ -20,7 +20,7 @@ describe("adminListingPage export button", () => {
   test("the export link carries the active check-in filter", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 1 }), {
       activeFilter: "in",
-      attendees: [testAttendee({ checked_in: true })],
+      attendees: [testAttendee({ checked_in: 1 })],
     });
     expect(html).toContain("/admin/listing/1/export?filter=in");
   });
@@ -40,8 +40,8 @@ describe("adminListingPage filter links", () => {
     );
   // The two named attendees shared by the checked-in / show-all filter tests.
   const namedPair = () => [
-    testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
-    testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
+    testAttendee({ checked_in: 1, id: 1, name: "Checked In User" }),
+    testAttendee({ checked_in: 0, id: 2, name: "Not Checked In User" }),
   ];
 
   test("renders All / Checked In / Checked Out links", () => {
@@ -86,8 +86,8 @@ describe("adminListingPage filter links", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 2 }), {
       activeFilter: "out",
       attendees: [
-        testAttendee({ checked_in: true, id: 1, name: "Alice InPerson" }),
-        testAttendee({ checked_in: false, id: 2, name: "Bob Remote" }),
+        testAttendee({ checked_in: 1, id: 1, name: "Alice InPerson" }),
+        testAttendee({ checked_in: 0, id: 2, name: "Bob Remote" }),
       ],
     });
     expect(html).not.toContain("Alice InPerson");
@@ -106,7 +106,7 @@ describe("adminListingPage filter links", () => {
   test("includes return_filter hidden field in checkin form", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 1 }), {
       activeFilter: "in",
-      attendees: [testAttendee({ checked_in: true })],
+      attendees: [testAttendee({ checked_in: 1 })],
     });
     expect(html).toContain('name="return_filter"');
     expect(html).toContain('value="in"');
@@ -195,13 +195,13 @@ describe("adminListingPage failed payments", () => {
       {
         attendees: [
           testAttendee({
-            checked_in: true,
+            checked_in: 1,
             id: 1,
             payment_id: "pi_ok",
             price_paid: "1000",
           }),
           testAttendee({
-            checked_in: true,
+            checked_in: 1,
             id: 2,
             payment_id: "",
             price_paid: "1000",

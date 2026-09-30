@@ -14,14 +14,14 @@ import { testAttendee } from "#test-utils/factories.ts";
 attendeeTableSuite(() => {
   describe("check-in button", () => {
     test("shows Check in for an unchecked attendee", () => {
-      const attendee = testAttendee({ checked_in: false });
+      const attendee = testAttendee({ checked_in: 0 });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
       expect(html).toContain("Check in");
       expect(html).toContain('class="link-button checkin"');
     });
 
     test("shows Check out for a checked-in attendee", () => {
-      const attendee = testAttendee({ checked_in: true });
+      const attendee = testAttendee({ checked_in: 1 });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
       expect(html).toContain("Check out");
       expect(html).toContain('class="link-button checkout"');

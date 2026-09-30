@@ -45,17 +45,18 @@ describeWithEnv(
         // attendee and the in status — the old ?checkin_name= URL surface is gone.
         const { response: inResponse } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          {},
+          { check_in: "true", quantity: "1" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,
           "Checked Ada Lovelace in",
         )(inResponse);
 
-        // Toggling again checks the attendee out, flashing the out confirmation.
+        // The roster's Check Out button names its direction, and the flash
+        // repeats it.
         const { response: outResponse } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          {},
+          { check_in: "false", quantity: "1" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,

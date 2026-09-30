@@ -4,9 +4,9 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { logActivities } from "#db/activity-log.ts";
-import { setCheckedInOnBookingRows } from "#db/attendees/update.ts";
-import { withTransaction } from "#db/client.ts";
+import { type TicketMove, ticketCount } from "#booking/ticket-moves.ts";
+import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 /* jscpd:ignore-start -- imports */
 import {
@@ -17,7 +17,7 @@ import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 /* jscpd:ignore-end */
 /* jscpd:ignore-start */
-import { filter, map } from "#fp";
+import { filter, map, requiredMapValue } from "#fp";
 import {
   type AuthSession,
   DOOR_FORM,
@@ -49,24 +49,15 @@ import { type Attendee, isDoorRole, isStaffRole } from "#types";
 
 /* jscpd:ignore-end */
 
-const formatTicketCount = (count: number): string => {
-  const suffix = count === 1 ? "" : "s";
-  return `${count} ticket${suffix}`;
-};
-
 const checkinPath = (tokens: string[]): string =>
   `/checkin/${tokens.join("+")}`;
 
-const sumTicketCount = (
-  attendees: Attendee[],
-  include: (attendee: Attendee) => boolean = () => true,
-): number => {
-  let total = 0;
-  for (const attendee of attendees) {
-    if (include(attendee)) total += attendee.quantity;
-  }
-  return total;
-};
+/** What "Check In All" tells the door: the tickets it admitted, or that
+ * every ticket on the token was already in. */
+const admitMessage = (admitted: number, total: number): string =>
+  admitted === 0
+    ? `Already checked in ${ticketsWord(total)}`
+    : `Checked in ${ticketsWord(admitted)}`;
 
 /** Decrypt entries' attendees using the current request's private key */
 const decryptEntries = async (entries: TokenEntry[]): Promise<TokenEntry[]> => {
@@ -142,12 +133,16 @@ const renderAdminCheckin = async (
     linkAdminPages: boolean;
   },
 ): Promise<Response> => {
-  const decrypted = await decryptEntries(entries);
+  const [decrypted, pairBookings] = await Promise.all([
+    decryptEntries(entries),
+    getPairBookings(entries.map(entryBookingRef)),
+  ]);
   const shown = page.doorOnly ? doorSafeEntries(decrypted) : decrypted;
   const message = getSearchParam(request, "message");
   return htmlResponse(
     checkinAdminPage(
       shown,
+      pairBookings,
       checkinPath(tokens),
       message,
       getEffectiveDomain(),
@@ -194,31 +189,32 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
         });
   });
 
-/** Write the door's status change and its activity rows as one unit, by the
- * rows whose state the action really moves — a merged attendee's refunded
- * order on the same listing stays untouched, and a row already in the
- * action's state is neither written nor logged again. */
-const commitDoorCheckin = async (
-  changedEntries: readonly TokenEntry[],
+/** Move the door's tickets with their activity rows. Each (person, listing)
+ * pair logs only the tickets it really moved, so a line already in the
+ * action's state is neither written nor logged again, and a refunded line
+ * never moves. Answers the tickets that moved. */
+const commitDoorMoves = async (
+  entries: readonly TokenEntry[],
+  moves: readonly TicketMove[],
   checkedIn: boolean,
-): Promise<void> => {
-  // An empty selection never reaches SQL.
-  if (changedEntries.length === 0) return;
-  await withTransaction(async (tx) => {
-    await setCheckedInOnBookingRows(
-      changedEntries.map((e) => e.bookingRowId),
-      checkedIn,
-      tx,
+): Promise<number> => {
+  const listingNames = new Map(
+    entries.map((e) => [e.listing.id, e.listing.name]),
+  );
+  const listingName = (listingId: number): string =>
+    requiredMapValue(
+      listingNames,
+      listingId,
+      `Listing ${listingId} has no entry on this token`,
     );
-    await logActivities(
-      changedEntries.map((e) => ({
-        attendeeId: e.attendee.id,
-        listing: e.listing.id,
-        message: `Attendee checked ${checkedIn ? "in" : "out"} for '${e.listing.name}'`,
-      })),
-      tx,
-    );
-  });
+  return ticketCount(
+    await moveTicketsAndLog(
+      checkedIn ? "admit" : "release",
+      moves,
+      (move) =>
+        `Attendee checked ${checkedIn ? "in" : "out"} ${ticketsWord(move.count)} for '${listingName(move.listingId)}'`,
+    ),
+  );
 };
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
@@ -226,16 +222,15 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
   withAuth(request, DOOR_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
-      const decrypted = await decryptEntries(entries);
+      // The write needs no contact details, so the rows stay sealed.
       // Refunded rows are never touched, and purchase-only ("No Check-In")
       // listings' rows are excluded too — a package QR shared with a checkable
       // member must not silently mark the no-check-in member as attended.
       const eligibleEntries = filter(
         (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchase_only,
-      )(decrypted);
-      const eligible = eligibleEntries.map((e) => e.attendee);
+      )(entries);
 
-      if (eligible.length === 0) {
+      if (eligibleEntries.length === 0) {
         return redirectResponse(
           `${checkinPath(tokens)}?message=${encodeURIComponent(
             "No tickets on this token can be checked in",
@@ -243,28 +238,16 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
         );
       }
 
-      const totalTickets = sumTicketCount(eligible);
-      const uncheckedTickets = sumTicketCount(
-        eligible,
-        (attendee) => !attendee.checked_in,
-      );
-      // Only rows whose state the action changes are written and logged, so
-      // the activity log records what the door did, not what it left alone.
-      await commitDoorCheckin(
-        filter((e: TokenEntry) => e.attendee.checked_in !== checkedIn)(
-          eligibleEntries,
-        ),
-        checkedIn,
-      );
+      const moves = map((a: Attendee) => ({
+        attendeeId: a.id,
+        count: a.quantity,
+        listingId: a.listing_id,
+      }))(eligibleEntries.map((e) => e.attendee));
+      const moved = await commitDoorMoves(eligibleEntries, moves, checkedIn);
 
-      let message: string;
-      if (!checkedIn) {
-        message = "Checked out";
-      } else if (uncheckedTickets === 0) {
-        message = `Already checked in ${formatTicketCount(totalTickets)}`;
-      } else {
-        message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
-      }
+      const message = checkedIn
+        ? admitMessage(moved, ticketCount(moves))
+        : "Checked out";
       return redirectResponse(
         `${checkinPath(tokens)}?message=${encodeURIComponent(message)}`,
       );

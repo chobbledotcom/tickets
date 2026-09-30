@@ -1,6 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+// jscpd:ignore-end
+import { moveTickets } from "#db/attendees/update.ts";
+import { invalidateListingsCache } from "#db/listings/records.ts";
 import {
   expectHtmlResponse,
   testRequiresAuth,
@@ -149,11 +152,9 @@ describeWithEnv(
           "Badge User",
           "badge@example.com",
         );
-        const { updateCheckedIn } = await import("#db/attendees/update.ts");
-        await updateCheckedIn(attendee.id, listing.id, true);
-        const { invalidateListingsCache } = await import(
-          "#db/listings/records.ts"
-        );
+        await moveTickets("admit", [
+          { attendeeId: attendee.id, count: 1, listingId: listing.id },
+        ]);
         invalidateListingsCache();
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         await expectHtmlResponse(response, 200, "Checked in");

@@ -109,14 +109,15 @@ export type RawAttendeeRow = {
 };
 
 /** A decrypted attendee row: the raw row with its PII overlaid and its
- * booleans/price coerced, keeping exactly whichever optional money fields the
- * read selected. `DecryptedAttendeeRow<Attendee>` is the full `Attendee`. */
+ * counts/booleans/price coerced, keeping exactly whichever optional money
+ * fields the read selected. `DecryptedAttendeeRow<Attendee>` is the full
+ * `Attendee`. */
 export type DecryptedAttendeeRow<R extends RawAttendeeRow> = Omit<
   R,
   keyof AttendeePii | "checked_in" | "split_logistics_agents"
 > &
   AttendeePii & {
-    checked_in: boolean;
+    checked_in: number;
     split_logistics_agents: boolean;
   } & (R extends { price_paid: number | string }
     ? { price_paid: string }
@@ -149,8 +150,7 @@ export const decryptAttendeeFields = async <R extends RawAttendeeRow>(
   return {
     ...row,
     ...pii,
-    checked_in: Boolean(row.checked_in),
-    // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
+    checked_in: Number(row.checked_in),
     ...("price_paid" in row ? { price_paid: String(row.price_paid) } : {}),
     ...("refunded" in row
       ? { refunded: paidListing ? Boolean(row.refunded) : false }

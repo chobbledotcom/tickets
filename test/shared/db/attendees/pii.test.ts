@@ -189,7 +189,7 @@ describeWithEnv("PII crypto", { db: true }, () => {
   });
 
   test("decryptAttendeeFields defaults to paid, surfacing payment id and refunded", async () => {
-    const row = await encryptedRow({ checked_in: false, refunded: true });
+    const row = await encryptedRow({ checked_in: 0, refunded: true });
     const decrypted = await decryptAttendeeFields(
       row,
       await getTestPrivateKey(),

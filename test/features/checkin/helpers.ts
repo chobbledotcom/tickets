@@ -57,7 +57,7 @@ export const checkOneLegAsStaff = async (
   await handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
-      { csrf_token: await testCsrfToken() },
+      { check_in: "true", csrf_token: await testCsrfToken(), quantity: "1" },
       await testCookie(),
     ),
   );

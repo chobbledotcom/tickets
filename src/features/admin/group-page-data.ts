@@ -7,9 +7,13 @@
  * pages used to.
  */
 
+// jscpd:ignore-start
 import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import { emptyRange } from "#accounting/range.ts";
+import { linePair } from "#booking/ticket-moves.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
+// jscpd:ignore-end
+import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getListingsNotInGroup } from "#db/groups/candidates.ts";
 import {
   getGroupById,
@@ -165,9 +169,10 @@ export const loadGroupOverviewPanel = rosterTab(
 
 /** Build the Attendees tab: one row per booking line across the group's
  * listings. */
-export const loadGroupAttendeesPanel = rosterTab((group, roster) =>
+export const loadGroupAttendeesPanel = rosterTab(async (group, roster) =>
   GroupAttendeesPanel({
     ...rosterPanelProps(group, roster),
+    pairBookings: await getPairBookings(roster.attendees.map(linePair)),
     phonePrefix: settings.phonePrefix,
   }),
 );

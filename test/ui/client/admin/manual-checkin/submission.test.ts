@@ -122,13 +122,37 @@ describe("manual check-in submission", () => {
     ).toBe(0);
   });
 
-  test("a check-in with listings remaining keeps the person's option", async () => {
+  test("a check-in with tickets remaining keeps the person's option, showing what is left", async () => {
     const page = setup();
     page.attendeeIdInput.value = "11";
     using _fetch = stubFetch(
       Response.json({
         listingName: "Ceilidh",
         name: "Ada",
+        quantity: 2,
+        remaining: 3,
+        status: "checked_in",
+      }),
+    );
+
+    await page.submit();
+
+    const option = page.listbox.querySelector<HTMLElement>(
+      "[data-attendee-id='11']",
+    )!;
+    expect(option.dataset.quantity).toBe("3");
+    expect(option.textContent).toBe("Ada (3 tickets) - Camping · 12 Jun");
+    expect(page.attendeeIdInput.value).toBe("");
+    expect(page.input.value).toBe("");
+  });
+
+  test("an option with no day or listing keeps the plain label as it shrinks", async () => {
+    const page = setup();
+    page.attendeeIdInput.value = "13";
+    using _fetch = stubFetch(
+      Response.json({
+        listingName: "Ceilidh",
+        name: "Cy",
         quantity: 2,
         remaining: 1,
         status: "checked_in",
@@ -137,11 +161,11 @@ describe("manual check-in submission", () => {
 
     await page.submit();
 
-    expect(
-      page.listbox.querySelector("[data-attendee-id='11']"),
-    ).not.toBeNull();
-    expect(page.attendeeIdInput.value).toBe("");
-    expect(page.input.value).toBe("");
+    const option = page.listbox.querySelector<HTMLElement>(
+      "[data-attendee-id='13']",
+    )!;
+    expect(option.dataset.quantity).toBe("1");
+    expect(option.textContent).toBe("Cy (1 pass)");
   });
 
   test("already checked in results show a warning", async () => {

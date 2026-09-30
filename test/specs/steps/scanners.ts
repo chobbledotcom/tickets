@@ -159,3 +159,42 @@ Then(
     expect(this.scannerAnswer).toBe(403);
   },
 );
+
+When(
+  "{word} says {int} ticket(s) for {word} at the {word} door",
+  async function (
+    this: TicketsWorld,
+    _who: string,
+    tickets: number,
+    guest: string,
+    listing: string,
+  ): Promise<void> {
+    // The door must have asked: answering a question never put would hide a
+    // door that stopped asking how many.
+    expect(this.doorAnswer?.status).toBe("select_quantity");
+    this.doorAnswer = await scanAtDoorAsScanner(
+      this,
+      listing,
+      ticketOf(this, guest),
+      { tickets },
+    );
+  },
+);
+
+Then(
+  "the ticket page says {int} of {int} are checked in",
+  function (this: TicketsWorld, admitted: number, total: number): void {
+    expect(scannerBrowser(this).pageText).toContain(
+      t("attendee_form.checked_in_count", { count: admitted, total }),
+    );
+  },
+);
+
+Then(
+  "the ticket page offers to check them in and out",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    expect(page).toContain(t("admin.checkin.check_in_all"));
+    expect(page).toContain(t("admin.checkin.check_out_all"));
+  },
+);

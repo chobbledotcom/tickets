@@ -31,15 +31,12 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 const MODULE_MARKER = "__scannerModule";
 
 export interface ScannerModule {
-  answerScan: (
-    el: HTMLElement,
-    result: Record<string, unknown>,
+  admitScan: (
+    scanPath: string,
+    token: string,
+    csrfToken: string,
+    statusEl: HTMLElement,
     messages: Record<string, string>,
-    post: (choices?: {
-      force?: boolean;
-      idVerified?: boolean;
-    }) => Promise<Record<string, unknown>>,
-    confirmed?: { force?: boolean; idVerified?: boolean },
   ) => Promise<void>;
   extractToken: (data: string) => string | null;
   handleResult: (
@@ -51,7 +48,7 @@ export interface ScannerModule {
     scanPath: string,
     token: string,
     csrfToken: string,
-    choices?: { force?: boolean; idVerified?: boolean },
+    choices?: { force?: boolean; idVerified?: boolean; quantity?: number },
   ) => Promise<Record<string, unknown>>;
   showConfirm: (message: string) => Promise<boolean>;
 }
@@ -113,6 +110,12 @@ const SCANNER_PAGE = `
   >
     <video data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
     <div id="scanner-status"></div>
+    <div class="hidden" id="scanner-quantity">
+      <p id="scanner-quantity-message"></p>
+      <select id="scanner-quantity-select"></select>
+      <button id="scanner-quantity-confirm" type="button">Check in</button>
+      <button id="scanner-quantity-cancel" type="button">Cancel</button>
+    </div>
     <div id="scanner-confirm">
       <button id="scanner-confirm-close" type="button">×</button>
       <p id="scanner-confirm-message"></p>
@@ -222,9 +225,13 @@ export const forcedScan = async (
   ...afterForce: Response[]
 ): Promise<{ done: Promise<void>; fetchStub: Stub }> => {
   const fetchStub = stubFetch(wrongDoor(), ...afterForce);
-  const post = (choices?: { force?: boolean; idVerified?: boolean }) =>
-    h.module.postScan("/admin/groups/5/scan", "tok", "csrf", choices);
-  const done = h.module.answerScan(h.statusEl, await post(), h.messages, post);
+  const done = h.module.admitScan(
+    "/admin/groups/5/scan",
+    "tok",
+    "csrf",
+    h.statusEl,
+    h.messages,
+  );
   await whenMessageShows(h, "Ada is registered for Standard. Check in anyway?");
   h.confirm.yes.click();
   return { done, fetchStub };

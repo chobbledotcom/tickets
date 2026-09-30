@@ -108,7 +108,7 @@ export const bookingRow = (
 export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   address: "",
   attachment_downloads: 0,
-  checked_in: false,
+  checked_in: 0,
   created: "2024-01-01T12:00:00Z",
   date: null,
   email: "john@example.com",
@@ -144,11 +144,9 @@ export const testTokenEntry = (
     attendee?: Partial<Attendee>;
     listing?: Partial<ListingWithCount>;
     parentListingId?: number;
-    bookingRowId?: number;
   } = {},
 ): TokenEntry => ({
   attendee: testAttendee(overrides.attendee),
-  bookingRowId: overrides.bookingRowId ?? 0,
   listing: testListingWithCount(overrides.listing),
   parentListingId: overrides.parentListingId ?? 0,
 });

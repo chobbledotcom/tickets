@@ -7,10 +7,7 @@ import type {
   ListingAttendeeRow,
 } from "#db/attendee-types.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import {
-  type AttendeeWithBookingRows,
-  getAttendeesByTokens,
-} from "#db/attendees/tokens.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { packageDisplaysForRows } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
@@ -40,10 +37,6 @@ export type { WalletPassData };
 /** Attendee paired with its listing */
 export type TokenEntry = {
   attendee: Attendee;
-  /** The booking row's own `listing_attendees.id` — the identity every
-   * per-row write (a door's check-in or checkout) targets, so a merged
-   * attendee's other order on the same listing stays untouched. */
-  bookingRowId: number;
   listing: ListingWithCount;
   /** The booking row's `parent_listing_id` — the parent this row was folded
    * under (0 for standalone bookings and parent rows themselves). Carries the
@@ -141,7 +134,7 @@ const buildAttendeeView = (
 ): Attendee => ({
   address: "",
   attachment_downloads: booking.attachment_downloads,
-  checked_in: booking.checked_in === 1,
+  checked_in: booking.checked_in,
   created: base.created,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   email: "",
@@ -171,11 +164,9 @@ const buildAttendeeView = (
  * Resolve attendees with bookings to token entries.
  * Expands each attendee × booking into a separate TokenEntry.
  * Listings are batch-fetched via cache (getListingWithCount).
- * The attendees' bookings must carry their `booking_row_id` — the token
- * lookups provide it, and the door flows' per-row writes consume it.
  */
 export const resolveEntries = async (
-  attendeesWithBookings: AttendeeWithBookingRows[],
+  attendeesWithBookings: AttendeeWithBookings[],
 ): Promise<TokenEntry[]> => {
   // Collect all listing IDs and batch-fetch (getListingWithCount is cached)
   const allListingIds = unique(
@@ -200,7 +191,6 @@ export const resolveEntries = async (
       if (listing && hasTicketQuantity(booking)) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
-          bookingRowId: booking.booking_row_id,
           listing,
           parentListingId: booking.parent_listing_id,
         });
@@ -224,7 +214,7 @@ export const decryptTokenEntries = async (
 
 /** Result of looking up attendees by tokens - either valid data or a 404 response */
 export type TokenLookupResult =
-  | { ok: true; attendees: AttendeeWithBookingRows[] }
+  | { ok: true; attendees: AttendeeWithBookings[] }
   | { ok: false; response: Response };
 
 /**

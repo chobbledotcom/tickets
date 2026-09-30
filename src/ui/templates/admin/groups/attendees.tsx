@@ -1,5 +1,9 @@
+import type { PairBookings } from "#booking/ticket-moves.ts";
 import { t } from "#i18n";
-import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+import {
+  attendeeLineRow,
+  withPairBookings,
+} from "#shared/attendee-table-rows.ts";
 import {
   AttendeeTableBlock,
   attendeeTableOptions,
@@ -16,13 +20,16 @@ import type {
 const buildAttendeeRows = (
   attendees: Attendee[],
   listings: ListingWithCount[],
+  pairBookings: PairBookings,
 ): AttendeeTableRow[] => {
   const listingMap = new Map(
     listings.map((listing) => [listing.id, listing] as const),
   );
   // These attendees are scoped to this group's loaded listings.
-  return attendees.map((attendee) =>
-    attendeeLineRow(attendee, listingMap.get(attendee.listing_id)!),
+  return withPairBookings(pairBookings)(
+    attendees.map((attendee) =>
+      attendeeLineRow(attendee, listingMap.get(attendee.listing_id)!),
+    ),
   );
 };
 
@@ -32,6 +39,7 @@ export const GroupAttendeesPanel = ({
   listings,
   attendees,
   allowedDomain,
+  pairBookings,
   phonePrefix,
   questionData,
 }: {
@@ -39,6 +47,7 @@ export const GroupAttendeesPanel = ({
   listings: ListingWithCount[];
   attendees: Attendee[];
   allowedDomain: string;
+  pairBookings: PairBookings;
   phonePrefix?: string;
   questionData?: AttendeeQuestionData;
 }): JSX.Element => (
@@ -50,7 +59,7 @@ export const GroupAttendeesPanel = ({
         phonePrefix,
         questionData,
         returnUrl: `/admin/groups/${group.id}/attendees`,
-        rows: buildAttendeeRows(attendees, listings),
+        rows: buildAttendeeRows(attendees, listings, pairBookings),
         showDate: listings.some((listing) => listing.listing_type === "daily"),
         showListing: true,
       })}

@@ -138,7 +138,7 @@ describeWithEnv(
         // Instead the form drops the toggle and shows every listing.
         const html = await bareCreateForm();
         expect(html).not.toContain("Show all listings");
-        expect(html).not.toContain('name="show_all"');
+        expect(html).not.toContain('class="show-all-toggle"');
         // The editor carries the show-all modifier so the not-booked rows stay
         // visible despite the CSS that hides them under the toggle.
         expect(html).toContain("listing-editor show-all-listings");
@@ -160,9 +160,9 @@ describeWithEnv(
           200,
           "Show all listings",
         );
-        expect(html).toContain('name="show_all"');
+        expect(html).toContain('class="show-all-toggle"');
         // Un-ticked: the checkbox carries no `checked` attribute.
-        expect(html).not.toMatch(/name="show_all"[^>]*checked/);
+        expect(html).not.toMatch(/class="show-all-toggle"[^>]*checked/);
         expect(html).not.toContain("listing-editor show-all-listings");
       });
 
@@ -244,7 +244,7 @@ describeWithEnv(
           200,
           "Show all listings",
         );
-        expect(html).toContain('name="show_all"');
+        expect(html).toContain('class="show-all-toggle"');
         expect(html).not.toContain("listing-editor show-all-listings");
       });
 

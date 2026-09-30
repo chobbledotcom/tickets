@@ -18,10 +18,19 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
+import {
+  brunoOnTwoListings,
+  createDualPackageAttendee,
+  setupListingAndAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */
@@ -39,14 +48,17 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
   const checkinAction = adminAttendeeAction("checkin", "listing");
 
   /** Check "John Doe" in via the curried helper, then POST the checkin route
-   * again (a second POST toggles them back out) with any extra body fields.
-   * Returns that second response and the listing it happened on. */
+   * again with the direction the roster's Check Out button sends, plus any
+   * extra body fields. Returns that second response and the listing. */
   const checkInThenPost = async (body: Record<string, string> = {}) => {
-    const { listing, attendee, cookie, csrfToken } = await checkinAction({})();
+    const { listing, attendee, cookie, csrfToken } = await checkinAction({
+      check_in: "true",
+      quantity: "1",
+    })();
     const response = await handleRequest(
       mockFormRequest(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { csrf_token: csrfToken, ...body },
+        { check_in: "false", csrf_token: csrfToken, quantity: "1", ...body },
         cookie,
       ),
     );
@@ -86,7 +98,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     });
 
     test("checks in an attendee and redirects to the roster with a flash", async () => {
-      const { response, listing } = await checkinAction({})();
+      const { response, listing } = await checkinAction({
+        check_in: "true",
+        quantity: "1",
+      })();
       expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
       expectFlash(response, expect.stringContaining("Checked John Doe in"));
 
@@ -95,6 +110,20 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         l.message.includes("checked in"),
       );
       expect(log).toBeDefined();
+    });
+
+    // Regression: the paired load used to read the attendee's first booking
+    // line and 404 when it belonged to another listing, so pressing Check in
+    // on the roster sent the operator to the 404 page.
+    test("checks in a booking whose attendee also booked another listing", async () => {
+      const { attendee, other } = await brunoOnTwoListings(true);
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${other.id}/attendee/${attendee.id}/checkin`,
+        { check_in: "true", quantity: "1" },
+      );
+      expectRedirect(response, `/admin/listing/${other.id}/attendees`);
+      expectFlash(response, expect.stringContaining("Checked Bruno in"));
     });
 
     test("redirects to the in-filtered roster when return_filter is set", async () => {
@@ -131,6 +160,8 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("redirects to return_url when provided", async () => {
       const { response } = await checkinAction({
+        check_in: "true",
+        quantity: "1",
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
       expectRedirect(
@@ -157,12 +188,104 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("roster shows Check out button for checked-in attendee", async () => {
       // Check in first, then view the roster tab
-      const { listing } = await checkinAction({})();
+      const { listing } = await checkinAction({
+        check_in: "true",
+        quantity: "1",
+      })();
 
       await assertAdminHtml(
         `/admin/listing/${listing.id}/attendees`,
         "Check out",
       );
+    });
+
+    test("routes a qty-1 line of a multi-row pair through the quantity page", async () => {
+      // A person merged from two bookings on one listing holds two rows. The
+      // qty-1 row belongs to a three-ticket booking, so both rows link to the
+      // quantity page.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "PairKit",
+      });
+      const attendee = await createDualPackageAttendee(
+        listing.id,
+        group.id,
+        "Cara Pair",
+        "cara-pair@example.com",
+      );
+
+      const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
+      const html = await expectHtmlResponse(response, 200, "Cara Pair");
+
+      expect(html).toContain(
+        `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      expect(html).not.toContain('name="check_in"');
+    });
+
+    test("a date's line of a two-date booking opens the quantity page", async () => {
+      // Filtered to one date, the roster shows one qty-1 line, but the
+      // booking holds two tickets and a check-in moves the whole booking.
+      const listing = await createDailyTestListing();
+      const { attendeesApi } = await import("#db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { date: "2026-10-05", listingId: listing.id, quantity: 1 },
+          { date: "2026-10-06", listingId: listing.id, quantity: 1 },
+        ],
+        email: "dana-days@example.com",
+        name: "Dana Days",
+      });
+      if (!made.success) throw new Error("Could not book Dana Days");
+
+      const html = await expectHtmlResponse(
+        await adminGet(
+          `/admin/listing/${listing.id}/attendees?date=2026-10-05`,
+        ),
+        200,
+        "Dana Days",
+      );
+      expect(html).toContain(
+        `href="/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
+      );
+      expect(html).not.toContain('name="check_in"');
+    });
+
+    test("a checked-in line beside a hidden part line opens the quantity page", async () => {
+      // The "Checked In" filter hides the part-admitted package line, so the
+      // roster shows only the full qty-1 line. The booking still holds three
+      // tickets, so the line must not offer the one-ticket toggle.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const group = await createTestGroup({ isPackage: true, name: "HalfKit" });
+      const attendee = await createDualPackageAttendee(
+        listing.id,
+        group.id,
+        "Hal Half",
+        "hal-half@example.com",
+      );
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: `UPDATE listing_attendees
+              SET checked_in = 1
+              WHERE attendee_id = ? AND listing_id = ?`,
+      });
+
+      const html = await expectHtmlResponse(
+        await adminGet(`/admin/listing/${listing.id}/attendees?filter=in`),
+        200,
+        "Hal Half",
+      );
+      expect(html).toContain(
+        `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      );
+      expect(html).not.toContain('name="check_in"');
     });
   });
 
