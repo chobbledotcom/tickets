@@ -158,16 +158,17 @@ No database or provider call is added.
 
 ## Tests
 
-| Contract row                | Test                                                                                                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Bunny address to limiter    | `test/lib/serve-app.test.ts`: the Bunny handler with two `x-real-ip` values gives two login rows                                                             |
-| Deno address to limiter     | Same file: the Deno handler with two `remoteAddr` values gives two login rows                                                                                |
-| Missing address             | Same file: the Bunny handler logs the error and answers 503                                                                                                  |
-| Limiters read the scoped IP | Move the `server` stub tests in `url.test.ts`, `request-scopes.test.ts`, `booking-inputs.test.ts`, and `auth/login.test.ts` to an address on `handleRequest` |
-| Cross-origin redirect       | `test/shared/safe-fetch.test.ts`: another host, another port, and a subdomain each throw after one request                                                   |
-| Same-origin redirect        | Same file: the second request carries the original body and headers                                                                                          |
-| SMS credentials stay        | `test/shared/sms/gateway.test.ts`: a cross-origin 307 sends one request only                                                                                 |
-| Webhook does not follow     | The test that exists in `send.test.ts` (no change)                                                                                                           |
-| Attachment cache header     | `test/integration/attachment-route.test.ts`: exact `cache-control: private, no-store`                                                                        |
+| Contract row                 | Test                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bunny address to limiter     | `test/lib/serve-app.test.ts`: the Bunny handler with two `x-real-ip` values gives two login rows                                                             |
+| Deno address to limiter      | Same file: the Deno handler with two `remoteAddr` values gives two login rows                                                                                |
+| Entry files use the adapters | `test/edge.test.ts`, `test/deploy.test.ts`, `test/index.test.ts`: each entry serves through its adapter                                                      |
+| Missing address              | Same file: the Bunny handler logs the error and answers 503                                                                                                  |
+| Limiters read the scoped IP  | Move the `server` stub tests in `url.test.ts`, `request-scopes.test.ts`, `booking-inputs.test.ts`, and `auth/login.test.ts` to an address on `handleRequest` |
+| Cross-origin redirect        | `test/shared/safe-fetch.test.ts`: another host, another port, and a subdomain each throw after one request                                                   |
+| Same-origin redirect         | Same file: the second request carries the original body and headers                                                                                          |
+| SMS credentials stay         | `test/shared/sms/gateway.test.ts`: a cross-origin 307 sends one request only                                                                                 |
+| Webhook does not follow      | The test that exists in `send.test.ts` (no change)                                                                                                           |
+| Attachment cache header      | `test/integration/attachment-route.test.ts`: exact `cache-control: private, no-store`                                                                        |
 
 Each regression test must fail on `main` for the reported reason before the fix.
