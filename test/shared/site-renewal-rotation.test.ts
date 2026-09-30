@@ -92,13 +92,21 @@ describeWithEnv("renewal token rotation", { db: true }, () => {
 
     // The first rotation's push throws — the raw provider-failure shape no
     // error result wraps — so its promise rejects and the queue must survive.
-    let calls = 0;
+    let failedOnce = false;
+    const pushedUrls: string[] = [];
     const pushStub: Stub = stub(
       bunnyCdnApi,
       "setEdgeScriptSecret",
-      (): Promise<{ ok: true }> => {
-        calls++;
-        if (calls === 1) throw new Error("edge script API died");
+      (
+        _scriptId: number,
+        _name: string,
+        value: string,
+      ): Promise<{ ok: true }> => {
+        if (!failedOnce) {
+          failedOnce = true;
+          throw new Error("edge script API died");
+        }
+        pushedUrls.push(value);
         return Promise.resolve({ ok: true as const });
       },
     );
@@ -106,12 +114,12 @@ describeWithEnv("renewal token rotation", { db: true }, () => {
     const first = rotateRenewalToken(site, "First rotation failed");
     const second = rotateRenewalToken(site, "Second rotation failed");
     await assertRejects(() => first, Error, "edge script API died");
-    const result = await second;
+    const pushed = await second;
     pushStub.restore();
 
-    expect(result.pushOk).toBe(true);
+    expect(pushed).toBe(true);
     const stored = (await builtSites.getAll()).find((s) => s.id === site.id)!;
     // The surviving rotation's token is the one the row keeps.
-    expect(result.token).toBe(stored.renewalToken);
+    expect(pushedUrls.at(-1)).toBe(renewalUrlFor(stored.renewalToken!));
   });
 });

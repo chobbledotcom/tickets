@@ -26,7 +26,7 @@ const renewalPushResult = builtSiteTabResult(
   (error) => `Deadline could not be pushed to the site: ${error}`,
 );
 
-/** Push-aware success/error for renewal mutations that report a `pushOk`. */
+/** The renewal tab result for a mutation, keyed on whether its push landed. */
 export const editPushOk = (
   id: number,
   pushOk: boolean,
@@ -135,7 +135,7 @@ export const handleProvisionRenewal = builtSiteAction(
     // A provisioned site with a set deadline is confirmed. Anything else —
     // no token yet, or a reserved token whose push never landed — is this
     // route's to (re)provision.
-    if (isProvisioned(site) && site.readOnlyFrom !== "") {
+    if (isProvisioned(site) && !isReservedRenewal(site)) {
       return builtSiteTabError(
         id,
         "renewal",
@@ -151,19 +151,19 @@ export const handleProvisionRenewal = builtSiteAction(
       );
     }
     const months = readClampedMonths(form);
-    const result = await provisionSiteRenewal(
+    const pushed = await provisionSiteRenewal(
       site,
       months,
       `Provision push failed for site ${id}`,
     );
-    if (result.pushOk) {
+    if (pushed) {
       await logActivity(
         `Admin provisioned renewals for '${site.name}' (${months}mo)`,
       );
     }
     return editPushOk(
       id,
-      result.pushOk,
+      pushed,
       "Renewal provisioned",
       "Renewal could not be pushed to the site",
     );

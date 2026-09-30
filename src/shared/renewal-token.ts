@@ -2,7 +2,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 
 /** The renewal token and its HMAC blind index. */
-export type RenewalTokenData = { token: string; index: string };
+type RenewalTokenData = { token: string; index: string };
 
 /** Generate a renewal token + its HMAC blind index. */
 export const generateRenewalToken = async (): Promise<RenewalTokenData> => {

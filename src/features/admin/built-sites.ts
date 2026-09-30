@@ -25,7 +25,7 @@ import { isBuilderEnabled } from "#shared/config.ts";
 /* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import { isProvisioned } from "#shared/renewal-helpers.ts";
+import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 /* jscpd:ignore-end */
@@ -179,23 +179,23 @@ const handleRotateToken = builtSiteAction(async (site, _form, id) => {
   // Rotation runs only on a fully confirmed provisioning: an empty
   // read-only deadline marks a reserved-but-unconfirmed token, which the
   // assignment recovery may be re-pushing, and rotating then would race it.
-  if (!isProvisioned(site) || site.readOnlyFrom === "") {
+  if (!isProvisioned(site) || isReservedRenewal(site)) {
     return builtSiteTabError(
       id,
       "renewal",
       "Renewal is not provisioned for this site",
     );
   }
-  const result = await rotateRenewalToken(
+  const pushed = await rotateRenewalToken(
     site,
     `Rotate token push failed for site ${id}`,
   );
-  if (result.pushOk) {
+  if (pushed) {
     await logActivity(`Rotated renewal token for '${site.name}'`);
   }
   return editPushOk(
     id,
-    result.pushOk,
+    pushed,
     "Renewal token rotated",
     "Renewal token could not be pushed to the site",
   );

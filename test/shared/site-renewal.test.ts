@@ -101,7 +101,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     );
 
     const result = await provisionSiteRenewal(site, 3, "Mid-provision failed");
-    expect(result.pushOk).toBe(true);
+    expect(result).toBe(true);
 
     const stored = (await builtSites.getAll()).find(
       ({ name }) => name === "Rotated Mid",
@@ -156,8 +156,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     const errorSpy = stub(console, "error", () => {});
     try {
       const result = await provisionSiteRenewal(site, 3, "Exhausted provision");
-      expect(result.pushOk).toBe(false);
-      expect(result.token).toBe("");
+      expect(result).toBe(false);
       // The exhausted loop says why, so an operator can tell it apart from
       // a push failure.
       expect(
@@ -195,7 +194,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     const stored = (await builtSites.getAll()).find(
       ({ name }) => name === "Half Pair",
     )!;
-    expect(result.pushOk).toBe(true);
+    expect(result).toBe(true);
     expect(stored.renewalToken).not.toBe("dead-token");
     expect(stored.renewalTokenIndex).toBe(await hmacHash(stored.renewalToken!));
   });
@@ -215,13 +214,13 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     )!;
 
     const errorSpy = stub(console, "error", () => {});
-    let failed: Awaited<ReturnType<typeof provisionSiteRenewal>>;
+    let failed: boolean;
     try {
       failed = await provisionSiteRenewal(site, 3, "First push failed");
     } finally {
       errorSpy.restore();
     }
-    expect(failed.pushOk).toBe(false);
+    expect(failed).toBe(false);
     // The failed push says why, so an operator can tell it from a rotation.
     expect(
       errorSpy.calls.some((c) =>
@@ -237,7 +236,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     pushesSucceed = true;
 
     const retried = await provisionSiteRenewal(site, 3, "Retry failed");
-    expect(retried.pushOk).toBe(true);
+    expect(retried).toBe(true);
     const confirmed = (await builtSites.getAll()).find(
       ({ name }) => name === "Retry site",
     )!;
@@ -348,8 +347,7 @@ describeWithEnv(
         "Token rotation failed",
       );
 
-      expect(result.pushOk).toBe(false);
-      expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(result).toBe(false);
       expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
         "CDN_REQUEST",
       ]);
