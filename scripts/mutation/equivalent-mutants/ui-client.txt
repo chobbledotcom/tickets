@@ -98,3 +98,26 @@ src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nfll
 # whose empty initial value makes assign and append identical.
 src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → +=   # a just-created SVG <text> has empty textContent, so append equals assign
 src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → +=   # same: the <title> is fresh, so append equals assign
+
+# The confirm dialog owns one singleton overlay. A listener the cleanup fails
+# to detach can only fire beside the live dialog's own handler with the same
+# answer: the stale resolve is a no-op on its settled promise, and re-hiding
+# the overlay is idempotent. The buttons answer, the overlay hides, and the
+# next dialog opens exactly as with the removal in place.
+src/ui/client/confirm-dialog.ts::askOverlay.finish~0trf4gl click→""   # a misnamed removal leaves a stale answer listener; a later click on that button reaches the live question too, which answers it and hides the same overlay, so the stale call only repeats the hide
+src/ui/client/confirm-dialog.ts::askOverlay.finish~0lmo3w5 document.removeEventListener("keydown",…→(removed)   # a stale Escape handler only re-hides its own overlay and resolves a promise already resolved, while the live question gets the same key
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+=   # a fresh option starts with an empty value, so appending writes the same string
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+=   # a fresh option starts with empty text, so appending writes the same string
+
+# The camera page renders data-message-camera-denied with the same words as
+# the script's fallback, and server-rendered markup never sets an empty
+# dataset key, so a broken lookup key lands on the same words either way.
+src/ui/client/scanner.js::init~02xv58k messageCameraDenied→""   # the lookup misses into the identical fallback
+
+# The manual check-in form renders no data-message-verify-id-confirm
+# attribute, and its data-message-skipped copy is the same "Skipped {name}" as
+# the fallback. Server-rendered markup never sets an empty dataset key, so a
+# broken lookup key lands on the same words either way.
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→""   # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d messageSkipped→""   # the lookup misses into the fallback copy
+

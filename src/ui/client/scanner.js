@@ -1,6 +1,7 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
 import { showQuantitySelect } from "./quantity-select.ts";
+import { showConfirm } from "./confirm-dialog.ts";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
@@ -122,6 +123,12 @@ const handleResult = (el, result, messages) => {
       break;
     case "refunded":
       showStatus(el, interpolate(getMessage(messages, "messageRefunded", "{name} has been refunded"), { name: result.name }), "error");
+      break;
+    // Only the forced rescan lands here: the first wrong_listing answer asks
+    // before it re-posts, and a ticket whose only rows are "No check-in"
+    // answers wrong_listing again.
+    case "wrong_listing":
+      showStatus(el, getMessage(messages, "messageNoDoor", "This ticket has no door to check in at"), "error");
       break;
     case "not_found":
       showStatus(el, getMessage(messages, "messageNotFound", "Ticket not found"), "error");
@@ -251,43 +258,6 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
   scan();
 };
 
-/**
- * Non-blocking confirm overlay centered on the camera feed.
- * Returns a Promise<boolean> without freezing the camera feed.
- */
-const showConfirm = (message) => {
-  const overlay = document.getElementById("scanner-confirm");
-  const msgEl = document.getElementById("scanner-confirm-message");
-  const yesBtn = document.getElementById("scanner-confirm-yes");
-  const noBtn = document.getElementById("scanner-confirm-no");
-  const closeBtn = document.getElementById("scanner-confirm-close");
-
-  msgEl.textContent = message;
-
-  return new Promise((resolve) => {
-    const cleanup = (value) => {
-      yesBtn.removeEventListener("click", onYes);
-      noBtn.removeEventListener("click", onNo);
-      closeBtn.removeEventListener("click", onClose);
-      document.removeEventListener("keydown", onKeydown);
-      overlay.classList.add("hidden");
-      resolve(value);
-    };
-    const onYes = () => cleanup(true);
-    const onNo = () => cleanup(false);
-    const onClose = () => cleanup(false);
-    const onKeydown = (e) => {
-      if (e.key === "Escape") cleanup(false);
-    };
-
-    yesBtn.addEventListener("click", onYes);
-    noBtn.addEventListener("click", onNo);
-    closeBtn.addEventListener("click", onClose);
-    document.addEventListener("keydown", onKeydown);
-    overlay.classList.remove("hidden");
-  });
-};
-
 /** Initialize scanner when DOM is ready */
 const init = () => {
   const video = document.getElementById("scanner-video");
@@ -334,11 +304,9 @@ const init = () => {
   });
 };
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
-}
+// The page's only script tag is type="module", so the document has finished
+// parsing by the time this runs and init can start at once.
+init();
 
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the

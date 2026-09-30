@@ -5,7 +5,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete question and built-site schema exact", async () => {
   expect(await jsonHash(questionTables)).toBe(
-    "ea8a403fc211af81c2805c516a458f50dcc87ad7ca86e85f76d7129d39c133e3",
+    "3619d10db37512f5dfcbe736b7637c82dffe5c74231d52531ab96dfa11f5537b",
   );
 });
 

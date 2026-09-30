@@ -5,6 +5,7 @@
  * session id throughout.
  */
 
+import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import {
   mapProviderReader,
   type ProviderRead,
@@ -15,13 +16,12 @@ import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
-/* jscpd:ignore-end */
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
-  makeCreateCheckoutSession,
   toCanonicalIso,
 } from "#shared/payment-helpers.ts";
+/* jscpd:ignore-end */
 import { parsePriceProof } from "#shared/payment-signature.ts";
 import type {
   PaymentProvider,
@@ -32,6 +32,7 @@ import type {
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import {
   isSquarePaymentStatus,
   type SquarePaymentStatus,
@@ -255,7 +256,11 @@ const createSquareCheckoutSession = makeCreateCheckoutSession(
   // A lambda, not the member itself: the checkout builder is captured once
   // at module load, and resolving the member per call keeps test stubs live.
   (intent, baseUrl) => squareApi.createPaymentLink(intent, baseUrl),
-  (link) => ({ id: link.orderId, url: link.url }),
+  (link) => ({
+    id: link.orderId,
+    linkEndsAt: squareLinkEndsAt(link.createdAt),
+    url: link.url,
+  }),
 );
 
 /** Square payment provider implementation */

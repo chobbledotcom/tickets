@@ -134,7 +134,6 @@ export interface TicketsWorld extends World, EvidencePages {
   duplicateId?: number;
   duplicateToken?: string;
   editorAnswer?: number;
-  editorInvite?: string;
   firstBody?: string;
   firstDay?: string;
   firstFailureData?: string;
@@ -177,6 +176,8 @@ export interface TicketsWorld extends World, EvidencePages {
   raceWinners?: number;
   refundCalls?: () => number;
   refundSafety?: RefundSafetyState;
+  /** What the site answered when the story's scanner login asked for a page. */
+  scannerAnswer?: number;
   secondBody?: string;
   secondStatus?: number;
   servicingEventId?: number;
@@ -184,7 +185,6 @@ export interface TicketsWorld extends World, EvidencePages {
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
-  signedInEditorName?: string;
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;

@@ -44,7 +44,10 @@ type DoorAsk = {
 };
 
 /** Where a scan looks for rows: the door's own listings, or every listing
- * when the ask forces a ticket that matched nowhere in scope. */
+ * when the ask forces a ticket that matched nowhere in scope. A "No
+ * check-in" listing sells with no door, so its rows never admit on any
+ * door — the ticket-QR path refuses them too, and force never widens onto
+ * them. */
 const scanPool = ({
   entries,
   scope,
@@ -52,15 +55,15 @@ const scanPool = ({
 }: DoorAsk):
   | { failure: "not_found" | "wrong_listing" }
   | { rows: TokenEntry[]; widened: boolean } => {
-  const inScope = entries.filter((entry) => scope.has(entry.listing.id));
+  const doorSafe = entries.filter((entry) => !entry.listing.purchase_only);
+  const inScope = doorSafe.filter((entry) => scope.has(entry.listing.id));
   if (!force || inScope.length > 0) {
     return inScope.length === 0
       ? { failure: "wrong_listing" }
       : { rows: inScope, widened: false };
   }
-  return entries.length === 0
-    ? { failure: "not_found" }
-    : { rows: [...entries], widened: true };
+  if (doorSafe.length > 0) return { rows: doorSafe, widened: true };
+  return { failure: entries.length === 0 ? "not_found" : "wrong_listing" };
 };
 
 /** The listings a scan admits from those that still owe tickets: every one

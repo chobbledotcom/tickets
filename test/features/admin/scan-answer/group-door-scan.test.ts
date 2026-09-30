@@ -11,6 +11,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import {
+  editorScan,
+  groupDoor,
+  scanAtDoor,
+  ticketFromItsOwnGroup,
+} from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import {
@@ -28,12 +34,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import {
-  editorScan,
-  groupDoor,
-  scanAtDoor,
-  ticketFromItsOwnGroup,
-} from "./support.ts";
 
 describeWithEnv("group scanner scans", { db: true }, () => {
   test("an outside-group ticket is queried, and force lets it in", async () => {

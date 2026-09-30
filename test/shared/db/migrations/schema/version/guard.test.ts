@@ -108,9 +108,11 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-11_refund_order_link",
         "2026-09-14_group_show_hidden_listings",
         "2026-09-15_group_scan_checks_in_all_listings",
-        "2026-09-27_checked_in_count",
+        "2026-09-28_answers_at_booking",
+        "2026-09-29_checkout_pending_answers",
+        "2026-09-30_checked_in_count",
       ],
-      schemaHash: "y91i2g",
+      schemaHash: "1mer828",
     });
   });
 

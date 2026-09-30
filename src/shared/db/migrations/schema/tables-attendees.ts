@@ -312,4 +312,26 @@ export const attendeeTables: [name: string, table: Table][] = [
       ],
     },
   ],
+
+  [
+    // Free-text answers staged between checkout creation and payment
+    // completion, so the buyer's confirmation email can show what they typed
+    // without spending the owner key at webhook time. Sealed with
+    // DB_ENCRYPTION_KEY and keyed by the HMAC of the session id: for SumUp
+    // the session id is the checkout reference, which must never rest in this
+    // database (see sumup_checkouts for why). The row is deleted the moment
+    // the completion reads it. Survivors prune on the payments clock, which
+    // covers provider retry windows, and not before `link_ends_at`: a Square
+    // link takes payment for 180 days after its creation, or until its first
+    // payment. The column is null for checkouts that end within days.
+    "checkout_pending_answers",
+    {
+      columns: [
+        ["session_index", "TEXT PRIMARY KEY"],
+        ["sealed", "TEXT NOT NULL"],
+        ["created_at", "TEXT NOT NULL"],
+        ["link_ends_at", "TEXT"],
+      ],
+    },
+  ],
 ];

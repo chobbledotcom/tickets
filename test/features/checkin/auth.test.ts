@@ -11,10 +11,13 @@ import {
   insertSecondBookingRow,
 } from "#test-utils/logistics.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
 } from "#test-utils/session.ts";
+import { withSetting } from "#test-utils/settings.ts";
+import { readTicketPage, setupCheckinTest } from "./helpers.ts";
 
 describeWithEnv("check-in page role authorization", { db: true }, () => {
   describe("GET /checkin/:tokens (delivery agent session)", () => {
@@ -54,12 +57,11 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         today,
       );
 
-      const allowed = await awaitTestRequest(`/checkin/${own.token}`, {
-        cookie,
-      });
-      expect(allowed.status).toBe(200);
-      const allowedBody = await allowed.text();
+      const allowedBody = await readTicketPage(own.token, cookie);
       expect(allowedBody).toContain("Assigned Person");
+      // An agent's run-sheet view never carries the bulk actions: their
+      // session is not a door role, so the POST would refuse them.
+      expect(allowedBody).not.toContain('name="check_in"');
       expect(allowedBody).toContain("assigned@example.com");
       expect(allowedBody).not.toContain("Check In All");
       expect(allowedBody).not.toContain(
@@ -101,6 +103,79 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
     });
 
+    test("delivery agents see no bulk action on a fully refunded run-sheet leg", async () => {
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      const assignedAgent = (
+        await logisticsAgents.table.insert({ name: "Refunded van" })
+      ).id;
+      const { cookie } = await createTestAgentSession({
+        agentIds: [assignedAgent],
+        token: "checkin-agent-refunded",
+        username: "checkin-agent-refunded",
+      });
+      const own = await createTestAttendeeWithToken(
+        "Refunded Person",
+        "refunded-agent@example.com",
+        { usesLogistics: true },
+      );
+      await assignBookingToAgent(
+        own.attendee.id,
+        own.listing.id,
+        assignedAgent,
+        todayInTz(settings.timezone),
+      );
+      await refundThroughLedger(own.attendee.id, own.listing.id);
+
+      const body = await readTicketPage(own.token, cookie);
+      expect(body).toContain("Refunded Person");
+      // A refunded leg offers nothing to change, and an agent's session is
+      // not a door role: no bulk action may appear.
+      expect(body).not.toContain("Check In All");
+      expect(body).not.toContain('name="check_in"');
+    });
+
+    test("a scanner's door role alone offers no action on a token no row can change", async () => {
+      const { refundThroughLedger } = await import("#test-utils/ledger.ts");
+      const { attendee, token } = await createTestAttendeeWithToken(
+        "Still Home",
+        "still-home@test.com",
+      );
+      const scanner = await createTestScannerSession();
+      await refundThroughLedger(attendee.id, attendee.listing_id);
+
+      const body = await readTicketPage(token, scanner.cookie);
+      // A door role is one half of the bulk action's gate; the other half is
+      // a row the POST could change. A fully refunded token meets neither
+      // offer: the POST would refuse, so the page must not advertise it.
+      expect(body).toContain("Still Home");
+      expect(body).not.toContain("Check In All");
+      expect(body).not.toContain("Check Out All");
+      expect(body).not.toContain('name="check_in"');
+    });
+
+    test("keeps the door-safe columns even when a staff layout names contact ones", async () => {
+      const { token } = await setupCheckinTest("Perry", "perry@test.com");
+      const scanner = await createTestScannerSession();
+
+      const body = await withSetting(
+        { attendee_column_order: "{{name}} {{email}} {{phone}}" },
+        async () =>
+          (
+            await awaitTestRequest(`/checkin/${token}`, {
+              cookie: scanner.cookie,
+            })
+          ).text(),
+      );
+
+      // An operator's saved column order is a staff-table choice; the
+      // door-only ticket page always reads its own fixed door-safe columns,
+      // so a contact column can never ride onto a door worker's screen.
+      expect(body).toContain("<th>Name</th>");
+      expect(body).not.toContain("perry@test.com");
+      expect(body).not.toContain("<th>Email</th>");
+      expect(body).not.toContain("<th>Phone</th>");
+    });
+
     test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {
       // One attendee books the same listing twice on different dates, so both
       // rows share the (attendee, listing) pair. An agent who owns the leg on
@@ -128,9 +203,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // Row B (later date, quantity 3): no agent, never on the run sheet.
       await insertSecondBookingRow(attendee.id, listing.id, laterDate, 3);
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      expect(response.status).toBe(200);
-      const body = await response.text();
+      const body = await readTicketPage(token, cookie);
 
       // The agent owns only Row A, so only its quantity appears.
       expect(body).toContain("Multi Row Person");
@@ -142,17 +215,15 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       expect(body).toContain(formatDateLabel(today));
       expect(body).not.toContain(formatDateLabel(laterDate));
     });
-  });
 
-  describe("GET /checkin/:tokens (agent run sheet)", () => {
-    test("an agent sees a row whose leg is tomorrow", async () => {
-      const agentId = (
+    test("delivery agents see a leg that is on tomorrow's run sheet", async () => {
+      const assignedAgent = (
         await logisticsAgents.table.insert({ name: "Tomorrow van" })
       ).id;
       const { cookie } = await createTestAgentSession({
-        agentIds: [agentId],
-        token: "checkin-tomorrow",
-        username: "checkin-tomorrow",
+        agentIds: [assignedAgent],
+        token: "checkin-agent-tomorrow",
+        username: "checkin-agent-tomorrow",
       });
       const tomorrow = addDays(todayInTz(settings.timezone), 1);
       const { attendee, listing, token } = await createTestAttendeeWithToken(
@@ -160,10 +231,15 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         "tomorrow@example.com",
         { usesLogistics: true },
       );
-      await assignBookingToAgent(attendee.id, listing.id, agentId, tomorrow);
+      await assignBookingToAgent(
+        attendee.id,
+        listing.id,
+        assignedAgent,
+        tomorrow,
+      );
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      expect(await response.text()).toContain("Tomorrow Person");
+      const body = await readTicketPage(token, cookie);
+      expect(body).toContain("Tomorrow Person");
     });
   });
 
@@ -183,6 +259,27 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await response.text();
       expect(body).not.toContain("Editor Hidden");
       expect(body).not.toContain("editor-hidden@example.com");
+    });
+  });
+
+  describe("GET /checkin/:tokens (scanner session)", () => {
+    test("shows a scanner login the attendee and the check-in toggle", async () => {
+      const { token } = await createTestAttendeeWithToken(
+        "Door Guest",
+        "doorguest@example.com",
+      );
+      const { cookie } = await createTestScannerSession({
+        token: "checkin-scanner",
+      });
+
+      const body = await readTicketPage(token, cookie);
+
+      expect(body).toContain("Door Guest");
+      expect(body).toContain("Check In All");
+      // The admin pages behind these links stay shut for a scanner login, so
+      // the page must not promise them (never render a forbidden link).
+      expect(body).not.toContain('href="/admin/attendees/');
+      expect(body).not.toContain('href="/admin/listing/');
     });
   });
 });

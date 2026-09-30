@@ -64,6 +64,7 @@ export const createTestAttendee = async (
   email: string,
   quantity = 1,
   phone = "",
+  extraFields: Record<string, string> = {},
 ): Promise<Attendee> => {
   const pageHtml = await testPageHtml(`/ticket/${listingSlug}`);
   const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
@@ -71,7 +72,13 @@ export const createTestAttendee = async (
   const response = await handleRequest(
     mockTicketFormRequest(
       listingSlug,
-      { email, name, phone, [`quantity_${listingId}`]: String(quantity) },
+      {
+        email,
+        name,
+        phone,
+        ...extraFields,
+        [`quantity_${listingId}`]: String(quantity),
+      },
       csrfToken,
     ),
   );
@@ -95,8 +102,7 @@ export const createTestAttendee = async (
     }
   }
 
-  const afterAttendees = await getAttendeesRaw(listingId);
-  return afterAttendees[0] as Attendee;
+  return (await getAttendeesRaw(listingId))[0] as Attendee;
 };
 
 /** Insert an attendee with no listing booking (an orphan) created `daysAgo`
@@ -110,8 +116,7 @@ export const insertOrphanAttendee = async (
 ): Promise<number> => {
   const { getDb, insert } = await import("#db/client.ts");
   const { nowMs } = await import("#shared/now.ts");
-  const dayMs = 24 * 60 * 60 * 1000;
-  const created = new Date(nowMs() - daysAgo * dayMs).toISOString();
+  const created = new Date(nowMs() - daysAgo * 86_400_000).toISOString();
   const result = await getDb().execute(
     insert("attendees", {
       created,

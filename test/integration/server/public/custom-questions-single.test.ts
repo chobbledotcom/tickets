@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { queryAll } from "#db/client.ts";
 import {
   getAllModifiers,
   modifiersTable,
@@ -68,6 +69,29 @@ describeWithEnv(
           texts: false,
         });
         expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
+      });
+
+      test("records the answer as the answer at booking", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 50,
+          thankYouUrl: "",
+        });
+        const { question, answer2 } = await setupQuestionForListing(listing.id);
+
+        await submitTicketForm(listing.slug, {
+          email: "record@example.com",
+          name: "Record User",
+          [`question_${question.id}`]: String(answer2.id),
+        });
+
+        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+        const [attendee] = await getAttendeesRaw(listing.id);
+        expect(
+          await queryAll(
+            "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
+            [attendee!.id],
+          ),
+        ).toEqual([{ answer_id: answer2.id, question_id: question.id }]);
       });
 
       test("blocks the booking when a sold-out answer tier is selected", async () => {

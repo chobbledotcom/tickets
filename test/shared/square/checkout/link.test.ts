@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
@@ -214,6 +215,14 @@ describeSquare(() => {
           squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
         ),
         { provider: "square", reason: "invalid_response" },
+      );
+    });
+  });
+
+  describe("squareLinkEndsAt", () => {
+    test("ends a link 180 days after Square made it", () => {
+      expect(squareLinkEndsAt("2026-01-01T00:00:00Z")).toBe(
+        "2026-06-30T00:00:00.000Z",
       );
     });
   });

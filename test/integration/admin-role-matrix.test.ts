@@ -29,6 +29,7 @@ import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { oneServedPath } from "#test-utils/admin-surface.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
@@ -113,6 +114,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     cookies.set("manager", await createTestManagerSession());
     cookies.set("editor", (await createTestEditorSession()).cookie);
     cookies.set("agent", (await createTestAgentSession()).cookie);
+    cookies.set("scanner", (await createTestScannerSession()).cookie);
   });
 
   /** Ask one path as one role. A write carries a real CSRF token, so the role
@@ -198,7 +200,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   test("covers every route the surface declares", () => {
     // Guards the walks below: a surface that stopped declaring its routes
     // would otherwise make this suite pass by testing nothing.
-    expect(roleOnly.length).toBe(61);
+    expect(roleOnly.length).toBe(63);
     expect(recordPages.length).toBe(91);
   });
 
@@ -276,8 +278,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(92);
-    expect(insiderWritableRoutes().length).toBe(91);
+    expect(writableRoutes().length).toBe(93);
+    expect(insiderWritableRoutes().length).toBe(92);
   });
 });
 

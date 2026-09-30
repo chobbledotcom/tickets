@@ -118,7 +118,7 @@ wording, not owner decisions.
 
 ## Migration
 
-`2026-09-27_checked_in_count` runs one statement:
+`2026-09-30_checked_in_count` runs one statement:
 
 ```sql
 UPDATE listing_attendees
@@ -177,7 +177,7 @@ The code below is the authority now. This section only points at it.
 | The door asks       | `showQuantitySelect` in `src/ui/client/quantity-select.ts`, shared by `scanner.js` and `manual-checkin.ts`                                                                              |
 | The roster controls | `CheckinControls` in `src/ui/templates/attendee-table/status.tsx`                                                                                                                       |
 | The quantity page   | `src/features/admin/attendees-checkin-routes.ts` with `attendeeCheckinQuantityPage` in `src/ui/templates/admin/attendees/checkin-quantity.tsx`                                          |
-| The count migration | `src/shared/db/migrations/2026-09-27_checked_in_count.ts`                                                                                                                               |
+| The count migration | `src/shared/db/migrations/2026-09-30_checked_in_count.ts`                                                                                                                               |
 | The reader sums     | `src/shared/db/listing-overview-stats.ts`, `countCheckedIn` in `src/ui/templates/admin/detail-rows.tsx`                                                                                 |
 
 Two details differ from the contract's first draft:

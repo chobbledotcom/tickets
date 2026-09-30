@@ -4,7 +4,7 @@
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
-import { sumOf } from "#fp";
+import { requiredMapValue, sumOf } from "#fp";
 
 /** Admitting fills lines up to their quantity, releasing empties them. */
 export type TicketDirection = "admit" | "release";
@@ -119,7 +119,11 @@ export const spreadTicketMoves = (
   const movedWithOwed = moved.map((move) => ({
     ...move,
     owedAfter: remainingTickets(
-      bookings.get(pairKey(move.attendeeId, move.listingId))!,
+      requiredMapValue(
+        bookings,
+        pairKey(move.attendeeId, move.listingId),
+        `Move for ${pairKey(move.attendeeId, move.listingId)} has no booking`,
+      ),
     ),
   }));
   return { changed, moved: movedWithOwed };

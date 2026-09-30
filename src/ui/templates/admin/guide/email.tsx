@@ -11,6 +11,7 @@ import {
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
 import {
+  ANSWERS_LOOP_EXAMPLE,
   LOOP_EXAMPLE,
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
@@ -89,6 +90,10 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
           <p>{t("settings.advanced.email_variables.example_intro")}</p>
           <pre>
             <code>{LOOP_EXAMPLE}</code>
+          </pre>
+          <p>{t("settings.advanced.email_variables.answers_example_intro")}</p>
+          <pre>
+            <code>{ANSWERS_LOOP_EXAMPLE}</code>
           </pre>
           <p>{t("settings.advanced.email_variables.not_available")}</p>
         </>,

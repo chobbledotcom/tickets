@@ -185,6 +185,38 @@ export const questionTables: [name: string, table: Table][] = [
   ],
 
   [
+    // The questions a booking asked and the answer to each, as the booking
+    // saved them. Admin edits change attendee_answers only, so the two compare.
+    // The texts are copied ciphertext, not links, so a later question, answer,
+    // or string delete cannot change what the booking recorded.
+    "answers_at_booking",
+    {
+      columns: [
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["question_id", "INTEGER NOT NULL"],
+        ["question_text", "TEXT NOT NULL"],
+        ["answer_id", "INTEGER"],
+        [
+          "answer_text",
+          "TEXT CHECK ((answer_text IS NULL) = (answer_id IS NULL))",
+        ],
+        ["free_text", "TEXT CHECK (free_text IS NULL OR answer_id IS NULL)"],
+        [
+          "free_text_index",
+          "TEXT CHECK ((free_text_index IS NULL) = (free_text IS NULL))",
+        ],
+      ],
+      indexes: [
+        {
+          columns: ["attendee_id", "question_id"],
+          name: "idx_answers_at_booking_unique",
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
     "attendee_answers",
     {
       columns: [

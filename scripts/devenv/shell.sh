@@ -28,6 +28,12 @@ export DB_ENCRYPTION_KEY="${DB_ENCRYPTION_KEY-$(cat .db-key)}"
 export DB_URL="${DB_URL-file:./local.db}"
 export PORT="${PORT-8080}"
 
+# Jev, the code grader's paid engine, reads this from the environment. The
+# system secret file is the fallback, so the shell needs no extra setup.
+if [ -z "${OPENCODE_API_KEY-}" ] && [ -r /run/secrets/opencode_api_key ]; then
+  export OPENCODE_API_KEY="$(cat /run/secrets/opencode_api_key)"
+fi
+
 # shellcheck source=/dev/null
 source @runtimeSetup@
 chromium="@chromium@"

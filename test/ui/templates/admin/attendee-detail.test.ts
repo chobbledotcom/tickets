@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ActivityLogEntry } from "#db/activity-log.ts";
-import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import {
-  AttendeeAnswersTable,
   AttendeeBookingsTable,
   BookingStatusBadges,
   InactiveNote,
@@ -300,57 +298,6 @@ describe("AttendeeBookingsTable", () => {
     expect(html).not.toContain("Checked in");
     expect(html).not.toContain("Refunded");
     expect(html).toContain("—");
-  });
-});
-
-describe("AttendeeAnswersTable", () => {
-  const questions: QuestionWithAnswers[] = [
-    {
-      answers: [
-        { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
-        { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
-      ],
-      display_type: "radio" as const,
-      id: 1,
-      text: "Shirt size?",
-    },
-    {
-      answers: [
-        { active: true, id: 20, question_id: 2, sort_order: 0, text: "Vegan" },
-      ],
-      display_type: "radio" as const,
-      id: 2,
-      text: "Meal?",
-    },
-  ];
-
-  test("lists only the questions the attendee answered", () => {
-    const html = String(
-      AttendeeAnswersTable({ questions, selectedAnswerIds: [11] }),
-    );
-    expect(html).toContain("Answers");
-    expect(html).toContain("Shirt size?");
-    expect(html).toContain("Large");
-    // Unanswered question and the unpicked option are absent.
-    expect(html).not.toContain("Meal?");
-    // The answer opens the table cell, so ">Small" matches only an answer
-    // the page shows, never a fragment of a longer string.
-    expect(html).not.toContain(">Small");
-  });
-
-  test("returns null when the attendee answered no questions", () => {
-    // Null lets the caller drop the section entirely (JSX renders it as empty).
-    expect(
-      AttendeeAnswersTable({ questions, selectedAnswerIds: [] }),
-    ).toBeNull();
-  });
-
-  test("joins every chosen answer of one question with a comma", () => {
-    const html = String(
-      AttendeeAnswersTable({ questions, selectedAnswerIds: [10, 11] }),
-    );
-    expect(html).toContain("Shirt size?");
-    expect(html).toContain("Small, Large");
   });
 });
 

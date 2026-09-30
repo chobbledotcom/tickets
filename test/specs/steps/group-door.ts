@@ -138,7 +138,7 @@ Then(
     who: string,
   ): Promise<void> {
     expect(await peopleOfferedAtGroupDoor(this, groupName)).toEqual([
-      { name: who, ticket: ticketOf(this, who) },
+      { name: who },
     ]);
   },
 );

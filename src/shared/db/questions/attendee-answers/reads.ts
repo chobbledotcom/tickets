@@ -9,8 +9,9 @@ import { decryptWithOwnerKey } from "#crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll } from "#db/client.ts";
-import { type ListsByIds, rowsByIds } from "#db/query.ts";
+import { type ListsByIds, rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { answersTable } from "#db/questions/tables.ts";
 /* jscpd:ignore-start */
@@ -33,8 +34,9 @@ const selectAttendeeAnswerRows = <R>(
   column: string,
   selectColumns: string,
   join = "",
+  readRows: typeof rowsByIds = rowsByIds,
 ): Promise<R[]> =>
-  rowsByIds<R>(
+  readRows<R>(
     attendeeIds,
     (placeholders) =>
       `SELECT ${selectColumns}
@@ -44,14 +46,30 @@ const selectAttendeeAnswerRows = <R>(
         AND attendee_answer.attendee_id IN (${placeholders})`,
   );
 
-const choiceAnswerIdsBatch: ListsByIds = async (attendeeIds) =>
-  choiceAnswerMapFromRows(
-    await selectAttendeeAnswerRows<{ attendee_id: number; answer_id: number }>(
-      attendeeIds,
-      "answer_id",
-      "attendee_answer.attendee_id, attendee_answer.answer_id",
-    ),
-  );
+/** The choice-id read over the two readers: the shared shape, the caller
+ * decides which side of the replication it needs. */
+const choiceAnswerIdsWith =
+  (readRows: typeof rowsByIds): ListsByIds =>
+  async (attendeeIds) =>
+    choiceAnswerMapFromRows(
+      await selectAttendeeAnswerRows<{
+        attendee_id: number;
+        answer_id: number;
+      }>(
+        attendeeIds,
+        "answer_id",
+        "attendee_answer.attendee_id, attendee_answer.answer_id",
+        "",
+        readRows,
+      ),
+    );
+
+const choiceAnswerIdsBatch = choiceAnswerIdsWith(rowsByIds);
+
+/** Attendee → chosen-answer-ids read pinned to the primary: the registration
+ * emails read answers the booking saved earlier in the same request, before a
+ * replica can have caught up. */
+export const choiceAnswerIdsPrimary = choiceAnswerIdsWith(rowsByIdsPrimary);
 
 /**
  * Attendee → chosen-answer-ids map for every real (`kind = 'attendee'`)
@@ -158,6 +176,9 @@ export type AttendeeQuestionData = {
   /** attendeeId → (questionId → decrypted free-text answer). Present only when
    * the loader was asked to include text answers; absent/empty otherwise. */
   textAnswerMap?: Map<number, Map<number, string>>;
+  /** The attendees whose answers changed since booking. Present only when the
+   * loader feeds the answers cells, which mark a changed answer. */
+  changedAttendeeIds?: ReadonlySet<number>;
 };
 
 /**
@@ -172,19 +193,21 @@ export const loadAttendeeQuestionData = async (
   privateKey?: CryptoKey,
 ): Promise<AttendeeQuestionData | undefined> => {
   if (attendeeIds.length === 0 || listingIds.length === 0) return;
-  const [{ questions }, answers] = await Promise.all([
+  const [{ questions }, answers, changedAttendeeIds] = await Promise.all([
     getQuestionsWithListingIds(listingIds),
     privateKey
       ? getAttendeeAnswersBatch(attendeeIds, { privateKey, texts: true })
       : getAttendeeAnswersBatch(attendeeIds, { texts: false }),
+    attendeesWithChangedAnswers(attendeeIds),
   ]);
   if (questions.length === 0) return;
   // `texts: false` returns a plain choice-answer Map; `texts: true` returns the
   // choice map plus decrypted free-text answers for the table cells.
   return answers instanceof Map
-    ? { attendeeAnswerMap: answers, questions }
+    ? { attendeeAnswerMap: answers, changedAttendeeIds, questions }
     : {
         attendeeAnswerMap: answers.answerIds,
+        changedAttendeeIds,
         questions,
         textAnswerMap: answers.textAnswers,
       };

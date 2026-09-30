@@ -539,18 +539,17 @@ export interface Session {
  * - `owner`/`manager` are staff who share full back-office access (gated
  *   per-page; managers are denied a subset).
  * - `agent` is a restricted delivery-driver login that can only ever reach its
- *   own logistics run sheet (`/admin/deliveries`). Auth gates exclude agents
- *   from every staff page by default — see `sessionRoleAllowed` in auth.ts.
- * - `editor` is a content-only collaborator: they can create/edit listings and
- *   groups and edit the public-site content, but hold no DATA_KEY (so attendee
- *   PII is undecryptable for them) and have no ledger/settings/API access. Like
- *   `agent`, they are excluded from every staff page by default and opted in to
- *   only the content routes (see `CONTENT_ADMIN_LEVELS`). */
+ *   own logistics run sheet (`/admin/deliveries`).
+ * - `editor` writes listings, groups and site content but holds no DATA_KEY,
+ *   so attendee PII stays undecryptable for them (`CONTENT_ADMIN_LEVELS`).
+ * - `scanner` works a door: the scanner pages, the scan API, and the ticket
+ *   check-in page, and nothing else (`DOOR_ADMIN_LEVELS`). */
 export const AdminLevelSchema = v.picklist([
   "owner",
   "manager",
   "agent",
   "editor",
+  "scanner",
 ]);
 
 /** Admin role levels that are back-office staff (not delivery agents). */
@@ -574,6 +573,11 @@ export const SITE_ADMIN_LEVELS = ["owner", "editor"] as const;
  * (`/admin/deliveries`): staff plus delivery `agent`s. This is the audience the
  * run sheet has always had; the content-only `editor` is excluded. */
 export const DELIVERY_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
+
+/** Admin role levels that may work a door: the staff plus the door-only
+ * `scanner`. Gates the scanner pages, the scan API, and the ticket check-in
+ * page's check-in toggle. */
+export const DOOR_ADMIN_LEVELS = ["owner", "manager", "scanner"] as const;
 
 /** Every admin role level — used to gate actions every authenticated user must
  *  reach (e.g. logout). Derived from {@link AdminLevelSchema} so adding a new
@@ -600,23 +604,14 @@ export const isOwnerRole = roleIn(OWNER_ADMIN_LEVELS);
 /** True for roles that may reach the delivery run sheet (owner/manager/agent). */
 export const isDeliveryRole = roleIn(DELIVERY_ADMIN_LEVELS);
 
+/** True for roles that may work a door (owner/manager/scanner). */
+export const isDoorRole = roleIn(DOOR_ADMIN_LEVELS);
+
 /** True for roles that may create/edit listings & groups (owner/manager/editor). */
 export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
 
 /** True for roles that may edit public-site content (owner/editor). */
 export const isSiteRole = roleIn(SITE_ADMIN_LEVELS);
-
-/** A gate's two audience spellings: one required role, or a role list. */
-export type GateAudience = {
-  role: AdminLevel | undefined;
-  roles: readonly AdminLevel[] | undefined;
-};
-
-/** True when a refused gate admits only the owner account: either the guard
- *  names the role exactly, or it names one role and that role is owner. */
-export const ownerOnlyAudience = ({ role, roles }: GateAudience): boolean =>
-  role === "owner" ||
-  (roles !== undefined && roles.length === 1 && roles[0] === "owner");
 
 /** Type guard: check if a string is a valid AdminLevel */
 export const isAdminLevel = guardFor(AdminLevelSchema);
@@ -628,7 +623,7 @@ export type AdminSession = {
 };
 
 export interface User {
-  admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent" or "editor"
+  admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent", "editor" or "scanner"
   id: number;
   // Encrypted SHA-256 of the invite token, null once the password is set.
   invite_code_hash: EnvKeyEncrypted | null;

@@ -17,7 +17,13 @@ import type { AuthSession } from "#routes/auth.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
-import { type Group, isContentRole, isOwnerRole, isStaffRole } from "#types";
+import {
+  CONTENT_ADMIN_LEVELS,
+  type Group,
+  isContentRole,
+  isOwnerRole,
+  isStaffRole,
+} from "#types";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
@@ -83,6 +89,7 @@ const actionsTab = (): TabDef<Group> => ({
 
 /** The tabbed group page. */
 export const groupPage: EntityPage<Group> = defineEntityPage({
+  audience: CONTENT_ADMIN_LEVELS,
   destination: "group",
   load: (id) => loadGroupForPage(id),
   // A single group is a page *within* the Groups section — highlight the top

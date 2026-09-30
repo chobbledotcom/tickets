@@ -90,6 +90,14 @@ type NormalizedAnswerSet = AttendeeAnswerSet & {
   textAnswers: TextAnswer[];
 };
 
+/** Run statements one after another on the open transaction. */
+const executeInOrder = async (
+  tx: TxScope,
+  statements: SqlStatement[],
+): Promise<void> => {
+  for (const statement of statements) await tx.execute(statement);
+};
+
 const storedIdAnswerStatements = (
   normalized: Map<number, NormalizedAnswerSet>,
 ): SqlStatement[] => {
@@ -167,11 +175,11 @@ const existingQuestionIdsTx = (
   );
 
 /**
- * Repeated answers to a question collapse to the last.
+ * Repeated answers to a question collapse to the last. `alongside` runs after
+ * the answers in the same write, even when there are no answers to save.
  *
  * The string rows are encrypted and indexed BEFORE the transaction opens. That
- * work is CPU-bound and would otherwise hold the SQLite writer open for
- * nothing.
+ * work is CPU-bound and would otherwise hold the SQLite writer open for nothing.
  *
  * The transaction re-reads which questions and answers still exist, so one
  * deleted between checkout and finalize is skipped rather than orphaned. The
@@ -180,6 +188,7 @@ const existingQuestionIdsTx = (
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
+  alongside: SqlStatement[] = [],
 ): Promise<void> => {
   const normalized = new Map<number, NormalizedAnswerSet>(
     [...answersByAttendee].map(([id, set]) => {
@@ -196,12 +205,12 @@ export const saveAttendeeAnswers = async (
       ];
     }),
   );
-  if (normalized.size === 0) return;
+  if (normalized.size === 0 && alongside.length === 0) return;
   const storedIdsOnly = [...normalized.values()].every(
     (set) => set.textAnswers.length === 0,
   );
   if (storedIdsOnly) {
-    await executeBatch(storedIdAnswerStatements(normalized));
+    await executeBatch([...storedIdAnswerStatements(normalized), ...alongside]);
     return;
   }
   // Precompute the encrypted + HMAC-indexed string rows BEFORE opening the
@@ -307,6 +316,7 @@ export const saveAttendeeAnswers = async (
     };
     if (choiceRows.length > 0) await insertAnswerRows("answer_id", choiceRows);
     if (textRows.length > 0) await insertAnswerRows("string_id", textRows);
+    await executeInOrder(tx, alongside);
   });
 };
 

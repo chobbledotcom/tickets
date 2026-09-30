@@ -7,6 +7,7 @@ import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { emailTemplateFields } from "#templates/components/email-template-fields.tsx";
 import {
+  ANSWERS_LOOP_EXAMPLE,
   LOOP_EXAMPLE,
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
@@ -50,6 +51,8 @@ export const ConfirmationEmailTemplateForm = (
       </div>
       <p>{t("settings.advanced.email_variables.example_intro")}</p>
       <pre>{LOOP_EXAMPLE}</pre>
+      <p>{t("settings.advanced.email_variables.answers_example_intro")}</p>
+      <pre>{ANSWERS_LOOP_EXAMPLE}</pre>
       <p>{t("settings.advanced.email_variables.filters_note")}</p>
       <p>{t("settings.advanced.email_variables.not_available")}</p>
     </details>

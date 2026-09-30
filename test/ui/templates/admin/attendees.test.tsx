@@ -1,14 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 
 const render = (
   questions: QuestionWithAnswers[],
-  selected: { answerIds?: number[]; textAnswers?: Map<number, string> } = {},
+  selected: {
+    answerIds?: number[];
+    atBooking?: BookedAnswer[];
+    textAnswers?: Map<number, string>;
+  } = {},
 ): string =>
   String(
     <EditQuestions
+      atBooking={selected.atBooking ?? []}
       questions={questions}
       selectedAnswerIds={selected.answerIds ?? []}
       selectedTextAnswers={selected.textAnswers ?? new Map()}
@@ -232,5 +237,44 @@ describe("EditQuestions", () => {
     expect(html).toContain('<div class="prose" id="question-1-prose">');
     expect(html).toContain("<h1>Heading</h1>");
     expect(html).not.toContain("<legend>");
+  });
+
+  test("shows the answer at booking under a changed question only", () => {
+    const question = (id: number): QuestionWithAnswers => ({
+      answers: [],
+      display_type: "free_text",
+      id,
+      text: `Question ${id}`,
+    });
+    const html = render([question(1), question(2)], {
+      atBooking: [
+        {
+          answer: "Now",
+          answerAtBooking: "Then",
+          askedAs: "Question 1",
+          changed: true,
+          changesPrice: false,
+          question: "Question 1",
+          questionId: 1,
+        },
+        {
+          answer: "Same",
+          answerAtBooking: "Same",
+          askedAs: "Question 2",
+          changed: false,
+          changesPrice: false,
+          question: "Question 2",
+          questionId: 2,
+        },
+      ],
+      textAnswers: new Map([
+        [1, "Now"],
+        [2, "Same"],
+      ]),
+    });
+    expect(html).toContain(
+      "<small>Changed. At booking: &quot;Then&quot;.</small>",
+    );
+    expect(html.match(/<small>/g)?.length).toBe(1);
   });
 });

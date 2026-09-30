@@ -18,6 +18,7 @@ const rowOn = (
     checked?: boolean;
     nonTransferable?: boolean;
     quantity?: number;
+    purchaseOnly?: boolean;
     refunded?: boolean;
   } = {},
 ): TokenEntry =>
@@ -32,6 +33,7 @@ const rowOn = (
       id: listingId,
       name,
       non_transferable: state.nonTransferable ?? false,
+      purchase_only: state.purchaseOnly ?? false,
     },
   });
 
@@ -215,6 +217,31 @@ describe("decideScan", () => {
   test("a line owing exactly one admits straight in, pick or no pick", () => {
     expect(scanAt([standard()], { count: 1 })).toEqual(
       admitsOne([standard()], 0),
+    );
+  });
+
+  test("a no-check-in listing's row never admits at its own door", () => {
+    const merch = rowOn(4, "Merch Stand", { purchaseOnly: true });
+    const ownDoor = new Set([4]);
+    for (const force of [false, true]) {
+      expect(
+        decideScan({ entries: [merch], force, scope: ownDoor }, false, false),
+      ).toEqual({ kind: "wrong_listing" });
+    }
+  });
+
+  test("a no-check-in row admits nothing even beside a checkable one", () => {
+    const merch = rowOn(4, "Merch Stand", { purchaseOnly: true });
+    expect(scanAt([standard(), merch])).toEqual(admitsOne([standard()], 0));
+  });
+
+  test("force never widens onto a no-check-in row", () => {
+    const merch = rowOn(4, "Merch Stand", { purchaseOnly: true });
+    const distant = rowOn(9, "Far Away");
+    // The ticket matches nowhere in scope, so force widens — but only onto
+    // door-safe listings.
+    expect(scanAt([merch, distant], { force: true })).toEqual(
+      admitsOne([distant], 0),
     );
   });
 });

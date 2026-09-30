@@ -70,6 +70,15 @@ export interface BookingAttempt {
  * that read a booking's outcome back. */
 export const THANK_YOU = "Thank you for your order";
 
+/** The ticket code the site hands the visitor on the page their booking lands
+ * on: the one "View your ticket" link they leave with. A page without one is
+ * a broken hand-over, not an empty answer. */
+export const ticketTheirBookingHandsOver = (booking: TestBrowser): string => {
+  const link = booking.currentHtml.match(/href="\/t\/([^"]+)"/);
+  if (!link?.[1]) throw new Error("The booking page hands over no ticket");
+  return link[1];
+};
+
 /** A control a visitor could really use to send this value. */
 const expectControlCanSend = (
   html: string,

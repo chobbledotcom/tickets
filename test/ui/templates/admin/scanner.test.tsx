@@ -2,11 +2,16 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
-import { adminScannerPage } from "#templates/admin/scanner.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
+import {
+  adminScannerDoorsPage,
+  adminScannerPage,
+} from "#templates/admin/scanner.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import type { AdminSession } from "#types";
 
 /** The hole names the scanner script fills in, spelled as the page carries
  * them between its own braces. */
@@ -39,28 +44,71 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [
-        { name: "Ada", quantity: 2, token: "ada-token" },
-        { name: "Sam", quantity: 1, token: "sam-token" },
+        { attendeeId: 41, details: [], name: "Ada", quantity: 2 },
+        { attendeeId: 42, details: [], name: "Sam", quantity: 1 },
       ],
     );
 
     expect(html).toContain("2 tickets available");
     expect(html).toContain('data-name="Ada"');
     expect(html).toContain('data-quantity="2"');
-    expect(html).toContain('data-token="ada-token"');
+    expect(html).toContain('data-attendee-id="41"');
     expect(html).toContain('data-name="Sam"');
   });
 
-  test("escapes a person's name once, so the list shows it as typed", () => {
+  test("tells two people with the same name apart by their day and listing", () => {
     const html = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [{ name: "Tom & Jo", quantity: 2, token: "tj-token" }],
+      [
+        {
+          attendeeId: 41,
+          details: ["Camping · 12 Jun"],
+          name: "Ada",
+          quantity: 2,
+        },
+        {
+          attendeeId: 42,
+          details: ["Workshop · 14 Jun"],
+          name: "Ada",
+          quantity: 2,
+        },
+      ],
     );
 
-    expect(html).toContain('data-name="Tom &amp; Jo"');
-    expect(html).toContain("Tom &amp; Jo (2 tickets) — tj-token");
+    // Same name and the same number of places: only the day, and on a
+    // multi-listing door the listing, tells the two picks apart, so the
+    // roster shows it beside the name.
+    expect(html).toContain("Ada (2 tickets) — Camping · 12 Jun");
+    expect(html).toContain("Ada (2 tickets) — Workshop · 14 Jun");
+    expect(html).toContain('data-detail="Camping · 12 Jun"');
+    // The pick list searches what it shows; it no longer offers the ticket
+    // token, which the roster stopped carrying.
+    expect(html).toContain("Search by name, day, or listing");
+    expect(html).not.toContain("ticket token");
+  });
+
+  test("escapes a pick's name and day once, so the search reads the real words", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [
+        {
+          attendeeId: 41,
+          details: ["Tom & Jerry <Show>"],
+          name: "Ada & Bo",
+          quantity: 1,
+        },
+      ],
+    );
+
+    expect(html).toContain('data-name="Ada &amp; Bo"');
+    expect(html).toContain('data-detail="Tom &amp; Jerry &lt;Show&gt;"');
+    expect(html).toContain(
+      "Ada &amp; Bo (1 ticket) — Tom &amp; Jerry &lt;Show&gt;",
+    );
     expect(html).not.toContain("&amp;amp;");
   });
 
@@ -80,7 +128,7 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [{ name: "Ada", quantity: 1, token: "ada-token" }],
+      [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
     );
 
     expect(html).toContain("1 ticket available");
@@ -228,8 +276,8 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('name="csrf_token"');
     expect(html).toContain('for="manual-checkin-input"');
     expect(html).toContain('class="combobox"');
-    expect(html).toContain('id="manual-checkin-token"');
-    expect(html).toContain('name="token"');
+    expect(html).toContain('id="manual-checkin-attendee-id"');
+    expect(html).toContain('name="attendee_id"');
     expect(html).toContain('autocomplete="off"');
     expect(html).toContain('id="manual-checkin-input"');
     expect(html).toContain('type="text"');
@@ -244,5 +292,79 @@ describe("the admin scanner page template", () => {
 
     // The way out to the guide.
     expect(html).toContain('href="/admin/guide#checkin"');
+  });
+});
+
+describe("the admin scanner doors page template", () => {
+  beforeAll(setupAdminPageTest);
+
+  /** The doors page serves a scanner login, whose nav carries no other
+   *  section's words for the assertions below to trip over. */
+  const SCANNER_SESSION: AdminSession = { adminLevel: "scanner" };
+
+  test("lists every door under its kind, as a link to the door", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [{ name: "Winter Social", path: "/admin/groups/7/scan" }],
+      listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
+    });
+
+    expect(html).toContain("<title>Scanner doors</title>");
+    expect(html).toContain(t("admin.scanner.doors_intro"));
+    expect(html).toContain(t("terms.listings"));
+    expect(html).toContain(t("terms.groups"));
+    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
+    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
+    // The listings section is announced before the groups section.
+    expect(html.indexOf(t("terms.listings"))).toBeLessThan(
+      html.indexOf(t("terms.groups")),
+    );
+  });
+
+  test("leaves out the kind of door that has none", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [],
+      listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
+    });
+
+    expect(html).toContain(t("terms.listings"));
+    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
+    // An empty heading would promise a link that is not there.
+    expect(html).not.toContain(t("terms.groups"));
+  });
+
+  test("lists the group doors alone when no listing has a door", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [{ name: "Winter Social", path: "/admin/groups/7/scan" }],
+      listingDoors: [],
+    });
+
+    expect(html).toContain(t("terms.groups"));
+    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
+    expect(html).not.toContain(t("terms.listings"));
+  });
+
+  test("says when there are no doors yet", () => {
+    const html = adminScannerDoorsPage(SCANNER_SESSION, {
+      groupDoors: [],
+      listingDoors: [],
+    });
+
+    expect(html).toContain(t("admin.scanner.doors_empty"));
+    expect(html).not.toContain(t("terms.listings"));
+    expect(html).not.toContain(t("terms.groups"));
+    // A door's path always ends in "/scan"; the empty doors page links to no
+    // door (the nav's own /admin/scanner route is not a door).
+    expect(html).not.toContain('href="/admin/listing/');
+    expect(html).not.toContain('href="/admin/groups/');
+  });
+
+  test("the nav links a scanner back to the doors list", () => {
+    // A scanner who opens a door from a bookmark still needs the route back
+    // to /admin/scanner to pick another door: the role's only nav destination.
+    const html = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
+    );
+    expect(html).toContain('href="/admin/scanner"');
+    expect(html).toContain(t("nav.doors"));
   });
 });

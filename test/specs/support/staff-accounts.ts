@@ -25,13 +25,14 @@ import {
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type {
   ActOnOnePerson,
+  ActOnTheStory,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
 /** Staff roles whose account journeys are shared by the acceptance stories. */
-export type InvitedStaffRole = "editor" | "manager";
+export type InvitedStaffRole = "editor" | "manager" | "scanner";
 
 /** The password an invited staff member chooses for themselves. */
 const STAFF_PASSWORD = "a-good-long-password";
@@ -156,6 +157,56 @@ export const logStaffIn = async (
     world,
     browserName,
   );
+
+/** The account journey every invited role shares: the owner invites them, the
+ * invited person follows their link and chooses a password, they sign in, and
+ * the story keeps their signed-in window under one browser name. Each role
+ * names the role its invite form offers, the browser its pages run in, and
+ * the name its one-time link is kept under — one pending invite per role. */
+export const invitedRoleJourney = (named: {
+  browserName: string;
+  inviteName: string;
+  role: InvitedStaffRole;
+}) => {
+  const invites: ActOnOnePerson = async (world, who) => {
+    const invite = await createStaffInvite(world, who, named.role);
+    world.things.remember("told", named.inviteName, invite);
+  };
+
+  const followsInvite: ActOnTheStory = async (world) => {
+    await rememberAcceptedStaffInvite(
+      world,
+      named.browserName,
+      world.things.require("told", named.inviteName),
+    );
+  };
+
+  const logsIn: ActOnOnePerson = async (world, who) => {
+    await logStaffIn(world, who, named.browserName);
+  };
+
+  /** Somebody invited, activated and signed in — or signed in now. Signing in
+   * a second person after a first is a story bug: every later step would
+   * quietly be taken by the first one. */
+  const signedIn: ActOnOnePerson = async (world, who) => {
+    const slot = `who is signed in as the ${named.role}`;
+    if (world.things.recall("browser", named.browserName)) {
+      const seen = world.things.recall("told", slot);
+      if (seen !== who) {
+        throw new Error(
+          `${seen} is already the signed-in ${named.role}, so ${who} cannot be as well`,
+        );
+      }
+      return;
+    }
+    world.things.remember("told", slot, who);
+    await invites(world, who);
+    await followsInvite(world);
+    await logsIn(world, who);
+  };
+
+  return { followsInvite, invites, logsIn, signedIn };
+};
 
 /** The owner invites a manager through the rendered Users form. */
 export const ownerInvitesManager: ActOnOnePerson = async (world, who) => {

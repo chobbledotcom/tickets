@@ -2,7 +2,7 @@ import { getDb } from "#db/client.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 export default bareSchemaMigration(
-  "2026-09-27_checked_in_count",
+  "2026-09-30_checked_in_count",
   "checked_in becomes a count of admitted tickets, 0..quantity, instead of " +
     "a 0/1 flag. A line an operator marked as arrived held its full quantity " +
     "in practice, because the flag could not record less, so every stored 1 " +

@@ -3,9 +3,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
-import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import {
+  createTestEditorSession,
+  testCookie,
+  testCsrfToken,
+} from "#test-utils/session.ts";
 import { postCheckin, setupCheckinTest } from "./helpers.ts";
 
 describeWithEnv(
@@ -243,6 +249,76 @@ describeWithEnv(
           ),
         );
         expect(response.status).toBe(404);
+      });
+
+      test("a scanner login checks a ticket in and back out", async () => {
+        const { attendee, token } = await createTestAttendeeWithToken(
+          "Scanner Guest",
+          "scannerguest@example.com",
+        );
+        const { cookie } = await createTestScannerSession({
+          token: "flows-scanner",
+        });
+        const session = { cookie, csrfToken: await testCsrfToken() };
+
+        const went = await postCheckin(token, session, "true");
+        expect(went.status).toBe(302);
+        expect(went.headers.get("location")).toBe(
+          `/checkin/${token}?message=Checked%20in%201%20ticket`,
+        );
+
+        const came = await postCheckin(token, session, "false");
+        expect(came.status).toBe(302);
+        expect(came.headers.get("location")).toBe(
+          `/checkin/${token}?message=Checked%20out`,
+        );
+
+        expect(await storedCheckinRows(attendee.id)).toEqual([
+          { checked_in: 0 },
+        ]);
+      });
+
+      test("an editor cannot check anyone in", async () => {
+        const { attendee, token } = await createTestAttendeeWithToken(
+          "Editor Outside",
+          "editoroutside@example.com",
+        );
+        const { cookie } = await createTestEditorSession({
+          token: "flows-editor",
+        });
+
+        const response = await postCheckin(
+          token,
+          { cookie, csrfToken: await testCsrfToken() },
+          "true",
+        );
+        expect(response.status).toBe(403);
+
+        expect(await storedCheckinRows(attendee.id)).toEqual([
+          { checked_in: 0 },
+        ]);
+      });
+
+      test("a bundle's answer points back at the joined path", async () => {
+        const first = await createTestAttendeeWithToken(
+          "Bundle Ann",
+          "bundleann@example.com",
+        );
+        const second = await createTestAttendeeWithToken(
+          "Bundle Pat",
+          "bundlepat@example.com",
+        );
+        const session = {
+          cookie: await testCookie(),
+          csrfToken: await testCsrfToken(),
+        };
+        const tokens = `${first.token}+${second.token}`;
+
+        const response = await postCheckin(tokens, session, "true");
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(
+          `/checkin/${tokens}?message=Checked%20in%202%20tickets`,
+        );
       });
     });
   },

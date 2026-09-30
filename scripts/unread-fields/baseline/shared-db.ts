@@ -132,12 +132,6 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
     ],
   ])(["payment_reference", "payment_reference_index"]),
   ...identitiesAt([
-    [
-      "src/shared/db/payment-reference-store.ts",
-      [{ name: "IndexedPaymentReferenceSource" }],
-    ],
-  ])(["payment_session_id"]),
-  ...identitiesAt([
     ["src/shared/db/payment-review.ts", [{ name: "PaymentReviewState" }]],
   ])(["allAcknowledged"]),
   ...identitiesAt([

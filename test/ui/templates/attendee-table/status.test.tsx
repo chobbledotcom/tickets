@@ -54,6 +54,54 @@ describe("attendee status cells", () => {
     expect(html).not.toContain("<form");
   });
 
+  test("renders read-only state badges when the toggle form is refused", () => {
+    const checked = renderStatus(
+      { checked_in: 1 },
+      { showCheckin: false, showCheckinState: true },
+    );
+    expect(checked).toBe('<span class="badge-ok">Checked in</span>');
+    expect(checked).not.toContain("<form");
+
+    const unchecked = renderStatus(
+      { checked_in: 0 },
+      { showCheckin: false, showCheckinState: true },
+    );
+    expect(unchecked).toBe('<span class="muted small">Not checked in</span>');
+    expect(unchecked).not.toContain("<form");
+  });
+
+  test("a part-admitted booking's badge says how many are in", () => {
+    const html = renderStatus(
+      { checked_in: 1, quantity: 3 },
+      { showCheckin: false, showCheckinState: true },
+    );
+    expect(html).toBe('<span class="badge-ok">Checked in (1 of 3)</span>');
+  });
+
+  test("gives the refunded badge precedence over the state badge", () => {
+    const html = renderStatus(
+      { checked_in: 1, refunded: true },
+      { showCheckin: false, showCheckinState: true },
+    );
+
+    expect(html).toBe('<span class="badge-alert">Refunded</span>');
+  });
+
+  test("keeps the toggle form when showCheckinState is not requested", () => {
+    const html = renderStatus({ checked_in: 1, id: 8 });
+
+    expect(html).toContain('class="link-button checkout"');
+    expect(html).not.toContain("badge-ok");
+  });
+
+  test("keeps a supplied empty active filter instead of the default", () => {
+    const html = renderStatus({ checked_in: 1, id: 8 }, { activeFilter: "" });
+
+    expect(html).toContain(
+      '<input name="return_filter" type="hidden" value="">',
+    );
+  });
+
   test("renders an unchecked attendee with default return state", () => {
     const token = getCurrentCsrfToken();
 

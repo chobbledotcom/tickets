@@ -85,7 +85,8 @@ export const oneLocation = (id: string, name: string) => ({
  * order id and address — the happy path for `checkout.paymentLinks.create`.
  */
 export const linkResult = (orderId: string, url: string): MockImpls => ({
-  checkoutCreate: () => Promise.resolve({ orderId, url }),
+  checkoutCreate: () =>
+    Promise.resolve({ createdAt: "2026-09-29T12:00:00Z", orderId, url }),
 });
 
 /**

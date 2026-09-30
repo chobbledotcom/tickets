@@ -12,16 +12,19 @@ import {
   getUserAuthFieldsById,
   type UserAuthFields,
 } from "#db/users.ts";
-import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
+import { type AuthChannel, authFailure } from "#routes/auth-failures.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import { lowerContentType } from "#routes/middleware.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
-import { htmlResponse, redirectResponse } from "#routes/response.ts";
+import { htmlResponse } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
-import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
+import {
+  type AdminDestinationDef,
+  ownerOnlyAudience,
+} from "#shared/admin-surface/definitions.ts";
 import { adminPageAudience } from "#shared/admin-surface.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -41,10 +44,10 @@ import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
+  DOOR_ADMIN_LEVELS,
   isRecord,
   isStaffRole,
   type NagItem,
-  ownerOnlyAudience,
   SITE_ADMIN_LEVELS,
 } from "#types";
 
@@ -134,10 +137,12 @@ export const getAuthenticatedSession = async (
 /** Where a user should land after authenticating, based on their role.
  * Delivery agents go straight to their run sheet (the only page they may see);
  * editors go to the listings index (the dashboard shows financials they may not
- * see); staff go to the dashboard. */
+ * see); scanner users go to the doors list, where they pick a door; staff go to
+ * the dashboard. */
 export const adminLandingPath = (adminLevel: AdminLevel): string => {
   if (adminLevel === "agent") return "/admin/deliveries";
   if (adminLevel === "editor") return "/admin/listings";
+  if (adminLevel === "scanner") return "/admin/scanner";
   return "/admin";
 };
 
@@ -297,6 +302,12 @@ export const DELIVERY_FORM: AuthPolicy<"form"> = {
   body: "form",
   roles: DELIVERY_ADMIN_LEVELS,
 };
+/** Door check-in form gate: staff + the door-only `scanner`. The ticket
+ * check-in page's check-in/out toggle is the one write a scanner login makes. */
+export const DOOR_FORM: AuthPolicy<"form"> = {
+  body: "form",
+  roles: DOOR_ADMIN_LEVELS,
+};
 /** Form gate that admits any authenticated user, agents and editors included —
  * used for actions every logged-in user must reach, like logout. */
 export const ANY_USER_FORM: AuthPolicy<"form"> = {
@@ -326,11 +337,13 @@ export const OWNER_API: AuthPolicy<"json"> = {
 /**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
  * the session lifetime, so a logged-in admin can keep the scanner page open for
- * a whole listing without check-ins failing on CSRF expiry.
+ * a whole listing without check-ins failing on CSRF expiry. Door roles only —
+ * the same audience the scanner pages declare.
  */
 export const SCANNER_JSON: AuthPolicy<"json"> = {
   body: "json",
   csrfMaxAge: SCANNER_CSRF_MAX_AGE_S,
+  roles: DOOR_ADMIN_LEVELS,
 };
 
 /** Get the current cookie session, or the channel's not-authenticated failure. */
@@ -436,10 +449,17 @@ export const pageGuardFor = (
 
 /** One record page's gate: every role that can reach any route beneath it.
  * A tab open to a wider role sits under this same path and needs to get in;
- * the tab's own `visible` is what keeps the narrower tabs shut. */
+ * the tab's own `visible` is what keeps the narrower tabs shut. A page whose
+ * beneath-routes include a standalone tool rather than a tab names its own tab
+ * audience instead — the listing and group scanner doors are such routes, and
+ * the folded floor would otherwise admit the door-only `scanner` login to a
+ * page whose every tab hides from them. The role matrix still catches a page
+ * that freezes out a role one of its tab destinations declares. */
 export const recordPageGuardFor = (
   route: AdminDestinationDef,
-): SessionGuard<AuthSession> => requireRolesOr(adminPageAudience(route));
+  audience?: readonly AdminLevel[],
+): SessionGuard<AuthSession> =>
+  requireRolesOr(audience ?? adminPageAudience(route));
 
 /** A form POST's policy, admitting exactly the roles its route declares. */
 export const formPolicyFor = (
@@ -555,61 +575,6 @@ const requireAnyUserOr = (
 
 /** Any-authenticated-user GET page: authenticate, apply flash, render HTML */
 export const anyUserPage = authPage(requireAnyUserOr);
-
-/** The HTML 403 body: a role refusal says the account cannot open the page;
- *  an owner-only refusal says only the owner account can. The audience fact
- *  comes from the same route declaration that the guards admit by. */
-const forbiddenBody = (detail?: ForbiddenDetail): string =>
-  detail === "owner-only"
-    ? t("auth.forbidden_owner_only")
-    : t("auth.forbidden_role");
-
-/** Shared auth failure response factories (avoids jscpd duplication) */
-const htmlForbidden = () => htmlResponse(forbiddenBody(), 403);
-const jsonForbidden = () => apiErrorResponse("Forbidden", 403);
-
-/** Auth failure responses keyed by reason, with html and json variants side-by-side. */
-const AUTH_FAILURES = {
-  forbidden: {
-    html: (detail?: ForbiddenDetail) =>
-      htmlResponse(forbiddenBody(detail), 403),
-    json: jsonForbidden,
-  },
-  "invalid-api-key": {
-    html: htmlForbidden,
-    json: () => apiErrorResponse("Invalid API key", 401),
-  },
-  "invalid-csrf": {
-    html: () => htmlResponse("Invalid CSRF token", 403),
-    json: jsonForbidden,
-  },
-  "not-authenticated": {
-    html: () => redirectResponse("/admin"),
-    json: () => apiErrorResponse("Not authenticated", 401),
-  },
-} satisfies Record<
-  string,
-  Record<"html" | "json", (...args: never[]) => Response>
->;
-
-type AuthFailureReason = keyof typeof AUTH_FAILURES;
-type AuthChannel = keyof (typeof AUTH_FAILURES)[AuthFailureReason];
-
-/** How a forbidden response narrows its who-can-open message: the route's
- *  declared audience knows whether the page is owner-only. */
-export type ForbiddenDetail = "owner-only";
-
-/** Construct a standardized auth failure response. */
-export const authFailure = (
-  channel: AuthChannel,
-  reason: AuthFailureReason,
-  forbiddenDetail?: ForbiddenDetail,
-): Response => {
-  const factory = AUTH_FAILURES[reason][channel] as (
-    detail?: ForbiddenDetail,
-  ) => Response;
-  return factory(forbiddenDetail);
-};
 
 /**
  * Safe HTTP methods (RFC 7231 §4.2.1): read-only, so a request using one cannot

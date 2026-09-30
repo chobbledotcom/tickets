@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
@@ -18,6 +19,18 @@ describe("the quantity ask the door gets", () => {
         <button id="scanner-quantity-cancel" type="button">Cancel</button>
       </div>
     </div>`;
+  /** Wait for the ask to take its turn in the door's question queue. */
+  const opened = async (): Promise<void> => {
+    const overlayEl = element("scanner-quantity");
+    for (
+      let hops = 0;
+      hops < 100 && overlayEl.classList.contains("hidden");
+      hops++
+    ) {
+      await Promise.resolve();
+    }
+    expect(overlayEl.classList.contains("hidden")).toBe(false);
+  };
   /** The overlay's element, once installed. */
   const element = (id: string): HTMLElement => {
     const found = document.getElementById(id);
@@ -33,6 +46,7 @@ describe("the quantity ask the door gets", () => {
       "How many tickets for Bea?",
       (count) => `${count} tickets`,
     );
+    await opened();
 
     expect(overlayEl.classList.contains("hidden")).toBe(false);
     const message = element("scanner-quantity-message");
@@ -43,6 +57,8 @@ describe("the quantity ask the door gets", () => {
     expect(select.options[2]!.textContent).toBe("3 tickets");
     // The whole party is the common case, so it starts selected.
     expect(select.value).toBe("3");
+    // The select takes focus, so the door can pick with the keyboard.
+    expect(document.activeElement).toBe(select);
 
     select.value = "2";
     element("scanner-quantity-confirm").click();
@@ -54,6 +70,7 @@ describe("the quantity ask the door gets", () => {
     dom.installDom(overlay);
     const overlayEl = element("scanner-quantity");
     const prompt = showQuantitySelect(2, "How many tickets?", String);
+    await opened();
 
     element("scanner-quantity-cancel").click();
     expect(await prompt).toBeNull();
@@ -63,8 +80,31 @@ describe("the quantity ask the door gets", () => {
   test("escape answers null too", async () => {
     dom.installDom(overlay);
     const prompt = showQuantitySelect(2, "How many tickets?", String);
+    await opened();
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(await prompt).toBeNull();
+  });
+
+  test("waits behind an open confirm, so one click answers one prompt", async () => {
+    dom.installDom(`${overlay}
+      <div class="hidden" id="scanner-confirm">
+        <p id="scanner-confirm-message"></p>
+        <button id="scanner-confirm-yes" type="button">Yes</button>
+        <button id="scanner-confirm-no" type="button">No</button>
+        <button id="scanner-confirm-close" type="button">Close</button>
+      </div>`);
+    const confirmed = showConfirm("Check their ID?");
+    const picked = showQuantitySelect(2, "How many tickets?", String);
+    for (let hops = 0; hops < 5; hops++) await Promise.resolve();
+
+    // The confirm the operator sees is open; the count ask waits for it.
+    expect(element("scanner-confirm").classList.contains("hidden")).toBe(false);
+    expect(element("scanner-quantity").classList.contains("hidden")).toBe(true);
+    element("scanner-confirm-yes").click();
+    expect(await confirmed).toBe(true);
+    await opened();
+    element("scanner-quantity-confirm").click();
+    expect(await picked).toBe(2);
   });
 });

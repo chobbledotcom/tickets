@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import checkedInCount from "#db/migrations/2026-09-27_checked_in_count.ts";
+import checkedInCount from "#db/migrations/2026-09-30_checked_in_count.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -68,7 +68,7 @@ describeWithEnv("db > migrations > checked_in count", { db: true }, () => {
   test("declares every object it owns", () => {
     // Anything left off this list is never verified, so a partial upgrade
     // would record itself as applied.
-    expect(migration().id).toBe("2026-09-27_checked_in_count");
+    expect(migration().id).toBe("2026-09-30_checked_in_count");
     expect(migration().requires).toEqual({});
     expect(migration().description).toBe(
       "checked_in becomes a count of admitted tickets, 0..quantity, instead of " +

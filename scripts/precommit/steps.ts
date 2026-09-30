@@ -56,9 +56,9 @@ const STEPS = [
     cmd: ["task", "check:empty-catch"],
     name: "check:empty-catch",
   },
-  // Hold code and test files under ~400 lines, against the accepted list that
-  // only shrinks (see "Keep code and test files under ~400 lines" in
-  // AGENTS.md).
+  // Hold code and test files under the 500-line limit, against the accepted
+  // list that only shrinks (see "Keep code and test files under ~400 lines"
+  // in AGENTS.md).
   {
     cmd: ["task", "check:file-lengths"],
     name: "check:file-lengths",

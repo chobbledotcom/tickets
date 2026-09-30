@@ -1,5 +1,6 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { loadOrderAnswerLines } from "#shared/email/answers.ts";
 import {
   buildTemplateData,
   renderEmailContent,
@@ -21,11 +22,16 @@ export const describeEmailRenderer = (tests: () => void): void => {
   });
 };
 
-export const buildTestData = (
+/** Template data as the registration email builds it: the answer lines load
+ * from the database unless the test supplies its own. */
+export const buildTestData = async (
   entries: ReturnType<typeof makeEntry>[],
-  options?: Parameters<typeof buildTemplateData>[3],
+  options: Partial<Parameters<typeof buildTemplateData>[3]> = {},
 ): Promise<TemplateData> =>
-  buildTemplateData(entries, "GBP", TICKET_URL, options);
+  buildTemplateData(entries, "GBP", TICKET_URL, {
+    answerLines: await loadOrderAnswerLines(entries),
+    ...options,
+  });
 
 export const renderConfirmation = async (): Promise<{
   data: TemplateData;
@@ -42,6 +48,7 @@ export const sampleData: TemplateData = {
   amount_owed: "0",
   attendee: {
     address: "123 St",
+    answers: [],
     date: null,
     date_range_label: "",
     email: "jane@test.com",
@@ -56,6 +63,7 @@ export const sampleData: TemplateData = {
     {
       attendee: {
         address: "123 St",
+        answers: [],
         date: null,
         date_range_label: "",
         email: "jane@test.com",

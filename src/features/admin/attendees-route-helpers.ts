@@ -12,6 +12,7 @@ import {
   getPaymentReviewState,
   type PaymentReviewState,
 } from "#db/payment-review.ts";
+import { requiredMapValue } from "#fp";
 import type { PaymentRecoveryAction } from "#payment/admit-move.ts";
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
@@ -75,7 +76,11 @@ export const loadAttendeeBooking: ListingAttendeeLoader = async (
   const loaded = await loadAttendeeForListing(listingId, attendeeId);
   if (loaded === null) return null;
   const bookings = await getPairBookings([{ attendeeId, listingId }]);
-  const booking = bookings.get(pairKey(attendeeId, listingId))!;
+  const booking = requiredMapValue(
+    bookings,
+    pairKey(attendeeId, listingId),
+    `Attendee ${attendeeId} has no booking read on listing ${listingId}`,
+  );
   return { ...loaded, attendee: { ...loaded.attendee, ...booking } };
 };
 

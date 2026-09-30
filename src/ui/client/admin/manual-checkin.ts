@@ -2,9 +2,24 @@
 /// <reference lib="dom.iterable" />
 /** Manual check-in: custom combobox + fetch-based form submission.
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
+
+import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
 
 type OptionDirection = "up" | "down";
+
+/** What the scan API answers a door. */
+type ScanAnswer = {
+  error?: string;
+  listingName?: unknown;
+  max?: unknown;
+  message?: string;
+  name?: string;
+  quantity?: unknown;
+  remaining?: unknown;
+  status?: string;
+  total?: unknown;
+};
 
 const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
   ArrowDown: "down",
@@ -16,8 +31,8 @@ export const initManualCheckin = (): void => {
   if (!form) return;
 
   const input = form.querySelector<HTMLInputElement>("#manual-checkin-input")!;
-  const tokenInput = document.getElementById(
-    "manual-checkin-token",
+  const attendeeIdInput = document.getElementById(
+    "manual-checkin-attendee-id",
   ) as HTMLInputElement;
   const listbox = document.getElementById("ticket-options")!;
   const statusEl = document.getElementById("manual-checkin-status")!;
@@ -64,13 +79,16 @@ export const initManualCheckin = (): void => {
   };
 
   const selectOption = (opt: HTMLLIElement) => {
-    tokenInput.value = opt.dataset.token!;
-    input.value = `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})`;
+    attendeeIdInput.value = opt.dataset.attendeeId!;
+    const detail = opt.dataset.detail ?? "";
+    input.value =
+      `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})` +
+      (detail ? ` — ${detail}` : "");
     setListOpen(false);
   };
 
   input.addEventListener("input", () => {
-    tokenInput.value = "";
+    attendeeIdInput.value = "";
     filterOptions();
   });
 
@@ -172,6 +190,36 @@ export const initManualCheckin = (): void => {
     };
   };
 
+  const clearPick = () => {
+    attendeeIdInput.value = "";
+    input.value = "";
+  };
+
+  /** Relabel one option with the tickets its person still owes. */
+  const relabelOption = (opt: HTMLElement, remaining: number) => {
+    opt.dataset.quantity = String(remaining);
+    const detail = opt.dataset.detail;
+    opt.textContent = interpolate(
+      detail
+        ? getMessage(
+            "messageTicketOptionDetail",
+            "{name} ({tickets}) — {detail}",
+          )
+        : getMessage("messageTicketOption", "{name} ({tickets})"),
+      { detail, name: opt.dataset.name, tickets: formatTicketCount(remaining) },
+    );
+  };
+
+  /** A person the door still owes tickets keeps their option, showing what
+   * is left: part of a party, or listings a scan did not cover. */
+  const showRemaining = (attendeeId: string, remaining: number) => {
+    for (const opt of allOptions()) {
+      if (opt.dataset.attendeeId !== attendeeId) continue;
+      if (remaining > 0) relabelOption(opt, remaining);
+      else opt.remove();
+    }
+  };
+
   const handleCheckedIn = (
     result: {
       listingName?: unknown;
@@ -180,7 +228,7 @@ export const initManualCheckin = (): void => {
       remaining?: unknown;
       total?: unknown;
     },
-    token: string,
+    attendeeId: string,
     idVerified: boolean,
   ) => {
     const idNote = idVerified
@@ -197,27 +245,55 @@ export const initManualCheckin = (): void => {
       )}${idNote}`,
       "success",
     );
-    // A person the door still owes tickets keeps their option, showing
-    // what is left: part of a party, or listings a scan did not cover.
-    const remaining = Number(result.remaining);
-    for (const opt of allOptions()) {
-      if (opt.dataset.token !== token) continue;
-      if (!(remaining > 0)) {
-        opt.remove();
-        continue;
-      }
-      opt.dataset.quantity = String(remaining);
-      opt.textContent = interpolate(
-        getMessage("messageTicketOption", "{name} ({tickets}) — {token}"),
-        {
-          name: opt.dataset.name,
-          tickets: formatTicketCount(remaining),
-          token,
-        },
+    showRemaining(attendeeId, Number(result.remaining));
+    clearPick();
+  };
+
+  /** Say the door sent this person away without checking them in. */
+  const skipPerson = (name: unknown) => {
+    showCheckinStatus(
+      interpolate(getMessage("messageSkipped", "Skipped {name}"), { name }),
+      "warning",
+    );
+    clearPick();
+  };
+
+  /** Whether a scan answer asks the door something it has not answered. */
+  const needsAsk = (
+    result: { status?: string },
+    given: Record<string, unknown>,
+  ): boolean =>
+    (result.status === "verify_id" && !given.id_verified) ||
+    (result.status === "select_quantity" && given.quantity === undefined);
+
+  /** Ask the door the one question a scan answer needs, and return the
+   * choice to re-post, or null when the door declined. A non-transferable
+   * listing needs the door to look at the person's ID and say so — never
+   * assert it from the name pick alone. A ticket that owes more than one
+   * place asks how many to admit, capped by what the lines owe. */
+  const askDoor = async (result: {
+    max?: unknown;
+    name?: unknown;
+    status?: string;
+  }): Promise<Record<string, unknown> | null> => {
+    if (result.status === "verify_id") {
+      const confirmed = await showConfirm(
+        interpolate(
+          getMessage("messageVerifyIdConfirm", 'Does their ID match "{name}"?'),
+          { name: result.name },
+        ),
       );
+      return confirmed ? { id_verified: true } : null;
     }
-    tokenInput.value = "";
-    input.value = "";
+    const count = await showQuantitySelect(
+      Number(result.max),
+      interpolate(
+        getMessage("messageSelectQuantity", "How many tickets for {name}?"),
+        { name: result.name },
+      ),
+      formatTicketCount,
+    );
+    return count === null ? null : { quantity: count };
   };
 
   const dispatchScanResult = (
@@ -229,13 +305,13 @@ export const initManualCheckin = (): void => {
       error?: string;
       quantity?: unknown;
     },
-    token: string,
+    attendeeId: string,
     idVerified: boolean,
   ) => {
     if (result.status === "checked_in") {
       handleCheckedIn(
         result as { name: string; quantity?: unknown },
-        token,
+        attendeeId,
         idVerified,
       );
     } else if (result.status === "already_checked_in") {
@@ -269,17 +345,41 @@ export const initManualCheckin = (): void => {
     }
   };
 
+  /** Settle one pick with the door. Each ask is answered once: the re-post
+   * carries every earlier answer, so a verified ID still stands when the
+   * door then picks a count. */
+  const checkInPick = async (
+    attendeeId: string,
+    postScan: (body: Record<string, unknown>) => Promise<ScanAnswer>,
+  ) => {
+    const attendeeIdNumber = Number(attendeeId);
+    let given: Record<string, unknown> = {};
+    let result = await postScan({ attendee_id: attendeeIdNumber });
+    while (needsAsk(result, given)) {
+      const choice = await askDoor(result);
+      if (!choice) {
+        skipPerson(result.name);
+        return;
+      }
+      given = { ...given, ...choice };
+      result = await postScan({ attendee_id: attendeeIdNumber, ...given });
+    }
+    dispatchScanResult(result, attendeeId, given.id_verified === true);
+  };
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const token = tokenInput.value.trim();
-    if (!token) return;
+    const attendeeId = attendeeIdInput.value.trim();
+    if (!attendeeId) return;
 
     const submitBtn = form.querySelector<HTMLButtonElement>(
       'button[type="submit"]',
     )!;
     submitBtn.disabled = true;
 
-    const postScan = async (body: Record<string, unknown>) => {
+    const postScan = async (
+      body: Record<string, unknown>,
+    ): Promise<ScanAnswer> => {
       const r = await fetch(scanPath, {
         body: JSON.stringify(body),
         headers: {
@@ -292,53 +392,14 @@ export const initManualCheckin = (): void => {
     };
 
     try {
-      let result = await postScan({ token });
-
-      // Non-transferable listing: re-submit with id_verified since the
-      // admin already identified the attendee via the autocomplete list.
-      let idVerified = false;
-      if (result.status === "verify_id") {
-        idVerified = true;
-        result = await postScan({ id_verified: true, token });
-      }
-
-      // A ticket that owes more than one place asks how many to admit.
-      // The pick goes through the same scan, capped by what the lines owe.
-      let cancelled = false;
-      if (result.status === "select_quantity") {
-        const count = await showQuantitySelect(
-          Number(result.max),
-          interpolate(
-            getMessage("messageSelectQuantity", "How many tickets for {name}?"),
-            { name: result.name },
-          ),
-          formatTicketCount,
-        );
-        if (count === null) {
-          cancelled = true;
-          showCheckinStatus(
-            interpolate(getMessage("messageSkipped", "Skipped {name}"), {
-              name: result.name,
-            }),
-            "warning",
-          );
-        } else {
-          result = await postScan({
-            id_verified: idVerified,
-            quantity: count,
-            token,
-          });
-        }
-      }
-
-      if (!cancelled) dispatchScanResult(result, token, idVerified);
+      await checkInPick(attendeeId, postScan);
     } catch {
       showCheckinStatus(
         getMessage("messageNetworkError", "Network error"),
         "error",
       );
+    } finally {
+      submitBtn.disabled = false;
     }
-
-    submitBtn.disabled = false;
   });
 };

@@ -4,9 +4,8 @@
  * file stays under its line budget. */
 
 import { ticketCount } from "#booking/ticket-moves.ts";
-import { logActivity } from "#db/activity-log.ts";
+import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
-import { moveTickets } from "#db/attendees/update.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -102,10 +101,14 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
       return redirect(target, "Invalid ticket count", false, { form });
     }
 
+    const status = direction === "true" ? "in" : "out";
     const moved = ticketCount(
-      await moveTickets(direction === "true" ? "admit" : "release", [
-        { attendeeId, count, listingId },
-      ]),
+      await moveTicketsAndLog(
+        direction === "true" ? "admit" : "release",
+        [{ attendeeId, count, listingId }],
+        (move) =>
+          `Attendee checked ${status} ${ticketsWord(move.count)} for '${data.listing.name}'`,
+      ),
     );
     // Another request moved every ticket first, so this one changed nothing:
     // no activity row, and a flash that says so.
@@ -113,13 +116,7 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
       return redirect(target, "No tickets moved", false);
     }
 
-    const status = direction === "true" ? "in" : "out";
-    const tickets = `${moved} ticket${moved === 1 ? "" : "s"}`;
-    await logActivity(
-      `Attendee checked ${status} ${tickets} for '${data.listing.name}'`,
-      listingId,
-      attendeeId,
-    );
+    const tickets = ticketsWord(moved);
     const flash =
       data.attendee.quantity > 1
         ? `Checked ${data.attendee.name} ${status} (${tickets})`

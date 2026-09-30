@@ -53,13 +53,28 @@ export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
   assign_all?: boolean;
 };
 
+/** One question on one attendee: its wording and answer now and at booking.
+ * `question` is null when the question was deleted. `askedAs` is null when
+ * the booking did not ask it. */
+export type BookedAnswer = {
+  questionId: number;
+  question: string | null;
+  askedAs: string | null;
+  answer: string | null;
+  answerAtBooking: string | null;
+  changed: boolean;
+  changesPrice: boolean;
+};
+
 /** A set of custom questions plus which answers the attendee has picked: the
  *  chosen option ids, and any free-text answers keyed by question id. Produced
- *  by the attendee page loader and consumed by the admin edit form. */
+ *  by the attendee page loader and consumed by the admin edit form.
+ *  `atBooking` is empty for an attendee with no record of its booking. */
 export type SelectedQuestionAnswers = {
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
   selectedTextAnswers: Map<number, string>;
+  atBooking: BookedAnswer[];
 };
 
 /** A free-text answer submitted for a question (plaintext, pre-string-interning). */

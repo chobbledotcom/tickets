@@ -21,6 +21,7 @@ describe("the admin sections table", () => {
   test("keeps the complete top-level section order", () => {
     expect(ADMIN_SECTIONS.map((section) => section.id)).toEqual([
       "home",
+      "doors",
       "listings",
       "calendar",
       "servicing",

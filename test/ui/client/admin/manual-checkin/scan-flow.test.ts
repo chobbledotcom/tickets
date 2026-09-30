@@ -8,9 +8,9 @@ describe("manual check-in scan answers", () => {
   /** Send the form without waiting for its handler: an ask on the way holds
    * the handler open until the overlay answers, so the caller must interact
    * with the overlay before the submit settles. Returns the page. */
-  const startSubmitFor = (token: string) => {
+  const startSubmitFor = (attendeeId: string) => {
     const page = setup();
-    page.tokenInput.value = token;
+    page.attendeeIdInput.value = attendeeId;
     const event = new page.window.Event("submit", { cancelable: true });
     page.form.dispatchEvent(event as unknown as Event);
     return page;
@@ -41,7 +41,7 @@ describe("manual check-in scan answers", () => {
         total: 3,
       },
     ]);
-    const page = startSubmitFor("ada");
+    const page = startSubmitFor("11");
     await awaitOverlay();
 
     // The overlay is up with the person's name in it and 1 to the whole
@@ -60,7 +60,7 @@ describe("manual check-in scan answers", () => {
 
     // The pick re-posts with the chosen count...
     expect(sent).toHaveLength(2);
-    expect(sent[1]).toMatchObject({ quantity: 2, token: "ada" });
+    expect(sent[1]).toMatchObject({ attendee_id: 11, quantity: 2 });
     // ...and a part answer names its count against the line's total.
     expect(page.status.textContent).toBe(
       "Ada checked in for Tour (2 of 3 tickets)",
@@ -80,7 +80,7 @@ describe("manual check-in scan answers", () => {
       },
     ]);
 
-    const page = startSubmitFor("bea");
+    const page = startSubmitFor("12");
     await settle(page);
     expect(page.status.textContent).toBe("Bea checked in for Tour (1 pass)");
   });
@@ -90,7 +90,7 @@ describe("manual check-in scan answers", () => {
       { max: 2, name: "Ada", status: "select_quantity" },
     ]);
 
-    const page = startSubmitFor("ada");
+    const page = startSubmitFor("11");
     await awaitOverlay();
     document.getElementById("scanner-quantity-cancel")!.click();
     await settle(page);

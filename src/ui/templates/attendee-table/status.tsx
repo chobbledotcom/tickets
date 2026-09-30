@@ -97,6 +97,28 @@ const CheckinControls = ({
   );
 };
 
+/** The read-only state badge shown when the toggle form is refused. It
+ * reads the whole booking, so a part-admitted party shows how many are in. */
+const checkinStateBadge = (booking: PairBooking): JSX.Element => {
+  if (booking.checked_in === 0) {
+    return (
+      <span class="muted small">
+        {t("admin.attendee_table.not_checked_in_badge")}
+      </span>
+    );
+  }
+  return remainingTickets(booking) > 0 ? (
+    <Badge variant="ok">
+      {t("attendee_form.checked_in_count", {
+        count: booking.checked_in,
+        total: booking.quantity,
+      })}
+    </Badge>
+  ) : (
+    <Badge variant="ok">{t("admin.attendee_table.checked_in_badge")}</Badge>
+  );
+};
+
 /** Build the status-cell renderer for one attendee table. */
 export const createStatusRenderer =
   (options: AttendeeTableOptions): ((row: AttendeeTableRow) => JSX.Element) =>
@@ -117,13 +139,17 @@ export const createStatusRenderer =
         </Badge>
       );
     }
+    const booking = requireValue(
+      row.booking,
+      `Attendee ${attendee.id} has no booking read`,
+    );
+    if (options.showCheckinState && options.showCheckin === false) {
+      return checkinStateBadge(booking);
+    }
     return CheckinControls({
       activeFilter: options.activeFilter ?? "all",
       attendee,
-      booking: requireValue(
-        row.booking,
-        `Attendee ${attendee.id} has no booking read`,
-      ),
+      booking,
       listingId: requireValue(
         row.listings[0],
         `Attendee ${attendee.id} has no listing`,

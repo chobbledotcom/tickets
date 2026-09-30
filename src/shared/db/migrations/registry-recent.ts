@@ -38,10 +38,18 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-09-15_group_scan_checks_in_all_listings",
     () => import("./2026-09-15_group_scan_checks_in_all_listings.ts"),
   ),
+  entry(
+    "2026-09-28_answers_at_booking",
+    () => import("./2026-09-28_answers_at_booking.ts"),
+  ),
+  entry(
+    "2026-09-29_checkout_pending_answers",
+    () => import("./2026-09-29_checkout_pending_answers.ts"),
+  ),
   // checked_in flips from a 0/1 flag to a count of admitted tickets.
   entry(
-    "2026-09-27_checked_in_count",
-    () => import("./2026-09-27_checked_in_count.ts"),
+    "2026-09-30_checked_in_count",
+    () => import("./2026-09-30_checked_in_count.ts"),
   ),
 ];
 /* jscpd:ignore-end */

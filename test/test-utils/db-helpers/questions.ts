@@ -22,3 +22,18 @@ export const createQuestionWithAnswer = async (
   }
   return { answerId: answer.id, questionId: question.id };
 };
+
+/** A free-text question assigned to listings — the smallest question a
+ * buyer can type an answer into. */
+export const createFreeTextQuestion = async (
+  assignedTo: number[] = [],
+): Promise<number> => {
+  const question = await questionsTable.insert({
+    displayType: "free_text",
+    text: "Anything else?",
+  });
+  if (assignedTo.length > 0) {
+    await questionListings.setIds(question.id, assignedTo);
+  }
+  return question.id;
+};

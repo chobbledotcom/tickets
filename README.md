@@ -137,8 +137,9 @@ for all optional variables.
 - Holiday/blackout date management for daily listings
 - Multi-user with graded roles: owners invite managers (full back office) via
   time-limited links (7-day expiry), plus a content-only `editor` (edits
-  listings/site but holds no data key, so attendee PII stays undecryptable) and
-  a delivery `agent` (locked to its own run sheet)
+  listings/site but holds no data key, so attendee PII stays undecryptable), a
+  delivery `agent` (locked to its own run sheet), and a door-only `scanner`
+  (checks people in and out, sees the doors page only)
 - Session management: view active sessions, kill all others
 - Attendee merge: deduplicate records with a review-then-apply diff that
   repoints ledger entries and posts write-off adjustments so balances stay
@@ -308,14 +309,14 @@ the `ticket_url` combines tokens with `+` - one webhook, not several.
 - **PBKDF2** (600k iterations, SHA-256) for password hashing
 - Three-layer key hierarchy: env var root key → RSA key pair → per-user wrapped
   data keys
-- The data key is wrapped with each owner, manager, and agent password and each
-  API key. These credentials are never stored, so a database dump plus the
-  environment key still cannot decrypt PII without one of them
+- The data key is wrapped with each owner, manager, agent, and scanner password
+  and each API key. These credentials are never stored, so a database dump plus
+  the environment key still cannot decrypt PII without one of them
 - Activity log entries are encrypted with the owner's public key:
   unauthenticated code (webhooks, error handlers) can write them, but only a
   logged-in admin can read them
-- If every owner, manager, and agent password and every API key is lost,
-  protected data cannot be recovered
+- If every owner, manager, agent, and scanner password and every API key is
+  lost, protected data cannot be recovered
 
 ### Concurrency
 

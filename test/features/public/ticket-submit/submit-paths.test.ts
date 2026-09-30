@@ -17,6 +17,10 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
+  createFreeTextQuestion,
+  createQuestionWithAnswer,
+} from "#test-utils/db-helpers/questions.ts";
+import {
   configureTestEmail,
   expectSingleTicketSvg,
 } from "#test-utils/email.ts";
@@ -178,6 +182,32 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const svg = expectSingleTicketSvg(fetch.getFetchJsonBody());
       expect(svg).not.toContain("Price:");
       expect(svg).toContain("Qty: 1");
+    });
+  });
+
+  describe("the provider-free booking's confirmation email", () => {
+    const fetch = useFetchStub();
+
+    test("carries every answer the buyer gave, typed or chosen", async () => {
+      await configureTestEmail();
+      const listing = await createTestListing({
+        fields: "email",
+        unitPrice: 0,
+      });
+      const choice = await createQuestionWithAnswer([listing.id]);
+      const freeText = await createFreeTextQuestion([listing.id]);
+
+      const response = await submitTicketForm(listing.slug, {
+        email: "buyer@example.com",
+        name: "Jane Doe",
+        [`question_${choice.questionId}`]: String(choice.answerId),
+        [`question_${freeText}`]: "Arriving late",
+      });
+
+      expect(response.status).toBe(302);
+      const body = fetch.getFetchJsonBody();
+      expect(body.text).toContain("Choose one: Chosen");
+      expect(body.text).toContain("Anything else?: Arriving late");
     });
   });
 
