@@ -246,6 +246,7 @@
   "admin.attendee_table.no_attendees": "No attendees yet",
   "admin.attendee_table.check_out": "Check out",
   "admin.attendee_table.check_in": "Check in",
+  "admin.attendee_table.check_in_out": "Check in/out",
   "admin.attendee_table.refunded_badge": "Refunded",
   "admin.attendee_table.checked_in_badge": "Checked in",
   "admin.attendee_table.not_checked_in_badge": "Not checked in",
