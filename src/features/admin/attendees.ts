@@ -9,6 +9,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import {
+  type BookingScope,
   getAttendeeBookingRowsRaw,
   hasActiveBookingLine,
 } from "#db/attendees/queries.ts";
@@ -252,29 +253,31 @@ const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
 ].page(attendeeActionPage(adminResendNotificationPage));
 
-/** The entries a resend covers, scoped to the SELECTED booking's purchase:
- * a package line rehydrates its own package alone (never another package the
- * attendee holds), and a standalone line covers every standalone line the
- * attendee booked. Each entry is rebuilt from its own row and listing, so the
- * confirmation never treats one member row as the whole purchase — collapsing
- * a hidden package to one row's quantity/price, heading a visible one with a
- * lone member, or hiding the plan line that bought a site. Refunded rows
- * stay in the list: the email filters them out below, while the assignment's
- * served check needs them to see a claim recorded before the refund. */
-const purchaseEntries = async (
-  data: AttendeeWithBooking,
+/** One scope of the attendee's booking lines, rebuilt as notification
+ * entries. Each entry comes from its own row and listing, so a confirmation
+ * never treats one member row as the whole purchase — collapsing a hidden
+ * package to one row's quantity/price, heading a visible one with a lone
+ * member, or hiding the plan line that bought a site. Refunded rows stay in:
+ * the email filters them out below, while the assignment's served check
+ * needs them to see a claim recorded before the refund. */
+const scopeEntries = async (
+  attendeeId: number,
+  scope: BookingScope,
 ): Promise<EmailEntry[]> => {
   const pk = await requireRequestPrivateKey();
-  const rows = await getAttendeeBookingRowsRaw(
-    data.attendee.id,
-    data.selectedPackageGroupId > 0
-      ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
-      : { kind: "standalone" },
-  );
+  const rows = await getAttendeeBookingRowsRaw(attendeeId, scope);
   // The route already verified this attendee's active line, so its booking
   // rows exist, decrypt with the same key, and each names a live listing.
   return attendeeListingEntries(rows, pk);
 };
+
+/** The purchase the SELECTED booking belongs to: a package line covers its
+ * own package alone (never another package the attendee holds), and a
+ * standalone line covers every standalone line the attendee booked. */
+const purchaseScope = (data: AttendeeWithBooking): BookingScope =>
+  data.selectedPackageGroupId > 0
+    ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
+    : { kind: "standalone" };
 
 /** Re-send an attendee's booking notification (its whole package, if any),
  * refusing on a no-quantity ghost row. The verified-action wrapper below runs
@@ -297,9 +300,8 @@ const resendNotification = async (
   if (noLineRedirect) return noLineRedirect;
 
   // A refunded line bought nothing now, so the resend must not notify it
-  // again. The assignment still sees it, so a claim recorded on it before the
-  // refund keeps the buyer served.
-  const entries = await purchaseEntries(data);
+  // again.
+  const entries = await scopeEntries(attendeeId, purchaseScope(data));
   const notify = entries.filter((entry) => !entry.attendee.refunded);
   if (notify.length === 0) {
     return redirect(
@@ -322,7 +324,10 @@ const resendNotification = async (
   await Promise.all([
     logAndNotifyRegistration(notify, {
       freeTexts,
-      siteAssignmentEntries: entries,
+      // One site serves the whole buyer, so the assignment reads every line
+      // they hold, refunded ones too: a claim recorded on another purchase's
+      // plan, or on a line refunded later, keeps the buyer served.
+      siteAssignmentEntries: await scopeEntries(attendeeId, { kind: "whole" }),
     }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,

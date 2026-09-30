@@ -10,6 +10,7 @@ import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
+  type AttendeeWhere,
   type GetAttendeesQuery,
   getAttendees,
   pricePaidFromLedger,
@@ -84,12 +85,25 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
     where: { listingIds: [listingId] },
   });
 
-/** Which purchase one resend rehydrates: the member lines of one package
- * group, or every standalone line the attendee holds. One selection can never
- * span two packages. */
+/** Which lines one resend reads: the member lines of one package group,
+ * every standalone line the attendee holds, or every line the attendee holds
+ * (the site assignment's view, because one site serves the whole buyer). */
 export type BookingScope =
   | { kind: "package"; packageGroupId: number }
-  | { kind: "standalone" };
+  | { kind: "standalone" }
+  | { kind: "whole" };
+
+/** The row filter each resend scope adds. */
+const scopeWhere = (scope: BookingScope): Partial<AttendeeWhere> => {
+  switch (scope.kind) {
+    case "package":
+      return { packageGroupId: scope.packageGroupId };
+    case "standalone":
+      return { standaloneOnly: true };
+    case "whole":
+      return {};
+  }
+};
 
 /**
  * One attendee's raw booking rows (real lines only — quantity > 0) within one
@@ -111,9 +125,7 @@ export const getAttendeeBookingRowsRaw = (
       attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
       realLinesOnly: true,
-      ...(scope.kind === "package"
-        ? { packageGroupId: scope.packageGroupId }
-        : { standaloneOnly: true }),
+      ...scopeWhere(scope),
     },
   });
 

@@ -6,7 +6,7 @@
 /* jscpd:ignore-start */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
-  findBuiltSiteByIdPrimary,
+  requireBuiltSiteByIdPrimary,
   updateBuiltSite,
   updateBuiltSiteIfUnchanged,
   updateBuiltSiteRenewalState,
@@ -138,20 +138,20 @@ export const provisionSiteRenewal = async (
   await reserveRenewalToken(site);
   const cutoff = addMonthsIso(nowIso(), months);
   for (const _attempt of range(0, 2)) {
-    const current = await findBuiltSiteByIdPrimary(site.id);
-    // The reservation just wrote the pair, so the row and its token exist.
+    const current = await requireBuiltSiteByIdPrimary(site.id);
+    // The reservation just wrote the pair, so the token exists.
     const pushed = await pushOrLogFailure(
-      current!,
+      current,
       {
         readOnlyFrom: cutoff,
-        renewalUrl: renewalUrlFor(current!.renewalToken!),
+        renewalUrl: renewalUrlFor(current.renewalToken!),
       },
       errorContext,
     );
     if (!pushed) return false;
     const confirmed = await updateBuiltSiteIfUnchanged(
       site.id,
-      current!.siteDataRevision,
+      current.siteDataRevision,
       { readOnlyFrom: cutoff },
     );
     if (confirmed) return true;

@@ -7,6 +7,7 @@ import {
   builtSitesCrudTable,
   getAssignableBuiltSites,
   insertBuiltSite,
+  requireBuiltSiteByIdPrimary,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
@@ -269,5 +270,11 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       siteDataRevision: 2,
       siteUrl: "moved.bunny.run",
     });
+  });
+
+  test("the required primary read throws for a site id that is gone", async () => {
+    await expect(requireBuiltSiteByIdPrimary(987654)).rejects.toThrow(
+      "Built site 987654 not found",
+    );
   });
 });

@@ -242,6 +242,44 @@ describeWithEnv(
       ).toBe(attendee.id);
     });
 
+    test("a claim on another purchase's plan still serves a package resend", async () => {
+      await createTierListing();
+      // Made first, so the package's plan row is the attendee's first
+      // booking row and the resend takes the package's scope.
+      const bundled = await planListing("Bundled Plan");
+      const standalone = await planListing("Standalone Plan");
+      const group = await createTestGroup({ isPackage: true, name: "Kit" });
+      const { setListingGroups } = await import("#db/groups.ts");
+      await setListingGroups(bundled.id, [group.id]);
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const made = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          { listingId: standalone.id, quantity: 1 },
+          { listingId: bundled.id, packageGroupId: group.id, quantity: 1 },
+        ],
+        email: "two-purchases@example.com",
+        name: "Two Purchases",
+      });
+      if (!made.success) throw new Error("Expected the booking to work");
+      const attendee = made.attendees[0]!;
+      // The checkout's one run claimed the buyer's one site on its first
+      // plan, the standalone one.
+      await insertBuiltSite("First Site", "first.test", "", "", true);
+      await takePooledSiteForBuyer(
+        await getAssignableBuiltSites(),
+        attendee.id,
+        [standalone.id, bundled.id],
+        standalone.id,
+      );
+      await insertBuiltSite("Second Site", "second.test", "", "", true);
+
+      await resendLeavesSiteUnclaimed(
+        attendee.id,
+        "Two Purchases",
+        "Second Site",
+      );
+    });
+
     test("does not double-notify a package row that is already covered", async () => {
       const group = await createTestGroup({ isPackage: true, name: "Mix" });
       const ordinary = await createTestListing({

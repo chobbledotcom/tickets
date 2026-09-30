@@ -6,7 +6,7 @@
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { builtSites, findBuiltSiteByIdPrimary } from "#db/built-sites.ts";
+import { builtSites, requireBuiltSiteByIdPrimary } from "#db/built-sites.ts";
 import {
   execute,
   inPlaceholders,
@@ -106,30 +106,28 @@ export const takePooledSiteForBuyer = async (
   // Pop order: the last entry of `available` is the first candidate.
   const candidateIds = available.map((site) => site.id).reverse();
   const claim = await withTransaction(async (tx) => {
+    /** The site the buyer holds on these listings, as this take's answer. */
+    const heldSite = async <Kind extends "served" | "won">(
+      kind: Kind,
+      onListings: readonly number[],
+    ) => {
+      const claimed = await tx.execute(
+        claimedSiteIdStatement(attendeeId, onListings),
+      );
+      return { kind, siteId: claimed.rows[0]!.id as number };
+    };
     const served = await tx.execute(
       assignedBuiltSiteExistsStatement(attendeeId, listingIds),
     );
-    if (served.rows.length > 0) {
-      const claimed = await tx.execute(
-        claimedSiteIdStatement(attendeeId, listingIds),
-      );
-      return {
-        kind: "served",
-        siteId: claimed.rows[0]!.id as number,
-      } as const;
-    }
+    if (served.rows.length > 0) return heldSite("served", listingIds);
     const won = await tx.execute(
       claimBuiltSiteStatement(candidateIds, attendeeId, listingIdToRecord),
     );
     if (won.rowsAffected === 0) return null;
-    const claimed = await tx.execute(
-      claimedSiteIdStatement(attendeeId, [listingIdToRecord]),
-    );
-    return { kind: "won", siteId: claimed.rows[0]!.id as number } as const;
+    return heldSite("won", [listingIdToRecord]);
   });
   if (claim === null) return { kind: "empty" };
-  // The transaction just read this row's id, so it exists.
-  const site = (await findBuiltSiteByIdPrimary(claim.siteId))!;
+  const site = await requireBuiltSiteByIdPrimary(claim.siteId);
   if (claim.kind === "served") return { kind: "served", site };
   builtSites.invalidate();
   available.splice(

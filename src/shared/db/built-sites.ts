@@ -182,6 +182,16 @@ export const findBuiltSiteByIdPrimary = async (
   return row ? rowToBuiltSite(row) : null;
 };
 
+/** The built site with this id, read from the primary. Throws when the row
+ * is gone, because every caller holds an id it just read or wrote. */
+export const requireBuiltSiteByIdPrimary = async (
+  id: number,
+): Promise<BuiltSite> => {
+  const site = await findBuiltSiteByIdPrimary(id);
+  if (!site) throw new Error(`Built site ${id} not found`);
+  return site;
+};
+
 /** Store one revision-fenced change to a built site. Returns the stored row,
  * or null when the revision moved underneath us and the write must retry. */
 const storeBuiltSiteChanges = async (
