@@ -1,3 +1,4 @@
+import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +8,7 @@ import {
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { Attendee } from "#types";
 
 describe("generateAttendeesCsv", () => {
   beforeAll(setupAdminPageTest);
@@ -141,22 +143,23 @@ describe("generateAttendeesCsv", () => {
     expect(lines[1]).toContain("0.00,,0,");
   });
 
+  /** The first attendee's Checked In cell, read by its header so no other
+   * number on the row can stand in for it. */
+  const checkedInCell = (attendee: Partial<Attendee>): string => {
+    const [header, row] = parse(generateAttendeesCsv([testAttendee(attendee)]));
+    return row![header!.indexOf("Checked In")]!;
+  };
+
   test("includes Checked In as the admitted count", () => {
-    const attendees = [testAttendee({ checked_in: 1 })];
-    const csv = generateAttendeesCsv(attendees);
-    expect(csv.split("\n")[1]).toContain(",1,");
+    expect(checkedInCell({ checked_in: 1 })).toBe("1");
   });
 
   test("includes Checked In as 0 for not checked-in attendee", () => {
-    const attendees = [testAttendee({ checked_in: 0 })];
-    const csv = generateAttendeesCsv(attendees);
-    expect(csv.split("\n")[1]).toContain(",0,");
+    expect(checkedInCell({ checked_in: 0 })).toBe("0");
   });
 
   test("a part booking exports its admitted count", () => {
-    const attendees = [testAttendee({ checked_in: 2, quantity: 3 })];
-    const csv = generateAttendeesCsv(attendees);
-    expect(csv.split("\n")[1]).toContain(",2,");
+    expect(checkedInCell({ checked_in: 2, quantity: 3 })).toBe("2");
   });
 
   test("includes ticket token and URL in CSV output", () => {
