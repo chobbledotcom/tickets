@@ -1,19 +1,22 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 
-/** The turn of the question now showing, or the last one answered. A dialog
- * that fails leaves the turn failed, so every later ask on that broken page
- * throws the same way instead of hanging the door. Kept in a closure so the
- * browser bundle takes on no module state beyond this one dialog. */
-const queue = (() => {
-  let turn: Promise<unknown> = Promise.resolve();
-  return {
-    pass: (next: Promise<unknown>): void => {
-      turn = next;
-    },
-    wait: (): Promise<unknown> => turn,
-  };
-})();
+/** The page holds the turn of the question now showing, or the last one
+ * answered. The camera loop (the scanner bundle) and the manual form (the
+ * admin bundle) each carry their own copy of this module, so the turn lives
+ * on the page, not in the module: one queue for every dialog on the door. A
+ * dialog that fails leaves the turn failed, so every later ask on that
+ * broken page throws the same way instead of hanging the door. */
+const page = globalThis as typeof globalThis & {
+  doorQuestionTurn?: Promise<unknown>;
+};
+const queue = {
+  pass: (next: Promise<unknown>): void => {
+    page.doorQuestionTurn = next;
+  },
+  // The first question on the page waits for nothing.
+  wait: (): Promise<unknown> => page.doorQuestionTurn ?? Promise.resolve(),
+};
 
 /** Open one door question once every earlier one is answered. The camera
  * loop and the manual form share the door's dialogs, so questions queue one
