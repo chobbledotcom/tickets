@@ -47,6 +47,9 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     labelKey: "nav.doors",
     landing: "doors",
     nav: [{ id: "doors", kind: "landing", labelKey: "nav.doors" }],
+    // Staff open a door from its listing or group page. The doors list is a
+    // scanner login's whole job, so only that role sees it in the nav.
+    visible: (ctx) => ctx.adminLevel === "scanner",
   },
   {
     detail: "listing",
