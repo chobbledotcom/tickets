@@ -35,7 +35,7 @@
   "test/integration/code-quality.test.ts": 690,
   "test/integration/db/attendees/create-attendee-atomic.test.ts": 655,
   "test/integration/db/migration-restore/helpers.ts": 508,
-  "test/integration/server/calendar.test.ts": 511,
+  "test/features/admin/calendar.test.ts": 511,
   "test/integration/server/catalog-transfer.test.ts": 826,
   "test/integration/server/editor.test.ts": 721,
   "test/integration/server/feeds.test.ts": 651,
