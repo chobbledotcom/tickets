@@ -7,6 +7,7 @@ import type {
   BuildAttendeeInput,
   CreateAttendeeResult,
   EncryptedAttendeeData,
+  ListingBooking,
 } from "#db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
@@ -161,6 +162,7 @@ const prepareAttendeeWrite = async (
         piiPaymentSessionId,
       ),
       bookingStatements,
+      bookings,
       enc,
     },
   };
@@ -170,10 +172,11 @@ const finishAttendeeWrite = (
   written: WriteOutcome,
   input: AttendeeInput,
   enc: EncryptedAttendeeData,
+  bookings: ListingBooking[],
 ): CreateAttendeeResult => {
   const contactInfo = contactInfoFromInput(input);
   return {
-    attendees: input.bookings.map((booking) =>
+    attendees: bookings.map((booking) =>
       buildAttendeeResult({
         insertId: written.insertId,
         listingId: booking.listingId,
@@ -216,7 +219,12 @@ const createWith =
     if (!prepared.ok) return prepared.failure;
     const written = await strategy.write(prepared.prepared);
     return written
-      ? finishAttendeeWrite(written, input, prepared.prepared.enc)
+      ? finishAttendeeWrite(
+          written,
+          input,
+          prepared.prepared.enc,
+          prepared.prepared.bookings,
+        )
       : strategy.noBooking();
   };
 

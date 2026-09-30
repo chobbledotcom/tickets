@@ -1,4 +1,5 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import type {
   Answer,
@@ -8,7 +9,6 @@ import type {
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -83,6 +83,25 @@ export const testListingWithCount = (
   income: 0,
   profit: 0,
   tickets_count: 0,
+  ...overrides,
+});
+
+/** A listing-attendee booking row on listing 1, overridable per test. */
+export const bookingRow = (
+  overrides: Partial<ListingAttendeeRow> = {},
+): ListingAttendeeRow => ({
+  attachment_downloads: 0,
+  checked_in: 0,
+  end_at: null,
+  ledger_event_group: "",
+  listing_id: 1,
+  order_token: "",
+  package_group_id: 0,
+  parent_listing_id: 0,
+  price_paid: 0,
+  quantity: 1,
+  refunded: 0,
+  start_at: null,
   ...overrides,
 });
 
@@ -193,10 +212,8 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   ...overrides,
 });
 
-/** Factory for an {@link Answer}: `active` defaults to `true` and the
- *  `question_id`/`sort_order`/`id` defaults mirror the most common test shape
- *  (a single question with id 1 and answers 10, 11, … in sort order). Override
- *  only the fields a given test actually varies. */
+/** Factory for an {@link Answer}: `active` defaults to `true`; the ids
+ *  mirror one question (id 1) with answers 10, 11, … in sort order. */
 export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
   active: true,
   id: 10,
@@ -415,6 +432,7 @@ export const makeTestAttendee = (
   phone: "555-1234",
   price_paid: "0",
   quantity: 1,
+  refunded: false,
   remaining_balance: 0,
   special_instructions: "",
   ticket_token: "AABB001122",
@@ -427,38 +445,6 @@ export const makeTestEntry = (
 ): EmailEntry => ({
   attendee: makeTestAttendee(attendeeOverrides),
   listing: makeTestListing(listingOverrides),
-});
-
-/** Factory for a {@link PricedLine}: `chargedUnitAmount` defaults to `unitPrice`
- *  but can be overridden to test discount/non-discount pricing paths. */
-export const pricedLine = (
-  listingId: number,
-  unitPrice: number,
-  quantity: number,
-  chargedUnitAmount = unitPrice,
-): PricedLine => ({
-  chargedUnitAmount,
-  item: {
-    listingId,
-    name: `L${listingId}`,
-    quantity,
-    slug: `l${listingId}`,
-    unitPrice,
-  },
-  quantity,
-});
-
-/** Factory for a {@link PricedOrder}: all totals default to zero so a test
- *  only spells out the fields it varies (e.g. `lines`, `extras`). */
-export const pricedOrder = (
-  overrides: Partial<PricedOrder> = {},
-): PricedOrder => ({
-  extras: [],
-  fullSubtotal: 0,
-  lines: [],
-  modifierApplications: [],
-  total: 0,
-  ...overrides,
 });
 
 /** The canonical Small/Large answer pair (ids 10 and 11) reused by both the

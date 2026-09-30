@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import {
-  assignBuiltSite,
+  hasAssignedBuiltSite,
+  takePooledSiteForBuyer,
+} from "#db/built-sites/claims.ts";
+import {
   builtSites,
   builtSitesCrudTable,
   getAssignableBuiltSites,
@@ -33,46 +35,14 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       "Site C",
     ]);
   });
+  test("hasAssignedBuiltSite reads the buyer's assignment", async () => {
+    await insertBuiltSite("Assigned", "assigned.b-cdn.net", "", "", true);
+    const pool = await getAssignableBuiltSites();
 
-  test("assignBuiltSite stores the assignment", async () => {
-    const row = await insertBuiltSite(
-      "To Assign",
-      "assign.b-cdn.net",
-      "",
-      "",
-      true,
-    );
-    expect(await assignBuiltSite(row.id, 42, 7)).toMatchObject({
-      assignable: false,
-      assignedAttendeeId: 42,
-      assignedListingId: 7,
-    });
-  });
-
-  test("assignBuiltSite returns null for a missing site", async () => {
-    expect(await assignBuiltSite(999, 1, 1)).toBeNull();
-  });
-
-  test("keeps an assignment made during scheduler-key provisioning", async () => {
-    const site = await insertBuiltSite(
-      "Concurrent assignment",
-      "concurrent.example.test",
-      "",
-      "",
-      true,
-    );
-
-    await Promise.all([
-      ensureBuiltSiteSchedulerKey(site.id),
-      assignBuiltSite(site.id, 42, 7),
-    ]);
-
-    expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({
-      assignable: false,
-      assignedAttendeeId: 42,
-      assignedListingId: 7,
-      siteDataRevision: 2,
-    });
+    expect(await hasAssignedBuiltSite(42, [7])).toBe(false);
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
+    expect(await hasAssignedBuiltSite(42, [7])).toBe(true);
+    expect(await hasAssignedBuiltSite(42, [8])).toBe(false);
   });
 
   test("unassigned sites have null assignment ids", async () => {

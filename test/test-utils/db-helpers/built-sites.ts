@@ -20,15 +20,14 @@ export const provisionTestBuiltSite = async (
   siteId: number,
   opts: { readOnlyFrom?: string } = {},
 ): Promise<{ token: string; tokenIndex: string }> => {
-  const { generateRenewalToken } = await import("#shared/site-assignment.ts");
+  const { generateRenewalToken } = await import("#shared/renewal-token.ts");
   const { updateBuiltSiteRenewalState } = await import("#db/built-sites.ts");
   const { index, token } = await generateRenewalToken();
+  const readOnlyFrom = opts.readOnlyFrom ?? "2099-01-01T00:00:00.000Z";
   await updateBuiltSiteRenewalState(siteId, {
+    readOnlyFrom,
     renewalToken: token,
     renewalTokenIndex: index,
-    ...(opts.readOnlyFrom !== undefined
-      ? { readOnlyFrom: opts.readOnlyFrom }
-      : {}),
   });
   return { token, tokenIndex: index };
 };

@@ -1,15 +1,15 @@
-import { Then, When } from "@cucumber/cucumber";
+import { Given, Then, When } from "@cucumber/cucumber";
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
 import { payStripeWithHeldReturn } from "#e2e/cucumber/steps/booking.ts";
-import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
+import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
 import { submitBooking, waitForHostedCheckout } from "#e2e/flow.ts";
+import { step } from "#e2e/log.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 
-/** The detail the app writes on the log's lost-assignment entry, shared with
- * the reporting line in src/shared/webhook/delivery.ts. */
-const LOST_ASSIGNMENT_DETAIL =
-  "Site assignment failed after a completed booking";
+/** The detail the app writes when the pool of assignable sites runs dry,
+ * shared with the reporting line in src/shared/site-assignment-failure.ts. */
+const EMPTY_POOL_DETAIL = "the pool of assignable sites is empty";
 
 When(
   "a separate visitor pays for three units through Stripe Checkout",
@@ -50,6 +50,32 @@ When(
   },
 );
 
+Given(
+  "the owner has registered an assignable built site",
+  worldStep(async (world) => {
+    await world.prepareOwner();
+    const owner = world.resources.owner;
+    const site = {
+      name: `E2E Pooled ${world.scenario.runId}`,
+      url: `https://pooled-${world.scenario.runId}.example.test`,
+    };
+    step(`Registering an assignable built site (${site.url})`);
+    await owner.goto("/admin/built-sites/new");
+    await owner.fill("name", site.name);
+    await owner.fill("site_url", site.url);
+    // The purchase's renewal pushes are Bunny API calls, and this case's app
+    // server answers those from canned bodies, so any hosting id reaches a
+    // canned answer.
+    await owner.fill("hosting_id", "42");
+    await owner.check("assignable");
+    await owner.clickButton(
+      await catalogWords("built-sites", "built_sites.create_built_site_button"),
+    );
+    world.rememberPoolSite(site);
+    world.recordPhase("pooled-site-registered");
+  }),
+);
+
 /** The owner's admin log page, opened fresh, as text. */
 const ownerLogBody = async (world: LiveWorld): Promise<string> => {
   const owner = world.resources.owner;
@@ -78,33 +104,24 @@ const expectIncidentRecorded = expectOnOwnerLog("recorded");
 const expectIncidentAbsent = expectOnOwnerLog("absent");
 
 Then(
-  "the owner's log records the lost site assignment",
+  "the owner's log records the empty site pool",
   async function (this: LiveWorld): Promise<void> {
-    // The sandbox has no build infrastructure, so the plan's post-payment
-    // build dies. The booking and its money stand; the lost site, its month,
-    // and its setup email are the outcome that must not vanish silently, so
-    // the owner's log must carry the incident that names it. A CDN request
-    // failure instead means the release download failed before the build
-    // began and took the pre-recorded path.
+    // The sandbox stocks no assignable site, so the purchase can hand the
+    // buyer nothing. The booking and its money stand, so the empty pool must
+    // reach the operator as an incident that names it.
     await expectIncidentRecorded(
       this,
-      `${
-        errorCodeLabel[ErrorCode.SITE_ASSIGNMENT]
-      } (${LOST_ASSIGNMENT_DETAIL})`,
-      "lost-assignment-missing-from-log",
-      "the owner's log must record the plan's lost site assignment — the " +
-        "buyer paid and the booking stands, so without this entry nothing " +
-        "tells the operator to repair the site by hand",
+      EMPTY_POOL_DETAIL,
+      "empty-pool-missing-from-log",
+      "the owner's log must record the empty site pool — the buyer paid and " +
+        "the booking stands, so without this entry nothing tells the operator " +
+        "to stock sites and repair the buyer's booking by hand",
     );
   },
 );
 
-/** The dry-run build's synthesized site address, as the built-sites page
- * shows it (see src/shared/builder-dry-run.ts). */
-const DRY_RUN_SITE_MARKER = ".invalid";
-
 Then(
-  "the owner's built-sites page shows the assigned site with its credit",
+  "the owner's built-sites page shows the pooled site assigned with its credit",
   async function (this: LiveWorld): Promise<void> {
     // Three units of the three-month plan credit the site nine months, shown
     // as the read-only deadline. The renderer and the date arithmetic are
@@ -129,36 +146,35 @@ Then(
       })
     ).split("#")[0]!;
     const shows =
-      body.includes(DRY_RUN_SITE_MARKER) &&
+      body.includes(this.pooledSite.name) &&
       body.includes(assignedPrefix) &&
       creditLabels.some((label) => body.includes(label));
     if (!shows) {
-      await owner.dumpPage("dry-run-site-missing-from-built-sites");
+      await owner.dumpPage("pooled-site-missing-from-built-sites");
       throw new Error(
-        "the built-sites page must show the dry-run site assigned with its " +
-          `credit (expected "${DRY_RUN_SITE_MARKER}", "${assignedPrefix}", ` +
+        "the built-sites page must show the pooled site assigned with its " +
+          `credit (expected "${this.pooledSite.name}", "${assignedPrefix}", ` +
           `and one of ${JSON.stringify(creditLabels)}); got:\n${body.slice(
             0,
             600,
           )}`,
       );
     }
-    this.recordPhase("dry-run-site-assigned");
+    this.recordPhase("pooled-site-assigned");
   },
 );
 
 Then(
   "the owner's log records no lost site assignment",
   async function (this: LiveWorld): Promise<void> {
-    // With the build's provider calls answered from canned bodies, the
-    // assignment must complete inside the request's subrequest budget. A
-    // build that ran out of calls would land on the log as the incident this
-    // step forbids — its message names the counts and the blocked call.
+    // With the pooled site handed out and its renewal pushes answered from
+    // canned bodies, the assignment must complete without an incident. An
+    // assignment that failed would land on the log as this step forbids.
     await expectIncidentAbsent(
       this,
       errorCodeLabel[ErrorCode.SITE_ASSIGNMENT],
-      "dry-run-incident-on-log",
-      "the dry-run plan purchase must lose no site assignment, but the " +
+      "pooled-plan-incident-on-log",
+      "the pooled plan purchase must lose no site assignment, but the " +
         "owner's log carries the incident",
     );
   },

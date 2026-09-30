@@ -12,7 +12,6 @@ import {
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
-import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
@@ -41,11 +40,13 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
       monthsPerUnit: 1,
       purchaseOnly: true,
     });
+    // The claim succeeds, then the initial renewal push rejects — the arm
+    // dies holding the buyer's site, and the booking is already paid for.
+    await insertBuiltSite("Pooled", "pooled.test", "", "", true, "88");
     const errorSpy = stub(console, "error", () => {});
-    using _build = stub(builderApi, "buildSite", () =>
-      Promise.reject(new Error("build blew up")),
+    using _push = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.reject(new Error("provider rejected the initial push")),
     );
-
     try {
       await runWithPendingWork(() =>
         logAndNotifyRegistration([

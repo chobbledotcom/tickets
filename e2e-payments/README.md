@@ -79,15 +79,14 @@ The nine scenarios:
   visitor is paying; the webhook processes the later charge, retains the booking
   at quantity 0, and automatically refunds.
 - **stripe-plan-months** — a site plan is priced and bought in months through
-  Stripe Checkout. The sandbox has no build infrastructure, so the post-payment
-  build fails: the booking and its money stand, and the owner's log records the
-  lost site assignment as an incident.
-- **stripe-plan-dry-run** — the same purchase on an app server whose
-  `SITE_BUILD_DRY_RUN` env answers the build's provider calls from canned bodies
-  while still paying the subrequest budget for each one. The purchase completes
-  the whole assignment — site built, assigned, and carrying its term of credit —
-  and the owner's log records no lost assignment, which is also the proof the
-  request fits the edge's call budget.
+  Stripe Checkout. The sandbox stocks no assignable site in the pool, so the
+  purchase can hand the buyer nothing: the booking and its money stand, and the
+  owner's log records the empty pool as an incident.
+- **stripe-plan-pooled** — the same purchase with an assignable site the owner
+  registered ahead of time, on an app server whose `SITE_BUILD_DRY_RUN` env
+  answers the assignment's Bunny API calls (the renewal pushes) from canned
+  bodies. The purchase takes the pooled site, credits it its months, and the
+  owner's log records no assignment incident.
 - **complex-order-<provider>** — a package, member, and plain listing booked in
   one order, with per-listing income verified.
 

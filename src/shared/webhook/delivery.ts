@@ -196,7 +196,8 @@ const reportAfterBookingFailure =
 
 /** What a booking passes to its notification queue. Everything is optional:
  * the plaintext free-text answers only the caller can hold, preloaded package
- * facts, extra activity-log lines, and the renewal token's hash. */
+ * facts, extra activity-log lines, the renewal token's hash, and the entries
+ * the site assignment sees. */
 export interface NotifyRegistrationOptions {
   /** The buyer's typed free-text answers. The strings table keeps them sealed
    * to the owner key, which no notification path can spend, so the booking
@@ -207,6 +208,10 @@ export interface NotifyRegistrationOptions {
   packageFacts?: RegistrationPackageFacts | undefined;
   /** Activity-log lines recorded beside the registration lines. */
   priorActivities?: readonly ActivityToLog[] | undefined;
+  /** Entries only the site assignment sees, in place of `entries`. The resend
+   * passes its refunded plan rows here, so a claim recorded on a line refunded
+   * later still serves the buyer. Defaults to `entries`. */
+  siteAssignmentEntries?: EmailEntry[] | undefined;
   /** The hashed renewal token, when this booking came from /renew. */
   siteTokenIndex?: string | undefined;
 }
@@ -234,7 +239,7 @@ export const logAndNotifyRegistration = async (
     ),
   );
   addPendingWork(
-    assignAndNotifyBuiltSites(entries).catch(
+    assignAndNotifyBuiltSites(options.siteAssignmentEntries ?? entries).catch(
       reportAfterBookingFailure(
         "Site assignment failed after a completed booking",
       ),

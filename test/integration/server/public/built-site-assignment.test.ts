@@ -1,5 +1,4 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { insertBuiltSite } from "#db/built-sites.ts";
@@ -44,19 +43,18 @@ describeWithEnv(
           name: "Test User",
         });
 
-      test("registration succeeds when no sites available — auto-build is attempted in the background", async () => {
+      test("registration succeeds when the pool is empty and never builds", async () => {
         using _env = withEnv({ CAN_BUILD_SITES: "true" });
-        const buildStub = stub(builderApi, "buildSite", () =>
-          Promise.resolve({ error: "stubbed", ok: false as const }),
-        );
-        try {
-          const listing = await createAssignBuiltSiteListing();
-          const response = await bookAssignBuiltSiteListing(listing);
-          expectReservedRedirectWithTokens(response);
-          expect(buildStub.calls.length).toBe(1);
-        } finally {
-          buildStub.restore();
-        }
+        using _build = stub(builderApi, "buildSite", () => {
+          throw new Error(
+            "Assignment must hand out pre-built sites, never build one",
+          );
+        });
+
+        const listing = await createAssignBuiltSiteListing();
+        const response = await bookAssignBuiltSiteListing(listing);
+
+        expectReservedRedirectWithTokens(response);
       });
 
       test("registration succeeds when assignable sites are available", async () => {

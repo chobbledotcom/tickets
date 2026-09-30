@@ -203,13 +203,19 @@ const saveServicingAnswers = (
         new Map([[attendeeId, { answerIds: answers.map((a) => a.answerId) }]]),
       );
 
-const durationDaysFromRow = (row: ListingAttendeeRow): number | undefined => {
+/** The row fields a booking's span and quantity come from. */
+type BookingSpanRow = Pick<
+  ListingAttendeeRow,
+  "start_at" | "end_at" | "listing_id" | "quantity"
+>;
+
+const durationDaysFromRow = (row: BookingSpanRow): number | undefined => {
   if (!row.start_at || !row.end_at) return;
   const ms = new Date(row.end_at).getTime() - new Date(row.start_at).getTime();
   return clampDurationDays(Math.round(ms / DAY_MS));
 };
 
-const bookingFromRow = (row: ListingAttendeeRow): ListingBooking => {
+const bookingFromRow = (row: BookingSpanRow): ListingBooking => {
   const date = row.start_at ? row.start_at.slice(0, 10) : null;
   const booking: ListingBooking = {
     date,
@@ -230,17 +236,9 @@ const rowsToServicingEvent = async (
       .filter((row) => row.listing_id > 0)
       .map((row) =>
         bookingFromRow({
-          attachment_downloads: row.attachment_downloads,
-          checked_in: Number(row.checked_in),
           end_at: row.end_date ? `${row.end_date}T00:00:00.000Z` : null,
-          ledger_event_group: "",
           listing_id: row.listing_id,
-          order_token: "",
-          package_group_id: 0,
-          parent_listing_id: 0,
-          price_paid: Number(row.price_paid),
           quantity: row.quantity,
-          refunded: Number(row.refunded),
           start_at: row.date ? `${row.date}T00:00:00Z` : null,
         }),
       ),

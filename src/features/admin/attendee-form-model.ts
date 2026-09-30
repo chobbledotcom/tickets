@@ -44,13 +44,6 @@ import {
 
 /** Shared day count (range length) for every daily listing. */
 export const DAY_COUNT_FIELD = "day_count";
-/** Checkbox that reveals the not-booked listing rows when at least one line is
- * already booked (pure-CSS, never parsed; omitted on a bare create form, which
- * shows every listing). */
-export const SHOW_ALL_FIELD = "show_all";
-/** Checkbox that reveals the blank package-path lines (pure CSS, never
- * parsed) — one line per (package, member) path the attendee could book. */
-export const SHOW_PACKAGE_PATHS_FIELD = "show_package_paths";
 export const STATUS_FIELD = "status_id";
 export { START_DATE_FIELD };
 
@@ -94,12 +87,11 @@ export type AttendeeFormLine = {
 };
 
 /**
- * A read-only summary of one listing the attendee currently books, shown in the
- * bookings table at the top of the edit page. Derived from a stored
- * `listing_attendees` row joined to its listing, so it reflects exactly what is
- * saved: quantity, dates (daily listings), and check-in / refund status.
+ * A read-only summary of one listing the attendee currently books — quantity,
+ * dates, status — shown in the bookings table at the top of the edit page.
  */
 export type AttendeeBooking = {
+  assignBuiltSite: boolean;
   listingId: number;
   listingName: string;
   listingActive: boolean;
@@ -217,6 +209,7 @@ export const attendeeBookingsFromLines = (
     const { existingBooking: booking, listing } = line;
     if (!booking || !listing) return null;
     return {
+      assignBuiltSite: listing.assign_built_site,
       checkedIn: Boolean(booking.checked_in),
       endAt: booking.end_at,
       listingActive: listing.active,

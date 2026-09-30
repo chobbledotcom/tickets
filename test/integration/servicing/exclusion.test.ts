@@ -20,8 +20,10 @@ import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
   getAllAttendeePiiBlobs,
-  getAttendeeKindsByIds,
   getAttendeePiiBlobsForListings,
+} from "#db/attendees/pii.ts";
+import {
+  getAttendeeKindsByIds,
   getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,

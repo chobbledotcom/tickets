@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeePiiBlobsForListings } from "#db/attendees/pii.ts";
 import {
+  getAttendeeBookingRowsRaw,
   getAttendeeKindsByIds,
   getAttendeeOrNull,
-  getAttendeePackageRowsRaw,
-  getAttendeePiiBlobsForListings,
   getAttendeesByIds,
   getFirstBooking,
   hasPaidLine,
@@ -70,6 +70,7 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     expect(await getFirstBooking(made.attendees[0]!.id)).toEqual({
       active: true,
       listingId: listing.id,
+      packageGroupId: 0,
     });
 
     const ghost = await attendeesApi.createAttendeeAtomic({
@@ -82,6 +83,7 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     expect(await getFirstBooking(ghost.attendees[0]!.id)).toEqual({
       active: false,
       listingId: listing.id,
+      packageGroupId: 0,
     });
     expect(await getFirstBooking(999_999)).toBeNull();
   });
@@ -106,7 +108,7 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     expect(await hasPaidLine(attendeeId, [other.id])).toBe(false);
   });
 
-  test("getAttendeePackageRowsRaw keeps real lines and drops ghost lines", async () => {
+  test("getAttendeeBookingRowsRaw keeps real lines and drops ghost lines", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const ghostListing = await createTestListing({ maxAttendees: 10 });
     const made = await attendeesApi.createAttendeeAtomic({
@@ -120,7 +122,9 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     if (!made.success) throw new Error("booking setup failed");
     const attendeeId = made.attendees[0]!.id;
 
-    const rows = await getAttendeePackageRowsRaw(attendeeId, 0);
+    const rows = await getAttendeeBookingRowsRaw(attendeeId, {
+      kind: "standalone",
+    });
 
     expect(rows.length).toBe(1);
     expect(rows[0]!.listing_id).toBe(listing.id);
