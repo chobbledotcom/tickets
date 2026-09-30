@@ -102,7 +102,6 @@ const handleAttachmentDownload: TypedRouteHandler<
   const disposition = buildContentDisposition(listing.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {
-      "cache-control": "public, max-age=3600",
       "content-disposition": disposition,
       "content-type": contentType,
     },

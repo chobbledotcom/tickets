@@ -304,12 +304,10 @@ describeWithEnv(
       );
     });
 
-    test("returns public cache control for CDN caching", async () => {
+    test("keeps a signed download out of every shared cache", async () => {
       const setup = await setupAttachment();
       const response = await fetchAttachment(setup);
-      expect(response.headers.get("cache-control")).toBe(
-        "public, max-age=3600",
-      );
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
     });
   },
 );
