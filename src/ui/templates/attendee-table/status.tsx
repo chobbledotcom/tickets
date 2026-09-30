@@ -44,6 +44,26 @@ const checkinPageHref = (
   return query ? `${href}?${query}` : href;
 };
 
+/** How far a booking of several places has got through the door. */
+type PartyState = "none_in" | "some_in" | "all_in";
+
+const partyState = (booking: PairBooking): PartyState => {
+  if (booking.checked_in === 0) return "none_in";
+  return remainingTickets(booking) > 0 ? "some_in" : "all_in";
+};
+
+/** The one link a booking of several places shows. It always opens the page
+ * that asks how many, so a part-admitted party reads "Check in/out" rather
+ * than two links for the same page. */
+const PARTY_LINKS: Record<
+  PartyState,
+  { labelKey: string; tone: "checkin" | "checkout" }
+> = {
+  all_in: { labelKey: "admin.attendee_table.check_out", tone: "checkout" },
+  none_in: { labelKey: "admin.attendee_table.check_in", tone: "checkin" },
+  some_in: { labelKey: "admin.attendee_table.check_in_out", tone: "checkin" },
+};
+
 /** One roster line's check-in controls. A booking of one ticket keeps the
  * direct toggle, one POST with no page between the roster and the answer,
  * which is the journey the roster Feature pins. A larger booking links to the
@@ -60,19 +80,11 @@ const CheckinControls = ({
   // toggle, a larger booking links to the quantity page.
   if (booking.quantity > 1) {
     const href = checkinPageHref(attendee, listingId, activeFilter, returnUrl);
+    const { labelKey, tone } = PARTY_LINKS[partyState(booking)];
     return (
-      <span class="checkin-links">
-        {remainingTickets(booking) > 0 ? (
-          <a class="link-button checkin" href={href}>
-            {t("admin.attendee_table.check_in")}
-          </a>
-        ) : undefined}
-        {booking.checked_in > 0 ? (
-          <a class="link-button checkout" href={href}>
-            {t("admin.attendee_table.check_out")}
-          </a>
-        ) : undefined}
-      </span>
+      <a class={`link-button ${tone}`} href={href}>
+        {t(labelKey)}
+      </a>
     );
   }
   const out = booking.checked_in > 0;
