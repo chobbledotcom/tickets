@@ -8,14 +8,18 @@
 /* jscpd:ignore-start -- imports */
 import {
   adminPageHtmlAt,
+  keepsWhatTheOrganiserSaw,
   organiserPressesOnPage,
+  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { rosterPath } from "#test/specs/support/by-hand.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import { emailFor } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 /* jscpd:ignore-end */
 
 /** The organiser presses one of the list's Check in / Check out controls, and
@@ -79,3 +83,46 @@ export const checkinControlLabel = (row: string): string => {
   }
   return label;
 };
+
+/** The two ways a booking of several places moves: its Check in link admits,
+ * its Check out link releases. Each link opens the page that asks how many. */
+export type PartDirection = "Check in" | "Check out";
+
+/** Open the listing's attendee list fresh and follow the booking link that
+ * `pick` names from what the list shows. The link is followed, not built, so
+ * a list that stopped offering it fails. */
+const followOnTheList = (
+  world: TicketsWorld,
+  listing: string,
+  pick: (html: string) => PartDirection,
+): Promise<TestBrowser> =>
+  withAdminPage(world, rosterPath(world, listing), async (browser) => {
+    await browser.clickLink(pick(browser.currentHtml));
+    return browser;
+  });
+
+/** The organiser follows one direction's link on the attendee list, picks how
+ * many tickets on the page it opens, and presses that page's button. */
+export const movesPartOfAParty = async (
+  world: TicketsWorld,
+  listing: string,
+  direction: PartDirection,
+  tickets: number,
+): Promise<void> => {
+  const browser = await followOnTheList(world, listing, () => direction);
+  await fillInAndSend(browser, { quantity: String(tickets) }, direction);
+  keepsWhatTheOrganiserSaw(world, browser);
+};
+
+/** What the page behind a booking's Check in or Check out link says about
+ * how many of its tickets are in — the words the organiser reads there. A
+ * booking still owing tickets links Check in; a full one only Check out. */
+export const partCountOnTheList = async (
+  world: TicketsWorld,
+  listing: string,
+): Promise<string> =>
+  (
+    await followOnTheList(world, listing, (html) =>
+      html.includes(">Check in</a>") ? "Check in" : "Check out",
+    )
+  ).pageText;

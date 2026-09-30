@@ -110,8 +110,9 @@ describe("documented admin CRUD endpoints", () => {
     ).attendees[0];
 
     // The row the docs teach from stays a real person's booking: the contact
-    // details as the roster decrypts them, two seats on one line, money as
-    // minor units, and no booking dates on a standard listing.
+    // details as the roster decrypts them, two seats on one line with one
+    // admitted, money as minor units, and no booking dates on a standard
+    // listing.
     expect(attendee).toMatchObject({
       address: "12 Main Street, Springfield",
       email: "jane@example.com",
@@ -120,7 +121,7 @@ describe("documented admin CRUD endpoints", () => {
       special_instructions: "Vegetarian",
     });
     expect(attendee).toMatchObject({
-      checked_in: 0,
+      checked_in: 1,
       created: "2026-06-01T10:00:00.000Z",
       date: null,
       end_date: null,

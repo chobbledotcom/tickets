@@ -12,6 +12,7 @@ import {
   refundTicket,
   showTicketAtDoor,
   ticketOf,
+  ticketsOfferedAtDoor,
 } from "#test/specs/support/door.ts";
 import {
   requiredWorldValue,
@@ -284,5 +285,17 @@ Then(
     expect(await doorPageHtml(this, listing)).not.toContain(
       ticketOf(this, who),
     );
+  },
+);
+
+Then(
+  "the {word} door offers {word} for {int} ticket(s)",
+  async function (
+    this: TicketsWorld,
+    listing: string,
+    who: string,
+    tickets: number,
+  ): Promise<void> {
+    expect(await ticketsOfferedAtDoor(this, listing, who)).toBe(tickets);
   },
 );

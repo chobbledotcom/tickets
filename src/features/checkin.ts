@@ -222,13 +222,13 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
   withAuth(request, DOOR_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
-      const decrypted = await decryptEntries(entries);
+      // The write needs no contact details, so the rows stay sealed.
       // Refunded rows are never touched, and purchase-only ("No Check-In")
       // listings' rows are excluded too — a package QR shared with a checkable
       // member must not silently mark the no-check-in member as attended.
       const eligibleEntries = filter(
         (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchase_only,
-      )(decrypted);
+      )(entries);
 
       if (eligibleEntries.length === 0) {
         return redirectResponse(

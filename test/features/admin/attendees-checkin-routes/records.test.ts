@@ -166,8 +166,11 @@ describeWithEnv("a roster row with no places on it", { db: true }, () => {
 
     await checkIn(listing.id, attendee.id);
 
-    expect(await activityMessages()).not.toContain(
-      `Attendee checked in for '${listing.name}'`,
-    );
+    // No check-in line at all, whatever count it would name.
+    expect(
+      (await activityMessages()).filter((message) =>
+        message.startsWith("Attendee checked"),
+      ),
+    ).toEqual([]);
   });
 });

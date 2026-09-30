@@ -60,6 +60,24 @@ Feature: An owner gives a door worker the scanner, and nothing else
       When Sam checks them out
       Then the site says they were checked out
 
+    @case:scanners.checking-in-part-of-a-party
+    Scenario: The scanner checks in part of a party
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And Sam is signed in as a scanner
+      When Sam reads Cara's ticket at the Ceilidh door
+      And Sam says 2 tickets for Cara at the Ceilidh door
+      Then the door lets Cara in
+      And the door says the ticket covers 2 of 3 places
+
+    @case:scanners.the-ticket-page-shows-a-part-party
+    Scenario: The ticket page shows a scanner how many of a party are in
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And the organiser has checked in 2 of Cara's tickets at the Ceilidh door
+      And Sam is signed in as a scanner
+      When Sam reads the QR on Cara's ticket
+      Then the ticket page says 2 of 3 are checked in
+      And the ticket page offers to check them in and out
+
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else
     The rest of the admin is not merely unlinked: asking for it outright is

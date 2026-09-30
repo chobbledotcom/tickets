@@ -143,6 +143,12 @@ Feature: An organiser checks people in at the door
       And the organiser reads Alice's ticket at the Ceilidh door
       Then the Ceilidh door does not offer Alice
 
+    @case:door.a-part-party-is-offered-for-the-rest
+    Scenario: The organiser looks for a party that is partly in
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And the organiser has checked in 2 of Cara's tickets at the Ceilidh door
+      Then the Ceilidh door offers Cara for 1 ticket
+
     @case:door.a-refunded-person-is-not-offered
     Scenario: The organiser looks for someone whose money was given back
       Given Alice has a ticket for the Ceilidh

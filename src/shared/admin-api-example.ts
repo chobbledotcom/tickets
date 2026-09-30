@@ -142,7 +142,8 @@ const ADMIN_API_HOLIDAY_DELETE_BODY = {
 const ADMIN_API_EXAMPLE_ATTENDEE = {
   address: "12 Main Street, Springfield",
   attachment_downloads: 0,
-  checked_in: 0,
+  // A count of the line's admitted tickets, 0 up to quantity: one of two in.
+  checked_in: 1,
   created: "2026-06-01T10:00:00.000Z",
   date: null,
   email: "jane@example.com",
@@ -285,7 +286,8 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     }),
   },
   {
-    description: "List the attendees booked on a listing",
+    description:
+      "List the attendees booked on a listing. checked_in counts the tickets on each line that the doors admitted, from 0 up to quantity.",
     method: "GET",
     path: "/api/admin/listings/:listingId/attendees",
     response: json({ attendees: [ADMIN_API_EXAMPLE_ATTENDEE] }),
