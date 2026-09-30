@@ -4,7 +4,7 @@
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobsForListings,
-} from "#db/attendees/queries.ts";
+} from "#db/attendees/pii.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { filter, map } from "#fp";
 import type { ListingWithCount } from "#types";

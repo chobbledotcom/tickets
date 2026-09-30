@@ -1,4 +1,3 @@
-import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import type {
   AttendeeFormLine,
   ParsedAttendeeForm,
@@ -22,24 +21,6 @@ export const line = (
   packagePrice: null,
   parentListingId: 0,
   quantity: 1,
-  ...overrides,
-});
-
-export const bookingRow = (
-  overrides: Partial<ListingAttendeeRow> = {},
-): ListingAttendeeRow => ({
-  attachment_downloads: 0,
-  checked_in: 0,
-  end_at: null,
-  ledger_event_group: "",
-  listing_id: 1,
-  order_token: "",
-  package_group_id: 0,
-  parent_listing_id: 0,
-  price_paid: 0,
-  quantity: 1,
-  refunded: 0,
-  start_at: null,
   ...overrides,
 });
 

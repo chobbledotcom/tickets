@@ -160,13 +160,13 @@ Feature: Real sandbox payments finish safely
     And Stripe still shows only the original returned amount
 
   @rule:payments.live-plan-priced-in-months @surface:admin @surface:public @surface:return
-  Rule: A site plan is sold in months and paid once
+  Rule: A site plan is sold in months and paid once with no site in the pool
     Quantity on a built-site plan buys months of one site's service, and a
-    hidden monthly tier prices the assigned site's renewals. The sandbox has
-    no build infrastructure, so the expected outcome is the documented
-    failure mode: the paid booking and its money stand, the failed build does
-    not cost a later buyer its own attempt, the owner's log records the lost
-    assignment, and the system map answers clean.
+    hidden monthly tier prices the assigned site's renewals. The site comes
+    from the pool of assignable sites the owner has stocked, and this sandbox
+    stocks none. The paid booking and its money stand, the buyer gets no
+    site, and the owner's log records the empty pool so someone can repair
+    it. The system map answers clean.
 
     @case:live-payments.stripe-plan-months
     Scenario: A visitor buys three units of a three-month site plan
@@ -177,28 +177,28 @@ Feature: Real sandbox payments finish safely
       And Stripe's signed webhook confirms the payment
       And the visitor retries the exact browser return
       Then the owner sees one attendee and the captured income once
-      And the owner's log records the lost site assignment
+      And the owner's log records the empty site pool
       And the owner's system map answers clean
 
-  @rule:payments.live-plan-dry-run-completes @surface:admin @surface:public @surface:return
-  Rule: A plan purchase completes its site inside the request budget
-    A test site can answer the build's provider calls from canned bodies,
-    paying the subrequest budget for each call without touching the network.
-    The purchase must then complete the whole assignment — the site built,
-    assigned, and carrying its term of credit — with no lost-assignment
-    incident, which is also the proof the request fits the budget: a build
-    that ran out of calls would name itself on the owner's log instead.
+  @rule:payments.live-plan-assigned-from-pool @surface:admin @surface:public @surface:return
+  Rule: A plan purchase assigns a pre-built site from the owner's pool
+    Assignment hands out a site the owner registered ahead of time, never
+    one the purchase builds itself. A test app server can answer the Bunny
+    API calls the assignment makes — the renewal pushes — from canned
+    bodies, without touching the network. The purchase must then take the
+    pooled site, credit it its months, and record no assignment incident.
 
-    @case:live-payments.stripe-plan-dry-run
-    Scenario: A visitor's dry-run plan purchase completes its site
+    @case:live-payments.stripe-plan-pooled
+    Scenario: A visitor's plan purchase takes the pooled site
       Given Stripe is configured with dedicated test credentials
       And the owner has published a monthly renewal tier
       And the owner has published a three-month site plan
+      And the owner has registered an assignable built site
       When a separate visitor pays for three units through Stripe Checkout
       And Stripe's signed webhook confirms the payment
       And the visitor retries the exact browser return
       Then the owner sees one attendee and the captured income once
-      And the owner's built-sites page shows the assigned site with its credit
+      And the owner's built-sites page shows the pooled site assigned with its credit
       And the owner's log records no lost site assignment
       And the owner's system map answers clean
 

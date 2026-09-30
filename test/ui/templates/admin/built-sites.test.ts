@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
-  renewalPanelFor,
   SecretsPanel,
   UpdatePanel,
 } from "#templates/admin/built-sites/panels.tsx";
+import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
 import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteNewPage,

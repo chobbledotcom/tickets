@@ -1,49 +1,38 @@
 /**
- * Built site assignment — assigns sites to attendees after booking completion.
- * Sends a separate notification email with site URLs.
- * All assignment logic is gated behind CAN_BUILD_SITES.
+ * Built site assignment — assigns pre-built sites to attendees after booking
+ * completion, and sends the notification email with site URLs. Sites come
+ * from the pool the operator stocks; assignment never builds one. All of it
+ * is gated behind CAN_BUILD_SITES.
  */
 
 /* jscpd:ignore-start */
-import { hmacHash } from "#crypto/hashing.ts";
-import { generateSecureToken } from "#crypto/utils.ts";
-import type { BuiltSite } from "#db/built-sites/types.ts";
-import {
-  assignBuiltSite,
-  getAssignableBuiltSites,
-  updateBuiltSiteRenewalState,
-} from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf, unique } from "#fp";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
-import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
-import { addMonthsIso } from "#shared/dates.ts";
-import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
+import {
+  type EmailEntry,
+  getEmailConfig,
+  hostEmail,
+  sendEmail,
+} from "#shared/email.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
+  type MissedBuyer,
+  reportOutOfStockBuyers,
   reportSiteAssignmentFailure,
   type SiteAssignmentConfigValidation,
 } from "#shared/site-assignment-failure.ts";
-import { buildAssignableSite } from "#shared/site-build.ts";
-import { resolveHostingProvider } from "#shared/site-hosting.ts";
+import {
+  completeUnfinishedRenewal,
+  provisionSiteRenewal,
+} from "#shared/site-renewal.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /* jscpd:ignore-end */
-
-/** Entry with the fields needed for site assignment */
-type SiteAssignmentEntry = {
-  listing: {
-    id: number;
-    name: string;
-    assign_built_site: boolean;
-    initial_site_months: number;
-  };
-  attendee: { id: number; email: string; quantity: number };
-};
 
 /** Info about an assigned site for email rendering */
 type SiteAssignment = {
@@ -51,19 +40,7 @@ type SiteAssignment = {
   listingName: string;
 };
 
-type AssignmentContext = {
-  attendee: SiteAssignmentEntry["attendee"];
-  /** The booked plan the site is recorded against: the buyer's first line. */
-  listingId: number;
-  /** Every plan name the buyer bought, joined for the site's email. */
-  listingName: string;
-  /** The months the buyer's plans bought together on this one site. */
-  months: number;
-  site: BuiltSite;
-};
-
-export type CdnPushResult = { ok: true } | { ok: false; error: string };
-type RenewalTokenData = { token: string; index: string };
+/** A listing selection being checked before payment/booking. */
 type SiteAssignmentConfigEntry = {
   listing: {
     assign_built_site: boolean;
@@ -114,181 +91,40 @@ export const validateSiteAssignmentConfig = async (
   return { ok: true };
 };
 
-/** Generate a renewal token + its HMAC blind index. */
-export const generateRenewalToken = async (): Promise<RenewalTokenData> => {
-  const token = generateSecureToken();
-  const index = await hmacHash(token);
-  return { index, token };
+/** Every buyer's outcome from one assignment run. */
+type SiteAssignmentOutcome = {
+  /** One entry per destination address; each carries that buyer's sites. */
+  emails: { assignments: SiteAssignment[]; to: ValidEmail }[];
+  missedBuyers: MissedBuyer[];
 };
 
-/** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
-export const parseReadOnlyFromMs = (
-  site: Pick<BuiltSite, "readOnlyFrom">,
-): number | null => (site.readOnlyFrom ? parseDateMs(site.readOnlyFrom) : null);
-
-/** Stack-forward base: max(now, existing deadline). Falls back to now when missing. */
-export const renewalDeadlineBaseMs = (
-  site: Pick<BuiltSite, "readOnlyFrom">,
-): number => Math.max(nowMs(), parseReadOnlyFromMs(site) ?? 0);
-
-export const addMonthsToRenewalDeadline = (
-  site: Pick<BuiltSite, "readOnlyFrom">,
-  months: number,
-): string =>
-  addMonthsIso(new Date(renewalDeadlineBaseMs(site)).toISOString(), months);
-
-/** Build the renewal URL for a given token. */
-export const renewalUrlFor = (token: string): string =>
-  `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`;
-
-const logRenewalCdnError = (errorContext: string, error: string): void => {
-  logError({
-    code: ErrorCode.CDN_REQUEST,
-    detail: `${errorContext}: ${error}`,
-  });
-  sendNtfyError("CDN_REQUEST");
-};
-
-/** Push a subset of site secrets to the hosting provider. Pure I/O — no DB writes. */
-const pushSiteSecrets = async (
-  site: BuiltSite,
-  secrets: { readOnlyFrom?: string; renewalUrl?: string },
-): Promise<CdnPushResult> => {
-  if (!site.hostingId) return { error: "No hostingId", ok: false };
-  const pairs: [string, string][] = [];
-  if (secrets.renewalUrl !== undefined) {
-    pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
-  }
-  if (secrets.readOnlyFrom !== undefined) {
-    pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
-  }
-  return resolveHostingProvider(site.hostingProvider).setSecrets(
-    site.hostingId,
-    pairs,
-  );
-};
-
-/**
- * Push READ_ONLY_FROM (and optionally re-push RENEWAL_URL) to the edge script
- * and persist the cutoff on success. Single DB write per call.
- */
-export const syncReadOnlyFrom = async (
-  site: BuiltSite,
-  cutoffIso: string,
-  renewalUrl?: string,
-): Promise<CdnPushResult> => {
-  const pushResult = await pushSiteSecrets(site, {
-    readOnlyFrom: cutoffIso,
-    ...(renewalUrl !== undefined ? { renewalUrl } : {}),
-  });
-  if (pushResult.ok) {
-    await updateBuiltSiteRenewalState(site.id, { readOnlyFrom: cutoffIso });
-  }
-  return pushResult;
-};
-
-type RenewalStateUpdate = Parameters<typeof updateBuiltSiteRenewalState>[1];
-type SiteSecrets = { readOnlyFrom?: string; renewalUrl?: string };
-
-/**
- * Curried helper: push secrets and persist renewal state.
- * On push success, writes `onSuccess`. On failure, logs and leaves DB state
- * unchanged so an admin can retry from the unprovisioned state.
- */
-const pushAndPersist =
-  (site: BuiltSite, errorContext: string) =>
-  async (
-    secrets: SiteSecrets,
-    onSuccess: RenewalStateUpdate,
-  ): Promise<CdnPushResult> => {
-    const pushResult = await pushSiteSecrets(site, secrets);
-    if (pushResult.ok) {
-      await updateBuiltSiteRenewalState(site.id, onSuccess);
-    } else {
-      logRenewalCdnError(errorContext, pushResult.error);
-    }
-    return pushResult;
-  };
-
-/** The new renewal token and whether pushing it to the site succeeded. */
-type RenewalPushResult = { token: string; pushOk: boolean };
-
-/**
- * Provision a site for renewals: generate a token, push initial secrets,
- * persist the full renewal state. On push failure, leaves renewal state
- * untouched so an admin can retry provisioning cleanly. Single DB write.
- */
-export const provisionSiteRenewal = async (
-  site: BuiltSite,
-  months: number,
-  errorContext: string,
-): Promise<RenewalPushResult & { cutoff: string }> => {
-  const tokenData = await generateRenewalToken();
-  const cutoff = addMonthsIso(nowIso(), months);
-  const renewalState = {
-    renewalToken: tokenData.token,
-    renewalTokenIndex: tokenData.index,
-  } as const;
-
-  const pushResult = await pushAndPersist(site, errorContext)(
-    { readOnlyFrom: cutoff, renewalUrl: renewalUrlFor(tokenData.token) },
-    { readOnlyFrom: cutoff, ...renewalState },
-  );
-
-  return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
-};
-
-/**
- * Rotate a site's renewal token. Pushes the new RENEWAL_URL only — the
- * READ_ONLY_FROM cutoff is independent of token identity and is not
- * re-pushed here. Persists the new token on push success.
- */
-export const rotateRenewalToken = async (
-  site: BuiltSite,
-  errorContext: string,
-): Promise<RenewalPushResult> => {
-  const tokenData = await generateRenewalToken();
-  const pushResult = await pushAndPersist(site, errorContext)(
-    { renewalUrl: renewalUrlFor(tokenData.token) },
-    { renewalToken: tokenData.token, renewalTokenIndex: tokenData.index },
-  );
-  return { pushOk: pushResult.ok, token: tokenData.token };
-};
-
-/** Assign a site and provision its renewal for the months the buyer bought. */
-const assignSiteWithRenewal = async ({
-  attendee,
-  listingId,
-  listingName,
-  months,
-  site,
-}: AssignmentContext): Promise<SiteAssignment> => {
-  await assignBuiltSite(site.id, attendee.id, listingId);
-  await provisionSiteRenewal(
-    site,
-    months,
-    `Failed to push initial renewal secrets for site ${site.id}`,
-  );
-  return { listingName, siteUrl: site.siteUrl };
-};
-
-/** Assign built sites to entries that need them. Returns assigned URLs. */
+/** Assign built sites to the entries that need them. Sites come only from the
+ * pool of assignable sites the operator has stocked. */
 const assignSitesForEntries = async (
-  entries: SiteAssignmentEntry[],
-): Promise<SiteAssignment[]> => {
+  entries: EmailEntry[],
+): Promise<SiteAssignmentOutcome> => {
+  const missedBuyers: MissedBuyer[] = [];
   const needsSite = entries.filter(
-    (e: SiteAssignmentEntry) => e.listing.assign_built_site,
+    (e: EmailEntry) => e.listing.assign_built_site,
   );
-  if (needsSite.length === 0) return [];
+  if (needsSite.length === 0) return { emails: [], missedBuyers };
 
   // Keep async assignment aligned with the pre-checkout validation gate.
   const config = await validateSiteAssignmentConfig(needsSite);
   if (!config.ok) {
     reportSiteAssignmentFailure(config, needsSite.length);
-    return [];
+    return { emails: [], missedBuyers };
   }
 
-  const assignments: SiteAssignment[] = [];
+  // One buyer's plans combine into one site and one email; buyers sharing an
+  // address share that email.
+  const sitesByEmail = new Map<string, SiteAssignment[]>();
+  const addSite = (email: string, assignment: SiteAssignment): void => {
+    const sites = sitesByEmail.get(email) ?? [];
+    sites.push(assignment);
+    sitesByEmail.set(email, sites);
+  };
+
   // Reversed so pop() hands sites out in their original order without
   // reindexing the array on every take.
   const available = [...(await getAssignableBuiltSites())].reverse();
@@ -297,29 +133,61 @@ const assignSitesForEntries = async (
   // a 3-month listing buy one site with 15 months, never two sites.
   const plansByBuyer = Map.groupBy(needsSite, (e) => e.attendee.id);
   for (const buyerPlans of plansByBuyer.values()) {
-    // A no-quantity line buys nothing, so it books no site and no months.
-    const booked = buyerPlans.filter((e) => e.attendee.quantity >= 1);
-    if (booked.length === 0) continue;
-    const site = available.pop() ?? (await buildAssignableSite());
-    // A failed build must not cost later buyers their own attempt.
-    if (!site) continue;
-
-    const first = booked[0]!;
-    assignments.push(
-      await assignSiteWithRenewal({
-        attendee: first.attendee,
-        listingId: first.listing.id,
-        listingName: unique(booked.map((e) => e.listing.name)).join(" + "),
-        months: sumOf(
-          (e: SiteAssignmentEntry) =>
-            e.listing.initial_site_months * e.attendee.quantity,
-        )(booked),
-        site,
-      }),
+    // A no-quantity line books nothing; a refunded plan row bought
+    // nothing that lasts.
+    const booked = buyerPlans.filter(
+      (e: EmailEntry) => e.attendee.quantity >= 1 && !e.attendee.refunded,
     );
+    if (booked.length === 0) continue;
+    const first = booked[0]!;
+    // The term is whatever the plan states today; a buyer whose plan was
+    // edited after booking is corrected by hand from their payment record.
+    const months = sumOf(
+      (e: EmailEntry) => e.listing.initial_site_months * e.attendee.quantity,
+    )(booked);
+
+    // The claim may sit on a listing later refunded, and a refund does not
+    // unassign its site, so the served check spans every plan row of this
+    // run — refunded ones included — while months count only the rest.
+    const servedListingIds = unique(buyerPlans.map((e) => e.listing.id));
+    const listingName = unique(booked.map((e) => e.listing.name)).join(" + ");
+    const take = await takePooledSiteForBuyer(
+      available,
+      first.attendee.id,
+      servedListingIds,
+      first.listing.id,
+    );
+    if (take.kind === "served") {
+      // The claim from an earlier run stands: finish its renewal
+      // provisioning and re-send its setup link, because the first email
+      // may never have reached the buyer.
+      await completeUnfinishedRenewal(take.site, months);
+      addSite(first.attendee.email, {
+        listingName,
+        siteUrl: take.site.siteUrl,
+      });
+      continue;
+    }
+    if (take.kind === "empty") {
+      missedBuyers.push({ attendee: first.attendee, listingName });
+      continue;
+    }
+    const site = take.site;
+    await provisionSiteRenewal(
+      site,
+      months,
+      `Failed to push initial renewal secrets for site ${site.id}`,
+    );
+    addSite(first.attendee.email, { listingName, siteUrl: site.siteUrl });
   }
 
-  return assignments;
+  const emails = [...sitesByEmail].flatMap(([email, assignments]) => {
+    const to = parseEmail(email);
+    // An unparseable address has no destination; the site stays assigned and
+    // only the email is skipped.
+    return to ? [{ assignments, to }] : [];
+  });
+  return { emails, missedBuyers };
 };
 
 /** Absolute /setup/ link for a site — siteUrl may be a bare hostname. */
@@ -365,24 +233,27 @@ const sendSiteAssignmentEmail = async (
   });
 };
 
-/** Assign sites and send notification email. Designed to be called via addPendingWork.
- * No-ops when CAN_BUILD_SITES is not enabled.
+/** Assign pooled sites and send the notification email. Designed to be called
+ * via addPendingWork. No-ops when CAN_BUILD_SITES is not enabled.
  *
- * The whole pipeline runs inside the site-build scope: it provisions and
- * configures a new site (and pushes renewal secrets), the automated machine
- * steps a SITE_BUILD_DRY_RUN demo answers as one unit. A human's live admin
- * action on an existing site sits outside it. */
+ * The whole pipeline runs inside the site-build scope: the automated machine
+ * steps a SITE_BUILD_DRY_RUN demo answers as one unit — the claim, the
+ * renewal-secret pushes, and the emails. A human's live admin action on an
+ * existing site sits outside it. */
 export const assignAndNotifyBuiltSites = async (
-  entries: SiteAssignmentEntry[],
+  entries: EmailEntry[],
 ): Promise<void> => {
   if (!isBuilderEnabled()) return;
 
   await runWithSiteBuildScope(async () => {
-    const assignments = await assignSitesForEntries(entries);
-    if (assignments.length === 0) return;
-
-    const email = parseEmail(entries[0]!.attendee.email);
-    if (!email) return;
-    await sendSiteAssignmentEmail(email, assignments);
+    const { emails, missedBuyers } = await assignSitesForEntries(entries);
+    // The buyers' setup emails go first, so the operator warnings never spend
+    // the request budget a setup email needs.
+    await Promise.all(
+      emails.map(({ assignments, to }) =>
+        sendSiteAssignmentEmail(to, assignments),
+      ),
+    );
+    await reportOutOfStockBuyers(missedBuyers);
   });
 };

@@ -76,6 +76,7 @@ describe("webhook example", () => {
       phone: EXAMPLE_ATTENDEE.phone,
       price_paid: EXAMPLE_ATTENDEE.price_paid,
       quantity: EXAMPLE_ATTENDEE.quantity,
+      refunded: false,
       remaining_balance: EXAMPLE_ATTENDEE.remaining_balance,
       special_instructions: EXAMPLE_ATTENDEE.special_instructions,
       ticket_token: EXAMPLE_ATTENDEE.ticket_token,

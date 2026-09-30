@@ -16,6 +16,8 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
 
+// jscpd:ignore-end
+
 describeWithEnv(
   "server (admin attendees) > attendee detail",
   { db: true },

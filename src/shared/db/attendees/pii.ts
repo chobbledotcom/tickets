@@ -6,6 +6,7 @@
  * - Decryption requires the private key (only available to authenticated sessions)
  */
 
+import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -18,6 +19,9 @@ import type {
   EncryptInput,
   UpdateAttendeePIIInput,
 } from "#db/attendee-types.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import type { DayRange } from "#db/capacity.ts";
+import { inPlaceholders, queryAll, queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { map } from "#fp";
 import { nowIso } from "#shared/now.ts";
@@ -220,3 +224,104 @@ export const decryptAttendeeOrNull = <R extends RawAttendeeRow>(
   privateKey: CryptoKey,
 ): Promise<DecryptedAttendeeRow<R> | null> =>
   row ? decryptAttendeeFields(row, privateKey) : Promise.resolve(null);
+
+/** Keeps only attendees who have at least one real (quantity > 0) booking line —
+ * a no-quantity-only placeholder (interested/cancelled) has no valid ticket URL,
+ * so it is never part of an email audience. Shared by every pii_blob read. */
+const HAS_REAL_LINE = `EXISTS (
+       SELECT 1 FROM listing_attendees
+       WHERE attendee_id = attendees.id AND quantity > 0
+     )`;
+
+/** Select the encrypted pii_blob of each real-audience attendee (an
+ * ATTENDEE_KIND row with a real line) matching one extra narrowing clause, then
+ * return just the blobs. The bulk-email audience reads all read and unwrap the
+ * blob the same way; they differ only in how they pick which attendees match. */
+const selectAudiencePiiBlobs = async (
+  extraWhere: string,
+  args?: InValue[],
+): Promise<OwnerKeyEncrypted[]> => {
+  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
+    `SELECT pii_blob FROM attendees
+     WHERE kind = '${ATTENDEE_KIND}' AND ${extraWhere}`,
+    args,
+  );
+  return rows.map((r) => r.pii_blob);
+};
+
+/**
+ * Get every attendee's encrypted PII blob (one row per attendee).
+ * Used to resolve bulk-email recipient lists, where only the email inside each
+ * blob is needed. De-duplication of addresses happens after decryption.
+ */
+export const getAllAttendeePiiBlobs = (): Promise<OwnerKeyEncrypted[]> =>
+  selectAudiencePiiBlobs(HAS_REAL_LINE);
+
+/**
+ * Get the encrypted PII blobs for attendees booked onto any of the given
+ * listings (one row per attendee, even if booked onto several of them).
+ * Returns an empty array when no listing IDs are supplied.
+ */
+export const getAttendeePiiBlobsForListings = (
+  listingIds: number[],
+): Promise<OwnerKeyEncrypted[]> =>
+  listingIds.length === 0
+    ? Promise.resolve([])
+    : // quantity > 0: only attendees with a real line on these listings — a
+      // no-quantity sentinel line doesn't make someone an "attendee of X".
+      selectAudiencePiiBlobs(
+        `id IN (
+       SELECT DISTINCT attendee_id FROM listing_attendees
+       WHERE listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0
+     )`,
+        listingIds,
+      );
+
+/**
+ * Get the encrypted PII blobs for attendees whose booking on one listing covers
+ * a given day. A booking spanning several days covers each of them, so a stay
+ * from Friday to Sunday answers to Saturday as well as to its own first day.
+ * Uses the same half-open overlap predicate as the capacity checks, so the
+ * people a day's message reaches are the people that day counts.
+ */
+export const getAttendeePiiBlobsForListingDay = (
+  listingId: number,
+  day: DayRange,
+): Promise<OwnerKeyEncrypted[]> =>
+  selectAudiencePiiBlobs(
+    `id IN (
+       SELECT DISTINCT listingAttendee.attendee_id
+       FROM listing_attendees AS listingAttendee
+       WHERE listingAttendee.listing_id = ? AND listingAttendee.quantity > 0
+         AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
+     )`,
+    [listingId, day.endAt, day.startAt],
+  );
+
+/**
+ * Get the encrypted PII blob for the attendee identified by a plaintext ticket
+ * token. Used to resolve a single-attendee bulk-email recipient. Ticket tokens
+ * are unique, so this matches at most one attendee; returns null when the token
+ * matches none, so a stale or unknown token resolves to no recipient rather
+ * than erroring.
+ */
+export const getAttendeePiiBlobForToken = async (
+  token: string,
+): Promise<OwnerKeyEncrypted | null> => {
+  const tokenIndex = await hmacHash(token);
+  // Apply the real-line guard: an all-ghost (no-quantity-only) attendee has no
+  // valid ticket URL, so the single-attendee bulk-email target resolves to no
+  // recipient (a genuine one-off transactional mail would be a separate path).
+  const row = await queryOne<{ pii_blob: OwnerKeyEncrypted }>(
+    `SELECT pii_blob FROM attendees
+     WHERE ticket_token_index = ?
+       AND kind = '${ATTENDEE_KIND}'
+       AND EXISTS (
+         SELECT 1 FROM listing_attendees
+         WHERE attendee_id = attendees.id AND quantity > 0
+       )
+     LIMIT 1`,
+    [tokenIndex],
+  );
+  return row ? row.pii_blob : null;
+};

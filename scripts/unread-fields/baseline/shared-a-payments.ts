@@ -80,9 +80,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ]),
   ...identitiesAt([["src/shared/email.ts", [{ name: "EmailListing" }]]])([
     "active",
-    "assign_built_site",
     "hidden",
-    "initial_site_months",
     "listing_type",
   ]),
   ...identitiesAt([

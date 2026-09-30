@@ -3,9 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import {
-  attendeeBalanceNotice,
+  ATTENDEE_FORM_ID,
   attendeeBookingsFromLines,
-  bookingDurationDays,
   isBookedLine,
   isNoQuantityLine,
   isRetainedLine,
@@ -14,16 +13,45 @@ import {
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
+  toLedgerOrder,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
-  bookingRow,
   line,
   makeForm,
   parsedBase,
 } from "#test/features/admin/attendee-form-model/fixtures.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
+
+describe("toLedgerOrder", () => {
+  test("a zero package override keeps the leg at zero, not the listing price", () => {
+    const listing = testListingWithCount({ id: 3, unit_price: 900 });
+    const parsed = parsedBase({
+      lines: [
+        line({
+          listing,
+          listingId: 3,
+          packageGroupId: 4,
+          packagePrice: 0,
+          quantity: 2,
+        }),
+      ],
+    });
+    const order = toLedgerOrder(parsed);
+    expect(order.lines[0]!.chargedUnitAmount).toBe(0);
+    expect(order.lines[0]!.item.unitPrice).toBe(0);
+  });
+});
+
+describe("ATTENDEE_FORM_ID", () => {
+  test("matches the anchor the saved redirect scrolls to", () => {
+    // The form template renders id={ATTENDEE_FORM_ID} and attendee-edit.test.ts
+    // asserts the redirect lands on "#attendee-form", so the string is the
+    // contract between the two.
+    expect(ATTENDEE_FORM_ID).toBe("attendee-form");
+  });
+});
 
 describe("attendeeBookingsFromLines", () => {
   test("projects a booked line's stored booking onto a summary row", () => {
@@ -44,6 +72,7 @@ describe("attendeeBookingsFromLines", () => {
     // Every stored field is carried through, flags coerced, the count kept.
     expect(bookings).toEqual([
       {
+        assignBuiltSite: false,
         checkedIn: 1,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
@@ -56,11 +85,13 @@ describe("attendeeBookingsFromLines", () => {
       },
     ]);
   });
-
   test("carries a folded child row's parent listing id onto the summary", () => {
     const bookings = attendeeBookingsFromLines([
       line({
-        existingBooking: bookingRow({ listing_id: 8, parent_listing_id: 7 }),
+        existingBooking: bookingRow({
+          listing_id: 8,
+          parent_listing_id: 7,
+        }),
         listing: testListingWithCount({ id: 8, name: "Add-on" }),
         listingId: 8,
       }),
@@ -106,6 +137,7 @@ describe("parseAttendeeForm", () => {
         name: "Jane",
         phone: "555",
         qty_0: "2",
+        return_url: "/admin/attendees?tab=overview",
         special_instructions: "VIP",
         start_date: "2026-03-02",
       }),
@@ -113,9 +145,11 @@ describe("parseAttendeeForm", () => {
     );
     expect(parsed.name).toBe("Jane");
     expect(parsed.email).toBe("a@b.com");
+    expect(parsed.phone).toBe("555");
     expect(parsed.address).toBe("1 St");
     expect(parsed.special_instructions).toBe("VIP");
     expect(parsed.startDate).toBe("2026-03-02");
+    expect(parsed.returnUrl).toBe("/admin/attendees?tab=overview");
     expect(parsed.dayCount).toBe(3);
     expect(parsed.lines).toHaveLength(1);
     expect(parsed.lines[0]!.listingId).toBe(5);
@@ -290,6 +324,11 @@ describe("parseAttendeeForm", () => {
       parseAttendeeForm(makeForm({ name: "X", status_id: "4" }), new Map())
         .statusId,
     ).toBe(4);
+    // The lowest real id must still count as a choice, not as "none".
+    expect(
+      parseAttendeeForm(makeForm({ name: "X", status_id: "1" }), new Map())
+        .statusId,
+    ).toBe(1);
     expect(
       parseAttendeeForm(makeForm({ name: "X", status_id: "" }), new Map())
         .statusId,
@@ -771,6 +810,19 @@ describe("no-quantity persistence + paid-line guard", () => {
     expect(parsed.lines[0]!.error).toBe(null);
   });
 
+  test("validateParsedForm blocks a line paid a single unit from going no-quantity", () => {
+    const parsed = parsedBase({
+      lines: [
+        line({
+          existingBooking: bookingRow({ price_paid: 1, quantity: 1 }),
+          noQuantity: true,
+          quantity: 0,
+        }),
+      ],
+    });
+    expect(validateParsedForm(parsed).valid).toBe(false);
+  });
+
   test("validateParsedForm allows marking an unpaid line no-quantity", () => {
     const parsed = parsedBase({
       lines: [
@@ -863,85 +915,5 @@ describe("resolveSharedDates", () => {
     expect(result.startDate).toBe("2026-06-14");
     expect(result.dayCount).toBe(1);
     expect(result.hasMixedTimings).toBe(false);
-  });
-});
-
-describe("bookingDurationDays", () => {
-  test("returns null when a range endpoint is missing or invalid", () => {
-    expect(
-      bookingDurationDays(bookingRow({ end_at: "x", start_at: null })),
-    ).toBeNull();
-    expect(
-      bookingDurationDays(bookingRow({ end_at: null, start_at: "x" })),
-    ).toBeNull();
-    expect(
-      bookingDurationDays(bookingRow({ end_at: "bad", start_at: "bad" })),
-    ).toBeNull();
-  });
-
-  test("returns null for a zero-length range", () => {
-    expect(
-      bookingDurationDays(
-        bookingRow({
-          end_at: "2026-06-14T00:00:00Z",
-          start_at: "2026-06-14T00:00:00Z",
-        }),
-      ),
-    ).toBeNull();
-  });
-
-  test("counts whole days for a real range", () => {
-    expect(
-      bookingDurationDays(
-        bookingRow({
-          end_at: "2026-06-17T00:00:00Z",
-          start_at: "2026-06-14T00:00:00Z",
-        }),
-      ),
-    ).toBe(3);
-  });
-});
-
-describe("attendeeBalanceNotice", () => {
-  const paid = { is_paid_default: true, is_reservation: false };
-  const reservation = { is_paid_default: false, is_reservation: true };
-  const other = { is_paid_default: false, is_reservation: false };
-
-  test("is silent when there is no status", () => {
-    expect(attendeeBalanceNotice(null, 500, 1000, 100)).toBeNull();
-  });
-
-  test("warns when a paid status still owes money", () => {
-    const notice = attendeeBalanceNotice(paid, 500, 1000, 500);
-    expect(notice?.tone).toBe("warning");
-    expect(notice?.message).toContain("paid status");
-  });
-
-  test("is silent when a paid status owes nothing", () => {
-    expect(attendeeBalanceNotice(paid, 0, 1000, 1000)).toBeNull();
-  });
-
-  test("is silent for a reservation that still owes a balance", () => {
-    expect(attendeeBalanceNotice(reservation, 900, 1000, 100)).toBeNull();
-  });
-
-  test("warns when a reservation has no balance but is still unpaid", () => {
-    const notice = attendeeBalanceNotice(reservation, 0, 1000, 100);
-    expect(notice?.tone).toBe("warning");
-    expect(notice?.message).toContain("still unpaid");
-  });
-
-  test("nudges (info) when a reservation is fully paid", () => {
-    const notice = attendeeBalanceNotice(reservation, 0, 1000, 1000);
-    expect(notice?.tone).toBe("info");
-    expect(notice?.message).toContain("moving it to a paid status");
-  });
-
-  test("is silent for a free reservation with no balance", () => {
-    expect(attendeeBalanceNotice(reservation, 0, 0, 0)).toBeNull();
-  });
-
-  test("is silent for a balance on a neither-paid-nor-reservation status", () => {
-    expect(attendeeBalanceNotice(other, 500, 1000, 500)).toBeNull();
   });
 });

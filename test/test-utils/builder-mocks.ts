@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
@@ -146,6 +146,26 @@ export const withBuildSiteMocks = (
   body: (mocks: ReturnType<typeof stubBuildSiteApis>) => void | Promise<void>,
   opts?: BuildSiteMockOptions,
 ): Promise<void> => withMocks(() => stubBuildSiteApis(opts), body);
+
+/** Stub the edge-secret push to succeed, recording every pushed RENEWAL_URL
+ * into the returned list. */
+export const recordingRenewalUrlPush = (): {
+  pushedUrls: string[];
+  stub: Stub;
+} => {
+  const pushedUrls: string[] = [];
+  return {
+    pushedUrls,
+    stub: stub(
+      bunnyCdnApi,
+      "setEdgeScriptSecret",
+      (_scriptId: number, name: string, value: string) => {
+        if (name === "RENEWAL_URL") pushedUrls.push(value);
+        return Promise.resolve({ ok: true as const });
+      },
+    ),
+  };
+};
 
 /** The [name, value] secret pairs a `setEdgeScriptSecret` stub recorded. */
 export const secretsFrom = (secretStub: {

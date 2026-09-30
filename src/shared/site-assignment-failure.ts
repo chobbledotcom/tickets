@@ -1,5 +1,13 @@
+/* jscpd:ignore-start -- imports */
+import { settings } from "#db/settings.ts";
+import { unique } from "#fp";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { parseEmail } from "#shared/validation/email.ts";
+/* jscpd:ignore-end */
 
 export type SiteAssignmentConfigValidation =
   | { ok: true }
@@ -50,4 +58,50 @@ export const reportSiteAssignmentFailure = (
     }`,
   });
   sendNtfyError(report.notification);
+};
+
+/** A plan buyer whose booking stood but got no site, because the pool of
+ * pre-built assignable sites ran dry before their turn. */
+export type MissedBuyer = {
+  attendee: { email: string; name: string };
+  listingName: string;
+};
+
+/** Tell the operator a plan sold with no assignable site to give the buyer.
+ * The purchase stands, so the pool running dry must reach a human: the log,
+ * a push notification, and the business email. */
+export const reportOutOfStockBuyers = async (
+  missed: readonly MissedBuyer[],
+): Promise<void> => {
+  if (missed.length === 0) return;
+  const listingNames = unique(missed.map((m) => m.listingName)).join(" + ");
+  logError({
+    code: ErrorCode.SITE_ASSIGNMENT,
+    detail: `${missed.length} plan buyer(s) got no site — the pool of assignable sites is empty (plans: ${listingNames})`,
+  });
+  sendNtfyError(ErrorCode.SITE_ASSIGNMENT);
+
+  const config = getEmailConfig() ?? hostEmail.getHostConfig();
+  const to = parseEmail(settings.businessEmail);
+  if (!config || !to) return;
+  const sitesUrl = `https://${getEffectiveDomain()}/admin/built-sites`;
+  const lines: string[] = missed.map(
+    (m) => `${m.listingName} — ${m.attendee.name} (${m.attendee.email})`,
+  );
+  await sendEmail(config, {
+    html:
+      "<p>A site plan was sold, and no site was available to assign. " +
+      "The booking and its payment stand, and these buyers have no site yet:</p>" +
+      `<ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` +
+      `<p>Add sites on the <a href="${sitesUrl}">built-sites page</a>, then ` +
+      "resend the notification for each buyer from their attendee page.</p>",
+    subject: "A site plan sold with no site available",
+    text:
+      "A site plan was sold, and no site was available to assign.\n\n" +
+      "The booking and its payment stand, and these buyers have no site yet:\n\n" +
+      `${lines.map((line) => `- ${line}`).join("\n")}\n\n` +
+      `Add sites on the built-sites page (${sitesUrl}), then resend the ` +
+      "notification for each buyer from their attendee page.",
+    to,
+  });
 };

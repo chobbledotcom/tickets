@@ -9,7 +9,8 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { assignBuiltSite, insertBuiltSite } from "#db/built-sites.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { execute, getDb, insert, queryOne, requireOne } from "#db/client.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
@@ -216,7 +217,12 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
         "",
         true,
       );
-      await assignBuiltSite(site.id, id, 99);
+      await takePooledSiteForBuyer(
+        await getAssignableBuiltSites(),
+        id,
+        [99],
+        99,
+      );
 
       await purgeOrphanedAttendees(nowIso());
 

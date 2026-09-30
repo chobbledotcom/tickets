@@ -132,7 +132,9 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       await insertBuiltSite("No Deadline Site", "nd.b-cdn.net");
       const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "No Deadline Site")!;
-      const { token } = await provisionTestBuiltSite(site.id);
+      const { token } = await provisionTestBuiltSite(site.id, {
+        readOnlyFrom: "",
+      });
 
       const response = await handleRequest(
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),

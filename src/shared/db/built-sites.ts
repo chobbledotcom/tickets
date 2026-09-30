@@ -6,7 +6,7 @@
 import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { queryAll, queryOne, rowExistsForIdList } from "#db/client.ts";
+import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
 import {
   cachedTable,
@@ -131,7 +131,9 @@ const rawFilter = (
   const named = Object.keys(notAColumn);
   if (named.length > 0) {
     throw new Error(
-      `Cannot filter built sites by ${named.join(", ")}: a site's fields are stored inside one encrypted blob, not as columns. Filter by id.`,
+      `Cannot filter built sites by ${named.join(
+        ", ",
+      )}: a site's fields are stored inside one encrypted blob, not as columns. Filter by id.`,
     );
   }
   return id === undefined ? {} : { id };
@@ -180,34 +182,63 @@ export const findBuiltSiteByIdPrimary = async (
   return row ? rowToBuiltSite(row) : null;
 };
 
+/** The built site with this id, read from the primary. Throws when the row
+ * is gone, because every caller holds an id it just read or wrote. */
+export const requireBuiltSiteByIdPrimary = async (
+  id: number,
+): Promise<BuiltSite> => {
+  const site = await findBuiltSiteByIdPrimary(id);
+  if (!site) throw new Error(`Built site ${id} not found`);
+  return site;
+};
+
+/** Store one revision-fenced change to a built site. Returns the stored row,
+ * or null when the revision moved underneath us and the write must retry. */
+const storeBuiltSiteChanges = async (
+  id: InValue,
+  existing: BuiltSite,
+  changes: BuiltSiteUpdate,
+): Promise<BuiltSiteRow | null> => {
+  const statement = await rawBuiltSitesTable.updateStatement(
+    id,
+    toRawInput({
+      ...existing,
+      ...changes,
+      siteDataRevision: existing.siteDataRevision + 1,
+    }),
+    { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+  );
+  return queryOne<BuiltSiteRow>(statement.sql, statement.args);
+};
+
+/** Apply `changes` only while the row still sits at `expectedRevision`; a
+ * concurrent write that moved it returns false, with no retry. */
+export const updateBuiltSiteIfUnchanged = async (
+  id: InValue,
+  expectedRevision: number,
+  changes: BuiltSiteUpdate,
+): Promise<boolean> => {
+  const existing = await findBuiltSiteByIdPrimary(id);
+  if (!existing || existing.siteDataRevision !== expectedRevision) return false;
+  return (await storeBuiltSiteChanges(id, existing, changes)) !== null;
+};
+
 /** Update a whole built-site record without overwriting a concurrent blob write. */
 export const updateBuiltSite = (
   id: InValue,
   changesFor: (existing: BuiltSite) => BuiltSiteUpdate | null,
-): Promise<BuiltSite | null> => {
-  const updateStatement = rawBuiltSitesTable.updateStatement;
-  return retryWrite(`Could not update built site ${String(id)}`, async () => {
+): Promise<BuiltSite | null> =>
+  retryWrite(`Could not update built site ${String(id)}`, async () => {
     const existing = await findBuiltSiteByIdPrimary(id);
     if (!existing) return { value: null };
     const changes = changesFor(existing);
     if (!changes) return { value: existing };
-    const nextRevision = existing.siteDataRevision + 1;
-    const statement = await updateStatement(
-      id,
-      toRawInput({
-        ...existing,
-        ...changes,
-        siteDataRevision: nextRevision,
-      }),
-      { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
-    );
-    const stored = await queryOne<BuiltSiteRow>(statement.sql, statement.args);
-    if (stored) {
-      return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
-    }
-    return null;
+    const stored = await storeBuiltSiteChanges(id, existing, changes);
+    // A null row means the revision moved: signal retryWrite, not "stored
+    // nothing", or a losing edit would drop silently.
+    if (!stored) return null;
+    return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
   });
-};
 
 /**
  * CRUD-compatible table adapter that presents BuiltSite (with individual fields)
@@ -301,32 +332,6 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   const all = await builtSites.getAll();
   return all.filter((s) => s.assignable);
 };
-
-/**
- * True when a built site is assigned to this attendee on any of the listings.
- * Used to forbid marking an assigned built-site line no-quantity: the assignment
- * (and the live public /renew/ path that resolves the site token with no
- * listing_attendees check) would otherwise survive behind a hidden line. One
- * query over all the IDs; callers pass a non-empty list.
- */
-export const hasAssignedBuiltSite = rowExistsForIdList(
-  (listingIdPlaceholders) =>
-    `SELECT 1 FROM built_sites
-     WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${listingIdPlaceholders}) LIMIT 1`,
-);
-
-/** Assign a built site to an attendee/listing — sets assignable=0 and stores IDs */
-export const assignBuiltSite = (
-  siteId: number,
-  attendeeId: number,
-  listingId: number,
-): Promise<BuiltSite | null> =>
-  updateBuiltSite(siteId, () => ({
-    assignable: false,
-    assignedAttendeeId: attendeeId,
-    assignedListingId: listingId,
-  }));
 
 /** Look up a built site by renewal token index (HMAC blind index) */
 export const getBuiltSiteByRenewalTokenIndex = async (

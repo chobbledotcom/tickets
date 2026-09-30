@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { handleRequest } from "#routes";
 import {
+  attendeeActions,
   attendeeActionUrlWithReturn,
   getReturnUrl,
 } from "#routes/admin/attendees-route-helpers.ts";
@@ -101,4 +102,11 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
       false,
     )(response);
   });
+});
+
+test("an attendee-scoped action stays reachable without a booking", () => {
+  // A no-quantity attendee still needs payment review, so the attendee scope
+  // alone must keep the action available.
+  expect(attendeeActions["payment-review"].isAvailable(false)).toBe(true);
+  expect(attendeeActions["resend-notification"].isAvailable(false)).toBe(false);
 });

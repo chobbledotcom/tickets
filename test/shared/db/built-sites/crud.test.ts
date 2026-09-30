@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
-  assignBuiltSite,
   builtSitesCrudTable,
+  getAssignableBuiltSites,
   insertBuiltSite,
+  requireBuiltSiteByIdPrimary,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
@@ -238,7 +240,8 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       "",
       true,
     );
-    await assignBuiltSite(row.id, 42, 7);
+    const pool = await getAssignableBuiltSites();
+    await takePooledSiteForBuyer(pool, 42, [7], 7);
     await updateBuiltSiteRenewalState(row.id, {
       readOnlyFrom: "2027-01-01T00:00:00Z",
       renewalToken: "renewal-token",
@@ -267,5 +270,11 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       siteDataRevision: 2,
       siteUrl: "moved.bunny.run",
     });
+  });
+
+  test("the required primary read throws for a site id that is gone", async () => {
+    await expect(requireBuiltSiteByIdPrimary(987654)).rejects.toThrow(
+      "Built site 987654 not found",
+    );
   });
 });

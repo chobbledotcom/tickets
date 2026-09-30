@@ -220,7 +220,18 @@ const templateEntryPath = (...tail: Step[]): Step[] => [
   ...tail,
 ];
 
+const attendeeTypeInTypes = [{ name: "Attendee" }];
+
 const exactExemptions = exactFieldExemptions([
+  exactFieldsFrom("src/shared/types.ts")(
+    attendeeTypeInTypes,
+    ["attachment_downloads"],
+    {
+      evidence:
+        "the same per-line fact is read off the structurally identical ListingAttendeeRow in the tickets page, token views, and the merge tables; an attendee row carries it through the shared conditional row type",
+      kind: "dynamic-read",
+    },
+  ),
   attendeeFields(
     [{ name: "DecryptedAttendeeRow" }],
     ["price_paid", "refunded"],

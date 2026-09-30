@@ -22,7 +22,7 @@ import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import {
   addMonthsToRenewalDeadline,
   syncReadOnlyFrom,
-} from "#shared/site-assignment.ts";
+} from "#shared/site-renewal.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
 import { type ContactInfo, type DayPrices, isPaidListing } from "#types";
 
@@ -88,6 +88,9 @@ export type WebhookAttendee = ContactInfo & {
    * confirmation email group the order's lines under the package by this
    * persisted id rather than membership equality. */
   package_group_id: number;
+  /** Whether this booking row's payment was refunded; a refunded plan row
+   * buys no site and no months. */
+  refunded: boolean;
 };
 
 /** Registration entry: listing + attendee pair */

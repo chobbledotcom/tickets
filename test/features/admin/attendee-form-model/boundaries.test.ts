@@ -8,12 +8,11 @@ import {
   toLedgerOrder,
 } from "#routes/admin/attendee-form-model.ts";
 import {
-  bookingRow,
   line,
   makeForm,
   parsedBase,
 } from "#test/features/admin/attendee-form-model/fixtures.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("attendee form model > boundaries", () => {
   test("the form id is the one the stylesheet styles", async () => {
