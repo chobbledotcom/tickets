@@ -247,11 +247,13 @@ export const assignAndNotifyBuiltSites = async (
 
   await runWithSiteBuildScope(async () => {
     const { emails, missedBuyers } = await assignSitesForEntries(entries);
-    await reportOutOfStockBuyers(missedBuyers);
+    // The buyers' setup emails go first, so the operator warnings never spend
+    // the request budget a setup email needs.
     await Promise.all(
       emails.map(({ assignments, to }) =>
         sendSiteAssignmentEmail(to, assignments),
       ),
     );
+    await reportOutOfStockBuyers(missedBuyers);
   });
 };

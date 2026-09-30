@@ -296,6 +296,20 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
+  // A refunded line bought nothing now, so the resend must not notify it
+  // again. The assignment still sees it, so a claim recorded on it before the
+  // refund keeps the buyer served.
+  const entries = await purchaseEntries(data);
+  const notify = entries.filter((entry) => !entry.attendee.refunded);
+  if (notify.length === 0) {
+    return redirect(
+      actionsTab,
+      "Cannot re-send a notification for a refunded purchase",
+      false,
+      { form },
+    );
+  }
+
   // An admin session can spend the owner key, so the resend is the one path
   // that reads the buyer's free-text answers straight from the strings table.
   const freeTexts = (
@@ -305,11 +319,6 @@ const resendNotification = async (
     )
   ).get(attendeeId);
 
-  // A refunded line bought nothing now, so the resend must not notify it
-  // again. The assignment still sees it, so a claim recorded on it before the
-  // refund keeps the buyer served.
-  const entries = await purchaseEntries(data);
-  const notify = entries.filter((entry) => !entry.attendee.refunded);
   await Promise.all([
     logAndNotifyRegistration(notify, {
       freeTexts,

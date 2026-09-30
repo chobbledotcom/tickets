@@ -292,6 +292,39 @@ describeWithEnv("re-sending for a line with no places", { db: true }, () => {
   });
 });
 
+describeWithEnv("re-sending a purchase that was refunded", { db: true }, () => {
+  test("is refused, and says why", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 100,
+      name: "Refunded Solo",
+    });
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const made = await attendeesApi.createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, pricePaid: 300, quantity: 1 }],
+      email: "refunded-solo@example.com",
+      name: "Refunded Solo Buyer",
+    });
+    if (!made.success) throw new Error("Expected the booking to work");
+    const attendee = made.attendees[0]!;
+    await postListingSale({
+      attendeeId: attendee.id,
+      gross: 300,
+      listingId: listing.id,
+    });
+    await refundBookedOrder(attendee.id, listing.id);
+    const before = await registeredEntries();
+
+    const { response } = await resend(attendee.id, "Refunded Solo Buyer");
+
+    expectRedirectWithFlash(
+      `/admin/attendees/${attendee.id}/actions`,
+      "Cannot re-send a notification for a refunded purchase",
+      false,
+    )(response);
+    expect(await registeredEntries()).toBe(before);
+  });
+});
+
 describeWithEnv(
   "re-sending with a buyer's free-text answer",
   { db: true },

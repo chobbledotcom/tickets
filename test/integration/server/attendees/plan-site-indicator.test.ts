@@ -1,9 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookedAttendee,
+  createPaidTestAttendee,
+  resaveAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   bookTestAttendee,
   createTestAttendee,
@@ -97,16 +102,29 @@ describeWithEnv(
         await createTierListing();
         const refundedPlan = await planListing("Refunded Plan");
         const activePlan = await planListing("Active Plan");
-        const attendee = await bookTestAttendee([
-          { listingId: refundedPlan.id },
-          { listingId: activePlan.id },
-        ]);
+        // A payment reference completes the sale, so the buyer is owed a site
+        // and the cue shows until a claim serves them.
+        const attendee = bookedAttendee(
+          await attendeesApi.createAttendeeAtomic({
+            bookings: [
+              { listingId: refundedPlan.id },
+              { listingId: activePlan.id },
+            ],
+            email: "alice@test.com",
+            name: "Alice",
+            paymentId: "pi_two_plans",
+          }),
+        );
+        await resaveAttendee(attendee);
         // The refunded plan was paid and served before its refund.
         await postListingSale({
           attendeeId: attendee.id,
           gross: 300,
           listingId: refundedPlan.id,
         });
+        const owed = await adminGet(`/admin/attendees/${attendee.id}`);
+        expect(await owed.text()).toContain("No site assigned yet");
+
         await insertBuiltSite("Stale Claim", "stale.test", "", "", true);
         const pool = await getAssignableBuiltSites();
         await takePooledSiteForBuyer(

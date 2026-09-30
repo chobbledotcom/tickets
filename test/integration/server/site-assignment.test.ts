@@ -209,14 +209,15 @@ describeWithEnv(
         expect(sites.filter((s) => s.assignedAttendeeId !== null)).toHaveLength(
           1,
         );
-        // One warning email for the two unserved buyers, then the setup email.
+        // The served buyer's setup email goes first, so the warning never
+        // spends the request budget it needs. One warning names both others.
         expect(suite.fetchStub.calls.length).toBe(2);
-        const warning = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-        expect(warning.subject).toBe("A site plan sold with no site available");
-        expect(warning.html.match(/<li>/g)?.length).toBe(2);
-        expect(JSON.parse(suite.fetchStub.calls[1]!.args[1].body).subject).toBe(
+        expect(JSON.parse(suite.fetchStub.calls[0]!.args[1].body).subject).toBe(
           "Your new site is ready",
         );
+        const warning = JSON.parse(suite.fetchStub.calls[1]!.args[1].body);
+        expect(warning.subject).toBe("A site plan sold with no site available");
+        expect(warning.html.match(/<li>/g)?.length).toBe(2);
       });
 
       test("sends email with plural subject for multiple sites", async () => {
