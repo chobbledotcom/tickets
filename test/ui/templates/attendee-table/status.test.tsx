@@ -147,12 +147,21 @@ describe("attendee status cells", () => {
     expect(html).not.toContain("Check out");
   });
 
-  test("a partly admitted multi-ticket line offers both directions", () => {
+  test("a partly admitted multi-ticket line offers one Check in/out link", () => {
     const html = renderStatus({ checked_in: 1, id: 12, quantity: 3 });
 
-    expect(html).toContain('<a class="link-button checkin"');
-    expect(html).toContain('<a class="link-button checkout"');
-    expect(html).toContain('href="/admin/listing/9/attendee/12/checkin"');
+    // Both directions open the same page, so one link names both.
+    expect(html).toBe(
+      '<a class="link-button checkin" href="/admin/listing/9/attendee/12/checkin">Check in/out</a>',
+    );
+  });
+
+  test("a fully admitted multi-ticket line offers Check out", () => {
+    const html = renderStatus({ checked_in: 3, id: 12, quantity: 3 });
+
+    expect(html).toBe(
+      '<a class="link-button checkout" href="/admin/listing/9/attendee/12/checkin">Check out</a>',
+    );
   });
 
   test("picks the control from the pair's booking, not the row's line", () => {
