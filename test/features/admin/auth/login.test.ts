@@ -28,16 +28,16 @@ import {
 } from "#test-utils/mocks.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
 
-/** POST a wrong-password login through the given server context, then assert it
- *  is rejected with a 302 and the standard wrong-credentials flash. */
-const expectWrongPasswordLoginVia = async (
-  server: Parameters<typeof handleRequest>[1],
+/** POST a wrong-password login from the given client IP, then assert it is
+ *  rejected with a 302 and the standard wrong-credentials flash. */
+const expectWrongPasswordLoginFrom = async (
+  clientIp: string,
 ): Promise<void> => {
   const request = await mockAdminLoginRequest({
     password: "wrong",
     username: TEST_ADMIN_USERNAME,
   });
-  const response = await handleRequest(request, server);
+  const response = await handleRequest(request, clientIp);
   expect(response.status).toBe(302);
   expectFlash(
     response,
@@ -202,16 +202,11 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       );
     });
 
-    test("uses server.requestIP when available", async () => {
-      // IP is extracted from server.requestIP.
-      await expectWrongPasswordLoginVia({
-        requestIP: () => ({ address: "192.168.1.100" }),
-      });
-    });
-
-    test("falls back to direct when server.requestIP returns null", async () => {
-      // requestIP returns null, so the handler falls back to "direct".
-      await expectWrongPasswordLoginVia({ requestIP: () => null });
+    test("does not lock out another client IP", async () => {
+      for (let i = 0; i < 5; i++) {
+        await expectWrongPasswordLoginFrom("192.0.2.1");
+      }
+      await expectWrongPasswordLoginFrom("192.0.2.2");
     });
   });
   describe("POST /admin/login (user without wrapped data key)", () => {

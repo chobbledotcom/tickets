@@ -3,10 +3,8 @@ export interface LoopbackServer {
   close: () => Promise<void>;
 }
 
-type LoopbackHandler = (request: Request) => Response | Promise<Response>;
-
 export const defineLoopbackServer =
-  (handler: LoopbackHandler): (() => LoopbackServer) =>
+  (handler: Deno.ServeHandler<Deno.NetAddr>): (() => LoopbackServer) =>
   () => {
     const server = Deno.serve(
       { hostname: "127.0.0.1", onListen: () => {}, port: 0 },

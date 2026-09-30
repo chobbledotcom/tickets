@@ -9,6 +9,7 @@ import {
   withApiBody,
   withSlugLoaded,
 } from "#routes/api/helpers.ts";
+import { runWithClientIp } from "#shared/client-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -102,14 +103,18 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
     });
   });
 
-  test("records attempts and returns the exact rate-limit response", async () => {
-    const request = new Request("http://localhost/api/listings/item/book");
-    const server = { requestIP: () => ({ address: "192.0.2.25" }) };
-
-    for (let attempt = 0; attempt < MAX_BOOKING_ATTEMPTS; attempt++) {
-      expect(await checkBookingRateLimit(request, server)).toBeNull();
-    }
-    const limited = await checkBookingRateLimit(request, server);
+  test("records attempts per client IP and returns the exact rate-limit response", async () => {
+    await runWithClientIp("192.0.2.25", async () => {
+      for (let attempt = 0; attempt < MAX_BOOKING_ATTEMPTS; attempt++) {
+        expect(await checkBookingRateLimit()).toBeNull();
+      }
+    });
+    expect(
+      await runWithClientIp("192.0.2.26", () => checkBookingRateLimit()),
+    ).toBeNull();
+    const limited = await runWithClientIp("192.0.2.25", () =>
+      checkBookingRateLimit(),
+    );
     expect(limited).toBeInstanceOf(Response);
     expect((limited as Response).status).toBe(429);
     expect(await (limited as Response).json()).toEqual({
@@ -146,22 +151,14 @@ describe("API helper composition", () => {
     expect(handled).toBe(false);
   });
 
-  test("passes the loaded value and server context to the handler", async () => {
-    const server = { requestIP: () => ({ address: "127.0.0.1" }) };
-    let seenServer: typeof server | undefined;
+  test("passes the loaded value to the handler", async () => {
     const wrapped = withSlugLoaded((slug: string) =>
       Promise.resolve({ slug: `${slug}-loaded` }),
-    )((_request, loaded, context) => {
-      seenServer = context as typeof server;
-      return Promise.resolve(Response.json({ loaded }));
-    });
+    )((_request, loaded) => Promise.resolve(Response.json({ loaded })));
 
-    const response = await wrapped(
-      new Request("http://localhost"),
-      { slug: "item" },
-      server,
-    );
-    expect(seenServer).toBe(server);
+    const response = await wrapped(new Request("http://localhost"), {
+      slug: "item",
+    });
     expect(await response.json()).toEqual({ loaded: { slug: "item-loaded" } });
   });
 

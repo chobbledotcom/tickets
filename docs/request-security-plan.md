@@ -14,8 +14,8 @@ request with one commit for each issue.
 
 Registration webhooks already send with `redirect: "manual"` and never follow a
 redirect (`sendWebhook` in `src/shared/webhook/delivery.ts`). A redirect answer
-is a `rejected` delivery. #2202 names webhooks, but they need no change. A test
-pins that behaviour.
+is a `rejected` delivery. #2202 names webhooks, but they need no change.
+`test/shared/webhook/delivery/send.test.ts` already pins that behaviour.
 
 ## Trusted facts
 
@@ -35,7 +35,9 @@ The client IP is one string for each request. The entry point reads it once,
 before the router, and `runWithClientIp` keeps it for the request.
 
 - A network request always carries a real address. A missing address on a
-  network request is a platform fault. The entry point throws (see Q2).
+  network request is a platform fault. The Bunny entry throws inside the logged
+  503 guard (see Q2). Deno types `remoteAddr` as a TCP address, so it always has
+  a host name.
 - An in-process call to `handleRequest` (the test suite) carries no connection.
   It records `direct`, as it does today. No production path calls
   `handleRequest` without an address after this change. `serveHandler` requires
@@ -52,11 +54,12 @@ instead of two.
 | ------------------------------------ | ----------------------------------------- |
 | Same origin (scheme, host, and port) | Follow with the same request, as today    |
 | Different origin                     | Throw `Unsafe redirect URL`. Send nothing |
-| Fails the server-fetch URL policy    | Throw `Unsafe redirect URL`, as today     |
 | No `location`                        | Return the redirect answer, as today      |
 | More than five hops                  | Throw `Too many redirects`, as today      |
 
-A cross-origin redirect fails closed. No caller has a reason to follow one.
+A cross-origin redirect fails closed. No caller has a reason to follow one. The
+server-fetch URL policy reads only the scheme and the host. A same-origin hop
+therefore passes it too, and the per-hop policy check goes away.
 
 ### Attachment response (#2203)
 
@@ -67,17 +70,16 @@ on a response that depends on a signed link.
 
 ## Commands and events
 
-| Starting state             | Command or event                                 | Required result                                                  |
-| -------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
-| Bunny request              | `x-real-ip: 198.51.100.4`                        | Every limiter uses `198.51.100.4`                                |
-| Bunny request              | No `x-real-ip`                                   | Throw at the entry point. See Q2                                 |
-| Deno request (Deploy, dev) | `remoteAddr` is TCP `203.0.113.9`                | Every limiter uses `203.0.113.9`                                 |
-| Deno request               | `remoteAddr` is not TCP                          | Throw at the entry point. The app never listens on a socket file |
-| Two clients, A then B      | A fails the login five times, then B tries       | B is not locked out. The login table holds one row for each IP   |
-| SMS send                   | Gateway answers 307 to another host              | Throw `Unsafe redirect URL`. The other host gets no request      |
-| SMS send                   | Gateway answers 307 to a path on the same origin | Follow once with the same body and credentials                   |
-| Registration webhook       | Target answers 302 to another host               | Delivery is `rejected`. No second request                        |
-| Attachment download        | Valid signed link, active booking                | 200 with `cache-control: private, no-store`                      |
+| Starting state             | Command or event                                 | Required result                                                |
+| -------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| Bunny request              | `x-real-ip: 198.51.100.4`                        | Every limiter uses `198.51.100.4`                              |
+| Bunny request              | No `x-real-ip`                                   | Logged 503. See Q2                                             |
+| Deno request (Deploy, dev) | `remoteAddr` is TCP `203.0.113.9`                | Every limiter uses `203.0.113.9`                               |
+| Two clients, A then B      | A fails the login five times, then B tries       | B is not locked out. The login table holds one row for each IP |
+| SMS send                   | Gateway answers 307 to another host              | Throw `Unsafe redirect URL`. The other host gets no request    |
+| SMS send                   | Gateway answers 307 to a path on the same origin | Follow once with the same body and credentials                 |
+| Registration webhook       | Target answers 302 to another host               | Delivery is `rejected`. No second request                      |
+| Attachment download        | Valid signed link, active booking                | 200 with `cache-control: private, no-store`                    |
 
 ## Failure table
 
@@ -136,8 +138,8 @@ the header arrives.
   the code refuses it.
 - A 303 answer on the SMS POST: same-origin behaviour does not change in this
   pull request.
-- A scheduled request: `serveHandler` passes the address too. No scheduled job
-  reads it.
+- A scheduled request: the handler does not read the address, because no
+  scheduled job uses it.
 - A test that calls `handleRequest` with no address still gets `direct`, so the
   suite keeps its limiter fixtures.
 
@@ -160,12 +162,12 @@ No database or provider call is added.
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Bunny address to limiter    | `test/lib/serve-app.test.ts`: the Bunny handler with two `x-real-ip` values gives two login rows                                                             |
 | Deno address to limiter     | Same file: the Deno handler with two `remoteAddr` values gives two login rows                                                                                |
-| Missing or non-TCP address  | Same file: each handler throws                                                                                                                               |
+| Missing address             | Same file: the Bunny handler logs the error and answers 503                                                                                                  |
 | Limiters read the scoped IP | Move the `server` stub tests in `url.test.ts`, `request-scopes.test.ts`, `booking-inputs.test.ts`, and `auth/login.test.ts` to an address on `handleRequest` |
-| Cross-origin redirect       | `test/shared/safe-fetch.test.ts`: another host, another port, and another scheme each throw after one request                                                |
+| Cross-origin redirect       | `test/shared/safe-fetch.test.ts`: another host, another port, and a subdomain each throw after one request                                                   |
 | Same-origin redirect        | Same file: the second request carries the original body and headers                                                                                          |
-| SMS credentials stay        | `test/shared/sms/gateway` test: a cross-origin 307 sends one request only                                                                                    |
-| Webhook does not follow     | Webhook delivery test: a 302 to another host gives `rejected` and one request                                                                                |
+| SMS credentials stay        | `test/shared/sms/gateway.test.ts`: a cross-origin 307 sends one request only                                                                                 |
+| Webhook does not follow     | The test that exists in `send.test.ts` (no change)                                                                                                           |
 | Attachment cache header     | `test/integration/attachment-route.test.ts`: exact `cache-control: private, no-store`                                                                        |
 
 Each regression test must fail on `main` for the reported reason before the fix.

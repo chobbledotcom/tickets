@@ -66,74 +66,70 @@ const resolveQuantityAndDate = async (
 };
 
 /** POST /api/listings/:slug/book — create a booking */
-export const handleBook = withActiveListing(
-  async (request, listing, server) => {
-    // A booking can never start from a non-standalone child: such a
-    // child is only bookable through one of its parents, so reject it as a direct
-    // API entry. A `bookable_alone` child has its own page/API eligibility, so it
-    // books directly here.
-    if (await anyNonStandaloneChild([listing.id])) {
-      return apiError(
-        "This listing must be booked through its parent listing.",
-      );
+export const handleBook = withActiveListing(async (request, listing) => {
+  // A booking can never start from a non-standalone child: such a
+  // child is only bookable through one of its parents, so reject it as a direct
+  // API entry. A `bookable_alone` child has its own page/API eligibility, so it
+  // books directly here.
+  if (await anyNonStandaloneChild([listing.id])) {
+    return apiError("This listing must be booked through its parent listing.");
+  }
+
+  const limited = await checkBookingRateLimit();
+  if (limited) return limited;
+
+  if (isRegistrationClosed(listing)) {
+    return apiError("Registration is closed");
+  }
+
+  return withApiBody(request, async (body) => {
+    // Resolve the booking quantity + date once, shared by the parent and standalone
+    // paths so neither re-derives it (and the JSON contract reads one way).
+    const qtyAndDate = await resolveQuantityAndDate(listing, body);
+    if (qtyAndDate instanceof Response) return qtyAndDate;
+    const { quantity, date } = qtyAndDate;
+
+    // A parent requires the buyer to choose its children: fold the
+    // submitted `children` into a multi-item order rather than booking the parent
+    // alone, which would bypass the gate.
+    if (await parentRequiresChild(listing.id)) {
+      return processParentApiBooking(request, listing, body, quantity, date);
     }
 
-    const limited = await checkBookingRateLimit(request, server);
-    if (limited) return limited;
-
-    if (isRegistrationClosed(listing)) {
-      return apiError("Registration is closed");
+    // Customisable-days listings are priced by a chosen day count, which this
+    // endpoint doesn't accept — booking them here would charge the wrong amount,
+    // so they must be booked through the website form.
+    if (listing.customisable_days) {
+      return apiError("This listing must be booked through the website.");
     }
 
-    return withApiBody(request, async (body) => {
-      // Resolve the booking quantity + date once, shared by the parent and standalone
-      // paths so neither re-derives it (and the JSON contract reads one way).
-      const qtyAndDate = await resolveQuantityAndDate(listing, body);
-      if (qtyAndDate instanceof Response) return qtyAndDate;
-      const { quantity, date } = qtyAndDate;
+    const form = toFormParams(body);
 
-      // A parent requires the buyer to choose its children: fold the
-      // submitted `children` into a multi-item order rather than booking the parent
-      // alone, which would bypass the gate.
-      if (await parentRequiresChild(listing.id)) {
-        return processParentApiBooking(request, listing, body, quantity, date);
-      }
+    // Validate fields using the same form validation as the web
+    const paid = isPaidListing(listing);
+    const valResult = tryValidateTicketFields(
+      form,
+      listing.fields,
+      (msg) => apiError(msg),
+      paid,
+    );
+    if (valResult instanceof Response) return valResult;
+    const values = valResult;
 
-      // Customisable-days listings are priced by a chosen day count, which this
-      // endpoint doesn't accept — booking them here would charge the wrong amount,
-      // so they must be booked through the website form.
-      if (listing.customisable_days) {
-        return apiError("This listing must be booked through the website.");
-      }
+    // Parse custom price for pay-more listings
+    const customUnitPrice = resolveCustomPrice(listing, form);
+    if (customUnitPrice instanceof Response) return customUnitPrice;
 
-      const form = toFormParams(body);
-
-      // Validate fields using the same form validation as the web
-      const paid = isPaidListing(listing);
-      const valResult = tryValidateTicketFields(
-        form,
-        listing.fields,
-        (msg) => apiError(msg),
-        paid,
-      );
-      if (valResult instanceof Response) return valResult;
-      const values = valResult;
-
-      // Parse custom price for pay-more listings
-      const customUnitPrice = resolveCustomPrice(listing, form);
-      if (customUnitPrice instanceof Response) return customUnitPrice;
-
-      const contact = extractContact(values);
-      return bookingResultToResponse(
-        await processBooking(
-          listing,
-          contact,
-          quantity,
-          date,
-          getBaseUrl(request),
-          customUnitPrice,
-        ),
-      );
-    });
-  },
-);
+    const contact = extractContact(values);
+    return bookingResultToResponse(
+      await processBooking(
+        listing,
+        contact,
+        quantity,
+        date,
+        getBaseUrl(request),
+        customUnitPrice,
+      ),
+    );
+  });
+});

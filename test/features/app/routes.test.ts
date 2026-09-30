@@ -20,7 +20,6 @@ const routeRequest = async (
     method,
     path,
     request,
-    server: undefined,
   });
   return response;
 };

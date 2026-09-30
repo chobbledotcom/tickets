@@ -5,8 +5,7 @@ import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
 import { orResponse } from "#routes/response.ts";
-import type { ServerContext } from "#routes/types.ts";
-import { getClientIp } from "#routes/url.ts";
+import { getRequestClientIp } from "#shared/client-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { isRecord, type ListingWithCount } from "#types";
@@ -115,21 +114,19 @@ export const withApiBody = async (
 /** A route handler keyed by a single `:slug` path param — the shape every
  * `withSlugLoaded` wrapper returns to the router. Kept as a named type so the
  * listing and package wrappers expose one identical contract instead of each
- * re-spelling `(request, { slug }, server) => Promise<Response>`. */
+ * re-spelling `(request, { slug }) => Promise<Response>`. */
 export type SlugRouteHandler = (
   request: Request,
   params: { slug: string },
-  server?: ServerContext,
 ) => Promise<Response>;
 
 /** A handler that receives a slug-loaded value alongside the request — the
  * shape `withSlugLoaded` calls after the load succeeds, so each loaded surface
  * (an active listing, a bookable package) only spells how its loader yields the
- * value, not the request/server plumbing around it. */
+ * value, not the request plumbing around it. */
 type LoadedHandler<Loaded> = (
   request: Request,
   loaded: Loaded,
-  server?: ServerContext,
 ) => Promise<Response>;
 
 /** Wrap a `:slug` route handler that resolves its slug into a loaded value,
@@ -140,11 +137,9 @@ type LoadedHandler<Loaded> = (
 export const withSlugLoaded =
   <Loaded>(loader: (slug: string) => Promise<Loaded | Response>) =>
   (handler: LoadedHandler<Loaded>): SlugRouteHandler =>
-  async (request, { slug }, server) => {
+  async (request, { slug }) => {
     const loaded = await loader(slug);
-    return loaded instanceof Response
-      ? loaded
-      : handler(request, loaded, server);
+    return loaded instanceof Response ? loaded : handler(request, loaded);
   };
 
 /** Look up an active listing by slug, or respond. The detail, availability,
@@ -165,11 +160,8 @@ export const toFormParams = (body: Record<string, unknown>): FormParams =>
  * could grief capacity and spam the owner. Returns a 429 response when over the
  * limit, or null to proceed (counting this attempt).
  */
-export const checkBookingRateLimit = async (
-  request: Request,
-  server?: ServerContext,
-): Promise<Response | null> => {
-  const ip = getClientIp(request, server);
+export const checkBookingRateLimit = async (): Promise<Response | null> => {
+  const ip = getRequestClientIp();
   if (await bookingLimiter.isLimited(ip)) {
     return apiError("Too many booking attempts. Please try again later.", 429);
   }

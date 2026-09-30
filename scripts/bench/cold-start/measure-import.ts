@@ -29,8 +29,10 @@ const importMs = performance.now() - importStart;
 let firstRequestMs: number | null = null;
 if (mode === "request") {
   const requestStart = performance.now();
-  const response: Response = await module.serveHandler(
-    new Request("http://localhost/robots.txt"),
+  const response: Response = await module.bunnyServeHandler(
+    new Request("http://localhost/robots.txt", {
+      headers: { "x-real-ip": "127.0.0.1" },
+    }),
   );
   const body = await response.text();
   firstRequestMs = performance.now() - requestStart;

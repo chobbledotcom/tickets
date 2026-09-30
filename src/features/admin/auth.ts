@@ -1,4 +1,5 @@
 import { defineRoutes } from "#routes/router.ts";
+import { getRequestClientIp } from "#shared/client-context.ts";
 
 /**
  * Admin authentication routes - login and logout
@@ -30,8 +31,7 @@ import {
 } from "#routes/auth.ts";
 import { parseFormData } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
-import type { ServerContext } from "#routes/types.ts";
-import { getClientIp, parseCookies } from "#routes/url.ts";
+import { parseCookies } from "#routes/url.ts";
 import {
   buildSessionCookie,
   clearSessionCookie,
@@ -81,7 +81,6 @@ const createLoginSession = async (
 const handleAdminLogin = async (
   request: Request,
   _params: Record<string, never>,
-  server?: ServerContext,
 ): Promise<Response> => {
   await randomDelay();
 
@@ -93,7 +92,7 @@ const handleAdminLogin = async (
     return fail("/admin", t("error.csrf_invalid"));
   }
 
-  const clientIp = getClientIp(request, server);
+  const clientIp = getRequestClientIp();
 
   // Check rate limiting
   if (await loginLimiter.isLimited(clientIp)) {

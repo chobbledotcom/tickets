@@ -23,7 +23,7 @@ import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
-import { serveHandler } from "#src/serve-app.ts";
+import { bunnyServeHandler } from "#src/serve-app.ts";
 import { serveAndDrain } from "./serve-request.ts";
 import { requireBenchmarkCatalogue, requiredEnv } from "./support.ts";
 
@@ -102,7 +102,7 @@ setDb(wrapClient(createClient({ url: requiredEnv("DB_URL") })));
 
 const timedRequest = async (): Promise<{ ms: number; status: number }> => {
   requestStart = performance.now();
-  const response = await serveAndDrain(serveHandler, "/listings");
+  const response = await serveAndDrain(bunnyServeHandler, "/listings");
   const ms = performance.now() - requestStart;
   requireBenchmarkCatalogue(response, "GET /listings");
   return { ms, status: response.status };

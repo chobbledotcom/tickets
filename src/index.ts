@@ -9,7 +9,7 @@
  */
 
 import { validateBootChecks } from "#shared/boot-checks.ts";
-import { devServerPort, serveHandler } from "./serve-app.ts";
+import { denoServeHandler, devServerPort } from "./serve-app.ts";
 
 validateBootChecks();
-Deno.serve({ port: devServerPort() }, serveHandler);
+Deno.serve({ port: devServerPort() }, denoServeHandler);

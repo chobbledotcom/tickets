@@ -114,19 +114,14 @@ const matchSvgPath = (path: string): string | null => {
 const tokenRoute = createTokenRoute("t", { GET: handleTicketView });
 
 /** Route ticket view and SVG requests */
-export const routeTicketView: PathMethodRoute = (
-  request,
-  path,
-  method,
-  server,
-) => {
+export const routeTicketView: PathMethodRoute = (request, path, method) => {
   if (method === "GET") {
     const svgToken = matchSvgPath(path);
     if (svgToken) {
-      return withTokenRateLimit(request, server, [svgToken], () =>
+      return withTokenRateLimit([svgToken], () =>
         handleTicketSvg(request, [svgToken]),
       );
     }
   }
-  return tokenRoute(request, path, method, server);
+  return tokenRoute(request, path, method);
 };

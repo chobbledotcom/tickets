@@ -18,9 +18,9 @@ import {
 } from "#db/token-attempts.ts";
 import { compact, unique } from "#fp";
 import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
-import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
-import { getClientIp } from "#routes/url.ts";
+import type { PathMethodRoute } from "#routes/types.ts";
 import type { WalletPassData } from "#shared/apple-wallet.ts";
+import { getRequestClientIp } from "#shared/client-context.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { listingDetails } from "#shared/listing-details.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -267,12 +267,10 @@ export const lookupAttendees = async (
  * contribute to the limit and also wipe the IP's fat-finger history).
  */
 export const withTokenRateLimit = async (
-  request: Request,
-  server: ServerContext | undefined,
   tokens: string[],
   run: ResponseHandler,
 ): Promise<Response> => {
-  const ip = getClientIp(request, server);
+  const ip = getRequestClientIp();
   if (await isTokenRateLimited(ip)) return rateLimitedResponse();
 
   const response = await run();
@@ -291,7 +289,7 @@ export const withTokenRateLimit = async (
  */
 export const createTokenRoute =
   (prefix: string, methods: TokenMethodMap): PathMethodRoute =>
-  (request, path, method, server) => {
+  (request, path, method) => {
     const tokensStr = extractTokenSegment(prefix, path);
     if (!tokensStr) return Promise.resolve(null);
 
@@ -299,7 +297,5 @@ export const createTokenRoute =
     if (!handler) return Promise.resolve(null);
 
     const tokens = parseTokens(tokensStr);
-    return withTokenRateLimit(request, server, tokens, () =>
-      handler(request, tokens),
-    );
+    return withTokenRateLimit(tokens, () => handler(request, tokens));
   };

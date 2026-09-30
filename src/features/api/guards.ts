@@ -1,7 +1,6 @@
 import { apiError } from "#routes/api/cors.ts";
 import { LISTING_NOT_FOUND, withActiveListing } from "#routes/api/helpers.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
-import type { ServerContext } from "#routes/types.ts";
 import type { ListingWithCount } from "#types";
 
 /** How a single listing should read on the detail/availability surfaces under
@@ -45,11 +44,10 @@ export const withGuardedListing = (
     request: Request,
     listing: ListingWithCount,
     isSoldOutParent: boolean,
-    server?: ServerContext,
   ) => Promise<Response>,
 ) =>
-  withActiveListing(async (request, listing, server) => {
+  withActiveListing(async (request, listing) => {
     const guard = await guardChildListing(listing);
     if (guard instanceof Response) return guard;
-    return handler(request, listing, guard.isSoldOutParent, server);
+    return handler(request, listing, guard.isSoldOutParent);
   });

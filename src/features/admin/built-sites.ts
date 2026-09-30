@@ -246,8 +246,8 @@ const handleBuiltSitesListGet = ownerPage(async (session) => {
  * of a repeated check at the top of every handler. */
 const builderOnly =
   (handler: RouteHandlerFn): RouteHandlerFn =>
-  (request, params, server) =>
-    isBuilderEnabled() ? handler(request, params, server) : notFoundResponse();
+  (request, params) =>
+    isBuilderEnabled() ? handler(request, params) : notFoundResponse();
 
 const gateOnBuilder = <Key extends string>(
   routes: Record<Key, (...args: never[]) => unknown>,

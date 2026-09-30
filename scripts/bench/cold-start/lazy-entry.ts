@@ -5,5 +5,5 @@
  * initialisers). Comparing its import time against the real entry separates
  * "parse + compile the bundle" from "run the eager modules' top-level code".
  */
-export const serveHandler = async (request: Request): Promise<Response> =>
-  (await import("#src/serve-app.ts")).serveHandler(request);
+export const bunnyServeHandler = async (request: Request): Promise<Response> =>
+  (await import("#src/serve-app.ts")).bunnyServeHandler(request);

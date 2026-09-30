@@ -67,11 +67,11 @@ describe("createTokenRoute", () => {
   });
 
   test("returns null when the path has no token segment for the prefix", async () => {
-    expect(await route(request, "/other/abc", "GET", undefined)).toBeNull();
+    expect(await route(request, "/other/abc", "GET")).toBeNull();
   });
 
   test("returns null when no handler is registered for the method", async () => {
-    expect(await route(request, "/t/abc", "POST", undefined)).toBeNull();
+    expect(await route(request, "/t/abc", "POST")).toBeNull();
   });
 });
 
