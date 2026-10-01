@@ -17,6 +17,7 @@ import {
   getDueSquareLinkEnds,
 } from "#db/square-link-ends.ts";
 import type { SquareLinkEndEventId } from "#payment/square-link-end-machine-spec.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/limits.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { squareApi } from "#shared/square/api.ts";
@@ -32,12 +33,7 @@ const endOne = async (row: DueSquareLinkEnd): Promise<void> => {
     // The lease expired without an answer, so the row returns to the queue
     // and the next run claims it afresh.
     const wrote = await applySquareLinkEndEvent(row, "lease_expired");
-    logDebug(
-      "Square",
-      wrote
-        ? "Link end lease expired back to pending"
-        : "Link end lease was answered by another runner",
-    );
+    logDebug("Square", `Link end lease returned to the queue: ${wrote}`);
     return;
   }
   const leaseUntil = await claimSquareLinkEnd(row);
@@ -57,7 +53,7 @@ const endOne = async (row: DueSquareLinkEnd): Promise<void> => {
   } catch (error) {
     logError({
       code: ErrorCode.SQUARE_CHECKOUT,
-      detail: `Square link end failed for ${row.sessionIndex}: ${error instanceof Error ? error.message : String(error)}`,
+      detail: `Square link end failed for ${row.sessionIndex}: ${errorMessage(error)}`,
     });
     // The send failed or the answer never came back, so the row waits out
     // the failure retry — the documented outcome of a delete that proved
@@ -69,10 +65,7 @@ const endOne = async (row: DueSquareLinkEnd): Promise<void> => {
   // Losing the write means another runner answered this row first, with the
   // same evidence. Its answer stands; ours would only overwrite the attempt
   // time it just set.
-  logDebug(
-    "Square",
-    wrote ? `Link end answered ${event}` : "Link end was beaten to a row",
-  );
+  logDebug("Square", `Link end answered ${event}: ${wrote}`);
 };
 
 /**

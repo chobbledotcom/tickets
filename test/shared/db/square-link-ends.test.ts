@@ -245,4 +245,57 @@ describeWithEnv("square link ends", { db: true }, () => {
     const due: DueSquareLinkEnd[] = await getDueSquareLinkEnds();
     expect(due.some((row) => row.sessionIndex === futureIndex)).toBe(false);
   });
+
+  test("a run returns an expired lease to the queue without asking Square", async () => {
+    await stageDue("sq_run_lease");
+    const [due] = await getDueSquareLinkEnds();
+    await claimSquareLinkEnd(due!);
+    // The lease passes without an answer.
+    await execute(
+      "UPDATE square_link_ends SET next_attempt_at = ? WHERE session_index = ?",
+      [PAST, await hmacHash("sq_run_lease")],
+    );
+
+    const read = stub(squareApi, "endLink", () => {
+      throw new Error("an expired lease must not reach Square");
+    });
+    try {
+      await runSquareLinkExpiry();
+    } finally {
+      read.restore();
+    }
+    expect(read.calls).toHaveLength(0);
+    const stored = await storedRow("sq_run_lease");
+    expect(stored?.state).toBe("pending");
+    expect(new Date(stored!.next_attempt_at).getTime()).toBeLessThanOrEqual(
+      Date.parse(nowIso()),
+    );
+  });
+
+  test("a run leaves a row another runner claims mid-batch", async () => {
+    await stageDue("sq_run_first");
+    await stageDue("sq_run_stolen");
+
+    let stolen = false;
+    const read = stub(squareApi, "endLink", async () => {
+      if (!stolen) {
+        stolen = true;
+        // While this row is being asked, another runner claims every other
+        // due row, so this run's own claim on them loses.
+        for (const due of await getDueSquareLinkEnds()) {
+          if (due.state === "pending") await claimSquareLinkEnd(due);
+        }
+      }
+      return theAnswer(404, `{"errors":[]}`);
+    });
+    try {
+      await runSquareLinkExpiry();
+    } finally {
+      read.restore();
+    }
+
+    // The asked row ended on its 404; the stolen row stays with its runner.
+    expect(await storedRow("sq_run_first")).toBeNull();
+    expect((await storedRow("sq_run_stolen"))?.state).toBe("ending");
+  });
 });

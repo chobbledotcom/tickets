@@ -92,6 +92,35 @@ describeSquare(() => {
       expect(body.pre_populated_data.buyer_phone_number).toBe("+44123");
     });
 
+    test("ends a payment link through the whole client", async () => {
+      mockFetch = installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                cancelled_order_id: "ord_rest",
+                id: "plink_rest",
+              }),
+            ),
+        }),
+      );
+
+      const answer = await squareApi.endLink("plink_rest");
+
+      // The whole answer comes back, because the classifier reads the
+      // status and the refusal words itself.
+      expect(answer.status).toBe(200);
+      expect(answer.text).toContain("ord_rest");
+      const [url, opts] = mockFetch.calls[0]!.args;
+      expect(url).toBe(
+        "https://connect.squareupsandbox.com/v2/online-checkout/payment-links/plink_rest",
+      );
+      expect(opts.method).toBe("DELETE");
+      expect(opts.headers!.Authorization).toBe("Bearer EAAAl_rest_test");
+    });
+
     // A blank long address is a broken answer, not a reason to send the buyer
     // to the short one: the two name different pages, and Square fills both in
     // when it creates a link at all.

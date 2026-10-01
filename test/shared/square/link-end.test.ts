@@ -2,17 +2,50 @@
  * Only `cancelled_order_id` ends a link on a 200; a 404 ends it on its own; a
  * refusal that names a paid order ends it too; everything else proves
  * nothing. */
-
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import type { FetchResult } from "#shared/fetch.ts";
-import { squareLinkEndEventOf } from "#shared/square/link-end.ts";
+import type { SquareClient } from "#shared/square/client.ts";
+import {
+  endSquareLink,
+  squareLinkEndEventOf,
+} from "#shared/square/link-end.ts";
 
 const answer = (status: number, body: string): FetchResult => ({
   headers: new Headers(),
   ok: status >= 200 && status < 300,
   status,
   text: body,
+});
+
+describe("endSquareLink", () => {
+  test("asks the client to end the link and hands back its whole answer", async () => {
+    const ended: FetchResult = {
+      headers: new Headers(),
+      ok: true,
+      status: 200,
+      text: `{"id":"plink","cancelled_order_id":"ord"}`,
+    };
+    const cancel = spy((_input: { linkId: string }) => Promise.resolve(ended));
+
+    const given = await endSquareLink(
+      () =>
+        Promise.resolve({
+          checkout: { paymentLinks: { cancel } },
+        } as unknown as SquareClient),
+      "plink",
+    );
+
+    expect(given).toBe(ended);
+    expect(cancel.calls[0]?.args[0]).toEqual({ linkId: "plink" });
+  });
+
+  test("raises when Square is not configured", async () => {
+    await expect(
+      endSquareLink(() => Promise.resolve(null), "plink"),
+    ).rejects.toThrow("Square is not configured, so no link can be ended");
+  });
 });
 
 describe("square link delete answers", () => {
@@ -25,6 +58,12 @@ describe("square link delete answers", () => {
         ),
       ),
     ).toBe("delete_answered_cancelled");
+  });
+
+  test("a body that is JSON but not an object proves nothing", () => {
+    expect(squareLinkEndEventOf(answer(200, `"still payable"`))).toBe(
+      "delete_inconclusive",
+    );
   });
 
   test("a 200 without a cancelled order id proves nothing", () => {

@@ -15,6 +15,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
+import type { PaymentProviderType } from "#types";
 
 export const bookingIntent = (
   items: BookingItem[],
@@ -35,6 +36,7 @@ export const paymentSession = (
   id: string,
   amountTotal: number,
   intent: BookingIntent,
+  provider: PaymentProviderType = "stripe",
 ): ValidatedPaymentSession => ({
   amountTotal,
   createdAt: "2026-07-01T12:00:00.000Z",
@@ -47,16 +49,17 @@ export const paymentSession = (
   }),
   paymentReference: `pi_${id}`,
   paymentStatus: "paid",
-  provider: "stripe",
+  provider,
 });
 
 export const trustedPayment = (
   id: string,
   intent: BookingIntent,
   amountTotal: number,
+  provider: PaymentProviderType = "stripe",
 ): ValidatedSession => ({
   intent,
-  session: paymentSession(id, amountTotal, intent),
+  session: paymentSession(id, amountTotal, intent, provider),
   verdict: { agreed: amountTotal, verdict: "trusted" },
 });
 
