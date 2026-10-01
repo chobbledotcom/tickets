@@ -60,6 +60,14 @@ describe("square link delete answers", () => {
     ).toBe("delete_answered_cancelled");
   });
 
+  test("a one-character cancelled order id still proves the link ended", () => {
+    expect(
+      squareLinkEndEventOf(
+        answer(200, `{"id":"MQASNYL6QB6DFCJ3","cancelled_order_id":"o"}`),
+      ),
+    ).toBe("delete_answered_cancelled");
+  });
+
   test("a body that is JSON but not an object proves nothing", () => {
     expect(squareLinkEndEventOf(answer(200, `"still payable"`))).toBe(
       "delete_inconclusive",

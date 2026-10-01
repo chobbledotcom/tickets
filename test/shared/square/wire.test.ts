@@ -282,6 +282,18 @@ describe("squareAnswer", () => {
           },
         },
       ],
+      [
+        "sends a blank long address next to the short one",
+        {
+          payment_link: {
+            created_at: "2026-09-29T12:00:00Z",
+            id: "plink_1",
+            long_url: "",
+            order_id: "ord_1",
+            url: "https://square.link/s",
+          },
+        },
+      ],
     ] as const) {
       test(`refuses an answer that ${name}`, () => {
         expectRefused(() => squareAnswer.paymentLink(body));

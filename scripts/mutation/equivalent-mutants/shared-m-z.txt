@@ -369,3 +369,25 @@ src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # runValidati
 src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
 src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → ||   # byChild sums validated quantities of at least 1, so every present value is truthy
 src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → ||   # childrenByParentId.get answers an array or undefined, and every array is truthy
+
+# link-end.ts's jsonOrNull: its one caller (squareLinkEndEventOf) reads only
+# body.errors and body.cancelled_order_id off the result. JSON.parse never
+# yields a function, and a property read on a JSON primitive (string, number,
+# boolean) yields undefined without throwing, so returning a cast primitive
+# instead of null is indistinguishable from returning null through that
+# caller; arrays are objects and pass both forms unchanged.
+src/shared/square/link-end.ts::jsonOrNull~06gum1e  && → ||   # JSON.parse yields primitive|object|array; a primitive's property reads give undefined, so the caller reads the same answer either way
+
+# The Square link-end machine has no split move. Representative tags label only
+# the test matrix, and `expected` ignores its tag for every plain or absent cell.
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1jt9shd  row_deleted → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~0g7esyv  lease_held → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1toq277  unclaimed → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1fvh6yn  no_row_yet → ""   # tag labels one conformance case; production reads only the representative state
+
+# machine-spec.ts's moveOrRefuse passes "" as the split-shape tag on purpose:
+# a split cell is looked up per rep tag, and every rep tag the machines
+# declare is a non-empty word (they name a conformance case), so "" never
+# matches a split shape — any other non-empty sentinel behaves identically.
+# A machine that declared an "" tag would break its own atlas labeling first.
+src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated"   # perRep[""] and perRep["mutated"] are both undefined for every declared tag, so both refuse

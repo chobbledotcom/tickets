@@ -61,6 +61,19 @@ describe("square link end machine", () => {
     );
   });
 
+  test("the create and check events act as the system, the completion as the provider", () => {
+    // The actor names who made the move on the admin page: the expiry task
+    // (create, check) or the payment engine (complete).
+    const actorByKind: Record<string, string> = {
+      check: "system",
+      complete: "provider",
+      create: "system",
+    };
+    for (const event of LINK_END_EVENTS) {
+      expect(event.actor, event.id).toBe(actorByKind[event.kind]);
+    }
+  });
+
   test("refuses a stored word the machine does not have", () => {
     expect(() => parseSquareLinkEndState("gone")).toThrow(
       "A square_link_ends row holds unknown state gone",

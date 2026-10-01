@@ -5,11 +5,9 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { decrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, queryOne } from "#db/client.ts";
 import {
   applySquareLinkEndEvent,
   claimSquareLinkEnd,
@@ -18,62 +16,17 @@ import {
   getDueSquareLinkEnds,
   stageSquareLinkEnd,
 } from "#db/square-link-ends.ts";
-import type { FetchResult } from "#shared/fetch.ts";
-import { nowIso } from "#shared/now.ts";
-import { squareApi } from "#shared/square/api.ts";
-import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/square/limits.ts";
-import { runSquareLinkExpiry } from "#shared/square/link-expiry-run.ts";
+import {
+  backdateAttempt,
+  expectBackToQueue,
+  PAST,
+  stageDue,
+  storedRow,
+  WINDOW_END,
+} from "#test/shared/square/link-end-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /* jscpd:ignore-end */
-
-const PAST = "2020-01-01T00:00:00Z";
-const WINDOW_END = "2999-01-01T13:00:00Z";
-
-interface StoredRow {
-  readonly next_attempt_at: string;
-  readonly sealed_handle: string;
-  readonly state: string;
-}
-
-const storedRow = async (sessionId: string): Promise<StoredRow | null> =>
-  queryOne<StoredRow>(
-    "SELECT state, sealed_handle, next_attempt_at FROM square_link_ends WHERE session_index = ?",
-    [await hmacHash(sessionId)],
-  );
-
-/** Stage a row and make it due now. */
-const stageDue = async (
-  sessionId: string,
-  linkId = `link_${sessionId}`,
-): Promise<void> => {
-  await stageSquareLinkEnd(sessionId, linkId, WINDOW_END);
-  await backdateAttempt(sessionId);
-};
-
-/** Move one row's attempt time to the past, so it reads due again. */
-const backdateAttempt = async (sessionId: string): Promise<void> => {
-  await execute(
-    "UPDATE square_link_ends SET next_attempt_at = ? WHERE session_index = ?",
-    [PAST, await hmacHash(sessionId)],
-  );
-};
-
-const theAnswer = (status: number, body: string): FetchResult => ({
-  headers: new Headers(),
-  ok: status >= 200 && status < 300,
-  status,
-  text: body,
-});
-
-/** Assert a row sits pending and due again, ready for a fresh claim. */
-const expectBackToQueue = async (sessionId: string): Promise<void> => {
-  const stored = await storedRow(sessionId);
-  expect(stored?.state).toBe("pending");
-  expect(new Date(stored!.next_attempt_at).getTime()).toBeLessThanOrEqual(
-    Date.parse(nowIso()),
-  );
-};
 
 describeWithEnv("square link ends", { db: true }, () => {
   test("stages the handle sealed, keyed by the session hash, first due at the window", async () => {
@@ -152,7 +105,7 @@ describeWithEnv("square link ends", { db: true }, () => {
 
     expect(wrote).toBe(true);
     // The row returns due now, so the next run claims it afresh.
-    expectBackToQueue("sq_lease");
+    await expectBackToQueue("sq_lease");
   });
 
   test("an apply fenced on a read the row has left loses", async () => {
@@ -175,6 +128,36 @@ describeWithEnv("square link ends", { db: true }, () => {
     expect(second).toBe(false);
   });
 
+  test("an end fenced on a lease the row no longer holds loses", async () => {
+    await stageDue("sq_stale_lease");
+    const [due] = await getDueSquareLinkEnds();
+    const firstLease = await claimSquareLinkEnd(due!);
+
+    // The first lease expires, the row returns to the queue, and another
+    // runner claims it under a fresh lease.
+    await applySquareLinkEndEvent(
+      { ...due!, claimedAt: firstLease!, state: "ending" },
+      "lease_expired",
+    );
+    const [requeued] = await getDueSquareLinkEnds();
+    const secondLease = await claimSquareLinkEnd(requeued!);
+
+    // The first runner's refusal names a paid order on its own, now stale,
+    // lease: the fence is the attempt time, not the state alone.
+    const stale = {
+      ...requeued!,
+      claimedAt: PAST,
+      state: "ending" as const,
+    };
+    expect(await applySquareLinkEndEvent(stale, "delete_refused_paid")).toBe(
+      false,
+    );
+    const stored = await storedRow("sq_stale_lease");
+    expect(stored?.state).toBe("ending");
+    expect(stored?.next_attempt_at).toBe(secondLease);
+    expect(secondLease).not.toBe(PAST);
+  });
+
   test("the completion takes only a row still pending", async () => {
     await stageDue("sq_paid");
     const [due] = await getDueSquareLinkEnds();
@@ -191,111 +174,11 @@ describeWithEnv("square link ends", { db: true }, () => {
     expect(await storedRow("sq_paid_free")).toBeNull();
   });
 
-  test("a run ends due links by what Square answered", async () => {
-    await stageDue("sq_run_end", "link_run_end");
-    const read = stub(squareApi, "endLink", () =>
-      Promise.resolve(
-        theAnswer(
-          200,
-          `{"id":"link_run_end","cancelled_order_id":"order_run_end"}`,
-        ),
-      ),
-    );
-    try {
-      expect(await runSquareLinkExpiry()).toBe(false);
-    } finally {
-      read.restore();
-    }
-    // The stub saw the sealed row's own link id, decrypted only at the send.
-    expect(read.calls[0]?.args[0]).toBe("link_run_end");
-    expect(await storedRow("sq_run_end")).toBeNull();
-  });
-
-  test("a failed send waits out the failure retry and stays loud", async () => {
-    await stageDue("sq_run_fail");
-    const read = stub(squareApi, "endLink", () => {
-      throw new Error("Square could not be reached");
-    });
-    try {
-      await runSquareLinkExpiry();
-    } finally {
-      read.restore();
-    }
-    const stored = await storedRow("sq_run_fail");
-    expect(stored?.state).toBe("pending");
-    expect(new Date(stored!.next_attempt_at).getTime()).toBeGreaterThan(
-      Date.now(),
-    );
-  });
-
-  test("a full batch asks for a follow-up run", async () => {
-    for (let index = 0; index < SQUARE_LINK_EXPIRY_BATCH; index++) {
-      await stageDue(`sq_full_${index}`);
-    }
-    const read = stub(squareApi, "endLink", () =>
-      Promise.resolve(theAnswer(404, `{"errors":[]}`)),
-    );
-    try {
-      expect(await runSquareLinkExpiry()).toBe(true);
-    } finally {
-      read.restore();
-    }
-    for (let index = 0; index < SQUARE_LINK_EXPIRY_BATCH; index++) {
-      expect(await storedRow(`sq_full_${index}`)).toBeNull();
-    }
-  });
-
   test("a row whose window has not closed is not due", async () => {
     await stageSquareLinkEnd("sq_future", "link_future", WINDOW_END);
     const futureIndex = await hmacHash("sq_future");
 
     const due: DueSquareLinkEnd[] = await getDueSquareLinkEnds();
     expect(due.some((row) => row.sessionIndex === futureIndex)).toBe(false);
-  });
-
-  test("a run returns an expired lease to the queue without asking Square", async () => {
-    await stageDue("sq_run_lease");
-    const [due] = await getDueSquareLinkEnds();
-    await claimSquareLinkEnd(due!);
-    // The lease passes without an answer.
-    await backdateAttempt("sq_run_lease");
-
-    const read = stub(squareApi, "endLink", () => {
-      throw new Error("an expired lease must not reach Square");
-    });
-    try {
-      await runSquareLinkExpiry();
-    } finally {
-      read.restore();
-    }
-    expect(read.calls).toHaveLength(0);
-    expectBackToQueue("sq_run_lease");
-  });
-
-  test("a run leaves a row another runner claims mid-batch", async () => {
-    await stageDue("sq_run_first");
-    await stageDue("sq_run_stolen");
-
-    let stolen = false;
-    const read = stub(squareApi, "endLink", async () => {
-      if (!stolen) {
-        stolen = true;
-        // While this row is being asked, another runner claims every other
-        // due row, so this run's own claim on them loses.
-        for (const due of await getDueSquareLinkEnds()) {
-          if (due.state === "pending") await claimSquareLinkEnd(due);
-        }
-      }
-      return theAnswer(404, `{"errors":[]}`);
-    });
-    try {
-      await runSquareLinkExpiry();
-    } finally {
-      read.restore();
-    }
-
-    // The asked row ended on its 404; the stolen row stays with its runner.
-    expect(await storedRow("sq_run_first")).toBeNull();
-    expect((await storedRow("sq_run_stolen"))?.state).toBe("ending");
   });
 });
