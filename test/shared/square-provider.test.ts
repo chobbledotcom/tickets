@@ -461,7 +461,7 @@ describe("square-provider", () => {
       );
       const session =
         await squarePaymentProvider.retrieveSession("order_canceled");
-      expect(session?.paymentStatus).toBe("failed");
+      expect(asSession(session).paymentStatus).toBe("failed");
     });
 
     test("refuses a payment that reports another order", async () => {
