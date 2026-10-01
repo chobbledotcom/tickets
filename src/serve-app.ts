@@ -6,8 +6,9 @@
  * app once, run `handleRequest`, and turn any unhandled error into a logged
  * generic 503 rather than letting it crash the isolate. Kept here so every
  * entry point shares one implementation — and so the boot/serve behaviour is
- * unit-testable (`test/lib/serve-app.test.ts`) while the entry files stay
- * logic-free one-liners.
+ * unit-testable (`test/serve-app.test.ts`) while the entry files stay
+ * logic-free one-liners. Each platform hands over the client IP its own way,
+ * so each entry point has its own adapter.
  */
 
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
@@ -79,7 +80,10 @@ const initialize = once((): Promise<boolean> => {
  * Lazily boot the app, then serve the request. An unhandled error is logged and
  * turned into a generic 503 so a single bad request never crashes the isolate.
  */
-export const serveHandler = async (request: Request): Promise<Response> => {
+const serveHandler = async (
+  request: Request,
+  clientIp: string,
+): Promise<Response> => {
   const scheduledAccess = scheduledAccessFromEnv(request);
   if (scheduledAccess.kind === "rejected") {
     return scheduledResponse(scheduledAccess.status);
@@ -92,7 +96,7 @@ export const serveHandler = async (request: Request): Promise<Response> => {
       const { handleScheduledRequest } = await import("#routes/scheduled.ts");
       return await handleScheduledRequest(request);
     }
-    return await handleRequest(request);
+    return await handleRequest(request, clientIp);
   } catch (error) {
     logError({
       code: ErrorCode.CDN_REQUEST,
@@ -108,3 +112,17 @@ export const serveHandler = async (request: Request): Promise<Response> => {
       : temporaryErrorResponse(request.method);
   }
 };
+
+/** Bunny gives the handler only the request. The Bunny CDN puts the client
+ * address in `x-real-ip`, so a request without it is a platform fault. */
+export const bunnyServeHandler = (request: Request): Promise<Response> => {
+  const ip = request.headers.get("x-real-ip");
+  if (!ip) throw new Error("Bunny request has no x-real-ip header");
+  return serveHandler(request, ip);
+};
+
+/** Deno gives the client address of the TCP connection. */
+export const denoServeHandler = (
+  request: Request,
+  info: Deno.ServeHandlerInfo<Deno.NetAddr>,
+): Promise<Response> => serveHandler(request, info.remoteAddr.hostname);

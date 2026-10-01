@@ -1,8 +1,6 @@
 import { runWithQueryLogContext } from "#db/query-log.ts";
 import { runWithSettingsAudit } from "#db/settings-audit.ts";
 import { parseAcceptLanguage, runWithLocale } from "#i18n";
-import type { ServerContext } from "#routes/types.ts";
-import { getClientIp } from "#routes/url.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import { runWithCsrfContext } from "#shared/csrf.ts";
 import { runWithFlashContext } from "#shared/flash-context.ts";
@@ -18,13 +16,13 @@ import { runWithAdminFooterContext } from "#templates/admin/footer.tsx";
 /** Run one response builder inside every request-scoped store. */
 export const runWithRequestScopes = (
   request: Request,
-  server: ServerContext | undefined,
+  clientIp: string,
   fn: () => Promise<Response>,
 ): Promise<Response> => {
   const locale = parseAcceptLanguage(request.headers.get("accept-language"));
   const scopes: ((next: () => Promise<Response>) => Promise<Response>)[] = [
     (next) => runWithLocale(locale, next),
-    (next) => runWithClientIp(getClientIp(request, server), next),
+    (next) => runWithClientIp(clientIp, next),
     runWithSubrequestBudget,
     runWithRequestId,
     (next) => runWithRequestTrace(request, next),
@@ -45,12 +43,10 @@ export const runWithRequestScopes = (
   )();
 };
 
-type RequestHandler = (
-  request: Request,
-  server?: ServerContext,
-) => Promise<Response>;
+type RequestHandler = (request: Request) => Promise<Response>;
 
 export const requestScopedHandler =
-  (handler: RequestHandler): RequestHandler =>
-  (request, server) =>
-    runWithRequestScopes(request, server, () => handler(request, server));
+  (handler: RequestHandler) =>
+  // An in-process call has no connection, so it records the client IP "direct".
+  (request: Request, clientIp = "direct"): Promise<Response> =>
+    runWithRequestScopes(request, clientIp, () => handler(request));

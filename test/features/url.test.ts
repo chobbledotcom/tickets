@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   getBaseUrl,
-  getClientIp,
   getSearchParam,
   parseCookies,
   parseRequest,
@@ -18,21 +17,6 @@ test("parses request cookies", () => {
       ["second", "two"],
     ]),
   );
-});
-
-test("uses the direct client address when available", () => {
-  const request = new Request("https://example.test");
-  expect(
-    getClientIp(request, {
-      requestIP: () => ({ address: "192.0.2.10", family: "IPv4", port: 42 }),
-    }),
-  ).toBe("192.0.2.10");
-});
-
-test("uses the direct fallback without a client address", () => {
-  const request = new Request("https://example.test");
-  expect(getClientIp(request)).toBe("direct");
-  expect(getClientIp(request, { requestIP: () => null })).toBe("direct");
 });
 
 test("extracts the origin from a request", () => {

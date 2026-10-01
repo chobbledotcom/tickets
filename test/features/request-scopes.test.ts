@@ -20,9 +20,7 @@ import {
 describe("request scopes", () => {
   test("binds request values while building the response", async () => {
     const request = new Request("https://example.com/path");
-    const server = { requestIP: () => ({ address: "203.0.113.9" }) };
-
-    const response = await runWithRequestScopes(request, server, () =>
+    const response = await runWithRequestScopes(request, "203.0.113.9", () =>
       Promise.resolve(
         Response.json({ ip: getRequestClientIp(), locale: getLocale() }),
       ),
@@ -32,25 +30,27 @@ describe("request scopes", () => {
     expect(getRequestClientIp()).toBe("direct");
   });
 
-  test("passes the request and server through the scoped handler", async () => {
+  test("binds the client IP around the scoped handler", async () => {
     const request = new Request("https://example.com/scoped");
-    const server = { requestIP: () => ({ address: "198.51.100.4" }) };
-    const handler = requestScopedHandler((receivedRequest, receivedServer) =>
+    const handler = requestScopedHandler((receivedRequest) =>
       Promise.resolve(
         Response.json({
           ip: getRequestClientIp(),
           requestMatches: receivedRequest === request,
-          serverMatches: receivedServer === server,
         }),
       ),
     );
 
-    const response = await handler(request, server);
+    const scoped = await handler(request, "198.51.100.4");
+    const inProcess = await handler(request);
 
-    expect(await response.json()).toEqual({
+    expect(await scoped.json()).toEqual({
       ip: "198.51.100.4",
       requestMatches: true,
-      serverMatches: true,
+    });
+    expect(await inProcess.json()).toEqual({
+      ip: "direct",
+      requestMatches: true,
     });
   });
 
@@ -60,7 +60,7 @@ describe("request scopes", () => {
 
       const response = await runWithRequestScopes(
         new Request("https://example.com/public"),
-        undefined,
+        "direct",
         () => Promise.resolve(new Response(renderAdminFooter())),
       );
 
@@ -89,7 +89,7 @@ describe("request scopes", () => {
 
     await runWithRequestScopes(
       new Request("https://example.com/queued"),
-      undefined,
+      "direct",
       () => {
         addPendingWork(queuedWork);
         return Promise.resolve(new Response());

@@ -108,8 +108,8 @@ const prepareDatabase = async (): Promise<void> => {
 
   // One warm-up request so first-ever housekeeping (prune stamps, backfill
   // markers) lands in prep, not in a measured child.
-  const { serveHandler } = await import("#src/serve-app.ts");
-  const response = await serveAndDrain(serveHandler, "/listings");
+  const { bunnyServeHandler } = await import("#src/serve-app.ts");
+  const response = await serveAndDrain(bunnyServeHandler, "/listings");
   requireBenchmarkCatalogue(response, "database preparation request");
 };
 

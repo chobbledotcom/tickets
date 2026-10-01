@@ -17,6 +17,7 @@ import {
 import {
   checkBookingRateLimit,
   resolvePositiveQuantity,
+  type SlugRouteHandler,
   toFormParams,
   withApiBody,
   withSlugLoaded,
@@ -38,7 +39,6 @@ import {
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
-import type { ServerContext } from "#routes/types.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
@@ -285,17 +285,16 @@ const resolvePackageOrder = async (
  * `{ parent, slug, quantity }` choosing each parent member's add-ons — all
  * driving the SAME context, clamp, fold, and pricing walk the web package page
  * submits through. */
-export const handleBookPackage = async (
-  request: Request,
-  { slug }: { slug: string },
-  server?: ServerContext,
-): Promise<Response> => {
+export const handleBookPackage: SlugRouteHandler = async (
+  request,
+  { slug },
+) => {
   // Rate-limit BEFORE the package load: the booking endpoints are
   // unauthenticated, so the flood guard must reject a limited IP without
   // building a package tree. The standalone listing book path loads the listing
   // first (its load is a single slug lookup), but a package load builds a full
   // ctx/tree/limit graph, so guarding it behind the limiter matters more here.
-  const limited = await checkBookingRateLimit(request, server);
+  const limited = await checkBookingRateLimit();
   if (limited) return limited;
   const pkg = await loadPackageContextOr404(slug);
   if (pkg instanceof Response) return pkg;

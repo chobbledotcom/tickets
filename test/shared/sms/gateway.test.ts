@@ -99,13 +99,11 @@ describe("sms gateway send", () => {
     expect(seenRedirect).toBe("manual");
   });
 
-  it("follows a safe redirect with each hop validated manually", async () => {
+  it("follows a same-origin redirect with each hop validated manually", async () => {
     const { calls, fetchImpl } = recordingFetch((c) =>
       c.length === 1
         ? result({
-            headers: new Headers({
-              location: "https://sms.example.com/final",
-            }),
+            headers: new Headers({ location: "/3rdparty/v1/final" }),
             ok: false,
             status: 307,
             text: "",
@@ -122,30 +120,39 @@ describe("sms gateway send", () => {
     expect(providerId).toBe("msg-1");
     expect(calls.map(([url]) => url)).toEqual([
       `${DEFAULT_SMS_BASE_URL}/3rdparty/v1/messages`,
-      "https://sms.example.com/final",
+      `${DEFAULT_SMS_BASE_URL}/3rdparty/v1/final`,
     ]);
     expect(calls.every(([, init]) => init?.redirect === "manual")).toBe(true);
+    expect(calls[1]?.[1]).toEqual(calls[0]?.[1]);
   });
 
-  it("refuses to follow an unsafe redirect target", async () => {
-    const { calls, fetchImpl } = recordingFetch(() =>
-      result({
-        headers: new Headers({ location: "https://127.0.0.1/final" }),
-        ok: false,
-        status: 307,
-        text: "",
-      }),
-    );
+  const refusedRedirects = {
+    "an unsafe target": "https://127.0.0.1/final",
+    "another host": "https://sms.example.com/final",
+  };
+  for (const [label, location] of Object.entries(refusedRedirects)) {
+    it(`sends nothing when a redirect points to ${label}`, async () => {
+      const { calls, fetchImpl } = recordingFetch(() =>
+        result({
+          headers: new Headers({ location }),
+          ok: false,
+          status: 307,
+          text: "",
+        }),
+      );
 
-    await expect(
-      sendEncryptedMessage(
-        config,
-        await buildMessagePayload("+1", "hi", PASS),
-        fetchImpl,
-      ),
-    ).rejects.toThrow("Unsafe redirect URL");
-    expect(calls.length).toBe(1);
-  });
+      await expect(
+        sendEncryptedMessage(
+          config,
+          await buildMessagePayload("+1", "hi", PASS),
+          fetchImpl,
+        ),
+      ).rejects.toThrow("Unsafe redirect URL");
+      expect(calls.map(([url]) => url)).toEqual([
+        `${DEFAULT_SMS_BASE_URL}/3rdparty/v1/messages`,
+      ]);
+    });
+  }
 
   it("transmits only ciphertext, never the plaintext", async () => {
     let body: string | null = null;

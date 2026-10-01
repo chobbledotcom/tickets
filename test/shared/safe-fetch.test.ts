@@ -90,6 +90,33 @@ describe("safe-fetch", () => {
     expect(seen).toEqual(["https://example.com/start"]);
   });
 
+  for (const location of [
+    "https://other.example.com/moved",
+    "https://example.com:8443/moved",
+    "https://sub.example.com/moved",
+  ]) {
+    test(`refuses to follow a redirect to another origin: ${location}`, async () => {
+      const seen: string[] = [];
+
+      await expect(
+        fetchTextFollowingSafeRedirects(
+          "https://example.com/start",
+          {
+            body: "secret",
+            headers: { authorization: "Basic abc" },
+            method: "POST",
+          },
+          (url) => {
+            seen.push(url);
+            return Promise.resolve(response(307, location));
+          },
+        ),
+      ).rejects.toThrow("Unsafe redirect URL");
+
+      expect(seen).toEqual(["https://example.com/start"]);
+    });
+  }
+
   test("stops after the maximum safe redirect hops", async () => {
     const seen: string[] = [];
 

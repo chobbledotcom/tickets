@@ -84,7 +84,7 @@ const buildVariants = async (): Promise<void> => {
 
   await Deno.writeTextFile(
     HELLO,
-    `export const serveHandler = () => new Response(${JSON.stringify(BENCHMARK_ROBOTS_BODY)}, { headers: { "content-type": ${JSON.stringify(BENCHMARK_ROBOTS_CONTENT_TYPE)} } });\n`,
+    `export const bunnyServeHandler = () => new Response(${JSON.stringify(BENCHMARK_ROBOTS_BODY)}, { headers: { "content-type": ${JSON.stringify(BENCHMARK_ROBOTS_CONTENT_TYPE)} } });\n`,
   );
 
   log(

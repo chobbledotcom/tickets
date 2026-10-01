@@ -4,6 +4,6 @@
  */
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
-import { serveHandler } from "./serve-app.ts";
+import { bunnyServeHandler } from "./serve-app.ts";
 
-BunnySDK.net.http.serve(serveHandler);
+BunnySDK.net.http.serve(bunnyServeHandler);

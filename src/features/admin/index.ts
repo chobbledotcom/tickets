@@ -62,12 +62,7 @@ const buildSegmentRouters = (): Record<string, AdminSegment> => {
 const segmentRouters = buildSegmentRouters();
 
 /** Route admin requests after authenticating known protected segments. */
-export const routeAdmin: PathMethodRoute = async (
-  request,
-  path,
-  method,
-  server,
-) => {
+export const routeAdmin: PathMethodRoute = async (request, path, method) => {
   // Unknown segments 404 before session work, so probes stay cheap.
   const segment = adminPathSegment(path);
   const segmentRouter = Object.hasOwn(segmentRouters, segment)
@@ -96,6 +91,6 @@ export const routeAdmin: PathMethodRoute = async (
 
     // Some area modules translate form schemas while their module evaluates.
     const router = await segmentRouter.load();
-    return router(request, path, method, server);
+    return router(request, path, method);
   });
 };

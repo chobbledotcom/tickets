@@ -23,7 +23,7 @@ import {
   type RouteHandlerFn,
 } from "#routes/router.ts";
 import { getPrefix } from "#routes/settings-bundles.ts";
-import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import type { PathMethodRoute } from "#routes/types.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
@@ -41,7 +41,6 @@ type AppRouteRequest = {
   method: string;
   path: string;
   request: Request;
-  server: ServerContext | undefined;
 };
 
 /** Give complete app routes one named request value instead of four arguments. */
@@ -49,14 +48,14 @@ export const defineAppRoute =
   (
     handle: (route: AppRouteRequest) => Promise<Response>,
   ): CompletePathMethodRoute =>
-  (request, path, method, server) =>
-    handle({ method, path, request, server });
+  (request, path, method) =>
+    handle({ method, path, request });
 
 /** Create a lazy-loaded route handler (prefix already matched by dispatch map). */
 const lazyRoute =
   (load: () => Promise<RouterFn>): RouterFn =>
-  async (request, path, method, server) =>
-    (await load())(request, path, method, server);
+  async (request, path, method) =>
+    (await load())(request, path, method);
 
 type PrefixRoute = {
   beforeMessages: (path: string, method: string) => Response | null;
@@ -348,23 +347,18 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
   return (await handlerLoaders.customCss())();
 };
 
-const apiPrefixHandler: RouterFn = async (request, path, method, server) => {
+const apiPrefixHandler: RouterFn = async (request, path, method) => {
   if (path.startsWith("/api/admin/")) {
     const { requireAdminApiOr } = await import("#routes/auth.ts");
     return await requireAdminApiOr(request, () =>
       withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
-        (await loadAdminApiRoutes())(request, path, method, server),
+        (await loadAdminApiRoutes())(request, path, method),
       ),
     );
   }
   return settings.showPublicApi
     ? withMessageGroups(PUBLIC_API_MESSAGE_GROUPS, async () =>
-        (await import("#routes/api/index.ts")).routeApi(
-          request,
-          path,
-          method,
-          server,
-        ),
+        (await import("#routes/api/index.ts")).routeApi(request, path, method),
       )
     : null;
 };
@@ -448,7 +442,6 @@ export const routeMainApp = async ({
   request,
   path,
   method,
-  server,
 }: AppRouteRequest): Promise<Response> => {
   if (isReadOnly()) {
     const blocked = readOnlyBlock(path, method);
@@ -465,7 +458,6 @@ export const routeMainApp = async ({
   return await withMessageGroups(
     route.messageGroups,
     async () =>
-      (await route.handler(request, path, method, server)) ??
-      notFoundResponse(),
+      (await route.handler(request, path, method)) ?? notFoundResponse(),
   );
 };

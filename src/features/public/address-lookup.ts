@@ -17,9 +17,10 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getClientIp, getSearchParam } from "#routes/url.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { activeAddressLookupProvider } from "#shared/address-lookup/providers.ts";
 import { lookupAddresses } from "#shared/address-lookup/service.ts";
+import { getRequestClientIp } from "#shared/client-context.ts";
 import {
   ADDRESS_LOOKUP_LOCKOUT_MS,
   MAX_ADDRESS_LOOKUPS,
@@ -35,7 +36,7 @@ const limiter = makeIpRateLimiter(
 
 export const handleAddressLookupGet: TypedRouteHandler<
   "GET /address-lookup"
-> = async (request, _params, server) => {
+> = async (request) => {
   const provider = activeAddressLookupProvider();
   if (!provider) return notFoundResponse();
 
@@ -45,7 +46,7 @@ export const handleAddressLookupGet: TypedRouteHandler<
   // editor, scanner) stays under the same per-IP limit as anonymous use.
   const staff = session !== null && isStaffRole(session.adminLevel);
   if (!staff) {
-    const ip = getClientIp(request, server);
+    const ip = getRequestClientIp();
     if (await limiter.isLimited(ip)) {
       return apiErrorResponse(t("address_lookup.rate_limited"), 429);
     }

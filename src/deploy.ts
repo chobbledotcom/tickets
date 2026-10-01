@@ -11,6 +11,6 @@
  * explicit one.
  */
 
-import { serveHandler } from "./serve-app.ts";
+import { denoServeHandler } from "./serve-app.ts";
 
-Deno.serve(serveHandler);
+Deno.serve(denoServeHandler);

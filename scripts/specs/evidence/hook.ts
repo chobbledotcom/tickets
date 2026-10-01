@@ -39,7 +39,7 @@ export const captureScenarioEvidence = async (
     const capture = await loadCapture();
     await capture(world, hook);
   } finally {
-    // The capture's loopback server serves requests through serveHandler,
+    // The capture's loopback server serves requests through denoServeHandler,
     // whose memoized initialize() flips the N+1 guard to notify-only on its
     // first call (src/serve-app.ts). Restore the default throw mode so one
     // capture cannot weaken the next scenario's checks.

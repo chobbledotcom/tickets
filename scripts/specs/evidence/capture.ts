@@ -5,7 +5,7 @@ import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 import { readSpecCatalog } from "#scripts/specs/catalog.ts";
-import { serveHandler } from "#src/serve-app.ts";
+import { denoServeHandler } from "#src/serve-app.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { defineEvidenceCapture } from "./capture-flow.ts";
 import { EVIDENCE_CAPTURES } from "./declarations.ts";
@@ -24,7 +24,7 @@ export const captureCurrentScenarioEvidence: CaptureScenario =
     ),
     readCatalog: readSpecCatalog,
     readTheme: readEvidenceTheme,
-    startServer: defineLoopbackServer(serveHandler),
+    startServer: defineLoopbackServer(denoServeHandler),
     waitForPage: waitForScreenshotPage,
     writeCss: settings.update.customCss,
   });

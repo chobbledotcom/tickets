@@ -3,7 +3,7 @@
  */
 
 import { reduce } from "#fp";
-import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import type { PathMethodRoute } from "#routes/types.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   compileRoutePathPattern,
@@ -33,7 +33,7 @@ export type RouteParamsFor<Pattern extends string> = {
 
 /** Route handler with params inferred from the route pattern */
 export type TypedRouteHandler<Pattern extends string> = ResponseHandler<
-  [request: Request, params: RouteParamsFor<Pattern>, server?: ServerContext]
+  [request: Request, params: RouteParamsFor<Pattern>]
 >;
 
 // =============================================================================
@@ -45,7 +45,7 @@ export type RouteParams = Record<string, string | number | undefined>;
 
 /** Route handler function signature (used internally by createRouter) */
 export type RouteHandlerFn = ResponseHandler<
-  [request: Request, params: RouteParams, server?: ServerContext]
+  [request: Request, params: RouteParams]
 >;
 
 /** Compiled route with regex */
@@ -175,10 +175,10 @@ export const createRouter = (
 ): PathMethodRoute => {
   const compiled = compileRoutes(routes);
 
-  return (request, path, method, server) => {
+  return (request, path, method) => {
     const match = matchRequest(compiled, method, path);
     if (!match) return Promise.resolve(null);
-    return Promise.resolve(match.handler(request, match.params, server));
+    return Promise.resolve(match.handler(request, match.params));
   };
 };
 

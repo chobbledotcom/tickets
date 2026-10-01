@@ -294,7 +294,6 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     expect(pass.listingName).toBe(listing.name);
   });
 
-  const rateLimitRequest = new Request("http://localhost/t/abc");
   // Distinct token lists sized off the configurable lockout threshold, so the
   // tests hold whatever MAX_TOKEN_404S is set to.
   const distinctTokens = (count: number): string[] =>
@@ -310,12 +309,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     response: Response,
   ): Promise<Response> =>
     runWithPendingWork(async () => {
-      const out = await withTokenRateLimit(
-        rateLimitRequest,
-        undefined,
-        tokens,
-        () => response,
-      );
+      const out = await withTokenRateLimit(tokens, () => response);
       await flushPendingWork();
       return out;
     });
@@ -359,15 +353,10 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   test("withTokenRateLimit short-circuits to 429 without running the handler", async () => {
     await recordTokenFailure("direct", atLimit);
     let ran = false;
-    const out = await withTokenRateLimit(
-      rateLimitRequest,
-      undefined,
-      ["x"],
-      () => {
-        ran = true;
-        return new Response("ok");
-      },
-    );
+    const out = await withTokenRateLimit(["x"], () => {
+      ran = true;
+      return new Response("ok");
+    });
     expect(out.status).toBe(429);
     expect(ran).toBe(false);
   });

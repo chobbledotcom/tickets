@@ -28,7 +28,6 @@ import {
 } from "#routes/response.ts";
 import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
 import { routeStatic } from "#routes/static.ts";
-import type { ServerContext } from "#routes/types.ts";
 import { parseCookies, parseRequest } from "#routes/url.ts";
 import {
   loadEffectiveDomain,
@@ -77,7 +76,7 @@ const loadSetupRoutes = once(async () =>
 );
 
 const handleRequestInternal = defineAppRoute(
-  async ({ request, path, method, server }) => {
+  async ({ request, path, method }) => {
     if (isSetupPath(path)) {
       const setupResponse = await withMessageGroups(
         SETUP_MESSAGE_GROUPS,
@@ -95,7 +94,7 @@ const handleRequestInternal = defineAppRoute(
         : siteNotActivatedResponse();
     }
 
-    return routeMainApp({ method, path, request, server });
+    return routeMainApp({ method, path, request });
   },
 );
 
@@ -181,11 +180,10 @@ const routeAndFinalize = async (
   url: URL,
   path: string,
   method: string,
-  server: ServerContext | undefined,
 ): Promise<Response> => {
   const embeddable = isEmbeddablePath(path);
   const consumedFlashId = applyFlashFromCookie(request, url);
-  const response = await handleRequestInternal(request, path, method, server);
+  const response = await handleRequestInternal(request, path, method);
 
   if (consumedFlashId && hasFlash()) {
     withCookie(response, clearFlashCookie(consumedFlashId));
@@ -226,10 +224,7 @@ const handleRoutingError = (
 };
 
 /** Run the application request pipeline. */
-const processRequest = async (
-  request: Request,
-  server: ServerContext | undefined,
-): Promise<Response> => {
+const processRequest = async (request: Request): Promise<Response> => {
   const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
   detectIframeMode(url);
@@ -285,7 +280,7 @@ const processRequest = async (
     }
 
     response = finish(
-      await routeAndFinalize(bufferedRequest, url, path, method, server),
+      await routeAndFinalize(bufferedRequest, url, path, method),
     );
     assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
