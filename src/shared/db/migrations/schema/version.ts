@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Admit part of a booking at the door: checked_in stores how many of a line's tickets arrived, not a flag.";
+  "Stage one sealed cancel handle per unpaid Square checkout, so the link expiry task can end it at the checkout window.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

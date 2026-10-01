@@ -222,6 +222,7 @@ describe("squareAnswer", () => {
         squareAnswer.paymentLink({
           payment_link: {
             created_at: "2026-09-29T12:00:00Z",
+            id: "plink_1",
             long_url: "https://checkout.square.site/long",
             order_id: "ord_1",
             url: "https://square.link/short",
@@ -229,6 +230,7 @@ describe("squareAnswer", () => {
         }),
       ).toEqual({
         createdAt: "2026-09-29T12:00:00Z",
+        linkId: "plink_1",
         orderId: "ord_1",
         url: "https://checkout.square.site/long",
       });
@@ -239,12 +241,14 @@ describe("squareAnswer", () => {
         squareAnswer.paymentLink({
           payment_link: {
             created_at: "2026-09-29T12:00:00Z",
+            id: "plink_1",
             order_id: "ord_1",
             url: "https://square.link/short",
           },
         }),
       ).toEqual({
         createdAt: "2026-09-29T12:00:00Z",
+        linkId: "plink_1",
         orderId: "ord_1",
         url: "https://square.link/short",
       });

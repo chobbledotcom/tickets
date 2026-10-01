@@ -111,8 +111,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-28_answers_at_booking",
         "2026-09-29_checkout_pending_answers",
         "2026-09-30_checked_in_count",
+        "2026-10-01_square_link_ends",
       ],
-      schemaHash: "1mer828",
+      schemaHash: "q24qov",
     });
   });
 
@@ -127,7 +128,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Admit part of a booking at the door: checked_in stores how many of a line's tickets arrived, not a flag.",
+        "Stage one sealed cancel handle per unpaid Square checkout, so the link expiry task can end it at the checkout window.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
