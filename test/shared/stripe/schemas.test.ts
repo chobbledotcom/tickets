@@ -16,10 +16,12 @@ import {
 const checkout = () => ({
   amount_total: 1200,
   created: 123,
+  expires_at: 456,
   id: "cs_1",
   metadata: { booking: "signed" },
   payment_intent: "pi_1",
   payment_status: "paid",
+  status: "complete" as const,
   url: "https://checkout.stripe.com/c/pay/cs_1",
 });
 
@@ -53,10 +55,12 @@ describe("Stripe schemas", () => {
     ).toEqual({
       amount_total: 1200,
       created: 123,
+      expires_at: 456,
       id: "cs_1",
       metadata: { booking: "signed" },
       payment_intent: "pi_1",
       payment_status: "paid",
+      status: "complete",
       url: "https://checkout.stripe.com/c/pay/cs_1",
     });
   });

@@ -1,6 +1,7 @@
 /** Attendee, booking, payment, and activity tables. */
 
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { statefulColumns } from "./columns.ts";
 import type { Table } from "./types.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [
@@ -175,8 +176,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER NOT NULL"],
         ["provider", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL"],
-        ["state", "TEXT NOT NULL"],
-        ["created_at", "TEXT NOT NULL"],
+        ...statefulColumns,
       ],
       indexes: [
         {
@@ -322,8 +322,9 @@ export const attendeeTables: [name: string, table: Table][] = [
     // database (see sumup_checkouts for why). The row is deleted the moment
     // the completion reads it. Survivors prune on the payments clock, which
     // covers provider retry windows, and not before `link_ends_at`: a Square
-    // link takes payment for 180 days after its creation, or until its first
-    // payment. The column is null for checkouts that end within days.
+    // row also waits for its handle row to be gone, or for Square's own
+    // 180-day page lifetime to pass. The column is null for checkouts that
+    // end within days.
     "checkout_pending_answers",
     {
       columns: [
@@ -331,6 +332,33 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["sealed", "TEXT NOT NULL"],
         ["created_at", "TEXT NOT NULL"],
         ["link_ends_at", "TEXT"],
+      ],
+    },
+  ],
+
+  [
+    // One cancel handle per unpaid Square checkout: the payment link id,
+    // sealed with DB_ENCRYPTION_KEY and keyed by the HMAC of the session id,
+    // exactly like checkout_pending_answers. The row exists only while its
+    // link can still take payment — the expiry task deletes it the moment
+    // Square proves the link ended, was already gone, or was paid, and the
+    // completion deletes it when a payment lands. The state words and the
+    // moves between them are declared in
+    // shared/payment/square-link-end-machine-spec.ts.
+    "square_link_ends",
+    {
+      columns: [
+        ["session_index", "TEXT PRIMARY KEY"],
+        ["sealed_handle", "TEXT NOT NULL"],
+        ["link_ends_at", "TEXT NOT NULL"],
+        ["next_attempt_at", "TEXT NOT NULL"],
+        ...statefulColumns,
+      ],
+      indexes: [
+        {
+          columns: ["state", "next_attempt_at"],
+          name: "idx_square_link_ends_next_attempt",
+        },
       ],
     },
   ],

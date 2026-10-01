@@ -55,6 +55,9 @@ export interface StripeCheckoutLineItemParams
 export interface StripeCheckoutSessionCreateParams {
   cancel_url: NonNullable<OfficialCheckoutParams["cancel_url"]>;
   customer_email?: NonNullable<OfficialCheckoutParams["customer_email"]>;
+  /** When the session stops taking payment, as unix seconds. Stripe accepts
+   *  30 minutes to 24 hours from creation. */
+  expires_at: NonNullable<OfficialCheckoutParams["expires_at"]>;
   line_items: readonly StripeCheckoutLineItemParams[];
   metadata: Readonly<Record<string, string>>;
   mode: Extract<OfficialCheckoutParams["mode"], "payment">;

@@ -129,6 +129,16 @@ describeStripe("what Stripe is asked to charge for", () => {
     const params = await createdWith(checkoutIntent({ email: "" }));
     expect("customer_email" in params).toBe(false);
   });
+
+  test("ends the checkout one window from now, so Stripe closes its own page", async () => {
+    const { CHECKOUT_WINDOW_MINUTES } = await import("#shared/limits.ts");
+    const params = await createdWith(checkoutIntent());
+    const expiresAt = params.expires_at as number;
+    expect(expiresAt).toBeGreaterThan(Date.now() / 1000 + 60);
+    expect(expiresAt).toBeLessThanOrEqual(
+      Date.now() / 1000 + CHECKOUT_WINDOW_MINUTES * 60 + 5,
+    );
+  });
 });
 describeStripe("reading back a checkout Stripe will not show us", () => {
   const readFailing = async (rejection: unknown): Promise<unknown> => {

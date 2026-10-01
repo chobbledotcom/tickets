@@ -459,6 +459,63 @@ export const SUMUP_RECOVERY_BATCH = limit(
 );
 
 /**
+ * How long an unpaid checkout can take payment (default: 60 minutes). Square
+ * stages its cancel handle for this window and the expiry task ends the link
+ * at it; Stripe is told the same expiry at creation. SumUp closes its own
+ * hosted page after 30 minutes, so it reads nothing here.
+ */
+export const CHECKOUT_WINDOW_MINUTES = limit(
+  "CHECKOUT_WINDOW_MINUTES",
+  60,
+  "Checkout: unpaid payment window",
+  "minutes",
+);
+
+/** Computed: the checkout window in milliseconds. */
+export const CHECKOUT_WINDOW_MS = CHECKOUT_WINDOW_MINUTES * 60 * 1000;
+
+/**
+ * How many Square payment links one expiry run may take (default: 10). Each
+ * costs one Square delete, so this is what keeps the task inside the edge
+ * subrequest budget.
+ */
+export const SQUARE_LINK_EXPIRY_BATCH = limit(
+  "SQUARE_LINK_EXPIRY_BATCH",
+  10,
+  "Square link expiry: links per run",
+  "links",
+);
+
+/**
+ * How often the Square link expiry task looks for due links (default: 5
+ * minutes). The window decides when a link is due; this only decides how
+ * promptly a due link is picked up.
+ */
+export const SQUARE_LINK_EXPIRY_INTERVAL_MINUTES = limit(
+  "SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
+  5,
+  "Square link expiry: how often to look for due links",
+  "minutes",
+);
+
+/** How long a claimed link end may sit without an answer before its lease
+ * expires and the row returns to the queue. */
+export const SQUARE_LINK_LEASE_MS = 5 * 60 * 1000;
+
+/** How long to wait before asking Square again about a link whose delete
+ * answer proved nothing. */
+export const SQUARE_LINK_RETRY_MS = 5 * 60 * 1000;
+
+/** Computed: the expiry task interval in milliseconds. */
+export const SQUARE_LINK_EXPIRY_INTERVAL_MS =
+  SQUARE_LINK_EXPIRY_INTERVAL_MINUTES * 60 * 1000;
+
+/** How long Square itself keeps an unpaid payment link payable: 180 days
+ * from its creation. A handle row older than this plus the webhook window
+ * can no longer take payment, whatever this task did. */
+export const SQUARE_NATIVE_LIFETIME_MS = 180 * DAY_MS;
+
+/**
  * Retention (days) for encrypted string rows that have not been attached to an
  * attendee answer (default: 7). These are usually abandoned paid checkouts:
  * short-lived enough to avoid retaining free-text PII indefinitely, but long
@@ -628,65 +685,6 @@ export const FORM_STASH_MAX_ENTRIES = limit(
 // ---------------------------------------------------------------------------
 // Debug page display
 // ---------------------------------------------------------------------------
-
-/** One rung of a size ladder: how many base units it holds, and what to call
- * it. Ladders are written biggest first. */
-type Rung = readonly [size: number, suffix: string];
-
-/** Build a formatter that names a number in the biggest rung it reaches,
- * rounded to a whole number of them, and falls back to `baseSuffix` below the
- * smallest rung. Every human-readable size and duration below is one of these. */
-const laddered =
-  (rungs: readonly Rung[], baseSuffix: string): ((value: number) => string) =>
-  (value: number): string => {
-    for (const [size, suffix] of rungs) {
-      if (value >= size) return `${Math.round(value / size)}${suffix}`;
-    }
-    return `${value}${baseSuffix}`;
-  };
-
-/** Format bytes as a human-readable size string */
-export const formatBytes = laddered(
-  [
-    [1024 * 1024, "MB"],
-    [1024, "KB"],
-  ],
-  "B",
-);
-
-/** Format milliseconds as a human-readable duration string */
-export const formatMs = laddered(
-  [
-    [60 * 60 * 1000, "h"],
-    [60 * 1000, "min"],
-    [1000, "s"],
-  ],
-  "ms",
-);
-
-/** Format seconds as a human-readable duration string */
-export const formatSeconds = laddered(
-  [
-    [24 * 60 * 60, "d"],
-    [60 * 60, "h"],
-    [60, "min"],
-  ],
-  "s",
-);
-
-/** The units that carry their own ladder. Every other unit is a plain count,
- * so it reads as "<value> <unit>". */
-const UNIT_FORMATTERS: Record<string, (value: number) => string> = {
-  bytes: formatBytes,
-  ms: formatMs,
-  seconds: formatSeconds,
-};
-
-/** Format a limit value with its unit into a human-readable string */
-export const formatLimitValue = (value: number, unit: string): string => {
-  const format = UNIT_FORMATTERS[unit];
-  return format ? format(value) : `${value} ${unit}`;
-};
 
 /** The debug-page display list, derived from the limit declarations above. */
 export const LIMIT_ENTRIES: readonly LimitEntry[] = REGISTRY;

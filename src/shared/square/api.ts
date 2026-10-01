@@ -1,7 +1,9 @@
 /* jscpd:ignore-start */
+
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import type { FetchResult } from "#shared/fetch.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
   createSquarePaymentLink,
@@ -16,6 +18,7 @@ import {
   type SquareConnectionTestResult,
   testSquareConnection,
 } from "#shared/square/connection.ts";
+import { endSquareLink } from "#shared/square/link-end.ts";
 import { readSquareOrder } from "#shared/square/order.ts";
 import {
   readSquarePayment,
@@ -26,6 +29,7 @@ import type { SquareOrder, SquarePayment } from "#shared/square/wire.ts";
 /* jscpd:ignore-end */
 
 type SquareApi = {
+  endLink(linkId: string): Promise<FetchResult>;
   getSquareClient(): Promise<SquareClient | null>;
   resetSquareClient(): void;
   testSquareConnection(): Promise<SquareConnectionTestResult>;
@@ -44,6 +48,7 @@ type SquareApi = {
 export const squareApi: SquareApi = {
   createPaymentLink: (intent, baseUrl) =>
     createSquarePaymentLink(() => squareApi.getSquareClient(), intent, baseUrl),
+  endLink: (linkId) => endSquareLink(() => squareApi.getSquareClient(), linkId),
   getSquareClient,
   readOrder: (orderId) =>
     readSquareOrder(() => squareApi.getSquareClient(), orderId),

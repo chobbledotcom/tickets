@@ -25,6 +25,7 @@ const balanceSession = (
   amount_total: amount,
   created: 1_782_000_000,
   currency: "gbp",
+  expires_at: 456,
   id: sessionId,
   metadata: signedMeta(
     {
@@ -37,6 +38,7 @@ const balanceSession = (
   ),
   payment_intent: `pi_${sessionId}`,
   payment_status: "paid",
+  status: "complete",
   url: null,
 });
 

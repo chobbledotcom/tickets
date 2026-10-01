@@ -1,11 +1,15 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { isNotNullish } from "#fp";
-import { providerCaller } from "#payment/provider-fetch.ts";
+import {
+  type ProviderRequest,
+  providerCaller,
+} from "#payment/provider-fetch.ts";
 import {
   providerDetail,
   type RejectedBuyerField,
 } from "#payment/transport-error.ts";
+import type { FetchResult } from "#shared/fetch.ts";
 /* jscpd:ignore-end */
 
 /** Square API version for all requests. */
@@ -80,11 +84,32 @@ const squareCaller = providerCaller((body) =>
   providerDetail.square(readInvalidField(body)),
 );
 
+/** One Square REST call: where it goes, and how it asks. */
+export type SquareRequest = {
+  baseUrl: string;
+  options?: SquareRequestOptions;
+  path: string;
+  token: string;
+};
+
+/** The URL and request init for one Square REST call, bound together. */
+const squareRequestFor = ({
+  baseUrl,
+  options,
+  path,
+  token,
+}: SquareRequest): [string, ProviderRequest] => [
+  `${baseUrl}${path}`,
+  squareRequestInit(token, options),
+];
+
 /** Make one authenticated request to the Square REST API. */
-export const squareFetch = (
-  token: string,
-  baseUrl: string,
-  path: string,
-  options?: SquareRequestOptions,
-): Promise<unknown> =>
-  squareCaller.json(`${baseUrl}${path}`, squareRequestInit(token, options));
+export const squareFetch = (request: SquareRequest): Promise<unknown> =>
+  squareCaller.json(...squareRequestFor(request));
+
+/** Make one authenticated request and hand back the whole answer — status
+ * and body included, refused or not. The link-end classifier reads Square's
+ * refusal words itself, so it must see the answer Square actually gave. */
+export const squareFetchAnswer = (
+  request: SquareRequest,
+): Promise<FetchResult> => squareCaller.answer(...squareRequestFor(request));

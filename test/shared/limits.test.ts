@@ -1,6 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  formatBytes,
+  formatLimitValue,
+  formatMs,
+  formatSeconds,
+} from "#shared/format-units.ts";
+import {
   ADDRESS_CACHE_DAYS,
   ADDRESS_CACHE_MS,
   ADDRESS_LOOKUP_LOCKOUT_MS,
@@ -9,10 +15,6 @@ import {
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
-  formatBytes,
-  formatLimitValue,
-  formatMs,
-  formatSeconds,
   LIMIT_ENTRIES,
   LOGIN_LOCKOUT_MS,
   MAINTENANCE_PRUNE_BATCH,
@@ -194,7 +196,10 @@ describe("limits", () => {
         "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
+        "CHECKOUT_WINDOW_MINUTES",
         "SCANNER_CSRF_MAX_AGE_S",
+        "SQUARE_LINK_EXPIRY_BATCH",
+        "SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
         "SESSION_MAX_AGE_S",
         "STALE_RESERVATION_MS",
         "SUMUP_FIRST_CHECK_HOURS",

@@ -50,9 +50,9 @@ import { sendSentryTest } from "#shared/sentry.ts";
 import { getStorageBackend } from "#shared/storage.ts";
 import {
   adminDebugPage,
-  type DebugPageState,
   SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
+import type { DebugPageState } from "#templates/admin/debug-state.ts";
 import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */

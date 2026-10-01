@@ -1,8 +1,13 @@
 /* jscpd:ignore-start */
 import { settings } from "#db/settings.ts";
 import { sameOn } from "#fp";
+import type { FetchResult } from "#shared/fetch.ts";
 import { cachedClientFactory } from "#shared/payment-helpers.ts";
-import { squareFetch } from "#shared/square/transport.ts";
+import {
+  type SquareRequestOptions,
+  squareFetch,
+  squareFetchAnswer,
+} from "#shared/square/transport.ts";
 import { type SquareMoney, squareAnswer } from "#shared/square/wire.ts";
 
 /* jscpd:ignore-end */
@@ -47,13 +52,26 @@ const SQUARE_BASE_URL = {
  * line holds a Square value that {@link squareAnswer} has not checked. */
 const createSquareClient = (accessToken: string, sandbox: boolean) => {
   const base = sandbox ? SQUARE_BASE_URL.sandbox : SQUARE_BASE_URL.production;
+  const request = (path: string, options?: SquareRequestOptions) => ({
+    baseUrl: base,
+    ...(options === undefined ? {} : { options }),
+    path,
+    token: accessToken,
+  });
   const post = (path: string, body: unknown) =>
-    squareFetch(accessToken, base, path, { body, method: "POST" });
-  const get = (path: string) => squareFetch(accessToken, base, path);
+    squareFetch(request(path, { body, method: "POST" }));
+  const get = (path: string) => squareFetch(request(path));
 
   return {
     checkout: {
       paymentLinks: {
+        cancel: async (input: { linkId: string }): Promise<FetchResult> =>
+          squareFetchAnswer(
+            request(
+              `/v2/online-checkout/payment-links/${encodeURIComponent(input.linkId)}`,
+              { method: "DELETE" },
+            ),
+          ),
         create: async (input: CreatePaymentLinkInput) =>
           squareAnswer.paymentLink(
             await post("/v2/online-checkout/payment-links", {
@@ -69,7 +87,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
                   },
                   name: item.name,
                   note: item.note,
-                  quantity: item.quantity,
+                  quantity: String(item.quantity),
                 })),
                 location_id: input.order.locationId,
                 metadata: input.order.metadata,

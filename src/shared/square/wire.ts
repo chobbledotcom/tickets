@@ -139,10 +139,11 @@ const OrderAnswer = v.pipe(
   ),
 );
 
-/** A created Square order, the page its buyer pays on, and when Square made
- * that page: its end is counted from Square's own clock. */
+/** A created Square order, the page its buyer pays on, when Square made that
+ * page, and the link id that can end it. */
 export type SquarePaymentLink = {
   createdAt: string;
+  linkId: string;
   orderId: string;
   url: string;
 };
@@ -154,6 +155,7 @@ const PaymentLinkAnswer = v.pipe(
     payment_link: v.optional(
       v.object({
         created_at: v.optional(v.string()),
+        id: ResourceIdSchema,
         long_url: OptionalStringSchema,
         order_id: ResourceIdSchema,
         url: OptionalStringSchema,
@@ -162,11 +164,13 @@ const PaymentLinkAnswer = v.pipe(
   }),
   v.transform(({ payment_link: link }) => ({
     createdAt: link?.created_at,
+    linkId: link?.id,
     orderId: link?.order_id,
     url: link?.long_url ?? link?.url,
   })),
   v.object({
     createdAt: v.pipe(v.string(), v.check(isInstant)),
+    linkId: ResourceIdSchema,
     orderId: ResourceIdSchema,
     url: NonEmptyTextSchema,
   }),

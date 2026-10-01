@@ -22,6 +22,7 @@ import {
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",
+  expires_at: 1_800_000_000,
   line_items: [
     {
       price_data: {
@@ -37,7 +38,6 @@ const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   payment_method_types: ["card"],
   success_url: "https://example.com/success",
 });
-
 /** One retried checkout: the bodies, keys, and waits it put on the wire. */
 const retriedCheckout = (firstAttempt: FetchReply) =>
   withStripeWire(
@@ -117,7 +117,7 @@ describe("Stripe request transport", () => {
     expect(sent.url).toBe("https://api.stripe.com/v1/checkout/sessions");
     expect(sent.init.method).toBe("POST");
     expect(sent.init.body).toBe(
-      "cancel_url=https%3A%2F%2Fexample.com%2Fcancel&line_items[0][price_data][currency]=gbp&line_items[0][price_data][product_data][name]=Tea%20%26%20cake&line_items[0][price_data][unit_amount]=1000&line_items[0][quantity]=2&metadata[order]=signed&mode=payment&payment_method_types[0]=card&success_url=https%3A%2F%2Fexample.com%2Fsuccess",
+      "cancel_url=https%3A%2F%2Fexample.com%2Fcancel&expires_at=1800000000&line_items[0][price_data][currency]=gbp&line_items[0][price_data][product_data][name]=Tea%20%26%20cake&line_items[0][price_data][unit_amount]=1000&line_items[0][quantity]=2&metadata[order]=signed&mode=payment&payment_method_types[0]=card&success_url=https%3A%2F%2Fexample.com%2Fsuccess",
     );
     const headers = new Headers(sent.init.headers);
     expect(headers.get("authorization")).toBe(`Bearer ${WIRE_SECRET_KEY}`);

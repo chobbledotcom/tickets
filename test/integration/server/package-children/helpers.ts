@@ -91,6 +91,7 @@ export const packageChildSession = (
   ({
     amount_total: 1800,
     currency: "gbp",
+    expires_at: 456,
     id: sessionId,
     metadata: signMeta(
       {
@@ -109,6 +110,7 @@ export const packageChildSession = (
     ),
     payment_intent: intentId,
     payment_status: "paid",
+    status: "complete",
   }) as unknown as Awaited<
     ReturnType<typeof stripeApi.retrieveCheckoutSession>
   >;

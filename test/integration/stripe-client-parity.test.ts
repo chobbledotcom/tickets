@@ -49,6 +49,7 @@ test("the small client matches stripe-node requests for every used operation", a
   });
   const checkoutParams = {
     cancel_url: "https://example.com/cancel",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
     line_items: [
       {
         price_data: {

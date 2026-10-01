@@ -9,7 +9,7 @@ import {
   SNAPSHOT_USAGE,
 } from "#scripts/database-snapshot-lib.ts";
 import { createSnapshotProgressOutput } from "#scripts/database-snapshot-output.ts";
-import { formatBytes, formatMs } from "#shared/limits.ts";
+import { formatBytes, formatMs } from "#shared/format-units.ts";
 
 const encoder = new TextEncoder();
 

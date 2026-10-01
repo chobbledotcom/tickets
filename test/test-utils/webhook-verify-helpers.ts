@@ -49,10 +49,12 @@ export const webhookEvent = (opts: {
       // Stripe sends the currency lower-cased; the boundary canonicalises it,
       // and refuses a session that carries none.
       currency: "gbp",
+      expires_at: 1_700_003_600,
       id: opts.sessionId,
       metadata: opts.metadata,
       payment_intent: opts.paymentIntent ?? null,
       payment_status: opts.paymentStatus ?? "paid",
+      status: "complete",
       url: null,
     },
   },

@@ -47,10 +47,12 @@ export const stripeCheckoutSession = (
   amount_total: 1000,
   created: 123,
   currency: "gbp",
+  expires_at: 456,
   id: "cs_test",
   metadata: {},
   payment_intent: "pi_test",
   payment_status: "paid",
+  status: "complete",
   url: "https://checkout.stripe.com/c/pay/cs_test",
   ...overrides,
 });

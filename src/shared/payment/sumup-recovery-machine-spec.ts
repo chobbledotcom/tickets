@@ -13,8 +13,10 @@ import {
   type MachineEvent,
   type MachineMoves,
   type MachineNode,
+  moveOrRefuse,
   movesIn,
   nodeIdsWhere,
+  parseMachineState,
   machineRep as rep,
 } from "#shared/schema-atlas/machine-spec.ts";
 
@@ -34,12 +36,8 @@ export const RECOVERY_STATE_WITHOUT_CHECKOUT_ID: SumupRecoveryState = "staged";
 /** Read a stored word back as a state, refusing one this machine does not
  * have. A row carrying an unknown word is a database this code cannot reason
  * about, so it is raised where it is read rather than carried inward. */
-export const parseSumupRecoveryState = (word: string): SumupRecoveryState => {
-  if (!v.is(SumupRecoveryStateSchema, word)) {
-    throw new Error(`A sumup_checkouts row holds unknown state ${word}`);
-  }
-  return word;
-};
+export const parseSumupRecoveryState = (word: string): SumupRecoveryState =>
+  parseMachineState(SumupRecoveryStateSchema, word, "sumup_checkouts");
 
 export type RecoveryNodeId = SumupRecoveryState;
 
@@ -155,13 +153,13 @@ export const recoveryNodeOf = (row: SumupRecoveryRow): RecoveryNodeId => {
 export const recoveryMoveTo = (
   from: RecoveryNodeId,
   event: RecoveryEventId,
-): RecoveryNodeId => {
-  const to = RECOVERY_MOVES_READER.expected(from, event, "");
-  if (to === "refused") {
-    throw new Error(`A ${from} SumUp checkout refuses ${event}`);
-  }
-  return to;
-};
+): RecoveryNodeId =>
+  moveOrRefuse(
+    RECOVERY_MOVES_READER,
+    from,
+    event,
+    `A ${from} SumUp checkout refuses ${event}`,
+  );
 
 /** The row one event leaves behind, rebuilt from the columns its `UPDATE`
  * would set. Going back through {@link recoveryNodeOf} is the point: an

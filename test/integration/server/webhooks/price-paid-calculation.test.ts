@@ -35,6 +35,7 @@ const followPaymentRedirectAndGetAttendees = async (
     Promise.resolve({
       amount_total: session.amountTotal,
       currency: "gbp",
+      expires_at: 456,
       id: session.sessionId,
       metadata: signMeta(
         webhookMeta({
@@ -46,6 +47,7 @@ const followPaymentRedirectAndGetAttendees = async (
       ),
       payment_intent: session.paymentIntent,
       payment_status: "paid",
+      status: "complete",
     } as unknown as Awaited<
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),

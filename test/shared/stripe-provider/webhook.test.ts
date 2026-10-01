@@ -13,7 +13,9 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
         data: {
           object: {
             ...stripeCheckoutSession({ id: "cs_bad_status" }),
+            expires_at: 456,
             payment_status: "completed",
+            status: "complete",
           },
         },
         id: "evt_bad_status",

@@ -25,6 +25,7 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
+  SQUARE_NATIVE_LIFETIME_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -121,17 +122,39 @@ const pruneStatements = (): PruneStatement[] => [
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
   // The payments cutoff keeps answers past the short SumUp staging window. A
-  // Square link takes payment for 180 days after its creation, or until its
-  // first payment, so its row also waits for the link to end. A payment made
-  // just before the end can still arrive through webhook retries.
+  // Square row also waits for its link to end, and only an observed end
+  // counts: its handle row must be gone. The fallback arm serves a site with
+  // no scheduled monitor — past Square's own page lifetime plus the webhook
+  // window, the link cannot take payment, so the answers go even though the
+  // handle row remains. A payment made just before the end can still arrive
+  // through webhook retries.
   boundedDelete(
     "checkout_pending_answers",
-    "created_at < ? AND (link_ends_at IS NULL OR link_ends_at < ?)",
+    `created_at < ?1
+       AND (
+         link_ends_at IS NULL
+         OR created_at < ?2
+         OR (
+           link_ends_at < ?3
+           AND NOT EXISTS (
+             SELECT 1 FROM square_link_ends AS handle
+              WHERE handle.session_index = checkout_pending_answers.session_index
+           )
+         )
+       )`,
     [
       isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
+      isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
       isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
     ],
   ),
+  // A Square link stops taking payment 180 days after its creation, whatever
+  // the expiry task did, so a handle row older than that bound plus the
+  // webhook window can hold nothing worth ending. Younger rows keep their
+  // place until the task observes their end.
+  boundedDelete("square_link_ends", "created_at < ?", [
+    isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
+  ]),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),

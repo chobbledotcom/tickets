@@ -1,7 +1,8 @@
 /**
- * Shared paid-payment state machine: validate, reserve, process, then record the
- * outcome. A valid payment becomes an atomically finalized ticket or balance
- * settlement. Expected booking failures become terminal stored refunds.
+ * Shared paid-payment state machine: validate, reserve, process, then record
+ * the outcome. A valid payment becomes an atomically finalized ticket or
+ * balance settlement. Expected booking failures become terminal stored
+ * refunds.
  *
  * An uncertain ticket create is resolved from primary payment and token state.
  * HTTP redirect and webhook handling lives in `webhooks.ts`.
@@ -18,6 +19,7 @@ import {
   releaseReservation,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { forgetSquareLinkEnd } from "#db/square-link-ends.ts";
 import { t } from "#i18n";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { sessionAnswerOf } from "#payment/row-state.ts";
@@ -342,6 +344,12 @@ export const processPaymentSession: SessionProcessor = async (
     return handleReservationConflict(data, reservation.existing);
   }
 
+  // A Square link dies with its first payment, so its end row goes now —
+  // conditionally on `pending`, so a row the expiry task already claimed
+  // stays with the task and its own delete refusal names the paid order.
+  if (data.session.provider === "square") {
+    await forgetSquareLinkEnd(sessionId);
+  }
   const result = await processReservedSession(sessionId, data);
 
   // Keep a failed refund callback retryable. The durable refund authority, not

@@ -31,6 +31,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       Promise.resolve({
         amount_total: 1500,
         currency: "gbp",
+        expires_at: 456,
         id: "cs_balance_unsigned",
         metadata: {
           balance_attendee_id: String(attendeeId),
@@ -39,6 +40,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
         },
         payment_intent: "pi_balance",
         payment_status: "paid",
+        status: "complete",
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >),

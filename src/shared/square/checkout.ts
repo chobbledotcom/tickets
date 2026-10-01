@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 
 import { settings } from "#db/settings.ts";
+import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
 import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import {
@@ -10,8 +11,8 @@ import {
 } from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { xCount } from "#shared/count-text.ts";
+import { CHECKOUT_WINDOW_MS } from "#shared/limits.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
-import { DAY_MS } from "#shared/now.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -65,13 +66,11 @@ const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
   return { currency: settings.currency.toUpperCase(), locationId };
 };
 
-/** Square ends a checkout link 180 days after it makes it, or at the link's
- * first payment, whichever comes first. Square sends no end date. */
-const SQUARE_LINK_LIFETIME_MS = 180 * DAY_MS;
-
-/** When a Square checkout link stops taking payment, on Square's own clock. */
+/** When a Square checkout link stops taking payment: creation plus the
+ * shared checkout window. The link actually dies only when the expiry task
+ * ends it, or when its first payment lands. */
 export const squareLinkEndsAt = (createdAt: string): string =>
-  epochMsToIso(instantToEpochMs(createdAt) + SQUARE_LINK_LIFETIME_MS);
+  epochMsToIso(instantToEpochMs(createdAt) + CHECKOUT_WINDOW_MS);
 
 /** A created Square checkout, or nothing when Square is not configured. */
 export type PaymentLinkResult = SquarePaymentLink | null;
@@ -169,6 +168,17 @@ export const createSquarePaymentLink = async (
     metadata,
     phone: checkoutPhone(intent.phone),
   });
+  if (result) {
+    // The handle is Square's alone to need: only a Square link outlives its
+    // checkout window unless somebody ends it, so only Square's create stages
+    // one. The first attempt lands exactly at the window, so no claim can end
+    // a link the buyer can still pay.
+    await stageSquareLinkEnd(
+      result.orderId,
+      result.linkId,
+      squareLinkEndsAt(result.createdAt),
+    );
+  }
   logDebug(
     "Square",
     result
