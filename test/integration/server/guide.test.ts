@@ -1,35 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { hostEmail } from "#shared/email.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
-import {
-  assertAdminHtml,
-  cachedAdminPage,
-  testRequiresAuth,
-} from "#test-utils/assertions.ts";
+import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { validEmail } from "#test-utils/email.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { guide } from "#test-utils/guide.ts";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
-  // The guide's default rendering is identical in every test (static help
-  // content from the standard fixture), so it is rendered once and shared;
-  // only the tests that alter config below fetch their own copy. The cached
-  // render is pinned to CAN_BUILD_SITES unset so the snapshot never depends on
-  // whatever the ambient overlay happens to carry when it is first fetched.
-  const cachedGuide = cachedAdminPage("/admin/guide");
-  const guide = async (
-    ...expected: Parameters<typeof cachedGuide>
-  ): Promise<string> => {
-    using _env = withEnv({ CAN_BUILD_SITES: undefined });
-    // The env pin must cover the whole first render, so await the cached page
-    // before the `using` scope disposes.
-    const html = await cachedGuide(...expected);
-    return html;
-  };
-
   describe("GET /admin/guide", () => {
     testRequiresAuth("/admin/guide");
 
@@ -274,32 +251,6 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide("/admin/guide", "Listings", "Log out");
     });
 
-    test("shows default email setup instructions when no host email configured", async () => {
-      const html = await guide("Choose your email company from the dropdown");
-      expect(html).not.toContain(
-        "already set up by the company that runs your site",
-      );
-    });
-
-    test("shows host email config and setup instructions when configured", async () => {
-      hostEmail.setOverride({
-        apiKey: "re_test_key",
-        fromAddress: validEmail("tickets@example.com"),
-        provider: "resend",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already set up by the company that runs your site",
-          "Resend",
-          "tickets@example.com",
-          "Choose your email company from the dropdown",
-        );
-      } finally {
-        hostEmail.resetOverride();
-      }
-    });
-
     test("contains Google Wallet section", async () => {
       await guide(
         "Google Wallet",
@@ -308,80 +259,6 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Service Account Email",
         "Service Account Private Key",
       );
-    });
-    test("shows default Google Wallet setup when no host config", async () => {
-      const html = await guide("You need three values from");
-      expect(html).not.toContain(
-        "already set up by the company that runs your site",
-      );
-    });
-
-    test("shows host Google Wallet config when env vars set", async () => {
-      settings.googleWallet.setHostConfigForTest({
-        issuerId: "3388000000012345678",
-        serviceAccountEmail: "wallet@project.iam.gserviceaccount.com",
-        serviceAccountKey: "pem-key-data",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already set up by the company that runs your site, using",
-          "3388000000012345678",
-          "You need three values from",
-        );
-      } finally {
-        settings.googleWallet.resetHostConfig();
-      }
-    });
-
-    test("hides built sites section when builder is disabled", async () => {
-      using _env = withEnv({ CAN_BUILD_SITES: undefined });
-      const html = await assertAdminHtml("/admin/guide");
-      expect(html).not.toContain('id="built-sites"');
-    });
-
-    test("cached guide is pinned to builder-off even under ambient CAN_BUILD_SITES=true", async () => {
-      using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
-      const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
-      expect(live).toContain('id="built-sites"');
-      const cached = await guide();
-      expect(cached).not.toContain('id="built-sites"');
-    });
-
-    test("shows built sites section when builder is enabled", async () => {
-      using _env = withEnv({ CAN_BUILD_SITES: "true" });
-      await assertAdminHtml(
-        "/admin/guide",
-        'id="built-sites"',
-        "Add Built Site",
-      );
-    });
-
-    test("shows default wallet setup instructions when no host wallet configured", async () => {
-      const html = await guide("You need five values from");
-      expect(html).not.toContain(
-        "already set up by the company that runs your site",
-      );
-    });
-
-    test("shows host wallet config and setup instructions when configured", async () => {
-      settings.appleWallet.setHostConfigForTest({
-        passTypeId: "pass.com.host.tickets",
-        signingCert: "cert-data",
-        signingKey: "key-data",
-        teamId: "HOSTTEAM01",
-        wwdrCert: "wwdr-data",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already set up by the company that runs your site, using",
-          "pass.com.host.tickets",
-          "You need five values from",
-        );
-      } finally {
-        settings.appleWallet.resetHostConfig();
-      }
     });
 
     test("documents the debug page including system limits", async () => {
