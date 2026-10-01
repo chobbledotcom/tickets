@@ -60,7 +60,7 @@ describe("request scopes", () => {
 
       const response = await runWithRequestScopes(
         new Request("https://example.com/public"),
-        undefined,
+        "direct",
         () => Promise.resolve(new Response(renderAdminFooter())),
       );
 
@@ -89,7 +89,7 @@ describe("request scopes", () => {
 
     await runWithRequestScopes(
       new Request("https://example.com/queued"),
-      undefined,
+      "direct",
       () => {
         addPendingWork(queuedWork);
         return Promise.resolve(new Response());

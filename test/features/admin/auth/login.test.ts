@@ -1,15 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { clearSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { setSkipLoginDelay } from "#shared/test-overrides.ts";
 import {
   assertAdminHtml,
   assertPublicHtml,
   expectAdminLoginSuccess,
-  expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   followRedirectWithFlash,
@@ -38,12 +40,12 @@ const expectWrongPasswordLoginFrom = async (
     username: TEST_ADMIN_USERNAME,
   });
   const response = await handleRequest(request, clientIp);
-  expect(response.status).toBe(302);
-  expectFlash(
-    response,
+  expect(response.headers.getSetCookie()).not.toContain(clearSessionCookie());
+  expectRedirectWithFlash(
+    "/admin",
     expect.stringContaining("Username or password was wrong"),
     false,
-  );
+  )(response);
 };
 
 /** Overwrite the owner's wrapped data key, attempt an admin login with the real
@@ -63,8 +65,11 @@ const expectLoginRejectedWithWrappedKey = async (
       username: TEST_ADMIN_USERNAME,
     }),
   );
-  expect(response.status).toBe(302);
-  expectFlash(response, expect.stringContaining(message), false);
+  expectRedirectWithFlash(
+    "/admin",
+    expect.stringContaining(message),
+    false,
+  )(response);
 };
 
 describeWithEnv("server (admin login)", { db: true }, () => {
@@ -107,12 +112,11 @@ describeWithEnv("server (admin login)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        "/admin",
         expect.stringContaining("Password is required"),
         false,
-      );
+      )(response);
     });
 
     test("rejects wrong password", async () => {
@@ -122,12 +126,11 @@ describeWithEnv("server (admin login)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        "/admin",
         expect.stringContaining("Username or password was wrong"),
         false,
-      );
+      )(response);
     });
 
     test("accepts correct password and sets cookie", async () => {
@@ -154,12 +157,11 @@ describeWithEnv("server (admin login)", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        "/admin",
         expect.stringContaining("Invalid or expired form"),
         false,
-      );
+      )(response);
     });
 
     test("rejects login when CSRF token is invalid", async () => {
@@ -171,12 +173,11 @@ describeWithEnv("server (admin login)", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        "/admin",
         expect.stringContaining("Invalid or expired form"),
         false,
-      );
+      )(response);
     });
 
     test("redirects with a too-many-attempts flash when rate limited", async () => {
@@ -194,12 +195,11 @@ describeWithEnv("server (admin login)", { db: true }, () => {
 
       // 6th attempt should be rate limited
       const response = await handleRequest(await makeRequest());
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        "/admin",
         expect.stringContaining("Too many login attempts"),
         false,
-      );
+      )(response);
     });
 
     test("does not lock out another client IP", async () => {
@@ -231,18 +231,18 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       setSkipLoginDelay(true);
     });
 
-    test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
+    test("waits 100 to 200ms when TEST_SKIP_LOGIN_DELAY is not set", async () => {
       setSkipLoginDelay(false);
-      const start = Date.now();
+      using _random = stub(Math, "random", () => 0.5);
+      using timers = spy(globalThis, "setTimeout");
       const response = await handleRequest(
         await mockAdminLoginRequest({
           password: TEST_ADMIN_PASSWORD,
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      const elapsed = Date.now() - start;
       await expectFlashRedirect("/admin", "Logged in")(response);
-      expect(elapsed).toBeGreaterThanOrEqual(100);
+      expect(timers.calls.map((call) => call.args[1])).toContain(150);
     });
   });
   describe("login error display", () => {
@@ -300,6 +300,9 @@ describeWithEnv("server (admin login)", { db: true }, () => {
           },
           cookie,
         ),
+      );
+      expect(postResponse.headers.getSetCookie()).toContain(
+        clearSessionCookie(),
       );
       expect(postResponse.status).toBe(302);
 

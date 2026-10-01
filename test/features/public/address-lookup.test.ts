@@ -77,9 +77,9 @@ describeWithEnv("the address lookup route's limiter", { db: true }, () => {
       cookie: await testCookie(),
     });
     expect(response.status).toBe(200);
-    expect((await response.json()).addresses).toEqual([
-      "1 Test Street, London",
-    ]);
+    const body = await response.json();
+    expect(Object.keys(body)).toEqual(["addresses", "matches"]);
+    expect(body.addresses).toEqual(["1 Test Street, London"]);
   });
 
   test("a scanner session's own lookups count against the shared IP", async () => {
@@ -90,6 +90,9 @@ describeWithEnv("the address lookup route's limiter", { db: true }, () => {
       cookie,
     });
     expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({
+      addresses: ["1 Test Street, London"],
+    });
 
     // One recorded lookup from the request above: MAX-1 more spends the IP,
     // and the next scanner request meets the same lockout as anonymous use.
