@@ -168,18 +168,6 @@ describe("limit registry contract", () => {
         "Form re-fill stash max entries",
         "entries",
       ],
-      [
-        "SQUARE_LINK_EXPIRY_BATCH",
-        10,
-        "Square link expiry: links per run",
-        "links",
-      ],
-      [
-        "SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
-        5,
-        "Square link expiry: how often to look for due links",
-        "minutes",
-      ],
     ]);
   });
 

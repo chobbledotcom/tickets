@@ -211,10 +211,6 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // Seconds ladder used in production (same-file: UNIT_FORMATTERS references
   // it as a value) but the pattern doesn't detect same-file usage.
   "shared/format-units.ts:formatSeconds",
-  // Interval minutes used in production (same-file: derives the *_MS interval
-  // the maintenance registry imports) but the pattern can't detect same-file
-  // arithmetic (`X * 60 * 1000`).
-  "shared/square/limits.ts:SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
   // Move table used in production (same-file: LINK_END_MOVES_READER wraps it
   // for squareLinkEndMoveTo, which db/square-link-ends.ts imports) but the
   // pattern doesn't detect same-file usage.

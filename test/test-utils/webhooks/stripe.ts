@@ -31,6 +31,7 @@ type CheckoutSessionDetails = {
   paymentIntent: string | null;
   paymentStatus?: StripeCheckoutSession["payment_status"];
   sessionId: string;
+  status?: StripeCheckoutSession["status"];
 } & (
   | {
       metadata: SessionMetadata | StripeCheckoutSession["metadata"];
@@ -69,7 +70,7 @@ export const stubRetrieveCheckoutSession = (
     metadata,
     payment_intent: session.paymentIntent,
     payment_status: session.paymentStatus ?? "paid",
-    status: "complete",
+    status: session.status ?? "complete",
     url: null,
   };
   return stub(stripeApi, "retrieveCheckoutSession", () =>

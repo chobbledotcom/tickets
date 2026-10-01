@@ -108,13 +108,6 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   refuses an expiry outside that range. A value outside it stops the server at
   startup. SumUp closes its own hosted page after 30 minutes, so it reads
   nothing here.
-- `SQUARE_LINK_EXPIRY_BATCH` - Optional positive whole number (default `10`).
-  How many Square payment links one expiry run can take. Each costs one Square
-  delete, so this keeps the task inside the edge subrequest budget.
-- `SQUARE_LINK_EXPIRY_INTERVAL_MINUTES` - Optional positive whole number
-  (default `5`). How often the Square link expiry task looks for due links. The
-  checkout window decides when a link is due. This only decides how promptly a
-  due link is picked up.
 - `DEBUG_KEY` - Optional diagnostic key. `GET /health` returns a plain `Up :)`
   by default; a request with a matching `X-Debug-Key` header instead returns
   JSON build diagnostics (commit, build timestamp, server time) — non-private
