@@ -1,7 +1,7 @@
 {
   "guide.sections.import_export": "Import & export",
   "guide.q.what_is_catalog_transfer": "Can I copy a listing or group to another site?",
-  "guide.a.what_is_catalog_transfer": "<p>Yes. Any listing or group can be saved as one file, then loaded into this or another site to re-create it — with its prices, group memberships, package settings and parent links. It is the quick way to move a listing between sites, or to keep a spare copy. The file is the same either way: what you save is exactly what a load accepts.</p>",
+  "guide.a.what_is_catalog_transfer": "<p>Yes. Any listing or group can be saved as one file, then loaded into this or another site to re-create it — with its prices, group memberships, package settings and parent links. It is the simple way to move a listing between sites, or to keep a spare copy. The file is the same either way: what you save is exactly what a load accepts.</p>",
   "guide.q.how_do_i_export_catalog": "How do I save a listing or group?",
   "guide.a.how_do_i_export_catalog": "<p>Open the listing's <strong>Actions</strong> tab (or a group's detail page) and choose <strong>Export</strong>. You download a <code>.json</code> file named after the listing or group.</p><p>Editors do not see the webhook address in their copies, because that field is hidden from them everywhere.</p>",
   "guide.q.how_do_i_import_catalog": "How do I load a listing or group?",

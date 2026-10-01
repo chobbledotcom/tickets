@@ -4,7 +4,7 @@
   "guide.sections.host_subdomain": "Host subdomain",
   "guide.sections.built_sites": "Built sites",
   "guide.q.what_is_a_domain_name": "What is a domain name?",
-  "guide.a.what_is_a_domain_name": "<p>A domain name is the address people type into a browser to reach a website. For example <code>tickets.example.co.uk</code>.</p><p>Your site already works at a long address it was given when it was built. A domain name is a shorter, friendlier address that you buy and point at your site, so people can find you more easily.</p>",
+  "guide.a.what_is_a_domain_name": "<p>A domain name is the address people type into a browser to reach a website. For example <code>tickets.example.co.uk</code>.</p><p>Your site already works at a long address it was given when it was built. A domain name is a shorter address that you buy and point at your site, so people can find you more easily.</p>",
   "guide.q.where_do_i_buy_a_domain_name": "Where do I buy a domain name?",
   "guide.a.where_do_i_buy_a_domain_name": "<p>You buy one from a company that sells domain names. Well-known sellers are Cloudflare, Namecheap, and GoDaddy, but any seller will do. A web designer can also buy one for you.</p><p>A domain name usually costs between £5 and £20 a year, and you pay every year to keep it. When you buy, you only buy the name. You do not need to buy anything else — no website space or hosting — because this site already runs on the internet. The name just needs to point at it.</p>",
   "guide.q.setup_custom_domain": "How do I set up a custom domain?",

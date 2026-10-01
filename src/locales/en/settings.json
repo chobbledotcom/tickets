@@ -131,7 +131,7 @@
   "settings.advanced.email_variables.attendee_special_instructions": "Special instructions",
   "settings.advanced.email_variables.entries": "One row per booked listing. A package that hides listing names is one row, not its parts.",
   "settings.advanced.email_variables.entry_listing_name": "Listing name, inside the loop",
-  "settings.advanced.email_variables.entry_listing_slug": "The listing's address ending, inside the loop",
+  "settings.advanced.email_variables.entry_listing_slug": "The last part of the listing's address, inside the loop",
   "settings.advanced.email_variables.entry_listing_is_paid": "Whether the listing has a price",
   "settings.advanced.email_variables.entry_attendee_quantity": "Ticket quantity",
   "settings.advanced.email_variables.entry_attendee_price_paid": "Price shown as money",

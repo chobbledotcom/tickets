@@ -43,10 +43,10 @@ export const listingsSections = (): GuideSection[] => [
         <p>
           When switched on, attendees can choose their own price instead of
           paying a fixed amount. The ticket price becomes the minimum. You can
-          set a top price with the "Maximum Price" field — it must be at least{" "}
+          set a maximum with the "Maximum Price" field — it must be at least{" "}
           {formatCurrency(100)} more than the ticket price. If the ticket price
           is zero, the listing becomes pay-what-you-want: attendees can enter
-          any amount up to the top price, or nothing.
+          any amount up to the maximum, or nothing.
         </p>,
       ),
       faq("what_is_purchase_only_mode"),
