@@ -292,6 +292,34 @@ describeStripe("stripe-provider", () => {
       );
     });
 
+    test("stages no link end when the create answer carries none", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.resolve(
+              stripeCheckoutSession({
+                expires_at: null,
+                id: "cs_no_expiry",
+                url: "https://stripe.example/no-expiry",
+              }),
+            ),
+          ),
+        async () => {
+          await stripePaymentProvider.createCheckoutSession(
+            checkoutIntent({ textAnswers: { "7": "Coming by bus" } }),
+            "http://localhost:3000",
+          );
+
+          const row = await queryOne<{ link_ends_at: string | null }>(
+            "SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ?",
+            [await hmacHash("cs_no_expiry")],
+          );
+          expect(row?.link_ends_at).toBeNull();
+        },
+      );
+    });
+
     test("returns a refundable rejection when the session has no currency", async () => {
       const client = await stripeClient();
       await whileRetrieving(

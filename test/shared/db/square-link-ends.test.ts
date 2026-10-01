@@ -48,6 +48,11 @@ const stageDue = async (
   linkId = `link_${sessionId}`,
 ): Promise<void> => {
   await stageSquareLinkEnd(sessionId, linkId, WINDOW_END);
+  await backdateAttempt(sessionId);
+};
+
+/** Move one row's attempt time to the past, so it reads due again. */
+const backdateAttempt = async (sessionId: string): Promise<void> => {
   await execute(
     "UPDATE square_link_ends SET next_attempt_at = ? WHERE session_index = ?",
     [PAST, await hmacHash(sessionId)],
@@ -60,6 +65,15 @@ const theAnswer = (status: number, body: string): FetchResult => ({
   status,
   text: body,
 });
+
+/** Assert a row sits pending and due again, ready for a fresh claim. */
+const expectBackToQueue = async (sessionId: string): Promise<void> => {
+  const stored = await storedRow(sessionId);
+  expect(stored?.state).toBe("pending");
+  expect(new Date(stored!.next_attempt_at).getTime()).toBeLessThanOrEqual(
+    Date.parse(nowIso()),
+  );
+};
 
 describeWithEnv("square link ends", { db: true }, () => {
   test("stages the handle sealed, keyed by the session hash, first due at the window", async () => {
@@ -130,22 +144,15 @@ describeWithEnv("square link ends", { db: true }, () => {
     await claimSquareLinkEnd(due!);
 
     // The lease passes without an answer.
-    await execute(
-      "UPDATE square_link_ends SET next_attempt_at = ? WHERE session_index = ?",
-      [PAST, await hmacHash("sq_lease")],
-    );
+    await backdateAttempt("sq_lease");
     const [expired] = await getDueSquareLinkEnds();
     expect(expired?.state).toBe("ending");
 
     const wrote = await applySquareLinkEndEvent(expired!, "lease_expired");
 
     expect(wrote).toBe(true);
-    const stored = await storedRow("sq_lease");
-    expect(stored?.state).toBe("pending");
     // The row returns due now, so the next run claims it afresh.
-    expect(new Date(stored!.next_attempt_at).getTime()).toBeLessThanOrEqual(
-      Date.parse(nowIso()),
-    );
+    expectBackToQueue("sq_lease");
   });
 
   test("an apply fenced on a read the row has left loses", async () => {
@@ -251,10 +258,7 @@ describeWithEnv("square link ends", { db: true }, () => {
     const [due] = await getDueSquareLinkEnds();
     await claimSquareLinkEnd(due!);
     // The lease passes without an answer.
-    await execute(
-      "UPDATE square_link_ends SET next_attempt_at = ? WHERE session_index = ?",
-      [PAST, await hmacHash("sq_run_lease")],
-    );
+    await backdateAttempt("sq_run_lease");
 
     const read = stub(squareApi, "endLink", () => {
       throw new Error("an expired lease must not reach Square");
@@ -265,11 +269,7 @@ describeWithEnv("square link ends", { db: true }, () => {
       read.restore();
     }
     expect(read.calls).toHaveLength(0);
-    const stored = await storedRow("sq_run_lease");
-    expect(stored?.state).toBe("pending");
-    expect(new Date(stored!.next_attempt_at).getTime()).toBeLessThanOrEqual(
-      Date.parse(nowIso()),
-    );
+    expectBackToQueue("sq_run_lease");
   });
 
   test("a run leaves a row another runner claims mid-batch", async () => {

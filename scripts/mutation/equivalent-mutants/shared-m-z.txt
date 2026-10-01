@@ -51,7 +51,6 @@ src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1li3bw3  
 src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~0om8fcb  never_paid → ""   # tag labels one conformance case; production reads only the representative state
 src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~08wuvsv  accounted_for → ""   # tag labels one conformance case; production reads only the representative state
 src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1qx9w2z  unaccounted_for → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/sumup-recovery-machine-spec.ts::recoveryMoveTo.to~0p0vik6   →"mutated"   # all cells are plain or absent, so the tag argument has no effect
 
 # admit-move.ts declares every lifecycle rank in the closed 0/1/2 order.
 # Array.sort observes only the comparator's sign, so subtraction and division
