@@ -40,6 +40,9 @@ import {
 } from "#shared/env.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
+// The Square link limits register from their own module; load it so the table
+// below shows every limit the site reads.
+import "#shared/square/limits.ts";
 import {
   type PaymentProviderMode,
   paymentProviderMode,

@@ -51,15 +51,14 @@ const cancelledOrderIdOf = (body: Record<string, unknown>): string | null => {
 
 /** Whether a refusal names a paid or completed order. Square words its
  * refusal in the error `code` and `detail`; the sandbox e2e leg pins the
- * exact shape, so this reads the state words themselves. */
+ * exact shape, so this reads the state words themselves. The match is whole
+ * words only: "UNPAID" contains "PAID", but an unpaid order can still end. */
 const refusalNamesPaidOrder = (
   errors: readonly Record<string, unknown>[],
 ): boolean =>
   errors.some((entry) =>
     [entry.code, entry.detail].some(
-      (word) =>
-        typeof word === "string" &&
-        (word.includes("PAID") || word.includes("COMPLETED")),
+      (word) => typeof word === "string" && /\b(PAID|COMPLETED)\b/.test(word),
     ),
   );
 

@@ -38,7 +38,7 @@ export const checkoutSessionEvent = (opts: {
       amount_total: opts.amountTotal,
       created: opts.created ?? 1_700_000_000,
       currency: "gbp",
-      expires_at: 1_700_003_600,
+      expires_at: (opts.created ?? 1_700_000_000) + 3_600,
       id: opts.sessionId,
       metadata: opts.metadata,
       payment_intent:

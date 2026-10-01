@@ -17,6 +17,9 @@ import {
   SUMUP_RECOVERY_INTERVAL_MS,
   SUMUP_UNANSWERED_AFTER_MS,
 } from "#shared/limits.ts";
+// The Square link limits register from their own module now; load it so the
+// registry holds every entry.
+import "#shared/square/limits.ts";
 
 const metadata = LIMIT_ENTRIES.map(({ defaultValue, envKey, label, unit }) => [
   envKey,
@@ -135,18 +138,6 @@ describe("limit registry contract", () => {
         "minutes",
       ],
       [
-        "SQUARE_LINK_EXPIRY_BATCH",
-        10,
-        "Square link expiry: links per run",
-        "links",
-      ],
-      [
-        "SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
-        5,
-        "Square link expiry: how often to look for due links",
-        "minutes",
-      ],
-      [
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
         7,
         "Prune: unused encrypted strings retention",
@@ -176,6 +167,18 @@ describe("limit registry contract", () => {
         100,
         "Form re-fill stash max entries",
         "entries",
+      ],
+      [
+        "SQUARE_LINK_EXPIRY_BATCH",
+        10,
+        "Square link expiry: links per run",
+        "links",
+      ],
+      [
+        "SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
+        5,
+        "Square link expiry: how often to look for due links",
+        "minutes",
       ],
     ]);
   });

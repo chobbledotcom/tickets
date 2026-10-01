@@ -19,9 +19,9 @@ import {
   stageSquareLinkEnd,
 } from "#db/square-link-ends.ts";
 import type { FetchResult } from "#shared/fetch.ts";
-import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/square/limits.ts";
 import { runSquareLinkExpiry } from "#shared/square/link-expiry-run.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

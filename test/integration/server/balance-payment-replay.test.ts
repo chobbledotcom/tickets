@@ -25,7 +25,7 @@ const balanceSession = (
   amount_total: amount,
   created: 1_782_000_000,
   currency: "gbp",
-  expires_at: 456,
+  expires_at: 1_782_003_600,
   id: sessionId,
   metadata: signedMeta(
     {

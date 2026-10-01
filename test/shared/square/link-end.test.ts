@@ -102,6 +102,19 @@ describe("square link delete answers", () => {
     ).toBe("delete_refused_paid");
   });
 
+  test("a refusal that names an unpaid order proves nothing", () => {
+    // "UNPAID" contains "PAID", but an unpaid order can still be ended, so
+    // reading it as paid would drop a handle row while the link stays payable.
+    expect(
+      squareLinkEndEventOf(
+        answer(
+          400,
+          `{"errors":[{"category":"INVALID_REQUEST_ERROR","code":"BAD_REQUEST","detail":"The order is UNPAID and cannot be canceled"}]}`,
+        ),
+      ),
+    ).toBe("delete_inconclusive");
+  });
+
   test("a refusal about anything else proves nothing", () => {
     expect(
       squareLinkEndEventOf(

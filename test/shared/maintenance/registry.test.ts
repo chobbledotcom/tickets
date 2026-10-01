@@ -174,7 +174,9 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const { stageSquareLinkEnd } = await import("#db/square-link-ends.ts");
     const { hmacHash } = await import("#crypto/hashing.ts");
     const { squareApi } = await import("#shared/square/api.ts");
-    const { SQUARE_LINK_EXPIRY_BATCH } = await import("#shared/limits.ts");
+    const { SQUARE_LINK_EXPIRY_BATCH } = await import(
+      "#shared/square/limits.ts"
+    );
     await configureSquare();
     for (let index = 0; index < SQUARE_LINK_EXPIRY_BATCH; index++) {
       const id = `sq_task_${index}`;

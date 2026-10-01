@@ -11,7 +11,9 @@ import {
   ADDRESS_CACHE_MS,
   ADDRESS_LOOKUP_LOCKOUT_MS,
   ATTACHMENT_URL_MAX_AGE_S,
+  assertCheckoutWindowSafe,
   assertPaymentsRetentionSafe,
+  CHECKOUT_WINDOW_MINUTES,
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
@@ -42,6 +44,9 @@ import {
   STALE_RESERVATION_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
+// The Square link limits register from their own module now; load it so the
+// registry holds every entry.
+import "#shared/square/limits.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 describe("limits", () => {
@@ -129,6 +134,34 @@ describe("limits", () => {
       expect(PRUNE_PAYMENTS_RETENTION_DAYS).toBeGreaterThanOrEqual(
         WEBHOOK_RETRY_WINDOW_DAYS,
       );
+    });
+  });
+
+  describe("assertCheckoutWindowSafe", () => {
+    test("returns the value when it sits inside Stripe's expires_at range", () => {
+      expect(assertCheckoutWindowSafe(30)).toBe(30);
+      expect(assertCheckoutWindowSafe(60)).toBe(60);
+      expect(assertCheckoutWindowSafe(24 * 60)).toBe(24 * 60);
+    });
+
+    test("throws when the window leaves Stripe's expires_at range", () => {
+      // Stripe refuses a checkout session whose expiry sits outside 30 minutes
+      // to 24 hours, so a window outside that range would stop every Stripe
+      // payment — so it must fail loudly.
+      expect(() => assertCheckoutWindowSafe(29)).toThrow(
+        "CHECKOUT_WINDOW_MINUTES=29 is outside Stripe's allowed expires_at " +
+          "range of 30 minutes to 24 hours. Stripe refuses a checkout session " +
+          "whose expiry sits outside that range, so the site could not take " +
+          "Stripe payments. Set it between 30 and 1440 (the default is 60).",
+      );
+      expect(() => assertCheckoutWindowSafe(24 * 60 + 1)).toThrow(
+        "CHECKOUT_WINDOW_MINUTES=1441",
+      );
+    });
+
+    test("the live window constant satisfies its own range", () => {
+      expect(CHECKOUT_WINDOW_MINUTES).toBeGreaterThanOrEqual(30);
+      expect(CHECKOUT_WINDOW_MINUTES).toBeLessThanOrEqual(24 * 60);
     });
   });
 

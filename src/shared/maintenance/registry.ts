@@ -4,8 +4,6 @@ import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
   PRUNE_INTERVAL_MS,
-  SQUARE_LINK_EXPIRY_BATCH,
-  SQUARE_LINK_EXPIRY_INTERVAL_MS,
   SUMUP_RECOVERY_BATCH,
   SUMUP_RECOVERY_INTERVAL_MS,
 } from "#shared/limits.ts";
@@ -14,6 +12,10 @@ import {
   type MaintenanceTaskCheck,
 } from "#shared/maintenance/definition.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import {
+  SQUARE_LINK_EXPIRY_BATCH,
+  SQUARE_LINK_EXPIRY_INTERVAL_MS,
+} from "#shared/square/limits.ts";
 
 const FAILURE_RETRY_MS = 5 * 60 * 1000;
 

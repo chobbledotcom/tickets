@@ -21,12 +21,12 @@ import {
   type SquareLinkEndState,
   squareLinkEndMoveTo,
 } from "#payment/square-link-end-machine-spec.ts";
+import { isoAfter, nowIso } from "#shared/now.ts";
 import {
   SQUARE_LINK_EXPIRY_BATCH,
   SQUARE_LINK_LEASE_MS,
   SQUARE_LINK_RETRY_MS,
-} from "#shared/limits.ts";
-import { isoAfter, nowIso } from "#shared/now.ts";
+} from "#shared/square/limits.ts";
 
 /* jscpd:ignore-end */
 

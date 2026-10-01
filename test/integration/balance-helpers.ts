@@ -178,7 +178,7 @@ export const balanceSession = (
   amount_total: chargedAmount,
   created: 1_700_000_000,
   currency: "gbp",
-  expires_at: 456,
+  expires_at: 1_700_003_600,
   id,
   metadata: {
     ...signMeta(

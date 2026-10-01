@@ -25,12 +25,12 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
-  SQUARE_NATIVE_LIFETIME_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 import { DAY_MS, isoBefore, now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
+import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
 
@@ -118,7 +118,9 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
+    `created_at < ? AND recovery_state IN (${inPlaceholders(
+      RECOVERY_PRUNABLE_NODES,
+    )})`,
     [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
   // The payments cutoff keeps answers past the short SumUp staging window. A
@@ -148,10 +150,10 @@ const pruneStatements = (): PruneStatement[] => [
       isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
     ],
   ),
-  // A Square link stops taking payment 180 days after its creation, whatever
-  // the expiry task did, so a handle row older than that bound plus the
-  // webhook window can hold nothing worth ending. Younger rows keep their
-  // place until the task observes their end.
+  // A Square link stops taking payment at Square's native lifetime (180 days)
+  // at the latest, whatever the expiry task did, so a handle row older than
+  // that bound plus the webhook window can hold nothing worth ending. Younger
+  // rows keep their place until the task observes their end.
   boundedDelete("square_link_ends", "created_at < ?", [
     isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
   ]),

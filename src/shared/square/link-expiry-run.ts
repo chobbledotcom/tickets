@@ -18,9 +18,9 @@ import {
 } from "#db/square-link-ends.ts";
 import type { SquareLinkEndEventId } from "#payment/square-link-end-machine-spec.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/limits.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/square/limits.ts";
 import { squareLinkEndEventOf } from "#shared/square/link-end.ts";
 
 /** End one link and record what the answer amounted to.

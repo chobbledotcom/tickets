@@ -14,7 +14,7 @@
   "src/shared/db/migrations/schema-sync.ts": 664,
   "src/shared/db/modifier-resolve.ts": 667,
   "src/shared/db/table.ts": 764,
-  "src/shared/limits.ts": 690,
+  "src/shared/limits.ts": 674,
   "src/shared/merge/attendee-merge.ts": 891,
   "src/shared/payment-helpers.ts": 657,
   "src/shared/payment/refund-machine-spec.ts": 534,

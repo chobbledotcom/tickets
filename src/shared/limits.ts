@@ -67,8 +67,10 @@ const computedLimit = (
  * reference this single declaration, eliminating the dual-declaration drift
  * that previously let `MAX_IMAGE_SIZE` disagree (32 MB constant vs 256 KB
  * table entry). A plain env-read limit is just a computed one whose value comes
- * from {@link readLimit}, so it shares that registration path. */
-const limit = (
+ * from {@link readLimit}, so it shares that registration path. Exported so a
+ * domain module (for example `#shared/square/limits.ts`) can register its own
+ * limits into the one shared debug table. */
+export const limit = (
   envKey: string,
   defaultValue: number,
   label: string,
@@ -459,61 +461,43 @@ export const SUMUP_RECOVERY_BATCH = limit(
 );
 
 /**
+ * Validate the checkout-window config: Stripe takes an `expires_at` from 30
+ * minutes to 24 hours after creation (see `src/shared/stripe/client.ts`). A
+ * window outside that range makes Stripe refuse every checkout session, so the
+ * site could not take Stripe payments. Throws (failing startup) rather than
+ * letting a Stripe create fail per request.
+ */
+export const assertCheckoutWindowSafe = (minutes: number): number => {
+  const max = 24 * 60;
+  if (minutes < 30 || minutes > max) {
+    throw new Error(
+      `CHECKOUT_WINDOW_MINUTES=${minutes} is outside Stripe's allowed ` +
+        "expires_at range of 30 minutes to 24 hours. Stripe refuses a " +
+        "checkout session whose expiry sits outside that range, so the site " +
+        `could not take Stripe payments. Set it between 30 and ${max} ` +
+        "(the default is 60).",
+    );
+  }
+  return minutes;
+};
+
+/**
  * How long an unpaid checkout can take payment (default: 60 minutes). Square
  * stages its cancel handle for this window and the expiry task ends the link
- * at it; Stripe is told the same expiry at creation. SumUp closes its own
- * hosted page after 30 minutes, so it reads nothing here.
+ * at it; Stripe is told the same expiry at creation, which bounds the value to
+ * 30 minutes to 24 hours. SumUp closes its own hosted page after 30 minutes,
+ * so it reads nothing here.
  */
-export const CHECKOUT_WINDOW_MINUTES = limit(
-  "CHECKOUT_WINDOW_MINUTES",
+export const CHECKOUT_WINDOW_MINUTES = computedLimit(
+  assertCheckoutWindowSafe(readLimit("CHECKOUT_WINDOW_MINUTES", 60)),
   60,
+  "CHECKOUT_WINDOW_MINUTES",
   "Checkout: unpaid payment window",
   "minutes",
 );
 
 /** Computed: the checkout window in milliseconds. */
 export const CHECKOUT_WINDOW_MS = CHECKOUT_WINDOW_MINUTES * 60 * 1000;
-
-/**
- * How many Square payment links one expiry run may take (default: 10). Each
- * costs one Square delete, so this is what keeps the task inside the edge
- * subrequest budget.
- */
-export const SQUARE_LINK_EXPIRY_BATCH = limit(
-  "SQUARE_LINK_EXPIRY_BATCH",
-  10,
-  "Square link expiry: links per run",
-  "links",
-);
-
-/**
- * How often the Square link expiry task looks for due links (default: 5
- * minutes). The window decides when a link is due; this only decides how
- * promptly a due link is picked up.
- */
-export const SQUARE_LINK_EXPIRY_INTERVAL_MINUTES = limit(
-  "SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
-  5,
-  "Square link expiry: how often to look for due links",
-  "minutes",
-);
-
-/** How long a claimed link end may sit without an answer before its lease
- * expires and the row returns to the queue. */
-export const SQUARE_LINK_LEASE_MS = 5 * 60 * 1000;
-
-/** How long to wait before asking Square again about a link whose delete
- * answer proved nothing. */
-export const SQUARE_LINK_RETRY_MS = 5 * 60 * 1000;
-
-/** Computed: the expiry task interval in milliseconds. */
-export const SQUARE_LINK_EXPIRY_INTERVAL_MS =
-  SQUARE_LINK_EXPIRY_INTERVAL_MINUTES * 60 * 1000;
-
-/** How long Square itself keeps an unpaid payment link payable: 180 days
- * from its creation. A handle row older than this plus the webhook window
- * can no longer take payment, whatever this task did. */
-export const SQUARE_NATIVE_LIFETIME_MS = 180 * DAY_MS;
 
 /**
  * Retention (days) for encrypted string rows that have not been attached to an

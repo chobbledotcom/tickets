@@ -104,8 +104,10 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
 - `CHECKOUT_WINDOW_MINUTES` - Optional positive whole number (default `60`). How
   long an unpaid checkout can take payment. Square stages its cancel handle for
   this window. The link expiry task ends the link at it. Stripe is told the same
-  expiry at creation. SumUp closes its own hosted page after 30 minutes, so it
-  reads nothing here.
+  expiry at creation, so the value must sit between `30` and `1440`: Stripe
+  refuses an expiry outside that range. A value outside it stops the server at
+  startup. SumUp closes its own hosted page after 30 minutes, so it reads
+  nothing here.
 - `SQUARE_LINK_EXPIRY_BATCH` - Optional positive whole number (default `10`).
   How many Square payment links one expiry run can take. Each costs one Square
   delete, so this keeps the task inside the edge subrequest budget.

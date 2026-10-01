@@ -14,10 +14,10 @@ import { runDatabasePruning } from "#db/prune.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import {
   PRUNE_PAYMENTS_RETENTION_MS,
-  SQUARE_NATIVE_LIFETIME_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
+import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
