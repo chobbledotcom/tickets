@@ -7,7 +7,7 @@ import {
   itemLinkColumns,
   slugNamedEntityColumns,
   statefulColumns,
-} from "#shared/db/migrations/schema/columns.ts";
+} from "#db/migrations/schema/columns.ts";
 
 describe("shared schema columns", () => {
   test("the slug-named entity header is id, slug, its blind index, and name", () => {

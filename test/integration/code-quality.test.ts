@@ -275,6 +275,17 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
   // first upload, never at cold boot — invisible to the static import scanner.
   "shared/images/transcode.ts:transcodeToWebp",
+  // Seconds ladder used in production (same-file: UNIT_FORMATTERS references
+  // it as a value) but the pattern doesn't detect same-file usage.
+  "shared/format-units.ts:formatSeconds",
+  // Interval minutes used in production (same-file: derives the *_MS interval
+  // the maintenance registry imports) but the pattern can't detect same-file
+  // arithmetic (`X * 60 * 1000`).
+  "shared/square/limits.ts:SQUARE_LINK_EXPIRY_INTERVAL_MINUTES",
+  // Move table used in production (same-file: LINK_END_MOVES_READER wraps it
+  // for squareLinkEndMoveTo, which db/square-link-ends.ts imports) but the
+  // pattern doesn't detect same-file usage.
+  "shared/payment/square-link-end-machine-spec.ts:LINK_END_MOVES",
 ];
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>
