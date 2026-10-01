@@ -82,7 +82,7 @@ const initialize = once((): Promise<boolean> => {
  */
 const serveHandler = async (
   request: Request,
-  readClientIp: () => string,
+  clientIp: string,
 ): Promise<Response> => {
   const scheduledAccess = scheduledAccessFromEnv(request);
   if (scheduledAccess.kind === "rejected") {
@@ -96,7 +96,7 @@ const serveHandler = async (
       const { handleScheduledRequest } = await import("#routes/scheduled.ts");
       return await handleScheduledRequest(request);
     }
-    return await handleRequest(request, readClientIp());
+    return await handleRequest(request, clientIp);
   } catch (error) {
     logError({
       code: ErrorCode.CDN_REQUEST,
@@ -114,16 +114,15 @@ const serveHandler = async (
 };
 
 /** Bunny gives the handler only the request. The Bunny CDN puts the client
- * address in `x-real-ip`. */
-export const bunnyServeHandler = (request: Request): Promise<Response> =>
-  serveHandler(request, () => {
-    const ip = request.headers.get("x-real-ip");
-    if (!ip) throw new Error("Bunny request has no x-real-ip header");
-    return ip;
-  });
+ * address in `x-real-ip`, so a request without it is a platform fault. */
+export const bunnyServeHandler = (request: Request): Promise<Response> => {
+  const ip = request.headers.get("x-real-ip");
+  if (!ip) throw new Error("Bunny request has no x-real-ip header");
+  return serveHandler(request, ip);
+};
 
 /** Deno gives the client address of the TCP connection. */
 export const denoServeHandler = (
   request: Request,
   info: Deno.ServeHandlerInfo<Deno.NetAddr>,
-): Promise<Response> => serveHandler(request, () => info.remoteAddr.hostname);
+): Promise<Response> => serveHandler(request, info.remoteAddr.hostname);

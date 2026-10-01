@@ -3,8 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { initSentry } from "#shared/sentry.ts";
-import { bunnyServeHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { serveFromBunny } from "#test-utils/entry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -17,7 +17,7 @@ import {
 import { resetSentry } from "#test-utils/sentry.ts";
 
 const scheduled = (key = TEST_SCHEDULED_KEY): Promise<Response> =>
-  bunnyServeHandler(
+  serveFromBunny(
     mockRequest("/scheduled", {
       headers: scheduledAuthorization(key),
       method: "POST",
@@ -71,12 +71,12 @@ describeWithEnv(
         headers: scheduledAuthorization(),
         method: "POST",
       });
-      await expectScheduledResponse(await bunnyServeHandler(request), 204);
+      await expectScheduledResponse(await serveFromBunny(request), 204);
       expect(request.bodyUsed).toBe(false);
     });
 
     test("returns a bearer challenge for missing credentials", async () => {
-      const response = await bunnyServeHandler(
+      const response = await serveFromBunny(
         mockRequest("/scheduled", { method: "POST" }),
       );
       expect(response.headers.get("www-authenticate")).toBe("Bearer");
@@ -84,7 +84,7 @@ describeWithEnv(
     });
 
     test("returns a bearer challenge for malformed credentials", async () => {
-      const response = await bunnyServeHandler(
+      const response = await serveFromBunny(
         mockRequest("/scheduled", {
           headers: { authorization: `Basic ${TEST_SCHEDULED_KEY}` },
           method: "POST",

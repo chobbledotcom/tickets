@@ -28,6 +28,7 @@ import {
   devServerPort,
 } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { serveFromBunny } from "#test-utils/entry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockAdminLoginRequest, withExpectedError } from "#test-utils/mocks.ts";
@@ -40,7 +41,7 @@ import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 const request = (path: string): Request =>
   new Request(`http://localhost${path}`, {
-    headers: { host: "localhost", "x-real-ip": "192.0.2.1" },
+    headers: { host: "localhost" },
   });
 
 describeWithEnv("serve-app", { db: true }, () => {
@@ -53,7 +54,7 @@ describeWithEnv("serve-app", { db: true }, () => {
       });
       using fetchStub = stubFetch(new Error("Sentry must not start"));
 
-      const response = await bunnyServeHandler(
+      const response = await serveFromBunny(
         new Request("http://localhost/scheduled", { method: "POST" }),
       );
 
@@ -75,7 +76,7 @@ describeWithEnv("serve-app", { db: true }, () => {
         method: "POST",
       });
 
-      const response = await bunnyServeHandler(request);
+      const response = await serveFromBunny(request);
 
       expect(response.headers.get("www-authenticate")).toBe("Bearer");
       await expectScheduledResponse(response, 401);
@@ -87,7 +88,7 @@ describeWithEnv("serve-app", { db: true }, () => {
         MAIN_INSTANCE_KEY: "too-short",
         SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
       });
-      const response = await bunnyServeHandler(
+      const response = await serveFromBunny(
         new Request("http://localhost/scheduled", {
           headers: scheduledAuthorization(),
           method: "GET",
@@ -103,7 +104,7 @@ describeWithEnv("serve-app", { db: true }, () => {
         SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
       });
       await withExpectedError(async () => {
-        const response = await bunnyServeHandler(
+        const response = await serveFromBunny(
           new Request("https://scheduled-site.example/scheduled", {
             headers: scheduledAuthorization(),
             method: "POST",
@@ -118,7 +119,7 @@ describeWithEnv("serve-app", { db: true }, () => {
       test(`refreshes ${method} after a failed boot`, async () => {
         using _env = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
         await withExpectedError(async () => {
-          const response = await bunnyServeHandler(
+          const response = await serveFromBunny(
             new Request("http://localhost/health", { method }),
           );
           await expectTemporaryError(true)(response);
@@ -129,7 +130,7 @@ describeWithEnv("serve-app", { db: true }, () => {
     test("does not refresh a POST when the outer handler catches an error", async () => {
       using _env = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
       await withExpectedError(async () => {
-        const response = await bunnyServeHandler(
+        const response = await serveFromBunny(
           new Request("http://localhost/admin/listing", { method: "POST" }),
         );
         await expectTemporaryError(false)(response);
@@ -140,11 +141,11 @@ describeWithEnv("serve-app", { db: true }, () => {
       setSuppressDebugLogs(false);
       const logSpy = stub(console, "debug");
       try {
-        const first = await bunnyServeHandler(request("/health"));
+        const first = await serveFromBunny(request("/health"));
         expect(first.status).toBe(200);
         expect(await first.text()).toBe("Up :)");
 
-        const second = await bunnyServeHandler(request("/health"));
+        const second = await serveFromBunny(request("/health"));
         expect(second.status).toBe(200);
 
         // One boot for both requests — and the failed boot above was retried
@@ -176,7 +177,7 @@ describeWithEnv("serve-app", { db: true }, () => {
     });
 
     test("boot puts the N+1 guard into notify-only mode", async () => {
-      await bunnyServeHandler(request("/health"));
+      await serveFromBunny(request("/health"));
       // Crossing the guard threshold after a production boot must REPORT, not
       // throw — a real request is never killed by the guard (dev/test default
       // is to throw, so a false here fails loudly).
@@ -210,10 +211,7 @@ describeWithEnv("serve-app", { db: true }, () => {
       string,
       (request: Request, ip: string) => Promise<Response>
     > = {
-      bunny: (request, ip) => {
-        request.headers.set("x-real-ip", ip);
-        return bunnyServeHandler(request);
-      },
+      bunny: serveFromBunny,
       deno: (request, ip) =>
         denoServeHandler(request, {
           completed: Promise.resolve(),
@@ -242,25 +240,10 @@ describeWithEnv("serve-app", { db: true }, () => {
       });
     }
 
-    test("bunny entry refuses a request with no x-real-ip header", async () => {
-      const errorSpy = stub(console, "error");
-      try {
-        await withExpectedError(async () => {
-          const response = await bunnyServeHandler(
-            new Request("http://localhost/health"),
-          );
-          await expectTemporaryError(true)(response);
-        });
-        expect(
-          errorSpy.calls.some((call) =>
-            call.args.some((arg) =>
-              String(arg).includes("Bunny request has no x-real-ip header"),
-            ),
-          ),
-        ).toBe(true);
-      } finally {
-        errorSpy.restore();
-      }
+    test("bunny entry throws on a request with no x-real-ip header", () => {
+      expect(() =>
+        bunnyServeHandler(new Request("http://localhost/health")),
+      ).toThrow("Bunny request has no x-real-ip header");
     });
   });
 
