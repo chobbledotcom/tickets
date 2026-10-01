@@ -45,6 +45,15 @@ describePublicApi(() => {
       return getCaptured();
     };
 
+    test("refuses to book a child listing on its own", async () => {
+      const { children } = await freeParentWithChild();
+      const { response, body } = await bookListing(children[0]!.slug);
+      expect(response.status).toBe(400);
+      expect(body).toEqual({
+        error: "This listing must be booked through its parent listing.",
+      });
+    });
+
     test("returns a checkout URL for a parent whose child is paid", async () => {
       await setupStripe();
       const parent = await parentWithPaidChild();

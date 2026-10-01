@@ -169,6 +169,6 @@ No database or provider call is added.
 | Same-origin redirect         | Same file: the second request carries the original body and headers                                                                                          |
 | SMS credentials stay         | `test/shared/sms/gateway.test.ts`: a cross-origin 307 sends one request only                                                                                 |
 | Webhook does not follow      | The test that exists in `send.test.ts` (no change)                                                                                                           |
-| Attachment cache header      | `test/integration/attachment-route.test.ts`: exact `cache-control: private, no-store`                                                                        |
+| Attachment cache header      | `test/features/attachments.test.ts`: exact `cache-control: private, no-store`                                                                                |
 
 Each regression test must fail on `main` for the reported reason before the fix.

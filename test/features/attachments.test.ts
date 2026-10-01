@@ -78,19 +78,21 @@ describeWithEnv(
         }),
       );
 
-    /** Sign the attachment URL for a setup, serve "data" from the mocked CDN,
-     * and return the GET response. */
-    const fetchAttachment = async (setup: {
-      listingId: number;
-      attendeeId: number;
-    }): Promise<Response> => {
-      const path = await signUrl(setup.listingId, setup.attendeeId);
+    /** GET a path while the mocked CDN serves "data". */
+    const fetchPath = async (path: string): Promise<Response> => {
       let response!: Response;
       await withCdnMock(new TextEncoder().encode("data"), async () => {
         response = await handleRequest(mockRequest(path));
       });
       return response;
     };
+
+    /** Sign the attachment URL for a setup and GET it. */
+    const fetchAttachment = async (setup: {
+      listingId: number;
+      attendeeId: number;
+    }): Promise<Response> =>
+      fetchPath(await signUrl(setup.listingId, setup.attendeeId));
 
     test("returns 404 when storage is not enabled", async () => {
       await withStorageDisabled(async () => {
@@ -109,6 +111,7 @@ describeWithEnv(
       await withStorage(async () => {
         const response = await handleRequest(mockRequest("/attachment/1"));
         expect(response.status).toBe(403);
+        expect(await response.text()).toBe("Forbidden");
       });
     });
 
@@ -119,6 +122,15 @@ describeWithEnv(
         );
         expect(response.status).toBe(403);
       });
+    });
+
+    test("returns 403 when the attendee ID is written in hex", async () => {
+      const { listingId, attendeeId } = await setupAttachment();
+      const path = (await signUrl(listingId, attendeeId)).replace(
+        `a=${attendeeId}`,
+        `a=0x${attendeeId.toString(16)}`,
+      );
+      expect((await fetchPath(path)).status).toBe(403);
     });
 
     test("returns 403 when signature is invalid", async () => {
@@ -238,6 +250,20 @@ describeWithEnv(
           "attachment; filename=\".pdf\"; filename*=UTF-8''%D0%BE%D1%82%D1%87%D1%91%D1%82.pdf",
         label: "preserves non-ASCII via filename* (Cyrillic)",
         name: "отчёт.pdf",
+        notContains: [],
+      },
+      {
+        equals:
+          "attachment; filename=\"Report-2024_v1~AZaz09.pdf\"; filename*=UTF-8''Report-2024_v1~AZaz09.pdf",
+        label: "keeps every RFC 5987 attr-char unescaped",
+        name: "Report-2024_v1~AZaz09.pdf",
+        notContains: [],
+      },
+      {
+        equals:
+          "attachment; filename=\"a_b_c_d.pdf\"; filename*=UTF-8''a%22b%3Ac%3Bd.pdf",
+        label: "replaces quote, colon, and semicolon in the ASCII filename",
+        name: 'a"b:c;d.pdf',
         notContains: [],
       },
       {
