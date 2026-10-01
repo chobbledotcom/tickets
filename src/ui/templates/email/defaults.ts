@@ -7,14 +7,14 @@ import type { EmailContent } from "#templates/email/shared.ts";
 import type { EmailTemplateType } from "#types";
 
 export const DEFAULT_CONFIRMATION_SUBJECT =
-  "Your tickets for {{ listing_names }}";
+  "Your registration for {{ listing_names }}";
 
 export const DEFAULT_CONFIRMATION_HTML = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
 <h2>Thanks for registering!</h2>
 <p>You're confirmed for <strong>{{ listing_names }}</strong>.</p>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
-{% for entry in entries %}<tr><td>{{ entry.listing.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity }}</td><td style="text-align:center">{% if entry.listing.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
+{% for entry in entries %}<tr><td>{{ entry.listing.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity_label }}</td><td style="text-align:center">{% if entry.listing.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
 {% endfor %}</table>
 {% for entry in entries %}{% for answer in entry.attendee.answers %}<p style="margin:4px 0">{{ answer.question }}: {{ answer.text }}</p>
 {% endfor %}{% endfor %}{% if amount_owed != "0" %}<p><strong>Amount owed:</strong> {{ amount_owed | currency }}</p>
@@ -26,7 +26,7 @@ export const DEFAULT_CONFIRMATION_TEXT = `Thanks for registering!
 
 You're confirmed for {{ listing_names }}.
 
-{% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
+{% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity_label }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
 {% endfor %}{% for entry in entries %}{% for answer in entry.attendee.answers %}{{ answer.question }}: {{ answer.text }}
 {% endfor %}{% endfor %}{% if amount_owed != "0" %}Amount owed: {{ amount_owed | currency }}
 {% endif %}
@@ -47,7 +47,7 @@ export const DEFAULT_ADMIN_HTML = `<div style="font-family:sans-serif;max-width:
 {% endfor %}{% endfor %}</ul>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
-{% for entry in entries %}<tr><td>{{ entry.listing.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity }}</td><td style="text-align:center">{% if entry.listing.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
+{% for entry in entries %}<tr><td>{{ entry.listing.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity_label }}</td><td style="text-align:center">{% if entry.listing.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
 {% endfor %}</table>
 {% if amount_owed != "0" %}<p><strong>Amount owed:</strong> {{ amount_owed | currency }}</p>
 {% endif %}</div>`;
@@ -61,7 +61,7 @@ Name: {{ attendee.name }}
 {% endif %}{% if attendee.special_instructions != "" %}Notes: {{ attendee.special_instructions }}
 {% endif %}{% for entry in entries %}{% for answer in entry.attendee.answers %}{{ answer.question }} ({{ entry.listing.name }}): {{ answer.text }}
 {% endfor %}{% endfor %}
-{% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
+{% for entry in entries %}{{ entry.listing.name }}{% if entry.attendee.date %} ({{ entry.attendee.date }}){% endif %}: {{ entry.attendee.quantity_label }}{% if entry.listing.is_paid %} — {{ entry.attendee.price_paid | currency }}{% endif %}
 {% endfor %}{% if amount_owed != "0" %}Amount owed: {{ amount_owed | currency }}
 {% endif %}`;
 

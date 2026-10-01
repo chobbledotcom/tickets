@@ -44,35 +44,27 @@ export const renderConfirmation = async (): Promise<{
   return { data, result };
 };
 
+const sampleAttendee: TemplateData["attendee"] = {
+  address: "123 St",
+  answers: [],
+  date: null,
+  date_range_label: "",
+  email: "jane@test.com",
+  name: "Jane",
+  phone: "555",
+  price_paid: "2000",
+  quantity: 2,
+  quantity_label: "2 tickets",
+  special_instructions: "",
+};
+
 export const sampleData: TemplateData = {
   amount_owed: "0",
-  attendee: {
-    address: "123 St",
-    answers: [],
-    date: null,
-    date_range_label: "",
-    email: "jane@test.com",
-    name: "Jane",
-    phone: "555",
-    price_paid: "2000",
-    quantity: 2,
-    special_instructions: "",
-  },
+  attendee: sampleAttendee,
   currency: "GBP",
   entries: [
     {
-      attendee: {
-        address: "123 St",
-        answers: [],
-        date: null,
-        date_range_label: "",
-        email: "jane@test.com",
-        name: "Jane",
-        phone: "555",
-        price_paid: "2000",
-        quantity: 2,
-        special_instructions: "",
-      },
+      attendee: sampleAttendee,
       listing: { is_paid: true, name: "Concert", slug: "concert" },
     },
   ],

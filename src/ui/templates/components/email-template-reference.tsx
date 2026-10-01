@@ -20,6 +20,7 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
   ["{{ attendee.address }}", "attendee_address"],
   ["{{ attendee.special_instructions }}", "attendee_special_instructions"],
   ["{{ attendee.quantity }}", "entry_attendee_quantity"],
+  ["{{ attendee.quantity_label }}", "entry_attendee_quantity_label"],
   ["{{ attendee.price_paid | currency }}", "entry_attendee_price_paid"],
   ["{{ attendee.date }}", "entry_attendee_date"],
   ["{{ attendee.date_range_label }}", "entry_attendee_date_range_label"],
@@ -37,6 +38,7 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
     "attendee_special_instructions",
   ],
   ["{{ entry.attendee.quantity }}", "entry_attendee_quantity"],
+  ["{{ entry.attendee.quantity_label }}", "entry_attendee_quantity_label"],
   ["{{ entry.attendee.price_paid | currency }}", "entry_attendee_price_paid"],
   ["{{ entry.attendee.date }}", "entry_attendee_date"],
   ["{{ entry.attendee.date_range_label }}", "entry_attendee_date_range_label"],
@@ -47,9 +49,9 @@ export const TEMPLATE_VARIABLES: [code: string, key: string][] = [
 ];
 
 /** A worked loop over `entries`: one line per booked listing, printing its
- * name, quantity, dates, and price. */
+ * name, worded quantity, dates, and price. */
 export const LOOP_EXAMPLE = `{% for entry in entries %}
-{{ entry.listing.name }}: {{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}, {{ entry.attendee.date_range_label }}, {{ entry.attendee.price_paid | currency }}
+{{ entry.listing.name }}: {{ entry.attendee.quantity_label }}, {{ entry.attendee.date_range_label }}, {{ entry.attendee.price_paid | currency }}
 {% endfor %}`;
 
 /** A worked loop over `entry.attendee.answers`: one line per question the

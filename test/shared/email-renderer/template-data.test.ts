@@ -62,6 +62,8 @@ describeEmailRenderer(() => {
 
       expect(data.entries).toHaveLength(1);
       expect(data.entries[0]!.listing.name).toBe("Hidden bundle");
+      expect(data.entries[0]!.attendee.quantity).toBe(2);
+      expect(data.entries[0]!.attendee.quantity_label).toBe("2 tickets");
       expect(data.entries[0]!.attendee.answers).toEqual([
         diet,
         { question: "Shoe size?", text: "9" },
@@ -116,6 +118,40 @@ describeEmailRenderer(() => {
       const data = await buildTestData([makeEntry({}, { date: "2026-04-15" })]);
 
       expect(data.entries[0]!.attendee.date).toBe("2026-04-15");
+    });
+
+    test("words a standard row's quantity as tickets", async () => {
+      const data = await buildTestData([makeEntry({}, { quantity: 2 })]);
+
+      expect(data.entries[0]!.attendee.quantity_label).toBe("2 tickets");
+    });
+
+    test("words one ticket in the singular", async () => {
+      const data = await buildTestData([makeEntry({}, { quantity: 1 })]);
+
+      expect(data.entries[0]!.attendee.quantity_label).toBe("1 ticket");
+    });
+
+    test("words a site plan row's quantity as its months", async () => {
+      const data = await buildTestData([
+        makeEntry(
+          { assign_built_site: true, initial_site_months: 3 },
+          { quantity: 3 },
+        ),
+      ]);
+
+      expect(data.entries[0]!.attendee.quantity_label).toBe("9 months");
+    });
+
+    test("words one plan month in the singular", async () => {
+      const data = await buildTestData([
+        makeEntry(
+          { assign_built_site: true, initial_site_months: 1 },
+          { quantity: 1 },
+        ),
+      ]);
+
+      expect(data.entries[0]!.attendee.quantity_label).toBe("1 month");
     });
 
     const dateRangeLabelFor = async (

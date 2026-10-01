@@ -17,7 +17,7 @@ import {
   entryAnswerLines,
   type OrderAnswerLines,
 } from "#shared/email/answers.ts";
-import type { EmailEntry } from "#shared/email.ts";
+import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { nameList } from "#shared/name-list.ts";
@@ -25,6 +25,7 @@ import {
   groupPackageRows,
   type PackageRowGroup,
 } from "#shared/package-rows.ts";
+import { monthsPerUnitOf, resolvePurchaseUnit } from "#shared/purchase-unit.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import {
@@ -58,6 +59,9 @@ type TemplateEntry = {
      * question order. Empty when the listing asks nothing they answered. */
     answers: AnswerLine[];
     quantity: number;
+    /** The quantity worded as the buyer reads it: "2 tickets", or "9 months"
+     * when the purchase counts months. `quantity` stays the raw booked units. */
+    quantity_label: string;
     price_paid: string;
     date: string | null;
     /** Human-readable booking date (or range for multi-day). Empty string when no date. */
@@ -89,6 +93,20 @@ export type TemplateData = {
 const entryIsPaid = ({ listing, attendee }: EmailEntry): boolean =>
   isPaidListing(listing) || Number(attendee.price_paid) > 0;
 
+/** The quantity worded as the buyer reads it: what one purchased unit buys —
+ * tickets, or the months a site plan grants. Reads the shared purchase-unit
+ * answer the checkouts price by, so the email cannot drift from them. Pure. */
+const quantityLabel = (listing: EmailListing, quantity: number): string => {
+  const monthsPerUnit = monthsPerUnitOf(
+    resolvePurchaseUnit(listing, { renewal: false }),
+  );
+  if (monthsPerUnit === undefined) {
+    return `${quantity} ${quantity === 1 ? "ticket" : "tickets"}`;
+  }
+  const months = quantity * monthsPerUnit;
+  return `${months} ${months === 1 ? "month" : "months"}`;
+};
+
 const toTemplateEntry = (
   entry: EmailEntry,
   answers: AnswerLine[],
@@ -113,6 +131,7 @@ const toTemplateEntry = (
       phone: attendee.phone,
       price_paid: attendee.price_paid,
       quantity: attendee.quantity,
+      quantity_label: quantityLabel(listing, attendee.quantity),
       special_instructions: attendee.special_instructions,
     },
     listing: {
@@ -248,6 +267,7 @@ const collapsedPackageEntry = (
       date_range_label: dated?.date_range_label ?? "",
       price_paid: summary.pricePaid,
       quantity: summary.quantity,
+      quantity_label: quantityLabel(entries[0]!.listing, summary.quantity),
     },
     listing: {
       is_paid: entries.some(entryIsPaid),

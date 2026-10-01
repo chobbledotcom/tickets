@@ -31,7 +31,7 @@ const WHOLE_EMAIL = {
 </ul>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
-<tr><td>Test Listing</td><td style="text-align:center">1</td><td style="text-align:center"></td></tr>
+<tr><td>Test Listing</td><td style="text-align:center">1 ticket</td><td style="text-align:center"></td></tr>
 </table>
 </div>`,
     subject: "New registration: Jane Doe for Test Listing",
@@ -49,12 +49,12 @@ Test Listing: 1 ticket`,
 <p>You're confirmed for <strong>Test Listing</strong>.</p>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Listing</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
-<tr><td>Test Listing</td><td style="text-align:center">1</td><td style="text-align:center"></td></tr>
+<tr><td>Test Listing</td><td style="text-align:center">1 ticket</td><td style="text-align:center"></td></tr>
 </table>
 <p><a href="https://example.com/t/ABC" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px">View your tickets</a></p>
 <p style="color:#666;font-size:14px">Or copy this link: https://example.com/t/ABC</p>
 </div>`,
-    subject: "Your tickets for Test Listing",
+    subject: "Your registration for Test Listing",
     text: `Thanks for registering!
 
 You're confirmed for Test Listing.
