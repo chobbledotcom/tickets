@@ -48,16 +48,16 @@ as paid. No row survives its own ending.
 
 ### Moves
 
-| From      | Command or event                                                           | Result      | Guard or write                                                      |
-| --------- | -------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| none      | Square checkout created                                                    | `pending`   | insert with `link_ends_at` = creation plus the window               |
-| `pending` | payment completes                                                          | row deleted | conditional on `pending`. A Square link dies with its first payment |
-| `pending` | worker claims a due row                                                    | `ending`    | conditional update. `now` must pass `next_attempt_at`               |
-| `ending`  | delete answered `200` with `cancelled_order_id`                            | row deleted | Square proved the order went `CANCELED`                             |
-| `ending`  | delete answered `404`                                                      | row deleted | the link is already gone                                            |
-| `ending`  | delete refused, and the refusal names a paid or completed order            | row deleted | the webhook and the return path own completion                      |
-| `ending`  | delete answered `200` without `cancelled_order_id`, or failed on transport | `pending`   | `next_attempt_at` = now plus the failure retry                      |
-| `ending`  | lease expired                                                              | `pending`   | `next_attempt_at` = now                                             |
+| From      | Command or event                                                           | Result      | Guard or write                                                            |
+| --------- | -------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------- |
+| none      | Square checkout created                                                    | `pending`   | insert with `link_ends_at` = `next_attempt_at` = creation plus the window |
+| `pending` | payment completes                                                          | row deleted | conditional on `pending`. A Square link dies with its first payment       |
+| `pending` | worker claims a due row                                                    | `ending`    | conditional update. `now` must pass `next_attempt_at`                     |
+| `ending`  | delete answered `200` with `cancelled_order_id`                            | row deleted | Square proved the order went `CANCELED`                                   |
+| `ending`  | delete answered `404`                                                      | row deleted | the link is already gone                                                  |
+| `ending`  | delete refused, and the refusal names a paid or completed order            | row deleted | the webhook and the return path own completion                            |
+| `ending`  | delete answered `200` without `cancelled_order_id`, or failed on transport | `pending`   | `next_attempt_at` = now plus the failure retry                            |
+| `ending`  | lease expired                                                              | `pending`   | `next_attempt_at` = now                                                   |
 
 The task is `square_link_expiry` in the maintenance registry. It follows
 `sumup_checkout_recovery`: batch `SQUARE_LINK_EXPIRY_BATCH` (10), interval
@@ -88,9 +88,17 @@ These are tests, not promises.
    180-day clock closes its page. A site with no scheduled monitor therefore
    keeps today's behavior.
 
-Law 5 needs the Square fallback arm: a handle row that never ends holds its
-answers until `created_at` passes the 180-day Square lifetime plus the webhook
-window. The payments clock arm stays for every provider.
+Law 5 has two arms, and whichever fires first wins. The monitor arm holds Square
+answers until the handle row is gone. The fallback arm serves a site with no
+scheduled monitor: a handle row that never ends holds its answers until
+`created_at` passes the 180-day Square lifetime plus the webhook window. Past
+that bound the link cannot take payment, because Square closed its own page, so
+the answers go even though the row remains. The payments clock arm stays for
+every provider.
+
+A handle row past that same bound is itself prunable by retention: its link can
+no longer take payment, so law 4 does not protect it. A younger unended row
+stays, and the task keeps failing loudly on it.
 
 ## Trusted facts
 
@@ -215,8 +223,10 @@ Build the Square slice first. It is the harder one.
    `linkEndsAt`, and maps an expired session to the cancel page. Expected 100 to
    200 changed `src` lines.
 
-Each slice leaves a complete system: a buyer on any configured provider meets a
-checkout that cannot take payment after its window.
+Each slice is complete on the provider it touches. After slice 1, a Square
+checkout cannot take payment after its window, and Stripe keeps its 24-hour
+session until slice 2 lands. The every-provider guarantee holds only after both
+slices ship.
 
 ## Tests
 
@@ -233,12 +243,11 @@ checkout that cannot take payment after its window.
 - Regression: a buyer returning to an expired Stripe session sees the cancel
   page. This test fails today, because the page shows the waiting page.
 
-## Open questions
+## Decisions
 
 1. SumUp keeps its native 30 minutes. Its hosted page cannot live longer. No
-   build. Confirm.
-2. An expired Stripe session shows the cancel page with the try-again link after
-   this change. Today it shows the waiting page. Confirm.
+   build.
+2. An expired Stripe session shows the cancel page with its try-again link.
+   Slice 2 builds it.
 3. The maintenance monitor pings every 15 minutes by default, so a Square link
-   can live about 1 hour 15 minutes at worst. Accept this, or set a shorter
-   monitor interval on sites that sell at high volume. Confirm.
+   can live about 1 hour 15 minutes at worst. The owner accepts this bound.
