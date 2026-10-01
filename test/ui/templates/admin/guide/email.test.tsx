@@ -37,10 +37,10 @@ describe("guide > email sections", () => {
   test("the host email note renders with its links and joins intact", () => {
     const html = String(renderGuideSections(emailSections(hostWithEmail)));
     expect(html).toContain(
-      "using <strong>Host Mail</strong> with from address <code>host@example.com</code>. You can override",
+      "using <strong>Host Mail</strong> and the address <code>host@example.com</code>. You can use your own company instead",
     );
     expect(html).toContain(
-      'API key in <a href="/admin/settings-advanced#settings-email">Advanced Settings</a>. If you provide',
+      'enter it in <a href="/admin/settings-advanced#settings-email">Advanced Settings</a>. Your own settings come first',
     );
   });
 
@@ -49,7 +49,7 @@ describe("guide > email sections", () => {
     expect(html).toContain(
       'Go to <a href="/admin/settings-advanced#settings-email">Advanced Settings</a> and find the <strong>Email</strong> section',
     );
-    expect(html).toContain("into the <strong>API Key</strong> field");
+    expect(html).toContain("Choose your email company from the dropdown");
     expect(html).toContain('<h3 id="email">');
     expect(html).toContain('<h3 id="email-templates">');
     expect(html).toContain('<h3 id="bulk-email">');

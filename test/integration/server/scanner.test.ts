@@ -582,9 +582,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         response,
         200,
         "Guide",
-        "QR Scanner",
+        "QR scanner",
         "How do I use the QR scanner?",
-        "scanner check people out",
+        "stops a double-scan",
       );
     });
 

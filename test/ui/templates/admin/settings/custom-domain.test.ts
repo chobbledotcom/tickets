@@ -49,8 +49,10 @@ describe("CustomDomainForm", () => {
     expect(formHtml).toContain('id="settings-custom-domain"');
     // Prose container around the heading
     expect(html).toContain('class="prose"');
-    // Whitespace between the example URL and the setup-guide anchor
-    expect(html).toContain("<code>tickets.example.co.uk</code>. <a");
+    // The intro links the guide's buy-a-domain steps
+    expect(html).toContain(
+      'The <a href="/admin/guide#custom-domain">setup guide</a> explains where to buy one',
+    );
     const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
     expect(domainInput).not.toBeNull();
     if (domainInput === null) return;

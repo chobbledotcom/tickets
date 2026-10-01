@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { hostEmail } from "#shared/email.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import {
   assertAdminHtml,
   cachedAdminPage,
@@ -37,26 +38,25 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains FAQ sections", async () => {
-      await guide("Getting Started", "Listings", "Payments", "Check-in");
+      await guide("Getting started", "Listings", "Payments", "Check-in");
     });
 
     test("renders ampersands in guide section titles once", async () => {
       const html = await guide(
-        "Data &amp; Privacy",
-        "Daily Listings &amp; Holidays",
-        "Check-in &amp; QR Scanner",
+        "Data &amp; privacy",
+        "Daily listings &amp; holidays",
+        "Check-in &amp; QR scanner",
       );
 
-      expect(html).not.toContain("Data &amp;amp; Privacy");
+      expect(html).not.toContain("Data &amp;amp; privacy");
     });
 
     test("contains booking questions section", async () => {
       await guide(
         "Booking questions",
-        "multiple-choice",
-        "must select one",
-        "shared across multiple listings",
-        "attendee table on listing and group pages",
+        "question with set answers",
+        "shared by many listings",
+        "Answers appear in the attendee table",
       );
     });
 
@@ -66,8 +66,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains payment provider recommendation", async () => {
       await guide(
-        "Which payment provider do you recommend?",
-        "setup is a fair bit easier",
+        "Which payment company do you recommend?",
+        "quickest to set up",
       );
     });
 
@@ -75,7 +75,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide(
         "Why don't we hold places during checkout?",
         "scalpers",
-        "automatically refunded",
+        "money back automatically",
       );
     });
 
@@ -85,9 +85,9 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains payment setup section with Stripe instructions", async () => {
       await guide(
-        "Payment Setup",
+        "Payment setup",
         'id="payment-setup"',
-        "Stripe secret key",
+        "Stripe Secret Key",
         "sk_test_",
         "dashboard.stripe.com",
       );
@@ -96,7 +96,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains payment setup section with Square instructions", async () => {
       await guide(
         "create a Square application",
-        "Square access token",
+        "Square Access Token",
         "Square location ID",
         "developer.squareup.com",
         "payment.updated",
@@ -104,7 +104,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains test vs live credentials guidance", async () => {
-      await guide("test or live credentials");
+      await guide("Should I use test or live details?");
     });
 
     test("contains SumUp setup with the API keys link and 401 guidance", async () => {
@@ -130,20 +130,20 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains login security section", async () => {
       await guide(
-        "Login &amp; Security",
-        "5 failed login attempts",
+        "Login &amp; security",
+        "5 wrong tries",
         "15 minutes",
         "no password recovery",
-        "HttpOnly",
+        "blocked from logging in",
       );
     });
 
     test("explains the privacy-first CRM stance", async () => {
       await guide(
         "Why is this privacy-first instead of a CRM?",
-        "stops short of being a CRM",
-        "GDPR and UK GDPR obligations",
-        "legal obligations",
+        "stops short of that",
+        "GDPR and UK GDPR",
+        "legal duties",
         "listing webhooks are a good place to start",
       );
     });
@@ -157,22 +157,19 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Max times per order",
         "How do customers fill in their delivery address?",
         "Address lookup",
-        "The map pin is not set by the customer",
+        "The customer does not set the map pin",
       );
     });
 
     test("contains calendar and activity log sections", async () => {
-      await guide("Calendar", "Activity Log");
+      await guide("Calendar", "Activity log");
     });
 
     test("contains login lockout documentation", async () => {
-      const { MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MS } = await import(
-        "#shared/limits.ts"
-      );
       await guide(
         'id="login"',
-        "too many failed login attempts",
-        `${MAX_LOGIN_ATTEMPTS} failed attempts`,
+        "too many wrong password tries",
+        `${MAX_LOGIN_ATTEMPTS} wrong tries`,
         `${LOGIN_LOCKOUT_MS / 60_000} minutes`,
         "no password recovery",
       );
@@ -210,7 +207,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "raffles, fundraisers, donations, merchandise",
         "Buy now",
         "QR codes",
-        "excluded from the ICS and RSS feeds",
+        "left out of the calendar and news feeds",
       );
     });
 
@@ -218,7 +215,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide(
         "merge duplicate attendees",
         "ticket token",
-        "source attendee is deleted",
+        "the second attendee is deleted",
       );
     });
 
@@ -227,7 +224,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains non-transferable tickets info", async () => {
-      await guide("non-transferable", "ID required at entry", "ticket touting");
+      await guide("non-transferable", "ID required at entry", "ticket touts");
     });
 
     test("contains attendee editing info", async () => {
@@ -240,7 +237,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains text formatting section", async () => {
       await guide(
-        "Text Formatting",
+        "Text formatting",
         'id="text-formatting"',
         "Markdown",
         "markdownguide.org/cheat-sheet",
@@ -257,14 +254,18 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains hidden listings info", async () => {
-      await guide("hide a listing", "Hidden Listing", "noindex, nofollow");
+      await guide(
+        "hide a listing",
+        "Hidden Listing",
+        "search engines are told to leave their ticket pages alone",
+      );
     });
 
     test("contains testing your system section", async () => {
       await guide(
-        "Testing Your System",
-        "test the full booking process",
-        "early in development",
+        "Testing your system",
+        "make a test booking from start to finish",
+        "This project is new",
         "hello@chobble.com",
       );
     });
@@ -274,9 +275,9 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows default email setup instructions when no host email configured", async () => {
-      const html = await guide("Choose your email provider from the dropdown");
+      const html = await guide("Choose your email company from the dropdown");
       expect(html).not.toContain(
-        "already configured by your server administrator",
+        "already set up by the company that runs your site",
       );
     });
 
@@ -289,10 +290,10 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       try {
         await assertAdminHtml(
           "/admin/guide",
-          "already configured by your server administrator",
+          "already set up by the company that runs your site",
           "Resend",
           "tickets@example.com",
-          "Choose your email provider from the dropdown",
+          "Choose your email company from the dropdown",
         );
       } finally {
         hostEmail.resetOverride();
@@ -308,11 +309,10 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Service Account Private Key",
       );
     });
-
     test("shows default Google Wallet setup when no host config", async () => {
       const html = await guide("You need three values from");
       expect(html).not.toContain(
-        "already configured by your server administrator\nusing issuer ID",
+        "already set up by the company that runs your site",
       );
     });
 
@@ -325,7 +325,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       try {
         await assertAdminHtml(
           "/admin/guide",
-          "already configured by your server administrator",
+          "already set up by the company that runs your site, using",
           "3388000000012345678",
           "You need three values from",
         );
@@ -360,7 +360,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("shows default wallet setup instructions when no host wallet configured", async () => {
       const html = await guide("You need five values from");
       expect(html).not.toContain(
-        "already configured by your server administrator using pass type",
+        "already set up by the company that runs your site",
       );
     });
 
@@ -375,7 +375,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       try {
         await assertAdminHtml(
           "/admin/guide",
-          "already configured by your server administrator using pass type",
+          "already set up by the company that runs your site, using",
           "pass.com.host.tickets",
           "You need five values from",
         );
@@ -384,12 +384,12 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
-    test("documents the debug page including tunable limits", async () => {
+    test("documents the debug page including system limits", async () => {
       await guide(
         "/admin/debug",
-        "tunable system limit",
+        "every system limit",
         "environment variable",
-        "Database pruning",
+        "old data was last cleaned up",
       );
     });
 
@@ -398,7 +398,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         'id="admin-api"',
         "Admin API",
         "Authorization: Bearer YOUR_API_KEY",
-        "owners only",
+        "only owners can use it",
         "shown only once",
         "/api/admin/listings",
         "/api/admin/groups",
@@ -411,15 +411,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains host subdomain section", async () => {
       await guide(
         "Host subdomain",
-        "no DNS set-up needed",
-        "host subdomain and custom domain",
+        "you do not need to change anything at a domain seller",
+        "Can I use both a subdomain and a custom domain?",
       );
     });
 
-    test("explains the canonical-domain priority order for generated links", async () => {
+    test("explains the address priority order for generated links", async () => {
       await guide(
-        "Which domain is used for ticket links and emails?",
-        "CNAME has been validated",
+        "Which address is used for ticket links and emails?",
+        "once it has passed validation",
         "host subdomain",
       );
     });
@@ -430,19 +430,19 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("documents the release tag format shared with the update checker", async () => {
       await guide(
-        "Software Updates",
-        "vYYYY-MM-DD-HHMMSS",
-        "UTC date and time",
+        "Software updates",
+        "v2026-03-01-142500",
+        "date and time it was built",
       );
     });
 
     test("contains read-only mode explanation aimed at end users", async () => {
       await guide(
         'id="read-only-mode"',
-        "Read-only Mode",
-        "switched on by the host",
-        "behind on billing",
-        "undergoing maintenance",
+        "Read-only mode",
+        "switched on by the company that runs your site",
+        "behind on bills",
+        "being fixed",
       );
     });
 

@@ -2,6 +2,7 @@
  * Admin guide — Tickets sections.
  */
 
+import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import {
   custom,
@@ -11,12 +12,13 @@ import {
 } from "#templates/admin/guide/components.tsx";
 
 /**
- * The body of a wallet (Apple/Google) setup answer. Both wallets share the same
- * shape — an optional "already configured by the host" note, the credential
- * intro, the list of required values, and a closing note — so the whole
- * structure lives here once and each call site supplies only what differs:
- * the wallet name, the developer account, how many values are needed, the
- * host-configured id (with its label), and the list items themselves.
+ * The body of a wallet (Apple/Google) setup answer. Both wallets share the
+ * same shape — an optional "already set up by the host" note, a plain-language
+ * note saying who this set-up is for, the credential intro, the list of
+ * required values, and a closing note — so the whole structure lives here once
+ * and each call site supplies only what differs: the wallet name, the
+ * developer account, how many values are needed, the host-configured id (with
+ * its label), the localized note, and the list items themselves.
  */
 const WalletSetup = ({
   account,
@@ -24,6 +26,7 @@ const WalletSetup = ({
   configuredValue,
   count,
   items,
+  note,
   wallet,
 }: {
   account: string;
@@ -31,18 +34,19 @@ const WalletSetup = ({
   configuredValue?: string | null | undefined;
   count: string;
   items: Child;
+  note: string;
   wallet: string;
 }): JSX.Element => (
   <>
     {configuredValue && (
       <p>
-        {wallet} is already configured by your server administrator using{" "}
+        {wallet} is already set up by the company that runs your site, using{" "}
         {configuredLabel} <code>{configuredValue}</code>. The Add to {wallet}{" "}
-        button should appear automatically on all ticket pages. You can override
-        this by entering your own credentials in{" "}
-        <a href="/admin/settings">Settings</a>.
+        button should already appear on all ticket pages. You can use your own
+        details instead — enter them in <a href="/admin/settings">Settings</a>.
       </p>
     )}
+    <p>{note}</p>
     <p>
       Go to <a href="/admin/settings">Settings</a>, click{" "}
       <strong>Advanced Settings</strong>, and find the <strong>{wallet}</strong>{" "}
@@ -51,8 +55,8 @@ const WalletSetup = ({
     <ol>{items}</ol>
     <p>
       All {count} fields are required. Once saved, the Add to {wallet} button
-      appears automatically on all ticket pages. If none are configured, the
-      feature is simply hidden.
+      appears automatically on all ticket pages. When none are set up, the
+      button is simply hidden.
     </p>
   </>
 );
@@ -87,26 +91,28 @@ export const ticketsSections = (
           items={
             <>
               <li>
-                <strong>Pass Type ID</strong> &mdash; e.g.{" "}
+                <strong>Pass Type ID</strong> &mdash; for example{" "}
                 <code>pass.com.example.tickets</code>
               </li>
               <li>
                 <strong>Team ID</strong> &mdash; your Apple Developer Team ID
               </li>
               <li>
-                <strong>Signing Certificate</strong> &mdash; PEM-encoded
-                certificate for your Pass Type ID
+                <strong>Signing Certificate</strong> &mdash; the certificate
+                file for your Pass Type ID, in PEM format (a text file starting
+                with BEGIN CERTIFICATE)
               </li>
               <li>
-                <strong>Signing Key</strong> &mdash; PEM-encoded private key for
-                the certificate
+                <strong>Signing Key</strong> &mdash; the private key for that
+                certificate, in PEM format
               </li>
               <li>
-                <strong>WWDR Certificate</strong> &mdash; Apple's intermediate
-                certificate (download from the Apple Developer portal)
+                <strong>WWDR Certificate</strong> &mdash; Apple's own
+                certificate, downloadable from the Apple Developer portal
               </li>
             </>
           }
+          note={t("guide.wallet_setup.apple_note")}
           wallet="Apple Wallet"
         />,
       ),
@@ -134,15 +140,17 @@ export const ticketsSections = (
                 </a>
               </li>
               <li>
-                <strong>Service Account Email</strong> &mdash; a Google Cloud
-                service account with the Google Wallet API enabled
+                <strong>Service Account Email</strong> &mdash; the address of a
+                service account (a robot login) with the Google Wallet API
+                switched on
               </li>
               <li>
-                <strong>Service Account Private Key</strong> &mdash; PEM-encoded
-                RSA private key for the service account
+                <strong>Service Account Private Key</strong> &mdash; the key
+                file for that service account
               </li>
             </>
           }
+          note={t("guide.wallet_setup.google_note")}
           wallet="Google Wallet"
         />,
       ),

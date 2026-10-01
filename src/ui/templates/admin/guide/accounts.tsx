@@ -54,9 +54,9 @@ export const accountsSections = (): GuideSection[] => [
         "webhook_json_format",
         <>
           <p>
-            Each webhook is an HTTP POST with{" "}
-            <code>Content-Type: application/json</code>. Here is an example
-            payload for a paid listing booking:
+            Each message is sent as JSON — a text shape that computer systems
+            read easily. This one is for your web builder. Here is an example
+            message for a paid listing booking:
           </p>
           <PricedJsonExample json={WEBHOOK_EXAMPLE_JSON}>
             The <code>ticket_url</code> links to the attendee's ticket page. For
@@ -78,19 +78,19 @@ export const accountsSections = (): GuideSection[] => [
         "failed_login_attempts",
         <>
           <p>
-            The login form is protected by per-IP rate limiting. After{" "}
-            <strong>{MAX_LOGIN_ATTEMPTS} failed attempts</strong> from the same
-            IP address, further login attempts from that IP are blocked for{" "}
+            The login form is protected against password guessing. After{" "}
+            <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong> from the same
+            place — the same internet connection, called an IP address — further
+            tries from that place are blocked for{" "}
             <strong>{LOGIN_LOCKOUT_MS / 60_000} minutes</strong>. A successful
-            login clears the counter immediately. This defends against password
-            guessing and credential stuffing.
+            login clears the count straight away.
           </p>
           <p>
-            If you&apos;re legitimately locked out, wait for the lockout to
-            expire or log in from a different network. Because there is{" "}
-            <strong>no password recovery</strong> (see{" "}
-            <strong>Data & Privacy</strong>), another owner cannot unlock your
-            account &mdash; only time (or switching IP) will clear the block.
+            If you are blocked, wait for the block to pass, or log in from a
+            different connection — for example your phone's internet. Because
+            there is <strong>no password recovery</strong> (see{" "}
+            <strong>Data &amp; privacy</strong>), another owner cannot unlock
+            the block for you. Only time, or a different connection, clears it.
           </p>
         </>,
       ),

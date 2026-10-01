@@ -68,28 +68,28 @@ describe("guide integrations section", () => {
     expect(html).toContain('<h3 id="admin-api">');
     // The joins between prose and its inline code: exactly one space each.
     expect(html).toContain("the public importer at <a href=");
-    expect(html).toContain("Enter your ICS feed URL: <code>https://");
-    expect(html).toContain("open-source <a href=");
+    expect(html).toContain("Enter your calendar feed address: <code>https://");
+    expect(html).toContain("works with the free <a href=");
     expect(html).toContain(
-      "Message text and recipient phone numbers are <strong>end-to-end",
+      "Message text and phone numbers are <strong>end-to-end",
     );
     expect(html).toContain(
       "shows you a <strong>username and password</strong>",
     );
     expect(html).toContain("recorded in the <a href=");
-    expect(html).toContain("The base URL is your domain (e.g. <code>https://");
+    expect(html).toContain(
+      "The starting address is your own site address (for example <code>https://",
+    );
     expect(html).toContain(
       "Returns <code>{ &quot;error&quot;: &quot;Listing not found&quot; }</code> with status 404",
     );
     // The app link join: the link text and the following word share one space.
-    expect(html).toContain(
-      ">SMS Gateway for Android</a> app: you install the app",
-    );
+    expect(html).toContain(">SMS Gateway for Android</a> app: install the app");
     // The settings link begins its list item with one space after "In".
     expect(html).toContain("In <a href=");
     // The wrapped availability code block joins its dash with one space too.
     expect(html).toContain(
-      "date=YYYY-MM-DD</code> — check if spots are available",
+      "date=YYYY-MM-DD</code> — check whether places are free",
     );
     // The daily-listing parameter note joins its inline code the same way.
     expect(html).toContain(

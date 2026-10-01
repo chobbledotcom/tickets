@@ -30,7 +30,7 @@ test("the section keeps its anchor id and its promo copy joins cleanly", () => {
   // The custom entry's word joins: an inline code word follows plain text
   // without doubling or dropping the space the template literal carries.
   expect(html).toContain(
-    "The top-level <code>kind</code> is either <code>&quot;listing&quot;</code> or <code>&quot;group&quot;</code>, and <code>version</code> guards against",
+    "The top-level <code>kind</code> is either <code>&quot;listing&quot;</code> or <code>&quot;group&quot;</code>, and <code>version</code> stops a file",
   );
   // The tail paragraph's join: the inline <code> word follows plain text with
   // the one space the template literal carries.

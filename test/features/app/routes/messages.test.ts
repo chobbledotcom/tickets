@@ -220,7 +220,7 @@ describeWithEnv("route message loading", { db: true }, () => {
       const response = await adminGet("/admin/formatting");
 
       expect(response.status).toBe(200);
-      expect(t("guide.sections.text_formatting")).toBe("Text Formatting");
+      expect(t("guide.sections.text_formatting")).toBe("Text formatting");
       expect(() => t("guide.title")).toThrow(
         'Missing translation for key "guide.title"',
       );
