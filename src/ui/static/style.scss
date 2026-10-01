@@ -1739,7 +1739,7 @@ button.bulk-checkout:hover {
   box-shadow: none !important;
 }
 
-button.link-button {
+button.link-button, a.link-button {
   background: transparent;
   border: none;
   padding: 0;
@@ -1750,16 +1750,16 @@ button.link-button {
   text-decoration: underline;
 }
 
-button.link-button:hover {
+button.link-button:hover, a.link-button:hover {
   filter: none;
   text-decoration: none;
 }
 
-button.link-button.checkin {
+.link-button.checkin {
   color: #22863a;
 }
 
-button.link-button.checkout {
+.link-button.checkout {
   color: #cc0000;
 }
 

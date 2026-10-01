@@ -365,6 +365,17 @@ describe("the admin scanner doors page template", () => {
       AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
     );
     expect(html).toContain('href="/admin/scanner"');
-    expect(html).toContain(t("nav.doors"));
+    expect(html).toContain(">Scanner</a>");
+  });
+
+  test("the nav offers the doors list to a scanner login only", () => {
+    // Staff reach every door from its listing or group page, so the nav keeps
+    // the link for the one role whose whole job it is.
+    for (const adminLevel of ["owner", "manager"] as const) {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel } }),
+      );
+      expect(html).not.toContain('href="/admin/scanner"');
+    }
   });
 });

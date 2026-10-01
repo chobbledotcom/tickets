@@ -116,13 +116,14 @@ export const movesPartOfAParty = async (
 
 /** What the page behind a booking's Check in or Check out link says about
  * how many of its tickets are in — the words the organiser reads there. A
- * booking still owing tickets links Check in; a full one only Check out. */
+ * booking still owing tickets links "Check in" (or "Check in/out" once some
+ * are in); a full one links only "Check out". */
 export const partCountOnTheList = async (
   world: TicketsWorld,
   listing: string,
 ): Promise<string> =>
   (
     await followOnTheList(world, listing, (html) =>
-      html.includes(">Check in</a>") ? "Check in" : "Check out",
+      html.includes(">Check in") ? "Check in" : "Check out",
     )
   ).pageText;
