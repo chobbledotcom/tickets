@@ -121,6 +121,6 @@ test("the answers name the request-hostname fallback", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The system keeps the raw request hostname — a bunny.run request keeps
   // bunny.run links — so the copy must not claim a fixed b-cdn.net address.
-  expect(html).toContain("the site started with");
+  expect(html).toContain("the address the visitor used to open the site");
   expect(html).toContain("b-cdn.net</code> or <code>bunny.run</code>");
 });

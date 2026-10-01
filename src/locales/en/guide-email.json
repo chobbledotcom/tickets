@@ -10,7 +10,7 @@
   "guide.q.test_email_working": "How do I test that email is working?",
   "guide.a.test_email_working": "<p>After saving your email settings, a <strong>Send Test Email</strong> button appears. Click it to send a test email to your business email address.</p><p>If the test fails, you see the error message from your email company. That message usually names the fix — most often a wrong key, or a &quot;from&quot; address the company does not know about yet.</p>",
   "guide.q.email_not_configured": "What if email is not set up?",
-  "guide.a.email_not_configured": "<p>Email is completely optional. With no email company chosen, this site simply sends no emails. Bookings, payments, and everything else work as normal.</p>",
+  "guide.a.email_not_configured": "<p>Email is completely optional. When neither you nor the company that runs your site has chosen an email company, this site simply sends no emails. Bookings, payments, and everything else work as normal.</p>",
   "guide.q.confirmation_email_content": "What does the confirmation email contain?",
   "guide.a.confirmation_email_content": "<p>The attendee receives the listing name or names, the quantity, the price paid, and a link to their ticket page.</p><p>Each email also carries a picture of the ticket with its QR code — the square barcode scanned at the door. Listings set to <strong>No check-in</strong> leave the QR code out, because nobody will be scanned. A multi-listing booking gets one email listing everything, with one ticket picture per listing.</p><p>Your business email is the reply-to address, so attendees can reply straight to you.</p>",
   "guide.q.admin_notification_email_content": "What does the notification email contain?",

@@ -51,7 +51,7 @@ describe("CustomDomainForm", () => {
     expect(html).toContain('class="prose"');
     // The intro links the guide's buy-a-domain steps
     expect(html).toContain(
-      'The <a href="/admin/guide#custom-domain">setup guide</a> explains where to buy one',
+      'The <a href="/admin/guide#custom-domain">setup guide</a> shows you how to point it here',
     );
     const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
     expect(domainInput).not.toBeNull();

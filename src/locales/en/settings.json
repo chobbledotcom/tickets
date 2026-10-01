@@ -164,7 +164,7 @@
   "settings.advanced.custom_domain": "Custom domain",
   "settings.advanced.domain_label": "Domain",
   "settings.advanced.save_custom_domain": "Save custom domain",
-  "settings.advanced.custom_domain_intro": "Use a domain name you bought, like <code>tickets.example.co.uk</code>, as your site's address. You only need the name itself — this site does the rest. Not bought one yet? The <a href=\"/admin/guide#custom-domain\">setup guide</a> explains where to buy one.",
+  "settings.advanced.custom_domain_intro": "Use a domain name you bought, like <code>tickets.example.co.uk</code>, as your site's address. You need only the name — no separate hosting. The <a href=\"/admin/guide#custom-domain\">setup guide</a> shows you how to point it here, and where to buy one.",
   "settings.advanced.custom_domain_with_subdomain": "Your host subdomain keeps working at the same time.",
   "settings.advanced.custom_domain_placeholder": "tickets.example.co.uk",
   "settings.advanced.custom_domain_saved_unvalidated": "Custom domain saved. Validation failed: {error}",
