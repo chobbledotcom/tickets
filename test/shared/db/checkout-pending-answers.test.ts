@@ -127,11 +127,15 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     );
 
     // The window is long past and the payments clock has run, but the handle
-    // row still stands: the link's end was never observed.
+    // row still stands: the link's end was never observed. The read is
+    // non-destructive, so the row the second prune must remove survives it.
     await runDatabasePruning();
-    expect(await takeCheckoutAnswers("cs_square")).toEqual(
-      new Map([[7, "held"]]),
-    );
+    expect(
+      await queryOne(
+        "SELECT session_index FROM checkout_pending_answers WHERE session_index = ?",
+        [await sessionIndexOf("cs_square")],
+      ),
+    ).not.toBeNull();
 
     // The expiry task observed the link's end, so the answers go too.
     await execute("DELETE FROM square_link_ends WHERE session_index = ?", [
