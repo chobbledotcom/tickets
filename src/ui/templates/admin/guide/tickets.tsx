@@ -56,7 +56,7 @@ const WalletSetup = ({
     <p>
       All {count} fields are required. Once saved, the Add to {wallet} button
       appears automatically on all ticket pages. When none are set up, the
-      button is simply hidden.
+      button is hidden.
     </p>
   </>
 );

@@ -119,7 +119,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide(
         "Why is this privacy-first instead of a CRM?",
         "stops short of that",
-        "GDPR and UK GDPR",
+        "makes GDPR easier to follow",
         "legal duties",
         "listing webhooks are a good place to start",
       );
