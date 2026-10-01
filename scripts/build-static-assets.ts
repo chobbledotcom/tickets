@@ -9,6 +9,7 @@ import * as sass from "sass";
 import { projectRoot } from "./project-root.ts";
 import { withStaticAssetBuildLock } from "./static-assets/build-lock.ts";
 import { writeStaticAssetManifest } from "./static-assets/cache.ts";
+import { fileInputs } from "./static-assets/inputs.ts";
 import {
   CSS_ENTRY,
   STATIC_ASSET_OUTFILES,
@@ -153,7 +154,7 @@ const inputsOf = (
   if (!result?.metafile) {
     throw new Error(`Static bundle has no build metadata: ${bundle.label}`);
   }
-  return Object.keys(result.metafile.inputs);
+  return fileInputs(Object.keys(result.metafile.inputs));
 };
 
 const createBundleContexts = async (): Promise<
