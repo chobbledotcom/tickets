@@ -20,7 +20,6 @@ import {
   type MachineNode,
   moveOrRefuse,
   movesIn,
-  nodeIdsWhere,
   parseMachineState,
   machineRep as rep,
 } from "#shared/schema-atlas/machine-spec.ts";
@@ -197,8 +196,3 @@ const LINK_END_DERIVED = derivedNodeIds({
  * list. */
 export const LINK_END_CHECKABLE_NODES: readonly SquareLinkEndNodeId[] =
   LINK_END_DERIVED.movedBy((event) => event.kind === "check");
-
-/** The nodes whose link can still take payment. Retention never deletes these
- * rows on age alone. */
-export const LINK_END_PAYABLE_NODES: readonly SquareLinkEndNodeId[] =
-  nodeIdsWhere(LINK_END_NODES, (node) => node.takesPayment !== "no");

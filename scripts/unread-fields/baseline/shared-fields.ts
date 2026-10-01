@@ -25,11 +25,11 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
   ])(["confirm_identifier"]),
   ...identitiesAt([
     [
-      "src/ui/templates/admin/debug.tsx",
+      "src/ui/templates/admin/debug-state.ts",
       [{ name: "DebugPageState" }, { name: "appleWallet" }],
     ],
     [
-      "src/ui/templates/admin/debug.tsx",
+      "src/ui/templates/admin/debug-state.ts",
       [{ name: "DebugPageState" }, { name: "googleWallet" }],
     ],
   ])(["dbConfigured", "envConfigured", "source"]),
@@ -123,7 +123,6 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
   ])(["sort_order"]),
   ...identitiesAt([
     ["src/shared/provider-refunds.ts", [{ name: "ProviderRefundResult" }]],
-    ["src/shared/square/wire.ts", [{ name: "SquareOrder" }]],
   ])(["state"]),
   ...identitiesAt([
     ["src/shared/db/questions/strings.ts", [{ name: "PreparedStringRow" }]],

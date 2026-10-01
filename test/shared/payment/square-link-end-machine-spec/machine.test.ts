@@ -9,7 +9,6 @@ import {
   LINK_END_EVENTS,
   LINK_END_MOVES,
   LINK_END_NODES,
-  LINK_END_PAYABLE_NODES,
   parseSquareLinkEndState,
   type SquareLinkEndRow,
 } from "#payment/square-link-end-machine-spec.ts";
@@ -36,10 +35,14 @@ describe("square link end machine", () => {
   registerConformanceSweep(spec);
   registerTableChecks(spec, { events: 8, nodes: 4, shapes: 4 });
 
-  test("a row that can still take payment is never prunable on state", () => {
+  test("exactly the two stored states can still take payment", () => {
     // The retention arm, not the machine, deletes old rows: past Square's
     // own page lifetime no link can take payment, whatever state it sat in.
-    expect(LINK_END_PAYABLE_NODES).toEqual(["pending", "ending"]);
+    expect(
+      LINK_END_NODES.filter((node) => node.takesPayment !== "no").map(
+        (node) => node.id,
+      ),
+    ).toEqual(["pending", "ending"]);
   });
 
   test("the closed node is the one no event moves", () => {
