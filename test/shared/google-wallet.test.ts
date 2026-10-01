@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
+import { startOfHour } from "#shared/dates.ts";
 import {
   buildGoogleWalletUrl,
   buildJwtPayload,
@@ -52,6 +53,8 @@ describe("google-wallet", () => {
       expect(cls.id).toBe("1234567890.ABC123-class");
       expect(cls.issuerName).toBe("Test Platform");
       expect(cls.eventName.defaultValue.value).toBe("Summer Concert");
+      expect(cls.eventName.defaultValue.language).toBe("en-US");
+      expect(cls.reviewStatus).toBe("UNDER_REVIEW");
     });
 
     test("includes object with id, classId, QR barcode, and ACTIVE state", async () => {
@@ -132,6 +135,15 @@ describe("google-wallet", () => {
       expect(price.body).toBe("25 EUR");
     });
 
+    test("includes price for one minor unit (GBP)", async () => {
+      const decoded = await extractPayload(
+        makePassData({ currencyCode: "GBP", pricePaid: 1 }),
+      );
+      const obj = decoded.payload.eventTicketObjects[0];
+      const price = findTextModule(obj, "price");
+      expect(price.body).toBe("0.01 GBP");
+    });
+
     test("omits price when zero", async () => {
       const decoded = await extractPayload(makePassData({ pricePaid: 0 }));
       const obj = decoded.payload.eventTicketObjects[0];
@@ -150,11 +162,15 @@ describe("google-wallet", () => {
 
   describe("buildJwtPayload", () => {
     test("includes required JWT claims", async () => {
+      // The issued time is the start of the current hour in whole seconds; the
+      // hour can roll over between the two reads.
+      const before = Math.floor(startOfHour(new Date()).getTime() / 1000);
       const payload = buildJwtPayload(makePassData(), creds);
+      const after = Math.floor(startOfHour(new Date()).getTime() / 1000);
       expect(payload.iss).toBe("test@test-project.iam.gserviceaccount.com");
       expect(payload.aud).toBe("google");
       expect(payload.typ).toBe("savetowallet");
-      expect(typeof payload.iat).toBe("number");
+      expect([before, after]).toContain(payload.iat);
     });
 
     test("includes listing ticket class and object in payload", async () => {
@@ -171,6 +187,8 @@ describe("google-wallet", () => {
       const jwt = await signJwt(payload, creds.serviceAccountKey);
       const parts = jwt.split(".");
       expect(parts).toHaveLength(3);
+      // JWT segments carry no base64 padding.
+      expect(jwt).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     });
 
     test("header indicates RS256 algorithm", async () => {
