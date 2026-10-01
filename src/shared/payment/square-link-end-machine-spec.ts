@@ -18,11 +18,11 @@ import {
   type MachineEvent,
   type MachineMoves,
   type MachineNode,
-  machineRep as rep,
   moveOrRefuse,
   movesIn,
   nodeIdsWhere,
   parseMachineState,
+  machineRep as rep,
 } from "#shared/schema-atlas/machine-spec.ts";
 /* jscpd:ignore-end */
 
@@ -49,14 +49,12 @@ export type SquareLinkEndRow = {
  * is never pruned by retention, however old it gets. */
 export type LinkTakesPayment = "no" | "until_square_answers" | "yes";
 
-export type SquareLinkEndNode =
-  & MachineNode<
-    SquareLinkEndRow,
-    SquareLinkEndNodeId
-  >
-  & {
-    readonly takesPayment: LinkTakesPayment;
-  };
+export type SquareLinkEndNode = MachineNode<
+  SquareLinkEndRow,
+  SquareLinkEndNodeId
+> & {
+  readonly takesPayment: LinkTakesPayment;
+};
 
 /** Every node, with the stored row behind it. */
 export const LINK_END_NODES: readonly SquareLinkEndNode[] = [
@@ -99,14 +97,12 @@ export type SquareLinkEndEventId =
  * event the task fires joins the queue by being declared. */
 export type SquareLinkEndEventKind = "check" | "complete" | "create";
 
-export type SquareLinkEndEvent =
-  & MachineEvent<
-    SquareLinkEndRow,
-    SquareLinkEndEventId
-  >
-  & {
-    readonly kind: SquareLinkEndEventKind;
-  };
+export type SquareLinkEndEvent = MachineEvent<
+  SquareLinkEndRow,
+  SquareLinkEndEventId
+> & {
+  readonly kind: SquareLinkEndEventKind;
+};
 
 /** Where one event moves a row, and the refusal when the table has no cell
  * for it. */
@@ -123,22 +119,18 @@ export const squareLinkEndMoveTo = (
 
 /** Runs one event the way the sweep needs it: the real move, over the real
  * row shape, landing on a row the real reader has to accept. */
-const moves = (event: SquareLinkEndEventId) =>
-(
-  row: SquareLinkEndRow,
-): SquareLinkEndRow => ({
-  state: squareLinkEndMoveTo(row.state, event),
-});
+const moves =
+  (event: SquareLinkEndEventId) =>
+  (row: SquareLinkEndRow): SquareLinkEndRow => ({
+    state: squareLinkEndMoveTo(row.state, event),
+  });
 
 const taskEvent = <Id extends SquareLinkEndEventId>(
   id: Id,
   kind: SquareLinkEndEventKind,
 ): SquareLinkEndEvent & { readonly id: Id } => ({
-  actor: kind === "create"
-    ? "system"
-    : kind === "check"
-    ? "system"
-    : "provider",
+  actor:
+    kind === "create" ? "system" : kind === "check" ? "system" : "provider",
   id,
   kind,
   labelKey: `schema.square_link_ends.edge.${id}`,
@@ -163,9 +155,8 @@ const LINK_END_EVENT_OF: {
   payment_completed: taskEvent("payment_completed", "complete"),
 };
 
-export const LINK_END_EVENTS: readonly SquareLinkEndEvent[] = Object.values(
-  LINK_END_EVENT_OF,
-);
+export const LINK_END_EVENTS: readonly SquareLinkEndEvent[] =
+  Object.values(LINK_END_EVENT_OF);
 
 /** Every way a handle row can move. Read the refusals, because they are the
  * contract too. `pending` refuses every delete answer — the claim comes
