@@ -92,6 +92,42 @@ const expectCheckoutUserError = async (
   );
 };
 
+/** A Square order in the given state with no tenders, and one payment read
+ * that names itself: the shape the canceled-order and unreadable-payment
+ * reads share. Runs the body with both stubs live, restoring them after. */
+const withOrderAndPayment = async (
+  orderId: string,
+  state: string,
+  payment: SquarePayment,
+  run: () => Promise<void>,
+): Promise<void> => {
+  const order = stub(squareApi, "readOrder", () =>
+    Promise.resolve(
+      squareOrderRead({
+        id: orderId,
+        metadata: SQUARE_ORDER_META,
+        state,
+        tenders: [],
+        totalMoney: squareMoney(1000),
+      }),
+    ),
+  );
+  const read = stub(squareApi, "readPayment", () =>
+    Promise.resolve(
+      foundPayment({
+        amountMoney: squareMoney(1000),
+        ...payment,
+      } as SquarePayment),
+    ),
+  );
+  try {
+    await run();
+  } finally {
+    order.restore();
+    read.restore();
+  }
+};
+
 describe("square-provider", () => {
   const debug = setupSquareProviderSuite();
 
@@ -439,29 +475,16 @@ describe("square-provider", () => {
     });
 
     test("reads a canceled order as failed, not unpaid", async () => {
-      using _order = stub(squareApi, "readOrder", () =>
-        Promise.resolve(
-          squareOrderRead({
-            id: "order_canceled",
-            metadata: SQUARE_ORDER_META,
-            state: "CANCELED",
-            tenders: [],
-            totalMoney: squareMoney(1000),
-          }),
-        ),
+      await withOrderAndPayment(
+        "order_canceled",
+        "CANCELED",
+        { id: "pay_1", status: "PENDING" },
+        async () => {
+          const session =
+            await squarePaymentProvider.retrieveSession("order_canceled");
+          expect(asSession(session).paymentStatus).toBe("failed");
+        },
       );
-      using _payment = stub(squareApi, "readPayment", () =>
-        Promise.resolve(
-          foundPayment({
-            amountMoney: squareMoney(1000),
-            id: "pay_1",
-            status: "PENDING",
-          }),
-        ),
-      );
-      const session =
-        await squarePaymentProvider.retrieveSession("order_canceled");
-      expect(asSession(session).paymentStatus).toBe("failed");
     });
 
     test("refuses a payment that reports another order", async () => {
@@ -574,30 +597,17 @@ describe("square-provider", () => {
     });
 
     test("reports a blank status as blank, not unreadable", async () => {
-      using _order = stub(squareApi, "readOrder", () =>
-        Promise.resolve(
-          squareOrderRead({
-            id: "order_blank",
-            metadata: SQUARE_ORDER_META,
-            state: "COMPLETED",
-            tenders: [],
-            totalMoney: squareMoney(1000),
-          }),
-        ),
-      );
-      using _payment = stub(squareApi, "readPayment", () =>
-        Promise.resolve(
-          foundPayment({
-            amountMoney: squareMoney(1000),
-            id: "pay_blank",
-            status: "",
-          }),
-        ),
-      );
-      await expect(
-        squarePaymentProvider.retrieveSession("order_blank", "pay_blank"),
-      ).rejects.toThrow(
-        "Square payment did not read back as completed (status=)",
+      await withOrderAndPayment(
+        "order_blank",
+        "COMPLETED",
+        { id: "pay_blank", status: "" },
+        async () => {
+          await expect(
+            squarePaymentProvider.retrieveSession("order_blank", "pay_blank"),
+          ).rejects.toThrow(
+            "Square payment did not read back as completed (status=)",
+          );
+        },
       );
     });
   });
