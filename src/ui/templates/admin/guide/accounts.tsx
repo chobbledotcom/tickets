@@ -17,9 +17,7 @@ import {
 import { PricedJsonExample } from "#templates/admin/guide/integrations.tsx";
 
 /** The lockout length, as the guide states it wherever it describes the block. */
-const lockoutLength = (
-  <strong>{durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>
-);
+const lockoutLength = <strong>{durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>;
 
 export const accountsSections = (): GuideSection[] => [
   {
@@ -42,8 +40,8 @@ export const accountsSections = (): GuideSection[] => [
           <p>
             After <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong> from the
             same place, that place is blocked from logging in for{" "}
-            {lockoutLength}. During
-            the block, every attempt is refused — even with the right password.
+            {lockoutLength}. During the block, every attempt is refused — even
+            with the right password.
           </p>
           <p>Wait for the block to pass, then try again.</p>
         </>,
@@ -135,8 +133,8 @@ export const accountsSections = (): GuideSection[] => [
             The login form is protected against password guessing. After{" "}
             <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong> from the same
             place — the same internet connection, called an IP address — further
-            tries from that place are blocked for {lockoutLength}. A
-            successful login clears the count straight away.
+            tries from that place are blocked for {lockoutLength}. A successful
+            login clears the count straight away.
           </p>
           <p>
             If you are blocked, wait for the block to pass, or log in from a
