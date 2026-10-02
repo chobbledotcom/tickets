@@ -74,17 +74,13 @@ describe("square link end machine", () => {
     }
   });
 
-  test("refuses a stored word the machine does not have", () => {
-    expect(() => parseSquareLinkEndState("gone")).toThrow(
-      "A square_link_ends row holds unknown state gone",
-    );
-  });
-
-  test("only the task's own events move a row, and only from where they were declared", () => {
+  test("refuses the virtual nodes as stored words", () => {
     // The virtual nodes carry no stored word: no read can produce one, and
     // no writer can store one.
-    expect(() => parseSquareLinkEndState("unwritten")).toThrow(
-      "A square_link_ends row holds unknown state unwritten",
-    );
+    for (const word of ["gone", "unwritten"]) {
+      expect(() => parseSquareLinkEndState(word)).toThrow(
+        `A square_link_ends row holds unknown state ${word}`,
+      );
+    }
   });
 });

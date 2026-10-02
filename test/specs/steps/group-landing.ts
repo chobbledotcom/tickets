@@ -1,5 +1,3 @@
-// deno-fmt-ignore-file
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";

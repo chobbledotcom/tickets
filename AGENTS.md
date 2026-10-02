@@ -237,7 +237,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Final check**: Run `devenv shell deno task precommit` before you finish any
   job that changes code. It typechecks the test files too, so `deno check` plus
   `test:files` is not a substitute. A Markdown-only change needs no precommit.
-  Run `deno fmt` and `deno task check:ste` on it instead.
+  Run `deno task check:ste` on it instead.
 
 ## Stacked Pull Requests
 
@@ -433,8 +433,8 @@ automatic.
 - `deno task specs:check` — parse and validate every Feature
 - `deno task specs:files <feature>... [--tags <expression>]` — run selected
   Features
-- `deno task lint` — format Markdown with `deno fmt`, then format and lint code
-  with Biome (`check --write`). Format through this task
+- `deno task lint` — format and lint code with Biome (`check --write`). Format
+  through this task
 - `deno task lint:ci` — the strict read-only lint that precommit runs
 - `deno task build:edge` — build for Bunny Edge deployment
 - `deno task check:file-lengths` — the 500-line limit over every source tree,

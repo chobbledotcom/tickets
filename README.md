@@ -524,7 +524,7 @@ deno task start          # Run server
 deno task dev            # Run server, restarting on source changes (static assets build once, so editing style.scss or bundle inputs needs the task restarted)
 deno task test           # Run tests
 deno task test:coverage  # Tests with coverage report
-deno task lint           # Format Markdown with Deno and code with Biome
+deno task lint           # Format and lint code with Biome
 deno task lint:ci        # Strict read-only lint (what precommit runs everywhere)
 deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge

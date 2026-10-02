@@ -1,4 +1,3 @@
-// deno-fmt-ignore-file
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";

@@ -56,6 +56,8 @@ const UNIT_FORMATTERS: Record<string, (value: number) => string> = {
 
 /** Format a limit value with its unit into a human-readable string */
 export const formatLimitValue = (value: number, unit: string): string => {
-  const format = UNIT_FORMATTERS[unit];
+  const format = Object.hasOwn(UNIT_FORMATTERS, unit)
+    ? UNIT_FORMATTERS[unit]
+    : undefined;
   return format ? format(value) : `${value} ${unit}`;
 };

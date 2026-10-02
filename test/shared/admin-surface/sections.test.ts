@@ -33,6 +33,7 @@ describe("the admin sections table", () => {
       "ledger",
       "site",
       "settings",
+      "guide",
     ]);
   });
 

@@ -202,9 +202,16 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       },
       { id: "settingsAdvanced", kind: "link", labelKey: "nav.sub.advanced" },
       { id: "backup", kind: "link", labelKey: "nav.sub.backups" },
-      { id: "update", kind: "link", labelKey: "nav.sub.updates" },
       { id: "debug", kind: "link", labelKey: "nav.sub.debug" },
       { id: "schemaAtlas", kind: "link", labelKey: "nav.sub.schema" },
+    ],
+  },
+  {
+    id: "guide",
+    labelKey: "nav.guide",
+    landing: "guide",
+    nav: [
+      { id: "guide", kind: "landing", labelKey: "nav.guide" },
       {
         id: "support",
         kind: "link",

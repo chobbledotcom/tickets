@@ -54,10 +54,10 @@ describeWithEnv(
   { db: true, env: ADMIN_ENV },
   () => {
     describe("GET /admin/support", () => {
-      test("shows the Support link in the settings sub-nav", async () => {
+      test("shows the Support link in the Guide sub-nav", async () => {
         // The story proves the link is gone when the host is silent; this
         // owns the other side of that branch — the link when they listen.
-        const response = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/guide");
         const html = await response.text();
         expect(html).toContain('href="/admin/support"');
       });

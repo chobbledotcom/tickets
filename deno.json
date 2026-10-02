@@ -24,8 +24,8 @@
     "specs:check": "deno run --allow-read scripts/check-specs.ts",
     "specs:files": "deno run --v8-flags=--expose-gc -A scripts/run-specs.ts",
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi --preload ./test/test-utils/preload.ts test/",
-    "lint": "deno fmt && deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
-    "lint:ci": "deno fmt --check && deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
+    "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
+    "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
     "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
     "unread-fields": "deno run -A scripts/unread-fields.ts",
     "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.helpers.json && deno run -A scripts/cpd.ts --config .jscpd.support.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss src/ui/static/_entity-page.scss src/ui/static/_field-visibility.scss && deno run -A scripts/cpd.ts --config .jscpd.renamed.json --baseline .jscpd.renamed-baseline.json --fail-on-new-clones",
@@ -68,12 +68,6 @@
     "screenshot:listing-attendees": "deno task screenshot listing-attendees",
     "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts",
     "e2e:email": "deno run -A scripts/email-sandbox-e2e/main.ts"
-  },
-  "fmt": {
-    "include": [
-      "**/*.md"
-    ],
-    "lineWidth": 80
   },
   "imports": {
     "#accounting/": "./src/shared/accounting/",
