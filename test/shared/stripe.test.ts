@@ -5,6 +5,8 @@ import { settings } from "#db/settings.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
+  CHECKOUT_EXPIRY_MARGIN_S,
+  checkoutExpiry,
   detectStripeKeyMode,
   isoFromUnixSeconds,
   stripeApi,
@@ -27,6 +29,16 @@ describe("Stripe payment operations", () => {
   test("converts Unix seconds to an ISO timestamp", () => {
     expect(isoFromUnixSeconds(1)).toBe("1970-01-01T00:00:01.000Z");
     expect(isoFromUnixSeconds("1")).toBe(undefined);
+  });
+
+  test("a session expiry is the window plus the latency margin", () => {
+    expect(checkoutExpiry(1_000, 60)).toBe(
+      1_000 + 60 * 60 + CHECKOUT_EXPIRY_MARGIN_S,
+    );
+  });
+
+  test("a session expiry never passes Stripe's 24-hour ceiling", () => {
+    expect(checkoutExpiry(1_000, 24 * 60)).toBe(1_000 + 24 * 60 * 60);
   });
 });
 describeStripe("what Stripe is asked to charge for", () => {
@@ -136,7 +148,10 @@ describeStripe("what Stripe is asked to charge for", () => {
     const expiresAt = params.expires_at as number;
     expect(expiresAt).toBeGreaterThan(Date.now() / 1000 + 60);
     expect(expiresAt).toBeLessThanOrEqual(
-      Date.now() / 1000 + CHECKOUT_WINDOW_MINUTES * 60 + 5,
+      Date.now() / 1000 +
+        CHECKOUT_WINDOW_MINUTES * 60 +
+        CHECKOUT_EXPIRY_MARGIN_S +
+        5,
     );
   });
 });

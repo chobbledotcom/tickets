@@ -68,6 +68,22 @@ export const detectStripeKeyMode = (key: string): StripeKeyMode | null => {
   return null;
 };
 
+/** Seconds of headroom added to a Stripe session's expiry, so the configured
+ *  window still clears Stripe's 30-minute floor once the request's own
+ *  latency is counted. */
+export const CHECKOUT_EXPIRY_MARGIN_S = 60;
+
+/** Stripe's own ceiling for a checkout session's expiry: 24 hours. */
+const STRIPE_MAX_EXPIRY_S = 24 * 60 * 60;
+
+/** A session's expiry: the configured window plus the latency margin, capped
+ *  at Stripe's own 24-hour ceiling. */
+export const checkoutExpiry = (now: number, windowMinutes: number): number =>
+  Math.min(
+    now + windowMinutes * 60 + CHECKOUT_EXPIRY_MARGIN_S,
+    now + STRIPE_MAX_EXPIRY_S,
+  );
+
 const createCheckoutSession = async (
   intent: CheckoutIntent,
   baseUrl: string,
@@ -96,17 +112,26 @@ const createCheckoutSession = async (
       }),
     },
   );
+  // Build the signed metadata before the expiry, so the window is measured
+  // from just before the request reaches Stripe.
+  const metadata = await assembleCheckoutMetadata(
+    "stripe",
+    intent,
+    order.total,
+  );
   const params: StripeCheckoutSessionCreateParams = {
     cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
     // Stripe ends its own page at this time, so no stored handle and no
-    // task are needed: the checkout window is the whole fact.
-    expires_at: nowSeconds() + CHECKOUT_WINDOW_MINUTES * 60,
+    // task are needed: the checkout window is the whole fact. A short margin
+    // keeps the window above Stripe's 30-minute floor once the request's own
+    // latency is counted, and the ceiling keeps a full-day window inside it.
+    expires_at: checkoutExpiry(nowSeconds(), CHECKOUT_WINDOW_MINUTES),
     line_items: lineItems,
     mode: "payment",
     payment_method_types: ["card"],
     success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
     ...(intent.email ? { customer_email: intent.email } : {}),
-    metadata: await assembleCheckoutMetadata("stripe", intent, order.total),
+    metadata,
   };
   const session = await stripeClientRuntime.runCheckout(
     (client) => client.checkout.sessions.create(params),

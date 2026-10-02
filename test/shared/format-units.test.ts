@@ -42,5 +42,7 @@ describe("format-units", () => {
     expect(formatLimitValue(3600, "seconds")).toBe("1h");
     expect(formatLimitValue(60, "ms")).toBe("60ms");
     expect(formatLimitValue(5, "attempts")).toBe("5 attempts");
+    // A unit that names an inherited Object member is still an unknown unit.
+    expect(formatLimitValue(5, "toString")).toBe("5 toString");
   });
 });
