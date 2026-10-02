@@ -4,6 +4,8 @@
 
 /* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
+import { formatBytes } from "#shared/format-units.ts";
+import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import {
   custom,
   faq,
@@ -43,10 +45,12 @@ export const listingsSections = (): GuideSection[] => [
         <p>
           When switched on, attendees can choose their own price instead of
           paying a fixed amount. The ticket price becomes the minimum. You can
-          set a maximum with the "Maximum Price" field — it must be at least{" "}
-          {formatCurrency(100)} more than the ticket price. If the ticket price
-          is zero, the listing becomes pay-what-you-want: attendees can enter
-          any amount up to the maximum, or nothing.
+          set a maximum with the "Maximum Price" field — it must be at least
+          {" "}
+          {formatCurrency(100)}{" "}
+          more than the ticket price. If the ticket price is zero, the listing
+          becomes pay-what-you-want: attendees can enter any amount up to the
+          maximum, or nothing.
         </p>,
       ),
       faq("what_is_purchase_only_mode"),
@@ -55,7 +59,27 @@ export const listingsSections = (): GuideSection[] => [
       faq("manually_add_attendee"),
       faq("custom_redirect_after_booking"),
       faq("add_listing_image"),
-      faq("add_file_attachment"),
+      custom(
+        "add_file_attachment",
+        <>
+          <p>
+            When you create or edit a listing, use the attachment upload field
+            to attach a file. Any type works — PDFs, Word documents,
+            spreadsheets, pictures, audio, video, zip folders. The largest size
+            is {formatBytes(MAX_ATTACHMENT_SIZE)}.
+          </p>
+          <p>
+            Attendees see a download link on their ticket page. The link is
+            unique to each attendee and expires after a short time, so it cannot
+            be shared or reused. Each visit to the ticket page gives them a
+            fresh link.
+          </p>
+          <p>
+            To remove an attachment, open the listing and click{" "}
+            <strong>Delete</strong> next to the file name.
+          </p>
+        </>,
+      ),
       faq("listing_qr_code"),
       faq("duplicate_listing"),
       faq("deactivate_listing"),

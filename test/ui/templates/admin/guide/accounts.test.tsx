@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
+import { durationWords } from "#shared/format-units.ts";
+import {
+  LOGIN_LOCKOUT_MS,
+  MAX_LOGIN_ATTEMPTS,
+  SESSION_MAX_AGE_S,
+} from "#shared/limits.ts";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
 import { renderGuideSections } from "#templates/admin/guide/components.tsx";
 
@@ -9,8 +14,9 @@ const sections = accountsSections();
 
 const sectionById = (id: string) => {
   const section = sections.find((one) => one.id === id);
-  if (section === undefined)
+  if (section === undefined) {
     throw new Error(`Guide section "${id}" is missing`);
+  }
   return section;
 };
 
@@ -66,11 +72,35 @@ describe("accounts guide schema", () => {
       `After <strong>${MAX_LOGIN_ATTEMPTS} wrong tries</strong>`,
     );
     expect(html).toContain(
-      `blocked for <strong>${LOGIN_LOCKOUT_MS / 60_000} minutes</strong>`,
+      `blocked for <strong>${durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>`,
     );
     expect(html).toContain(
       "Because there is <strong>no password recovery</strong>",
     );
     expect(html).toContain("(see <strong>Data &amp; privacy</strong>)");
+  });
+
+  test("states the session length the site actually uses", () => {
+    const html = String(renderGuideSections([sectionById("login")]));
+    expect(html).toContain(
+      `Sessions expire after ${durationWords(SESSION_MAX_AGE_S)}.`,
+    );
+  });
+
+  test("states the login security lengths the site actually uses", () => {
+    const html = String(renderGuideSections([sectionById("login-security")]));
+    expect(html).toContain(
+      `blocked from logging in for <strong>${
+        durationWords(
+          LOGIN_LOCKOUT_MS / 1000,
+        )
+      }</strong>`,
+    );
+    expect(html).toContain(
+      `Wait ${durationWords(LOGIN_LOCKOUT_MS / 1000)} and try again`,
+    );
+    expect(html).toContain(
+      `expires after <strong>${durationWords(SESSION_MAX_AGE_S)}</strong>`,
+    );
   });
 });

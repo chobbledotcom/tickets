@@ -9,7 +9,7 @@ type Rung = readonly [size: number, suffix: string];
  * rounded to a whole number of them, and falls back to `baseSuffix` below the
  * smallest rung. Every human-readable size and duration below is one of these. */
 const laddered =
-  (rungs: readonly Rung[], baseSuffix: string): ((value: number) => string) =>
+  (rungs: readonly Rung[], baseSuffix: string): (value: number) => string =>
   (value: number): string => {
     for (const [size, suffix] of rungs) {
       if (value >= size) return `${Math.round(value / size)}${suffix}`;
@@ -60,4 +60,16 @@ export const formatLimitValue = (value: number, unit: string): string => {
     ? UNIT_FORMATTERS[unit]
     : undefined;
   return format ? format(value) : `${value} ${unit}`;
+};
+
+/** A length in seconds as the words a person reads: whole hours in hours,
+ * whole minutes in minutes, anything shorter in seconds. */
+export const durationWords = (seconds: number): string => {
+  const hours = seconds / 3600;
+  if (Number.isInteger(hours)) {
+    return hours === 1 ? "an hour" : `${hours} hours`;
+  }
+  const minutes = seconds / 60;
+  if (Number.isInteger(minutes)) return `${minutes} minutes`;
+  return `${seconds} seconds`;
 };

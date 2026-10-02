@@ -4,6 +4,8 @@
 
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { formatBytes } from "#shared/format-units.ts";
+import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   custom,
   faq,
@@ -46,7 +48,20 @@ export const operationsSections = (): GuideSection[] => [
   {
     entries: [
       faq("what_is_image_library"),
-      faq("add_image_to_library"),
+      custom(
+        "add_image_to_library",
+        <>
+          <p>
+            Choose{" "}
+            <strong>Add Image</strong>, give it a name, add optional alt text,
+            and pick a JPEG, PNG or WebP file up to{" "}
+            <strong>{formatBytes(MAX_IMAGE_SIZE)}</strong>. Each upload is
+            shrunk and converted to WebP — a small, fast-loading picture type —
+            in a full-size and a thumbnail version, so you do not need to resize
+            pictures yourself.
+          </p>
+        </>,
+      ),
       faq("link_image_to_listing"),
       faq("delete_library_image"),
     ],

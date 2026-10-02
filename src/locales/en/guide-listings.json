@@ -30,7 +30,6 @@
   "guide.q.add_listing_image": "How do I add an image to a listing?",
   "guide.a.add_listing_image": "<p>When you create or edit a listing, use the image upload field to attach a picture. It appears on the booking page and in the public listings list. You can use JPEG, PNG, and WebP pictures.</p>",
   "guide.q.add_file_attachment": "How do I add a file to a listing?",
-  "guide.a.add_file_attachment": "<p>When you create or edit a listing, use the attachment upload field to attach a file. Any type works — PDFs, Word documents, spreadsheets, pictures, audio, video, zip folders. The largest size is 25 MB.</p><p>Attendees see a download link on their ticket page. The link is unique to each attendee and expires after a short time, so it cannot be shared or reused. Each visit to the ticket page gives them a fresh link.</p><p>To remove an attachment, open the listing and click <strong>Delete</strong> next to the file name.</p>",
   "guide.q.listing_qr_code": "Where can I find the listing QR code?",
   "guide.a.listing_qr_code": "<p>On the listing's page, click the <strong>QR code</strong> link next to the public address. It opens a picture of the QR code that links to your booking page. Save it or print it for posters and flyers.</p>",
   "guide.q.duplicate_listing": "How do I copy a listing?",

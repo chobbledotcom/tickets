@@ -6,10 +6,7 @@ import {
   type GuideSection,
   renderGuideSections,
 } from "#templates/admin/guide/components.tsx";
-import {
-  durationWords,
-  paymentsSections,
-} from "#templates/admin/guide/payments.tsx";
+import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { MAX_DURATION_DAYS } from "#types";
 
 const sections = paymentsSections();
@@ -61,19 +58,5 @@ describe("payments guide schema", () => {
       "For daily listings, <strong>Booking duration (days)</strong>",
     );
     expect(html).toContain(`up to ${MAX_DURATION_DAYS} days`);
-  });
-});
-
-describe("checkout window in words", () => {
-  test("reads whole hours in hours", () => {
-    expect(durationWords(60)).toBe("an hour");
-    expect(durationWords(120)).toBe("2 hours");
-    expect(durationWords(1440)).toBe("24 hours");
-  });
-
-  test("reads every other window in minutes", () => {
-    expect(durationWords(30)).toBe("30 minutes");
-    expect(durationWords(45)).toBe("45 minutes");
-    expect(durationWords(90)).toBe("90 minutes");
   });
 });

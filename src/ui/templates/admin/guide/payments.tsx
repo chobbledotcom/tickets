@@ -5,6 +5,7 @@
 import { t } from "#i18n";
 /* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
+import { durationWords } from "#shared/format-units.ts";
 import { CHECKOUT_WINDOW_MINUTES } from "#shared/limits.ts";
 import {
   custom,
@@ -13,14 +14,6 @@ import {
 } from "#templates/admin/guide/components.tsx";
 /* jscpd:ignore-end */
 import { MAX_DURATION_DAYS } from "#types";
-
-/** A length in minutes, as the words the guide reads: whole hours in hours,
- * any other value in minutes. */
-export const durationWords = (minutes: number): string => {
-  const hours = minutes / 60;
-  if (!Number.isInteger(hours)) return `${minutes} minutes`;
-  return hours === 1 ? "an hour" : `${hours} hours`;
-};
 
 export const paymentsSections = (): GuideSection[] => [
   {
@@ -35,8 +28,9 @@ export const paymentsSections = (): GuideSection[] => [
         <>
           <p>
             An unpaid checkout can take payment for{" "}
-            {durationWords(CHECKOUT_WINDOW_MINUTES)} after it starts. After
-            that time, the checkout is closed and the buyer must book again.
+            {durationWords(CHECKOUT_WINDOW_MINUTES * 60)}{" "}
+            after it starts. After that time, the checkout is closed and the
+            buyer must book again.
           </p>
           <p>
             Stripe and Square both close the checkout at the end of that time:
@@ -116,11 +110,12 @@ export const paymentsSections = (): GuideSection[] => [
         <>
           <p>
             For daily listings,{" "}
-            <strong>{t("fields.listing.duration_days")}</strong> sets how many
-            days in a row one booking covers — handy for multi-night stays or
-            multi-day passes. Leave it at 1 for a normal single-day booking, or
-            set it up to {MAX_DURATION_DAYS} days. The attendee picks a start
-            date, and their booking runs that many days from it.
+            <strong>{t("fields.listing.duration_days")}</strong>{" "}
+            sets how many days in a row one booking covers — handy for
+            multi-night stays or multi-day passes. Leave it at 1 for a normal
+            single-day booking, or set it up to {MAX_DURATION_DAYS}{" "}
+            days. The attendee picks a start date, and their booking runs that
+            many days from it.
           </p>
           <p>
             Every day the booking covers must have room, or the booking cannot
