@@ -21,6 +21,7 @@ export const paymentsSections = (): GuideSection[] => [
       faq("paid_ticket_booking_flow"),
       faq("why_don_t_we_hold_places_during"),
       faq("listing_sells_out_while_paying"),
+      faq("checkout_window"),
       faq("how_refunds_work"),
       custom(
         "what_is_booking_fee",
@@ -51,7 +52,6 @@ export const paymentsSections = (): GuideSection[] => [
       faq("find_square_access_token"),
       faq("find_square_location_id"),
       faq("setup_square_webhook"),
-      faq("square_link_ends"),
       faq("how_do_i_set_up_sumup"),
       faq("stripe_test_vs_live_keys"),
       faq("test_or_live_credentials"),
