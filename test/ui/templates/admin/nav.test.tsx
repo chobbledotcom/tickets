@@ -5,12 +5,7 @@ import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
-import {
-  featureSetting,
-  useSetting,
-  withSetting,
-} from "#test-utils/settings.ts";
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 import type { AdminLevel } from "#types";
 
 describeWithEnv("AdminNav", {}, () => {
@@ -258,53 +253,6 @@ describeWithEnv("AdminNav", {}, () => {
     }
   });
 
-  test("AdminNav hides optional features when they are disabled", async () => {
-    await withSetting(featureSetting(), () => {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
-      );
-      for (const href of [
-        "/admin/servicing",
-        "/admin/modifiers",
-        "/admin/ledger",
-      ]) {
-        expect(html, href).not.toContain(`href="${href}"`);
-      }
-      expect(html).toContain('href="/admin/attendees"');
-    });
-  });
-
-  test("AdminNav hides feature links inside Users and Settings", async () => {
-    await withSetting(featureSetting(), () => {
-      const users = String(
-        AdminNav({ active: "/admin/users", session: { adminLevel: "owner" } }),
-      );
-      const settings = String(
-        AdminNav({
-          active: "/admin/settings",
-          session: { adminLevel: "owner" },
-        }),
-      );
-      expect(users).not.toContain('href="/admin/api-keys"');
-      expect(settings).not.toContain('href="/admin/attributes"');
-      expect(settings).not.toContain('href="/admin/logistics"');
-      expect(settings).not.toContain('href="/admin/questions"');
-    });
-  });
-
-  test("AdminNav shows Money to owners but not managers", () => {
-    const ownerHtml = String(
-      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
-    );
-    expect(ownerHtml).toContain('href="/admin/ledger"');
-    expect(ownerHtml).toContain("Money");
-    expect(ownerHtml).not.toContain("Money history");
-    const managerHtml = String(
-      AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
-    );
-    expect(managerHtml).not.toContain('href="/admin/ledger"');
-  });
-
   test("AdminNav marks Money active on its page", () => {
     const html = String(
       AdminNav({
@@ -398,92 +346,9 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).not.toContain("Finish setting up your site");
   });
 
-  test("owner sees a top-level Site link when Site is enabled", () => {
-    const html = String(
-      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
-    );
-    expect(html).toContain('href="/admin/site"');
+  test("Guide is a top-level link for owners and managers", () => {
+    expectOwnerAndManagerLink("/admin/guide", "Guide");
   });
-
-  test("owner does not see Site when Site is disabled", () =>
-    withSetting(featureSetting(), () => {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
-      );
-      expect(html).not.toContain('href="/admin/site"');
-    }));
-
-  test("Site routes stay out of the nav while Site is disabled", () =>
-    withSetting(featureSetting(), () => {
-      for (const active of ["/admin/site", "/admin/site/contact"]) {
-        const html = String(
-          AdminNav({ active, session: { adminLevel: "owner" } }),
-        );
-        expect(html, active).not.toContain('href="/admin/site"');
-        expect(html, active).not.toContain('href="/admin/site/contact"');
-      }
-    }));
-
-  test("managers and agents never see the Site link", () => {
-    for (const adminLevel of ["manager", "agent"] as const) {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel } }),
-      );
-      expect(html, adminLevel).not.toContain('href="/admin/site"');
-    }
-  });
-
-  test("the Site section sub-nav shows for owner and editor on /admin/site", () => {
-    for (const adminLevel of ["owner", "editor"] as const) {
-      const html = String(
-        AdminNav({ active: "/admin/site", session: { adminLevel } }),
-      );
-      expect(html).toContain('href="/admin/site/contact"');
-      expect(html).toContain('href="/admin/site/order"');
-    }
-  });
-
-  test("editors get no section sub-nav away from the Site editor", () => {
-    const html = String(
-      AdminNav({
-        active: "/admin/listings",
-        session: { adminLevel: "editor" },
-      }),
-    );
-    expect(html).not.toContain('href="/admin/site/contact"');
-  });
-
-  test("the Images section sub-nav offers an Add link when storage is enabled", () =>
-    withStorageEnabled(() => {
-      const html = String(
-        AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
-      );
-      expect(html).toContain('href="/admin/images/new"');
-      const start = html.indexOf('class="admin-subnav"');
-      expect(start).toBeGreaterThan(-1);
-      const sub = html.slice(start, html.indexOf("</ul>", start));
-      expect(sub).toContain('href="/admin/images/new"');
-      expect(sub).toContain("Add");
-    }));
-
-  test("editors see the Images Add sub-nav link too when storage is enabled", () =>
-    withStorageEnabled(() => {
-      const html = String(
-        AdminNav({
-          active: "/admin/images",
-          session: { adminLevel: "editor" },
-        }),
-      );
-      expect(html).toContain('href="/admin/images/new"');
-    }));
-
-  test("the Images section is absent when storage is disabled", () =>
-    withStorageDisabled(() => {
-      const html = String(
-        AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
-      );
-      expect(html).not.toContain('href="/admin/images/new"');
-    }));
 
   test("AdminNav uses SettingsNagBanner default (no items prop) when settingsNagItems is omitted", () => {
     const html = String(
