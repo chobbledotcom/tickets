@@ -3,11 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 
 describe("SCHEMA_ATLAS_MACHINES", () => {
-  test("maps all four payment machines once, keyed by their own ids", () => {
+  test("maps all five payment machines once, keyed by their own ids", () => {
     expect(SCHEMA_ATLAS_MACHINES.map((machine) => machine.id)).toEqual([
       "refund",
       "review",
       "row",
+      "square_link_ends",
       "sumup_recovery",
     ]);
   });

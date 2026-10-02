@@ -27,6 +27,7 @@ describeWithEnv(
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_no_items",
           metadata: {
             email: "john@example.com",
@@ -35,6 +36,7 @@ describeWithEnv(
           },
           payment_intent: "pi_no_items",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -173,6 +175,7 @@ describeWithEnv(
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_foreign_site_token",
           metadata: {
             email: "renew@example.com",
@@ -182,6 +185,7 @@ describeWithEnv(
           },
           payment_intent: "pi_foreign_site_token",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),

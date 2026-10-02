@@ -31,6 +31,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_single_thankyou",
           metadata: signMeta(
             {
@@ -42,6 +43,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_single_thankyou",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -85,6 +87,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_hidden_pkg",
           metadata: signedMeta(
             {
@@ -101,6 +104,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_hidden_pkg",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -141,6 +145,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 700,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_hidden_replay",
           metadata: signedMeta(
             {
@@ -156,6 +161,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_hidden_replay",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -196,6 +202,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_dupe_session",
           metadata: signMeta(
             {
@@ -207,6 +214,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_dupe",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -251,6 +259,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 800,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_cart_single",
           metadata: signMeta(
             {
@@ -262,6 +271,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_cart_single",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -312,6 +322,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1500,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_multi_dupe",
           metadata: signMeta(
             {
@@ -326,6 +337,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_multi_dupe",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),

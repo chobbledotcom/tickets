@@ -1,5 +1,5 @@
 import type { SnapshotProgress } from "#scripts/database-snapshot-lib.ts";
-import { formatMs } from "#shared/limits.ts";
+import { formatMs } from "#shared/format-units.ts";
 
 const CLEAR_LINE = "\r\x1b[2K";
 const UPDATE_INTERVAL_MS = 1_000;

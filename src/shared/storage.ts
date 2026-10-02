@@ -8,6 +8,7 @@
 import { decryptBytes, encryptBytes } from "#crypto/encryption.ts";
 import { lazyRef, once, sort } from "#fp";
 import { getEnv } from "#shared/env.ts";
+import { formatBytes } from "#shared/format-units.ts";
 import {
   canDecodeImageMime,
   type DecodableMime,
@@ -16,11 +17,7 @@ import {
   type ImageMime,
 } from "#shared/images/formats.ts";
 import type { ImageTargetTranscoder } from "#shared/images/transcode.ts";
-import {
-  formatBytes,
-  MAX_ATTACHMENT_SIZE,
-  MAX_IMAGE_SIZE,
-} from "#shared/limits.ts";
+import { MAX_ATTACHMENT_SIZE, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";

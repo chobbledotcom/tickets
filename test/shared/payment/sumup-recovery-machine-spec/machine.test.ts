@@ -112,7 +112,7 @@ describe("sumup recovery machine", () => {
     // A row carrying a word nothing here wrote means the database and this
     // code disagree, which must be raised rather than worked around.
     expect(() => parseSumupRecoveryState("abandoned")).toThrow(
-      "holds unknown state abandoned",
+      "A sumup_checkouts row holds unknown state abandoned",
     );
   });
 });

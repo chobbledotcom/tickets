@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
   stageCheckoutAnswers,
@@ -11,6 +12,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
@@ -18,6 +20,7 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
@@ -31,9 +34,11 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
+  bookingIntent,
   expectStoredRefund,
   ledgeredPaymentWithoutReservation,
   singleListingPayment,
+  trustedPayment,
 } from "./helpers.ts";
 
 describeWithEnv("payment processing booking outcomes", { db: true }, () => {
@@ -84,6 +89,32 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     expect((await getProcessedPayment(id))?.attendee_id).toBe(
       first.attendee.id,
     );
+  });
+
+  test("takes a Square checkout's handle row when its payment books", async () => {
+    const id = "sq_direct_booking";
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      unitPrice: 1000,
+    });
+    const data = trustedPayment(
+      id,
+      bookingIntent([{ e: listing.id, p: 1000, q: 1 }]),
+      1000,
+      "square",
+    );
+    await stageSquareLinkEnd(id, `link_${id}`, "2999-01-01T00:00:00Z");
+
+    const result = await processPaymentSession(id, data);
+
+    expect(result.success).toBe(true);
+    // A Square link dies with its first payment, so its end row is gone.
+    expect(
+      await queryOne(
+        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
+        [await hmacHash(id)],
+      ),
+    ).toBeNull();
   });
 
   /** A paid booking costs five database calls, answered or not. The fifth

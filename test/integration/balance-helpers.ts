@@ -178,6 +178,7 @@ export const balanceSession = (
   amount_total: chargedAmount,
   created: 1_700_000_000,
   currency: "gbp",
+  expires_at: 1_700_003_600,
   id,
   metadata: {
     ...signMeta(
@@ -192,6 +193,7 @@ export const balanceSession = (
   },
   payment_intent: id.replace(/^cs_/, "pi_"),
   payment_status: "paid",
+  status: "complete",
   url: null,
   ...over,
 });

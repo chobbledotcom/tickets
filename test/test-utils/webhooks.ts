@@ -38,6 +38,7 @@ export const checkoutSessionEvent = (opts: {
       amount_total: opts.amountTotal,
       created: opts.created ?? 1_700_000_000,
       currency: "gbp",
+      expires_at: (opts.created ?? 1_700_000_000) + 3_600,
       id: opts.sessionId,
       metadata: opts.metadata,
       payment_intent:
@@ -45,6 +46,7 @@ export const checkoutSessionEvent = (opts: {
           ? `pi_${opts.sessionId}`
           : opts.paymentIntent,
       payment_status: opts.paymentStatus ?? "paid",
+      status: "complete",
       url: null,
     },
   },

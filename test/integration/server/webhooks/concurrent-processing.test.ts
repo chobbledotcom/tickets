@@ -131,6 +131,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       Promise.resolve({
         amount_total: 500,
         currency: "gbp",
+        expires_at: 456,
         id: "cs_multi_concurrent",
         metadata: signMeta(
           webhookMeta({
@@ -142,6 +143,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
         ),
         payment_intent: "pi_multi_concurrent",
         payment_status: "paid",
+        status: "complete",
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >),
@@ -175,6 +177,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       Promise.resolve({
         amount_total: 1000,
         currency: "gbp",
+        expires_at: 456,
         id: "cs_single_concurrent",
         metadata: signMeta(
           webhookMeta({
@@ -186,6 +189,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
         ),
         payment_intent: "pi_single_concurrent",
         payment_status: "paid",
+        status: "complete",
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >),

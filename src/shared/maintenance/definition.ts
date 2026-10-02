@@ -8,6 +8,9 @@ export const MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT = 40;
 const MAINTENANCE_RESERVED_CALLS = 8;
 export const MAINTENANCE_TASK_CALL_LIMIT =
   MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_RESERVED_CALLS;
+/** Claim, finish, and the final no-work claim remain outside the task
+ * allowance. */
+export const TASK_RUNNER_CALL_RESERVE = 3;
 export const MAINTENANCE_REQUEST_DEADLINE_MS = 25_000;
 export const MAINTENANCE_RELEASE_HEADROOM_MS = 1_000;
 

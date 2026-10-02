@@ -51,5 +51,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-09-30_checked_in_count",
     () => import("./2026-09-30_checked_in_count.ts"),
   ),
+  // One sealed cancel handle per unpaid Square checkout, so the expiry task
+  // can end the link at the checkout window.
+  entry(
+    "2026-10-01_square_link_ends",
+    () => import("./2026-10-01_square_link_ends.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

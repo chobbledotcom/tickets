@@ -12,8 +12,24 @@ import {
   type MaintenanceTaskCheck,
 } from "#shared/maintenance/definition.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import {
+  SQUARE_LINK_EXPIRY_BATCH,
+  SQUARE_LINK_EXPIRY_INTERVAL_MS,
+} from "#shared/square/limits.ts";
 
 const FAILURE_RETRY_MS = 5 * 60 * 1000;
+
+/** A task check for work only a connected provider has: off until that
+ * provider is set up, and free to declare while it is not. */
+const providerConfiguredCheck = (
+  enabled: () => boolean | Promise<boolean>,
+  settingsKeys: readonly string[],
+): MaintenanceTaskCheck => ({
+  enabled,
+  maxDatabaseCalls: 0,
+  maxExternalCalls: 0,
+  settingsKeys,
+});
 
 const alwaysEnabled = (
   settingsKeys: readonly string[],
@@ -76,17 +92,12 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     wakePolicy: "organic_safe",
   },
   {
-    check: {
-      // A site with no SumUp key has no staged checkouts to ask about, and
-      // syncMaintenanceTaskRows removes the task row while that is true.
-      enabled: () => settings.sumup.hasKey,
-      maxDatabaseCalls: 0,
-      maxExternalCalls: 0,
-      settingsKeys: [
-        CONFIG_KEYS.SUMUP_API_KEY,
-        CONFIG_KEYS.SUMUP_MERCHANT_CODE,
-      ],
-    },
+    // A site with no SumUp key has no staged checkouts to ask about, and
+    // syncMaintenanceTaskRows removes the task row while that is true.
+    check: providerConfiguredCheck(
+      () => settings.sumup.hasKey,
+      [CONFIG_KEYS.SUMUP_API_KEY, CONFIG_KEYS.SUMUP_MERCHANT_CODE],
+    ),
     deadlineMs: 20_000,
     failureRetryIntervalMs: FAILURE_RETRY_MS,
     intervalMs: SUMUP_RECOVERY_INTERVAL_MS,
@@ -103,5 +114,33 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       if (await runSumupRecovery()) requestFollowUp();
     },
     wakePolicy: "organic_safe",
+  },
+  {
+    // A site with no Square token has no payment links to end, and
+    // syncMaintenanceTaskRows removes the task row while that is true.
+    check: providerConfiguredCheck(
+      () => settings.square.hasToken,
+      [CONFIG_KEYS.SQUARE_ACCESS_TOKEN, CONFIG_KEYS.SQUARE_LOCATION_ID],
+    ),
+    deadlineMs: 20_000,
+    failureRetryIntervalMs: FAILURE_RETRY_MS,
+    intervalMs: SQUARE_LINK_EXPIRY_INTERVAL_MS,
+    // One read for the queue, then per link: one claim write, one Square
+    // delete, and one move on the answer. A lease that expired spends the
+    // claim and the move only.
+    maxDatabaseCalls: 1 + SQUARE_LINK_EXPIRY_BATCH * 2,
+    maxExternalCalls: SQUARE_LINK_EXPIRY_BATCH,
+    name: "square_link_expiry",
+    run: async ({ requestFollowUp }) => {
+      // Loaded on first run, like every task's runner, so the registry stays
+      // cheap to load on cold starts.
+      const { runSquareLinkExpiry } = await import(
+        "#shared/square/link-expiry-run.ts"
+      );
+      if (await runSquareLinkExpiry()) requestFollowUp();
+    },
+    // Public traffic carries an external allowance of zero, so only
+    // POST /scheduled can reach this task.
+    wakePolicy: "scheduled_only",
   },
 ]);

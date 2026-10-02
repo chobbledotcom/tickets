@@ -86,7 +86,12 @@ export const oneLocation = (id: string, name: string) => ({
  */
 export const linkResult = (orderId: string, url: string): MockImpls => ({
   checkoutCreate: () =>
-    Promise.resolve({ createdAt: "2026-09-29T12:00:00Z", orderId, url }),
+    Promise.resolve({
+      createdAt: "2026-09-29T12:00:00Z",
+      linkId: `link_${orderId}`,
+      orderId,
+      url,
+    }),
 });
 
 /**

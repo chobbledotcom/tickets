@@ -65,6 +65,10 @@ describe("square-provider read outcomes", () => {
     });
   });
 
+  test("a payment read with no payment is the missing answer", () => {
+    expect(squarePaymentRead(null)).toEqual({ status: "missing" });
+  });
+
   for (const read of [
     { reason: "timeout", status: "unavailable" },
     { reason: "malformed_response", status: "invalid" },

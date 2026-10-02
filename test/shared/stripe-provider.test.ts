@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
+import { queryOne } from "#db/client.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent } from "#test-utils/checkout-items.ts";
@@ -228,6 +230,92 @@ describeStripe("stripe-provider", () => {
           expect(result).not.toBeNull();
           expect(asSession(result).amountTotal).toBe(4500);
           expect(asSession(result).paymentReference).toBe("pi_with_amount");
+        },
+      );
+    });
+
+    test("reads an expired session as a failed checkout", async () => {
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve(
+            stripeCheckoutSession({
+              expires_at: 456,
+              id: "cs_expired",
+              metadata: {
+                email: "expired@example.com",
+                items: '[{"e":1,"q":1}]',
+                name: "Expired User",
+              },
+              payment_intent: "",
+              payment_status: "unpaid",
+              status: "expired",
+            }),
+          ),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_expired");
+          expect(result).not.toBeNull();
+          // An expired session cannot take payment again, so the buyer
+          // returning to it gets the cancel page, not the waiting page.
+          expect(asSession(result).paymentStatus).toBe("failed");
+        },
+      );
+    });
+
+    test("stages the link end Stripe itself enforces", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.resolve(
+              stripeCheckoutSession({
+                expires_at: 456,
+                id: "cs_window",
+                url: "https://stripe.example/window",
+              }),
+            ),
+          ),
+        async () => {
+          await stripePaymentProvider.createCheckoutSession(
+            checkoutIntent({ textAnswers: { "7": "Coming by bus" } }),
+            "http://localhost:3000",
+          );
+
+          const row = await queryOne<{ link_ends_at: string }>(
+            "SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ?",
+            [await hmacHash("cs_window")],
+          );
+          expect(row?.link_ends_at).toBe("1970-01-01T00:07:36.000Z");
+        },
+      );
+    });
+
+    test("stages no link end when the create answer carries none", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.resolve(
+              stripeCheckoutSession({
+                expires_at: null,
+                id: "cs_no_expiry",
+                url: "https://stripe.example/no-expiry",
+              }),
+            ),
+          ),
+        async () => {
+          await stripePaymentProvider.createCheckoutSession(
+            checkoutIntent({ textAnswers: { "7": "Coming by bus" } }),
+            "http://localhost:3000",
+          );
+
+          const row = await queryOne<{ link_ends_at: string | null }>(
+            "SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ?",
+            [await hmacHash("cs_no_expiry")],
+          );
+          expect(row?.link_ends_at).toBeNull();
         },
       );
     });

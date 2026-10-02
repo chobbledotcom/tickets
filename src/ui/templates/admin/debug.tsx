@@ -2,95 +2,19 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
-import type { DatabaseHost } from "#db/host.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
+import { formatLimitValue } from "#shared/format-units.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
-import type { RuntimeInfo } from "#shared/runtime.ts";
+import type { DebugPageState } from "#templates/admin/debug-state.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
-import type { AdminSession, Theme } from "#types";
-/* jscpd:ignore-end */
+import type { AdminSession } from "#types";
 
-export type DebugPageState = {
-  appleWallet: {
-    dbConfigured: boolean;
-    envConfigured: boolean;
-    passTypeId: string;
-    source: string;
-    certValidation: {
-      signingCert: string;
-      signingKey: string;
-      wwdrCert: string;
-    };
-  };
-  googleWallet: {
-    dbConfigured: boolean;
-    envConfigured: boolean;
-    issuerId: string;
-    source: string;
-    privateKeyValid: string;
-  };
-  payment: {
-    provider: string;
-    keyConfigured: boolean;
-    webhookConfigured: boolean;
-    mode: string;
-  };
-  site: {
-    publicSite: boolean;
-    publicApi: boolean;
-    contactForm: boolean;
-    spamProtection: boolean;
-    country: string;
-    currency: string;
-    timezone: string;
-    bookingFee: string;
-  };
-  availability: {
-    state: "active" | "warning" | "readonly";
-    cutoff: string;
-    renewalConfigured: boolean;
-    serverTime: string;
-  };
-  email: {
-    provider: string;
-    apiKeyConfigured: boolean;
-    fromAddress: string;
-    hostProvider: string;
-  };
-  notifications: {
-    ntfyConfigured: boolean;
-    sentryConfigured: boolean;
-  };
-  bunny: {
-    storageBackend: "bunny" | "local" | "none";
-    cdnEnabled: boolean;
-    cdnHostname: string;
-    customDomain: string;
-    dnsEnabled: boolean;
-    subdomainSuffix: string;
-    registeredSubdomain: string;
-  };
-  database: {
-    host: DatabaseHost | null;
-    hostConfigured: boolean;
-    schemaInSync: boolean;
-    schemaHash: string;
-  };
-  build: {
-    timestamp: string;
-    commit: string;
-  };
-  runtime: RuntimeInfo;
-  domain: string;
-  limits: typeof LIMIT_ENTRIES;
-  theme: Theme;
-};
+/* jscpd:ignore-end */
 
 /** A row declared as data: a label plus a value (string or JSX). */
 type RowSpec = { label: string; value: Child };

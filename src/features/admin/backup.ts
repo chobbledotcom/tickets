@@ -17,7 +17,8 @@ import { downloadResponse, htmlResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
+import { formatBytes } from "#shared/format-units.ts";
+import { MAX_BACKUPS } from "#shared/limits.ts";
 import {
   downloadRaw,
   getBasename,

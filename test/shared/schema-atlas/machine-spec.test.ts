@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
   atlasMachineFrom,
   derivedNodeIds,
@@ -13,8 +14,10 @@ import {
   factsFromNode,
   type MachineEvent,
   machineRep,
+  moveOrRefuse,
   movesIn,
   nodeIdsWhere,
+  parseMachineState,
 } from "#shared/schema-atlas/machine-spec.ts";
 
 // A three-node toy: node "" proves a present value passes through verbatim —
@@ -125,6 +128,24 @@ describe("the machine-spec framework", () => {
     // returned as-is — a refusal is only ever the absence of a cell.
     expect(resolve("on", "flip", "lit")).toBe("");
     expect(resolve("on", "flip", "lit")).not.toBe("refused");
+  });
+
+  test("moveOrRefuse throws the refusal it was given on an absent cell", () => {
+    expect(() =>
+      moveOrRefuse(reader, "end", "flip", "the row is gone"),
+    ).toThrow("the row is gone");
+  });
+
+  test("parseMachineState reads a word the picklist has", () => {
+    expect(parseMachineState(v.picklist(["on", "end"]), "on", "toy")).toBe(
+      "on",
+    );
+  });
+
+  test("parseMachineState refuses a word the picklist lacks", () => {
+    expect(() =>
+      parseMachineState(v.picklist(["on", "end"]), "off", "toy_rows"),
+    ).toThrow("A toy_rows row holds unknown state off");
   });
 
   test("a plain resolver answers plain cells and refuses the rest", () => {

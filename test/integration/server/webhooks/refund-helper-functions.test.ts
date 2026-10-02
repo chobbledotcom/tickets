@@ -195,6 +195,7 @@ describeWithEnv(
         Promise.resolve({
           amount_total: 0,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_multi_empty_items",
           metadata: {
             email: "empty@example.com",
@@ -203,6 +204,7 @@ describeWithEnv(
           },
           payment_intent: "pi_multi_empty",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),

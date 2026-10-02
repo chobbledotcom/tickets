@@ -52,6 +52,7 @@ const toValidatedSession = (
     metadata,
     payment_intent,
     payment_status,
+    status,
   } = session;
   if (!hasRequiredSessionMetadata(metadata)) return null;
   return validatedPaymentSession({
@@ -61,7 +62,9 @@ const toValidatedSession = (
     id,
     metadata,
     paymentReference: payment_intent ?? "",
-    paymentStatus: payment_status,
+    // An expired session cannot take payment again, so a buyer returning to
+    // one gets the cancel page with its try-again link, not the waiting page.
+    paymentStatus: status === "expired" ? "failed" : payment_status,
     provider: "stripe",
   });
 };
@@ -70,7 +73,16 @@ const toValidatedSession = (
 const createStripeCheckoutSession = makeCreateCheckoutSession(
   "stripe",
   (...args) => stripeApi.createCheckoutSession(...args),
-  (session) => ({ id: session?.id, url: session?.url }),
+  (session) => {
+    // Stripe ends its own page at the expiry we sent, and the create answer
+    // echoes it back: that time is the whole fact the answers prune reads.
+    const linkEndsAt = isoFromUnixSeconds(session?.expires_at);
+    return {
+      id: session?.id,
+      ...(linkEndsAt === undefined ? {} : { linkEndsAt }),
+      url: session?.url,
+    };
+  },
 );
 
 const readStripeCharge = mapProviderReader(

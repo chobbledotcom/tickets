@@ -9,11 +9,13 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
 import { DAY_MS, isoBefore } from "#shared/now.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -68,7 +70,7 @@ describeWithEnv(
     });
 
     /** Stage a Square checkout whose link Square made `ageDays` ago, with its
-     * row as old as the link, then run the prune. */
+     * handle and answers rows as old as the link, then run the prune. */
     const squareCheckoutAgedDays = async (
       sessionId: string,
       ageDays: number,
@@ -77,6 +79,7 @@ describeWithEnv(
       using _link = stub(squareApi, "createPaymentLink", () =>
         Promise.resolve({
           createdAt,
+          linkId: `link_${sessionId}`,
           orderId: sessionId,
           url: "https://sq.link",
         }),
@@ -85,8 +88,19 @@ describeWithEnv(
         intent({ "7": "Coming by bus" }),
         "https://site",
       );
+      // The real create stages the cancel handle beside the answers; the
+      // stub above replaces the create, so this stages what it would have.
+      await stageSquareLinkEnd(
+        sessionId,
+        `link_${sessionId}`,
+        squareLinkEndsAt(createdAt),
+      );
       await execute(
         "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
+        [createdAt, await hmacHash(sessionId)],
+      );
+      await execute(
+        "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
         [createdAt, await hmacHash(sessionId)],
       );
       await runDatabasePruning();

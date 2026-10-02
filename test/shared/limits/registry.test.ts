@@ -17,6 +17,9 @@ import {
   SUMUP_RECOVERY_INTERVAL_MS,
   SUMUP_UNANSWERED_AFTER_MS,
 } from "#shared/limits.ts";
+// The Square link limits register from their own module now; load it so the
+// registry holds every entry.
+import "#shared/square/limits.ts";
 
 const metadata = LIMIT_ENTRIES.map(({ defaultValue, envKey, label, unit }) => [
   envKey,
@@ -127,6 +130,12 @@ describe("limit registry contract", () => {
         3,
         "SumUp recovery: checkouts per run",
         "checkouts",
+      ],
+      [
+        "CHECKOUT_WINDOW_MINUTES",
+        60,
+        "Checkout: unpaid payment window",
+        "minutes",
       ],
       [
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",

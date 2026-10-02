@@ -73,10 +73,12 @@ export const withStripeSuccess = async (
     Promise.resolve({
       amount_total: order.total,
       currency: "gbp",
+      expires_at: 456,
       id: sessionId,
       metadata,
       payment_intent: order.paymentIntent,
       payment_status: "paid",
+      status: "complete",
     } as unknown as Awaited<
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),

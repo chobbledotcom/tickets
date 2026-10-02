@@ -67,8 +67,10 @@ const computedLimit = (
  * reference this single declaration, eliminating the dual-declaration drift
  * that previously let `MAX_IMAGE_SIZE` disagree (32 MB constant vs 256 KB
  * table entry). A plain env-read limit is just a computed one whose value comes
- * from {@link readLimit}, so it shares that registration path. */
-const limit = (
+ * from {@link readLimit}, so it shares that registration path. Exported so a
+ * domain module (for example `#shared/square/limits.ts`) can register its own
+ * limits into the one shared debug table. */
+export const limit = (
   envKey: string,
   defaultValue: number,
   label: string,
@@ -459,6 +461,45 @@ export const SUMUP_RECOVERY_BATCH = limit(
 );
 
 /**
+ * Validate the checkout-window config: Stripe takes an `expires_at` from 30
+ * minutes to 24 hours after creation (see `src/shared/stripe/client.ts`). A
+ * window outside that range makes Stripe refuse every checkout session, so the
+ * site could not take Stripe payments. Throws (failing startup) rather than
+ * letting a Stripe create fail per request.
+ */
+export const assertCheckoutWindowSafe = (minutes: number): number => {
+  const max = 24 * 60;
+  if (minutes < 30 || minutes > max) {
+    throw new Error(
+      `CHECKOUT_WINDOW_MINUTES=${minutes} is outside Stripe's allowed ` +
+        "expires_at range of 30 minutes to 24 hours. Stripe refuses a " +
+        "checkout session whose expiry sits outside that range, so the site " +
+        `could not take Stripe payments. Set it between 30 and ${max} ` +
+        "(the default is 60).",
+    );
+  }
+  return minutes;
+};
+
+/**
+ * How long an unpaid checkout can take payment (default: 60 minutes). Square
+ * stages its cancel handle for this window and the expiry task ends the link
+ * at it; Stripe is told the same expiry at creation, which bounds the value to
+ * 30 minutes to 24 hours. SumUp closes its own hosted page after 30 minutes,
+ * so it reads nothing here.
+ */
+export const CHECKOUT_WINDOW_MINUTES = computedLimit(
+  assertCheckoutWindowSafe(readLimit("CHECKOUT_WINDOW_MINUTES", 60)),
+  60,
+  "CHECKOUT_WINDOW_MINUTES",
+  "Checkout: unpaid payment window",
+  "minutes",
+);
+
+/** Computed: the checkout window in milliseconds. */
+export const CHECKOUT_WINDOW_MS = CHECKOUT_WINDOW_MINUTES * 60 * 1000;
+
+/**
  * Retention (days) for encrypted string rows that have not been attached to an
  * attendee answer (default: 7). These are usually abandoned paid checkouts:
  * short-lived enough to avoid retaining free-text PII indefinitely, but long
@@ -628,65 +669,6 @@ export const FORM_STASH_MAX_ENTRIES = limit(
 // ---------------------------------------------------------------------------
 // Debug page display
 // ---------------------------------------------------------------------------
-
-/** One rung of a size ladder: how many base units it holds, and what to call
- * it. Ladders are written biggest first. */
-type Rung = readonly [size: number, suffix: string];
-
-/** Build a formatter that names a number in the biggest rung it reaches,
- * rounded to a whole number of them, and falls back to `baseSuffix` below the
- * smallest rung. Every human-readable size and duration below is one of these. */
-const laddered =
-  (rungs: readonly Rung[], baseSuffix: string): ((value: number) => string) =>
-  (value: number): string => {
-    for (const [size, suffix] of rungs) {
-      if (value >= size) return `${Math.round(value / size)}${suffix}`;
-    }
-    return `${value}${baseSuffix}`;
-  };
-
-/** Format bytes as a human-readable size string */
-export const formatBytes = laddered(
-  [
-    [1024 * 1024, "MB"],
-    [1024, "KB"],
-  ],
-  "B",
-);
-
-/** Format milliseconds as a human-readable duration string */
-export const formatMs = laddered(
-  [
-    [60 * 60 * 1000, "h"],
-    [60 * 1000, "min"],
-    [1000, "s"],
-  ],
-  "ms",
-);
-
-/** Format seconds as a human-readable duration string */
-export const formatSeconds = laddered(
-  [
-    [24 * 60 * 60, "d"],
-    [60 * 60, "h"],
-    [60, "min"],
-  ],
-  "s",
-);
-
-/** The units that carry their own ladder. Every other unit is a plain count,
- * so it reads as "<value> <unit>". */
-const UNIT_FORMATTERS: Record<string, (value: number) => string> = {
-  bytes: formatBytes,
-  ms: formatMs,
-  seconds: formatSeconds,
-};
-
-/** Format a limit value with its unit into a human-readable string */
-export const formatLimitValue = (value: number, unit: string): string => {
-  const format = UNIT_FORMATTERS[unit];
-  return format ? format(value) : `${value} ${unit}`;
-};
 
 /** The debug-page display list, derived from the limit declarations above. */
 export const LIMIT_ENTRIES: readonly LimitEntry[] = REGISTRY;

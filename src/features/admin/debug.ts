@@ -40,6 +40,9 @@ import {
 } from "#shared/env.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
+// The Square link limits register from their own module; load it so the table
+// below shows every limit the site reads.
+import "#shared/square/limits.ts";
 import {
   type PaymentProviderMode,
   paymentProviderMode,
@@ -50,9 +53,9 @@ import { sendSentryTest } from "#shared/sentry.ts";
 import { getStorageBackend } from "#shared/storage.ts";
 import {
   adminDebugPage,
-  type DebugPageState,
   SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
+import type { DebugPageState } from "#templates/admin/debug-state.ts";
 import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */

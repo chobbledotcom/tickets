@@ -69,6 +69,7 @@ describeWithEnv("package child configuration drift", { db: true }, () => {
       Promise.resolve({
         amount_total: 1000,
         currency: "gbp",
+        expires_at: 456,
         id: "cs_pkg_grown",
         metadata: signMeta(
           {
@@ -82,6 +83,7 @@ describeWithEnv("package child configuration drift", { db: true }, () => {
         ),
         payment_intent: "pi_pkg_grown",
         payment_status: "paid",
+        status: "complete",
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >),

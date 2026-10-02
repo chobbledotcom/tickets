@@ -30,3 +30,12 @@ export const itemLinkColumns: Column[] = [
   ["item_id", "INTEGER NOT NULL"],
   ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
 ];
+
+/**
+ * The tail a stateful table carries: its state word, and when its row was
+ * made. Callers spread this last, after their own columns.
+ */
+export const statefulColumns: Column[] = [
+  ["state", "TEXT NOT NULL"],
+  ["created_at", "TEXT NOT NULL"],
+];
