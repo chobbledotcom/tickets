@@ -68,9 +68,8 @@ export const listingsSections = (): GuideSection[] => [
           </p>
           <p>
             Attendees see a download link on their ticket page. The link is
-            unique to each attendee and expires after a short time, so it cannot
-            be shared or reused. Each visit to the ticket page gives them a
-            fresh link.
+            unique to each attendee and expires after a short time. Each visit
+            to the ticket page gives them a fresh link.
           </p>
           <p>
             To remove an attachment, open the listing and click{" "}

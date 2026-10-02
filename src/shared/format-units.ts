@@ -70,6 +70,8 @@ export const durationWords = (seconds: number): string => {
     return hours === 1 ? "an hour" : `${hours} hours`;
   }
   const minutes = seconds / 60;
-  if (Number.isInteger(minutes)) return `${minutes} minutes`;
+  if (Number.isInteger(minutes)) {
+    return minutes === 1 ? "a minute" : `${minutes} minutes`;
+  }
   return `${seconds} seconds`;
 };

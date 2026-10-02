@@ -54,6 +54,7 @@ describe("format-units", () => {
   });
 
   test("duration words read every other window in minutes or seconds", () => {
+    expect(durationWords(60)).toBe("a minute");
     expect(durationWords(15 * 60)).toBe("15 minutes");
     expect(durationWords(90 * 60)).toBe("90 minutes");
     expect(durationWords(90)).toBe("90 seconds");
