@@ -5,6 +5,7 @@
 import { t } from "#i18n";
 /* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
+import { CHECKOUT_WINDOW_MINUTES } from "#shared/limits.ts";
 import {
   custom,
   faq,
@@ -12,6 +13,14 @@ import {
 } from "#templates/admin/guide/components.tsx";
 /* jscpd:ignore-end */
 import { MAX_DURATION_DAYS } from "#types";
+
+/** A length in minutes, as the words the guide reads: whole hours in hours,
+ * any other value in minutes. */
+export const durationWords = (minutes: number): string => {
+  const hours = minutes / 60;
+  if (!Number.isInteger(hours)) return `${minutes} minutes`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+};
 
 export const paymentsSections = (): GuideSection[] => [
   {
@@ -21,7 +30,21 @@ export const paymentsSections = (): GuideSection[] => [
       faq("paid_ticket_booking_flow"),
       faq("why_don_t_we_hold_places_during"),
       faq("listing_sells_out_while_paying"),
-      faq("checkout_window"),
+      custom(
+        "checkout_window",
+        <>
+          <p>
+            An unpaid checkout can take payment for{" "}
+            {durationWords(CHECKOUT_WINDOW_MINUTES)} after it starts. After
+            that time, the checkout is closed and the buyer must book again.
+          </p>
+          <p>
+            Stripe and Square both close the checkout at the end of that time:
+            the site closes a Square payment link itself, and Stripe closes its
+            checkout page. A SumUp checkout always closes after 30 minutes.
+          </p>
+        </>,
+      ),
       faq("how_refunds_work"),
       custom(
         "what_is_booking_fee",
