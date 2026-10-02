@@ -174,12 +174,22 @@ describeWithEnv("AdminNav visibility", {}, () => {
     expect(sub).toContain("Support");
   });
 
+  test("Support is hidden from managers even when the host offers it", () => {
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    const html = String(
+      AdminNav({ active: "/admin/guide", session: { adminLevel: "manager" } }),
+    );
+    expect(html).toContain('href="/admin/guide"');
+    expect(html).not.toContain('href="/admin/support"');
+  });
+
   test("Support is hidden when the host has no admin contact address", () => {
     using _env = withEnv({ ADMIN_EMAIL_ADDRESS: undefined });
     const html = String(
       AdminNav({ active: "/admin/guide", session: { adminLevel: "owner" } }),
     );
     expect(html).not.toContain('href="/admin/support"');
+    expect(html).toContain('href="/admin/guide"');
   });
 
   test("Support is gone from the Settings sub-nav", () => {
