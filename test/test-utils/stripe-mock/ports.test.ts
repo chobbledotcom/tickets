@@ -73,15 +73,24 @@ describe("asking again when the port keeps being taken", () => {
 describe("expecting a start to fail", () => {
   test("asks again on a fresh port when the first one was taken", async () => {
     const portsTried: number[] = [];
+    let holder: Deno.Listener | undefined;
     let starts = 0;
-    await expectStartFailsWith((port) => {
-      portsTried.push(port);
-      starts += 1;
-      // The first port is taken by something else, so starting "works".
-      return starts === 1
-        ? startedMock()
-        : Promise.reject(new Error("no good"));
-    }, "no good");
+    try {
+      await expectStartFailsWith((port) => {
+        portsTried.push(port);
+        starts += 1;
+        // The first port is taken by something else, so starting "works".
+        // The listener holds it for real, so the kernel cannot hand the
+        // same number to the next try.
+        if (starts === 1) {
+          holder = Deno.listen({ hostname: "127.0.0.1", port });
+          return startedMock();
+        }
+        return Promise.reject(new Error("no good"));
+      }, "no good");
+    } finally {
+      holder?.close();
+    }
 
     expect(starts).toBe(2);
     expect(portsTried[0]).not.toBe(portsTried[1]);
