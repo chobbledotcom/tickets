@@ -21,6 +21,7 @@ import {
   type MaintenanceWakePolicy,
   maintenanceStartupCalls,
   maintenanceTaskByName,
+  TASK_RUNNER_CALL_RESERVE,
 } from "./definition.ts";
 
 export type RunMaintenanceOptions = {
@@ -41,9 +42,6 @@ const tasksForWake = (
     (task) =>
       wakePolicy === "scheduled_only" || task.wakePolicy === "organic_safe",
   );
-
-// Claim, finish, and the final no-work claim remain outside the task allowance.
-const TASK_RUNNER_CALL_RESERVE = 3;
 
 const taskFits = (
   task: MaintenanceTaskDeclaration,

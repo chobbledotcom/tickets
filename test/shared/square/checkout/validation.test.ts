@@ -76,6 +76,8 @@ describeSquare(() => {
         {
           checkoutCreate: () =>
             Promise.resolve({
+              createdAt: "2026-09-29T12:00:00Z",
+              linkId: "link_multi",
               orderId: "order_multi",
               url: "https://square.link/multi",
             }),

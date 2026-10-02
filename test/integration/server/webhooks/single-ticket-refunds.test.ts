@@ -88,6 +88,7 @@ describeWithEnv(
         Promise.resolve({
           amount_total: 800,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_redirect_mismatch",
           metadata: signMeta(
             webhookMeta({
@@ -99,6 +100,7 @@ describeWithEnv(
           ),
           payment_intent: "pi_redirect_mismatch",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),

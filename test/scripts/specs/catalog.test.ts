@@ -65,6 +65,7 @@ describe("Cucumber story catalog", () => {
       "payments.capacity-after-payment",
       "payments.checking-before-a-refund",
       "payments.correcting-the-books",
+      "payments.ended-checkout-try-again",
       "payments.free-bookings",
       "payments.income-figures-explained",
       "payments.one-payment-many-listings",

@@ -85,6 +85,34 @@ describeSquare(() => {
       );
     });
 
+    test("retrieveSession maps CANCELED order to failed status", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_canceled",
+                metadata: {
+                  email: "john@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "John",
+                },
+                state: "CANCELED",
+                totalMoney: { amount: BigInt(1000), currency: "GBP" },
+              },
+            }),
+        },
+        async () => {
+          const result =
+            await squarePaymentProvider.retrieveSession("order_canceled");
+          expect(result).not.toBeNull();
+          // A canceled link cannot take payment again, so the buyer returning
+          // to it gets the cancel page, not the waiting page.
+          expect(asSession(result).paymentStatus).toBe("failed");
+        },
+      );
+    });
+
     test("retrieveSession returns null for missing metadata", async () => {
       await withSquareClient(
         {

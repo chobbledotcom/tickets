@@ -8,6 +8,7 @@
  * from the table is the declaration that the transition must refuse
  * (throw), and the sweep proves that too. */
 
+import * as v from "valibot";
 import { compact } from "#fp";
 import {
   type AtlasMachine,
@@ -29,6 +30,20 @@ export const machineRep = <State>(
   state: State,
 ): MachineRepresentative<State> => ({ state, tag });
 
+/** Read a stored state word back through its machine's own picklist,
+ * refusing a word the machine does not have. A row carrying an unknown word
+ * is a database this code cannot reason about, so it is raised where it is
+ * read rather than carried inward. */
+export const parseMachineState = <State extends string>(
+  schema: v.GenericSchema<unknown, State>,
+  word: string,
+  table: string,
+): State => {
+  if (!v.is(schema, word)) {
+    throw new Error(`A ${table} row holds unknown state ${word}`);
+  }
+  return v.parse(schema, word);
+};
 /** One map node: its stored shapes, and — when no owner or system event can
  * move it toward the terminal — the declared reason it is allowed to wait. */
 export type MachineNode<State, NodeId extends string> = {
@@ -139,6 +154,21 @@ export const movesIn = <NodeId extends string, EventId extends string>(
         split: (move) => compact(Object.values(move.perRep)),
       }),
   };
+};
+
+/** Where one event moves a row, and the refusal when the table has no cell
+ * for it. `refusal` names the row and the event in the operator's words. */
+export const moveOrRefuse = <NodeId extends string, EventId extends string>(
+  reader: MachineMovesReader<NodeId, EventId>,
+  from: NodeId,
+  event: EventId,
+  refusal: string,
+): NodeId => {
+  const to = reader.expected(from, event, "");
+  if (to === "refused") {
+    throw new Error(refusal);
+  }
+  return to;
 };
 
 /** The ids of every node a rule holds for, in declaration order — the one

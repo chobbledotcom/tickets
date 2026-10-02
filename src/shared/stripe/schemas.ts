@@ -24,21 +24,34 @@ type StripeCheckoutSessionFields = {
    *  parses here — `validatedPaymentSession` then refuses the session, because
    *  a missing currency is never defaulted to the site's. */
   currency?: string | null;
+  /** When the session stops taking payment, on Stripe's own clock. */
+  expires_at: number | null;
   id: string;
   metadata: Stripe.Checkout.Session["metadata"];
   payment_intent: string | null;
   payment_status: (typeof StripePaymentStatuses)[number];
+  /** `expired` names a session whose payment window closed; Stripe refuses
+   *  payment on it, so it is a terminal non-payment. */
+  status: (typeof StripeSessionStatuses)[number];
   url: string | null;
 };
+
+const StripeSessionStatuses = [
+  "complete",
+  "expired",
+  "open",
+] as const satisfies readonly Stripe.Checkout.Session["status"][];
 
 export const StripeCheckoutSessionSchema = v.object({
   amount_total: v.nullable(v.number()),
   created: v.number(),
   currency: OptionalNullableStringSchema,
+  expires_at: v.nullable(v.number()),
   id: NonEmptyTextSchema,
   metadata: MetadataSchema,
   payment_intent: NonEmptyNullableStringSchema,
   payment_status: StripePaymentStatusSchema,
+  status: v.picklist(StripeSessionStatuses),
   url: NonEmptyNullableStringSchema,
 }) as v.GenericSchema<unknown, StripeCheckoutSessionFields>;
 

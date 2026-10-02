@@ -50,7 +50,7 @@ const runTask = (
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded pruning, activity backfill and SumUp recovery", () => {
+  test("declares only bounded pruning, activity backfill, SumUp recovery and Square link expiry", () => {
     expect(
       MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
         ...task,
@@ -102,6 +102,21 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         name: "sumup_checkout_recovery",
         wakePolicy: "organic_safe",
       },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: ["square_access_token", "square_location_id"],
+        },
+        deadlineMs: 20_000,
+        failureRetryIntervalMs: 300_000,
+        intervalMs: 300_000,
+        maxDatabaseCalls: 21,
+        maxExternalCalls: 10,
+        name: "square_link_expiry",
+        wakePolicy: "scheduled_only",
+      },
     ]);
   });
 
@@ -145,6 +160,53 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     expect(await taskNamed("sumup_checkout_recovery").check.enabled()).toBe(
       false,
     );
+  });
+
+  test("the Square link expiry task is off until Square is connected", async () => {
+    // A site with no Square token makes no payment links, so there is
+    // nothing to end and syncMaintenanceTaskRows drops the task row.
+    expect(await taskNamed("square_link_expiry").check.enabled()).toBe(false);
+  });
+
+  test("the Square link expiry task runs its check and asks for more when full", async () => {
+    const { configureSquare } = await import("#test-utils/square/fixtures.ts");
+    const { execute } = await import("#db/client.ts");
+    const { stageSquareLinkEnd } = await import("#db/square-link-ends.ts");
+    const { hmacHash } = await import("#crypto/hashing.ts");
+    const { squareApi } = await import("#shared/square/api.ts");
+    const { SQUARE_LINK_EXPIRY_BATCH } = await import(
+      "#shared/square/limits.ts"
+    );
+    await configureSquare();
+    for (let index = 0; index < SQUARE_LINK_EXPIRY_BATCH; index++) {
+      const id = `sq_task_${index}`;
+      await stageSquareLinkEnd(id, `link_${id}`, "2026-01-01T00:00:00Z");
+      await execute(
+        "UPDATE square_link_ends SET next_attempt_at = '2020-01-01T00:00:00Z' WHERE session_index = ?",
+        [await hmacHash(id)],
+      );
+    }
+    const read = stub(squareApi, "endLink", () =>
+      Promise.resolve({
+        headers: new Headers(),
+        ok: false,
+        status: 404,
+        text: `{"errors":[]}`,
+      }),
+    );
+    let followUps = 0;
+    try {
+      await runTask(taskNamed("square_link_expiry"), {
+        requestFollowUp: () => {
+          followUps += 1;
+        },
+      });
+    } finally {
+      read.restore();
+    }
+    expect(read.calls.length).toBe(SQUARE_LINK_EXPIRY_BATCH);
+    // A full batch means there may be more waiting behind it.
+    expect(followUps).toBe(1);
   });
 
   test("the pruning task runs one bounded database batch", async () => {

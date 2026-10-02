@@ -327,6 +327,10 @@ export const squarePaymentProvider: PaymentProvider = {
     const paid = payment?.status === "COMPLETED";
     const charged = paid ? payment.amountMoney : order.totalMoney;
     const amountTotal = charged?.amount;
+    // An order Square canceled is a checkout nobody can pay again — the link
+    // expiry task ends links this way, and the buyer returning to one gets
+    // the cancel page with its try-again link, not the waiting page.
+    const canceled = order.state === "CANCELED";
     return validatedPaymentSession({
       // A missing amount stays missing: Number(null) is 0, which the
       // boundary would accept as a real free order.
@@ -339,7 +343,7 @@ export const squarePaymentProvider: PaymentProvider = {
       id: order.id,
       metadata,
       paymentReference,
-      paymentStatus: paid ? "paid" : "unpaid",
+      paymentStatus: canceled ? "failed" : paid ? "paid" : "unpaid",
       provider: "square",
     });
   },

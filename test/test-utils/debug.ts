@@ -1,4 +1,4 @@
-import type { DebugPageState } from "#templates/admin/debug.tsx";
+import type { DebugPageState } from "#templates/admin/debug-state.ts";
 
 /** Build a complete debug page state, overriding only fields a test needs. */
 export const makeDebugState = (

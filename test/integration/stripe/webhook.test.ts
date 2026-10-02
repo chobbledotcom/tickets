@@ -104,6 +104,7 @@ describeStripe("stripe", () => {
       const listing: StripeWebhookEvent = {
         data: {
           object: {
+            expires_at: 456,
             id: "cs_test_123",
             metadata: {
               email: "john@example.com",
@@ -111,6 +112,7 @@ describeStripe("stripe", () => {
               name: "John Doe",
             },
             payment_status: "paid",
+            status: "complete",
           },
         },
         id: "evt_test_123",

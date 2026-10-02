@@ -13,6 +13,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
       await client.balance.retrieve();
       await client.checkout.sessions.create({
         cancel_url: "https://example.com/cancel",
+        expires_at: 1_800_000_000,
         line_items: [],
         metadata: {},
         mode: "payment",
@@ -42,7 +43,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
   expect(requests).toEqual([
     { body: "", method: "GET", path: "/v1/balance" },
     {
-      body: "cancel_url=https%3A%2F%2Fexample.com%2Fcancel&mode=payment&payment_method_types[0]=card&success_url=https%3A%2F%2Fexample.com%2Fsuccess",
+      body: "cancel_url=https%3A%2F%2Fexample.com%2Fcancel&expires_at=1800000000&mode=payment&payment_method_types[0]=card&success_url=https%3A%2F%2Fexample.com%2Fsuccess",
       method: "POST",
       path: "/v1/checkout/sessions",
     },

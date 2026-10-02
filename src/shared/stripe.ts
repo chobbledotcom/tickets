@@ -24,7 +24,9 @@ import {
 import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { CHECKOUT_WINDOW_MINUTES } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowSeconds } from "#shared/now.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -96,6 +98,9 @@ const createCheckoutSession = async (
   );
   const params: StripeCheckoutSessionCreateParams = {
     cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
+    // Stripe ends its own page at this time, so no stored handle and no
+    // task are needed: the checkout window is the whole fact.
+    expires_at: nowSeconds() + CHECKOUT_WINDOW_MINUTES * 60,
     line_items: lineItems,
     mode: "payment",
     payment_method_types: ["card"],

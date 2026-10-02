@@ -56,6 +56,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           currency: "gbp",
+          expires_at: 456,
           id: "cs_token_verify",
           metadata: signMeta(
             {
@@ -67,6 +68,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ),
           payment_intent: "pi_token_verify",
           payment_status: "paid",
+          status: "complete",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),

@@ -92,6 +92,7 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
   ])([
     "cancel_url",
     "customer_email",
+    "expires_at",
     "line_items",
     "metadata",
     "mode",

@@ -11,8 +11,13 @@ import {
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
-import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
+import {
+  PRUNE_PAYMENTS_RETENTION_MS,
+  WEBHOOK_RETRY_WINDOW_DAYS,
+} from "#shared/limits.ts";
+import { DAY_MS, nowMs } from "#shared/now.ts";
+import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -100,5 +105,112 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     expect(await takeCheckoutAnswers("cs_open")).toEqual(
       new Map([[7, "still open"]]),
     );
+  });
+
+  test("keeps Square answers whose handle row still stands, and prunes them once it is gone", async () => {
+    await stageCheckoutAnswers(
+      "cs_square",
+      { "7": "held" },
+      "2020-01-01T00:00:00Z",
+    );
+    await stageSquareLinkEnd(
+      "cs_square",
+      "link_cs_square",
+      "2020-01-01T01:00:00Z",
+    );
+    await execute(
+      "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
+      [
+        new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString(),
+        await sessionIndexOf("cs_square"),
+      ],
+    );
+
+    // The window is long past and the payments clock has run, but the handle
+    // row still stands: the link's end was never observed. The read is
+    // non-destructive, so the row the second prune must remove survives it.
+    await runDatabasePruning();
+    expect(
+      await queryOne(
+        "SELECT session_index FROM checkout_pending_answers WHERE session_index = ?",
+        [await sessionIndexOf("cs_square")],
+      ),
+    ).not.toBeNull();
+
+    // The expiry task observed the link's end, so the answers go too.
+    await execute("DELETE FROM square_link_ends WHERE session_index = ?", [
+      await sessionIndexOf("cs_square"),
+    ]);
+    await runDatabasePruning();
+    expect(await takeCheckoutAnswers("cs_square")).toEqual(new Map());
+  });
+
+  test("the Square fallback prunes answers past Square's own page lifetime", async () => {
+    await stageCheckoutAnswers(
+      "cs_fallback",
+      { "7": "old" },
+      "2020-01-01T00:00:00Z",
+    );
+    await stageSquareLinkEnd(
+      "cs_fallback",
+      "link_cs_fallback",
+      "2020-01-01T01:00:00Z",
+    );
+    const pastSquareLifetime = new Date(
+      nowMs() -
+        PRUNE_PAYMENTS_RETENTION_MS -
+        SQUARE_NATIVE_LIFETIME_MS -
+        WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS -
+        60_000,
+    ).toISOString();
+    await execute(
+      "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
+      [pastSquareLifetime, await sessionIndexOf("cs_fallback")],
+    );
+
+    // No monitor ever ran and the handle row still stands, but past
+    // Square's own 180-day clock the link cannot take payment.
+    await runDatabasePruning();
+    expect(await takeCheckoutAnswers("cs_fallback")).toEqual(new Map());
+  });
+
+  test("prunes a handle row past Square's own page lifetime, and keeps a younger one", async () => {
+    await stageSquareLinkEnd(
+      "cs_handle_old",
+      "link_old",
+      "2020-01-01T00:00:00Z",
+    );
+    await stageSquareLinkEnd(
+      "cs_handle_young",
+      "link_young",
+      "2026-01-01T00:00:00Z",
+    );
+    await execute(
+      "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
+      [
+        new Date(
+          nowMs() -
+            SQUARE_NATIVE_LIFETIME_MS -
+            WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS -
+            60_000,
+        ).toISOString(),
+        await sessionIndexOf("cs_handle_old"),
+      ],
+    );
+
+    await runDatabasePruning();
+
+    expect(
+      await queryOne(
+        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
+        [await sessionIndexOf("cs_handle_old")],
+      ),
+    ).toBeNull();
+    expect(
+      await queryOne(
+        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
+        [await sessionIndexOf("cs_handle_young")],
+      ),
+    ).not.toBeNull();
   });
 });

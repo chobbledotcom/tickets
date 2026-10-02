@@ -176,6 +176,9 @@ export interface TicketsWorld extends World, EvidencePages {
   raceWinners?: number;
   refundCalls?: () => number;
   refundSafety?: RefundSafetyState;
+  /** The buyer return page's HTML, as the last "comes back to the checkout"
+   * step served it. */
+  returnPageHtml?: string;
   /** What the site answered when the story's scanner login asked for a page. */
   scannerAnswer?: number;
   secondBody?: string;

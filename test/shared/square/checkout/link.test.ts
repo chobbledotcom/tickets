@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { decrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { queryOne } from "#db/client.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
@@ -145,8 +149,9 @@ describeSquare(() => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
-          expect(debugMessages(debugLog()).slice(-2)).toEqual([
+          expect(debugMessages(debugLog()).slice(-3)).toEqual([
             "[Square] Creating payment link for x1 listings",
+            "[SQL] INSERT INTO square_link_ends (session_index, state, sealed_handle, link_ends_at, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             "[Square] Payment link created orderId=order_abc",
           ]);
         },
@@ -208,11 +213,45 @@ describeSquare(() => {
       );
     });
 
+    test("stages the sealed cancel handle for the link it made", async () => {
+      await configureSquare({ locationId: "L_loc_456" });
+      await withSquareClient(
+        linkResult("order_stage", "https://square.link/stage"),
+        async () => {
+          await squareApi.createPaymentLink(
+            checkoutIntent(),
+            "http://localhost",
+          );
+
+          const row = await queryOne<{
+            link_ends_at: string;
+            next_attempt_at: string;
+            sealed_handle: string;
+            state: string;
+          }>(
+            "SELECT state, sealed_handle, link_ends_at, next_attempt_at FROM square_link_ends WHERE session_index = ?",
+            [await hmacHash("order_stage")],
+          );
+          expect(row?.state).toBe("pending");
+          // The first attempt lands exactly at the window, which Square's
+          // own clock decides here: 2026-09-29T12:00:00Z plus one hour.
+          expect(row?.link_ends_at).toBe("2026-09-29T13:00:00.000Z");
+          expect(row?.next_attempt_at).toBe("2026-09-29T13:00:00.000Z");
+          expect(row?.sealed_handle).not.toContain("link_order_stage");
+          expect(await decrypt(row?.sealed_handle as EnvKeyEncrypted)).toBe(
+            "link_order_stage",
+          );
+        },
+      );
+    });
+
     test("refuses a created link that names no address", async () => {
       await configureSquare({ locationId: "L_loc_456" });
       await expectClosedCheckoutFailure(
-        withSquareAnswer({ payment_link: { order_id: "order_abc" } }, () =>
-          squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
+        withSquareAnswer(
+          { payment_link: { id: "link_abc", order_id: "order_abc" } },
+          () =>
+            squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
         ),
         { provider: "square", reason: "invalid_response" },
       );
@@ -220,9 +259,9 @@ describeSquare(() => {
   });
 
   describe("squareLinkEndsAt", () => {
-    test("ends a link 180 days after Square made it", () => {
+    test("ends a link one checkout window after Square made it", () => {
       expect(squareLinkEndsAt("2026-01-01T00:00:00Z")).toBe(
-        "2026-06-30T00:00:00.000Z",
+        "2026-01-01T01:00:00.000Z",
       );
     });
   });
