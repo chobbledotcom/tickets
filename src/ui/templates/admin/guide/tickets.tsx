@@ -141,8 +141,8 @@ export const ticketsSections = (
               </li>
               <li>
                 <strong>Service Account Email</strong> &mdash; the address of a
-                service account (a login for a program, not a person) with the
-                Google Wallet API switched on
+                service account (a login for a program, not a person) in a
+                Google Cloud project where the Google Wallet API is switched on
               </li>
               <li>
                 <strong>Service Account Private Key</strong> &mdash; the{" "}
