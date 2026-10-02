@@ -6,12 +6,6 @@
   "tasks": {
     "e2e": "deno run -A src/main.ts"
   },
-  "fmt": {
-    "include": [
-      "**/*.md"
-    ],
-    "lineWidth": 80
-  },
   "imports": {
     "@cucumber/cucumber": "npm:@cucumber/cucumber@13.2.0",
     "@cucumber/cucumber/api": "npm:@cucumber/cucumber@13.2.0/api",

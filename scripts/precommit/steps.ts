@@ -20,9 +20,9 @@ export interface Step {
 }
 
 const STEPS = [
-  // Always run read-only `lint:ci` (Deno Markdown + Biome code checks) so
-  // local precommit is exactly as strict as CI without changing the checkout.
-  // Run `deno task lint` separately to auto-fix formatting before committing.
+  // Always run read-only `lint:ci` (Biome) so local precommit is exactly as
+  // strict as CI without changing the checkout. Run `deno task lint`
+  // separately to auto-fix formatting before committing.
   { cmd: ["task", "lint:ci"], name: "lint" },
   { cmd: ["task", "typecheck"], name: "typecheck" },
   // An exact baseline and reviewed false positives turn the whole-repository

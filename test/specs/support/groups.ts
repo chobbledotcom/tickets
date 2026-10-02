@@ -1,5 +1,3 @@
-// deno-fmt-ignore-file
-
 import { groups } from "#db/groups.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
