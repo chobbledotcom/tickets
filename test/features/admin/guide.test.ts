@@ -22,7 +22,7 @@ describeWithEnv("admin guide routes", { db: true }, () => {
   });
 
   test("serves the formatting help on its own route", async () => {
-    expect(await guideHtml("/admin/formatting")).toContain("Text Formatting");
+    expect(await guideHtml("/admin/formatting")).toContain("Text formatting");
   });
 
   test("shows nothing about host email when the host has none", async () => {

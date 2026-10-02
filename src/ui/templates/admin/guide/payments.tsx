@@ -27,17 +27,17 @@ export const paymentsSections = (): GuideSection[] => [
         "what_is_booking_fee",
         <>
           <p>
-            The booking fee is an optional percentage-based charge added to
-            ticket prices at checkout. For example, if you set a 2% booking fee
-            on a {formatCurrency(1000)} ticket, the attendee pays{" "}
+            The booking fee is an extra percentage you can add to ticket prices
+            at checkout. For example, a 2% booking fee on a{" "}
+            {formatCurrency(1000)} ticket means the attendee pays{" "}
             {formatCurrency(1020)} in total.
           </p>
           <p>
-            Configure it in <a href="/admin/settings">Settings</a> under{" "}
-            <strong>Booking Fee</strong> (only visible when a payment provider
-            is set up). Enter a percentage between 0 and 10. Set it to 0 or
-            leave it blank to disable. The fee is calculated on the subtotal and
-            added automatically during checkout.
+            Set it in <a href="/admin/settings">Settings</a> under{" "}
+            <strong>Booking Fee</strong>. The section appears only when a
+            payment company is set up. Enter a percentage from 0 to 10. Set it
+            to 0 or leave it blank to switch the fee off. The fee is added
+            automatically at checkout.
           </p>
         </>,
       ),
@@ -94,24 +94,22 @@ export const paymentsSections = (): GuideSection[] => [
           <p>
             For daily listings,{" "}
             <strong>{t("fields.listing.duration_days")}</strong> sets how many
-            consecutive days a single booking reserves &mdash; useful for
-            multi-night stays or multi-day passes. Leave it at 1 for a normal
-            single-day booking, or set it up to {MAX_DURATION_DAYS} days. The
-            attendee picks a start date and their booking spans that many days
-            from it.
+            days in a row one booking covers — handy for multi-night stays or
+            multi-day passes. Leave it at 1 for a normal single-day booking, or
+            set it up to {MAX_DURATION_DAYS} days. The attendee picks a start
+            date, and their booking runs that many days from it.
           </p>
           <p>
-            Capacity is checked for <strong>every</strong> day the booking
-            covers, so a place is only confirmed if all of those days have room.
-            On the ticket and in the attendee table, the booking shows as a date
-            range rather than a single day. The field only appears on daily
-            listings &mdash; standard (one-off) listings don't use it.
+            Every day the booking covers must have room, or the booking cannot
+            be made. On the ticket and in the attendee table, the booking shows
+            as a date range instead of a single day. The field appears only on
+            daily listings.
           </p>
           <p>
             If you change the duration on a listing that already has bookings,
-            the system recalculates the date range of every existing booking and
-            warns you before saving, since this can affect how many places each
-            day has left.
+            every existing booking's date range is worked out again. The site
+            warns you before saving, because it can change how many places are
+            left on each day.
           </p>
         </>,
       ),

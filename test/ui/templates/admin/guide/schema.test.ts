@@ -56,6 +56,44 @@ describe("guide schema", () => {
     expect(missing).toEqual([]);
   });
 
+  test("no catalog key is dead copy", () => {
+    // The forward test above proves every entry has its keys. This one
+    // proves the reverse: every guide.sections / guide.q / guide.a key in
+    // the catalogs is reachable from the schema. A custom entry renders
+    // its own JSX body, so a guide.a key beside one is copy nothing reads —
+    // the class of dead answer keys that otherwise rot silently when an
+    // entry switches to custom and leaves its old answer key behind.
+    const sections = allSections();
+    const entryIds = new Set(
+      sections.flatMap((section) =>
+        section.entries.map((entry) =>
+          "faq" in entry ? entry.faq : entry.custom,
+        ),
+      ),
+    );
+    const faqIds = new Set(
+      sections.flatMap((section) =>
+        section.entries.flatMap((entry) => ("faq" in entry ? [entry.faq] : [])),
+      ),
+    );
+    const titleKeys = new Set(sections.map((section) => section.titleKey));
+
+    const dead = Object.keys(en).filter((key) => {
+      if (key.startsWith("guide.sections.")) {
+        return !titleKeys.has(key.slice("guide.sections.".length));
+      }
+      if (key.startsWith("guide.q.")) {
+        return !entryIds.has(key.slice("guide.q.".length));
+      }
+      if (key.startsWith("guide.a.")) {
+        return !faqIds.has(key.slice("guide.a.".length));
+      }
+      return false;
+    });
+
+    expect(dead).toEqual([]);
+  });
+
   test("section anchor ids are unique", () => {
     const ids = allSections()
       .map((section) => section.id)

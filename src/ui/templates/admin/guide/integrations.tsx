@@ -55,9 +55,9 @@ export const integrationsSections = (): GuideSection[] => [
         "connect_to_mobilizon",
         <>
           <p>
-            <a href="https://mobilizon.org/">Mobilizon</a> is a federated events
-            platform. You can use its built-in importer to pull listings from
-            your ICS feed:
+            <a href="https://mobilizon.org/">Mobilizon</a> is a website for
+            listing events, used by groups who avoid big platforms. You can pull
+            your listings into it from your calendar feed:
           </p>
           <ol>
             <li>
@@ -66,18 +66,18 @@ export const integrationsSections = (): GuideSection[] => [
               <a href="https://import.mobilizon.fr/">import.mobilizon.fr</a>)
             </li>
             <li>
-              Enter your ICS feed URL:{" "}
+              Enter your calendar feed address:{" "}
               <code>https://{getEffectiveDomain()}/feeds/listings.ics</code>
             </li>
             <li>
-              Set <strong>joinMode</strong> to <strong>external</strong> so the
-              &ldquo;Join&rdquo; button on Mobilizon links back to your
-              registration page
+              Set <strong>joinMode</strong> to <strong>external</strong>, so the
+              &quot;Join&quot; button on Mobilizon sends people to your booking
+              page
             </li>
           </ol>
           <p>
-            Listings will appear on Mobilizon and federate across the Fediverse.
-            Users click through to your site to register and pay.
+            Your listings then appear on Mobilizon, and other Mobilizon sites
+            can share them. People click through to your site to book and pay.
           </p>
         </>,
       ),
@@ -89,24 +89,23 @@ export const integrationsSections = (): GuideSection[] => [
       custom(
         "what_is_sms_gateway",
         <p>
-          The SMS gateway lets you send text messages to attendees from an
-          attendee's <strong>Contact</strong> page, using a spare Android phone
-          as the sender. It uses the free, open-source <SmsGatewayAppLink />{" "}
-          app: you install the app on a phone, and this site sends messages
-          through it. There is no per-message cost beyond your phone's normal
-          SMS allowance.
+          A gateway is a bridge between two systems. This one lets you text
+          attendees from an attendee's <strong>Contact</strong> page, using a
+          spare Android phone as the sender. It works with the free{" "}
+          <SmsGatewayAppLink /> app: install the app on a phone, and this site
+          sends messages through it. There is no cost per message beyond your
+          phone's normal text allowance.
         </p>,
       ),
       custom(
         "sms_data_privacy",
         <p>
-          Message text and recipient phone numbers are{" "}
-          <strong>end-to-end encrypted</strong> with a passphrase you choose,
-          before they ever leave this server. The relay only ever sees
-          ciphertext &mdash; only your phone, which holds the same passphrase,
-          can decrypt and send. Attendee phone numbers are decrypted briefly
-          under your login, re-encrypted with the gateway key, and never stored
-          in plain text.
+          Message text and phone numbers are{" "}
+          <strong>end-to-end encrypted</strong> before they ever leave this site
+          — locked with a passphrase only you and your phone know, so the
+          service in between only ever sees scrambled text. Attendee phone
+          numbers are unlocked only for a moment while you are signed in, then
+          locked again, and are never stored in readable form.
         </p>,
       ),
       custom(
@@ -121,7 +120,7 @@ export const integrationsSections = (): GuideSection[] => [
             In the app, enable <strong>end-to-end encryption</strong> and set a
             passphrase of <strong>at least 12 characters</strong>. This is the
             only secret protecting your attendees' phone numbers and messages,
-            so make it long and unique.
+            so make it long, and do not use it anywhere else.
           </li>
           <li>
             In{" "}
@@ -142,12 +141,16 @@ export const integrationsSections = (): GuideSection[] => [
       custom(
         "sms_replies",
         <p>
-          Yes. When you set a webhook signing secret and point the app's webhook
-          at <code>/sms/webhook</code> on this site, delivery confirmations,
-          failures, and incoming replies are recorded in the{" "}
-          <a href="/admin/log">activity log</a> against the relevant attendee,
-          so you have a full history of the conversation. Each message is stored
-          encrypted and only readable by signed-in admins.
+          Yes. In the app's webhook settings, point the webhook at{" "}
+          <code>/sms/webhook</code> on this site, and set its signing key to
+          match the one in your{" "}
+          <a href="/admin/settings-advanced#settings-sms-gateway">
+            SMS settings
+          </a>
+          . Then every delivery report, failure, and reply is recorded in the{" "}
+          <a href="/admin/log">activity log</a> against the right attendee, so
+          you keep the whole conversation. Each message is stored encrypted and
+          readable only by signed-in admins.
         </p>,
       ),
     ],
@@ -161,34 +164,34 @@ export const integrationsSections = (): GuideSection[] => [
         "available_endpoints",
         <>
           <p>
-            The base URL is your domain (e.g.{" "}
-            <code>https://{getEffectiveDomain()}</code>). All responses are
-            JSON.
+            The starting address is your own site address (for example{" "}
+            <code>https://{getEffectiveDomain()}</code>). Every answer comes
+            back as JSON, a text shape computer programs read.
           </p>
           <ul>
             <li>
-              <code>GET /api/listings</code> &mdash; list all active, non-hidden
-              listings
+              <code>GET /api/listings</code> &mdash; list every open, non-hidden
+              listing
             </li>
             <li>
-              <code>GET /api/listings/:slug</code> &mdash; get a single listing
-              by its slug (hidden listings are accessible if you know the slug)
+              <code>GET /api/listings/:slug</code> &mdash; read one listing by
+              its slug (the last part of its address; hidden listings can be
+              read if you know the slug)
             </li>
             <li>
               <code>
                 GET
                 /api/listings/:slug/availability?quantity=N&amp;date=YYYY-MM-DD
               </code>{" "}
-              &mdash; check if spots are available
+              &mdash; check whether places are free
             </li>
             <li>
-              <code>POST /api/listings/:slug/book</code> &mdash; create a
-              booking
+              <code>POST /api/listings/:slug/book</code> &mdash; make a booking
             </li>
           </ul>
           <p>
-            All endpoints support CORS, so you can call them from any website.
-            <code>OPTIONS</code> preflight requests are handled automatically.
+            The API can be called from any website, including other people's
+            &mdash; that is the point.
           </p>
         </>,
       ),

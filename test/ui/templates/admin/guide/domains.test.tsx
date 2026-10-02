@@ -41,6 +41,8 @@ describe("guide domains sections", () => {
       },
       {
         entries: [
+          "what_is_a_domain_name",
+          "where_do_i_buy_a_domain_name",
           "setup_custom_domain",
           "what_does_validation_do",
           "what_if_validation_fails",
@@ -94,7 +96,8 @@ test("the sections keep the anchors the settings page links to", () => {
 test("the host subdomain answer does not promise the ending", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The host sets the DNS zone, so only the check can name the full address.
-  expect(html).toContain("You pick a name and the host sets the ending.");
+  expect(html).toContain("You pick the first part of the name");
+  expect(html).toContain("sets the ending");
   expect(html).toContain("only when your host offers subdomains");
   expect(html).not.toContain("site answers at");
 });
@@ -102,13 +105,13 @@ test("the host subdomain answer does not promise the ending", () => {
 test("the custom-domain answer notes when its section is absent", () => {
   const html = String(renderGuideSections(domainsSections()));
   expect(html).toContain(
-    "The section appears only when your host runs on Bunny CDN.",
+    "ask the company that runs this site for you to turn it on",
   );
 });
 
 test("the out-of-stock answer gates its promises on an email provider", () => {
   const html = String(renderGuideSections(domainsSections(hostConfig())));
-  expect(html).toContain("When an email provider is set up");
+  expect(html).toContain("When email is set up");
   // The Built Sites page is owner-only, so the answer must not link it.
   expect(html).not.toContain('href="/admin/built-sites"');
   expect(html).toContain("Built Sites");
@@ -118,6 +121,6 @@ test("the answers name the request-hostname fallback", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The system keeps the raw request hostname — a bunny.run request keeps
   // bunny.run links — so the copy must not claim a fixed b-cdn.net address.
-  expect(html).toContain("hostname the request came in on");
+  expect(html).toContain("the address the visitor used to open the site");
   expect(html).toContain("b-cdn.net</code> or <code>bunny.run</code>");
 });

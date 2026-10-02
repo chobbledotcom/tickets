@@ -27,18 +27,21 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
         <>
           {hostConfig?.hostEmailProvider && (
             <p>
-              Email is already configured by your server administrator using{" "}
-              <strong>{hostConfig.hostEmailProvider}</strong> with from address{" "}
-              <code>{hostConfig.hostEmailFromAddress}</code>. You can override
-              this by entering your own provider and API key in{" "}
+              Email is already set up by the company that runs your site, using{" "}
+              <strong>{hostConfig.hostEmailProvider}</strong> and the address{" "}
+              <code>{hostConfig.hostEmailFromAddress}</code>. You can use your
+              own company instead: enter it in{" "}
               <a href="/admin/settings-advanced#settings-email">
                 Advanced Settings
               </a>
-              . If you provide your own settings, they take priority over the
-              server configuration.
+              . Your own settings come first.
             </p>
           )}
           <ol>
+            <li>
+              Sign up with one of the email companies above, if you have not
+              already
+            </li>
             <li>
               Go to{" "}
               <a href="/admin/settings-advanced#settings-email">
@@ -46,22 +49,20 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
               </a>{" "}
               and find the <strong>Email</strong> section
             </li>
-            <li>Choose your email provider from the dropdown</li>
             <li>
-              Paste your provider's API key into the <strong>API Key</strong>{" "}
-              field
+              Choose your email company from the dropdown, and paste in your key
             </li>
             <li>
-              Enter a <strong>From Address</strong> &mdash; this is the sender
-              address that appears on outgoing emails. If left blank, the
-              business email address is used instead
+              Enter a <strong>From Address</strong> — the address attendees see
+              when they get your emails. Leave it blank to use your business
+              email address
             </li>
             <li>Save the settings</li>
           </ol>
           <p>
-            The from address must be a verified sender in your email provider's
-            account, otherwise emails will be rejected. Check your provider's
-            documentation for how to verify a sender domain or address.
+            Your email company must recognise the from address before it will
+            send from it — this stops strangers sending email as you. The
+            company's own help pages explain how to add and confirm an address.
           </p>
         </>,
       ),

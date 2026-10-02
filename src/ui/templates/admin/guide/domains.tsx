@@ -24,6 +24,8 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
     },
     {
       entries: [
+        faq("what_is_a_domain_name"),
+        faq("where_do_i_buy_a_domain_name"),
         faq("setup_custom_domain"),
         faq("what_does_validation_do"),
         faq("what_if_validation_fails"),

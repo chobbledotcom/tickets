@@ -55,15 +55,15 @@ describe("accounts guide schema", () => {
     expect(answer).toContain("<strong>Scanners</strong>");
   });
 
-  test("renders the webhook answer's header with its spacing intact", () => {
+  test("renders the webhook answer with its developer framing", () => {
     const html = String(renderGuideSections([sectionById("webhooks")]));
-    expect(html).toContain("with <code>Content-Type: application/json</code>");
+    expect(html).toContain("sent as JSON — a text shape");
   });
 
   test("renders the lockout answer with the attempt count and the minutes", () => {
     const html = String(renderGuideSections([sectionById("login")]));
     expect(html).toContain(
-      `After <strong>${MAX_LOGIN_ATTEMPTS} failed attempts</strong>`,
+      `After <strong>${MAX_LOGIN_ATTEMPTS} wrong tries</strong>`,
     );
     expect(html).toContain(
       `blocked for <strong>${LOGIN_LOCKOUT_MS / 60_000} minutes</strong>`,
@@ -71,6 +71,6 @@ describe("accounts guide schema", () => {
     expect(html).toContain(
       "Because there is <strong>no password recovery</strong>",
     );
-    expect(html).toContain("(see <strong>Data &amp; Privacy</strong>)");
+    expect(html).toContain("(see <strong>Data &amp; privacy</strong>)");
   });
 });

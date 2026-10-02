@@ -30,20 +30,19 @@ export const importExportSections = (): GuideSection[] => [
         "catalog_json_shape",
         <>
           <p>
-            One shared format covers both directions — the file you download on
+            One shared shape covers both directions — the file you download on
             export is exactly what an import accepts. The top-level{" "}
             <code>kind</code> is either <code>"listing"</code> or{" "}
-            <code>"group"</code>, and <code>version</code> guards against
-            importing a file from an incompatible format. Prices are whole
-            numbers in the smallest currency unit (pence for GBP, cents for
-            USD).
+            <code>"group"</code>, and <code>version</code> stops a file from a
+            different version loading wrongly. Prices are whole numbers in the
+            smallest currency unit (pence for GBP, cents for USD).
           </p>
           <p>
             <strong>A listing</strong> — its own fields plus the groups it
-            belongs to, each referenced by name and carrying any package
-            price/quantity override. The <code>parents</code> array names the
-            listings this one is offered under as an add-on; it is empty here
-            because a package member can't also be an add-on child:
+            belongs to, each named and carrying any package price and quantity.
+            The <code>parents</code> list names the listings this one is offered
+            under as an add-on. It is empty here, because a package member
+            cannot also be an add-on child:
           </p>
           <pre>
             <code>{CATALOG_LISTING_EXAMPLE_JSON}</code>

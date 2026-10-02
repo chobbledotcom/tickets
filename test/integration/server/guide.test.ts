@@ -1,34 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { hostEmail } from "#shared/email.ts";
-import {
-  assertAdminHtml,
-  cachedAdminPage,
-  testRequiresAuth,
-} from "#test-utils/assertions.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
+import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { validEmail } from "#test-utils/email.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { guide } from "#test-utils/guide.ts";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
-  // The guide's default rendering is identical in every test (static help
-  // content from the standard fixture), so it is rendered once and shared;
-  // only the tests that alter config below fetch their own copy. The cached
-  // render is pinned to CAN_BUILD_SITES unset so the snapshot never depends on
-  // whatever the ambient overlay happens to carry when it is first fetched.
-  const cachedGuide = cachedAdminPage("/admin/guide");
-  const guide = async (
-    ...expected: Parameters<typeof cachedGuide>
-  ): Promise<string> => {
-    using _env = withEnv({ CAN_BUILD_SITES: undefined });
-    // The env pin must cover the whole first render, so await the cached page
-    // before the `using` scope disposes.
-    const html = await cachedGuide(...expected);
-    return html;
-  };
-
   describe("GET /admin/guide", () => {
     testRequiresAuth("/admin/guide");
 
@@ -37,26 +15,25 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains FAQ sections", async () => {
-      await guide("Getting Started", "Listings", "Payments", "Check-in");
+      await guide("Getting started", "Listings", "Payments", "Check-in");
     });
 
     test("renders ampersands in guide section titles once", async () => {
       const html = await guide(
-        "Data &amp; Privacy",
-        "Daily Listings &amp; Holidays",
-        "Check-in &amp; QR Scanner",
+        "Data &amp; privacy",
+        "Daily listings &amp; holidays",
+        "Check-in &amp; QR scanner",
       );
 
-      expect(html).not.toContain("Data &amp;amp; Privacy");
+      expect(html).not.toContain("Data &amp;amp; privacy");
     });
 
     test("contains booking questions section", async () => {
       await guide(
         "Booking questions",
-        "multiple-choice",
-        "must select one",
-        "shared across multiple listings",
-        "attendee table on listing and group pages",
+        "question with set answers",
+        "shared by many listings",
+        "Answers appear in the attendee table",
       );
     });
 
@@ -66,8 +43,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains payment provider recommendation", async () => {
       await guide(
-        "Which payment provider do you recommend?",
-        "setup is a fair bit easier",
+        "Which payment company do you recommend?",
+        "quickest to set up",
       );
     });
 
@@ -75,7 +52,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide(
         "Why don't we hold places during checkout?",
         "scalpers",
-        "automatically refunded",
+        "money back automatically",
       );
     });
 
@@ -85,9 +62,9 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains payment setup section with Stripe instructions", async () => {
       await guide(
-        "Payment Setup",
+        "Payment setup",
         'id="payment-setup"',
-        "Stripe secret key",
+        "Stripe Secret Key",
         "sk_test_",
         "dashboard.stripe.com",
       );
@@ -96,7 +73,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains payment setup section with Square instructions", async () => {
       await guide(
         "create a Square application",
-        "Square access token",
+        "Square Access Token",
         "Square location ID",
         "developer.squareup.com",
         "payment.updated",
@@ -104,7 +81,10 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains test vs live credentials guidance", async () => {
-      await guide("test or live credentials");
+      await guide(
+        "Should I use test or live details?",
+        "sandbox merchant account",
+      );
     });
 
     test("contains SumUp setup with the API keys link and 401 guidance", async () => {
@@ -112,6 +92,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "How do I set up SumUp?",
         "me.sumup.com/en-gb/settings/api-keys",
         "same SumUp account",
+        "a sandbox key with a live merchant code",
         "401 Unauthorized",
       );
     });
@@ -130,21 +111,37 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains login security section", async () => {
       await guide(
-        "Login &amp; Security",
-        "5 failed login attempts",
+        "Login &amp; security",
+        "5 wrong tries",
         "15 minutes",
         "no password recovery",
-        "HttpOnly",
+        "blocked from logging in",
       );
     });
 
     test("explains the privacy-first CRM stance", async () => {
       await guide(
         "Why is this privacy-first instead of a CRM?",
-        "stops short of being a CRM",
-        "GDPR and UK GDPR obligations",
-        "legal obligations",
+        "stops short of that",
+        "makes GDPR easier to follow",
+        "legal duties",
         "listing webhooks are a good place to start",
+      );
+    });
+
+    test("names the laws behind marketing emails", async () => {
+      await guide(
+        "What's the difference between a marketing and a service email?",
+        "PECR covers marketing emails",
+        "UK GDPR",
+      );
+    });
+
+    test("states that email sending waits inside the booking reply", async () => {
+      await guide(
+        "What are email notifications?",
+        "Emails are sent after the booking is saved",
+        "The site waits for sending to finish before it replies",
       );
     });
 
@@ -157,22 +154,27 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Max times per order",
         "How do customers fill in their delivery address?",
         "Address lookup",
-        "The map pin is not set by the customer",
+        "The customer does not set the map pin",
+      );
+    });
+
+    test("says attendee deletion keeps the Money records", async () => {
+      await guide(
+        "How do I delete an attendee?",
+        "removes the attendee and their payment record for good",
+        "checkout and refund records cannot be changed or deleted",
       );
     });
 
     test("contains calendar and activity log sections", async () => {
-      await guide("Calendar", "Activity Log");
+      await guide("Calendar", "Activity log");
     });
 
     test("contains login lockout documentation", async () => {
-      const { MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MS } = await import(
-        "#shared/limits.ts"
-      );
       await guide(
         'id="login"',
-        "too many failed login attempts",
-        `${MAX_LOGIN_ATTEMPTS} failed attempts`,
+        "too many wrong password tries",
+        `${MAX_LOGIN_ATTEMPTS} wrong tries`,
         `${LOGIN_LOCKOUT_MS / 60_000} minutes`,
         "no password recovery",
       );
@@ -195,6 +197,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("states the separate percentage caps for discounts and charges", async () => {
+      await guide(
+        "How do modifier values work?",
+        "A discount can be at most 100",
+        "A charge can be at most 10,000",
+      );
+    });
+
     test("anchors each linkable section", async () => {
       await guide(
         'id="text-formatting"',
@@ -210,7 +220,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "raffles, fundraisers, donations, merchandise",
         "Buy now",
         "QR codes",
-        "excluded from the ICS and RSS feeds",
+        "left out of the calendar and news feeds",
       );
     });
 
@@ -218,7 +228,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await guide(
         "merge duplicate attendees",
         "ticket token",
-        "source attendee is deleted",
+        "the second attendee is deleted",
       );
     });
 
@@ -227,7 +237,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains non-transferable tickets info", async () => {
-      await guide("non-transferable", "ID required at entry", "ticket touting");
+      await guide("non-transferable", "ID required at entry", "ticket touts");
     });
 
     test("contains attendee editing info", async () => {
@@ -240,7 +250,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains text formatting section", async () => {
       await guide(
-        "Text Formatting",
+        "Text formatting",
         'id="text-formatting"',
         "Markdown",
         "markdownguide.org/cheat-sheet",
@@ -257,46 +267,24 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains hidden listings info", async () => {
-      await guide("hide a listing", "Hidden Listing", "noindex, nofollow");
+      await guide(
+        "hide a listing",
+        "Hidden Listing",
+        "search engines are told to leave their ticket pages alone",
+      );
     });
 
     test("contains testing your system section", async () => {
       await guide(
-        "Testing Your System",
-        "test the full booking process",
-        "early in development",
+        "Testing your system",
+        "make a test booking from start to finish",
+        "This project is new",
         "hello@chobble.com",
       );
     });
 
     test("contains admin navigation", async () => {
       await guide("/admin/guide", "Listings", "Log out");
-    });
-
-    test("shows default email setup instructions when no host email configured", async () => {
-      const html = await guide("Choose your email provider from the dropdown");
-      expect(html).not.toContain(
-        "already configured by your server administrator",
-      );
-    });
-
-    test("shows host email config and setup instructions when configured", async () => {
-      hostEmail.setOverride({
-        apiKey: "re_test_key",
-        fromAddress: validEmail("tickets@example.com"),
-        provider: "resend",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already configured by your server administrator",
-          "Resend",
-          "tickets@example.com",
-          "Choose your email provider from the dropdown",
-        );
-      } finally {
-        hostEmail.resetOverride();
-      }
     });
 
     test("contains Google Wallet section", async () => {
@@ -306,90 +294,17 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Issuer ID",
         "Service Account Email",
         "Service Account Private Key",
+        "<code>private_key</code> value from the service account",
+        "Google Cloud project where the Google Wallet API is switched on",
       );
     });
 
-    test("shows default Google Wallet setup when no host config", async () => {
-      const html = await guide("You need three values from");
-      expect(html).not.toContain(
-        "already configured by your server administrator\nusing issuer ID",
-      );
-    });
-
-    test("shows host Google Wallet config when env vars set", async () => {
-      settings.googleWallet.setHostConfigForTest({
-        issuerId: "3388000000012345678",
-        serviceAccountEmail: "wallet@project.iam.gserviceaccount.com",
-        serviceAccountKey: "pem-key-data",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already configured by your server administrator",
-          "3388000000012345678",
-          "You need three values from",
-        );
-      } finally {
-        settings.googleWallet.resetHostConfig();
-      }
-    });
-
-    test("hides built sites section when builder is disabled", async () => {
-      using _env = withEnv({ CAN_BUILD_SITES: undefined });
-      const html = await assertAdminHtml("/admin/guide");
-      expect(html).not.toContain('id="built-sites"');
-    });
-
-    test("cached guide is pinned to builder-off even under ambient CAN_BUILD_SITES=true", async () => {
-      using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
-      const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
-      expect(live).toContain('id="built-sites"');
-      const cached = await guide();
-      expect(cached).not.toContain('id="built-sites"');
-    });
-
-    test("shows built sites section when builder is enabled", async () => {
-      using _env = withEnv({ CAN_BUILD_SITES: "true" });
-      await assertAdminHtml(
-        "/admin/guide",
-        'id="built-sites"',
-        "Add Built Site",
-      );
-    });
-
-    test("shows default wallet setup instructions when no host wallet configured", async () => {
-      const html = await guide("You need five values from");
-      expect(html).not.toContain(
-        "already configured by your server administrator using pass type",
-      );
-    });
-
-    test("shows host wallet config and setup instructions when configured", async () => {
-      settings.appleWallet.setHostConfigForTest({
-        passTypeId: "pass.com.host.tickets",
-        signingCert: "cert-data",
-        signingKey: "key-data",
-        teamId: "HOSTTEAM01",
-        wwdrCert: "wwdr-data",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already configured by your server administrator using pass type",
-          "pass.com.host.tickets",
-          "You need five values from",
-        );
-      } finally {
-        settings.appleWallet.resetHostConfig();
-      }
-    });
-
-    test("documents the debug page including tunable limits", async () => {
+    test("documents the debug page including system limits", async () => {
       await guide(
         "/admin/debug",
-        "tunable system limit",
+        "every system limit",
         "environment variable",
-        "Database pruning",
+        "old data was last cleaned up",
       );
     });
 
@@ -398,7 +313,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         'id="admin-api"',
         "Admin API",
         "Authorization: Bearer YOUR_API_KEY",
-        "owners only",
+        "only owners can use it",
         "shown only once",
         "/api/admin/listings",
         "/api/admin/groups",
@@ -411,16 +326,24 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains host subdomain section", async () => {
       await guide(
         "Host subdomain",
-        "no DNS set-up needed",
-        "host subdomain and custom domain",
+        "you do not need to change anything at a domain seller",
+        "Can I use both a subdomain and a custom domain?",
       );
     });
 
-    test("explains the canonical-domain priority order for generated links", async () => {
+    test("explains the address priority order for generated links", async () => {
       await guide(
-        "Which domain is used for ticket links and emails?",
-        "CNAME has been validated",
+        "Which address is used for ticket links and emails?",
+        "once it has passed validation",
         "host subdomain",
+      );
+    });
+
+    test("sends the CNAME record to the company that manages the domain's DNS", async () => {
+      await guide(
+        "How do I set up a custom domain?",
+        "DNS settings for your domain name",
+        "some domain names use a separate DNS company",
       );
     });
 
@@ -430,19 +353,19 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("documents the release tag format shared with the update checker", async () => {
       await guide(
-        "Software Updates",
-        "vYYYY-MM-DD-HHMMSS",
-        "UTC date and time",
+        "Software updates",
+        "v2026-03-01-142500",
+        "date and time it was built",
       );
     });
 
     test("contains read-only mode explanation aimed at end users", async () => {
       await guide(
         'id="read-only-mode"',
-        "Read-only Mode",
-        "switched on by the host",
-        "behind on billing",
-        "undergoing maintenance",
+        "Read-only mode",
+        "switched on by the company that runs your site",
+        "behind on bills",
+        "being fixed",
       );
     });
 
