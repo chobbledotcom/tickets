@@ -145,8 +145,9 @@ export const ticketsSections = (
                 Google Wallet API switched on
               </li>
               <li>
-                <strong>Service Account Private Key</strong> &mdash; the key
-                file for that service account
+                <strong>Service Account Private Key</strong> &mdash; the{" "}
+                <code>private_key</code> value from the service account's JSON
+                key file, in PEM format
               </li>
             </>
           }

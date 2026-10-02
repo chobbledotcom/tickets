@@ -81,7 +81,10 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains test vs live credentials guidance", async () => {
-      await guide("Should I use test or live details?");
+      await guide(
+        "Should I use test or live details?",
+        "sandbox merchant account",
+      );
     });
 
     test("contains SumUp setup with the API keys link and 401 guidance", async () => {
@@ -89,6 +92,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "How do I set up SumUp?",
         "me.sumup.com/en-gb/settings/api-keys",
         "same SumUp account",
+        "a sandbox key with a live merchant code",
         "401 Unauthorized",
       );
     });
@@ -122,6 +126,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "makes GDPR easier to follow",
         "legal duties",
         "listing webhooks are a good place to start",
+      );
+    });
+
+    test("names the laws behind marketing emails", async () => {
+      await guide(
+        "What's the difference between a marketing and a service email?",
+        "PECR covers marketing emails",
+        "UK GDPR",
       );
     });
 
@@ -166,6 +178,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "maximum",
         // formatCurrency strips the trailing zeros from whole amounts: £1.
         "at least £1 more than the ticket price",
+      );
+    });
+
+    test("states the separate percentage caps for discounts and charges", async () => {
+      await guide(
+        "How do modifier values work?",
+        "A discount can be at most 100",
+        "A charge can be at most 10,000",
       );
     });
 
@@ -258,6 +278,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Issuer ID",
         "Service Account Email",
         "Service Account Private Key",
+        "<code>private_key</code> value from the service account",
       );
     });
 
@@ -298,6 +319,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Which address is used for ticket links and emails?",
         "once it has passed validation",
         "host subdomain",
+      );
+    });
+
+    test("sends the CNAME record to the company that manages the domain's DNS", async () => {
+      await guide(
+        "How do I set up a custom domain?",
+        "DNS settings for your domain name",
+        "some domain names use a separate DNS company",
       );
     });
 
