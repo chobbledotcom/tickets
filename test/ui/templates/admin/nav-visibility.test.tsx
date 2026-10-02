@@ -28,13 +28,11 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
       );
-      for (
-        const href of [
-          "/admin/servicing",
-          "/admin/modifiers",
-          "/admin/ledger",
-        ]
-      ) {
+      for (const href of [
+        "/admin/servicing",
+        "/admin/modifiers",
+        "/admin/ledger",
+      ]) {
         expect(html, href).not.toContain(`href="${href}"`);
       }
       expect(html).toContain('href="/admin/attendees"');
