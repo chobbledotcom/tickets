@@ -90,11 +90,9 @@ describe("accounts guide schema", () => {
   test("states the login security lengths the site actually uses", () => {
     const html = String(renderGuideSections([sectionById("login-security")]));
     expect(html).toContain(
-      `blocked from logging in for <strong>${
-        durationWords(
-          LOGIN_LOCKOUT_MS / 1000,
-        )
-      }</strong>`,
+      `blocked from logging in for <strong>${durationWords(
+        LOGIN_LOCKOUT_MS / 1000,
+      )}</strong>`,
     );
     expect(html).toContain(
       `Wait ${durationWords(LOGIN_LOCKOUT_MS / 1000)} and try again`,

@@ -44,8 +44,8 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
           "how_does_the_header_image_work",
           <>
             <p>
-              Upload a logo or banner from <strong>Settings</strong>{" "}
-              and it appears at the top of every page.
+              Upload a logo or banner from <strong>Settings</strong> and it
+              appears at the top of every page.
             </p>
             <p>
               When your booking form is shown inside another website, the image
@@ -53,11 +53,10 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
             </p>
             <p>
               You can use JPEG, PNG, or WebP pictures, up to{" "}
-              {formatBytes(MAX_IMAGE_SIZE)}{" "}
-              in size. Uploading a new image replaces the old one, and the{" "}
-              <strong>Remove Image</strong>{" "}
-              button clears it completely. The picture is stored scrambled, and
-              each visitor's browser keeps a copy so it only downloads once.
+              {formatBytes(MAX_IMAGE_SIZE)} in size. Uploading a new image
+              replaces the old one, and the <strong>Remove Image</strong> button
+              clears it completely. The picture is stored scrambled, and each
+              visitor's browser keeps a copy so it only downloads once.
             </p>
             <p>
               If the section is missing, your host has not turned on image
@@ -74,15 +73,15 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
     },
     hostConfig?.builderEnabled
       ? {
-        entries: [
-          faq("what_are_built_sites"),
-          faq("how_do_i_create_a_new_tickets"),
-          faq("what_do_i_need_before_building_a"),
-          faq("can_i_add_a_site_record_without"),
-          faq("what_happens_when_a_site_plan"),
-        ],
-        id: "built-sites",
-        titleKey: "built_sites",
-      }
+          entries: [
+            faq("what_are_built_sites"),
+            faq("how_do_i_create_a_new_tickets"),
+            faq("what_do_i_need_before_building_a"),
+            faq("can_i_add_a_site_record_without"),
+            faq("what_happens_when_a_site_plan"),
+          ],
+          id: "built-sites",
+          titleKey: "built_sites",
+        }
       : null,
   ]);

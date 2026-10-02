@@ -35,8 +35,8 @@ export const accountsSections = (): GuideSection[] => [
         "what_happens_if_i_enter_the_wrong",
         <>
           <p>
-            After <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong>{" "}
-            from the same place, that place is blocked from logging in for{" "}
+            After <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong> from the
+            same place, that place is blocked from logging in for{" "}
             <strong>{durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>. During
             the block, every attempt is refused — even with the right password.
           </p>
@@ -66,10 +66,9 @@ export const accountsSections = (): GuideSection[] => [
             log in again.
           </p>
           <p>
-            You can see every active sign-in, and end all the others, on the
-            {" "}
-            <strong>Sessions</strong>{" "}
-            page — useful if you think someone else has got into your account.
+            You can see every active sign-in, and end all the others, on the{" "}
+            <strong>Sessions</strong> page — useful if you think someone else
+            has got into your account.
           </p>
         </>,
       ),
@@ -102,12 +101,9 @@ export const accountsSections = (): GuideSection[] => [
             message for a paid listing booking:
           </p>
           <PricedJsonExample json={WEBHOOK_EXAMPLE_JSON}>
-            The <code>ticket_url</code>{" "}
-            links to the attendee's ticket page. For multi-listing bookings the
-            {" "}
-            <code>tickets</code>{" "}
-            array contains one entry per listing, all sharing the same ticket
-            token.
+            The <code>ticket_url</code> links to the attendee's ticket page. For
+            multi-listing bookings the <code>tickets</code> array contains one
+            entry per listing, all sharing the same ticket token.
           </PricedJsonExample>
         </>,
       ),
@@ -119,14 +115,11 @@ export const accountsSections = (): GuideSection[] => [
     entries: [
       custom(
         "what_are_sessions",
-        <>
-          <p>
-            A session starts each time an admin logs in. Sessions expire after
-            {" "}
-            {durationWords(SESSION_MAX_AGE_S)}. You can see every active session
-            on the <strong>Sessions</strong> page.
-          </p>
-        </>,
+        <p>
+          A session starts each time an admin logs in. Sessions expire after{" "}
+          {durationWords(SESSION_MAX_AGE_S)}. You can see every active session
+          on the <strong>Sessions</strong> page.
+        </p>,
       ),
       faq("what_happens_when_i_change_my_password"),
       faq("how_do_i_log_out_other_users"),
@@ -135,9 +128,9 @@ export const accountsSections = (): GuideSection[] => [
         <>
           <p>
             The login form is protected against password guessing. After{" "}
-            <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong>{" "}
-            from the same place — the same internet connection, called an IP
-            address — further tries from that place are blocked for{" "}
+            <strong>{MAX_LOGIN_ATTEMPTS} wrong tries</strong> from the same
+            place — the same internet connection, called an IP address — further
+            tries from that place are blocked for{" "}
             <strong>{durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>. A
             successful login clears the count straight away.
           </p>

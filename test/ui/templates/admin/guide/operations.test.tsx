@@ -64,7 +64,7 @@ describe("operations guide schema", () => {
       columnOrderSection().entries.map((entry) =>
         "faq" in entry
           ? { id: entry.faq, kind: "faq" }
-          : { id: entry.custom, kind: "custom" }
+          : { id: entry.custom, kind: "custom" },
       ),
     ).toEqual([
       { id: "customise_table_columns", kind: "faq" },

@@ -24,7 +24,7 @@ describe("guide domains sections", () => {
     const described = domainsSections(hostConfig()).map(
       ({ entries, id, titleKey }) => ({
         entries: entries.map((entry) =>
-          "faq" in entry ? entry.faq : entry.custom
+          "faq" in entry ? entry.faq : entry.custom,
         ),
         id,
         titleKey,
