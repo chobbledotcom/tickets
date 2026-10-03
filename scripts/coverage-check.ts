@@ -89,7 +89,14 @@ const metricFailure = (
 
 // Files excluded from coverage enforcement
 const COVERAGE_EXCLUSIONS = [
+  // The reporter and the estimate it feeds: their IO edges — a file that
+  // vanishes between stat and read, a path that stats as neither file nor
+  // directory, a real deno test child — cannot all be reached from an
+  // in-process test on every machine, and the branches only guard those
+  // edges. The estimate moved here from compact-test-reporter.ts, so both
+  // files carry the exemption the one file held before the split.
   "scripts/compact-test-reporter.ts",
+  "scripts/tap-estimate.ts",
   "src/shared/db/migrations.ts",
   // Harness infrastructure: inside a harness run every isolate takes the
   // prebuilt-snapshot arm, and outside one only the build-it-here arm runs,
