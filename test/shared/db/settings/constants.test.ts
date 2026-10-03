@@ -1,5 +1,5 @@
 /** Direct tests for db/settings/constants.ts — the email-template cap and
- *  the Stripe/SumUp secret-prefix classifier. */
+ *  the Stripe secret-prefix classifier. */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -15,12 +15,16 @@ describe("MAX_EMAIL_TEMPLATE_LENGTH", () => {
 });
 
 describe("keyModeOf", () => {
-  test("classifies a Stripe or SumUp test secret", () => {
+  test("classifies a Stripe test secret", () => {
     expect(keyModeOf("sk_test_51JsZxk")).toBe("test");
   });
 
-  test("classifies a Stripe or SumUp live secret", () => {
+  test("classifies a Stripe live secret", () => {
     expect(keyModeOf("sk_live_51JsZxk")).toBe("live");
+  });
+
+  test("returns null for a SumUp key, whose account names its mode", () => {
+    expect(keyModeOf("sup_sk_MvxmLOl0")).toBeNull();
   });
 
   test("returns null for a key without a known prefix", () => {

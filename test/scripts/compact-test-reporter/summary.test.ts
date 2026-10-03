@@ -11,8 +11,10 @@ import { type TempPath, tempDir } from "#test-utils/files.ts";
 const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
   failed: 0,
   failures: [],
+  fileEstimate: 0,
   passed: 3,
   sawTap: true,
+  suppressedResults: 0,
   ...over,
 });
 
@@ -48,11 +50,129 @@ describe("printing the run summary", () => {
     expect(errors).toEqual([]);
   });
 
-  test("reports a failure when the run exited non-zero without failed tests", async () => {
-    const { errors, logs } = await printed(summary(), 1, "");
+  test("says a worker died when the run exited non-zero without failed tests", async () => {
+    const { errors, logs } = await printed(
+      summary({
+        fileEstimate: 29548,
+        lastResultName: "the last result",
+        passed: 27532,
+      }),
+      137,
+      "",
+    );
 
     expect(logs).toEqual([]);
-    expect(errors).toEqual(["\nFAILED 3 passed, 0 failed"]);
+    expect(errors).toEqual([
+      "\nFAILED 27532 passed, 0 failed",
+      "\nA test worker probably died, and the tests it still held did not report.",
+      "The declaration estimate is 2016 above the results the output reported.",
+      "The last result shown was: the last result",
+      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    ]);
+  });
+
+  test("names no shortfall when every expected test reported", async () => {
+    const { errors } = await printed(
+      summary({ fileEstimate: 3, lastResultName: "the last result" }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 3 passed, 0 failed",
+      "\nThe run exited with an error, but no test failed.",
+      "A test worker can die before its tests report.",
+      "The last result shown was: the last result",
+      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    ]);
+  });
+
+  test("says no result was shown when the worker died before one", async () => {
+    const { errors } = await printed(
+      summary({ fileEstimate: 3, passed: 0 }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 0 passed, 0 failed",
+      "\nA test worker probably died, and the tests it still held did not report.",
+      "The declaration estimate is 3 above the results the output reported.",
+      "The last result shown was: (none)",
+      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    ]);
+  });
+
+  test("reports the shortfall beside the counted failures", async () => {
+    const { errors } = await printed(
+      summary({
+        failed: 2,
+        failures: [{ message: "boom", name: "only" }],
+        fileEstimate: 8,
+        passed: 3,
+      }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 3 passed, 2 failed",
+      "The declaration estimate is 3 above the results the output reported.",
+      "\nFailed tests:",
+      "  unknown location - only",
+    ]);
+  });
+
+  test("keeps suppressed parent summaries out of the shortfall", async () => {
+    // A complete BDD run whose child step failed: every TAP result arrived,
+    // and the parent summaries the reporter drops must not read as lost.
+    const { errors } = await printed(
+      summary({
+        failed: 1,
+        failures: [{ message: "boom", name: "child" }],
+        fileEstimate: 3,
+        passed: 1,
+        suppressedResults: 2,
+      }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 1 passed, 1 failed",
+      "\nFailed tests:",
+      "  unknown location - child",
+    ]);
+  });
+
+  test("blames the reported error instead of a worker when stderr names one", async () => {
+    const { errors } = await printed(
+      summary(),
+      1,
+      "error: Test failed\nTypeError: Cannot read properties of undefined\n",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 3 passed, 0 failed",
+      "\nDeno output:",
+      "TypeError: Cannot read properties of undefined",
+    ]);
+  });
+
+  test("filters Deno's own failure line even when it carries colour codes", async () => {
+    const { errors } = await printed(
+      summary(),
+      1,
+      "\u001b[0m\u001b[1m\u001b[31merror\u001b[0m: Test failed\n",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 3 passed, 0 failed",
+      "\nThe run exited with an error, but no test failed.",
+      "A test worker can die before its tests report.",
+      "The last result shown was: (none)",
+      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    ]);
   });
 
   test("lists each failed test with where it failed", async () => {

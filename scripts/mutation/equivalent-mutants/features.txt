@@ -6,11 +6,6 @@ src/features/auth.ts::recordPageGuardFor~01c7xvj  ?? → ||   # audience is unde
 src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → ||   # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
 src/features/response.ts::redirect.flash~0r1iimg  ?? → ||   # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
 
-# Connection-test answer lines: a valid credential's mode is always a
-# non-empty provider word ("test"/"live"/"sandbox") or the "unknown"
-# fallback itself, so the empty string never reaches this operand.
-src/features/admin/settings-connection-lines.ts::credentialLine.mode~1vqeabi  ?? → ||   # cred.mode on a valid credential is a non-empty mode word or undefined; never the empty string
-
 src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1   # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy

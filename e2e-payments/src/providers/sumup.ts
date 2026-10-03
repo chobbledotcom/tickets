@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import type { Locator, Page } from "playwright";
-import { keyModeOf } from "#db/settings/constants.ts";
 import type { BrowserSession } from "#e2e/browser.ts";
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { log, warn } from "#e2e/log.ts";
@@ -23,8 +22,9 @@ import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
 /* jscpd:ignore-end */
 
 /**
- * SumUp. Sandbox vs live is inferred from the API key itself, and no webhook
- * signature is required (the app re-fetches the checkout to confirm). Payment
+ * SumUp. A key names no mode — every key starts `sup_sk_`, and the merchant
+ * account behind it decides sandbox versus live — and no webhook signature is
+ * required (the app re-fetches the checkout to confirm). Payment
  * confirmation flows through the browser return URL; the callback path is
  * then exercised deterministically by self-delivering the staged checkout's
  * own callback (see sumup-callback.ts).
@@ -104,12 +104,11 @@ const transactionIdOf = async (
  * it is the only proof that the merchant read works against the real API. The
  * merchant line appears only when that read succeeded, so asserting the real
  * merchant code proves the call and not just the page. Both required lines
- * derive from the message keys the page renders, and the key's mode comes
- * from the same prefix classifier the app reads it with.
+ * derive from the message keys the page renders. The key line names no mode:
+ * a SumUp key starts `sup_sk_` whichever account it belongs to.
  */
 const testSumupConnection = async (
   session: BrowserSession,
-  apiKey: string,
   merchantCode: string,
 ): Promise<void> => {
   const apiKeyLabel = await catalogWords(
@@ -123,9 +122,8 @@ const testSumupConnection = async (
   await testProviderConnection(session, "sumup", {
     passed: "SumUp connection and merchant lookup passed",
     require: [
-      await catalogWords("settings", "settings.connection.valid", {
+      await catalogWords("settings", "settings.connection.valid_no_mode", {
         label: apiKeyLabel,
-        mode: keyModeOf(apiKey) ?? "unknown",
       }),
       await catalogWords("settings", "settings.connection.value", {
         label: merchantLabel,
@@ -144,7 +142,7 @@ export const sumup: PaymentProvider = {
       sumup_api_key: secrets.apiKey,
       sumup_merchant_code: secrets.merchantCode,
     });
-    await testSumupConnection(session, secrets.apiKey, secrets.merchantCode);
+    await testSumupConnection(session, secrets.merchantCode);
   }),
   name: "sumup",
 

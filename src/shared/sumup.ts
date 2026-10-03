@@ -327,10 +327,9 @@ export const sumupApi: {
     }
     try {
       await client.readMerchant(merchantCode);
-      result.apiKey = {
-        mode: settings.sumup.keyMode ?? "unknown",
-        valid: true,
-      };
+      // A SumUp key does not name its mode, so the key check reports validity
+      // alone; no mode line follows it.
+      result.apiKey = { valid: true };
       result.merchant = { configured: true, merchantCode };
       result.ok = result.currency.supported;
     } catch (err) {

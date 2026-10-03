@@ -45,6 +45,7 @@
   "settings.connection.label_merchant": "Merchant",
   "settings.connection.value": "{label}: {value}",
   "settings.connection.valid": "{label}: Valid ({mode} mode)",
+  "settings.connection.valid_no_mode": "{label}: Valid",
   "settings.connection.invalid": "{label}: Invalid",
   "settings.connection.invalid_with_error": "{label}: Invalid - {error}",
   "settings.connection.not_configured": "{label}: Not configured",

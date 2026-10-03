@@ -1,9 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { expect } from "@std/expect";
-import {
-  CompactTapReporter,
-  hasReporterArg,
-} from "#scripts/compact-test-reporter.ts";
+import { CompactTapReporter } from "#scripts/compact-test-reporter.ts";
+import { hasReporterArg } from "#scripts/tap-estimate.ts";
 
 const consume = (reporter: CompactTapReporter, lines: string[]): void => {
   for (const line of lines) reporter.consumeLine(line);
@@ -57,6 +55,9 @@ Deno.test("compact TAP reporter keeps real failures and suppresses parent step s
 
   expect(summary.passed).toBe(1);
   expect(summary.failed).toBe(1);
+  // Two parent results arrived and were deliberately dropped; the shortfall
+  // must not count them as tests that never reported.
+  expect(summary.suppressedResults).toBe(2);
   expect(summary.failures[0]?.name).toBe("fails nested");
   expect(summary.failures[0]?.location).toEqual({
     column: 3,
@@ -195,6 +196,28 @@ Deno.test("compact TAP reporter grows the estimated total when it is exceeded", 
     "ok   [########################] 1/1 first",
     "ok   [########################] 2/2 second",
   ]);
+});
+
+Deno.test("compact TAP reporter keeps the file estimate and the last result", () => {
+  const reporter = new CompactTapReporter({
+    cwd: Deno.cwd(),
+    estimatedTotal: 4,
+    stdout: () => {},
+  });
+
+  consume(reporter, [
+    "TAP version 14",
+    "ok 1 - first",
+    "ok 2 - last reported",
+    "1..2",
+  ]);
+
+  const summary = reporter.finish();
+  expect(summary.passed).toBe(2);
+  // The progress bar grows its total, but the pre-run figure stays for the
+  // dead-worker summary.
+  expect(summary.fileEstimate).toBe(4);
+  expect(summary.lastResultName).toBe("last reported");
 });
 
 Deno.test("hasReporterArg detects both Deno reporter flag forms", () => {

@@ -24,13 +24,6 @@ describe("stripeConnectionAnswer", () => {
     expect(answer.lines[0]).toBe("API Key: Valid (test mode)");
   });
 
-  test("falls back to an unknown mode when the key carries none", () => {
-    const answer = stripeConnectionAnswer(
-      stripeResult({ apiKey: { valid: true } }),
-    );
-    expect(answer.lines[0]).toBe("API Key: Valid (unknown mode)");
-  });
-
   test("names an invalid key, with its reason when there is one", () => {
     const withReason = stripeConnectionAnswer(
       stripeResult({ apiKey: { error: "rate limited", valid: false } }),
@@ -165,7 +158,7 @@ describe("squareConnectionAnswer", () => {
 const sumupResult = (
   over: Partial<SumupConnectionTestResult>,
 ): SumupConnectionTestResult => ({
-  apiKey: { mode: "test", valid: true },
+  apiKey: { valid: true },
   currency: { code: "GBP", supported: true },
   merchant: { configured: false },
   ok: false,
@@ -173,7 +166,7 @@ const sumupResult = (
 });
 
 describe("sumupConnectionAnswer", () => {
-  test("names the key, the merchant, and a supported currency", () => {
+  test("names the key without a mode, the merchant, and a supported currency", () => {
     const answer = sumupConnectionAnswer(
       sumupResult({
         merchant: { configured: true, merchantCode: "MCODE" },
@@ -182,7 +175,7 @@ describe("sumupConnectionAnswer", () => {
     );
     expect(answer.ok).toBe(true);
     expect(answer.lines).toEqual([
-      "API Key: Valid (test mode)",
+      "API Key: Valid",
       "Merchant: MCODE",
       "Currency: GBP (supported)",
     ]);

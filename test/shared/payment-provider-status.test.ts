@@ -59,10 +59,10 @@ describeWithEnv("payment provider status", { db: true }, () => {
     expect(paymentProviderMode("stripe")).toBe("live");
   });
 
-  test("reads SumUp's estate from the kind of key stored", async () => {
+  test("names no SumUp estate, because its key does not carry one", async () => {
     expect(paymentProviderMode("sumup")).toBe("unknown");
-    await settings.update.sumup.apiKey("sk_test_abc");
-    expect(paymentProviderMode("sumup")).toBe("test");
+    await settings.update.sumup.apiKey("sup_sk_abc");
+    expect(paymentProviderMode("sumup")).toBe("unknown");
   });
 
   test("reports an unknown estate for a key it cannot read", async () => {

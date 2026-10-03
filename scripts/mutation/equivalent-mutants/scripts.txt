@@ -52,24 +52,24 @@ scripts/cleanup.ts::throwCollectedErrors~0ppty15  1 → 0   # the line above alr
 
 # Compact test reporter: fallbacks for values the regexes always provide, and
 # comparisons an earlier line has already ruled out.
-scripts/compact-test-reporter.ts::leadingWhitespaceLength~16fiu5f  ?? → ||   # /^\s*/ matches every string, so the optional chain always yields a length and the fallback never runs
-scripts/compact-test-reporter.ts::leadingWhitespaceLength~16fiu5f  0 → 1   # same line: the fallback is unreachable because /^\s*/ always matches
-scripts/compact-test-reporter.ts::stripCommonIndent.indent~0fo5ov5  0 → 1   # this arm runs only when every line is blank, and slicing 0 or 1 characters off blank lines leaves the same text once the join is trimmed
-scripts/compact-test-reporter.ts::parseYamlMessage.value~0ey8tn6  ?? → ||   # match[2] exists whenever the line matched, and its trimmed value is a string, so ?? "" and || "" agree
-scripts/compact-test-reporter.ts::parseYamlMessage.value~0ey8tn6   → "mutated"   # unreachable fallback: match[2] is always present on a matched line
-scripts/compact-test-reporter.ts::parseYamlMessage.baseIndent~1qh3i1b  ?? → ||   # match[1] is the indent capture, always present on a matched line
-scripts/compact-test-reporter.ts::parseYamlMessage.baseIndent~1qh3i1b   → "mutated"   # unreachable fallback for the same reason
-scripts/compact-test-reporter.ts::parseYamlAt.atIndent~0prxq5p  ?? → ||   # atIndex came from findIndex, so lines[atIndex] is always a string
-scripts/compact-test-reporter.ts::parseYamlAt.atIndent~0prxq5p   → "mutated"   # unreachable fallback for the same reason
-scripts/compact-test-reporter.ts::parseYamlAt~1qh3i1b  ?? → ||   # match[1] is one of file/line/column on a matched line, never missing
-scripts/compact-test-reporter.ts::parseYamlAt~1qh3i1b   → "mutated"   # unreachable fallback; an unknown key is ignored by assignAtField either way
-scripts/compact-test-reporter.ts::parseYamlAt~0k4hces  ?? → ||   # match[2] is always present on a matched line
-scripts/compact-test-reporter.ts::parseYamlAt~0k4hces   → "mutated"   # unreachable fallback for the same reason
-scripts/compact-test-reporter.ts::parseTapDiagnosticBlock~1fk341p  ?? → ||   # parseYamlTapDiagnostic returns an object or undefined, so its only falsy value is the undefined the fallback handles
-scripts/compact-test-reporter.ts::isStepFailureDiagnostic~11y2w9l  ?? → ||   # diagnostic.message is a string or undefined, and the empty string it can be is the fallback itself
-scripts/compact-test-reporter.ts::isStepFailureDiagnostic~11y2w9l   → "mutated"   # neither the empty string nor "mutated" matches the step-failure pattern, so the outcome is the same
+scripts/tap-diagnostics.ts::leadingWhitespaceLength~16fiu5f  ?? → ||   # /^\s*/ matches every string, so the optional chain always yields a length and the fallback never runs
+scripts/tap-diagnostics.ts::leadingWhitespaceLength~16fiu5f  0 → 1   # same line: the fallback is unreachable because /^\s*/ always matches
+scripts/tap-diagnostics.ts::stripCommonIndent.indent~0fo5ov5  0 → 1   # this arm runs only when every line is blank, and slicing 0 or 1 characters off blank lines leaves the same text once the join is trimmed
+scripts/tap-diagnostics.ts::parseYamlMessage.value~0ey8tn6  ?? → ||   # match[2] exists whenever the line matched, and its trimmed value is a string, so ?? "" and || "" agree
+scripts/tap-diagnostics.ts::parseYamlMessage.value~0ey8tn6   → "mutated"   # unreachable fallback: match[2] is always present on a matched line
+scripts/tap-diagnostics.ts::parseYamlMessage.baseIndent~1qh3i1b  ?? → ||   # match[1] is the indent capture, always present on a matched line
+scripts/tap-diagnostics.ts::parseYamlMessage.baseIndent~1qh3i1b   → "mutated"   # unreachable fallback for the same reason
+scripts/tap-diagnostics.ts::parseYamlAt.atIndent~0prxq5p  ?? → ||   # atIndex came from findIndex, so lines[atIndex] is always a string
+scripts/tap-diagnostics.ts::parseYamlAt.atIndent~0prxq5p   → "mutated"   # unreachable fallback for the same reason
+scripts/tap-diagnostics.ts::parseYamlAt~1qh3i1b  ?? → ||   # match[1] is one of file/line/column on a matched line, never missing
+scripts/tap-diagnostics.ts::parseYamlAt~1qh3i1b   → "mutated"   # unreachable fallback; an unknown key is ignored by assignAtField either way
+scripts/tap-diagnostics.ts::parseYamlAt~0k4hces  ?? → ||   # match[2] is always present on a matched line
+scripts/tap-diagnostics.ts::parseYamlAt~0k4hces   → "mutated"   # unreachable fallback for the same reason
+scripts/tap-diagnostics.ts::parseTapDiagnosticBlock~1fk341p  ?? → ||   # parseYamlTapDiagnostic returns an object or undefined, so its only falsy value is the undefined the fallback handles
+scripts/tap-diagnostics.ts::isStepFailureDiagnostic~11y2w9l  ?? → ||   # diagnostic.message is a string or undefined, and the empty string it can be is the fallback itself
+scripts/tap-diagnostics.ts::isStepFailureDiagnostic~11y2w9l   → "mutated"   # neither the empty string nor "mutated" matches the step-failure pattern, so the outcome is the same
 scripts/compact-test-reporter.ts::locationFromStack.matches~1g3iamw  ?? → ||   # String.match with a global pattern returns an array or null, and an array is always truthy
-scripts/compact-test-reporter.ts::estimateTapEventCount.text~00yrpxr   → "mutated"   # the fallback text for an unreadable file is only counted for test declarations, and neither the empty string nor "mutated" holds one
+scripts/tap-estimate.ts::estimateTapEventCount.text~00yrpxr   → "mutated"   # the fallback text for an unreadable file is only counted for test declarations, and neither the empty string nor "mutated" holds one
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23estimatedTotal~1n8f285  ?? → ||   # an estimated total of 0 falls back to 0, so ?? and || pick the same number
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23estimatedTotal~1n8f285  0 → 1   # the total is immediately grown to the number of finished tests, which is 1 or more whenever it is read
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23hideProgress~03zoewn  ?? → ||   # hideProgress is a boolean or undefined, and false falls back to false either way

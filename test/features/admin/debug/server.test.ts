@@ -260,10 +260,10 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await assertAdminHtml("/admin/debug", "sumup", "Configured");
     });
 
-    test("shows Test mode for a test-prefixed SumUp key", async () => {
+    test("shows an em dash for a SumUp key, which names no mode", async () => {
       await settings.update.paymentProvider("sumup");
-      await settings.update.sumup.apiKey("sk_test_fake");
-      await assertAdminHtml("/admin/debug", "sumup", "Mode", "Test");
+      await settings.update.sumup.apiKey("sup_sk_fake");
+      await assertAdminHtml("/admin/debug", "sumup", "Mode", "—");
     });
   });
 

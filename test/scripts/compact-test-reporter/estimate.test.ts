@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { estimateTapEventCount } from "#scripts/compact-test-reporter.ts";
+import {
+  estimateTapEventCount,
+  skipsDeclaredTests,
+} from "#scripts/tap-estimate.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 /**
@@ -129,6 +132,46 @@ describe("estimating how many tests a run will report", () => {
     write("e.test.ts", 'Deno.test("a", () => {});');
 
     expect(await estimate(["--", "e.test.ts"])).toBeUndefined();
+  });
+
+  test("skips a blank argument and keeps counting the named files", async () => {
+    write("b.test.ts", 'Deno.test("one", () => {});');
+
+    expect(await estimate(["", "b.test.ts"])).toBe(1);
+  });
+
+  test("skipsDeclaredTests detects filter and fail-fast in both forms", () => {
+    expect(skipsDeclaredTests(["test/"])).toBe(false);
+    expect(skipsDeclaredTests(["--filter"])).toBe(true);
+    expect(skipsDeclaredTests(["--filter", "name", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--filter=name", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--fail-fast", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--fail-fast=2", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--quiet", "test/"])).toBe(false);
+  });
+
+  test("skips a path that stats as neither file nor directory", async () => {
+    // A unix socket is neither, and the walk must not read it as a file.
+    const listener = Deno.listen({
+      path: `${dir.path}/probe.sock`,
+      transport: "unix",
+    });
+    try {
+      expect(await estimate(["probe.sock"])).toBeUndefined();
+    } finally {
+      listener.close();
+    }
+  });
+
+  test("gives no estimate when a named file cannot be read", async () => {
+    write("c.test.ts", 'Deno.test("one", () => {});');
+    const path = `${dir.path}/c.test.ts`;
+    await Deno.chmod(path, 0o000);
+    try {
+      expect(await estimate(["c.test.ts"])).toBeUndefined();
+    } finally {
+      await Deno.chmod(path, 0o644);
+    }
   });
 
   test("gives no estimate when the named files declare no tests", async () => {

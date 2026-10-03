@@ -4,6 +4,7 @@
 
 import { extname } from "node:path";
 import { startsWithAny } from "#fp-strings";
+import { stripAnsi } from "#scripts/ansi.ts";
 
 export type CheckResult = { label: string; ok: boolean; text: string };
 export type ToolRun = { ok: boolean; text: string };
@@ -78,10 +79,6 @@ export const scansFor = (relPath: string): ScanRun[] => {
 };
 
 const MAX_LINES = 120;
-
-const stripAnsi = (text: string): string =>
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour
-  text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
 
 // Drop ANSI escapes, the config-load chatter, and the cpd.ts policy
 // banner: the banner repeats guidance AGENTS.md already carries.
