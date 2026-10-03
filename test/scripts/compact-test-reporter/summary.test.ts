@@ -14,6 +14,7 @@ const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
   fileEstimate: 0,
   passed: 3,
   sawTap: true,
+  suppressedResults: 0,
   ...over,
 });
 
@@ -119,6 +120,28 @@ describe("printing the run summary", () => {
       "\n3 of the 8 expected tests did not report.",
       "\nFailed tests:",
       "  unknown location - only",
+    ]);
+  });
+
+  test("keeps suppressed parent summaries out of the shortfall", async () => {
+    // A complete BDD run whose child step failed: every TAP result arrived,
+    // and the parent summaries the reporter drops must not read as lost.
+    const { errors } = await printed(
+      summary({
+        failed: 1,
+        failures: [{ message: "boom", name: "child" }],
+        fileEstimate: 3,
+        passed: 1,
+        suppressedResults: 2,
+      }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 1 passed, 1 failed",
+      "\nFailed tests:",
+      "  unknown location - child",
     ]);
   });
 

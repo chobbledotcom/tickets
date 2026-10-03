@@ -55,6 +55,9 @@ Deno.test("compact TAP reporter keeps real failures and suppresses parent step s
 
   expect(summary.passed).toBe(1);
   expect(summary.failed).toBe(1);
+  // Two parent results arrived and were deliberately dropped; the shortfall
+  // must not count them as tests that never reported.
+  expect(summary.suppressedResults).toBe(2);
   expect(summary.failures[0]?.name).toBe("fails nested");
   expect(summary.failures[0]?.location).toEqual({
     column: 3,

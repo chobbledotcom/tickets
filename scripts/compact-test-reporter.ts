@@ -30,6 +30,9 @@ export type CompactTapSummary = {
   failed: number;
   failures: CompactFailure[];
   sawTap: boolean;
+  /** Parent results the reporter deliberately dropped because a child step
+   * failure already carries the real diagnostic. */
+  suppressedResults: number;
   /** The pre-run estimate from the test files' declarations, before any
    * growth the progress bar applied. 0 when the run gave no estimate. */
   fileEstimate: number;
@@ -114,6 +117,7 @@ export class CompactTapReporter {
   #failures: CompactFailure[] = [];
   #sawTap = false;
   #lastResultName?: string | undefined;
+  #consumedResults = 0;
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
@@ -161,6 +165,7 @@ export class CompactTapReporter {
     if (!result) return;
 
     this.#sawTap = true;
+    this.#consumedResults++;
     this.#flushPendingFailure();
 
     const failed = Boolean(result[1]);
@@ -184,6 +189,7 @@ export class CompactTapReporter {
       lastResultName: this.#lastResultName,
       passed: this.#passed,
       sawTap: this.#sawTap,
+      suppressedResults: this.#consumedResults - this.#passed - this.#failed,
     };
   }
 
@@ -278,7 +284,14 @@ export const printCompactSummary = (
   stderrText: string,
 ): void => {
   const extra = usefulStderr(stderrText);
-  const missing = summary.fileEstimate - summary.passed - summary.failed;
+  // The shortfall counts results that never arrived. A dropped parent
+  // summary did arrive — a child step failure already carries the real
+  // diagnostic — so it is subtracted like any other reported result.
+  const missing =
+    summary.fileEstimate -
+    summary.passed -
+    summary.failed -
+    summary.suppressedResults;
 
   // The declaration count runs both sides of the real result count (it reads
   // fixture strings as declarations and misses loop-generated tests), so it
