@@ -21,6 +21,7 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
+import { runWithPrimaryReads } from "#db/primary-reads.ts";
 import { identity, map, mapById, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
@@ -165,40 +166,46 @@ const aggregateDemand = (
   return buckets;
 };
 
-/** Check a whole booking batch in one preflight query. */
+/** Check a whole booking batch in one preflight query. Every read pins to
+ * the primary: production callers treat `false` as final, so a replica that
+ * has not replayed a cancellation yet must not reject an order that fits.
+ * The guarded write still catches the opposite error, so no oversell is
+ * possible either way. */
 export const checkBatchAvailabilityImpl = async (
   items: BatchAvailabilityItem[],
   date?: string | null,
-): Promise<boolean> => {
-  if (items.length === 0) return true;
-  if (items.some((item) => item.quantity < 0)) return false;
-  const listingIds = map((item: BatchAvailabilityItem) => item.listingId)(
-    items,
-  );
-  const listingRows = await queryAll<ListingCapacityRow>(
-    `SELECT listing.id, listing.max_attendees, listing.listing_type,
+): Promise<boolean> =>
+  runWithPrimaryReads(async () => {
+    if (items.length === 0) return true;
+    if (items.some((item) => item.quantity < 0)) return false;
+    const listingIds = map((item: BatchAvailabilityItem) => item.listingId)(
+      items,
+    );
+    const listingRows = await queryAll<ListingCapacityRow>(
+      `SELECT listing.id, listing.max_attendees, listing.listing_type,
             listing.booked_quantity as attendee_count
        FROM listings AS listing
       WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-    listingIds,
-  );
-  const listingsById = mapById(identity<ListingCapacityRow>)(listingRows);
-  const missingListingId = listingIds.find((id) => !listingsById.has(id));
-  if (missingListingId !== undefined) {
-    throw new Error(`Listing not found: ${missingListingId}`);
-  }
+      listingIds,
+    );
+    const listingsById = mapById(identity<ListingCapacityRow>)(listingRows);
+    const missingListingId = listingIds.find((id) => !listingsById.has(id));
+    if (missingListingId !== undefined) {
+      throw new Error(`Listing not found: ${missingListingId}`);
+    }
 
-  const membership = await listingGroups.getIdsByKeys(listingIds);
-  const context: BatchAvailabilityContext = { date, items, listingsById };
-  const listingDemand = aggregateDemand(context, (listing) => [listing.id]);
-  const groupDemand = aggregateDemand(context, (_listing, item) =>
-    listingGroups.idsFor(membership, item.listingId),
-  );
-  return await fitsThrough(requireOne)({ groupDemand, listingDemand });
-};
+    const membership = await listingGroups.getIdsByKeys(listingIds);
+    const context: BatchAvailabilityContext = { date, items, listingsById };
+    const listingDemand = aggregateDemand(context, (listing) => [listing.id]);
+    const groupDemand = aggregateDemand(context, (_listing, item) =>
+      listingGroups.idsFor(membership, item.listingId),
+    );
+    return await fitsThrough(requireOne)({ groupDemand, listingDemand });
+  });
 
 /** Ask one cart demand's fit through one required-row read. The checkout
- * preflight reads on the default route through this. */
+ * preflight runs under the primary-read scope, so this read lands on the
+ * primary with the rest of the preflight. */
 const fitsThrough =
   (read: <T>(sql: string, args: InValue[]) => Promise<T>) =>
   async (demand: CartDemand): Promise<boolean> => {

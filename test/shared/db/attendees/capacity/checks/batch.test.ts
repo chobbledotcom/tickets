@@ -1,9 +1,12 @@
+import type { ResultSet, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   checkBatchAvailabilityImpl as checkBatchAvailability,
   checkLinesCapacity,
 } from "#db/attendees/capacity/checks.ts";
+import { getDb } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import {
   enableQueryLog,
@@ -18,6 +21,8 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   test("returns true for empty items", async () => {
@@ -326,5 +331,55 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       // Listing rows + batched occupancy + group caps — a small constant.
       expect(getQueryLog().length).toBeLessThanOrEqual(5);
     });
+  });
+
+  test("reads on the primary, so a lagging replica cannot reject a fitting cart", async () => {
+    // Production callers treat `false` as final — the submit paths answer
+    // with the sold-out form error — so a replica that has not replayed a
+    // cancellation yet must not decide the verdict. Every preflight read
+    // pins to the primary, which a write-mode batch names.
+    const resultSet = (rows: unknown[]): ResultSet =>
+      ({
+        columns: [],
+        columnTypes: [],
+        lastInsertRowid: undefined,
+        rows,
+        rowsAffected: 0,
+      }) as unknown as ResultSet;
+    const answerFor = (sql: string): ResultSet => {
+      if (sql.includes("FROM listings AS listing")) {
+        return resultSet([
+          {
+            attendee_count: 0,
+            id: 501,
+            listing_type: "standard",
+            max_attendees: 10,
+          },
+        ]);
+      }
+      if (sql.includes("group_listings")) return emptyResultSet();
+      return resultSet([{ fits: 1 }]);
+    };
+    const modes: string[] = [];
+    using _env = withEnv({ DB_URL: "http://primary.example" });
+    const batchStub = stub(
+      getDb(),
+      "batch",
+      (statements: unknown, mode?: TransactionMode) => {
+        modes.push(mode ?? "");
+        return Promise.resolve(
+          (statements as { sql: string }[]).map(({ sql }) => answerFor(sql)),
+        );
+      },
+    );
+    try {
+      expect(
+        await checkBatchAvailability([{ listingId: 501, quantity: 1 }]),
+      ).toBe(true);
+    } finally {
+      batchStub.restore();
+    }
+    // Listing rows, group membership, fit verdict — one primary batch each.
+    expect(modes).toEqual(["write", "write", "write"]);
   });
 });
