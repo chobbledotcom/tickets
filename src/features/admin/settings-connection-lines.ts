@@ -32,10 +32,13 @@ const missingLine = (labelKey: string, error: string | undefined): string =>
         label: t(labelKey),
       });
 
-/** The line one credential renders: valid (with its mode), or why not. */
+/** The line one credential renders: valid (with its mode, when the credential
+ * names one), or why not. A SumUp key names no mode. */
 const credentialLine = (label: string, cred: CredentialCheck): string =>
   cred.valid
-    ? t("settings.connection.valid", { label, mode: cred.mode ?? "unknown" })
+    ? cred.mode === undefined
+      ? t("settings.connection.valid_no_mode", { label })
+      : t("settings.connection.valid", { label, mode: cred.mode })
     : cred.error === undefined
       ? t("settings.connection.invalid", { label })
       : t("settings.connection.invalid_with_error", {

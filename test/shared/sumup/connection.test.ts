@@ -67,11 +67,11 @@ describe("sumup testSumupConnection", () => {
     return withSumupClient(client, fn);
   };
 
-  test("reports success with key mode, merchant, and currency", () =>
+  test("reports success with the merchant and currency", () =>
     withMerchantClient(async () => {
       const result = await sumupApi.testSumupConnection();
       expect(result.ok).toBe(true);
-      expect(result.apiKey).toEqual({ mode: "test", valid: true });
+      expect(result.apiKey).toEqual({ valid: true });
       expect(result.merchant).toEqual({
         configured: true,
         merchantCode: "MC123",
@@ -89,11 +89,11 @@ describe("sumup testSumupConnection", () => {
     });
   });
 
-  test("reports the key mode as unknown for an unrecognized key prefix", async () => {
-    settings.setForTest({ sumup_api_key: "plainkey" });
+  test("names no mode for a real sup_sk_ key, whose account decides", async () => {
+    settings.setForTest({ sumup_api_key: "sup_sk_MvxmLOl0" });
     await withMerchantClient(async () => {
       const result = await sumupApi.testSumupConnection();
-      expect(result.apiKey.mode).toBe("unknown");
+      expect(result.apiKey).toEqual({ valid: true });
     });
   });
 

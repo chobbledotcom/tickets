@@ -17,11 +17,7 @@ import {
   releaseWhenStarted,
   withCleanup,
 } from "./cleanup.ts";
-import {
-  estimateTapEventCount,
-  hasReporterArg,
-  runCompactDenoTest,
-} from "./compact-test-reporter.ts";
+import { runCompactDenoTest } from "./compact-test-reporter.ts";
 import {
   COVERAGE_OUTPUT_DIR,
   removeOldCoverageOutput,
@@ -31,6 +27,7 @@ import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
 import type { StaticAssetBuild } from "./static-assets/session.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
+import { estimateTapEventCount, hasReporterArg } from "./tap-estimate.ts";
 import { JUNIT_PATH } from "./test-durations.ts";
 import { withEnvironment } from "./test-environment.ts";
 

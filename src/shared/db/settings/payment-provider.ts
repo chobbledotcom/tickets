@@ -33,17 +33,21 @@ import {
   type PaymentProviderType,
 } from "#types";
 
-/** The card-provider getters shared by Stripe and SumUp: whether a secret key
- * is set, and whether that key is a test or live key. `keyName` is the setting
- * the provider's secret is stored under. */
+/** The credential getter shared by Stripe and SumUp: whether a secret key is
+ * set. `keyName` is the setting the provider's secret is stored under. */
 const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
   get hasKey(): boolean {
     return snap(keyName) !== "";
   },
-  get keyMode(): "test" | "live" | null {
-    return keyModeOf(snap(keyName));
-  },
 });
+
+/** Stripe alone names a key's mode by its prefix. A SumUp key starts `sup_sk_`
+ * whichever account it belongs to, so only Stripe carries a `keyMode` getter. */
+const stripeKeyMode = {
+  get keyMode(): "test" | "live" | null {
+    return keyModeOf(snap("stripe_secret_key"));
+  },
+};
 
 /** Store the new-sales choice and the provider for existing payments together. */
 const setPaymentProviderSnapshot = (active: PaymentProviderSetting): void => {
@@ -259,18 +263,21 @@ const getters = {
 
   // --- Stripe ---
   stripe: withProperties(
-    {
-      get secretKey(): string {
-        return snap("stripe_secret_key");
+    withProperties(
+      {
+        get secretKey(): string {
+          return snap("stripe_secret_key");
+        },
+        get webhookEndpointId(): string {
+          return snap("stripe_webhook_endpoint_id");
+        },
+        get webhookSecret(): string {
+          return snap("stripe_webhook_secret");
+        },
       },
-      get webhookEndpointId(): string {
-        return snap("stripe_webhook_endpoint_id");
-      },
-      get webhookSecret(): string {
-        return snap("stripe_webhook_secret");
-      },
-    },
-    providerKeyStatus("stripe_secret_key"),
+      providerKeyStatus("stripe_secret_key"),
+    ),
+    stripeKeyMode,
   ),
 
   // --- SumUp ---

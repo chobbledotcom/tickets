@@ -6,11 +6,10 @@ name: Test
 # only adds cost, and one more chance for a stalled runner to time the queue
 # out.
 #
-# The queue does NOT gate on these two checks. GitHub waits for the checks a
-# ruleset marks REQUIRED. `checks` and `test` are not in that list for `main`,
-# so a red run here never blocks a merge. Runs 33021228000, 33022892823 and
-# 33024444803 each failed `checks` in the queue and merged anyway. See issue
-# #2295.
+# The merge queue gates on these two checks. Ruleset 21611101 ("Deletions,
+# pushes & merges") marks `checks` and `test` as required status checks for
+# `main`, with a strict policy. A red run here holds the merge until it
+# passes.
 on:
   push:
     branches-ignore: [main, "gh-readonly-queue/**"]

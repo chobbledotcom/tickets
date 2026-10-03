@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import type { Locator, Page } from "playwright";
-import { keyModeOf } from "#db/settings/constants.ts";
 import type { BrowserSession } from "#e2e/browser.ts";
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { log, warn } from "#e2e/log.ts";
@@ -104,12 +103,11 @@ const transactionIdOf = async (
  * it is the only proof that the merchant read works against the real API. The
  * merchant line appears only when that read succeeded, so asserting the real
  * merchant code proves the call and not just the page. Both required lines
- * derive from the message keys the page renders, and the key's mode comes
- * from the same prefix classifier the app reads it with.
+ * derive from the message keys the page renders. The key line names no mode:
+ * a SumUp key starts `sup_sk_` whichever account it belongs to.
  */
 const testSumupConnection = async (
   session: BrowserSession,
-  apiKey: string,
   merchantCode: string,
 ): Promise<void> => {
   const apiKeyLabel = await catalogWords(
@@ -123,9 +121,8 @@ const testSumupConnection = async (
   await testProviderConnection(session, "sumup", {
     passed: "SumUp connection and merchant lookup passed",
     require: [
-      await catalogWords("settings", "settings.connection.valid", {
+      await catalogWords("settings", "settings.connection.valid_no_mode", {
         label: apiKeyLabel,
-        mode: keyModeOf(apiKey) ?? "unknown",
       }),
       await catalogWords("settings", "settings.connection.value", {
         label: merchantLabel,
@@ -144,7 +141,7 @@ export const sumup: PaymentProvider = {
       sumup_api_key: secrets.apiKey,
       sumup_merchant_code: secrets.merchantCode,
     });
-    await testSumupConnection(session, secrets.apiKey, secrets.merchantCode);
+    await testSumupConnection(session, secrets.merchantCode);
   }),
   name: "sumup",
 

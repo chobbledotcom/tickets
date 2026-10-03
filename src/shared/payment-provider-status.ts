@@ -19,12 +19,16 @@ export type PaymentProviderMode = "live" | "sandbox" | "test" | "unknown";
 const providerMode: Record<PaymentProviderType, () => PaymentProviderMode> = {
   square: () => (paymentProviderUsesSandbox("square") ? "sandbox" : "live"),
   stripe: () => settings.stripe.keyMode ?? "unknown",
-  sumup: () => settings.sumup.keyMode ?? "unknown",
+  // A SumUp key starts `sup_sk_` whichever account it belongs to, so the key
+  // cannot name its estate: SumUp separates test from live by merchant
+  // account. The mode stays unknown for every SumUp credential.
+  sumup: () => "unknown",
 };
 
-/** The estate this site's stored credentials for one provider point at. This
- * reads that provider's stored key, so a route that calls it must declare the
- * key in its settings bundle. */
+/** The estate this site's stored credentials for one provider point at. The
+ * Stripe answer reads its stored key, so a route that calls it for Stripe must
+ * declare that key in its settings bundle. SumUp's key names no estate, so its
+ * answer is always unknown. */
 export const paymentProviderMode = (
   provider: PaymentProviderType,
 ): PaymentProviderMode => providerMode[provider]();

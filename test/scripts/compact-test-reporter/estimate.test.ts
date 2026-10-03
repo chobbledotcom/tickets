@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { estimateTapEventCount } from "#scripts/compact-test-reporter.ts";
+import { estimateTapEventCount } from "#scripts/tap-estimate.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 /**

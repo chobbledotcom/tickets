@@ -1,5 +1,6 @@
-import { isAbsolute, relative } from "node:path";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripAnsi } from "./ansi.ts";
 import { toDisplayPath } from "./project-root.ts";
 import { readStream } from "./stream-lines.ts";
 
@@ -34,6 +35,11 @@ export type CompactTapSummary = {
   failed: number;
   failures: CompactFailure[];
   sawTap: boolean;
+  /** The pre-run estimate from the test files' declarations, before any
+   * growth the progress bar applied. 0 when the run gave no estimate. */
+  fileEstimate: number;
+  /** The name of the last result line the output carried. */
+  lastResultName?: string | undefined;
 };
 
 type CompactTapReporterOptions = {
@@ -48,36 +54,6 @@ const PROGRESS_WIDTH = 24;
 const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
 const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
 const STEP_FAILURE_RE = /^\d+\s+test\s+steps?\s+failed\.$/;
-/** Deno test flags that take a separate value, which is never a file path. */
-const FILE_ARG_VALUE_FLAGS = new Set([
-  "--cert",
-  "--config",
-  "--conditions",
-  "--env-file",
-  "--ext",
-  "--fail-fast",
-  "--filter",
-  "--ignore",
-  "--junit-path",
-  "--location",
-  "--minimum-dependency-age",
-  "--preload",
-  "--require",
-  "--seed",
-  "--shuffle",
-  "--v8-flags",
-  "--watch",
-  "--watch-exclude",
-]);
-
-const TEST_FILE_RE =
-  /(^|[/\\])__tests__[/\\].+\.[cm]?[jt]sx?$|(^|[/\\])[^/\\]+(?:[._]test)\.[cm]?[jt]sx?$/;
-
-const TEST_DECLARATION_RE = /(^|[^\w$.])(?:Deno\.test|describe|it|test)\s*\(/g;
-const TEST_OBJECT_DECLARATION_RE =
-  /(^|[^\w$.])(?:Deno\.test|describe|it|test)\s*\{/g;
-const TEST_STEP_RE = /\.\s*step\s*\(/g;
-
 const stripTapDirective = (name: string): string =>
   name.replace(/\s+#\s+(?:SKIP|TODO)\b.*$/i, "").trim();
 
@@ -214,12 +190,6 @@ const formatLocation = (location?: Location): string =>
       }`
     : "unknown location";
 
-const countMatches = (text: string, re: RegExp): number => {
-  let count = 0;
-  for (const _match of text.matchAll(re)) count++;
-  return count;
-};
-
 const locationFromDiagnostic = (
   cwd: string,
   diagnostic: TapDiagnostic,
@@ -262,76 +232,10 @@ const locationFromStack = (
   return;
 };
 
-export const hasReporterArg = (args: string[]): boolean =>
-  args.some((arg) => arg === "--reporter" || arg.startsWith("--reporter="));
-
-const collectFileArgs = (args: string[]): string[] => {
-  const files: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (!arg) continue;
-    if (arg === "--") break;
-    if (arg.startsWith("-")) {
-      if (
-        FILE_ARG_VALUE_FLAGS.has(arg) &&
-        args[i + 1]?.startsWith("-") === false
-      ) {
-        i++;
-      }
-      continue;
-    }
-    files.push(arg);
-  }
-  return files;
-};
-
-const walkTestFiles = async (path: string, files: string[]): Promise<void> => {
-  let stat: Deno.FileInfo;
-  try {
-    stat = await Deno.stat(path);
-  } catch {
-    return;
-  }
-
-  if (stat.isFile) {
-    if (TEST_FILE_RE.test(path)) files.push(path);
-    return;
-  }
-
-  if (!stat.isDirectory) return;
-  for await (const entry of Deno.readDir(path)) {
-    if (entry.name === "node_modules" || entry.name === ".git") continue;
-    await walkTestFiles(`${path}/${entry.name}`, files);
-  }
-};
-
-export const estimateTapEventCount = async (
-  cwd: string,
-  args: string[],
-): Promise<number | undefined> => {
-  const fileArgs = collectFileArgs(args);
-  if (fileArgs.length === 0) return;
-
-  const files: string[] = [];
-  for (const arg of fileArgs) {
-    await walkTestFiles(isAbsolute(arg) ? arg : `${cwd}/${arg}`, files);
-  }
-  if (files.length === 0) return;
-
-  let count = 0;
-  for (const file of files) {
-    const text = await Deno.readTextFile(file).catch(() => "");
-    count += countMatches(text, TEST_DECLARATION_RE);
-    count += countMatches(text, TEST_OBJECT_DECLARATION_RE);
-    count += countMatches(text, TEST_STEP_RE);
-  }
-
-  return count || undefined;
-};
-
 export class CompactTapReporter {
   #cwd: string;
   #estimatedTotal: number;
+  #fileEstimate: number;
   #hideProgress: boolean;
   #stdout: (line: string) => void;
   #stderr: (line: string) => void;
@@ -341,10 +245,12 @@ export class CompactTapReporter {
   #diagnosticLines?: string[] | undefined;
   #failures: CompactFailure[] = [];
   #sawTap = false;
+  #lastResultName?: string | undefined;
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
     this.#estimatedTotal = options.estimatedTotal ?? 0;
+    this.#fileEstimate = this.#estimatedTotal;
     this.#hideProgress = options.hideProgress ?? false;
     this.#stdout = options.stdout ?? console.log;
     this.#stderr = options.stderr ?? console.error;
@@ -391,6 +297,7 @@ export class CompactTapReporter {
 
     const failed = Boolean(result[1]);
     const name = stripTapDirective(result[2] ?? "(unnamed test)");
+    this.#lastResultName = name;
     if (failed) {
       this.#pendingFailure = { name };
       return;
@@ -405,6 +312,8 @@ export class CompactTapReporter {
     return {
       failed: this.#failed,
       failures: [...this.#failures],
+      fileEstimate: this.#fileEstimate,
+      lastResultName: this.#lastResultName,
       passed: this.#passed,
       sawTap: this.#sawTap,
     };
@@ -486,8 +395,10 @@ export class CompactTapReporter {
   }
 }
 
+/** Strip the escape sequences, then keep every line Deno's own failure line
+ *  does not already cover. */
 const usefulStderr = (stderr: string): string =>
-  stderr
+  stripAnsi(stderr)
     .split(/\r?\n/)
     .filter((line) => line.trim() !== "error: Test failed")
     .join("\n")
@@ -506,6 +417,28 @@ export const printCompactSummary = (
   }
 
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
+
+  // Zero counted failures on a non-zero exit, with nothing reported on
+  // stderr, means a worker died and the tests it still held never reported;
+  // a load error would stand on stderr instead. The TAP stream names no
+  // worker, so the last result is the closest marker the output holds.
+  if (summary.failed === 0 && extra === "") {
+    console.error(
+      "\nA test worker probably died, and the tests it still held did not report.",
+    );
+    const missing = summary.fileEstimate - summary.passed - summary.failed;
+    if (missing > 0) {
+      console.error(
+        `${missing} of the ${summary.fileEstimate} expected tests did not report.`,
+      );
+    }
+    const last =
+      summary.lastResultName === undefined ? "(none)" : summary.lastResultName;
+    console.error(`The last result shown was: ${last}`);
+    console.error(
+      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    );
+  }
 
   if (summary.failures.length > 0) {
     console.error("\nFailed tests:");

@@ -63,6 +63,5 @@
   "test/test-utils/assertions.ts": 701,
   "test/test-utils/mocks.ts": 569,
   "test/test-utils/parents.ts": 536,
-  "scripts/compact-test-reporter.ts": 561,
   "e2e-payments/src/cucumber/steps/booking.ts": 688
 }

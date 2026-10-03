@@ -7,8 +7,10 @@
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
 /**
- * Classify an API secret by its `sk_test_` / `sk_live_` prefix (Stripe + SumUp
- * share this convention). Empty or unrecognized keys yield null.
+ * Classify a Stripe secret key by its `sk_test_` / `sk_live_` prefix. Empty or
+ * unrecognized keys yield null. A SumUp key starts `sup_sk_` whichever account
+ * it belongs to, so a key names no mode for SumUp: SumUp separates test from
+ * live by merchant account.
  */
 export const keyModeOf = (key: string): "test" | "live" | null =>
   key.startsWith("sk_test_")

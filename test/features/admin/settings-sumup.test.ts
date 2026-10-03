@@ -141,7 +141,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(sumupApi, "testSumupConnection", () =>
             Promise.resolve({
-              apiKey: { mode: "test", valid: true },
+              apiKey: { valid: true },
               currency: { code: "GBP", supported: true },
               merchant: { configured: true, merchantCode: "MC1" },
               ok: true,
@@ -154,7 +154,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await assertJson(Promise.resolve(response), 200, (json) => {
             expect(json.ok).toBe(true);
             expect(json.lines).toEqual([
-              "API Key: Valid (test mode)",
+              "API Key: Valid",
               "Merchant: MC1",
               "Currency: GBP (supported)",
             ]);
