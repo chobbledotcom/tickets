@@ -61,3 +61,17 @@ export const formatLimitValue = (value: number, unit: string): string => {
     : undefined;
   return format ? format(value) : `${value} ${unit}`;
 };
+
+/** A length in seconds as the words a person reads: whole hours in hours,
+ * whole minutes in minutes, anything shorter in seconds. */
+export const durationWords = (seconds: number): string => {
+  const hours = seconds / 3600;
+  if (Number.isInteger(hours)) {
+    return hours === 1 ? "an hour" : `${hours} hours`;
+  }
+  const minutes = seconds / 60;
+  if (Number.isInteger(minutes)) {
+    return minutes === 1 ? "a minute" : `${minutes} minutes`;
+  }
+  return `${seconds} seconds`;
+};

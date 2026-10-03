@@ -4,6 +4,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  durationWords,
   formatBytes,
   formatLimitValue,
   formatMs,
@@ -44,5 +45,18 @@ describe("format-units", () => {
     expect(formatLimitValue(5, "attempts")).toBe("5 attempts");
     // A unit that names an inherited Object member is still an unknown unit.
     expect(formatLimitValue(5, "toString")).toBe("5 toString");
+  });
+
+  test("duration words read whole hours in hours", () => {
+    expect(durationWords(3600)).toBe("an hour");
+    expect(durationWords(2 * 3600)).toBe("2 hours");
+    expect(durationWords(24 * 3600)).toBe("24 hours");
+  });
+
+  test("duration words read every other window in minutes or seconds", () => {
+    expect(durationWords(60)).toBe("a minute");
+    expect(durationWords(15 * 60)).toBe("15 minutes");
+    expect(durationWords(90 * 60)).toBe("90 minutes");
+    expect(durationWords(90)).toBe("90 seconds");
   });
 });

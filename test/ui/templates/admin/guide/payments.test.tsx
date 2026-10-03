@@ -40,6 +40,15 @@ describe("payments guide schema", () => {
     );
   });
 
+  test("states the checkout window the site actually uses", () => {
+    const html = String(renderGuideSections([sectionByTitle("payments")]));
+    expect(html).toContain(t("guide.q.checkout_window"));
+    // The default window is 60 minutes, so the copy must read "an hour", not
+    // a hardcoded "about one hour" that outlives a site's own setting.
+    expect(html).toContain("for an hour after it starts");
+    expect(html).toContain("A SumUp checkout always closes after 30 minutes.");
+  });
+
   test("names the booking duration field the way the listing form does", () => {
     const html = String(
       renderGuideSections([sectionByTitle("daily_listings_and_holidays")]),
