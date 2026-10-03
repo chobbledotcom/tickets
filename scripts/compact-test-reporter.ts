@@ -313,7 +313,7 @@ export const printCompactSummary = (
         "\nA test worker probably died, and the tests it still held did not report.",
       );
       console.error(
-        `${missing} of the ${summary.fileEstimate} expected tests did not report.`,
+        `The declaration estimate is ${missing} above the results the output reported.`,
       );
     } else {
       console.error("\nThe run exited with an error, but no test failed.");
@@ -327,7 +327,7 @@ export const printCompactSummary = (
     );
   } else if (missing > 0) {
     console.error(
-      `\n${missing} of the ${summary.fileEstimate} expected tests did not report.`,
+      `The declaration estimate is ${missing} above the results the output reported.`,
     );
   }
 

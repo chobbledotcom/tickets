@@ -65,7 +65,7 @@ describe("printing the run summary", () => {
     expect(errors).toEqual([
       "\nFAILED 27532 passed, 0 failed",
       "\nA test worker probably died, and the tests it still held did not report.",
-      "2016 of the 29548 expected tests did not report.",
+      "The declaration estimate is 2016 above the results the output reported.",
       "The last result shown was: the last result",
       "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
     ]);
@@ -97,7 +97,7 @@ describe("printing the run summary", () => {
     expect(errors).toEqual([
       "\nFAILED 0 passed, 0 failed",
       "\nA test worker probably died, and the tests it still held did not report.",
-      "3 of the 3 expected tests did not report.",
+      "The declaration estimate is 3 above the results the output reported.",
       "The last result shown was: (none)",
       "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
     ]);
@@ -117,7 +117,7 @@ describe("printing the run summary", () => {
 
     expect(errors).toEqual([
       "\nFAILED 3 passed, 2 failed",
-      "\n3 of the 8 expected tests did not report.",
+      "The declaration estimate is 3 above the results the output reported.",
       "\nFailed tests:",
       "  unknown location - only",
     ]);
