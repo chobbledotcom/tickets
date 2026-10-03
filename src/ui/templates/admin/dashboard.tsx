@@ -97,7 +97,7 @@ const MultiBookingField = ({
       {...{ [marker]: true }}
       data-select-on-click
       id={id}
-      placeholder={t("admin.dashboard.select_two_or_more")}
+      placeholder={t("admin.listings.select_two_or_more")}
       readonly
       type="text"
     />
@@ -116,15 +116,15 @@ const multiBookingSection = (
 
   return String(
     <details>
-      <summary>{t("admin.dashboard.multi_booking_link")}</summary>
-      <p>{t("admin.dashboard.multi_booking_desc")}</p>
+      <summary>{t("admin.listings.multi_booking_link")}</summary>
+      <p>{t("admin.listings.multi_booking_desc")}</p>
       <ul class="multi-booking-list">
         <Raw html={checkboxes} />
       </ul>
       <MultiBookingField
         domain={getEffectiveDomain()}
         id="multi-booking-url"
-        label={t("admin.dashboard.booking_link")}
+        label={t("admin.listings.booking_link")}
         marker="data-multi-booking-url"
       />
       <MultiBookingField
@@ -214,22 +214,17 @@ export const adminDashboardPage = (
   listingColumnLayout?: TableLayout<ListingColumnKey>,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
-  unbookableIds: ReadonlySet<number> = new Set(),
   upcomingServicingEvents: ServicingEventSummary[] = [],
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   const { columnKeys, filters } =
     listingColumnLayout ?? listingTable.layout.defaultLayout;
 
-  // Type filter narrows the listing table only; the stats, multi-booking, and
+  // Type filter narrows the listing table only; the stats and
   // newest-attendee sections below stay based on the full set. Offer the bar
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
   const activeListings = activeOnly(listings);
-  // The multi-booking builder offers only listings with a standalone page.
-  const multiBookingListings = filter(
-    (e: ListingWithCount) => !unbookableIds.has(e.id),
-  )(activeListings);
   const categories = unique(listings.map(listingCategory));
   const { activeAttributeFilters, attributeFilters, attributesByListing } =
     attributeFilterView;
@@ -275,10 +270,6 @@ export const adminDashboardPage = (
         <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
       )}
 
-      {multiBookingListings.length >= 2 && (
-        <Raw html={multiBookingSection(multiBookingListings)} />
-      )}
-
       {newestAttendees.length > 0 && (
         <Raw html={newestAttendeesSection(newestAttendees, listings)} />
       )}
@@ -296,6 +287,7 @@ export const adminListingsPage = (
   session: AdminSession,
   listingColumnLayout?: TableLayout<ListingColumnKey>,
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
+  unbookableIds: ReadonlySet<number> = new Set(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved
   // column template is irrelevant and never references the omitted columns), and
@@ -313,6 +305,11 @@ export const adminListingsPage = (
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
   );
+  // The multi-booking builder offers only active listings with a standalone
+  // page, and the attribute filters narrow the tables above, not the builder.
+  const multiBookingListings = filter(
+    (e: ListingWithCount) => !unbookableIds.has(e.id),
+  )(activeListings);
   const { activeAttributeFilters, attributeFilters, attributesByListing } =
     attributeFilterView;
   const filterByAttribute = filterListingsByAttributes(
@@ -348,6 +345,10 @@ export const adminListingsPage = (
             listings: filterByAttribute(deactivatedListings),
           })}
         </>
+      )}
+
+      {multiBookingListings.length >= 2 && (
+        <Raw html={multiBookingSection(multiBookingListings)} />
       )}
 
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#listings">

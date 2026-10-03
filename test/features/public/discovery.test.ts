@@ -581,7 +581,7 @@ describeWithEnv(
           parent: { name: "MbParent" },
         });
         const plain = await createTestListing({ name: "MbPlain" });
-        const body = await (await adminGet("/admin/")).text();
+        const body = await (await adminGet("/admin/listings")).text();
         expect(body).toContain(`data-multi-booking-slug="${parent.slug}"`);
         expect(body).toContain(`data-multi-booking-slug="${plain.slug}"`);
         expect(body).not.toContain(`data-multi-booking-slug="${child.slug}"`);

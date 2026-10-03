@@ -96,7 +96,7 @@ describeWithEnv(
     describe("admin surfaces", () => {
       test("the multi-booking builder offers a bookable_alone child", async () => {
         const { child } = await parentWithFlaggedChild();
-        const body = await (await adminGet("/admin/")).text();
+        const body = await (await adminGet("/admin/listings")).text();
         expect(body).toContain(`data-multi-booking-slug="${child.slug}"`);
       });
 

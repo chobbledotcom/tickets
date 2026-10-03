@@ -45,6 +45,16 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Add Attendee");
   });
 
+  test("does not render the multi-booking link builder", () => {
+    const listings = [
+      testListingWithCount({ active: true, id: 1, slug: "ab12c" }),
+      testListingWithCount({ active: true, id: 2, slug: "cd34e" }),
+    ];
+    const html = adminDashboardPage(listings, OWNER_SESSION);
+    expect(html).not.toContain("Multi-booking link");
+    expect(html).not.toContain("data-multi-booking-slug");
+  });
+
   test("includes logout link", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
     expect(html).toContain("/admin/logout");
@@ -111,7 +121,6 @@ describe("adminDashboardPage", () => {
       undefined,
       "all",
       [],
-      new Set<number>(),
       [
         {
           bookings: [{ listingId: 7, quantity: 2 }],
@@ -346,170 +355,6 @@ describe("adminDashboardPage active listing statistics", () => {
   });
 });
 
-describe("adminDashboardPage multi-booking link", () => {
-  beforeAll(setupAdminPageTest);
-
-  const renderDashboard = (
-    listings: ReturnType<typeof testListingWithCount>[],
-    ...expectations: string[]
-  ): string => {
-    const html = adminDashboardPage(listings, OWNER_SESSION);
-    for (const expected of expectations) expect(html).toContain(expected);
-    return html;
-  };
-
-  const expectNoMultiBookingLink = (
-    listings: ReturnType<typeof testListingWithCount>[],
-  ) => {
-    expect(renderDashboard(listings)).not.toContain("Multi-booking link");
-  };
-
-  const twoListings = [
-    testListingWithCount({ id: 1, slug: "ab12c" }),
-    testListingWithCount({ id: 2, slug: "cd34e" }),
-  ];
-
-  const twoListingsWithFields = [
-    testListingWithCount({ fields: "email", id: 1, slug: "ab12c" }),
-    testListingWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
-  ];
-
-  test("does not show multi-booking section with zero listings", () => {
-    expectNoMultiBookingLink([]);
-  });
-
-  test("does not show multi-booking section with one active listing", () => {
-    expectNoMultiBookingLink([testListingWithCount({ id: 1, slug: "ab12c" })]);
-  });
-
-  test("shows multi-booking section with two active listings", () => {
-    renderDashboard(
-      [
-        testListingWithCount({ id: 1, name: "Listing A", slug: "ab12c" }),
-        testListingWithCount({ id: 2, name: "Listing B", slug: "cd34e" }),
-      ],
-      "Multi-booking link",
-      "Listing A",
-      "Listing B",
-    );
-  });
-
-  test("does not count inactive listings toward threshold", () => {
-    expectNoMultiBookingLink([
-      testListingWithCount({ active: true, id: 1, slug: "ab12c" }),
-      testListingWithCount({ active: false, id: 2, slug: "cd34e" }),
-    ]);
-  });
-
-  test("excludes inactive listings from checkboxes", () => {
-    const html = renderDashboard(
-      [
-        testListingWithCount({
-          active: true,
-          id: 1,
-          name: "Active One",
-          slug: "ab12c",
-        }),
-        testListingWithCount({
-          active: false,
-          id: 2,
-          name: "Inactive",
-          slug: "cd34e",
-        }),
-        testListingWithCount({
-          active: true,
-          id: 3,
-          name: "Active Two",
-          slug: "ef56g",
-        }),
-      ],
-      "Active One",
-      "Active Two",
-    );
-    expect(html).not.toContain('data-multi-booking-slug="cd34e"');
-  });
-
-  test("excludes listings without standalone pages from checkboxes", () => {
-    const html = adminDashboardPage(
-      [
-        testListingWithCount({
-          active: true,
-          id: 1,
-          name: "Open",
-          slug: "ab12c",
-        }),
-        testListingWithCount({
-          active: true,
-          id: 2,
-          name: "Hidden Member",
-          slug: "cd34e",
-        }),
-        testListingWithCount({
-          active: true,
-          id: 3,
-          name: "Other",
-          slug: "ef56g",
-        }),
-      ],
-      OWNER_SESSION,
-      undefined,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      "all",
-      [],
-      new Set<number>([2]),
-    );
-    expect(html).toContain('data-multi-booking-slug="ab12c"');
-    expect(html).toContain('data-multi-booking-slug="ef56g"');
-    expect(html).not.toContain('data-multi-booking-slug="cd34e"');
-  });
-
-  test("renders checkboxes with slug data attributes", () => {
-    renderDashboard(
-      twoListings,
-      'data-multi-booking-slug="ab12c"',
-      'data-multi-booking-slug="cd34e"',
-    );
-  });
-
-  test("renders URL input with domain data attribute", () => {
-    renderDashboard(
-      twoListings,
-      'data-domain="localhost"',
-      "data-multi-booking-url",
-      "readonly",
-      'for="multi-booking-url"',
-      'id="multi-booking-url"',
-    );
-  });
-
-  test("is collapsed by default via details element", () => {
-    renderDashboard(twoListings, "<details>", "<summary>");
-  });
-
-  test("renders embed code inputs", () => {
-    renderDashboard(
-      twoListingsWithFields,
-      "data-multi-booking-embed-script",
-      "data-multi-booking-embed-iframe",
-      'for="multi-booking-embed-script"',
-      'for="multi-booking-embed-iframe"',
-      'id="multi-booking-embed-script"',
-      'id="multi-booking-embed-iframe"',
-    );
-  });
-
-  test("checkboxes include data-fields attribute for embed code generation", () => {
-    renderDashboard(
-      twoListingsWithFields,
-      'data-fields="email"',
-      'data-fields="email,phone"',
-    );
-  });
-});
-
 describe("adminDashboardPage type filter", () => {
   beforeAll(setupAdminPageTest);
 
@@ -551,8 +396,7 @@ describe("adminDashboardPage type filter", () => {
   });
 
   test("filters the listing table to the active type", () => {
-    // Standard is inactive so the multi-booking builder (active listings only)
-    // doesn't render and the only place its name could appear is the table.
+    // Standard is inactive, so it never reaches the active-only table.
     const standardInactive = testListingWithCount({
       active: false,
       id: 1,
@@ -575,24 +419,6 @@ describe("adminDashboardPage type filter", () => {
     expect(html).toContain("<strong><u>Daily</u></strong>");
     // The "All" option links back to the unfiltered dashboard.
     expect(html).toContain('<a href="/admin/">All</a>');
-  });
-
-  test("keeps the multi-booking builder based on every active listing", () => {
-    // Filtering the table to one type must not drop the others from the
-    // multi-booking builder, which reflects all active listings.
-    const html = adminDashboardPage(
-      [standard, daily],
-      OWNER_SESSION,
-      undefined,
-      [],
-      undefined,
-      null,
-      undefined,
-      "daily",
-    );
-    expect(html).toContain("Multi-booking link");
-    expect(html).toContain('data-multi-booking-slug="std01"');
-    expect(html).toContain('data-multi-booking-slug="day01"');
   });
 
   test("does not show a CSV export footer (the dashboard table is active-only)", () => {

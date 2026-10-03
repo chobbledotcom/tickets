@@ -31,7 +31,6 @@ export const listingsSections = (): GuideSection[] => [
   {
     entries: [
       faq("standard_vs_daily_listings"),
-      faq("combine_multiple_listings"),
       faq("what_are_groups"),
       faq("listing_in_multiple_groups"),
       faq("what_are_add_ons"),
@@ -135,7 +134,7 @@ export const listingsSections = (): GuideSection[] => [
     titleKey: "booking_questions",
   },
   {
-    entries: [faq("facebook_403_error")],
+    entries: [faq("combine_multiple_listings"), faq("facebook_403_error")],
     titleKey: "public_links",
   },
   {

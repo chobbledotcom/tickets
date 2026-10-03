@@ -115,19 +115,13 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
-      // A non-standalone child has no own booking page. A `bookable_alone`
-      // child stays available here.
-      const listingIds = sortedListings.map((l) => l.id);
       const activeListings = filter(
         (listing: ListingWithCount) => listing.active,
       )(sortedListings);
-      const [childIds, upcomingServicingEvents, attributeContext] =
-        await Promise.all([
-          getNonStandaloneChildIds(listingIds),
-          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-          loadListingAttributeFilterContext(request, activeListings),
-        ]);
-      const unbookableIds = childIds;
+      const [upcomingServicingEvents, attributeContext] = await Promise.all([
+        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+        loadListingAttributeFilterContext(request, activeListings),
+      ]);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -139,7 +133,6 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           settings.listingColumnLayout,
           activeType,
           holidays,
-          unbookableIds,
           upcomingServicingEvents,
           attributeContext,
         ),
@@ -154,13 +147,20 @@ const handleAdminGet = (request: Request): Promise<Response> =>
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
   contentPage(async (session, request) => {
     const { listings } = await loadSortedListings();
+    // The multi-booking builder offers only listings with a standalone
+    // booking page. A `bookable_alone` child keeps its own page, so it stays.
+    const [attributeContext, unbookableIds] = await Promise.all([
+      loadListingAttributeFilterContext(request, listings),
+      getNonStandaloneChildIds(listings.map((listing) => listing.id)),
+    ]);
     return adminListingsPage(
       listings,
       session,
       session.adminLevel === "editor"
         ? undefined
         : settings.listingColumnLayout,
-      await loadListingAttributeFilterContext(request, listings),
+      attributeContext,
+      unbookableIds,
     );
   });
 
