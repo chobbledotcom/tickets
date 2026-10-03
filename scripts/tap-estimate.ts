@@ -38,9 +38,12 @@ const hasFlag =
 
 export const hasReporterArg = hasFlag("--reporter");
 
-/** Whether the run selects a subset of each file's tests, which makes a
- *  declaration count name tests the run never meant to report. */
-export const hasFilterArg = hasFlag("--filter");
+/** Whether the run will not report every declaration its files carry: it
+ *  selects a subset of tests (--filter) or stops at the first failure
+ *  (--fail-fast). A declaration count would then name tests the run never
+ *  meant to report. */
+export const skipsDeclaredTests = (args: string[]): boolean =>
+  hasFlag("--filter")(args) || hasFlag("--fail-fast")(args);
 
 const collectFileArgs = (args: string[]): string[] => {
   const files: string[] = [];

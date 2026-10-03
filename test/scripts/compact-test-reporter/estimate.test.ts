@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { estimateTapEventCount, hasFilterArg } from "#scripts/tap-estimate.ts";
+import {
+  estimateTapEventCount,
+  skipsDeclaredTests,
+} from "#scripts/tap-estimate.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 /**
@@ -137,11 +140,14 @@ describe("estimating how many tests a run will report", () => {
     expect(await estimate(["", "b.test.ts"])).toBe(1);
   });
 
-  test("hasFilterArg detects both Deno filter flag forms", () => {
-    expect(hasFilterArg(["test/"])).toBe(false);
-    expect(hasFilterArg(["--filter"])).toBe(true);
-    expect(hasFilterArg(["--filter", "name", "test/"])).toBe(true);
-    expect(hasFilterArg(["--filter=name", "test/"])).toBe(true);
+  test("skipsDeclaredTests detects filter and fail-fast in both forms", () => {
+    expect(skipsDeclaredTests(["test/"])).toBe(false);
+    expect(skipsDeclaredTests(["--filter"])).toBe(true);
+    expect(skipsDeclaredTests(["--filter", "name", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--filter=name", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--fail-fast", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--fail-fast=2", "test/"])).toBe(true);
+    expect(skipsDeclaredTests(["--quiet", "test/"])).toBe(false);
   });
 
   test("skips a path that stats as neither file nor directory", async () => {

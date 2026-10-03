@@ -22,8 +22,9 @@ import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
 /* jscpd:ignore-end */
 
 /**
- * SumUp. Sandbox vs live is inferred from the API key itself, and no webhook
- * signature is required (the app re-fetches the checkout to confirm). Payment
+ * SumUp. A key names no mode — every key starts `sup_sk_`, and the merchant
+ * account behind it decides sandbox versus live — and no webhook signature is
+ * required (the app re-fetches the checkout to confirm). Payment
  * confirmation flows through the browser return URL; the callback path is
  * then exercised deterministically by self-delivering the staged checkout's
  * own callback (see sumup-callback.ts).
