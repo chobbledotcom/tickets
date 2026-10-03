@@ -240,6 +240,45 @@ describe("buildCartCapacitySql", () => {
     expect(sql.match(/VALUES/gu)).toHaveLength(1);
   });
 
+  test("listings sharing dates bind each day range once, under the variable cap", () => {
+    // 182 daily listings each staying the same 90 days used to bind
+    // 182 x (1 + 90 x 2) = 32,942 variables — past SQLite's 32,766 default
+    // variable cap, so the refused order threw a bind error instead of
+    // answering with the plain capacity refusal.
+    const days = Array.from({ length: 90 }, (_, day) =>
+      new Date(Date.UTC(2026, 4, 1 + day)).toISOString().slice(0, 10),
+    );
+    const listings = new Map(
+      Array.from({ length: 182 }, (_, index) => [
+        1000 + index,
+        bucket(
+          days.map((day) => [day, QTY]),
+          0,
+        ),
+      ]),
+    );
+    const { args, sql } = buildCartCapacitySql(demandWith(listings));
+
+    // 90 shared day ranges bind once each, beside one bind per listing id.
+    expect(args).toHaveLength(90 * 2 + 182);
+    // Every listing keeps its own clause, so the verdict still covers them all.
+    expect(occurrences(flatSql(sql), "NOT EXISTS")).toBe(182);
+    expect([...listings.keys()].every((id) => args.includes(id))).toBe(true);
+  });
+
+  test("distinct day ranges still bind one pair each", () => {
+    const other = dateToRange("2026-05-02");
+    const { args } = buildCartCapacitySql(
+      demandWith(
+        new Map([
+          [1, bucket([[DAY, QTY]], 0)],
+          [2, bucket([["2026-05-02", QTY]], 0)],
+        ]),
+      ),
+    );
+    expect(args).toEqual([1, startAt, endAt, 2, other.startAt, other.endAt]);
+  });
+
   test("date-less-only group demand emits a single total clause", () => {
     const { args, sql } = buildCartCapacitySql({
       groupDemand: new Map([[9, bucket([], 3)]]),
