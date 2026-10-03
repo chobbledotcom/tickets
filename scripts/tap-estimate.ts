@@ -30,8 +30,17 @@ const TEST_OBJECT_DECLARATION_RE =
   /(^|[^\w$.])(?:Deno\.test|describe|it|test)\s*\{/g;
 const TEST_STEP_RE = /\.\s*step\s*\(/g;
 
-export const hasReporterArg = (args: string[]): boolean =>
-  args.some((arg) => arg === "--reporter" || arg.startsWith("--reporter="));
+/** Whether args carry the flag in either Deno form: `--flag` or `--flag=value`. */
+const hasFlag =
+  (flag: string) =>
+  (args: string[]): boolean =>
+    args.some((arg) => arg === flag || arg.startsWith(`${flag}=`));
+
+export const hasReporterArg = hasFlag("--reporter");
+
+/** Whether the run selects a subset of each file's tests, which makes a
+ *  declaration count name tests the run never meant to report. */
+export const hasFilterArg = hasFlag("--filter");
 
 const collectFileArgs = (args: string[]): string[] => {
   const files: string[] = [];

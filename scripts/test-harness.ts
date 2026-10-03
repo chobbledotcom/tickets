@@ -27,7 +27,11 @@ import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
 import type { StaticAssetBuild } from "./static-assets/session.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
-import { estimateTapEventCount, hasReporterArg } from "./tap-estimate.ts";
+import {
+  estimateTapEventCount,
+  hasFilterArg,
+  hasReporterArg,
+} from "./tap-estimate.ts";
 import { JUNIT_PATH } from "./test-durations.ts";
 import { withEnvironment } from "./test-environment.ts";
 
@@ -100,10 +104,11 @@ export const runTests = async (
   if (useCoverage) await removeOldCoverageOutput();
 
   if (!hasReporterArg(extraArgs)) {
-    const estimatedTotal = await estimateTapEventCount(
-      projectRoot,
-      estimateFrom ?? extraArgs,
-    );
+    // A filtered run reports a subset of each file's tests, so the
+    // declaration count would name tests the run never meant to report.
+    const estimatedTotal = hasFilterArg(extraArgs)
+      ? undefined
+      : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
     return await runCompactDenoTest(
       buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
       {

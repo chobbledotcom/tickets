@@ -79,20 +79,46 @@ describe("printing the run summary", () => {
 
     expect(errors).toEqual([
       "\nFAILED 3 passed, 0 failed",
-      "\nA test worker probably died, and the tests it still held did not report.",
+      "\nThe run exited with an error, but no test failed.",
+      "A test worker can die before its tests report.",
       "The last result shown was: the last result",
       "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
     ]);
   });
 
   test("says no result was shown when the worker died before one", async () => {
-    const { errors } = await printed(summary({ fileEstimate: 3 }), 1, "");
+    const { errors } = await printed(
+      summary({ fileEstimate: 3, passed: 0 }),
+      1,
+      "",
+    );
 
     expect(errors).toEqual([
-      "\nFAILED 3 passed, 0 failed",
+      "\nFAILED 0 passed, 0 failed",
       "\nA test worker probably died, and the tests it still held did not report.",
+      "3 of the 3 expected tests did not report.",
       "The last result shown was: (none)",
       "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    ]);
+  });
+
+  test("reports the shortfall beside the counted failures", async () => {
+    const { errors } = await printed(
+      summary({
+        failed: 2,
+        failures: [{ message: "boom", name: "only" }],
+        fileEstimate: 8,
+        passed: 3,
+      }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 3 passed, 2 failed",
+      "\n3 of the 8 expected tests did not report.",
+      "\nFailed tests:",
+      "  unknown location - only",
     ]);
   });
 
@@ -119,7 +145,8 @@ describe("printing the run summary", () => {
 
     expect(errors).toEqual([
       "\nFAILED 3 passed, 0 failed",
-      "\nA test worker probably died, and the tests it still held did not report.",
+      "\nThe run exited with an error, but no test failed.",
+      "A test worker can die before its tests report.",
       "The last result shown was: (none)",
       "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
     ]);

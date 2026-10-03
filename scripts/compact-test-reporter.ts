@@ -3,21 +3,16 @@ import { fileURLToPath } from "node:url";
 import { stripAnsi } from "./ansi.ts";
 import { toDisplayPath } from "./project-root.ts";
 import { readStream } from "./stream-lines.ts";
+import {
+  isStepFailureDiagnostic,
+  parseTapDiagnosticBlock,
+  type TapDiagnostic,
+} from "./tap-diagnostics.ts";
 
 type Location = {
   file: string;
   line?: number | undefined;
   column?: number | undefined;
-};
-
-type TapDiagnostic = {
-  message?: string;
-  severity?: string;
-  at?: {
-    file?: string;
-    line?: number;
-    column?: number;
-  };
 };
 
 type PendingFailure = {
@@ -53,135 +48,8 @@ type CompactTapReporterOptions = {
 const PROGRESS_WIDTH = 24;
 const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
 const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
-const STEP_FAILURE_RE = /^\d+\s+test\s+steps?\s+failed\.$/;
 const stripTapDirective = (name: string): string =>
   name.replace(/\s+#\s+(?:SKIP|TODO)\b.*$/i, "").trim();
-
-const leadingWhitespaceLength = (line: string): number =>
-  line.match(/^\s*/)?.[0].length ?? 0;
-
-const stripCommonIndent = (lines: string[]): string => {
-  const indents = lines
-    .filter((line) => line.trim().length > 0)
-    .map(leadingWhitespaceLength);
-  const indent = indents.length > 0 ? Math.min(...indents) : 0;
-  return lines.map((line) => line.slice(indent)).join("\n");
-};
-
-const parseYamlScalar = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return trimmed.slice(1, -1);
-    }
-  }
-  return trimmed;
-};
-
-const readYamlBlockScalar = (
-  lines: string[],
-  startIndex: number,
-  baseIndent: number,
-): string => {
-  const block: string[] = [];
-  for (const line of lines.slice(startIndex + 1)) {
-    const indent = leadingWhitespaceLength(line);
-    if (line.trim() && indent <= baseIndent && /^\w[\w-]*:/.test(line.trim())) {
-      break;
-    }
-    block.push(line);
-  }
-  return stripCommonIndent(block).trimEnd();
-};
-
-const parseYamlMessage = (lines: string[]): string | undefined => {
-  for (let index = 0; index < lines.length; index++) {
-    const match = lines[index]?.match(/^(\s*)message:\s*(.*)$/);
-    if (!match) continue;
-    const value = match[2]?.trim() ?? "";
-    const baseIndent = (match[1] ?? "").length;
-    return value.startsWith("|") || value.startsWith(">")
-      ? readYamlBlockScalar(lines, index, baseIndent)
-      : parseYamlScalar(value);
-  }
-  return;
-};
-
-type AtFieldAssign = (
-  at: NonNullable<TapDiagnostic["at"]>,
-  value: string,
-) => void;
-
-const AT_FIELD_ASSIGNERS: Record<string, AtFieldAssign | undefined> = {
-  column: (at, value) => {
-    at.column = Number(value);
-  },
-  file: (at, value) => {
-    at.file = value;
-  },
-  line: (at, value) => {
-    at.line = Number(value);
-  },
-};
-
-const assignAtField = (
-  at: NonNullable<TapDiagnostic["at"]>,
-  key: string,
-  value: string,
-): void => {
-  AT_FIELD_ASSIGNERS[key]?.(at, value);
-};
-
-const parseYamlAt = (lines: string[]): TapDiagnostic["at"] | undefined => {
-  const atIndex = lines.findIndex((line) => /^(\s*)at:\s*$/.test(line));
-  if (atIndex === -1) return;
-
-  const atIndent = leadingWhitespaceLength(lines[atIndex] ?? "");
-  const at: NonNullable<TapDiagnostic["at"]> = {};
-  for (const line of lines.slice(atIndex + 1)) {
-    if (line.trim() && leadingWhitespaceLength(line) <= atIndent) break;
-    const match = line.match(/^\s*(file|line|column):\s*(.*)$/);
-    if (!match) continue;
-    assignAtField(at, match[1] ?? "", parseYamlScalar(match[2] ?? ""));
-  }
-  return at;
-};
-
-const parseYamlTapDiagnostic = (text: string): TapDiagnostic | undefined => {
-  const lines = text.split(/\r?\n/);
-  const diagnostic: TapDiagnostic = {};
-
-  const message = parseYamlMessage(lines);
-  if (message !== undefined) diagnostic.message = message;
-
-  const at = parseYamlAt(lines);
-  if (at !== undefined) diagnostic.at = at;
-
-  return diagnostic.message || diagnostic.at ? diagnostic : undefined;
-};
-
-const parseTapDiagnosticBlock = (lines: string[]): TapDiagnostic => {
-  const text = stripCommonIndent(lines).trimEnd();
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return { message: "No TAP diagnostic was emitted for this failure." };
-  }
-
-  try {
-    return JSON.parse(trimmed) as TapDiagnostic;
-  } catch {
-    return parseYamlTapDiagnostic(text) ?? { message: text };
-  }
-};
-
-const isStepFailureDiagnostic = (diagnostic: TapDiagnostic): boolean =>
-  STEP_FAILURE_RE.test((diagnostic.message ?? "").trim());
 
 const formatLocation = (location?: Location): string =>
   location
@@ -410,7 +278,11 @@ export const printCompactSummary = (
   stderrText: string,
 ): void => {
   const extra = usefulStderr(stderrText);
+  const missing = summary.fileEstimate - summary.passed - summary.failed;
 
+  // The declaration count runs both sides of the real result count (it reads
+  // fixture strings as declarations and misses loop-generated tests), so it
+  // cannot prove a loss on a run the test runner itself called successful.
   if (summary.failed === 0 && exitCode === 0) {
     console.log(`\nPASS ${summary.passed} passed`);
     return;
@@ -418,25 +290,31 @@ export const printCompactSummary = (
 
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
 
-  // Zero counted failures on a non-zero exit, with nothing reported on
-  // stderr, means a worker died and the tests it still held never reported;
-  // a load error would stand on stderr instead. The TAP stream names no
-  // worker, so the last result is the closest marker the output holds.
   if (summary.failed === 0 && extra === "") {
-    console.error(
-      "\nA test worker probably died, and the tests it still held did not report.",
-    );
-    const missing = summary.fileEstimate - summary.passed - summary.failed;
+    // Zero counted failures on a non-zero exit, with nothing reported on
+    // stderr, is the shape a dead worker leaves; a load error would stand
+    // on stderr instead. The TAP stream names no worker, so the last
+    // result is the closest marker the output holds.
     if (missing > 0) {
+      console.error(
+        "\nA test worker probably died, and the tests it still held did not report.",
+      );
       console.error(
         `${missing} of the ${summary.fileEstimate} expected tests did not report.`,
       );
+    } else {
+      console.error("\nThe run exited with an error, but no test failed.");
+      console.error("A test worker can die before its tests report.");
     }
     const last =
       summary.lastResultName === undefined ? "(none)" : summary.lastResultName;
     console.error(`The last result shown was: ${last}`);
     console.error(
       "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
+    );
+  } else if (missing > 0) {
+    console.error(
+      `\n${missing} of the ${summary.fileEstimate} expected tests did not report.`,
     );
   }
 

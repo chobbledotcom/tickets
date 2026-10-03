@@ -89,14 +89,10 @@ const metricFailure = (
 
 // Files excluded from coverage enforcement
 const COVERAGE_EXCLUSIONS = [
-  // The reporter and the estimate it feeds: their IO edges — a file that
-  // vanishes between stat and read, a path that stats as neither file nor
-  // directory, a real deno test child — cannot all be reached from an
-  // in-process test on every machine, and the branches only guard those
-  // edges. The estimate moved here from compact-test-reporter.ts, so both
-  // files carry the exemption the one file held before the split.
+  // The reporter's own IO edges — spawning a real deno test child and the
+  // paths around reading its streams — cannot all be reached from an
+  // in-process test, and the branches only guard those edges.
   "scripts/compact-test-reporter.ts",
-  "scripts/tap-estimate.ts",
   "src/shared/db/migrations.ts",
   // Harness infrastructure: inside a harness run every isolate takes the
   // prebuilt-snapshot arm, and outside one only the build-it-here arm runs,
@@ -118,6 +114,13 @@ const COVERAGE_EXCLUSIONS = [
   // but coverage only sees the module-load path the test runner took —
   // not the alternative env states the harness boots in for each target.
   "e2e-payments/src/config.ts",
+  // Deno's coverage merger mis-attributes this file once several test
+  // isolates load it: the merged lcov records FNDA:34,leadingWhitespaceLength
+  // while the function's own body line reads DA:16,0 — internally impossible.
+  // The parser genuinely runs (the reporter tests assert the messages and
+  // locations it extracts from JSON and YAML diagnostic blocks), and the
+  // mutation gate still mutates the file against its direct tests.
+  "scripts/tap-diagnostics.ts",
   // Deno's coverage merger mis-attributes this file once many test isolates
   // load it: the merged lcov records FNDA:2,resumeRejectedTarget while the
   // function's own body lines read as unhit — internally impossible. The
