@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import { execute, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { listingSaveOrphanedAddOnTx } from "#shared/listings-actions.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -195,25 +197,22 @@ describeWithEnv(
       expect(await listingGroups.getIds(child.id)).toEqual([]);
     });
 
-    test("validateListingInput rejects an orphaning group change with an omitted groupId", async () => {
-      // The admin JSON API may omit group_id; validateListingInput then sees
-      // groupId undefined and defaults the would-be group to 0 (no group). A
-      // parent whose group-scoped add-on only resolves to it via its group is
-      // orphaned by dropping to no group, so the (defaulted) check still blocks.
-      const { validateListingInput } = await import(
-        "#shared/listings-actions.ts"
-      );
-      const { listingsTable } = await import("#db/listings/records.ts");
+    test("the save guard rejects an orphaning group change with an omitted groupId", async () => {
+      // The admin JSON API may omit group_id; the would-be group then defaults
+      // to 0 (no group). A parent whose group-scoped add-on only resolves to it
+      // via its group is orphaned by dropping to no group, so the (defaulted)
+      // check still blocks — inside the row write's transaction, as the save
+      // runs it.
       const { parent, child } = await groupScopedAddOn();
       await postChildren(parent.id, [child.id]);
 
       const row = (await getListingWithCount(parent.id))!;
-      // Omit groupIds entirely (undefined) — validateListingInput defaults it to
+      // Omit groupIds entirely (undefined) — the would-be group defaults to
       // "no groups", which still orphans the group-scoped add-on.
-      const input = listingsTable.rowToInput(row, [
-        "created",
-      ]) as import("#shared/catalog-fields/fields.ts").ListingInput;
-      const error = await validateListingInput(input, parent.id);
+      const input = listingsTable.rowToInput(row, ["created"]) as ListingInput;
+      const error = await withTransaction((tx) =>
+        listingSaveOrphanedAddOnTx(tx, parent.id, input),
+      );
       expect(error).toContain("Group extra");
     });
 
