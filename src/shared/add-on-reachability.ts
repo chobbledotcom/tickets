@@ -100,9 +100,6 @@ const wouldBeReachabilityBase = async (
  * their reachability computation can't drift. A pre-built `base` carries the
  * group move and the reads behind it, so the caller's walk reuses them; the
  * override then only adds what the base cannot know (an active-flag change).
- * The optional transaction keeps every read of the walk inside the caller's
- * write transaction, so the second of two concurrent page-removing writes sees
- * the first one's rows and refuses.
  */
 export const orphanedAddOnOverWouldBe = async (
   override: ListingOverride,
