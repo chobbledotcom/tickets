@@ -10,9 +10,8 @@
 
 import * as v from "valibot";
 import { consoleOutput } from "./check-report.ts";
-import { recordedState, updateMode } from "./check-runner.ts";
+import { ratchetedState, registryPath } from "./check-runner.ts";
 import {
-  baselineRose,
   freshBaseline,
   MARKDOWN_ROOTS,
   readDocuments,
@@ -20,25 +19,16 @@ import {
 } from "./check-ste/run.ts";
 import { readJsonOrThrow } from "./read-json.ts";
 
-const RECORDS_PATH = new URL("./check-ste/records.json", import.meta.url)
-  .pathname;
-const BASELINE_PATH = new URL("./check-ste/baseline.json", import.meta.url)
-  .pathname;
-
 const documents = await readDocuments(".", MARKDOWN_ROOTS);
 const records = await readJsonOrThrow(
-  RECORDS_PATH,
+  registryPath(import.meta.url, "./check-ste/records.json"),
   v.record(v.string(), v.string()),
 );
-const baseline = await recordedState(
-  BASELINE_PATH,
-  updateMode(Deno.args),
-  await readJsonOrThrow(
-    BASELINE_PATH,
-    v.record(v.string(), v.record(v.string(), v.number())),
-  ),
+const baseline = await ratchetedState(
+  import.meta.url,
+  "./check-ste/baseline.json",
+  Deno.args,
   () => freshBaseline(documents, records),
-  baselineRose,
 );
 
 Deno.exit(runSteCheck(documents, records, baseline, consoleOutput));

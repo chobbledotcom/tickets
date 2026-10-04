@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { countsRose } from "#scripts/check-runner.ts";
 import { findIssues } from "#scripts/check-ste/rules.ts";
-import { baselineRose, freshEntry } from "#scripts/check-ste/run.ts";
+import { freshEntry } from "#scripts/check-ste/run.ts";
 
 describe("STE Markdown block contract", () => {
   test("finds phrases across soft wraps at their source line", () => {
@@ -120,11 +121,9 @@ describe("STE Markdown block contract", () => {
       freshEntry('It should\nuse `long code` and "another long example" now.'),
     ).toEqual(before);
     expect(
-      baselineRose(
-        { "a.md": before },
-        {
-          "a.md": freshEntry('It should use `x` and "bad example" elsewhere.'),
-        },
+      countsRose(
+        before,
+        freshEntry('It should use `x` and "bad example" elsewhere.'),
       ),
     ).toBe(true);
   });
@@ -145,9 +144,9 @@ describe("STE Markdown block contract", () => {
 
   test("does not transfer a code allowance to literal placeholder prose", () => {
     const recorded = { "a.md": freshEntry("It should use `value`.") };
-    expect(
-      baselineRose(recorded, { "a.md": freshEntry("It should use %.") }),
-    ).toBe(true);
+    expect(countsRose(recorded["a.md"]!, freshEntry("It should use %."))).toBe(
+      true,
+    );
   });
 
   test("keeps source columns after nested markup and exempt spans", () => {

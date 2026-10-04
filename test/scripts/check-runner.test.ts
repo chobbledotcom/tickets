@@ -7,7 +7,10 @@ import {
   runFileLengthCheck,
 } from "#scripts/check-file-lengths/run.ts";
 import {
+  type Counts,
+  compareCounts,
   countsRose,
+  ratchetedState,
   readCounts,
   recordedState,
   updateMode,
@@ -43,6 +46,13 @@ describe("reading the counts a check ratchets on", () => {
   test("fails loudly for counts of the wrong shape", async () => {
     const path = writeCounts('{ "a.md": "two" }');
     await expect(readCounts(path)).rejects.toThrow();
+  });
+
+  test("fails loudly for a negative or fractional count", async () => {
+    const negative = writeCounts('{ "a.md": -1 }');
+    await expect(readCounts(negative)).rejects.toThrow();
+    const fractional = writeCounts('{ "a.md": 1.5 }');
+    await expect(readCounts(fractional)).rejects.toThrow();
   });
 });
 
@@ -239,6 +249,56 @@ describe("the record step of a ratchet", () => {
     expect(countsRose({ "a.md": 2 }, {})).toBe(false);
   });
 
+  test("compareCounts reports only the findings past their recorded count", () => {
+    const findings = [
+      { fix: "f", line: 1, problem: "one", rule: "r" },
+      { fix: "f", line: 2, problem: "two", rule: "r" },
+      { fix: "f", line: 3, problem: "three", rule: "s" },
+    ];
+    const input = {
+      current: { r: 2, s: 1 },
+      file: "a.md",
+      findings,
+      keyOf: (finding: { rule: string }) => finding.rule,
+      recorded: { r: 1 } as Counts,
+      updateCommand: "deno task check --update",
+      whereOf: (finding: { line: number }) => `a.md:${finding.line}`,
+    };
+
+    // The rule was allowed one and seen twice: one excess finding reports.
+    // The key that was never recorded starts at zero, so its finding rises.
+    // A key whose count held or fell never reports, even when another key
+    // rose.
+    expect(
+      compareCounts({
+        ...input,
+        current: { r: 2, s: 1, y: 0 },
+        findings: [
+          ...findings,
+          { fix: "f", line: 5, problem: "gone", rule: "x" },
+          { fix: "f", line: 7, problem: "held", rule: "y" },
+        ],
+        recorded: { r: 1, x: 2, y: 0 } as Counts,
+      }),
+    ).toEqual(["a.md:1 [r]: one — f", "a.md:3 [s]: three — f"]);
+    // A held count is quiet.
+    expect(compareCounts({ ...input, current: { r: 1, s: 0 } })).toEqual([]);
+    // A fallen count asks for the step to be recorded.
+    expect(compareCounts({ ...input, current: {} })).toEqual([
+      "a.md [improved]: fewer findings than recorded (none) — run `deno task check --update` to record the step",
+    ]);
+    // A fall with keys still held names what the records keep.
+    expect(
+      compareCounts({
+        ...input,
+        current: { r: 1, s: 1 },
+        recorded: { r: 1, s: 2 } as Counts,
+      }),
+    ).toEqual([
+      "a.md [improved]: fewer findings than recorded (r: 1, s: 1) — run `deno task check --update` to record the step",
+    ]);
+  });
+
   test("updateMode reads the recording flag off the command line", () => {
     expect(updateMode([])).toEqual({ update: false });
     expect(updateMode(["--update"])).toEqual({ update: true });
@@ -303,5 +363,71 @@ describe("the record step of a ratchet", () => {
       "The --seed flag is gone. A registry only falls.",
     );
     expect(JSON.parse(Deno.readTextFileSync(path))).toEqual({ "a.md": 2 });
+  });
+
+  test("ratchetedState wires the read, the mode, and the rose together", async () => {
+    // The registry lives beside the calling module, at `relative`.
+    const moduleUrl = `file://${dir.path}/entry.ts`;
+    const path = `${dir.path}/baseline.json`;
+    counted(path, { "a.md": { ";": 2 } });
+
+    expect(
+      await ratchetedState(moduleUrl, "./baseline.json", [], () =>
+        Promise.resolve({ "a.md": { ";": 2 } }),
+      ),
+    ).toEqual({ "a.md": { ";": 2 } });
+    // A fall records; a rise refuses and keeps the recorded state. A file
+    // the records never held is a rise too.
+    expect(
+      await ratchetedState(moduleUrl, "./baseline.json", ["--update"], () =>
+        Promise.resolve({ "a.md": { ";": 1 } }),
+      ),
+    ).toEqual({ "a.md": { ";": 1 } });
+    expect(
+      await ratchetedState(moduleUrl, "./baseline.json", ["--update"], () =>
+        Promise.resolve({ "a.md": { ";": 5 } }),
+      ),
+    ).toEqual({ "a.md": { ";": 1 } });
+    expect(
+      await ratchetedState(moduleUrl, "./baseline.json", ["--update"], () =>
+        Promise.resolve({ "a.md": { ";": 1 }, "new.md": { ";": 2 } }),
+      ),
+    ).toEqual({ "a.md": { ";": 1 } });
+    expect(JSON.parse(Deno.readTextFileSync(path))).toEqual({
+      "a.md": { ";": 1 },
+    });
+  });
+
+  test("ratchetedState fails loudly when the registry is missing", async () => {
+    const moduleUrl = `file://${dir.path}/entry.ts`;
+    await expect(
+      ratchetedState(moduleUrl, "./absent.json", [], () =>
+        Promise.resolve({ "a.md": { ";": 1 } }),
+      ),
+    ).rejects.toThrow("Cannot read the JSON at");
+  });
+
+  test("ratchetedState fails loudly for a malformed registry count", async () => {
+    const moduleUrl = `file://${dir.path}/entry.ts`;
+    const path = `${dir.path}/baseline.json`;
+    counted(path, { "a.md": { ";": -1 } });
+    await expect(
+      ratchetedState(moduleUrl, "./baseline.json", [], () =>
+        Promise.resolve({ "a.md": { ";": 1 } }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  test("a registry beside a module in a spaced directory is found", async () => {
+    const spaced = `${dir.path}/check out`;
+    Deno.mkdirSync(spaced);
+    const moduleUrl = `file://${spaced}/entry.ts`;
+    const path = `${spaced}/baseline.json`;
+    counted(path, { "a.md": { ";": 1 } });
+    expect(
+      await ratchetedState(moduleUrl, "./baseline.json", [], () =>
+        Promise.resolve({ "a.md": { ";": 1 } }),
+      ),
+    ).toEqual({ "a.md": { ";": 1 } });
   });
 });
