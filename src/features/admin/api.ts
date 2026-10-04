@@ -25,10 +25,10 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
+import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   deleteOrphanedAddOnError,
-  listingSaveOrphanedAddOnTx,
   performListingDelete,
   toggleListingActive,
   validateListingInput,

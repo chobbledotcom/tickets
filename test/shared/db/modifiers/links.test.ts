@@ -161,18 +161,23 @@ describeWithEnv("db modifier links", { db: true }, () => {
       await setListingGroups(one.id, [11]);
       await setListingGroups(two.id, [11, 12]);
 
-      expect(await getModifierGroupListingIdsByModifierId([5, 9])).toEqual(
-        new Map([
-          [5, [one.id, two.id, two.id]],
-          [9, []],
-        ]),
-      );
+      // The lookup's row order is not part of its contract, so compare sorted.
+      const ids = await getModifierGroupListingIdsByModifierId([5, 9]);
+      expect([...ids.get(5)!].sort((a, b) => a - b)).toEqual([
+        one.id,
+        two.id,
+        two.id,
+      ]);
+      expect(ids.get(9)).toEqual([]);
 
       // The transaction variant reads the same rows through the caller's tx.
       await withTransaction(async (tx) => {
-        expect(await getModifierGroupListingIdsByModifierId([5], tx)).toEqual(
-          new Map([[5, [one.id, two.id, two.id]]]),
-        );
+        const txIds = await getModifierGroupListingIdsByModifierId([5], tx);
+        expect([...txIds.get(5)!].sort((a, b) => a - b)).toEqual([
+          one.id,
+          two.id,
+          two.id,
+        ]);
       });
     });
 

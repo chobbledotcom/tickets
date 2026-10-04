@@ -24,6 +24,7 @@ import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { range } from "#fp";
 import { formDataToParams } from "#routes/csrf.ts";
+import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type ListingInput,
@@ -40,7 +41,6 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import {
   generateUniqueListingSlug,
-  listingSaveOrphanedAddOnTx,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";

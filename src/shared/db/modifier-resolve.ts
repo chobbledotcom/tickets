@@ -61,7 +61,7 @@ type ListingScopes = Map<number, number[] | null>;
 
 /** The active opt-in add-on modifiers plus each one's resolved listing scopes —
  * the shared starting point for the add-on and child-reachability checks. */
-type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
+export type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
 
 /** Batched listing scopes for modifiers: null = whole order, array = scoped.
  * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing

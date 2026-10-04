@@ -29,7 +29,10 @@ import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { childOnlyAddOnNameForListings } from "#shared/add-on-reachability.ts";
+import {
+  childOnlyAddOnNameForListings,
+  resolveWouldBeAddOns,
+} from "#shared/add-on-reachability.ts";
 import {
   childAddOnError,
   type EdgeListing,
@@ -193,8 +196,10 @@ const childOnlyAddOnResolver = async (
   const allListings: ListingGroupMembership[] = hasParent
     ? base
     : [...base, { groupIds: options.wouldBeGroupIds, id: parent.id }];
-  return (childId, pageIds) =>
-    childOnlyAddOnNameForListings(childId, pageIds, allListings);
+  // The would-be scopes resolve once per save, not once per child edge.
+  const addOns = await resolveWouldBeAddOns(allListings);
+  return async (childId, pageIds) =>
+    childOnlyAddOnNameForListings(childId, pageIds, addOns);
 };
 
 /**

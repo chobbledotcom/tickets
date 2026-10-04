@@ -60,7 +60,8 @@ export type AfterWriteHook<Input, State = never> = (
 /** A guard run inside the row write's transaction, before the row statement,
  * so its reads see the committed rows the write is about to change. A returned
  * message refuses the write and rolls the transaction back. Update only —
- * creates skip it. */
+ * creates skip it. Its presence forces the write onto the transactional path
+ * even when the resource has no join writes. */
 export type CheckTxHook<Input> = (
   tx: TxScope,
   id: number,

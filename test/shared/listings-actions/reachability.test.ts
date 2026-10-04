@@ -3,9 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
+import {
+  deactivationOrphanedAddOnError,
+  listingSaveOrphanedAddOnTx,
+} from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { listingSaveOrphanedAddOnTx } from "#shared/listings-actions.ts";
 import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

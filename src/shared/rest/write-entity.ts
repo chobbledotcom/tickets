@@ -45,9 +45,10 @@ export interface EntityWrite<Row extends { id: number }, State = never> {
   afterCommit?: ((id: number) => Promise<void>) | undefined;
   /** Build the INSERT/UPDATE statement — only called on the transactional path. */
   buildStatement: () => Promise<SqlStatement>;
-  /** Refusing guard run inside the transaction before the row statement, so
-   * its reads see the committed rows the write is about to change. A refusal
-   * throws (rolling the transaction back). Update only. */
+  /** Refusing guard run inside the write transaction before the row statement,
+   * so its reads see the committed rows the write is about to change. A refusal
+   * throws (rolling the transaction back). Update only. Its presence forces the
+   * transactional path even with no join writes. */
   checkTx?: ((tx: TxScope, id: number) => Promise<void>) | undefined;
   existingId: number | null;
   /** Join-table writes that must commit atomically with the row. Any present ⇒
@@ -110,7 +111,7 @@ export const writeEntity = async <Row extends { id: number }, State = never>(
           return write.readState === undefined ? null : write.readState(tx, id);
         };
   const row =
-    write.joinWrites.length > 0
+    write.joinWrites.length > 0 || write.checkTx !== undefined
       ? await readBackWrittenOrNull(
           write,
           await writeRowInTransaction(
