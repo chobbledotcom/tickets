@@ -9,7 +9,10 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
-import { sendWebhook } from "#shared/webhook/delivery.ts";
+import {
+  sendRegistrationWebhooks,
+  sendWebhook,
+} from "#shared/webhook/delivery.ts";
 import { buildWebhookPayload, type WebhookPayload } from "#shared/webhook.ts";
 import {
   defaultEntries,
@@ -128,6 +131,51 @@ describeWithEnv("sendWebhook", { db: true }, () => {
       delivered: false,
       reason: "oversized_response",
     });
+  });
+
+  test("delivers a normal non-empty provider response", async () => {
+    // The response-size cap only refuses bodies past 64 KiB. A real provider
+    // reply carries a JSON body, so a non-empty answer must still deliver.
+    fetchSpy.reply(() => new Response("ok"));
+    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+    expect(await sendWebhook("https://example.com/webhook", payload)).toEqual({
+      delivered: true,
+    });
+  });
+
+  test("delivers a response that arrives inside the timeout", async () => {
+    // A reply the endpoint sends well inside the 10-second window must win
+    // against the abort; an answer after it must not. The abort listener runs
+    // first only when the timeout is really 10 seconds.
+    using time = new FakeTime();
+    fetchSpy.reply(
+      (_url, init) =>
+        new Promise<Response>((resolve, reject) => {
+          const timer = setTimeout(() => resolve(new Response("ok")), 5_000);
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              reject(init.signal?.reason);
+            },
+            { once: true },
+          );
+        }),
+    );
+    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+    const sending = sendWebhook("https://example.com/webhook", payload);
+    await time.tickAsync(5_000);
+
+    expect(await sending).toEqual({ delivered: true });
+  });
+
+  test("answers no delivery failure when no listing carries a webhook", async () => {
+    expect(await sendRegistrationWebhooks(defaultEntries(), "GBP")).toEqual({
+      failed: false,
+    });
+    expect(fetchSpy.calls.length).toBe(0);
   });
 
   test("refuses to fetch an unsafe (internal) webhook URL", async () => {
