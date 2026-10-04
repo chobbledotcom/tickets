@@ -4,6 +4,14 @@ import {
   checkBatchAvailabilityImpl as checkBatchAvailability,
   checkLinesCapacity,
 } from "#db/attendees/capacity/checks.ts";
+import {
+  addDemandToBucket,
+  buildCartCapacitySql,
+  type CapacityBucket,
+  type CartDemand,
+  getOrCreateBucket,
+} from "#db/capacity-batch.ts";
+import { queryOne } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import {
   enableQueryLog,
@@ -325,6 +333,39 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       expect(await checkBatchAvailability(items, "2026-05-01")).toBe(true);
       // Listing rows + batched occupancy + group caps — a small constant.
       expect(getQueryLog().length).toBeLessThanOrEqual(5);
+    });
+  });
+
+  test("answers a built cart statement against real occupancy", async () => {
+    // Reused numbered placeholders must be accepted by SQLite itself: two
+    // buckets share the same day pair, so the statement reuses one ?N for it.
+    const free = await createDailyTestListing({ maxAttendees: 2 });
+    const full = await createDailyTestListing({ maxAttendees: 1 });
+    await bookAttendee(full, { date: "2026-05-01", quantity: 1 });
+    const demandFor = (...listingIds: number[]): CartDemand => {
+      const listingDemand = new Map<number, CapacityBucket>();
+      for (const listingId of listingIds) {
+        const bucket = getOrCreateBucket(listingDemand, listingId);
+        addDemandToBucket(
+          bucket,
+          { listing_type: "daily" },
+          { listingId, quantity: 1 },
+          "2026-05-01",
+        );
+      }
+      return { groupDemand: new Map(), listingDemand };
+    };
+
+    // The free listing fits; the statement runs and returns one row.
+    const fits = buildCartCapacitySql(demandFor(free.id));
+    expect(await queryOne<{ fits: number }>(fits.sql, fits.args)).toEqual({
+      fits: 1,
+    });
+
+    // A cart carrying both listings does not fit: the full one is over cap.
+    const both = buildCartCapacitySql(demandFor(free.id, full.id));
+    expect(await queryOne<{ fits: number }>(both.sql, both.args)).toEqual({
+      fits: 0,
     });
   });
 });

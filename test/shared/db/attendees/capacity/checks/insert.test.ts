@@ -11,17 +11,11 @@ describe("buildCapacityCheckedInsert", () => {
       listingId: 17,
     });
 
-    expect(statement.args.slice(0, 7)).toEqual([
-      17,
-      startAt,
-      endAt,
-      1,
-      "",
-      0,
-      0,
-    ]);
+    expect(statement.args.slice(0, 6)).toEqual([17, startAt, endAt, 1, "", 0]);
+    // Both zero defaults (parent_listing_id and package_group_id) share the
+    // interned ?6 slot; the capacity clause binds nothing new.
     expect(statement.sql).toContain(
-      "SELECT ?1, last_insert_rowid(), ?2, ?3, ?4, ?5, ?6, ?7",
+      "SELECT ?1, last_insert_rowid(), ?2, ?3, ?4, ?5, ?6, ?6",
     );
     expect(statement.sql).toContain("WHERE");
   });

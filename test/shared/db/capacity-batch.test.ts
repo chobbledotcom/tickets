@@ -8,6 +8,7 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
+import { addDays } from "#shared/dates.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
 /**
@@ -162,6 +163,23 @@ describe("buildCartCapacitySql", () => {
     expect(sql).toContain("), (");
     expect(occurrences(flatSql(sql), "dayDemand.column2")).toBe(1);
     expect(sql).toContain("max_attendees");
+  });
+
+  test("many listings sharing the same days stay under the bind cap", () => {
+    // 200 buckets with 90 shared days: the old one-slot-per-bind scheme
+    // needed 200 x (1 + 90 x 2) = 36,200 variables, past SQLite's 32,766
+    // cap. Interning keeps the id per bucket and one pair per distinct day.
+    const days = Array.from({ length: 90 }, (_, index) => addDays(DAY, index));
+    const perDay = days.map((day) => [day, 1] as [string, number]);
+    const listing = new Map(
+      Array.from({ length: 200 }, (_, index) => [index + 1, bucket(perDay, 0)]),
+    );
+    const { args, sql } = buildCartCapacitySql(demandWith(listing));
+    expect(args.length).toBe(200 + 90 * 2);
+    for (const match of sql.matchAll(/\?(\d+)/g)) {
+      expect(Number(match[1])).toBeLessThanOrEqual(args.length);
+    }
+    expect(occurrences(flatSql(sql), "NOT EXISTS")).toBe(200);
   });
 
   test("two demanding buckets join their clauses with AND", () => {
