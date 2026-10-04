@@ -1,12 +1,7 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import {
-  executeBatch,
-  queryOnePrimary,
-  resultRows,
-  type TxScope,
-} from "#db/client.ts";
+import { executeBatch, queryOnePrimary } from "#db/client.ts";
 import { cachedEntityTable } from "#db/common-schema.ts";
 import { getImageFilenamesForItem } from "#db/images.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
@@ -30,7 +25,6 @@ import type {
   ListingWithCount,
 } from "#types";
 import {
-  type GetListingsQuery,
   getListingRows,
   type ListingRecordRow,
   type ListingWhere,
@@ -85,20 +79,11 @@ export const getStoredListingWithCount = async (
   (await getStoredListingsWithCountsByIds([id]))[0] ?? null;
 
 /** Read listing records in newest-first order, with inherited defaults overlaid
- * — the shared tail of the cache's three fetches. An optional transaction reads
- * the same rows through it, so a caller inside a write transaction sees the
- * database the transaction is about to change rather than the process cache. */
+ * — the shared tail of the cache's three fetches. */
 const getListingsWithCounts = async (
   where: ListingWhere,
-  tx?: TxScope,
 ): Promise<ListingWithCount[]> => {
-  const query: GetListingsQuery = { order: "created_desc", where };
-  const rows =
-    tx === undefined
-      ? await getListingRows(query)
-      : resultRows<ListingRecordRow>(
-          await tx.execute(listingReader.statement(query)),
-        );
+  const rows = await getListingRows({ order: "created_desc", where });
   return mapParallel(decryptListingWithCount)(rows);
 };
 
@@ -176,11 +161,9 @@ export const isSlugTaken = slugTakenIn("listings");
 /** Clear the listing entity cache. */
 export const invalidateListingsCache = (): void => listingsCache.invalidate();
 
-/** Read every listing with effective defaults and aggregate projections. An
- * optional transaction reads the same rows through it instead of the cache —
- * the reachability guards judge a write's effect on the rows that write sees. */
-export const getAllListings = (tx?: TxScope): Promise<ListingWithCount[]> =>
-  tx === undefined ? listingsCache.getAll() : getListingsWithCounts({}, tx);
+/** Read every listing with effective defaults and aggregate projections. */
+export const getAllListings = (): Promise<ListingWithCount[]> =>
+  listingsCache.getAll();
 
 /** Read every listing keyed by id. */
 export const getListingsById = async (): Promise<
@@ -213,15 +196,10 @@ export const requireListingWithCount = async (
 ): Promise<ListingWithCount> =>
   (await requireListingsWithCountsByIds([id]))[0]!;
 
-/** Read one listing when absence is expected. An optional transaction reads
- * the row through it rather than the cache. */
-export const getListingWithCount = async (
+/** Read one listing when absence is expected. */
+export const getListingWithCount = (
   id: number,
-  tx?: TxScope,
-): Promise<ListingWithCount | null> =>
-  tx === undefined
-    ? listingsCache.getById(id)
-    : ((await getListingsWithCounts({ ids: [id] }, tx))[0] ?? null);
+): Promise<ListingWithCount | null> => listingsCache.getById(id);
 
 /** Read a just-written listing from the primary, or null if it was deleted. */
 export const getListingWithCountPrimary = async (

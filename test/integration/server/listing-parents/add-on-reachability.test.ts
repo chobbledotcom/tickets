@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, withTransaction } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
-import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -197,23 +195,23 @@ describeWithEnv(
       expect(await listingGroups.getIds(child.id)).toEqual([]);
     });
 
-    test("the save guard rejects an orphaning group change with an omitted groupId", async () => {
-      // The admin JSON API may omit group_id; the would-be group then defaults
-      // to 0 (no group). A parent whose group-scoped add-on only resolves to it
-      // via its group is orphaned by dropping to no group, so the (defaulted)
-      // check still blocks — inside the row write's transaction, as the save
-      // runs it.
-      const { parent, child } = await groupScopedAddOn();
+    test("an API update that omits group_ids keeps the groups and is not refused", async () => {
+      // The JSON API reads an absent group_ids as "leave the groups as they
+      // are", so the save guard must judge the stored groups, not "no group".
+      const { parent, child, group } = await groupScopedAddOn();
       await postChildren(parent.id, [child.id]);
 
-      const row = (await getListingWithCount(parent.id))!;
-      // Omit groupIds entirely (undefined) — the would-be group defaults to
-      // "no groups", which still orphans the group-scoped add-on.
-      const input = listingsTable.rowToInput(row, ["created"]) as ListingInput;
-      const error = await withTransaction((tx) =>
-        listingSaveOrphanedAddOnTx(tx, parent.id, input),
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { name: "Base unit renamed" },
+          method: "PUT",
+        }),
+        200,
       );
-      expect(error).toContain("Group extra");
+      expect(await listingGroups.getIds(parent.id)).toEqual([group.id]);
+      expect((await getListingWithCount(parent.id))?.name).toBe(
+        "Base unit renamed",
+      );
     });
 
     test("API create of a parent in the same group as the child's group-scoped add-on is accepted", async () => {

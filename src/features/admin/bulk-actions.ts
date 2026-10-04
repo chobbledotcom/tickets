@@ -42,7 +42,6 @@ import {
   isNameTakenAnywhere,
   normalizeEntityName,
 } from "#db/name-registry.ts";
-import { refuseTheWriteOn } from "#db/transaction.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
@@ -62,7 +61,6 @@ import { getFlash } from "#shared/flash-context.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {
   adminBulkActionsPage,
@@ -107,50 +105,49 @@ const handleDeactivateGroupGet = groupListingsPage(adminDeactivateGroupPage);
 const handleReactivateGroupGet = groupListingsPage(adminReactivateGroupPage);
 
 /** Factory for group-level bulk toggle handlers (deactivate/reactivate). */
-const groupTogglePost = (opts: { active: boolean; action: string }) =>
-  createVerifiedFormRoute<{ id: number }, Group>({
+const groupTogglePost = (opts: { active: boolean; action: string }) => {
+  const pageUrl = (group: Group) =>
+    `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
+  return createVerifiedFormRoute<{ id: number }, Group>({
     actionLabel: `${opts.action}ion`,
     identifier: (group) => group.name,
     identifierLabel: "Group name",
     loadContext: ({ id }) => getGroupById(id),
-    mismatchRedirect: (group) =>
-      `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
+    mismatchRedirect: pageUrl,
     onConfirm: async ({ context: group }) => {
       // A bulk DEACTIVATE marks every group member inactive at once, which can
       // orphan a child-scoped opt-in add-on rescued only by those members'
-      // pages. The shared guard runs INSIDE the write transaction, on reads
-      // through it, so a membership change that committed while the page was
-      // open is seen and the second of two page-removing writes is refused.
-      // Reactivation can only add pages.
-      const mismatchUrl = `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
-      try {
-        const affected = await withTransaction(async (tx) => {
-          if (!opts.active) {
-            refuseTheWriteOn(
-              await deactivationOrphanedAddOnError(
-                new Set(await groupListings.getIds(group.id, tx)),
-                tx,
-              ),
+      // pages. The guard reads through the write transaction, so the second of
+      // two page-removing writes sees the first and is refused. Reactivation
+      // can only add pages.
+      const outcome = await withTransaction(async (tx) => {
+        const refusal = opts.active
+          ? null
+          : await deactivationOrphanedAddOnError(
+              new Set(await groupListings.getIds(group.id, tx)),
+              tx,
             );
-          }
-          return setGroupListingsActive(group.id, opts.active, tx);
-        });
-        await logActivity(
-          `Group '${group.name}' ${opts.action}d (${xCount(affected)} listings)`,
-        );
-        return redirect(
-          `/admin/groups/${group.id}`,
-          `Group ${opts.action}d (${xCount(affected)} listings)`,
-          true,
-        );
-      } catch (error) {
-        return errorRedirect(
-          mismatchUrl,
-          transactionValidationMessageOrRethrow(error),
-        );
+        return refusal === null
+          ? {
+              affected: await setGroupListingsActive(group.id, opts.active, tx),
+            }
+          : { refusal };
+      });
+      if ("refusal" in outcome) {
+        return errorRedirect(pageUrl(group), outcome.refusal);
       }
+      const { affected } = outcome;
+      await logActivity(
+        `Group '${group.name}' ${opts.action}d (${xCount(affected)} listings)`,
+      );
+      return redirect(
+        `/admin/groups/${group.id}`,
+        `Group ${opts.action}d (${xCount(affected)} listings)`,
+        true,
+      );
     },
   });
+};
 
 /** POST /admin/groups/:id/bulk-actions/deactivate */
 const handleDeactivateGroupPost = groupTogglePost({

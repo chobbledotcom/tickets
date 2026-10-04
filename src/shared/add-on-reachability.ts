@@ -1,12 +1,11 @@
 /**
- * The would-be-set add-on reachability guards: the checks that recompute a
- * whole listing set with a pending change applied — a save's group move, a
- * bulk deactivation, or the group page's removal — and refuse the ones that
- * would orphan a child-scoped add-on. The per-edge walker lives in
- * `listings-actions.ts`; these are the set-wide ones it cannot see.
+ * The add-on reachability guards: the checks that recompute the listing set
+ * with a pending change applied — a listing save, a bulk deactivation, or the
+ * group page's removal — and refuse the ones that would orphan a child-scoped
+ * add-on.
  */
 
-import type { TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   firstTouchingEdgeError,
@@ -14,7 +13,8 @@ import {
   listingIdsWithLinks,
   listingParents,
 } from "#db/listing-parents.ts";
-import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { rawListingsTable } from "#db/listings/table.ts";
 import {
   childOnlyAddOnNameWithScopes,
   childUnreachableAddOnError,
@@ -26,101 +26,90 @@ import {
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
 import { modifierGroups } from "#db/modifiers.ts";
+import { once } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 /** The user-facing refusal a reachability guard returns, or null when the
  * change it judged is safe. */
-export type GuardRefusal = Promise<string | null>;
+type GuardRefusal = Promise<string | null>;
 
-/** The per-listing would-be change a guard applies to the in-memory listing
- * set: the save's group move or inactive state. One shape for every override
- * the reachability guards take. */
-export type ListingOverride = (
-  listing: ListingGroupMembership,
-) => Partial<ListingGroupMembership>;
+/** The would-be group sets a change gives some listings, by listing id. A
+ * listing absent from the map keeps its current groups. */
+type WouldBeGroups = ReadonlyMap<number, readonly number[]>;
 
-/** Every listing as a {@link ListingGroupMembership} with a per-listing override
- * applied — the would-be group set or inactive state the save is about to
- * commit. One membership lookup feeds both would-be reachability checks. An
- * optional transaction reads the listings and memberships through it, so a
- * guard inside a write transaction judges the rows that transaction sees
- * rather than the committed ones another save has already changed. */
-export const listingsWithGroups = async (
-  override: ListingOverride,
+const listingStateColumns = rawListingsTable.read.pick(["id", "active"]);
+const bookableAloneColumn = rawListingsTable.read.pick(["bookable_alone"]);
+
+/** Each listing's id and active flag. Inside a write transaction, the two
+ * columns are read through it, because the cache can be stale there. */
+const listingStates = async (
   tx?: TxScope,
-): Promise<ListingGroupMembership[]> => {
-  const all = await getAllListings(tx);
-  const membership = await listingGroups.getIdsByKeys(
-    all.map((l) => l.id),
-    tx,
-  );
-  return all.map((listing) => {
-    const member = toListingGroupMembership(listing, membership);
-    return { ...member, ...override(member) };
-  });
-};
+): Promise<{ active: boolean; id: number }[]> =>
+  tx === undefined
+    ? getAllListings()
+    : listingStateColumns.readAll(
+        resultRows(await tx.execute(listingStateColumns.statement())),
+      );
 
-/** The would-be base both save-time reachability walks read: every listing
- * with the save's group move applied, its non-standalone child ids, and the
- * add-on scopes resolved against that moved set. One build reads each table
- * once, so a heavy save's two walks do not repeat the reads inside the write
- * transaction. `addOns` resolves on the first walk that needs it. */
-export type WouldBeReachabilityBase = {
+/** The would-be listing set a guard judges, with the reads behind it: every
+ * listing with its would-be groups, the non-standalone child ids, and the
+ * add-on scopes resolved against those groups. `addOns` reads on first use. */
+type WouldBeBase = {
   addOns: () => Promise<OptionalAddOns>;
   listings: ListingGroupMembership[];
   nonStandalone: Set<number>;
 };
 
-const wouldBeReachabilityBase = async (
-  groupOverride: ListingOverride,
+const wouldBeBase = async (
+  wouldBeGroups: WouldBeGroups,
   tx?: TxScope,
-): Promise<WouldBeReachabilityBase> => {
-  const listings = await listingsWithGroups(groupOverride, tx);
-  const nonStandalone = await getNonStandaloneChildIds(
-    listings.map((l) => l.id),
+): Promise<WouldBeBase> => {
+  const states = await listingStates(tx);
+  const membership = await listingGroups.getIdsByKeys(
+    states.map((listing) => listing.id),
     tx,
   );
-  let addOns: OptionalAddOns | null = null;
+  const listings = states.map((state) => {
+    const listing = toListingGroupMembership(state, membership);
+    const groupIds = wouldBeGroups.get(listing.id);
+    return groupIds === undefined
+      ? listing
+      : { ...listing, groupIds: [...groupIds] };
+  });
+  const nonStandalone = await getNonStandaloneChildIds(
+    listings.map((listing) => listing.id),
+    tx,
+  );
   return {
-    addOns: async () => (addOns ??= await resolveWouldBeAddOns(listings, tx)),
+    addOns: once(() => resolveWouldBeAddOns(listings, tx)),
     listings,
     nonStandalone,
   };
 };
 
 /**
- * Run the shared child-scoped-add-on reachability over a would-be listing set:
- * apply `override` (a save's inactive/group-move state) to the in-memory
- * listings, then treat `forceSuppressed` ids as non-standalone children even
- * when the DB still reads them otherwise (a just-cleared `bookable_alone` flag,
- * which the pending save hasn't committed yet). Being in the suppressed set also
- * drops those ids from the reachable pages. Returns the first orphaned add-on's
- * error, or null. Shared by the deactivation and false-transition guards so
- * their reachability computation can't drift. A pre-built `base` carries the
- * group move and the reads behind it, so the caller's walk reuses them; the
- * override then only adds what the base cannot know (an active-flag change).
+ * Run the shared child-scoped-add-on reachability over a would-be base, with
+ * the `inactiveIds` listings taken offline. The `forceSuppressed` ids count as
+ * non-standalone children even when the database still reads them otherwise
+ * (a just-cleared `bookable_alone` flag the pending save has not committed).
+ * Being suppressed also drops those ids from the reachable pages. Returns the
+ * first orphaned add-on's error, or null.
  */
-export const orphanedAddOnOverWouldBe = async (
-  override: ListingOverride,
-  forceSuppressed: readonly number[] = [],
-  tx?: TxScope,
-  base?: WouldBeReachabilityBase,
+const orphanedAddOnOverWouldBe = async (
+  base: WouldBeBase,
+  inactiveIds: ReadonlySet<number>,
+  forceSuppressed: readonly number[],
 ): GuardRefusal => {
-  const wouldBe = base
-    ? base.listings.map((listing) => ({ ...listing, ...override(listing) }))
-    : await listingsWithGroups(override, tx);
-  const childIds = base
-    ? new Set(base.nonStandalone)
-    : await getNonStandaloneChildIds(
-        wouldBe.map((l) => l.id),
-        tx,
-      );
-  for (const id of forceSuppressed) childIds.add(id);
+  const wouldBe = base.listings.map((listing) =>
+    inactiveIds.has(listing.id) ? { ...listing, active: false } : listing,
+  );
+  const childIds = new Set([...base.nonStandalone, ...forceSuppressed]);
   return firstChildUnreachableAddOnForListings(
     wouldBe,
     childIds,
-    base ? await base.addOns() : await resolveWouldBeAddOns(wouldBe, tx),
+    await base.addOns(),
   );
 };
 
@@ -131,18 +120,11 @@ export const orphanedAddOnOverWouldBe = async (
  * and one walk judges all of them at once, however many were selected. Used
  * by the group page's remove form, so it cannot orphan an add-on the listing
  * edit form would have refused to untick. */
-export const groupLeavingOrphanedAddOnError = (
-  wouldBeGroups: ReadonlyMap<number, readonly number[]>,
+export const groupLeavingOrphanedAddOnError = async (
+  wouldBeGroups: WouldBeGroups,
   tx?: TxScope,
 ): GuardRefusal =>
-  orphanedAddOnOverWouldBe(
-    (listing) => {
-      const groupIds = wouldBeGroups.get(listing.id);
-      return groupIds === undefined ? {} : { groupIds: [...groupIds] };
-    },
-    [],
-    tx,
-  );
+  orphanedAddOnOverWouldBe(await wouldBeBase(wouldBeGroups, tx), new Set(), []);
 
 /** Re-checks every add-on with ALL the targets inactive at once: one rescued
  * only by several group members together is still caught. Deactivation only —
@@ -157,16 +139,13 @@ export const deactivationOrphanedAddOnError = async (
   // surface a child-only add-on could sell from. Force every deactivated flagged
   // child (a child of some parent whose flag is still set) into the suppressed
   // set, matching the edit-save path's untick guard.
-  const ids = [...inactiveIds];
-  const childLinks = await listingParents.getIdsByKeys(ids, tx);
+  const childLinks = await listingParents.getIdsByKeys([...inactiveIds], tx);
   const childIds = listingIdsWithLinks(childLinks);
-  const base = await wouldBeReachabilityBase(() => ({}), tx);
-  // Apply the would-be inactive state of every target listing to the in-memory set.
+  const base = await wouldBeBase(new Map(), tx);
   return orphanedAddOnOverWouldBe(
-    (listing) => (inactiveIds.has(listing.id) ? { active: false } : {}),
-    [...childIds].filter((id) => !base.nonStandalone.has(id)),
-    tx,
     base,
+    inactiveIds,
+    [...childIds].filter((id) => !base.nonStandalone.has(id)),
   );
 };
 
@@ -212,7 +191,7 @@ export const childOnlyAddOnNameForListings = (
     parentPageListingIds,
   );
 
-export const firstChildUnreachableAddOnForListings = (
+const firstChildUnreachableAddOnForListings = (
   allListings: ListingGroupMembership[],
   childListingIds: Set<number>,
   { optional, scopes }: OptionalAddOns,
@@ -234,39 +213,42 @@ export const firstChildUnreachableAddOnForListings = (
   return null;
 };
 
+/** One listing save as both guard walks see it: the open transaction, the
+ * saved listing, its would-be groups, and the would-be base, read on first
+ * use. */
+type ListingSave = {
+  base: () => Promise<WouldBeBase>;
+  existingId: number;
+  input: ListingInput;
+  tx: TxScope;
+  wouldBeGroupIds: readonly number[];
+};
+
 /** The first child-only add-on the listing's edges would orphan under its
- * would-be `group_id`, or null. Reuses the same reachability helper the edge/
- * modifier saves use, judged against the would-be base the save's walks share.
- * The listing is checked both as a parent (its children, against its own page
- * id `[id]`) and as a child (under each parent's page id `[parentId]`). An
- * optional transaction keeps the walk's reads inside the caller's write
- * transaction. */
-const orphanedAddOnAfterChange = async (
-  id: number,
-  base: WouldBeReachabilityBase,
-  tx?: TxScope,
-): GuardRefusal => {
-  // The scopes resolve once on the first edge that asks, and the lost-page
-  // walk reuses that resolution — per-edge resolution would hit the
-  // transaction's statement guard.
-  let addOns: OptionalAddOns | null = null;
-  const resolveAddOns = async (): Promise<OptionalAddOns> =>
-    (addOns ??= await base.addOns());
+ * would-be groups, or null. The listing is checked both as a parent (its
+ * children, against its own page id) and as a child (under each parent's
+ * page id). The base is read only when an edge exists. */
+const orphanedAddOnAfterChange = ({
+  base,
+  existingId,
+  tx,
+}: ListingSave): GuardRefusal =>
   // Each touching edge is a (suppressed child, parent page id) pair: as a parent
-  // of each child the page is self (`id`) and the suppressed child is the other
+  // of each child the page is self and the suppressed child is the other
   // endpoint; as a child under each parent the page is the parent and self is the
   // suppressed child.
-  return firstTouchingEdgeError(
-    id,
+  firstTouchingEdgeError(
+    existingId,
     async ({ self, otherId }) => {
-      const childId = self === "parent" ? otherId : id;
-      const pageId = self === "parent" ? id : otherId;
+      const childId = self === "parent" ? otherId : existingId;
+      const pageId = self === "parent" ? existingId : otherId;
+      const { addOns, nonStandalone } = await base();
       // A flagged child rescues any add-on via its own page, so skip the block.
-      if (!base.nonStandalone.has(childId)) return null;
+      if (!nonStandalone.has(childId)) return null;
       const addOn = childOnlyAddOnNameForListings(
         childId,
         [pageId],
-        await resolveAddOns(),
+        await addOns(),
       );
       return addOn
         ? t("listings_table.children_err_child_addon_save", { addon: addOn })
@@ -274,19 +256,33 @@ const orphanedAddOnAfterChange = async (
     },
     tx,
   );
-};
 
 /** True when the save takes this listing out of a group it is currently in.
  * Losing a group can strip the page out of a group-scoped add-on's reach even
  * while the page itself stays live. */
-const leavesAGroup = async (
-  existingId: number,
-  wouldBeGroupIds: readonly number[],
-  tx?: TxScope,
-): Promise<boolean> =>
+const leavesAGroup = async ({
+  existingId,
+  tx,
+  wouldBeGroupIds,
+}: ListingSave): Promise<boolean> =>
   (await listingGroups.getIds(existingId, tx)).some(
     (groupId) => !wouldBeGroupIds.includes(groupId),
   );
+
+/** Whether the listing is a child whose stored row reads "can be booked by
+ * itself". */
+const isFlaggedChild = async ({
+  existingId,
+  tx,
+}: ListingSave): Promise<boolean> =>
+  (
+    await bookableAloneColumn.readAll(
+      resultRows(
+        await tx.execute(bookableAloneColumn.statement({ id: existingId })),
+      ),
+    )
+  ).some((row) => row.bookable_alone) &&
+  (await listingParents.getIds(existingId, tx)).length > 0;
 
 /**
  * Three transitions take away a page that can rescue a child-scoped add-on: a
@@ -296,70 +292,53 @@ const leavesAGroup = async (
  *
  * Each re-runs the guard over the save's PENDING state. The stored row still
  * reads `bookable_alone = 1` until the save commits, so a flagged child with
- * parents is forced into the suppressed set by hand. The optional transaction
- * keeps every read inside the caller's write transaction.
+ * parents is forced into the suppressed set by hand.
  */
-const lostPageOrphanedAddOn = async (
-  input: ListingInput,
-  existingId: number,
-  base: WouldBeReachabilityBase,
-  tx?: TxScope,
-): Promise<string | null> => {
-  const deactivating = input.active === false;
-  const clearingFlag = input.bookableAlone === false;
-  const mayStripPage = deactivating || clearingFlag;
-  const existing = mayStripPage
-    ? await getListingWithCount(existingId, tx)
-    : null;
-  const flaggedChildWithParents =
-    existing?.bookable_alone === true &&
-    (await listingParents.getIds(existingId, tx)).length > 0;
-  // Both listing-save entry points always resolve groupIds to an array (the
-  // form via parseGroupIds, the JSON API via `groups.input ?? existingGroupIds`),
-  // so it is defined here, matching the create path's `input.groupIds!` writer.
-  const wouldBeGroupIds = input.groupIds!;
-  const stripsOwnPage = deactivating || flaggedChildWithParents;
+const lostPageOrphanedAddOn = async (save: ListingSave): GuardRefusal => {
+  const deactivating = save.input.active === false;
+  const mayStripPage = deactivating || save.input.bookableAlone === false;
+  const flaggedChildWithParents = mayStripPage && (await isFlaggedChild(save));
   if (
-    !stripsOwnPage &&
-    !(await leavesAGroup(existingId, wouldBeGroupIds, tx))
+    !deactivating &&
+    !flaggedChildWithParents &&
+    !(await leavesAGroup(save))
   ) {
     return null;
   }
-  const override = (
-    listing: ListingGroupMembership,
-  ): Partial<ListingGroupMembership> =>
-    listing.id === existingId
-      ? { active: !deactivating, groupIds: wouldBeGroupIds }
-      : {};
   return orphanedAddOnOverWouldBe(
-    override,
-    flaggedChildWithParents ? [existingId] : [],
-    tx,
-    base,
+    await save.base(),
+    new Set(deactivating ? [save.existingId] : []),
+    flaggedChildWithParents ? [save.existingId] : [],
   );
 };
 
 /**
  * The add-on reachability half of a listing update, run as the row write's
- * `checkTx` guard: both checks read the listings, memberships, child links,
- * and modifier scopes through the open write transaction, so the second of two
- * serialized page-removing saves sees the first one's rows and is refused.
- * Both walks share one would-be base — the group-moved listing set, its
- * non-standalone children, and the add-on scopes — so a heavy save reads each
- * table once and stays clear of the transaction's statement guard. Creates
- * never run it (no edges yet, and a fresh listing rescues nothing).
+ * `checkTx` guard: every read goes through the open write transaction, so the
+ * second of two serialized page-removing saves sees the first one's rows and
+ * is refused. Both walks share one would-be base, read only when a walk needs
+ * it, so a plain edit reads no listing set. Creates never run it (no edges
+ * yet, and a fresh listing rescues nothing).
  */
 export const listingSaveOrphanedAddOnTx = async (
   tx: TxScope,
   existingId: number,
   input: ListingInput,
 ): GuardRefusal => {
-  const base = await wouldBeReachabilityBase(
-    (listing) =>
-      listing.id === existingId ? { groupIds: input.groupIds ?? [] } : {},
-    tx,
+  // Both update entry points resolve the would-be groups: the form from its
+  // checkboxes, the JSON API from the stored set when `group_ids` is absent.
+  const wouldBeGroupIds = requireValue(
+    input.groupIds,
+    `Listing ${existingId} update carries no would-be group ids`,
   );
-  const edgeError = await orphanedAddOnAfterChange(existingId, base, tx);
+  const save: ListingSave = {
+    base: once(() => wouldBeBase(new Map([[existingId, wouldBeGroupIds]]), tx)),
+    existingId,
+    input,
+    tx,
+    wouldBeGroupIds,
+  };
+  const edgeError = await orphanedAddOnAfterChange(save);
   if (edgeError) return edgeError;
-  return lostPageOrphanedAddOn(input, existingId, base, tx);
+  return lostPageOrphanedAddOn(save);
 };

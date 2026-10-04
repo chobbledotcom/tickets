@@ -240,7 +240,6 @@ src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? �
 src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
 src/shared/listing-edge.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/listing-edge.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/add-on-reachability.ts::listingSaveOrphanedAddOnTx.base.groupIds~1juqee2  ?? → ||   # input.groupIds is an array when present, and arrays are always truthy
 src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → ||   # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a

@@ -63,7 +63,7 @@ const deactivateListing = (
     sql: "UPDATE listings SET active = 0 WHERE id = ?",
   });
 
-describeWithEnv("listing action reachability", { db: true }, () => {
+describeWithEnv("add-on reachability guards", { db: true }, () => {
   test("rejects moving a parent away from its group-scoped child add-on", async () => {
     const { child, parent } = await groupScopedAddOn();
     await listingChildren.setIds(parent.id, [child.id]);
@@ -150,6 +150,16 @@ describeWithEnv("listing action reachability", { db: true }, () => {
     await expect(
       saveGuard(listing.id, { bookableAlone: false }),
     ).resolves.toBeNull();
+  });
+
+  test("the save guard throws on an update input with no would-be groups", async () => {
+    const { parent } = await groupScopedAddOn();
+    const { groupIds: _groupIds, ...input } = await storedInputFor(parent.id);
+    await expect(
+      withTransaction((tx) => listingSaveOrphanedAddOnTx(tx, parent.id, input)),
+    ).rejects.toThrow(
+      `Listing ${parent.id} update carries no would-be group ids`,
+    );
   });
 
   test("refuses the second of two page-removing saves inside its write transaction", async () => {
