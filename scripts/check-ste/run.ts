@@ -1,5 +1,6 @@
 /** Compare repository prose with its accepted findings. Each allowance can only fall. */
 
+/* jscpd:ignore-start -- imports */
 import { join } from "@std/path";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import {
@@ -10,6 +11,7 @@ import {
 import { countBy } from "#scripts/count-by.ts";
 import { collectFiles, directoryEntries } from "#scripts/walk-files.ts";
 import { findIssues, type SteIssue } from "./rules.ts";
+/* jscpd:ignore-end */
 
 /**
  * Documents that record how something was done or captured at a moment in

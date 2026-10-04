@@ -40,6 +40,10 @@ const STEPS = [
   // do — Biome never reflows comment text (see "Comments are short" in
   // AGENTS.md, and docs/comment-policy.md for how the limits ratchet down).
   { cmd: ["task", "check:comments"], name: "check:comments" },
+  // Hold comments to the mechanical comment-language rules — contractions,
+  // banned modals, sentence length — against per-file baselines that only
+  // fall (see "Simplified Technical English" in AGENTS.md).
+  { cmd: ["task", "check:comment-ste"], name: "check:comment-ste" },
   // Keep one module to one name: no file importing the same module twice, and
   // no import spelling a module longer than its own alias allows (see
   // "Imports name a module one way" in AGENTS.md).

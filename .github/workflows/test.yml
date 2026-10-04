@@ -71,6 +71,9 @@ jobs:
       - name: Check comment size
         run: deno task check:comments
 
+      - name: Check comment language
+        run: deno task check:comment-ste
+
       - name: Check module import names
         run: deno task check:imports
 

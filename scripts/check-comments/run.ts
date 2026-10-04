@@ -40,7 +40,7 @@ const EXEMPT = ["doc.ts", "docs/", "ui/static/"];
  * change, so their prose is not ours to rewrite — the same reason `.jscpd.json`
  * ignores this glob. The live migration machinery beside them is not exempt.
  */
-const isShippedMigration = (relative: string): boolean =>
+export const isShippedMigration = (relative: string): boolean =>
   /(^|\/)migrations\/2\d{3}-/.test(`/${relative}`);
 
 const isExempt = (relative: string): boolean =>

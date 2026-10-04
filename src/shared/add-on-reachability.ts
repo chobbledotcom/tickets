@@ -1,8 +1,7 @@
 /**
- * The add-on reachability guards: the checks that recompute the listing set
- * with a pending change applied — a listing save, a bulk deactivation, or the
- * group page's removal. They refuse the change when it orphans a child-scoped
- * add-on.
+ * The add-on reachability guards recompute the listing set with a pending
+ * change applied: a listing save, a bulk deactivation, or the group page's
+ * removal. They refuse the change when it orphans a child-scoped add-on.
  */
 
 import { resultRows, type TxScope } from "#db/client.ts";
@@ -135,11 +134,11 @@ export const deactivationOrphanedAddOnError = async (
   tx?: TxScope,
 ): GuardRefusal => {
   // Deactivation does not clear bookable_alone, so a flagged child's stored row
-  // still reads `bookable_alone = 1` and getNonStandaloneChildIds keeps excluding
-  // it from the suppressed set — yet taking its page offline removes the only
-  // surface a child-only add-on can sell from. Force every deactivated flagged
-  // child (a child of some parent whose flag is still set) into the suppressed
-  // set, matching the edit-save path's untick guard.
+  // still reads `bookable_alone = 1` and getNonStandaloneChildIds keeps
+  // excluding it from the suppressed set. Yet taking its page offline removes
+  // the only surface a child-only add-on can sell from. Force every deactivated
+  // flagged child (a child of some parent whose flag is still set) into the
+  // suppressed set, matching the edit-save path's untick guard.
   const childLinks = await listingParents.getIdsByKeys([...inactiveIds], tx);
   const childIds = listingIdsWithLinks(childLinks);
   const base = await wouldBeBase(new Map(), tx);
