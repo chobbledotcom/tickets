@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { withTransaction } from "#db/client.ts";
+import { setListingGroups } from "#db/groups.ts";
 import {
   getModifierAnswerIds,
+  getModifierGroupListingIdsByModifierId,
   modifierGroups,
   modifierIdsByAnswerId,
   modifierListings,
@@ -12,6 +15,7 @@ import {
   createQuestion,
 } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db modifier links", { db: true }, () => {
   describe("setModifierListings / getModifierListingIds", () => {
@@ -143,6 +147,38 @@ describeWithEnv("db modifier links", { db: true }, () => {
       await setModifierAnswers(7, [a!]);
       expect(await modifierIdsByAnswerId([a!, b!])).toEqual(
         new Map([[a!, [7]]]),
+      );
+    });
+  });
+
+  describe("getModifierGroupListingIdsByModifierId", () => {
+    test("resolves group members for group-scoped modifiers, bare and in a transaction", async () => {
+      // Modifier 5 is scoped to groups 11 and 12; its resolved listing ids are
+      // every member of those groups.
+      await modifierGroups.setIds(5, [11, 12]);
+      const one = await createTestListing({ name: "Member one" });
+      const two = await createTestListing({ name: "Member two" });
+      await setListingGroups(one.id, [11]);
+      await setListingGroups(two.id, [11, 12]);
+
+      expect(await getModifierGroupListingIdsByModifierId([5, 9])).toEqual(
+        new Map([
+          [5, [one.id, two.id, two.id]],
+          [9, []],
+        ]),
+      );
+
+      // The transaction variant reads the same rows through the caller's tx.
+      await withTransaction(async (tx) => {
+        expect(await getModifierGroupListingIdsByModifierId([5], tx)).toEqual(
+          new Map([[5, [one.id, two.id, two.id]]]),
+        );
+      });
+    });
+
+    test("answers an empty modifier id list with an empty map", async () => {
+      expect(await getModifierGroupListingIdsByModifierId([])).toEqual(
+        new Map(),
       );
     });
   });

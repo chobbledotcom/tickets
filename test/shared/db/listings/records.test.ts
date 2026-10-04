@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { execute, queryOne } from "#db/client.ts";
+import { execute, queryOne, withTransaction } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import {
   getAllListingOptions,
@@ -282,3 +282,15 @@ describeWithEnv(
     });
   },
 );
+
+describeWithEnv("db > listings > transaction reads", { db: true }, () => {
+  test("getListingWithCount reads through a transaction and answers null for a missing row", async () => {
+    const listing = await createTestListing({ name: "In Tx" });
+
+    await withTransaction(async (tx) => {
+      const inTx = await getListingWithCount(listing.id, tx);
+      expect(inTx?.name).toBe("In Tx");
+      expect(await getListingWithCount(999_999, tx)).toBeNull();
+    });
+  });
+});
