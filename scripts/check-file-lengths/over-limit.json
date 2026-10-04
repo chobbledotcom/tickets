@@ -3,7 +3,7 @@
   "src/features/admin/attendee-page-data.ts": 679,
   "src/features/admin/attendees-merge.ts": 505,
   "src/features/auth.ts": 755,
-  "src/features/public/ticket-payment.ts": 887,
+  "src/features/public/ticket-payment.ts": 750,
   "src/features/public/ticket-submit.ts": 581,
   "src/fp.ts": 585,
   "src/shared/bunny-cdn.ts": 673,

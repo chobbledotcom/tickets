@@ -39,6 +39,11 @@ export type AttendeeCreationWork = (
   attendeeId: number,
 ) => Promise<void>;
 
+/** Extra statements a caller rides on the create batch, built once the batch
+ * knows the attendee's ticket token. They run inside the same atomic boundary,
+ * so a failure in them rolls the whole reservation back. */
+export type BatchTail = (tokenIndex: string) => SqlStatement[];
+
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
@@ -100,11 +105,12 @@ const runAtomicBatch = async (
 
 class IncompleteBooking extends namedError("IncompleteBooking") {}
 
-/** Create an attendee, all bookings, caller work, and contact activity in one
- * interactive transaction. */
+/** Create an attendee, all bookings, caller work, tail statements, and contact
+ * activity in one interactive transaction. */
 export const writeWithCreationWork = (
   prepared: PreparedWrite,
   creationWork: AttendeeCreationWork,
+  tail: SqlStatement[] = [],
 ): Promise<WriteOutcome | null> =>
   withTransaction<WriteOutcome>(async (tx) => {
     await tx.execute(prepared.attendeeInsert);
@@ -118,6 +124,9 @@ export const writeWithCreationWork = (
     );
     const attendeeId = Number(attendeeRows[0]!.id);
     await creationWork(tx, attendeeId);
+    for (const statement of tail) {
+      await tx.execute(statement);
+    }
     for (const statement of prepared.activityStatements) {
       await tx.execute(statement);
     }
@@ -129,7 +138,9 @@ export const writeWithCreationWork = (
 
 export const writeAsBatch = (
   prepared: PreparedWrite,
-): Promise<WriteOutcome | null> => runAtomicBatch(prepared);
+  tail?: BatchTail,
+): Promise<WriteOutcome | null> =>
+  runAtomicBatch(prepared, tail?.(prepared.enc.ticketTokenIndex));
 
 const noExistingLedgerCondition = (legs: TransferInput[]): NumberedSql => {
   if (legs.length === 0) return () => "1 = 1";
@@ -151,11 +162,12 @@ export const bookingBatchCondition = (plan: BookingBatchPlan): NumberedSql => {
     conditions.map((condition) => `(${condition(bind)})`).join(" AND ");
 };
 
-/** Create the attendee, all bookings, modifiers, ledger, contact activity, and
- * optional payment finalization in one transaction. */
+/** Create the attendee, all bookings, modifiers, ledger, tail statements,
+ * contact activity, and optional payment finalization in one transaction. */
 export const writeAsLedgerBatch = async (
   prepared: PreparedWrite,
   plan: BookingBatchPlan,
+  tail?: BatchTail,
 ): Promise<WriteOutcome | null> => {
   assertPostable(plan.legs);
   const tokenIndex = prepared.enc.ticketTokenIndex;
@@ -200,5 +212,6 @@ export const writeAsLedgerBatch = async (
     ...legs,
     ...eventGroup,
     ...finalize,
+    ...(tail?.(tokenIndex) ?? []),
   ]);
 };

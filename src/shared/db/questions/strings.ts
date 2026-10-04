@@ -95,24 +95,16 @@ const runInternStatements = async (
   return results.at(-1)!;
 };
 
-/**
- * The trailing SELECT reads its own just-written rows. From a replica that has
- * not replicated the insert, a brand-new id comes back missing and the value is
- * silently lost, so every path here keeps the read in the INSERT's own
- * transaction.
- *
- * The `INSERT OR IGNORE` values batch into one multi-row statement, so interning
- * is a fixed 3 round trips however many unique strings a save carries. That is
- * what keeps it clear of the transaction round-trip guard.
- */
-export const internStringRows = async (
+/** The statements that create or refresh one interned string per row. A
+ * caller that resolves string ids inside SQL (the reservation batch, where the
+ * attendee answers insert runs as plain statements) rides on these writes and
+ * never needs the trailing SELECT. */
+export const internWriteStatements = (
   rows: PreparedStringRow[],
-  tx?: TxScope,
-): Promise<StringIdByText> => {
-  if (rows.length === 0) return new Map();
+): SqlStatement[] => {
   const created = nowIso();
   const textIndexes = rows.map((r) => r.textIndex);
-  const statements: SqlStatement[] = [
+  return [
     {
       args: rows.flatMap((row) => [row.textIndex, row.encrypted, created]),
       sql: `INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${rows
@@ -130,12 +122,35 @@ export const internStringRows = async (
       args: [created, ...textIndexes],
       sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(textIndexes)})`,
     },
-    {
-      args: textIndexes,
-      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
-    },
   ];
-  const selectResult = await runInternStatements(statements, tx);
+};
+
+/**
+ * The trailing SELECT reads its own just-written rows. From a replica that has
+ * not replicated the insert, a brand-new id comes back missing and the value is
+ * silently lost, so every path here keeps the read in the INSERT's own
+ * transaction.
+ *
+ * The `INSERT OR IGNORE` values batch into one multi-row statement, so interning
+ * is a fixed 3 round trips however many unique strings a save carries. That is
+ * what keeps it clear of the transaction round-trip guard.
+ */
+export const internStringRows = async (
+  rows: PreparedStringRow[],
+  tx?: TxScope,
+): Promise<StringIdByText> => {
+  if (rows.length === 0) return new Map();
+  const textIndexes = rows.map((r) => r.textIndex);
+  const selectResult = await runInternStatements(
+    [
+      ...internWriteStatements(rows),
+      {
+        args: textIndexes,
+        sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
+      },
+    ],
+    tx,
+  );
   const found = resultRows<{ id: number; text_index: string }>(selectResult);
   return pairStringIds(rows, found);
 };

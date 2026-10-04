@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { buildTicketListing } from "#booking/model.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { createFreeReservation } from "#routes/public/ticket-payment.ts";
+import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
