@@ -264,7 +264,7 @@ export const createAttendeeAtomicImpl = (
         : writeAsBatch(prepared, tail),
   })(input);
 
-export type { AttendeeCreationWork, BatchTail, BookingBatchPlan };
+export type { AttendeeCreationWork, BookingBatchPlan };
 
 const provenPiiPaymentSession = (
   input: AttendeeInput,

@@ -46,7 +46,7 @@ const dedupeByQuestion = <T extends { questionId: number }>(
   return [...answerByQuestion.values()];
 };
 
-export type NormalizedAnswerSet = AttendeeAnswerSet & {
+type NormalizedAnswerSet = AttendeeAnswerSet & {
   textAnswerIds: TextAnswerId[];
   textAnswers: TextAnswer[];
 };
@@ -257,7 +257,7 @@ export const prepareAttendeeAnswerSave = async (
  * that already holds one (a reservation boundary) keeps its own atomicity.
  * The save always writes something: the caller's guard rules out an empty
  * save, and a save with attendees always emits its delete. */
-export const saveAttendeeAnswersTx = async (
+const saveAttendeeAnswersTx = async (
   tx: TxScope,
   prepared: PreparedAnswerSave,
   alongside: SqlStatement[] = [],
