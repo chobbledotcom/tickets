@@ -16,7 +16,6 @@ import {
   inPlaceholders,
   resultRows,
   type SqlStatement,
-  type TxScope,
 } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { nowIso } from "#shared/now.ts";
@@ -87,32 +86,26 @@ export const prepareStringRows = async (
 /** Run the interning statements together and return the trailing SELECT. */
 const runInternStatements = async (
   statements: SqlStatement[],
-  tx?: TxScope,
 ): Promise<ResultSet> => {
-  const results = await (tx
-    ? tx.batch(statements)
-    : executeBatchWithResults(statements));
+  const results = await executeBatchWithResults(statements);
   return results.at(-1)!;
 };
 
-/**
- * The trailing SELECT reads its own just-written rows. From a replica that has
- * not replicated the insert, a brand-new id comes back missing and the value is
- * silently lost, so every path here keeps the read in the INSERT's own
- * transaction.
- *
- * The `INSERT OR IGNORE` values batch into one multi-row statement, so interning
- * is a fixed 3 round trips however many unique strings a save carries. That is
- * what keeps it clear of the transaction round-trip guard.
- */
-export const internStringRows = async (
+/** The blind index of each prepared row, in row order — the key every
+ * interning statement looks its strings up by. */
+const textIndexes = (rows: readonly PreparedStringRow[]): BlindIndex[] =>
+  rows.map(({ textIndex }) => textIndex);
+
+/** The statements that create or refresh one interned string per row. A
+ * caller that resolves string ids inside SQL (the reservation batch, where the
+ * attendee answers insert runs as plain statements) rides on these writes and
+ * never needs the trailing SELECT. */
+export const internWriteStatements = (
   rows: PreparedStringRow[],
-  tx?: TxScope,
-): Promise<StringIdByText> => {
-  if (rows.length === 0) return new Map();
+): SqlStatement[] => {
   const created = nowIso();
-  const textIndexes = rows.map((r) => r.textIndex);
-  const statements: SqlStatement[] = [
+  const indexes = textIndexes(rows);
+  return [
     {
       args: rows.flatMap((row) => [row.textIndex, row.encrypted, created]),
       sql: `INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${rows
@@ -127,15 +120,34 @@ export const internStringRows = async (
     // even one currently attached to another attendee — keeps it alive past
     // that other attendee later freeing it, until this checkout finalizes.
     {
-      args: [created, ...textIndexes],
-      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(textIndexes)})`,
-    },
-    {
-      args: textIndexes,
-      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
+      args: [created, ...indexes],
+      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(indexes)})`,
     },
   ];
-  const selectResult = await runInternStatements(statements, tx);
+};
+
+/**
+ * The trailing SELECT reads its own just-written rows. From a replica that has
+ * not replicated the insert, a brand-new id comes back missing and the value is
+ * silently lost, so every path here keeps the read in the INSERT's own
+ * transaction.
+ *
+ * The `INSERT OR IGNORE` values batch into one multi-row statement, so interning
+ * is a fixed 3 round trips however many unique strings a save carries. That is
+ * what keeps it clear of the transaction round-trip guard.
+ */
+export const internStringRows = async (
+  rows: PreparedStringRow[],
+): Promise<StringIdByText> => {
+  if (rows.length === 0) return new Map();
+  const indexes = textIndexes(rows);
+  const selectResult = await runInternStatements([
+    ...internWriteStatements(rows),
+    {
+      args: indexes,
+      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(indexes)})`,
+    },
+  ]);
   const found = resultRows<{ id: number; text_index: string }>(selectResult);
   return pairStringIds(rows, found);
 };
@@ -143,13 +155,12 @@ export const internStringRows = async (
 /**
  * Does the crypto and the DB work in one call, for the standalone path.
  *
- * A caller wrapping its save in `withTransaction` must instead call
- * {@link prepareStringRows} *before* opening the transaction, then
- * {@link internStringRows} on the tx. That keeps the CPU-bound crypto out of
- * the write-lock window.
+ * A caller that already holds a write boundary must instead call
+ * {@link prepareStringRows} *before* opening it (the crypto is CPU-bound and
+ * holds no DB statement) and ride {@link internWriteStatements} on it — the
+ * reservation boundary's answer save resolves the interned ids inside its own
+ * batch rather than reading them back.
  */
 export const getOrCreateStringIds = async (
   texts: string[],
-  tx?: TxScope,
-): Promise<StringIdByText> =>
-  internStringRows(await prepareStringRows(texts), tx);
+): Promise<StringIdByText> => internStringRows(await prepareStringRows(texts));

@@ -26,9 +26,9 @@ src/features/public/ticket-payment.ts::checkAvailability.dayCount~0fy6gm8  1 →
 src/features/public/ticket-payment.ts::resolveDayCount.shownName~037zc5x  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
 src/features/public/ticket-payment.ts::foldSelectedChildren.tree~12uyd8g  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
 src/features/public/ticket-payment.ts::foldSelectedChildren.hasFoldableParent~08cbwkz  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
-src/features/public/ticket-payment.ts::EMPTY_PRICED_ORDER.fullSubtotal~16fny0e  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
-src/features/public/ticket-payment.ts::createFreeReservation.dayCount.dayCount~0fy6gm8  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
-src/features/public/ticket-payment.ts::createFreeReservation.result.pricedOrder~1mtrtps  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/free-reservation.ts::EMPTY_PRICED_ORDER.fullSubtotal~16fny0e  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
+src/features/public/free-reservation.ts::createFreeReservation.dayCount.dayCount~0fy6gm8  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
+src/features/public/free-reservation.ts::createFreeReservation.result.pricedOrder~1mtrtps  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
 src/features/public/ticket-payment.ts::singleDailyParent.children~1kv3u53  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 src/features/public/ticket-payment.ts::getTicketContext.packages~0m8qaqi  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
 src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every group id it is given, and only the page's own package ids are looked up, so requiredMapValue never raises this message

@@ -15,6 +15,7 @@ import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diag
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
+  type BatchTail,
   type BookingBatchPlan,
   bookingBatchCondition,
   type PreparedWrite,
@@ -253,16 +254,17 @@ const capacityFailure = async (
 export const createAttendeeAtomicImpl = (
   input: AttendeeInput,
   creationWork?: AttendeeCreationWork,
+  tail?: BatchTail,
 ): Promise<CreateAttendeeResult> =>
   createWith<CreateAttendeeResult>({
     noBooking: () => capacityFailure(input.bookings),
     write: (prepared) =>
       creationWork
         ? writeWithCreationWork(prepared, creationWork)
-        : writeAsBatch(prepared),
+        : writeAsBatch(prepared, tail),
   })(input);
 
-export type { AttendeeCreationWork, BookingBatchPlan };
+export type { AttendeeCreationWork, BatchTail, BookingBatchPlan };
 
 const provenPiiPaymentSession = (
   input: AttendeeInput,
@@ -283,6 +285,7 @@ const provenPiiPaymentSession = (
 export const createBookingAtomic = (
   input: AttendeeInput,
   plan: BookingBatchPlan,
+  tail?: BatchTail,
 ): Promise<CreateAttendeeResult | "sold-out"> =>
   createWith<CreateAttendeeResult | "sold-out">({
     condition: bookingBatchCondition(plan),
@@ -291,5 +294,5 @@ export const createBookingAtomic = (
         ? "sold-out"
         : capacityFailure(input.bookings),
     piiPaymentSessionId: provenPiiPaymentSession(input, plan),
-    write: (prepared) => writeAsLedgerBatch(prepared, plan),
+    write: (prepared) => writeAsLedgerBatch(prepared, plan, tail),
   })(input);

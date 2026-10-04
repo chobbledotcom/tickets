@@ -125,7 +125,6 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
     ["src/shared/provider-refunds.ts", [{ name: "ProviderRefundResult" }]],
   ])(["state"]),
   ...identitiesAt([
-    ["src/shared/db/questions/strings.ts", [{ name: "PreparedStringRow" }]],
     [
       "src/shared/sms/gateway.ts",
       [{ name: "EncryptedMessagePayload" }, { name: "textMessage" }],

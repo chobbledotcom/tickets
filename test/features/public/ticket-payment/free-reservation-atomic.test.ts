@@ -4,7 +4,7 @@ import { buildTicketListing } from "#booking/model.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import { createFreeReservation } from "#routes/public/ticket-payment.ts";
+import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { withRejectedBookingWrite } from "#test-utils/atomic-booking.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
