@@ -806,9 +806,9 @@ export const insertedRowId = (
 /**
  * Write one row `statement` in a fresh write transaction and run `persist` (the
  * coupled join-table writes) on the same `tx`, so the row and its side writes
- * commit or roll back together. On update, an optional `readState` runs before
- * the statement and its result reaches `persist`; creates skip it. Returns the
- * row id — `existingId` on update, or the key the INSERT returned on create.
+ * commit or roll back together. On update, the optional `readState` step runs
+ * before the statement — it reads the state that reaches `persist` and may
+ * refuse the write by throwing; creates skip it. Returns the row id.
  */
 export const writeRowInTransaction = <State = never>(
   statement: InStatement,

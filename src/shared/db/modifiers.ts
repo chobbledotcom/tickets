@@ -18,6 +18,8 @@ import {
   queryIdColumn,
   queryOne,
   requireOne,
+  resultRows,
+  type TxScope,
   update,
 } from "#db/client.ts";
 import {
@@ -41,7 +43,7 @@ import {
   type WhereClause,
   whereSql,
 } from "#db/where-clauses.ts";
-import { emptyListsFor } from "#fp";
+import { emptyListsFor, mapParallel } from "#fp";
 import type {
   CalcKind,
   ModifierDirection,
@@ -151,9 +153,19 @@ export const getModifierNamesByIds = envNameSource(
   "modifier",
 ).byIds;
 
-/** Get the active modifiers, decrypted, ordered by id. */
-export const getActiveModifiers = (): Promise<Modifier[]> =>
-  queryModifiersWhere(equals("active", 1));
+/** Get the active modifiers, decrypted, ordered by id. An optional transaction
+ * reads the same rows through it, so a reachability guard inside a write
+ * transaction sees that transaction's own earlier writes. */
+export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
+  const parts = equals("active", 1);
+  const sql = `${modifierSelect(parts)} ORDER BY id ASC`;
+  const args = clauseArgs(parts);
+  return tx === undefined
+    ? queryModifiersWhere(parts)
+    : mapParallel(mapModifierRow)(
+        resultRows<Modifier>(await tx.execute({ args, sql })),
+      );
+};
 
 /** Get a single modifier by id, decrypted, with its ledger-projected
  * total_revenue — the single-row read the admin edit/recalculate pages use, so
@@ -258,12 +270,18 @@ const appendModifierListingLinks = (
  * modifier id. */
 const modifierScopeListingIdsLookup =
   (buildSql: (placeholders: string) => string) =>
-  async (modifierIds: number[]): Promise<Map<number, number[]>> => {
+  async (
+    modifierIds: number[],
+    tx?: TxScope,
+  ): Promise<Map<number, number[]>> => {
     if (modifierIds.length === 0) return new Map();
-    const rows = await queryAll<ModifierListingLinkRow>(
-      buildSql(inPlaceholders(modifierIds)),
-      modifierIds,
-    );
+    const sql = buildSql(inPlaceholders(modifierIds));
+    const rows =
+      tx === undefined
+        ? await queryAll<ModifierListingLinkRow>(sql, modifierIds)
+        : resultRows<ModifierListingLinkRow>(
+            await tx.execute({ args: modifierIds, sql }),
+          );
     return appendModifierListingLinks(
       emptyListsFor<number, number>(modifierIds),
       rows,

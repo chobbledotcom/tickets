@@ -226,7 +226,7 @@ export const submittedMembersCapErrorTx = async (
   groupId: number,
   members: PackageMemberInput[],
 ): Promise<string | null> => {
-  const currentIds = new Set(await groupListings.getIdsTx(tx, groupId));
+  const currentIds = new Set(await groupListings.getIds(groupId, tx));
   const quantities = new Map(
     members
       .filter((member) => currentIds.has(member.listingId))

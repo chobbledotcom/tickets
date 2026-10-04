@@ -11,7 +11,13 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { inPlaceholders, queryIdColumn, type TxScope } from "#db/client.ts";
+import {
+  inPlaceholders,
+  queryIdColumn,
+  resultRows,
+  type SqlStatement,
+  type TxScope,
+} from "#db/client.ts";
 import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
@@ -133,22 +139,32 @@ export const listingIdsWithLinks = (
  * parent edges. `listingParents` (the unfiltered side) stays the STRUCTURAL
  * predicate — "renders under a parent, folds, carries allocations" — while this
  * one answers the GATE question "has no standalone existence". Returns an empty
- * set for empty input (no query). */
+ * set for empty input (no query). An optional transaction reads the same rows
+ * through it, so a would-be reachability guard inside a write transaction sees
+ * that transaction's own earlier writes. */
+const nonStandaloneChildStatement = (ids: readonly number[]): SqlStatement => ({
+  args: [...ids],
+  sql: `SELECT DISTINCT listingParent.child_listing_id AS id
+          FROM listing_parents AS listingParent
+          JOIN listings AS listing ON listing.id = listingParent.child_listing_id
+         WHERE listingParent.child_listing_id IN (${inPlaceholders(ids)})
+           AND listing.bookable_alone = 0`,
+});
+
 export const getNonStandaloneChildIds = async (
   ids: readonly number[],
-): Promise<Set<number>> =>
-  ids.length === 0
-    ? new Set()
-    : new Set(
-        await queryIdColumn(
-          `SELECT DISTINCT listingParent.child_listing_id AS id
-             FROM listing_parents AS listingParent
-             JOIN listings AS listing ON listing.id = listingParent.child_listing_id
-            WHERE listingParent.child_listing_id IN (${inPlaceholders(ids)})
-              AND listing.bookable_alone = 0`,
-          [...ids],
-        ),
-      );
+  tx?: TxScope,
+): Promise<Set<number>> => {
+  if (ids.length === 0) return new Set();
+  const statement = nonStandaloneChildStatement(ids);
+  const idRows =
+    tx === undefined
+      ? await queryIdColumn(statement.sql, statement.args)
+      : resultRows<{ id: number }>(await tx.execute(statement)).map(
+          (row) => row.id,
+        );
+  return new Set(idRows);
+};
 
 /** Whether any of `ids` is a child with no standalone existence (see
  * {@link getNonStandaloneChildIds}). The gate the explicit-slug entry points
@@ -271,11 +287,12 @@ const checkTouchingEdges = async (
 export const firstTouchingEdgeError = async (
   listingId: number,
   check: TouchingEdgeCheck,
+  tx?: TxScope,
 ): Promise<string | null> => {
-  const [childIds, parentIds] = await Promise.all([
-    listingChildren.getIds(listingId),
-    listingParents.getIds(listingId),
-  ]);
+  // Sequential even without a transaction: the transaction connection runs one
+  // statement at a time, so its two reads cannot overlap.
+  const childIds = await listingChildren.getIds(listingId, tx);
+  const parentIds = await listingParents.getIds(listingId, tx);
   return checkTouchingEdges(childIds, parentIds, check);
 };
 

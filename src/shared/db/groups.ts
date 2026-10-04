@@ -446,21 +446,23 @@ const listingGroupDiffStatements = (
   return statements;
 };
 
-/** Read the listing's current group set via `readCurrent`, diff it against the
- * wanted `groupIds`, and hand the change statements to `run` — the shared core
- * of the batch and transactional variants, so they can't drift. */
+/** Read the listing's current group set, diff it against the wanted
+ * `groupIds`, and run the change statements — through the caller's transaction
+ * when given, else as its own batch — so the batch and transactional variants
+ * can't drift. */
 const applyListingGroupDiff = async (
   listingId: number,
   groupIds: number[],
-  readCurrent: () => Promise<Set<number>>,
-  run: (statements: SqlStatement[]) => Promise<void>,
+  tx?: TxScope,
 ): Promise<void> => {
   const statements = listingGroupDiffStatements(
     listingId,
-    await readCurrent(),
+    new Set(await listingGroups.getIds(listingId, tx)),
     new Set(groupIds),
   );
-  if (statements.length > 0) await run(statements);
+  if (statements.length === 0) return;
+  if (tx === undefined) await executeBatch(statements);
+  else for (const statement of statements) await tx.execute(statement);
 };
 
 /** Replace a listing's whole group set (the listing-form checkboxes). */
@@ -470,12 +472,7 @@ type SetListingGroups = (
 ) => Promise<void>;
 
 export const setListingGroups: SetListingGroups = (listingId, groupIds) =>
-  applyListingGroupDiff(
-    listingId,
-    groupIds,
-    async () => new Set(await listingGroups.getIds(listingId)),
-    executeBatch,
-  );
+  applyListingGroupDiff(listingId, groupIds);
 
 /** Replace a listing's group memberships inside an existing write transaction,
  * so the change commits atomically with the listing row write (the admin API
@@ -494,14 +491,7 @@ export const setListingGroupsTx = async (
   );
   if (validation.listingMissing) return;
   if (validation.error) throw new TransactionValidationError(validation.error);
-  await applyListingGroupDiff(
-    listingId,
-    groupIds,
-    async () => new Set(await listingGroups.getIdsTx(tx, listingId)),
-    async (statements) => {
-      for (const stmt of statements) await tx.execute(stmt);
-    },
-  );
+  await applyListingGroupDiff(listingId, groupIds, tx);
 };
 
 /**
@@ -793,27 +783,27 @@ export const setGroupPackageMembers = (
     groupId,
     members,
     tx
-      ? async () => new Set(await groupListings.getIdsTx(tx, groupId))
+      ? async () => new Set(await groupListings.getIds(groupId, tx))
       : async () => new Set(await groupListings.getIds(groupId)),
     tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt.sql, stmt.args),
   );
 
-/**
- * Set the `active` flag on every listing in a group.
- * Returns the number of listings affected.
- */
+/** Set the `active` flag on every listing in a group, optionally inside an
+ * existing write transaction. Returns the number of listings affected. */
 export const setGroupListingsActive = async (
   groupId: number,
   active: boolean,
+  tx?: TxScope,
 ): Promise<number> => {
-  // Unaliased `id` (not IN_GROUP_SQL's `listing.id`) — this UPDATE has no table
-  // alias, so SQLite would reject `listing.id` here.
-  const result = await execute(
-    `UPDATE listings SET active = ? WHERE id IN (
+  // Unaliased `id`: this UPDATE has no table alias for SQLite to qualify.
+  const sql = `UPDATE listings SET active = ? WHERE id IN (
        SELECT groupListing.listing_id
          FROM group_listings AS groupListing
-        WHERE groupListing.group_id = ?)`,
-    [active ? 1 : 0, groupId],
-  );
+        WHERE groupListing.group_id = ?)`;
+  const args = [active ? 1 : 0, groupId];
+  const result =
+    tx === undefined
+      ? await execute(sql, args)
+      : await tx.execute({ args, sql });
   return result.rowsAffected;
 };

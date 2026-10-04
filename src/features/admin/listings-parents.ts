@@ -20,7 +20,6 @@ import {
 } from "#db/listings/records.ts";
 import {
   childOnlyAddOnName,
-  childOnlyAddOnNameForListings,
   type ListingGroupMembership,
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
@@ -30,6 +29,7 @@ import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { childOnlyAddOnNameForListings } from "#shared/add-on-reachability.ts";
 import {
   childAddOnError,
   type EdgeListing,

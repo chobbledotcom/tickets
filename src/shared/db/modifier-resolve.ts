@@ -9,13 +9,13 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
+import type { TxScope } from "#db/client.ts";
 import { getVisits, hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import {
   getActiveModifiers,
   getModifierGroupListingIdsByModifierId,
-  modifierGroups,
   modifierIdsByAnswerId,
   modifierListings,
 } from "#db/modifiers.ts";
@@ -46,9 +46,11 @@ const signedValue = (modifier: Modifier): number =>
 
 /** Resolve the listing ids each "groups"-scoped modifier covers. The default
  * resolves the group→listing membership live (the DB join); the would-be variant
- * passes a resolver that expands against in-memory listings. */
+ * passes a resolver that expands against in-memory listings, and an optional
+ * transaction reads the resolver's rows through it. */
 type GroupScopeResolver = (
   groupScopedIds: number[],
+  tx?: TxScope,
 ) => Promise<Map<number, number[]>>;
 
 const liveGroupScopeResolver: GroupScopeResolver =
@@ -63,10 +65,12 @@ type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
 
 /** Batched listing scopes for modifiers: null = whole order, array = scoped.
  * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing
- * ids are resolved (live join by default; in-memory for the would-be check). */
+ * ids are resolved (live join by default; in-memory for the would-be check),
+ * and the optional transaction reads every scope row through it. */
 const listingIdsByModifierId = async (
   modifiers: Modifier[],
   resolveGroupScopes: GroupScopeResolver = liveGroupScopeResolver,
+  tx?: TxScope,
 ): Promise<ListingScopes> => {
   const scopes: ListingScopes = new Map();
   const listingScoped = modifiers.filter((m) => m.scope === "listings");
@@ -74,10 +78,16 @@ const listingIdsByModifierId = async (
   for (const modifier of modifiers) {
     if (modifier.scope === "all") scopes.set(modifier.id, null);
   }
-  const [listingLinks, groupLinks] = await Promise.all([
-    modifierListings.getIdsByKeys(listingScoped.map((m) => m.id)),
-    resolveGroupScopes(groupScoped.map((m) => m.id)),
-  ]);
+  // Sequential even without a transaction: a transaction runs one statement
+  // at a time, so its two reads cannot overlap.
+  const listingLinks = await modifierListings.getIdsByKeys(
+    listingScoped.map((m) => m.id),
+    tx,
+  );
+  const groupLinks = await resolveGroupScopes(
+    groupScoped.map((m) => m.id),
+    tx,
+  );
   // Each lookup seeds an entry for every id it was given, so these maps cover
   // exactly the scoped modifiers — copy their links straight in.
   for (const [id, ids] of listingLinks) scopes.set(id, ids);
@@ -431,15 +441,16 @@ const addOnCanRequirePayment = (modifier: Modifier): boolean =>
  * listing and the child-reachability hard block. `resolveGroupScopes` chooses how
  * group scopes resolve (live join by default; in-memory for the would-be
  * pre-save check). */
-const optionalAddOnsWithScopes = async (
+export const optionalAddOnsWithScopes = async (
   resolveGroupScopes?: GroupScopeResolver,
+  tx?: TxScope,
 ): Promise<OptionalAddOns> => {
-  const optional = (await getActiveModifiers()).filter(
+  const optional = (await getActiveModifiers(tx)).filter(
     (m) => m.trigger === "optional",
   );
   return {
     optional,
-    scopes: await listingIdsByModifierId(optional, resolveGroupScopes),
+    scopes: await listingIdsByModifierId(optional, resolveGroupScopes, tx),
   };
 };
 
@@ -500,7 +511,7 @@ export const childOnlyAddOnName = async (
  * changes `group_id`): the name of the first active opt-in add-on whose resolved
  * scope dead-ends through `childId` for a parent page of `parentPageListingIds`,
  * or null. */
-const childOnlyAddOnNameWithScopes = (
+export const childOnlyAddOnNameWithScopes = (
   { optional, scopes }: OptionalAddOns,
   childId: number,
   parentPageListingIds: readonly number[],
@@ -548,43 +559,6 @@ export const listingIdsInGroups = (
     .filter((listing) => listing.groupIds.some((g) => groups.has(g)))
     .map((listing) => listing.id);
 };
-
-/**
- * A {@link GroupScopeResolver} that expands each group-scoped modifier against
- * an **in-memory** listing set, so a caller can test reachability under a
- * listing's *would-be* `group_id` (which the live `modifier_groups`→`listings`
- * join wouldn't yet reflect). Fetches each modifier's linked
- * group ids, then maps them to the supplied listings' ids via
- * {@link listingIdsInGroups}.
- */
-const inMemoryGroupScopeResolver =
-  (allListings: ListingGroupMembership[]): GroupScopeResolver =>
-  async (groupScopedIds) => {
-    const groupLinks = await modifierGroups.getIdsByKeys(groupScopedIds);
-    return new Map(
-      [...groupLinks].map(([id, groupIds]) => [
-        id,
-        listingIdsInGroups(groupIds, allListings),
-      ]),
-    );
-  };
-
-/**
- * Like {@link childOnlyAddOnName}, but resolving add-on scopes against the
- * supplied **in-memory** listings (with the saved listing's would-be `group_id`
- * already applied), so a listing save that moves a parent out of the group a
- * child-only add-on is scoped to is caught before it orphans the add-on.
- */
-export const childOnlyAddOnNameForListings = async (
-  childId: number,
-  parentPageListingIds: readonly number[],
-  allListings: ListingGroupMembership[],
-): Promise<string | null> =>
-  childOnlyAddOnNameWithScopes(
-    await optionalAddOnsWithScopes(inMemoryGroupScopeResolver(allListings)),
-    childId,
-    parentPageListingIds,
-  );
 
 /** The post-save shape of an opt-in add-on whose child-reachability must hold:
  * its trigger/active state and its **already-resolved** listing scope (null =
@@ -641,27 +615,3 @@ export const reachablePageIds = (
       )
       .map((listing) => listing.id),
   );
-
-export const firstChildUnreachableAddOnForListings = async (
-  allListings: ListingGroupMembership[],
-  childListingIds: Set<number>,
-): Promise<string | null> => {
-  const { optional, scopes } = await optionalAddOnsWithScopes(
-    inMemoryGroupScopeResolver(allListings),
-  );
-  const reachable = reachablePageIds(allListings, childListingIds);
-  for (const modifier of optional) {
-    const error = childUnreachableAddOnError(
-      {
-        active: modifier.active,
-        name: modifier.name,
-        scope: scopes.get(modifier.id)!,
-        trigger: modifier.trigger,
-      },
-      childListingIds,
-      reachable,
-    );
-    if (error) return error;
-  }
-  return null;
-};

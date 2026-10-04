@@ -16,6 +16,8 @@ import {
   type TxScope,
   writeRowInTransaction,
 } from "#db/client.ts";
+import { refusingTheWriteOn } from "#db/transaction.ts";
+import type { CheckTxHook } from "#shared/rest/crud-api-types.ts";
 
 /** One join-table write that must commit atomically with the row it belongs to,
  *  given the open transaction, row id, and narrow pre-update state. */
@@ -24,6 +26,15 @@ export type JoinWrite<State = never> = (
   id: number,
   state: State | null,
 ) => Promise<void>;
+
+/** Wire a resource's input-taking {@link CheckTxHook} guard into the write's
+ * pre-statement step: a returned message refuses via a thrown validation
+ * error. Undefined when the resource declares no guard. */
+export const refusingCheckTx = <Input>(
+  checkTx: CheckTxHook<Input> | undefined,
+  input: Input,
+): ((tx: TxScope, id: number) => Promise<void>) | undefined =>
+  checkTx && refusingTheWriteOn((tx, id) => checkTx(tx, id, input));
 
 /** How to write one row and read it back. `existingId` is null on create (the id
  *  comes from the INSERT) and the row id on update. */
@@ -34,6 +45,10 @@ export interface EntityWrite<Row extends { id: number }, State = never> {
   afterCommit?: ((id: number) => Promise<void>) | undefined;
   /** Build the INSERT/UPDATE statement — only called on the transactional path. */
   buildStatement: () => Promise<SqlStatement>;
+  /** Refusing guard run inside the transaction before the row statement, so
+   * its reads see the committed rows the write is about to change. A refusal
+   * throws (rolling the transaction back). Update only. */
+  checkTx?: ((tx: TxScope, id: number) => Promise<void>) | undefined;
   existingId: number | null;
   /** Join-table writes that must commit atomically with the row. Any present ⇒
    *  the row and every join write share one transaction, so a failed join write
@@ -85,6 +100,15 @@ const readBackWrittenOrNull = async <Row extends { id: number }, State>(
 export const writeEntity = async <Row extends { id: number }, State = never>(
   write: EntityWrite<Row, State>,
 ): Promise<Row | null> => {
+  // The refusing guard runs before the row statement, as the first half of the
+  // transaction's pre-statement step.
+  const preRead: TransactionStateReader<State> | undefined =
+    write.checkTx === undefined && write.readState === undefined
+      ? undefined
+      : async (tx, id) => {
+          if (write.checkTx) await write.checkTx(tx, id);
+          return write.readState === undefined ? null : write.readState(tx, id);
+        };
   const row =
     write.joinWrites.length > 0
       ? await readBackWrittenOrNull(
@@ -97,7 +121,7 @@ export const writeEntity = async <Row extends { id: number }, State = never>(
                 await joinWrite(tx, id, state);
               }
             },
-            write.readState,
+            preRead,
           ),
         )
       : await write.plainWrite();

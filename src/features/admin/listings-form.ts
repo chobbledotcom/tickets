@@ -40,6 +40,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import {
   generateUniqueListingSlug,
+  listingSaveOrphanedAddOnTx,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";
@@ -312,6 +313,9 @@ export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
     afterCommit: syncListingPrices,
     afterWrite: writeListingGroups,
+    // The add-on reachability half of the save refuses inside the row write's
+    // transaction, so two concurrent page-removing saves cannot both commit.
+    checkTx: listingSaveOrphanedAddOnTx,
     form: getListingEditForm(),
     table: listingsTable,
     toInput: (values: ListingEditFormValues) =>

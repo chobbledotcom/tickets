@@ -181,30 +181,26 @@ const selectedListingIds = (listingIds: number[]): number[] | null =>
   listingIds.length === 0 ? null : [...new Set(listingIds)];
 
 /** Builds one membership write: nothing selected writes nothing, the ids are
- * deduplicated, the optional `prepare` check runs before the write
- * transaction opens, and the `write` itself runs inside it with the group
- * checked there. */
+ * deduplicated, and the write itself runs inside one transaction with the
+ * guards and the fresh group check there. */
 const membershipWrite =
-  (steps: {
-    prepare?: (ids: number[], groupId: number) => Promise<string | null>;
+  (
     write: (
       tx: TxScope,
       ids: number[],
       groupId: number,
-    ) => Promise<string | null>;
-  }) =>
+    ) => Promise<string | null>,
+  ) =>
   async (listingIds: number[], groupId: number): Promise<string | null> => {
     const ids = selectedListingIds(listingIds);
     if (ids === null) return null;
-    const refusal = await steps.prepare?.(ids, groupId);
-    if (refusal) return refusal;
-    return withTransaction((tx) => steps.write(tx, ids, groupId));
+    return withTransaction((tx) => write(tx, ids, groupId));
   };
 
 /** Adds listings after checking fresh group, listing, and edge state in one
  * write transaction. */
-export const assignListingsToGroup: MembershipWrite = membershipWrite({
-  write: async (tx, ids, groupId) => {
+export const assignListingsToGroup: MembershipWrite = membershipWrite(
+  async (tx, ids, groupId) => {
     const groups = await groupStatesTx(tx, [groupId]);
     const state = groups.get(groupId);
     if (!state) return t("error.selected_group_deleted");
@@ -221,16 +217,26 @@ export const assignListingsToGroup: MembershipWrite = membershipWrite({
     await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
   },
-});
+);
 
 /** Removes listings from one group in one write transaction, with the
  * pair-shaped deletes the listing form's untick runs. One batch however many
  * members were chosen; a non-member is a no-op. */
-export const removeListingsFromGroup: MembershipWrite = membershipWrite({
-  // The listing form refuses an untick that orphans a child-scoped add-on;
-  // the group page refuses it here, before the transaction opens.
-  async prepare(ids, groupId) {
-    const current = await listingGroups.getIdsByKeys(ids);
+export const removeListingsFromGroup: MembershipWrite = membershipWrite(
+  async (tx, ids, groupId) => {
+    // The removal judges no member rules, so the fresh group check reads the
+    // group's existence alone — not the whole member list.
+    const group = await tx.execute({
+      args: [groupId],
+      sql: "SELECT 1 FROM groups WHERE id = ? LIMIT 1",
+    });
+    if (group.rows.length === 0) return t("error.selected_group_deleted");
+    // The listing form refuses an untick that orphans a child-scoped add-on;
+    // the group page refuses it here, INSIDE the transaction, so the
+    // reachability walk reads the memberships this transaction sees — the
+    // second of two concurrent removals of a group's last rescuing pages
+    // cannot slip past the one the first removed.
+    const current = await listingGroups.getIdsByKeys(ids, tx);
     const leaving = new Map(
       ids.map((id) => [
         id,
@@ -241,16 +247,8 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite({
         ).filter((group) => group !== groupId),
       ]),
     );
-    return groupLeavingOrphanedAddOnError(leaving);
-  },
-  async write(tx, ids, groupId) {
-    // The removal judges no member rules, so the fresh group check reads the
-    // group's existence alone — not the whole member list.
-    const group = await tx.execute({
-      args: [groupId],
-      sql: "SELECT 1 FROM groups WHERE id = ? LIMIT 1",
-    });
-    if (group.rows.length === 0) return t("error.selected_group_deleted");
+    const orphanError = await groupLeavingOrphanedAddOnError(leaving, tx);
+    if (orphanError) return orphanError;
     await tx.batch([
       {
         args: [groupId, ...ids],
@@ -262,7 +260,7 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite({
     ]);
     return null;
   },
-});
+);
 
 /** The rejection reasons for one add-listings batch: a built-site plan joins
  *  no group (ordinary or package), a stored plan member holds every joiner

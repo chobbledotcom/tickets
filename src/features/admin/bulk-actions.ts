@@ -14,7 +14,8 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import { executeBatch } from "#db/client.ts";
+import { executeBatch, withTransaction } from "#db/client.ts";
+import { groupListings } from "#db/groups/table.ts";
 import {
   cloneGroupMembershipStatement,
   generateUniqueGroupSlug,
@@ -41,6 +42,7 @@ import {
   isNameTakenAnywhere,
   normalizeEntityName,
 } from "#db/name-registry.ts";
+import { refuseTheWriteOn } from "#db/transaction.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
@@ -60,6 +62,7 @@ import { getFlash } from "#shared/flash-context.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {
   adminBulkActionsPage,
@@ -115,30 +118,37 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     onConfirm: async ({ context: group }) => {
       // A bulk DEACTIVATE marks every group member inactive at once, which can
       // orphan a child-scoped opt-in add-on rescued only by those members'
-      // pages. Run the same shared guard the single-listing/API paths use,
-      // with all members' ids marked inactive together, and block before the
-      // batch UPDATE. Reactivation can only add pages.
-      if (!opts.active) {
-        const members = await getListingsByGroupId(group.id);
-        const error = await deactivationOrphanedAddOnError(
-          new Set(members.map((listing) => listing.id)),
+      // pages. The shared guard runs INSIDE the write transaction, on reads
+      // through it, so a membership change that committed while the page was
+      // open is seen and the second of two page-removing writes is refused.
+      // Reactivation can only add pages.
+      const mismatchUrl = `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
+      try {
+        const affected = await withTransaction(async (tx) => {
+          if (!opts.active) {
+            refuseTheWriteOn(
+              await deactivationOrphanedAddOnError(
+                new Set(await groupListings.getIds(group.id, tx)),
+                tx,
+              ),
+            );
+          }
+          return setGroupListingsActive(group.id, opts.active, tx);
+        });
+        await logActivity(
+          `Group '${group.name}' ${opts.action}d (${xCount(affected)} listings)`,
         );
-        if (error) {
-          return errorRedirect(
-            `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
-            error,
-          );
-        }
+        return redirect(
+          `/admin/groups/${group.id}`,
+          `Group ${opts.action}d (${xCount(affected)} listings)`,
+          true,
+        );
+      } catch (error) {
+        return errorRedirect(
+          mismatchUrl,
+          transactionValidationMessageOrRethrow(error),
+        );
       }
-      const affected = await setGroupListingsActive(group.id, opts.active);
-      await logActivity(
-        `Group '${group.name}' ${opts.action}d (${xCount(affected)} listings)`,
-      );
-      return redirect(
-        `/admin/groups/${group.id}`,
-        `Group ${opts.action}d (${xCount(affected)} listings)`,
-        true,
-      );
     },
   });
 
