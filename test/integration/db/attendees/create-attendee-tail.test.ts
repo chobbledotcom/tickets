@@ -23,13 +23,12 @@ describeWithEnv(
           email: "work@example.com",
           name: "Work User",
         },
-        (tx, attendeeId) =>
-          tx
-            .execute({
-              args: [attendeeId],
-              sql: "UPDATE attendees SET checked_in = 'worked' WHERE id = ?",
-            })
-            .then(() => undefined),
+        async (tx, attendeeId) => {
+          await tx.execute({
+            args: [attendeeId],
+            sql: "UPDATE attendees SET checked_in = 'worked' WHERE id = ?",
+          });
+        },
       );
 
       expect(result.success).toBe(true);
