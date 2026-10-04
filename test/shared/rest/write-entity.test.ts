@@ -204,6 +204,34 @@ describe("writeEntity", () => {
     expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "before" });
   });
 
+  test("checkTx without join writes forces the transactional path and refuses", async () => {
+    const table = makeTable();
+    let plainWriteRan = false;
+    let txSeen: TxScope | undefined;
+    let thrown: unknown;
+
+    try {
+      await writeWith(table, {
+        checkTx: (tx) => {
+          txSeen = tx;
+          return Promise.reject(new Error("no orphaning"));
+        },
+        existingId: 7,
+        plainWrite: () => {
+          plainWriteRan = true;
+          return table.insert({ name: "row" });
+        },
+        readBack: (id) => table.findByIdPrimary!(id),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect((thrown as Error).message).toBe("no orphaning");
+    expect(txSeen).toBeDefined();
+    expect(plainWriteRan).toBe(false);
+  });
+
   test("plain path (no join writes): uses plainWrite, skips the statement, still runs afterCommit", async () => {
     const table = makeTable();
     let buildStatementRan = false;

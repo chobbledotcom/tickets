@@ -10,17 +10,22 @@ import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirect, parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestGroup,
+  listingGroupIdsOf,
+} from "#test-utils/db-helpers/groups.ts";
 import { buildUpdateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
+import { groupRescuedChildAddOn } from "#test-utils/listing-parents/helpers.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import {
   adminMultipartPost,
@@ -147,6 +152,27 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
     );
     expect(html).toContain("Listing name is required");
+  });
+
+  test("refuses inside the write an edit that orphans a child-scoped add-on", async () => {
+    const { group, rescuer } = await groupRescuedChildAddOn();
+
+    // The form path runs the reachability guard inside the row write's
+    // transaction (checkTx), so clearing the rescuing page's last group is
+    // refused and the membership rows survive.
+    const { response } = await adminMultipartPost(
+      `/admin/listing/${rescuer.id}/edit`,
+      {
+        ...buildUpdateListingForm({}, rescuer),
+        group_ids: "",
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain(
+      t("modifiers.err_child_only_addon", { name: "Group extra" }),
+    );
+    expect(await listingGroupIdsOf(rescuer.id)).toEqual([group.id]);
   });
 });
 

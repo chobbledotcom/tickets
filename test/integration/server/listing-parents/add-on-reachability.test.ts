@@ -195,26 +195,23 @@ describeWithEnv(
       expect(await listingGroups.getIds(child.id)).toEqual([]);
     });
 
-    test("validateListingInput rejects an orphaning group change with an omitted groupId", async () => {
-      // The admin JSON API may omit group_id; validateListingInput then sees
-      // groupId undefined and defaults the would-be group to 0 (no group). A
-      // parent whose group-scoped add-on only resolves to it via its group is
-      // orphaned by dropping to no group, so the (defaulted) check still blocks.
-      const { validateListingInput } = await import(
-        "#shared/listings-actions.ts"
-      );
-      const { listingsTable } = await import("#db/listings/records.ts");
-      const { parent, child } = await groupScopedAddOn();
+    test("an API update that omits group_ids keeps the groups and is not refused", async () => {
+      // The JSON API reads an absent group_ids as "leave the groups as they
+      // are", so the save guard must judge the stored groups, not "no group".
+      const { parent, child, group } = await groupScopedAddOn();
       await postChildren(parent.id, [child.id]);
 
-      const row = (await getListingWithCount(parent.id))!;
-      // Omit groupIds entirely (undefined) — validateListingInput defaults it to
-      // "no groups", which still orphans the group-scoped add-on.
-      const input = listingsTable.rowToInput(row, [
-        "created",
-      ]) as import("#shared/catalog-fields/fields.ts").ListingInput;
-      const error = await validateListingInput(input, parent.id);
-      expect(error).toContain("Group extra");
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { name: "Base unit renamed" },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(await listingGroups.getIds(parent.id)).toEqual([group.id]);
+      expect((await getListingWithCount(parent.id))?.name).toBe(
+        "Base unit renamed",
+      );
     });
 
     test("API create of a parent in the same group as the child's group-scoped add-on is accepted", async () => {

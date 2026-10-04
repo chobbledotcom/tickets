@@ -101,10 +101,23 @@ describeWithEnv("db link-table", { db: true }, () => {
     expect(await byUser.getIds(1)).toEqual([1, 2]);
   });
 
-  test("getIdsTx sees earlier transaction writes and returns ids ascending", async () => {
+  test("getIds on a transaction sees earlier transaction writes, ascending", async () => {
     await withTransaction(async (tx) => {
       await byUser.setIdsTx(tx, 1, [9, 3, 7]);
-      expect(await byUser.getIdsTx(tx, 1)).toEqual([3, 7, 9]);
+      expect(await byUser.getIds(1, tx)).toEqual([3, 7, 9]);
+    });
+  });
+
+  test("getIdsByKeys on a transaction reads the transaction's own writes", async () => {
+    await byUser.setIds(1, [2]);
+    await withTransaction(async (tx) => {
+      await byUser.setIdsTx(tx, 2, [1]);
+      expect(await byUser.getIdsByKeys([1, 2], tx)).toEqual(
+        new Map([
+          [1, [2]],
+          [2, [1]],
+        ]),
+      );
     });
   });
 

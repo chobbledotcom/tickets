@@ -11,7 +11,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { rescuingPageSetup } from "#test-utils/listing-parents/helpers.ts";
+import {
+  groupRescuedChildAddOn,
+  rescuingPageSetup,
+} from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
@@ -214,6 +217,20 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
     );
     expect(await getListingWithCount(thatPage.id)).not.toBeNull();
+  });
+
+  test("rejects inside the write an update that orphans a child-scoped add-on", async () => {
+    const { group, rescuer } = await groupRescuedChildAddOn();
+
+    // The guard runs in the row write's transaction (checkTx), so the refusal
+    // rolls the save back and answers 400 with the same message the form shows.
+    await expectListingApiError(
+      `/api/admin/listings/${rescuer.id}`,
+      "PUT",
+      { group_ids: [] },
+      t("modifiers.err_child_only_addon", { name: "Group extra" }),
+    );
+    expect(await listingGroups.getIds(rescuer.id)).toEqual([group.id]);
   });
 
   test("names the listing confirmation field when deletion is rejected", async () => {

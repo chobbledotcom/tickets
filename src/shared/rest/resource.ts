@@ -13,8 +13,11 @@ import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
-import type { AfterCommitConfig } from "#shared/rest/crud-api-types.ts";
-import { writeEntity } from "#shared/rest/write-entity.ts";
+import type {
+  AfterCommitConfig,
+  CheckTxHook,
+} from "#shared/rest/crud-api-types.ts";
+import { refusingCheckTx, writeEntity } from "#shared/rest/write-entity.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
@@ -88,6 +91,9 @@ export interface ResourceConfig<
     form: FormParams,
     state: State | null,
   ) => Promise<void>;
+  /** A guard run inside the row write's transaction, before the row statement;
+   * a returned message refuses the write and rolls it back. */
+  checkTx?: CheckTxHook<Input>;
   form: FormSchema<Values>;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
@@ -204,6 +210,7 @@ export const defineResource = <
           existingId === null
             ? table.insertStatement!(result.value)
             : table.updateStatement!(existingId, result.value),
+        checkTx: refusingCheckTx(config.checkTx, result.value),
         existingId,
         joinWrites: config.afterWrite
           ? [

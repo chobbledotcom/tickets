@@ -6,11 +6,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#db/client.ts";
+import { queryAll, withTransaction } from "#db/client.ts";
 import { removeListingsFromGroup } from "#db/groups/membership/package-writes.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
+import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -170,5 +171,32 @@ describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
     expect(await removeListingsFromGroup([child.id], group.id)).toBeNull();
     expect(await listingGroupIdsOf(child.id)).toEqual([]);
     expect(await listingGroupIdsOf(parent.id)).toEqual([group.id]);
+  });
+
+  test("refuses removing the last rescuing member when a concurrent removal went first", async () => {
+    const { group, rescuer } = await groupRescuedChildAddOn();
+    const secondPage = await createTestListing({
+      groupId: group.id,
+      name: "Second page",
+    });
+
+    // The concurrent removal still committed nothing: with both pages in the
+    // group, the add-on stays reachable, so a lone removal passes.
+    expect(
+      await groupLeavingOrphanedAddOnError(new Map([[rescuer.id, []]])),
+    ).toBeNull();
+
+    await withTransaction(async (tx) => {
+      // The first operator's removal, still uncommitted: the guard runs inside
+      // the write transaction, so it must read these membership rows through
+      // it — a stale committed read would pass and orphan the add-on.
+      await tx.execute({
+        args: [group.id, secondPage.id],
+        sql: "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
+      });
+      expect(
+        await groupLeavingOrphanedAddOnError(new Map([[rescuer.id, []]]), tx),
+      ).toBe(t("modifiers.err_child_only_addon", { name: "Group extra" }));
+    });
   });
 });

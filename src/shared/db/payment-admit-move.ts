@@ -6,13 +6,8 @@
  * claim arrives between the check and the write.
  */
 
-import {
-  inPlaceholders,
-  queryAllPrimary,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
+import { idListStatement } from "#db/id-list-statement.ts";
 import {
   mirroredMoveRefusalOrNull,
   type PaymentWork,
@@ -43,14 +38,13 @@ export interface PaymentMoveSnapshot {
   readonly work: PaymentWork;
 }
 
-const moveWorkStatement = (attendeeIds: readonly number[]): SqlStatement => ({
-  args: [...attendeeIds],
-  sql: `SELECT DISTINCT payment.protected_state, charge.refund_state
+const moveWorkStatement = idListStatement(
+  (ids) => `SELECT DISTINCT payment.protected_state, charge.refund_state
           FROM processed_payments AS payment
           LEFT JOIN payment_charges AS charge
             ON charge.reference_index = payment.payment_reference_index
-         WHERE payment.attendee_id IN (${inPlaceholders(attendeeIds)})`,
-});
+         WHERE payment.attendee_id IN (${ids})`,
+);
 
 const admissionFor = (reason: string | null): PaymentMoveAdmission =>
   reason === null ? { kind: "available" } : { kind: "blocked", reason };

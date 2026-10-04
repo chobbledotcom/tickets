@@ -9,12 +9,9 @@ import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
-import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById, getListingsByGroupIds } from "#db/groups.ts";
 import {
   edgeIncompatibilityAfterChange,
-  firstTouchingEdgeError,
-  getNonStandaloneChildIds,
   listingChildren,
   listingParents,
 } from "#db/listing-parents.ts";
@@ -25,15 +22,12 @@ import {
   listingsTable,
 } from "#db/listings/records.ts";
 import {
-  childOnlyAddOnNameForListings,
-  type ListingGroupMembership,
-} from "#db/modifier-resolve.ts";
-import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
+import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
@@ -200,130 +194,16 @@ const validateRenewalConfig = (input: ListingInput): string | null => {
   ]);
 };
 
-/** The first child-only add-on the listing's edges would orphan under its
- * would-be `group_id`, or null. Reuses the same reachability helper the edge/
- * modifier saves use, resolved against an in-memory listing set with this
- * listing's group move applied (the live `modifier_groups`→`listings` join can't
- * see the pending change). The listing is checked both as a
- * parent (its children, against its own page id `[id]`) and as a child (under
- * each parent's page id `[parentId]`). */
-import {
-  deactivationOrphanedAddOnError,
-  listingsWithGroups,
-  orphanedAddOnOverWouldBe,
-} from "#shared/add-on-reachability.ts";
-
-const orphanedAddOnAfterChange = async (
-  id: number,
-  wouldBeGroupIds: number[],
-): Promise<string | null> => {
-  // Apply this listing's would-be group set to the in-memory listing set, so a
-  // group-scoped add-on resolves against the move the save is about to make.
-  // (Built eagerly; the shared traversal short-circuits before `check` runs when
-  // the listing has no edges, so a no-edge save reads it but never queries scopes.)
-  const allListings = await listingsWithGroups((listing) =>
-    listing.id === id ? { groupIds: wouldBeGroupIds } : {},
-  );
-  // A `bookable_alone` child serves its own booking page, so an edge onto it never
-  // dead-ends a child-scoped add-on: only NON-standalone children are suppressed.
-  const nonStandalone = await getNonStandaloneChildIds(
-    allListings.map((l) => l.id),
-  );
-  // Each touching edge is a (suppressed child, parent page id) pair: as a parent
-  // of each child the page is self (`id`) and the suppressed child is the other
-  // endpoint; as a child under each parent the page is the parent and self is the
-  // suppressed child.
-  return firstTouchingEdgeError(id, async ({ self, otherId }) => {
-    const childId = self === "parent" ? otherId : id;
-    const pageId = self === "parent" ? id : otherId;
-    // A flagged child rescues any add-on via its own page, so skip the block.
-    if (!nonStandalone.has(childId)) return null;
-    const addOn = await childOnlyAddOnNameForListings(
-      childId,
-      [pageId],
-      allListings,
-    );
-    return addOn
-      ? t("listings_table.children_err_child_addon_save", { addon: addOn })
-      : null;
-  });
-};
-
-/** True when the save takes this listing out of a group it is currently in.
- * Losing a group can strip the page out of a group-scoped add-on's reach even
- * while the page itself stays live. */
-const leavesAGroup = async (
-  existingId: number,
-  wouldBeGroupIds: readonly number[],
-): Promise<boolean> =>
-  (await listingGroups.getIds(existingId)).some(
-    (groupId) => !wouldBeGroupIds.includes(groupId),
-  );
-
 /**
- * Three transitions take away a page that can rescue a child-scoped add-on: a
- * deactivation, an unset of "can be booked by itself" on a child, and a group
- * removal. The last is the subtle one, because an edge-less page has no
- * touching edge, so the edge walk never sees the move.
- *
- * Each re-runs the guard over the save's PENDING state. The stored row still
- * reads `bookable_alone = 1` until the save commits, so a flagged child with
- * parents is forced into the suppressed set by hand.
- */
-const lostPageOrphanedAddOn = async (
-  input: ListingInput,
-  existingId: number,
-): Promise<string | null> => {
-  const deactivating = input.active === false;
-  const clearingFlag = input.bookableAlone === false;
-  const mayStripPage = deactivating || clearingFlag;
-  const existing = mayStripPage ? await getListingWithCount(existingId) : null;
-  const flaggedChildWithParents =
-    existing?.bookable_alone === true &&
-    (await listingParents.getIds(existingId)).length > 0;
-  // Both listing-save entry points always resolve groupIds to an array — the
-  // form via parseGroupIds, the JSON API via `groups.input ?? existingGroupIds` —
-  // so it is defined here (matching the create path's `input.groupIds!` writer).
-  const wouldBeGroupIds = input.groupIds!;
-  const stripsOwnPage = deactivating || flaggedChildWithParents;
-  if (!stripsOwnPage && !(await leavesAGroup(existingId, wouldBeGroupIds))) {
-    return null;
-  }
-  const override = (
-    listing: ListingWithCount,
-  ): Partial<ListingGroupMembership> =>
-    listing.id === existingId
-      ? { active: !deactivating, groupIds: wouldBeGroupIds }
-      : {};
-  return orphanedAddOnOverWouldBe(
-    override,
-    flaggedChildWithParents ? [existingId] : [],
-  );
-};
-
-/**
- * On an update, re-validate every parent/child edge touching this listing
- * against its would-be field values *and* its would-be `group_id`, so a
- * type/duration/renewal change can't leave a persisted edge the booking gate
- * can't honour, and a group change can't orphan a group-scoped add-on that the
- * edge's child suppresses. Also re-check add-on reachability when the save
- * strips a rescuing page or takes it out of a group (the edge-touching walk
- * above misses a no-edge page that is the only one rescuing a child-scoped
- * add-on). No-op for creates (no edges yet, and a fresh listing rescues
- * nothing).
+ * Re-validate every parent/child edge touching this listing against its would-be
+ * field values, so a type/duration/renewal change can't leave a persisted edge
+ * the booking gate can't honour. No-op for creates (no edges yet). The add-on
+ * reachability half of the save runs later, inside the row write's transaction
+ * (see {@link listingSaveOrphanedAddOnTx}).
  */
 const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (existingId === undefined) return null;
-  const fieldError = await edgeIncompatibilityAfterChange(
-    listingInputToEdge(input, existingId),
-  );
-  if (fieldError) return fieldError;
-  const orphanError = await orphanedAddOnAfterChange(
-    existingId,
-    input.groupIds ?? [],
-  );
-  if (orphanError) return orphanError;
-  return lostPageOrphanedAddOn(input, existingId);
+  return edgeIncompatibilityAfterChange(listingInputToEdge(input, existingId));
 };
 
 /** The listing name's own checks. It must be unique across BOTH listings and

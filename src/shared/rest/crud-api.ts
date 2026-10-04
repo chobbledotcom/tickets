@@ -15,7 +15,11 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { parseAndValidate, withApiEntity } from "#shared/rest/crud-parsers.ts";
-import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
+import {
+  type JoinWrite,
+  refusingCheckTx,
+  writeEntity,
+} from "#shared/rest/write-entity.ts";
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
@@ -175,6 +179,7 @@ export const defineCrudApi = <
       writeEntity<FullRow, State>({
         afterCommit: config.afterCommit,
         buildStatement: getStatement,
+        checkTx: refusingCheckTx(config.checkTx, input),
         existingId,
         joinWrites,
         plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,

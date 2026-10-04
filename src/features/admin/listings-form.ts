@@ -24,6 +24,7 @@ import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { range } from "#fp";
 import { formDataToParams } from "#routes/csrf.ts";
+import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type ListingInput,
@@ -312,6 +313,9 @@ export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
     afterCommit: syncListingPrices,
     afterWrite: writeListingGroups,
+    // The add-on reachability half of the save refuses inside the row write's
+    // transaction, so two concurrent page-removing saves cannot both commit.
+    checkTx: listingSaveOrphanedAddOnTx,
     form: getListingEditForm(),
     table: listingsTable,
     toInput: (values: ListingEditFormValues) =>

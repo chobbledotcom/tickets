@@ -25,6 +25,7 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
+import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   deleteOrphanedAddOnError,
@@ -178,6 +179,9 @@ const listingApiRoutes = defineCrudApi<
   PreparedListingJoins
 >({
   afterCommit: syncListingPrices,
+  // The add-on reachability half of the save refuses inside the row write's
+  // transaction, so two concurrent page-removing saves cannot both commit.
+  checkTx: listingSaveOrphanedAddOnTx,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "GET /api/admin/listings/:listingId/attendees": handleListingAttendees,

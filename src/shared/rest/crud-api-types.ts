@@ -57,6 +57,17 @@ export type AfterWriteHook<Input, State = never> = (
   state: State | null,
 ) => Promise<void>;
 
+/** A guard run inside the row write's transaction, before the row statement,
+ * so its reads see the committed rows the write is about to change. A returned
+ * message refuses the write and rolls the transaction back. Update only —
+ * creates skip it. Its presence forces the write onto the transactional path
+ * even when the resource has no join writes. */
+export type CheckTxHook<Input> = (
+  tx: TxScope,
+  id: number,
+  input: Input,
+) => Promise<string | null>;
+
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<
   Row,
@@ -71,6 +82,9 @@ export interface CrudApiConfig<
    *  (it receives the transaction scope), so a failure rolls the row write back
    *  rather than leaving partial state. */
   afterWrite?: AfterWriteHook<Input, State>;
+  /** A guard run inside the row write's transaction, before the row statement;
+   * a returned message refuses the write (400) and rolls it back. */
+  checkTx?: CheckTxHook<Input>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Every row, from cache. May carry more than the table, such as counts. */

@@ -13,12 +13,13 @@
 import {
   deleteByField,
   executeBatch,
+  inPlaceholders,
   queryAll,
   resultRows,
   type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
-import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -43,14 +44,13 @@ export type LinkTableSide = {
     sourceKeyId: number,
     newKeyId: number,
   ) => Promise<void>;
-  /** The linked ids for a key, ascending. */
-  getIds: (keyId: number) => Promise<number[]>;
-  /** Like {@link LinkTableSide.getIds} but read on an existing write
-   * transaction, including the transaction's own earlier writes. */
-  getIdsTx: (tx: TxScope, keyId: number) => Promise<number[]>;
-  /** The linked ids for several keys in one bounded query. Every requested key
-   * is present in the map, including keys with no links. */
-  getIdsByKeys: (keyIds: readonly number[]) => Promise<Map<number, number[]>>;
+  /** The linked ids for a key, ascending. An optional transaction reads
+   * through it, including the transaction's own earlier writes. */
+  getIds: (keyId: number, tx?: TxScope) => Promise<number[]>;
+  /** The linked ids for several keys in one bounded query — the
+   * {@link ReadIdsByKeys} shape, cache-backed without a transaction and read
+   * through it with one. */
+  getIdsByKeys: ReadIdsByKeys;
   /** Replace a key's linked set with exactly `ids` (deduped): delete the key's
    * rows, then insert the new ones, as a single batch so a failure never
    * leaves a partial set. */
@@ -58,34 +58,6 @@ export type LinkTableSide = {
   /** Like {@link LinkTableSide.setIds} but run on an existing write
    * transaction, so the links commit atomically with the caller's row write. */
   setIdsTx: TxIdsWrite;
-};
-
-/** Reads the linked ids for several keys at once. Every key asked for comes
- * back, including keys with no links. */
-type ReadIdsByKeys = (
-  keyIds: readonly number[],
-) => Promise<Map<number, number[]>>;
-
-/** Rows of one link table, as the two id columns this module works in. */
-type LinkRow = { key_id: number; value_id: number };
-
-/** Rows of one link table, as the two id columns this module works in. The
- *  where body is built through the numbered binder, so a where that reads one
- *  id list through several columns binds that list once. */
-const linkRows = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
-  where: NumberedSql,
-): Promise<LinkRow[]> => {
-  const { sql, args } = numberedStatement(where);
-  return queryAll<LinkRow>(
-    `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
-       FROM ${table}
-       WHERE ${sql}
-       ORDER BY ${keyColumn}, ${valueColumn}`,
-    args,
-  );
 };
 
 /** One direction's reader: its own query, remembered per request. */
@@ -97,20 +69,9 @@ const oneDirectionReader = (
   const fetchIdsByKeys = async (
     keys: number[],
   ): Promise<Map<number, number[]>> => {
-    const idsByKey = new Map(keys.map((id) => [id, [] as number[]]));
-    if (keys.length === 0) return idsByKey;
-    const rows = await linkRows(
-      table,
-      keyColumn,
-      valueColumn,
-      (bind) => `${keyColumn} IN (${keys.map(bind).join(", ")})`,
-    );
-    return reduce((acc: Map<number, number[]>, row: LinkRow) => {
-      requiredMapValue(acc, row.key_id, "Unexpected link key").push(
-        row.value_id,
-      );
-      return acc;
-    }, idsByKey)(rows);
+    if (keys.length === 0) return new Map();
+    const { sql, args } = byKeysStatement(table, keyColumn, valueColumn, keys);
+    return rowsToIdsByKeys(keys, await queryAll<LinkRow>(sql, args));
   };
 
   // Rendering a page asks the same side for overlapping key sets several
@@ -120,6 +81,52 @@ const oneDirectionReader = (
   registerTableInvalidation([table], linksByKey.invalidate);
   return (keyIds) => linksByKey.getMany(keyIds);
 };
+
+/** Rows of one link table, as the two id columns this module works in. */
+type LinkRow = { key_id: number; value_id: number };
+
+/** One side's by-key read as a single statement — the one query both the bare
+ * per-request reader and the transaction reader run, so the two cannot drift. */
+const byKeysStatement = (
+  table: string,
+  keyColumn: string,
+  valueColumn: string,
+  keyIds: readonly number[],
+): SqlStatement => ({
+  args: [...keyIds],
+  sql: `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
+          FROM ${table}
+         WHERE ${keyColumn} IN (${inPlaceholders(keyIds)})
+         ORDER BY ${keyColumn}, ${valueColumn}`,
+});
+
+/** Bucket link rows under their key. Every requested key comes back, including
+ * keys with no rows, which stay empty lists. */
+const rowsToIdsByKeys = (
+  keyIds: readonly number[],
+  rows: LinkRow[],
+): Map<number, number[]> =>
+  reduce(
+    (acc: Map<number, number[]>, row: LinkRow) => {
+      requiredMapValue(acc, row.key_id, "Unexpected link key").push(
+        row.value_id,
+      );
+      return acc;
+    },
+    new Map(keyIds.map((id) => [id, [] as number[]])),
+  )(rows);
+
+/** The linked ids for one key each, keyed by the requested key. */
+export type LinkedIdsByKey = Map<number, number[]>;
+
+/** Reads the linked ids for several keys at once. Every key asked for comes
+ * back, including keys with no links. An optional transaction reads the same
+ * query through it, so a caller inside a write transaction sees its own
+ * earlier writes instead of the per-request cache. */
+type ReadIdsByKeys = (
+  keyIds: readonly number[],
+  tx?: TxScope,
+) => Promise<LinkedIdsByKey>;
 
 /** Build the helpers for one direction through a link table. */
 export const linkTableSide = (
@@ -148,16 +155,6 @@ export const linkTableSide = (
   // submitted list must collapse to one row each before inserting.
   const dedupe = (ids: readonly number[]): number[] => unique([...ids]);
 
-  const idsStatement = (keyId: number): SqlStatement => ({
-    args: [keyId],
-    sql: `SELECT ${valueColumn} AS id FROM ${table} WHERE ${keyColumn} = ? ORDER BY ${valueColumn} ASC`,
-  });
-
-  const readIds = async (
-    run: (statement: SqlStatement) => Promise<{ id: number }[]>,
-    keyId: number,
-  ): Promise<number[]> => (await run(idsStatement(keyId))).map((row) => row.id);
-
   const replaceStatements = (
     keyId: number,
     ids: readonly number[],
@@ -183,19 +180,24 @@ export const linkTableSide = (
               SELECT ?, ${valueColumn} FROM ${table} WHERE ${keyColumn} = ?`,
       });
     },
-    getIds: async (keyId) =>
+    getIds: async (keyId, tx?) =>
       requiredMapValue(
-        await linkSide.getIdsByKeys([keyId]),
+        await linkSide.getIdsByKeys([keyId], tx),
         keyId,
         `Missing link result for ${keyColumn} ${keyId}`,
       ),
-    getIdsByKeys: (keyIds) => readIdsByKeys(keyIds),
-    getIdsTx: (tx, keyId) =>
-      readIds(
-        async (statement) =>
-          resultRows<{ id: number }>(await tx.execute(statement)),
-        keyId,
-      ),
+    getIdsByKeys: async (keyIds, tx?) => {
+      if (tx === undefined) return readIdsByKeys(keyIds);
+      if (keyIds.length === 0) return new Map();
+      return rowsToIdsByKeys(
+        keyIds,
+        resultRows<LinkRow>(
+          await tx.execute(
+            byKeysStatement(table, keyColumn, valueColumn, keyIds),
+          ),
+        ),
+      );
+    },
     setIds: (keyId, ids) => executeBatch(replaceStatements(keyId, ids)),
     setIdsTx: async (tx, keyId, ids) => {
       await tx.batch(replaceStatements(keyId, ids));
@@ -242,10 +244,17 @@ export const selfLinkTableSides = (
     if (ids.length === 0) return linksById;
     // Both directions read the same ids, so the list is bound once and its
     // slots appear under both columns.
-    const rows = await linkRows(table, keyColumn, valueColumn, (bind) => {
+    const { sql, args } = numberedStatement((bind) => {
       const idSlots = ids.map(bind).join(", ");
       return `${keyColumn} IN (${idSlots}) OR ${valueColumn} IN (${idSlots})`;
     });
+    const rows = await queryAll<LinkRow>(
+      `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
+         FROM ${table}
+        WHERE ${sql}
+        ORDER BY ${keyColumn}, ${valueColumn}`,
+      args,
+    );
     for (const { key_id, value_id } of rows) {
       // A row matched on either column, so only one of its two records has to
       // be one the caller asked about.
