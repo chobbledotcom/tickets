@@ -35,6 +35,7 @@ import {
   StoredTextAnswerRefSchema,
   type TextAnswerRef,
 } from "#shared/booking-intent.ts";
+/* jscpd:ignore-start */
 import {
   bookingsForOrder,
   checkoutBookingLines,
@@ -44,6 +45,7 @@ import type {
   ModifierApplication,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
+/* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {

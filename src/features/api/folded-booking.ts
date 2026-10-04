@@ -18,10 +18,10 @@ import {
   ChildrenSchema,
   type PackageChildrenSchema,
 } from "#routes/api/request-schemas.ts";
+import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
   checkAvailability,
-  createFreeReservation,
   ctxToBuildTreeInput,
   foldSelectedChildren,
   getTicketContext,

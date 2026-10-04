@@ -8,9 +8,10 @@ type RunPoisonedBatch = <Result>(
 ) => Promise<Result>;
 
 /**
- * Reject the first batch or transactional statement whose SQL matches
- * `matches`, then delegate every subsequent write to the real client.
- * Stored-ID answers use `db.batch`; plaintext answers use `db.transaction`.
+ * Reject the first batch whose SQL matches `matches`, then delegate every
+ * subsequent write to the real client. Every answer save the suite poisons
+ * runs as one batch — a plain write (`db.batch`) or the save's one
+ * transactional batch (`tx.batch` inside `withTransaction`).
  */
 export const withPoisonedWrite =
   (matches: (sql: string) => boolean, message: string): PoisonedWrite =>
@@ -34,18 +35,10 @@ export const withPoisonedWrite =
     db.transaction = (async (mode: "read" | "write" = "write") => {
       const tx = await realTransaction(mode);
       const realBatch = tx.batch.bind(tx);
-      const realExecute = tx.execute.bind(tx);
       tx.batch = ((statements: SqlStatement[]) =>
         runPoisonedBatch(statements, () =>
           realBatch(statements as never),
         )) as typeof tx.batch;
-      tx.execute = ((stmt: { sql: string }) => {
-        if (poisoned && matches(stmt.sql)) {
-          poisoned = false;
-          return Promise.reject(new Error(message));
-        }
-        return realExecute(stmt as never);
-      }) as typeof tx.execute;
       return tx;
     }) as typeof db.transaction;
     try {

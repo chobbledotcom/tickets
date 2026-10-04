@@ -9,8 +9,7 @@ import type { OrderSpan } from "#booking/order-span.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { requirePublicDefaultStatus } from "#db/attendee-statuses.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
-import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
-import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
+import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import {
   type AnswerInfo,
   type extractContact,
@@ -19,7 +18,6 @@ import {
 } from "#routes/public/ticket-form.ts";
 import {
   checkAvailability,
-  createFreeReservation,
   handlePaymentFlow,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
@@ -141,6 +139,10 @@ export const handleFreePath = async (
     // one would; a provider-less booking passes null and records nothing here
     // (stock is consumed in the create transaction either way).
     ledgerOrder,
+    // The answers commit in the same atomic boundary as the booking, so a
+    // failing answers write rolls the reservation back instead of leaving a
+    // booked order with no answers.
+    listingAnswers: listingAnswerMaps(info, ctx.questionListingMap),
     listings: ctx.listings,
     modifierUsages,
     paidByItem: paymentBreakdown?.paidByItem,
@@ -155,14 +157,8 @@ export const handleFreePath = async (
   const siteTokenIndex = ctx.siteToken
     ? await hmacHash(ctx.siteToken)
     : undefined;
-  // The answers save first, because the notification reads them the moment it
-  // is queued. The typed free text travels with the notification, because the
+  // The typed free text travels with the notification, because the
   // strings table seals it to the owner key, which no notification can spend.
-  const maps = listingAnswerMaps(info, ctx.questionListingMap);
-  await saveBookedAnswers(
-    result.entries,
-    groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
-  );
   const freeTexts = new Map(
     info.textAnswers.map(({ questionId, text }) => [questionId, text]),
   );

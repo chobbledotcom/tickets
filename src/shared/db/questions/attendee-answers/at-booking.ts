@@ -8,26 +8,29 @@
 
 import { decryptWithOwnerKey } from "#crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
 import type { SqlStatement } from "#db/client.ts";
 import { rowsByIds } from "#db/query.ts";
 import type { BookedAnswer } from "#db/question-types.ts";
 import {
   type AttendeeAnswerSet,
   type AttendeeListingEntry,
+  bookedAnswerSaveStatements,
+  type PreparedAnswerSave,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { mapParallel } from "#fp";
 
-/** Copy every question the booked listings asked, with its saved answer. A
- * choice question counts as asked when it offers an active answer, because
- * the form shows no other. A second copy of a booking changes nothing. */
-const recordAnswersAtBooking = (
-  lines: readonly AttendeeListingEntry[],
-): SqlStatement => ({
-  args: lines.flatMap((line) => [line.attendee.id, line.listing.id]),
-  sql: `WITH booked(attendee_id, listing_id) AS (
-      VALUES ${lines.map(() => "(?, ?)").join(", ")}
+/** The questions the booked listings asked, recorded with the answers given.
+ * `attendeeSlot` names the attendee in SQL: the standalone save binds the real
+ * attendee id; the reservation boundary resolves it from the ticket token the
+ * booking batch itself inserts. */
+const recordAnswersSql = (
+  lineCount: number,
+  attendeeSlot: string,
+): string => `WITH booked(attendee_id, listing_id) AS (
+      VALUES ${Array.from({ length: lineCount }, () => `(${attendeeSlot}, ?)`).join(", ")}
     ), asked AS (
       SELECT DISTINCT booked.attendee_id, question.id AS question_id, question.text
       FROM booked
@@ -51,7 +54,16 @@ const recordAnswersAtBooking = (
     LEFT JOIN answers AS answer ON answer.id = given.answer_id
     LEFT JOIN strings AS string ON string.id = given.string_id
     WHERE true
-    ON CONFLICT (attendee_id, question_id) DO NOTHING`,
+    ON CONFLICT (attendee_id, question_id) DO NOTHING`;
+
+/** Copy every question the booked listings asked, with its saved answer. A
+ * choice question counts as asked when it offers an active answer, because
+ * the form shows no other. A second copy of a booking changes nothing. */
+const recordAnswersAtBooking = (
+  lines: readonly AttendeeListingEntry[],
+): SqlStatement => ({
+  args: lines.flatMap((line) => [line.attendee.id, line.listing.id]),
+  sql: recordAnswersSql(lines.length, "?"),
 });
 
 /** Save a new booking's answers and record them as the answers at booking,
@@ -61,6 +73,28 @@ export const saveBookedAnswers = (
   answers: Map<number, AttendeeAnswerSet>,
 ): Promise<void> =>
   saveAttendeeAnswers(answers, [recordAnswersAtBooking(lines)]);
+
+/**
+ * The answers a reservation boundary rides with its booking batch: the answer
+ * save plus the answers-at-booking record, with the attendee resolved from the
+ * batch's own ticket token. The boundary runs these after the booking rows, so
+ * a failing answers write rolls the whole reservation back.
+ *
+ * `listingIds` are the lines the reservation books; `prepared` comes from
+ * `prepareAttendeeAnswerSave`, keyed by one placeholder attendee.
+ */
+export const bookedAnswersTail =
+  (
+    prepared: PreparedAnswerSave,
+    listingIds: number[],
+  ): ((tokenIndex: string) => SqlStatement[]) =>
+  (tokenIndex) => [
+    ...bookedAnswerSaveStatements(prepared, tokenIndex),
+    {
+      args: listingIds.flatMap((listingId) => [tokenIndex, listingId]),
+      sql: recordAnswersSql(listingIds.length, ATTENDEE_BY_TOKEN_SQL),
+    },
+  ];
 
 /** Each question that an attendee with a record was asked at booking or
  * answers now, joined to both answers. Only an attendee with a record has

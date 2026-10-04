@@ -6,19 +6,19 @@
  * trigger fires before the strings are recreated).
  */
 
+import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
 import {
   executeBatch,
-  inPlaceholders,
-  resultRows,
   type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
-import { internStringRows, prepareStringRows } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { txIdSet } from "#db/transaction.ts";
-import { fieldById, unique } from "#fp";
+import {
+  internWriteStatements,
+  type PreparedStringRow,
+  prepareStringRows,
+} from "#db/questions/strings.ts";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
@@ -36,27 +36,6 @@ const normalizeAnswerSet = (
 const arrayOrEmpty = <T>(value: T[] | undefined): T[] =>
   value === undefined ? [] : value;
 
-/** The question that holds each checked answer, keyed by answer id, read on
- * the open transaction so a deleted-between-checkout-and-finalize answer
- * shows up as missing without starting a separate read transaction (the read
- * shares the save's snapshot). */
-type QuestionIdByAnswerId = Map<number, number>;
-
-const questionIdsByAnswerIdTx = async (
-  tx: TxScope,
-  answerIds: number[],
-): Promise<QuestionIdByAnswerId> => {
-  if (answerIds.length === 0) return new Map();
-  const rows = resultRows<{ id: number; question_id: number }>(
-    await tx.execute(
-      answersTable.read
-        .pick(["id", "question_id"])
-        .statement({ id: answerIds }),
-    ),
-  );
-  return fieldById("question_id")(rows);
-};
-
 const dedupeByQuestion = <T extends { questionId: number }>(
   answers: T[],
 ): T[] => {
@@ -67,50 +46,96 @@ const dedupeByQuestion = <T extends { questionId: number }>(
   return [...answerByQuestion.values()];
 };
 
-const dedupeAnswerIdsByQuestion = (
-  answerIds: number[],
-  questionIdsByAnswer: Map<number, number>,
-): number[] => {
-  const answerIdByQuestion = new Map<number, number>();
-  for (const answerId of answerIds) {
-    const questionId = questionIdsByAnswer.get(answerId);
-    // The answer may have been deleted between checkout and finalize (e.g. the
-    // owner removed it while the buyer was at the payment provider). Skip it:
-    // there is no question to attach it to, and throwing here would repeatedly
-    // break the finalize of an already-captured payment.
-    if (questionId === undefined) continue;
-    answerIdByQuestion.set(questionId, answerId);
-  }
-  return [...answerIdByQuestion.values()];
-};
-
-const dedupeTextAnswerIdsByQuestion = (
-  textAnswerIds: TextAnswerId[],
-): TextAnswerId[] => dedupeByQuestion(textAnswerIds);
-
 type NormalizedAnswerSet = AttendeeAnswerSet & {
   textAnswerIds: TextAnswerId[];
   textAnswers: TextAnswer[];
 };
 
-/** Run statements one after another on the open transaction. */
-const executeInOrder = async (
-  tx: TxScope,
-  statements: SqlStatement[],
-): Promise<void> => {
-  for (const statement of statements) await tx.execute(statement);
+/** An answer save with all caller-side work done: the sets normalized and the
+ * free text encrypted and blind-indexed, so the write itself is plain
+ * statements a transaction or batch can carry. */
+export type PreparedAnswerSave = {
+  normalized: Map<number, NormalizedAnswerSet>;
+  preparedStringRows: PreparedStringRow[];
 };
 
-const storedIdAnswerStatements = (
-  normalized: Map<number, NormalizedAnswerSet>,
+/** The attendee an answer row belongs to, as the statements bind it. The
+ * standalone save binds real attendee ids; the reservation boundary resolves
+ * its one attendee from the ticket token the booking batch itself inserts, so
+ * the statements need no attendee id before the batch runs. */
+type AttendeeRef = {
+  /** SQL for one attendee_id value slot. */
+  slot: string;
+  /** The value bound into that slot. */
+  arg: (attendeeId: number) => string | number;
+  /** The delete that clears the attendee's previous answers. */
+  delete: (attendeeIds: number[]) => SqlStatement;
+};
+
+const idsRef: AttendeeRef = {
+  arg: (attendeeId) => attendeeId,
+  delete: (attendeeIds) => ({
+    args: attendeeIds,
+    sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${attendeeIds
+      .map(() => "?")
+      .join(", ")})`,
+  }),
+  slot: "?",
+};
+
+/** The reservation boundary's attendee: the row the batch itself inserts,
+ * found by token. The answer map carries a placeholder id it never binds. */
+const bookedRef = (tokenIndex: string): AttendeeRef => ({
+  arg: () => tokenIndex,
+  delete: () => ({
+    args: [tokenIndex],
+    sql: `DELETE FROM attendee_answers WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}`,
+  }),
+  slot: ATTENDEE_BY_TOKEN_SQL,
+});
+
+/** One multi-row INSERT into attendee_answers: every row binds the attendee
+ * slot first, then its own columns, each with the SQL slot it binds into (a
+ * plain `?`, or the subselect that resolves a prepared text's string id by
+ * its blind index). */
+const answerRowsInsert = <Row extends { attendeeId: number }>(
+  ref: AttendeeRef,
+  columns: string,
+  rows: readonly Row[],
+  rowValues: (row: Row) => { binds: (string | number)[]; slots: string[] },
+  afterValues: string,
+): SqlStatement => ({
+  args: rows.flatMap((row) => [
+    ref.arg(row.attendeeId),
+    ...rowValues(row).binds,
+  ]),
+  sql: `WITH selected(${columns}) AS (
+        VALUES ${rows
+          .map((row) => `(${ref.slot}, ${rowValues(row).slots.join(", ")})`)
+          .join(", ")}
+      ) ${afterValues}`,
+});
+
+/** The whole save as plain statements: delete the attendees' previous answers,
+ * intern the prepared free-text strings, then re-insert the surviving choices
+ * and texts. Deleted answers and questions drop out through the SQL joins, so
+ * one deleted between checkout and finalize is skipped rather than orphaned.
+ * The delete runs first so `used_count` is seen consistently: a string this
+ * save drops to zero is re-created by interning.
+ *
+ * A prepared text answer binds its blind index and resolves the string id
+ * inside the insert, in the same boundary that interned it. */
+const answerSaveStatements = (
+  { normalized, preparedStringRows }: PreparedAnswerSave,
+  ref: AttendeeRef,
+  alongside: SqlStatement[] = [],
 ): SqlStatement[] => {
+  const statements: SqlStatement[] = [];
   const attendeeIds = [...normalized.keys()];
-  const statements: SqlStatement[] = [
-    {
-      args: attendeeIds,
-      sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
-    },
-  ];
+  if (attendeeIds.length > 0) statements.push(ref.delete(attendeeIds));
+  if (preparedStringRows.length > 0) {
+    statements.push(...internWriteStatements(preparedStringRows));
+  }
   const choiceRows = [...normalized].flatMap(([attendeeId, set]) =>
     set.answerIds.map((answerId, position) => ({
       answerId,
@@ -119,15 +144,18 @@ const storedIdAnswerStatements = (
     })),
   );
   if (choiceRows.length > 0) {
-    statements.push({
-      args: choiceRows.flatMap((row) => [
-        row.attendeeId,
-        row.answerId,
-        row.position,
-      ]),
-      sql: `WITH selected(attendee_id, answer_id, position) AS (
-        VALUES ${choiceRows.map(() => "(?, ?, ?)").join(", ")}
-      ), ranked AS (
+    statements.push(
+      answerRowsInsert(
+        ref,
+        "attendee_id, answer_id, position",
+        choiceRows,
+        (row) => ({
+          binds: [row.answerId, row.position],
+          slots: ["?", "?"],
+        }),
+        // Last answer per question wins: the row numbers rank each question's
+        // answers by position, descending, and only the first survives.
+        `, ranked AS (
         SELECT selected.attendee_id, selected.answer_id, answer.question_id,
           ROW_NUMBER() OVER (
             PARTITION BY selected.attendee_id, answer.question_id
@@ -140,42 +168,57 @@ const storedIdAnswerStatements = (
       SELECT attendee_id, answer_id, question_id
       FROM ranked
       WHERE choice_order = 1`,
-    });
+      ),
+    );
   }
+  const textIndexByText = new Map(
+    preparedStringRows.map((row) => [row.text, row.textIndex]),
+  );
+  // One text row per question, the last answer winning: a stored string id
+  // binds directly, a prepared answer binds its blind index and resolves the
+  // id inside the insert.
+  type TextRow = { questionId: number; value: number | string };
+  const textRowsByQuestion = (set: NormalizedAnswerSet): TextRow[] => {
+    const valueByQuestion = new Map<number, number | string>(
+      set.textAnswerIds.map((answer) => [answer.questionId, answer.stringId]),
+    );
+    for (const answer of set.textAnswers) {
+      valueByQuestion.set(answer.questionId, textIndexByText.get(answer.text)!);
+    }
+    return [...valueByQuestion].map(([questionId, value]) => ({
+      questionId,
+      value,
+    }));
+  };
   const textRows = [...normalized].flatMap(([attendeeId, set]) =>
-    set.textAnswerIds.map((answer) => ({ attendeeId, ...answer })),
+    textRowsByQuestion(set).map((row) => ({ attendeeId, ...row })),
   );
   if (textRows.length > 0) {
-    statements.push({
-      args: textRows.flatMap((row) => [
-        row.attendeeId,
-        row.questionId,
-        row.stringId,
-      ]),
-      sql: `WITH selected(attendee_id, question_id, string_id) AS (
-        VALUES ${textRows.map(() => "(?, ?, ?)").join(", ")}
-      )
-      INSERT INTO attendee_answers (attendee_id, question_id, string_id)
-      SELECT selected.attendee_id, selected.question_id, selected.string_id
-      FROM selected
-      INNER JOIN questions AS question ON question.id = selected.question_id`,
-    });
+    statements.push(
+      answerRowsInsert(
+        ref,
+        "attendee_id, question_id, string_id",
+        textRows,
+        (row) => ({
+          binds: [row.questionId, row.value],
+          slots: [
+            "?",
+            typeof row.value === "string"
+              ? "(SELECT id FROM strings WHERE text_index = ?)"
+              : "?",
+          ],
+        }),
+        // The questions join drops a question deleted between checkout and
+        // finalize instead of inserting an orphan row.
+        `INSERT INTO attendee_answers (attendee_id, question_id, string_id)
+        SELECT selected.attendee_id, selected.question_id, selected.string_id
+        FROM selected
+        INNER JOIN questions AS question ON question.id = selected.question_id`,
+      ),
+    );
   }
-  return statements;
+  return [...statements, ...alongside];
 };
-
-/** The subset of `questionIds` that still exist — text answers reference a
- *  question directly, so a question deleted between checkout and finalize must
- *  be dropped (mirrors the deleted-answer skip on the choice path) rather than
- *  inserting an orphan row whose plaintext the admin UI can never surface.
- *  Read on the open transaction so it shares the save's snapshot. */
-const existingQuestionIdsTx = (
-  tx: TxScope,
-  questionIds: number[],
-): Promise<Set<number>> =>
-  txIdSet(tx, questionIds, (unique) =>
-    questionsTable.read.pick(["id"]).statement({ id: unique }),
-  );
 
 /**
  * Repeated answers to a question collapse to the last. `alongside` runs after
@@ -183,16 +226,10 @@ const existingQuestionIdsTx = (
  *
  * The string rows are encrypted and indexed BEFORE the transaction opens. That
  * work is CPU-bound and would otherwise hold the SQLite writer open for nothing.
- *
- * The transaction re-reads which questions and answers still exist, so one
- * deleted between checkout and finalize is skipped rather than orphaned. The
- * delete runs first so `used_count` is seen consistently: a string this save
- * drops to zero is re-created by interning.
  */
-export const saveAttendeeAnswers = async (
+export const prepareAttendeeAnswerSave = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
-  alongside: SqlStatement[] = [],
-): Promise<void> => {
+): Promise<PreparedAnswerSave> => {
   const normalized = new Map<number, NormalizedAnswerSet>(
     [...answersByAttendee].map(([id, set]) => {
       const answerSet = normalizeAnswerSet(set);
@@ -208,120 +245,52 @@ export const saveAttendeeAnswers = async (
       ];
     }),
   );
-  if (normalized.size === 0 && alongside.length === 0) return;
-  const storedIdsOnly = [...normalized.values()].every(
-    (set) => set.textAnswers.length === 0,
-  );
-  if (storedIdsOnly) {
-    await executeBatch([...storedIdAnswerStatements(normalized), ...alongside]);
-    return;
-  }
-  // Precompute the encrypted + HMAC-indexed string rows BEFORE opening the
-  // transaction. The crypto (hybrid encryption + blind index) is CPU-bound and
-  // holds no DB statement; running it inside `withTransaction` would keep the
-  // SQLite writer open while no statement is running, blocking unrelated writes
-  // and pushing the transaction toward its round-trip/time-out guard. Doing it
-  // up front means only the actual INSERT/UPDATE/SELECT land on the tx.
   const preparedStringRows = await prepareStringRows(
     [...normalized.values()].flatMap((set) =>
       set.textAnswers.map((a) => a.text),
     ),
   );
-  await withTransaction(async (tx) => {
-    // Delete every attendee's existing answers in one statement. SQLite
-    // triggers fire per affected row (there is no statement-level trigger
-    // form), so strings.used_count is decremented once per row whether the
-    // DELETE matches one attendee or many. The interning below then refreshes
-    // `created` on the strings this save re-references, so the order
-    // (delete → intern → insert) keeps a consistent used_count snapshot.
-    const attendeeIds = [...normalized.keys()];
-    await tx.execute({
-      args: attendeeIds,
-      sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
-    });
-    const answerIds = unique(
-      [...normalized.values()].flatMap((set) => set.answerIds),
-    );
-    const textQuestionIds = unique(
-      [...normalized.values()].flatMap((set) => [
-        ...set.textAnswerIds.map((answer) => answer.questionId),
-        ...set.textAnswers.map((answer) => answer.questionId),
-      ]),
-    );
-    // Run the reads and string interning sequentially on the tx — concurrent
-    // tx.execute calls share the one transaction connection, so serialising
-    // avoids interleaved statements. The reads touch different tables than the
-    // delete but run on the tx to share the save's snapshot.
-    const questionIdsByAnswer = await questionIdsByAnswerIdTx(tx, answerIds);
-    const liveTextQuestionIds = await existingQuestionIdsTx(
-      tx,
-      textQuestionIds,
-    );
-    const stringIds = await internStringRows(preparedStringRows, tx);
-    // Collect every attendee's rows, then emit at most two multi-row INSERTs
-    // (one for choice answers, one for text answers) so the statement count
-    // stays at a handful regardless of attendee count — the transaction
-    // round-trip guard thresholds a chatty per-attendee loop would trip.
-    // One row of a pending INSERT: an attendee, a question, and the one value
-    // column that varies (a chosen answer id, or an interned text id).
-    type AnswerRow = {
-      attendeeId: number;
-      questionId: number;
-      valueId: number;
-    };
-    const choiceRows: AnswerRow[] = [];
-    const textRows: AnswerRow[] = [];
-    for (const [
-      attendeeId,
-      { answerIds, textAnswerIds, textAnswers },
-    ] of normalized) {
-      const dedupedAnswerIds = dedupeAnswerIdsByQuestion(
-        answerIds,
-        questionIdsByAnswer,
-      );
-      for (const id of dedupedAnswerIds) {
-        choiceRows.push({
-          attendeeId,
-          questionId: questionIdsByAnswer.get(id)!,
-          valueId: id,
-        });
-      }
-      const resolvedTextAnswerIds = dedupeTextAnswerIdsByQuestion([
-        ...textAnswerIds,
-        ...textAnswers.map((answer) => ({
-          questionId: answer.questionId,
-          stringId: stringIds.get(answer.text)!,
-        })),
-      ]).filter((answer) => liveTextQuestionIds.has(answer.questionId));
-      for (const answer of resolvedTextAnswerIds) {
-        textRows.push({
-          attendeeId,
-          questionId: answer.questionId,
-          valueId: answer.stringId,
-        });
-      }
-    }
-    // Emit one multi-row INSERT of answer rows into the given value column.
-    // Both answer kinds write the same three columns, so they share this body.
-    const insertAnswerRows = (
-      valueColumn: "answer_id" | "string_id",
-      rows: AnswerRow[],
-    ): Promise<unknown> => {
-      const placeholders = rows.map(() => "(?, ?, ?)").join(", ");
-      return tx.execute({
-        args: rows.flatMap((row) => [
-          row.attendeeId,
-          row.questionId,
-          row.valueId,
-        ]),
-        sql: `INSERT INTO attendee_answers (attendee_id, question_id, ${valueColumn}) VALUES ${placeholders}`,
-      });
-    };
-    if (choiceRows.length > 0) await insertAnswerRows("answer_id", choiceRows);
-    if (textRows.length > 0) await insertAnswerRows("string_id", textRows);
-    await executeInOrder(tx, alongside);
-  });
+  return { normalized, preparedStringRows };
 };
+
+/** Run a prepared answer save on the caller's open transaction, so a caller
+ * that already holds one (a reservation boundary) keeps its own atomicity.
+ * The save always writes something: the caller's guard rules out an empty
+ * save, and a save with attendees always emits its delete. */
+const saveAttendeeAnswersTx = async (
+  tx: TxScope,
+  prepared: PreparedAnswerSave,
+  alongside: SqlStatement[] = [],
+): Promise<void> => {
+  await tx.batch(answerSaveStatements(prepared, idsRef, alongside));
+};
+
+/**
+ * Save each attendee's answers in one atomic write. With no free text the save
+ * is pure statements and runs as one batch; free text wraps the same
+ * statements in one transaction.
+ */
+export const saveAttendeeAnswers = async (
+  answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
+  alongside: SqlStatement[] = [],
+): Promise<void> => {
+  const prepared = await prepareAttendeeAnswerSave(answersByAttendee);
+  if (prepared.normalized.size === 0 && alongside.length === 0) return;
+  if (prepared.preparedStringRows.length === 0) {
+    await executeBatch(answerSaveStatements(prepared, idsRef, alongside));
+    return;
+  }
+  await withTransaction((tx) => saveAttendeeAnswersTx(tx, prepared, alongside));
+};
+
+/** The save's statements for a reservation boundary: the one attendee is
+ * resolved from the ticket token the booking batch itself inserts, so the
+ * answer rows commit in the same atomic batch as the booking. The answer map
+ * carries one placeholder-keyed set. */
+export const bookedAnswerSaveStatements = (
+  prepared: PreparedAnswerSave,
+  tokenIndex: string,
+): SqlStatement[] => answerSaveStatements(prepared, bookedRef(tokenIndex));
 
 /** One booked line: an attendee paired with one listing they are booked into.
  * The per-listing answer maps are keyed by `String(listing.id)`. */
