@@ -208,24 +208,26 @@ describe("writeEntity", () => {
     const table = makeTable();
     let plainWriteRan = false;
     let txSeen: TxScope | undefined;
+    let thrown: unknown;
 
-    const error = await writeWith(table, {
-      checkTx: (tx) => {
-        txSeen = tx;
-        return Promise.reject(new Error("no orphaning"));
-      },
-      existingId: 7,
-      plainWrite: () => {
-        plainWriteRan = true;
-        return table.insert({ name: "row" });
-      },
-      readBack: (id) => table.findByIdPrimary!(id),
-    }).then(
-      () => null,
-      (error: unknown) => error,
-    );
+    try {
+      await writeWith(table, {
+        checkTx: (tx) => {
+          txSeen = tx;
+          return Promise.reject(new Error("no orphaning"));
+        },
+        existingId: 7,
+        plainWrite: () => {
+          plainWriteRan = true;
+          return table.insert({ name: "row" });
+        },
+        readBack: (id) => table.findByIdPrimary!(id),
+      });
+    } catch (error) {
+      thrown = error;
+    }
 
-    expect((error as Error).message).toBe("no orphaning");
+    expect((thrown as Error).message).toBe("no orphaning");
     expect(txSeen).toBeDefined();
     expect(plainWriteRan).toBe(false);
   });
