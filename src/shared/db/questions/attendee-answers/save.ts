@@ -230,15 +230,15 @@ export const prepareAttendeeAnswerSave = async (
 };
 
 /** Run a prepared answer save on the caller's open transaction, so a caller
- * that already holds one (a reservation boundary) keeps its own atomicity. */
+ * that already holds one (a reservation boundary) keeps its own atomicity.
+ * The save always writes something: the caller's guard rules out an empty
+ * save, and a save with attendees always emits its delete. */
 export const saveAttendeeAnswersTx = async (
   tx: TxScope,
   prepared: PreparedAnswerSave,
   alongside: SqlStatement[] = [],
 ): Promise<void> => {
-  const statements = answerSaveStatements(prepared, idsRef, alongside);
-  if (statements.length === 0) return;
-  await tx.batch(statements);
+  await tx.batch(answerSaveStatements(prepared, idsRef, alongside));
 };
 
 /**

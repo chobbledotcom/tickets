@@ -652,4 +652,25 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     expect(over.success).toBe(true);
     expect((await getAttendeesRaw(listing.id)).length).toBe(2);
   });
+
+  test("runs caller creation work inside the create transaction", async () => {
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const seen: number[] = [];
+
+    const result = await createAttendeeAtomic(
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "work@example.com",
+        name: "Work User",
+      },
+      async (_tx, attendeeId) => {
+        seen.push(attendeeId);
+      },
+    );
+
+    expect(result.success).toBe(true);
+    // The work received the attendee id the transaction itself created, and
+    // the booking committed with it.
+    expect(seen).toEqual([(await getAttendeesRaw(listing.id))[0]!.id]);
+  });
 });

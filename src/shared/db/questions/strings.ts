@@ -16,7 +16,6 @@ import {
   inPlaceholders,
   resultRows,
   type SqlStatement,
-  type TxScope,
 } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { nowIso } from "#shared/now.ts";
@@ -87,11 +86,8 @@ export const prepareStringRows = async (
 /** Run the interning statements together and return the trailing SELECT. */
 const runInternStatements = async (
   statements: SqlStatement[],
-  tx?: TxScope,
 ): Promise<ResultSet> => {
-  const results = await (tx
-    ? tx.batch(statements)
-    : executeBatchWithResults(statements));
+  const results = await executeBatchWithResults(statements);
   return results.at(-1)!;
 };
 
@@ -137,20 +133,16 @@ export const internWriteStatements = (
  */
 export const internStringRows = async (
   rows: PreparedStringRow[],
-  tx?: TxScope,
 ): Promise<StringIdByText> => {
   if (rows.length === 0) return new Map();
   const textIndexes = rows.map((r) => r.textIndex);
-  const selectResult = await runInternStatements(
-    [
-      ...internWriteStatements(rows),
-      {
-        args: textIndexes,
-        sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
-      },
-    ],
-    tx,
-  );
+  const selectResult = await runInternStatements([
+    ...internWriteStatements(rows),
+    {
+      args: textIndexes,
+      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
+    },
+  ]);
   const found = resultRows<{ id: number; text_index: string }>(selectResult);
   return pairStringIds(rows, found);
 };
@@ -158,13 +150,12 @@ export const internStringRows = async (
 /**
  * Does the crypto and the DB work in one call, for the standalone path.
  *
- * A caller wrapping its save in `withTransaction` must instead call
- * {@link prepareStringRows} *before* opening the transaction, then
- * {@link internStringRows} on the tx. That keeps the CPU-bound crypto out of
- * the write-lock window.
+ * A caller that already holds a write boundary must instead call
+ * {@link prepareStringRows} *before* opening it (the crypto is CPU-bound and
+ * holds no DB statement) and ride {@link internWriteStatements} on it — the
+ * reservation boundary's answer save resolves the interned ids inside its own
+ * batch rather than reading them back.
  */
 export const getOrCreateStringIds = async (
   texts: string[],
-  tx?: TxScope,
-): Promise<StringIdByText> =>
-  internStringRows(await prepareStringRows(texts), tx);
+): Promise<StringIdByText> => internStringRows(await prepareStringRows(texts));
