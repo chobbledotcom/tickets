@@ -105,12 +105,11 @@ const runAtomicBatch = async (
 
 class IncompleteBooking extends namedError("IncompleteBooking") {}
 
-/** Create an attendee, all bookings, caller work, tail statements, and contact
- * activity in one interactive transaction. */
+/** Create an attendee, all bookings, caller work, and contact activity in one
+ * interactive transaction. */
 export const writeWithCreationWork = (
   prepared: PreparedWrite,
   creationWork: AttendeeCreationWork,
-  tail: SqlStatement[] = [],
 ): Promise<WriteOutcome | null> =>
   withTransaction<WriteOutcome>(async (tx) => {
     await tx.execute(prepared.attendeeInsert);
@@ -124,9 +123,6 @@ export const writeWithCreationWork = (
     );
     const attendeeId = Number(attendeeRows[0]!.id);
     await creationWork(tx, attendeeId);
-    for (const statement of tail) {
-      await tx.execute(statement);
-    }
     for (const statement of prepared.activityStatements) {
       await tx.execute(statement);
     }

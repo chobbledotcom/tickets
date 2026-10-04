@@ -9,7 +9,6 @@
 import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
 import {
   executeBatch,
-  inPlaceholders,
   type SqlStatement,
   type TxScope,
   withTransaction,
@@ -77,7 +76,9 @@ const idsRef: AttendeeRef = {
   arg: (attendeeId) => attendeeId,
   delete: (attendeeIds) => ({
     args: attendeeIds,
-    sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${attendeeIds
+      .map(() => "?")
+      .join(", ")})`,
   }),
   slot: "?",
 };
@@ -93,8 +94,29 @@ const bookedRef = (tokenIndex: string): AttendeeRef => ({
   slot: ATTENDEE_BY_TOKEN_SQL,
 });
 
-/**
- * The whole save as plain statements: delete the attendees' previous answers,
+/** One multi-row INSERT into attendee_answers: every row binds the attendee
+ * slot first, then its own columns, each with the SQL slot it binds into (a
+ * plain `?`, or the subselect that resolves a prepared text's string id by
+ * its blind index). */
+const answerRowsInsert = <Row extends { attendeeId: number }>(
+  ref: AttendeeRef,
+  columns: string,
+  rows: readonly Row[],
+  rowValues: (row: Row) => { binds: (string | number)[]; slots: string[] },
+  afterValues: string,
+): SqlStatement => ({
+  args: rows.flatMap((row) => [
+    ref.arg(row.attendeeId),
+    ...rowValues(row).binds,
+  ]),
+  sql: `WITH selected(${columns}) AS (
+        VALUES ${rows
+          .map((row) => `(${ref.slot}, ${rowValues(row).slots.join(", ")})`)
+          .join(", ")}
+      ) ${afterValues}`,
+});
+
+/** The whole save as plain statements: delete the attendees' previous answers,
  * intern the prepared free-text strings, then re-insert the surviving choices
  * and texts. Deleted answers and questions drop out through the SQL joins, so
  * one deleted between checkout and finalize is skipped rather than orphaned.
@@ -102,8 +124,7 @@ const bookedRef = (tokenIndex: string): AttendeeRef => ({
  * save drops to zero is re-created by interning.
  *
  * A prepared text answer binds its blind index and resolves the string id
- * inside the insert, in the same boundary that interned it.
- */
+ * inside the insert, in the same boundary that interned it. */
 const answerSaveStatements = (
   { normalized, preparedStringRows }: PreparedAnswerSave,
   ref: AttendeeRef,
@@ -123,15 +144,18 @@ const answerSaveStatements = (
     })),
   );
   if (choiceRows.length > 0) {
-    statements.push({
-      args: choiceRows.flatMap((row) => [
-        ref.arg(row.attendeeId),
-        row.answerId,
-        row.position,
-      ]),
-      sql: `WITH selected(attendee_id, answer_id, position) AS (
-        VALUES ${choiceRows.map(() => `(${ref.slot}, ?, ?)`).join(", ")}
-      ), ranked AS (
+    statements.push(
+      answerRowsInsert(
+        ref,
+        "attendee_id, answer_id, position",
+        choiceRows,
+        (row) => ({
+          binds: [row.answerId, row.position],
+          slots: ["?", "?"],
+        }),
+        // Last answer per question wins: the row numbers rank each question's
+        // answers by position, descending, and only the first survives.
+        `, ranked AS (
         SELECT selected.attendee_id, selected.answer_id, answer.question_id,
           ROW_NUMBER() OVER (
             PARTITION BY selected.attendee_id, answer.question_id
@@ -144,54 +168,54 @@ const answerSaveStatements = (
       SELECT attendee_id, answer_id, question_id
       FROM ranked
       WHERE choice_order = 1`,
-    });
+      ),
+    );
   }
   const textIndexByText = new Map(
     preparedStringRows.map((row) => [row.text, row.textIndex]),
   );
-  // One text row per question: a stored string id binds directly, a prepared
-  // answer binds its blind index and resolves the id inside the insert.
+  // One text row per question, the last answer winning: a stored string id
+  // binds directly, a prepared answer binds its blind index and resolves the
+  // id inside the insert.
   type TextRow = { questionId: number; value: number | string };
+  const textRowsByQuestion = (set: NormalizedAnswerSet): TextRow[] => {
+    const valueByQuestion = new Map<number, number | string>(
+      set.textAnswerIds.map((answer) => [answer.questionId, answer.stringId]),
+    );
+    for (const answer of set.textAnswers) {
+      valueByQuestion.set(answer.questionId, textIndexByText.get(answer.text)!);
+    }
+    return [...valueByQuestion].map(([questionId, value]) => ({
+      questionId,
+      value,
+    }));
+  };
   const textRows = [...normalized].flatMap(([attendeeId, set]) =>
-    dedupeByQuestion([
-      ...set.textAnswerIds.map(
-        (answer): TextRow => ({
-          questionId: answer.questionId,
-          value: answer.stringId,
-        }),
-      ),
-      ...set.textAnswers.map(
-        (answer): TextRow => ({
-          questionId: answer.questionId,
-          value: textIndexByText.get(answer.text)!,
-        }),
-      ),
-    ]).map((row) => ({ attendeeId, ...row })),
+    textRowsByQuestion(set).map((row) => ({ attendeeId, ...row })),
   );
   if (textRows.length > 0) {
-    statements.push({
-      args: textRows.flatMap((row) => [
-        ref.arg(row.attendeeId),
-        row.questionId,
-        row.value,
-      ]),
-      sql: `WITH selected(attendee_id, question_id, string_id) AS (
-        VALUES ${textRows
-          .map(
-            (row) =>
-              `(${ref.slot}, ?, ${
-                typeof row.value === "string"
-                  ? "(SELECT id FROM strings WHERE text_index = ?)"
-                  : "?"
-              })`,
-          )
-          .join(", ")}
-      )
-      INSERT INTO attendee_answers (attendee_id, question_id, string_id)
-      SELECT selected.attendee_id, selected.question_id, selected.string_id
-      FROM selected
-      INNER JOIN questions AS question ON question.id = selected.question_id`,
-    });
+    statements.push(
+      answerRowsInsert(
+        ref,
+        "attendee_id, question_id, string_id",
+        textRows,
+        (row) => ({
+          binds: [row.questionId, row.value],
+          slots: [
+            "?",
+            typeof row.value === "string"
+              ? "(SELECT id FROM strings WHERE text_index = ?)"
+              : "?",
+          ],
+        }),
+        // The questions join drops a question deleted between checkout and
+        // finalize instead of inserting an orphan row.
+        `INSERT INTO attendee_answers (attendee_id, question_id, string_id)
+        SELECT selected.attendee_id, selected.question_id, selected.string_id
+        FROM selected
+        INNER JOIN questions AS question ON question.id = selected.question_id`,
+      ),
+    );
   }
   return [...statements, ...alongside];
 };

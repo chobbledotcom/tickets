@@ -2,32 +2,20 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, queryAll } from "#db/client.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createFreeTextQuestion,
+  createQuestionWithAnswer,
+} from "#test-utils/db-helpers/questions.ts";
 
 describeWithEnv(
   "server public > free booking answer atomicity",
   { db: true, triggers: true },
   () => {
-    const setupChoiceQuestion = async (listingId: number) => {
-      const question = await questionsTable.insert({
-        displayType: "radio",
-        text: "T-shirt size?",
-      });
-      const answer = await answersTable.insert({
-        questionId: question.id,
-        sortOrder: 0,
-        text: "Small",
-      });
-      await listingQuestions.setIds(listingId, [question.id]);
-      return { answer, question };
-    };
-
     /** Abort the answers write for one chosen answer, the way a real write
      * failure lands: mid-statement, inside whatever boundary carries it. */
     const rejectAnswerInsert = async (answerId: number): Promise<void> => {
@@ -46,8 +34,10 @@ describeWithEnv(
         maxAttendees: 50,
         thankYouUrl: "",
       });
-      const { answer, question } = await setupChoiceQuestion(listing.id);
-      await rejectAnswerInsert(answer.id);
+      const { answerId, questionId } = await createQuestionWithAnswer([
+        listing.id,
+      ]);
+      await rejectAnswerInsert(answerId);
 
       // A loud database failure: the answers write aborts, the whole
       // reservation rolls back with it, and the error surfaces.
@@ -55,7 +45,7 @@ describeWithEnv(
         submitTicketForm(listing.slug, {
           email: "atomic@example.com",
           name: "Atomic User",
-          [`question_${question.id}`]: String(answer.id),
+          [`question_${questionId}`]: String(answerId),
         }),
       ).rejects.toThrow("answers write failed");
       await expectNoAttendeesForListings([listing.id]);
@@ -72,12 +62,14 @@ describeWithEnv(
         maxAttendees: 50,
         thankYouUrl: "",
       });
-      const { answer, question } = await setupChoiceQuestion(listing.id);
+      const { answerId, questionId } = await createQuestionWithAnswer([
+        listing.id,
+      ]);
 
       const response = await submitTicketForm(listing.slug, {
         email: "choice@example.com",
         name: "Choice User",
-        [`question_${question.id}`]: String(answer.id),
+        [`question_${questionId}`]: String(answerId),
       });
       expectReservedRedirectWithTokens(response);
 
@@ -88,13 +80,13 @@ describeWithEnv(
           "SELECT answer_id FROM attendee_answers WHERE attendee_id = ?",
           [attendees[0]!.id],
         ),
-      ).toEqual([{ answer_id: answer.id }]);
+      ).toEqual([{ answer_id: answerId }]);
       expect(
         await queryAll(
           "SELECT answer_id FROM answers_at_booking WHERE attendee_id = ?",
           [attendees[0]!.id],
         ),
-      ).toEqual([{ answer_id: answer.id }]);
+      ).toEqual([{ answer_id: answerId }]);
     });
 
     test("saves free-text answers in the same boundary as the booking", async () => {
@@ -102,16 +94,12 @@ describeWithEnv(
         maxAttendees: 50,
         thankYouUrl: "",
       });
-      const question = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Anything we should know?",
-      });
-      await listingQuestions.setIds(listing.id, [question.id]);
+      const questionId = await createFreeTextQuestion([listing.id]);
 
       const response = await submitTicketForm(listing.slug, {
         email: "text@example.com",
         name: "Text User",
-        [`question_${question.id}`]: "Arrives by bike",
+        [`question_${questionId}`]: "Arrives by bike",
       });
       expectReservedRedirectWithTokens(response);
 

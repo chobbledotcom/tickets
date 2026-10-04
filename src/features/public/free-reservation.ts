@@ -15,12 +15,14 @@ import {
 } from "#db/questions/attendee-answers/save.ts";
 import type { ListingAnswerMaps } from "#routes/public/ticket-form.ts";
 import { refusedOrderItem } from "#shared/attendee-failures.ts";
+/* jscpd:ignore-start */
 import {
   bookingsForOrder,
   checkoutBookingLines,
 } from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+/* jscpd:ignore-end */
 import type { EmailEntry } from "#shared/email.ts";
 import { nowIso } from "#shared/now.ts";
 import type { CheckoutItem } from "#shared/payments.ts";

@@ -91,6 +91,11 @@ const runInternStatements = async (
   return results.at(-1)!;
 };
 
+/** The blind index of each prepared row, in row order — the key every
+ * interning statement looks its strings up by. */
+const textIndexes = (rows: readonly PreparedStringRow[]): BlindIndex[] =>
+  rows.map(({ textIndex }) => textIndex);
+
 /** The statements that create or refresh one interned string per row. A
  * caller that resolves string ids inside SQL (the reservation batch, where the
  * attendee answers insert runs as plain statements) rides on these writes and
@@ -99,7 +104,7 @@ export const internWriteStatements = (
   rows: PreparedStringRow[],
 ): SqlStatement[] => {
   const created = nowIso();
-  const textIndexes = rows.map((r) => r.textIndex);
+  const indexes = textIndexes(rows);
   return [
     {
       args: rows.flatMap((row) => [row.textIndex, row.encrypted, created]),
@@ -115,8 +120,8 @@ export const internWriteStatements = (
     // even one currently attached to another attendee — keeps it alive past
     // that other attendee later freeing it, until this checkout finalizes.
     {
-      args: [created, ...textIndexes],
-      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(textIndexes)})`,
+      args: [created, ...indexes],
+      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(indexes)})`,
     },
   ];
 };
@@ -135,12 +140,12 @@ export const internStringRows = async (
   rows: PreparedStringRow[],
 ): Promise<StringIdByText> => {
   if (rows.length === 0) return new Map();
-  const textIndexes = rows.map((r) => r.textIndex);
+  const indexes = textIndexes(rows);
   const selectResult = await runInternStatements([
     ...internWriteStatements(rows),
     {
-      args: textIndexes,
-      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
+      args: indexes,
+      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(indexes)})`,
     },
   ]);
   const found = resultRows<{ id: number; text_index: string }>(selectResult);

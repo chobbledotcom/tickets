@@ -260,11 +260,7 @@ export const createAttendeeAtomicImpl = (
     noBooking: () => capacityFailure(input.bookings),
     write: (prepared) =>
       creationWork
-        ? writeWithCreationWork(
-            prepared,
-            creationWork,
-            tail?.(prepared.enc.ticketTokenIndex) ?? [],
-          )
+        ? writeWithCreationWork(prepared, creationWork)
         : writeAsBatch(prepared, tail),
   })(input);
 
