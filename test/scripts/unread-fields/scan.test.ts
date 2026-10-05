@@ -133,6 +133,27 @@ describe("the reads the scan counts", () => {
     );
   });
 
+  test("counts a read through a class that implements the interface", () => {
+    // The class member is its own declaration, but the class says it
+    // implements the interface, and a mention through the class reads the
+    // interface's field.
+    expect(verdictOf("Described", "describedField")).toBe("read");
+    expect(verdictOf("RealDescribed", "describedField")).toBe("read");
+  });
+
+  test("counts a field a for-of loop binds as read", () => {
+    // `for (const { sql } of rows)` takes every row's value out, one row at
+    // a time.
+    expect(verdictOf("SqlRow", "sql")).toBe("read");
+  });
+
+  test("counts the fields a nested pattern takes out as read", () => {
+    // `const { nested: { deep } } = held` reads `nested` to reach `deep`,
+    // and reads `deep` out of it.
+    expect(verdictOf("HoldsANestedShape", "nested")).toBe("read");
+    expect(verdictOf("HoldsANestedShape.nested", "deep")).toBe("read");
+  });
+
   test("counts a class built on a field as reading it", () => {
     // `class Child extends h.field {}` reads the field when the program runs,
     // although the compiler counts the clause it sits in as a type.

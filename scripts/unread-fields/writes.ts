@@ -226,12 +226,6 @@ const anywhereAbove =
   (node) =>
     ts.findAncestor(node, matches) !== undefined;
 
-/** Whether a mention sits inside one particular piece of the program. A
- * question put to the nodes themselves needs no file name and no character
- * count: a mention in another file has none of that file's nodes above it. */
-export const isInside = (whole: ts.Node): AskAboutAMention =>
-  anywhereAbove((at) => at === whole);
-
 const saysDeclare = carriesAModifier(ts.ModifierFlags.Ambient);
 
 /** A class that is only described, because the declaration names one that

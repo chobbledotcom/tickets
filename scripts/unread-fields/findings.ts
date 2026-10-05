@@ -33,7 +33,7 @@ const isTest = startsWithAny(TEST_FOLDERS);
  * is kept alive by the tests themselves, which is the same thing in a
  * disguise. Both are worth a person's attention; a field production reads
  * is not. */
-export const verdictFor = (readers: string[]): Verdict => {
+export const verdictFor = (readers: readonly string[]): Verdict => {
   if (readers.length === 0) return "never read";
   return readers.every(isTest) ? "read only by tests" : "read";
 };
