@@ -168,6 +168,13 @@ const LIST_PATH = paths.list;
  * sub-actions bounce back to the relevant tab, not the Edit form. */
 const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
 
+/** The flash, log line, and redirect target after one page item write. */
+const itemSaved = (page: SitePage, flashKey: string, logMessage: string) => ({
+  flashMessage: t(flashKey),
+  logMessage,
+  path: itemsPath(page.id),
+});
+
 const pageTarget = sitePageItemTargets.of("page");
 const pageFormHandler = createIdEntityHandler<SitePage>(getSitePageById)(
   formGuard(SITE_FORM),
@@ -240,11 +247,12 @@ const handleAddItem = pageFormHandler(async (page, _session, form) => {
       (await addPageItem(page.id, type, itemId, transaction))
         ? page
         : errorRedirect(itemsPath(page.id), t("site.pages.error.ineligible")),
-    () => ({
-      flashMessage: t("site.pages.item_added"),
-      logMessage: `Item added to page '${page.name}'`,
-      path: itemsPath(page.id),
-    }),
+    () =>
+      itemSaved(
+        page,
+        "site.pages.item_added",
+        `Item added to page '${page.name}'`,
+      ),
   );
 });
 
@@ -266,11 +274,12 @@ const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
       await removePageItem(page.id, ref.kind, ref.id, transaction);
       return page;
     },
-    () => ({
-      flashMessage: t("site.pages.item_removed"),
-      logMessage: `Item removed from page '${page.name}'`,
-      path: itemsPath(page.id),
-    }),
+    () =>
+      itemSaved(
+        page,
+        "site.pages.item_removed",
+        `Item removed from page '${page.name}'`,
+      ),
   ),
 );
 

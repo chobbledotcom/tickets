@@ -8,6 +8,7 @@
  * payment that arrives on a link we ended is processed exactly as today.
  */
 
+/* jscpd:ignore-start -- imports */
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
@@ -19,9 +20,12 @@ import {
 import type { SquareLinkEndEventId } from "#payment/square-link-end-machine-spec.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { dueBatchRunner } from "#shared/maintenance/definition.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/square/limits.ts";
 import { squareLinkEndEventOf } from "#shared/square/link-end.ts";
+
+/* jscpd:ignore-end */
 
 /** End one link and record what the answer amounted to.
  *
@@ -68,15 +72,10 @@ const endOne = async (row: DueSquareLinkEnd): Promise<void> => {
   logDebug("Square", `Link end answered ${event}: ${wrote}`);
 };
 
-/**
- * Run one batch. Returns whether a full batch was taken, so the caller can
- * ask to be run again rather than working through a backlog inside one
- * request's subrequest budget.
- */
-export const runSquareLinkExpiry = async (): Promise<boolean> => {
-  const due = await getDueSquareLinkEnds();
-  for (const row of due) {
-    await endOne(row);
-  }
-  return due.length === SQUARE_LINK_EXPIRY_BATCH;
-};
+/** One pass of the Square link expiry task: end every due link, then report
+ * whether the batch filled. */
+export const runSquareLinkExpiry = dueBatchRunner(
+  getDueSquareLinkEnds,
+  endOne,
+  SQUARE_LINK_EXPIRY_BATCH,
+);

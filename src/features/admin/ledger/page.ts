@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import {
   type ListingMoneyTotals,
@@ -13,7 +14,6 @@ import { groupListings } from "#db/groups/table.ts";
 import { getAllGroupNames } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-import { sort } from "#fp";
 import { t } from "#i18n";
 import { loadLedgerNames } from "#routes/admin/ledger/names.ts";
 import { pickerDatesFromBounds } from "#routes/admin/ledger/picker-dates.ts";
@@ -28,6 +28,7 @@ import {
   listingIdsForLedgerScope,
   resolveLedgerScope,
 } from "#shared/ledger-scope.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { dayStartEpochMs, todayInTz } from "#shared/timezone.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
@@ -38,6 +39,8 @@ import {
 } from "#templates/admin/ledger/filter.tsx";
 import { adminLedgerPage } from "#templates/admin/ledger.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
+
+/* jscpd:ignore-end */
 
 const LEDGER_DISPLAY_LIMIT = 500;
 
@@ -72,9 +75,7 @@ const buildPickerDates = async (
   pickerDatesFromBounds(await transferActivityBounds(), today, tz);
 
 const sortScopeOptions = (options: LedgerScopeOption[]): LedgerScopeOption[] =>
-  sort((a: LedgerScopeOption, b: LedgerScopeOption) =>
-    a.name.localeCompare(b.name),
-  )(options);
+  sortByName(options);
 
 const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({
   key: t(key),

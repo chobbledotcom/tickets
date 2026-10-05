@@ -47,7 +47,10 @@ import {
   type DeliveryBookingView,
   type DeliveryDayGroup,
 } from "#templates/admin/deliveries.tsx";
-import type { DatePickerDate } from "#templates/date-picker.tsx";
+import {
+  type DatePickerDate,
+  selectableDates,
+} from "#templates/date-picker.tsx";
 import { type Attendee, isStaffRole } from "#types";
 
 /* jscpd:ignore-end */
@@ -171,11 +174,7 @@ const buildDateNav = async (
   viewMonth: string | null,
 ): Promise<DeliveriesDateNav> => {
   const deliveryDates = await getAgentRunSheetDates(agentIds);
-  const availableDates: DatePickerDate[] = deliveryDates.map((date) => ({
-    label: formatDateLabel(date),
-    selectable: true,
-    value: date,
-  }));
+  const availableDates: DatePickerDate[] = selectableDates(deliveryDates);
   return { availableDates, selected, today, viewMonth };
 };
 

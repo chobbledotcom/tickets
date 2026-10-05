@@ -244,72 +244,64 @@ type AttendeeActionDefinition<
 
 /** Give every attendee action the same loader, visibility, GET, and POST
  * interface. Its scope decides all four together, so a link cannot promise a
- * booking that the route then fails to load. */
-const defineAttendeeAction = <
-  Data extends AttendeeActionData,
-  Action extends string,
->(
-  action: Action,
-  scope: "attendee" | "booking",
-  load: (attendeeId: number) => Promise<Data | null>,
-): AttendeeActionDefinition<Data, Action> => {
-  const actionHandler = createEntityHandler<AttendeeIdRouteParams, Data>(
-    ({ attendeeId }) => load(attendeeId),
-  );
-  return {
-    action,
-    isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
-    load,
-    page: (
-      prepare,
-      requireSession: SessionGuard<AuthSession> = requireSessionOr,
-    ) =>
-      actionHandler(requireSession)(async (data, session, request) => {
-        const returnUrl = getReturnUrl(request);
-        const page = await prepare(data);
-        if (page.reason !== null) {
+ * booking that the route then fails to load. Pin a scope to its loader once,
+ * so a booking-scoped action can never be defined against the attendee-only
+ * loader (or the reverse). */
+const scopedAction =
+  <Data extends AttendeeActionData>(
+    scope: "attendee" | "booking",
+    load: (attendeeId: number) => Promise<Data | null>,
+  ) =>
+  <Action extends string>(
+    action: Action,
+  ): AttendeeActionDefinition<Data, Action> => {
+    const actionHandler = createEntityHandler<AttendeeIdRouteParams, Data>(
+      ({ attendeeId }) => load(attendeeId),
+    );
+    return {
+      action,
+      isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
+      load,
+      page: (
+        prepare,
+        requireSession: SessionGuard<AuthSession> = requireSessionOr,
+      ) =>
+        actionHandler(requireSession)(async (data, session, request) => {
+          const returnUrl = getReturnUrl(request);
+          const page = await prepare(data);
+          if (page.reason !== null) {
+            return htmlResponse(
+              await page.render(data, session, returnUrl, page.reason),
+              400,
+            );
+          }
+          const flash = applyFlash(request);
           return htmlResponse(
-            await page.render(data, session, returnUrl, page.reason),
-            400,
+            await page.render(data, session, returnUrl, flash.error),
           );
-        }
-        const flash = applyFlash(request);
-        return htmlResponse(
-          await page.render(data, session, returnUrl, flash.error),
-        );
-      }),
-    url: (attendeeId) => attendeeActionUrl(attendeeId, action),
-    verified: (actionLabel, handler, auth: AuthPolicy<"form"> = AUTH_FORM) =>
-      actionHandler(formGuard(auth))((data, _session, form) => {
-        const error = verifyOrRedirect(
-          form,
-          data.attendee.name,
-          attendeeActionUrlWithReturn(
-            data.attendee.id,
-            action,
-            form.getString("return_url"),
-          ),
-          "Attendee name",
-          actionLabel,
-        );
-        if (error) return error;
-        return handler(data, form);
-      }),
+        }),
+      url: (attendeeId) => attendeeActionUrl(attendeeId, action),
+      verified: (actionLabel, handler, auth: AuthPolicy<"form"> = AUTH_FORM) =>
+        actionHandler(formGuard(auth))((data, _session, form) => {
+          const error = verifyOrRedirect(
+            form,
+            data.attendee.name,
+            attendeeActionUrlWithReturn(
+              data.attendee.id,
+              action,
+              form.getString("return_url"),
+            ),
+            "Attendee name",
+            actionLabel,
+          );
+          if (error) return error;
+          return handler(data, form);
+        }),
+    };
   };
-};
 
-const attendeeAction = <Action extends string>(action: Action) =>
-  defineAttendeeAction<AttendeeActionData, Action>(
-    action,
-    "attendee",
-    loadAttendeeActionData,
-  );
-const bookingAction = <Action extends string>(action: Action) =>
-  defineAttendeeAction<AttendeeWithBooking, Action>(
-    action,
-    "booking",
-    loadAttendeeWithBooking,
-  );
+const attendeeAction = scopedAction("attendee", loadAttendeeActionData);
+const bookingAction = scopedAction("booking", loadAttendeeWithBooking);
 
 /** Keep each action's map key and real route segment identical. */
 const defineAttendeeActions = <
@@ -326,10 +318,10 @@ const defineAttendeeActions = <
  * its route loader and page visibility then share that decision. */
 export const attendeeActions = defineAttendeeActions({
   delete: attendeeAction("delete"),
-  "payment-review": defineAttendeeAction<
-    PaymentReviewActionData,
-    "payment-review"
-  >("payment-review", "attendee", loadPaymentReviewActionData),
+  "payment-review": scopedAction(
+    "attendee",
+    loadPaymentReviewActionData,
+  )("payment-review"),
   "refresh-payment": attendeeAction("refresh-payment"),
   refund: bookingAction("refund"),
   "resend-notification": bookingAction("resend-notification"),

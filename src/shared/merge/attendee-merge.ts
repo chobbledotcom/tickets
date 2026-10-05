@@ -84,7 +84,7 @@ export const bookingKey = (
   `${listingId}:${startAt ?? "null"}:${parentListingId}:${packageGroupId}`;
 
 /** Booking key for a diff item */
-const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
+export const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
   bookingKey(
     item.listingId,
     item.startAt,

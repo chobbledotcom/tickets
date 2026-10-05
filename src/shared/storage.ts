@@ -6,7 +6,7 @@
  */
 
 import { decryptBytes, encryptBytes } from "#crypto/encryption.ts";
-import { lazyRef, once, sort } from "#fp";
+import { lazyRef, once } from "#fp";
 import { getEnv } from "#shared/env.ts";
 import { formatBytes } from "#shared/format-units.ts";
 import {
@@ -19,6 +19,7 @@ import {
 import type { ImageTargetTranscoder } from "#shared/images/transcode.ts";
 import { MAX_ATTACHMENT_SIZE, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
@@ -558,9 +559,6 @@ const readDirSafe = async (dir: string): Promise<Deno.DirEntry[]> => {
 /** A stored file with its name and size in bytes. */
 export type StorageFileMeta = { name: string; size: number };
 
-/** Sort stored files by name, ascending. */
-const byName = sort<StorageFileMeta>((a, b) => a.name.localeCompare(b.name));
-
 /**
  * Split a listing prefix into the directory to read and the leaf-name filter
  * applied within it. The directory is matched as a real path component, not a
@@ -600,7 +598,7 @@ export const listFilesWithMeta = async (
           size: (await Deno.stat(`${base}${e.name}`)).size,
         })),
     );
-    return byName(files);
+    return sortByName(files);
   }
   const config = getStorageConfig();
   const url = `https://storage.bunnycdn.com/${config.zoneName}/${dir}`;
@@ -619,7 +617,7 @@ export const listFilesWithMeta = async (
     );
   }
   const items = (await response.json()) as Record<string, unknown>[];
-  return byName(
+  return sortByName(
     items
       // Bunny lists directories alongside files; keep only files so per-site
       // backup folders don't surface as entries (the local backend filters to

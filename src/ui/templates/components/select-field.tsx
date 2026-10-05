@@ -20,6 +20,17 @@ export const choiceOptions = (
 ): SelectOption[] =>
   choices.map((choice) => ({ label: t(choice.labelKey), value: choice.value }));
 
+/** Turn records that carry a numeric id into options, with the label each
+ * caller names. The id becomes the string value the select compares. */
+export const idOptions = <T extends { id: number }>(
+  records: readonly T[],
+  labelOf: (record: T) => Child,
+): SelectOption[] =>
+  records.map((record) => ({
+    label: labelOf(record),
+    value: String(record.id),
+  }));
+
 export const SelectField = ({
   name,
   id,

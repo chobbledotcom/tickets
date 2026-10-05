@@ -26,7 +26,7 @@ import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.ts
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { SelectField } from "#templates/components/select-field.tsx";
+import { idOptions, SelectField } from "#templates/components/select-field.tsx";
 import {
   translatedTableColumn,
   translatedTableHeader,
@@ -200,10 +200,7 @@ export const retireStatusDeletePage = (
                 name="reassign_status_id"
                 options={[
                   { label: t("statuses.delete_reassign_prompt"), value: "" },
-                  ...choice.others.map((other) => ({
-                    label: other.name,
-                    value: String(other.id),
-                  })),
+                  ...idOptions(choice.others, (other) => other.name),
                 ]}
                 required
                 value=""

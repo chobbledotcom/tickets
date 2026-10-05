@@ -16,6 +16,24 @@ export const MAINTENANCE_RELEASE_HEADROOM_MS = 1_000;
 
 export type MaintenanceWakePolicy = "organic_safe" | "scheduled_only";
 
+/** The runner for a due-queue task: take the task's queue, run one pass over
+ * each row, and report whether the batch filled. A filled batch means work
+ * likely remains, so the caller asks to be run again rather than working
+ * through a backlog inside one request's subrequest budget. */
+export const dueBatchRunner =
+  <Row>(
+    due: () => Promise<readonly Row[]>,
+    one: (row: Row) => Promise<void>,
+    batchSize: number,
+  ): (() => Promise<boolean>) =>
+  async () => {
+    const rows = await due();
+    for (const row of rows) {
+      await one(row);
+    }
+    return rows.length === batchSize;
+  };
+
 export type MaintenanceTaskBudget = {
   remaining: () => { database: number; external: number; total: number };
 };

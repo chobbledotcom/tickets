@@ -15,6 +15,7 @@ import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
   calendarGridDates,
+  formatDateLabel,
   formatMonthLabel,
   monthsAround,
   shiftMonth,
@@ -30,6 +31,15 @@ export type DatePickerDate = {
   /** Whether this date is a clickable link (vs. plain greyed text). */
   selectable: boolean;
 };
+
+/** Turn ISO dates into picker dates that are all selectable, each labelled
+ * with the date words a person reads. */
+export const selectableDates = (dates: readonly string[]): DatePickerDate[] =>
+  dates.map((value) => ({
+    label: formatDateLabel(value),
+    selectable: true,
+    value,
+  }));
 
 export type DatePickerProps = {
   /** All known dates, sorted ascending by ISO `value`. */

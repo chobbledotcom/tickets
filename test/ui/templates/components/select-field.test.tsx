@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  idOptions,
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
@@ -108,5 +109,36 @@ describe("SelectField", () => {
   test("renders an empty <select> when there are no options", () => {
     const html = String(SelectField({ name: "agent", options: [], value: "" }));
     expect(html).toBe('<select name="agent"></select>');
+  });
+});
+
+describe("idOptions", () => {
+  test("turns named records into options with the string id as value", () => {
+    // The status-picker shape (attendee form): label from the name field.
+    expect(
+      idOptions(
+        [
+          { id: 2, name: "Cancelled" },
+          { id: 11, name: "Confirmed" },
+        ],
+        (status) => status.name,
+      ),
+    ).toEqual([
+      { label: "Cancelled", value: "2" },
+      { label: "Confirmed", value: "11" },
+    ]);
+  });
+
+  test("takes the label the caller names, not a fixed field", () => {
+    // The template-picker shape (bulk email): label from the subject field.
+    expect(
+      idOptions([{ id: 7, subject: "Your tickets" }], (tpl) => tpl.subject),
+    ).toEqual([{ label: "Your tickets", value: "7" }]);
+  });
+
+  test("returns no options for no records", () => {
+    expect(
+      idOptions([], (status: { id: number; name: string }) => status.name),
+    ).toEqual([]);
   });
 });

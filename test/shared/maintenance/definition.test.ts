@@ -9,6 +9,7 @@ import {
   type MaintenanceTaskDeclaration,
   maintenanceStartupCalls,
   maintenanceTaskByName,
+  TASK_RUNNER_CALL_RESERVE,
 } from "#shared/maintenance/definition.ts";
 import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 import { maintenanceDeclaration } from "./fixtures.ts";
@@ -52,6 +53,9 @@ describe("maintenance task declarations", () => {
     expect(MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_TASK_CALL_LIMIT).toBe(
       8,
     );
+    // The runner itself spends three calls outside every task's allowance:
+    // the claim, the finish, and the final no-work claim.
+    expect(TASK_RUNNER_CALL_RESERVE).toBe(3);
     expect(MAINTENANCE_RELEASE_HEADROOM_MS).toBe(1_000);
   });
 

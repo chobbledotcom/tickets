@@ -3,6 +3,7 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
+import { ledgerEntryAddHref } from "#shared/ledger-links.ts";
 import {
   humanDescription,
   shownFigure,
@@ -17,7 +18,6 @@ import {
   canAddLedgerEntry,
   LedgerColumnsTable,
   type LedgerNames,
-  ledgerEntryAddHref,
   timeColumn,
 } from "#templates/admin/ledger.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";

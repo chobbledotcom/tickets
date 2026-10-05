@@ -7,6 +7,7 @@
  * answer from one to the next.
  */
 
+/* jscpd:ignore-start -- imports */
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
@@ -18,8 +19,11 @@ import { settlePaymentCallback } from "#routes/api/payment-callback.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { dueBatchRunner } from "#shared/maintenance/definition.ts";
 import { resolveSumupCheckoutById } from "#shared/sumup/checkout-resolution.ts";
 import { sumupRecoveryOutcome } from "#shared/sumup/recovery.ts";
+
+/* jscpd:ignore-end */
 
 /** Ask about one checkout and record what the answer amounted to.
  *
@@ -58,15 +62,9 @@ const recoverOne = async (checkout: DueSumupCheckout): Promise<void> => {
   );
 };
 
-/**
- * Run one batch. Returns whether a full batch was taken, so the caller can
- * ask to be run again rather than working through a backlog inside one
- * request's subrequest budget.
- */
-export const runSumupRecovery = async (): Promise<boolean> => {
-  const due = await getDueSumupCheckouts();
-  for (const checkout of due) {
-    await recoverOne(checkout);
-  }
-  return due.length === SUMUP_RECOVERY_BATCH;
-};
+/** One pass of the SumUp checkout recovery task — see the module doc. */
+export const runSumupRecovery = dueBatchRunner(
+  getDueSumupCheckouts,
+  recoverOne,
+  SUMUP_RECOVERY_BATCH,
+);

@@ -7,7 +7,8 @@ import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { bookingKey } from "#shared/merge/attendee-merge.ts";
+import { bookingKey, itemBookingKey } from "#shared/merge/attendee-merge.ts";
+import type { AttendeeMergeDiffBookingItem } from "#shared/merge/attendee-merge-types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -326,6 +327,18 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(bookingKey(1, "", 0, 0)).toBe("1::0:0");
     expect(bookingKey(1, null, 0, 0)).toBe("1:null:0:0");
     expect(bookingKey(2, "2026-06-21", 3, 4)).toBe("2:2026-06-21:3:4");
+  });
+
+  test("itemBookingKey reads a diff item's booking identity", () => {
+    // The admin merge form keys its radio choices with the same key the
+    // decision parser reads, so both spellings must stay one function.
+    const item = {
+      listingId: 2,
+      packageGroupId: 4,
+      parentListingId: 3,
+      startAt: null,
+    } as AttendeeMergeDiffBookingItem;
+    expect(itemBookingKey(item)).toBe(bookingKey(2, null, 3, 4));
   });
 
   test("uses fallback question text for orphaned answers", async () => {

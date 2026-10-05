@@ -1,6 +1,9 @@
-import { dateRange, formatDateLabel } from "#shared/dates.ts";
+import { dateRange } from "#shared/dates.ts";
 import { epochMsToTzDate } from "#shared/timezone.ts";
-import type { DatePickerDate } from "#templates/date-picker.tsx";
+import {
+  type DatePickerDate,
+  selectableDates,
+} from "#templates/date-picker.tsx";
 
 /** Build the selectable Money days covered by stored activity. */
 export const pickerDatesFromBounds = (
@@ -12,9 +15,5 @@ export const pickerDatesFromBounds = (
   const startDay = epochMsToTzDate(bounds.minMs, tz);
   const latest = epochMsToTzDate(bounds.maxMs, tz);
   const endDay = latest > today ? latest : today;
-  return dateRange(startDay, endDay).map((value) => ({
-    label: formatDateLabel(value),
-    selectable: true,
-    value,
-  }));
+  return selectableDates(dateRange(startDay, endDay));
 };

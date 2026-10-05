@@ -4,6 +4,7 @@ import {
   DatePicker,
   type DatePickerDate,
   type DatePickerProps,
+  selectableDates,
 } from "#templates/date-picker.tsx";
 import { selectOptionLabels } from "#test-utils/assertions.ts";
 
@@ -212,5 +213,27 @@ describe("DatePicker dropdown", () => {
       "Past B",
       "Select a date",
     ]);
+  });
+});
+
+describe("selectableDates", () => {
+  test("labels each ISO date with the words a person reads", () => {
+    // The deliveries date-nav shape: one entry per stored activity date.
+    expect(selectableDates(["2026-03-09", "2026-03-10"])).toEqual([
+      {
+        label: "Monday 9 March 2026",
+        selectable: true,
+        value: "2026-03-09",
+      },
+      {
+        label: "Tuesday 10 March 2026",
+        selectable: true,
+        value: "2026-03-10",
+      },
+    ]);
+  });
+
+  test("returns no picker dates for no dates", () => {
+    expect(selectableDates([])).toEqual([]);
   });
 });

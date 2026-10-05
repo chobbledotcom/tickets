@@ -55,6 +55,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
+import { withReturnUrl } from "#shared/return-url-field.tsx";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   AttendeeAnswersTable,
@@ -107,10 +108,6 @@ const loadAttendeePageEntity = async (
 const actionBase = ({ attendee }: AttendeePageEntity): string =>
   `/admin/attendees/${attendee.id}`;
 
-/** Thread the current tab back through a sub-action's confirm page. */
-const withReturn = (href: string, ctx: PageCtx): string =>
-  `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
-
 type AttendeeActionName = keyof typeof attendeeActions;
 type ActionVisibility = NonNullable<ActionDef<AttendeePageEntity>["visible"]>;
 const alwaysAllow: ActionVisibility = (): boolean => true;
@@ -152,7 +149,8 @@ const attendeeAction = (
   config: Omit<ActionDef<AttendeePageEntity>, "href">,
 ): ActionDef<AttendeePageEntity> => ({
   ...config,
-  href: (entity, ctx) => withReturn(`${actionBase(entity)}/${segment}`, ctx),
+  href: (entity, ctx) =>
+    withReturnUrl(`${actionBase(entity)}/${segment}`, ctx.returnUrl),
 });
 
 /** The Actions tab entries. Every `visible` mirrors its target's own gate. */
