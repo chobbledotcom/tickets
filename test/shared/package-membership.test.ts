@@ -8,6 +8,8 @@ import {
   packageGroups,
   packageMemberError,
   packageMemberQuantityBroken,
+  planInGroupError,
+  planRuleError,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
 
@@ -33,6 +35,28 @@ describe("packageMemberError", () => {
     expect(sitePlanMemberError("Website Plan")).toBe(
       t("error.group_member_site_plan", { name: "Website Plan" }),
     );
+  });
+
+  test("planInGroupError refuses a plan and allows a non-plan", () => {
+    expect(planInGroupError(true, "Website Plan")).toBe(
+      t("error.group_member_site_plan", { name: "Website Plan" }),
+    );
+    expect(planInGroupError(false, "Day Pass")).toBeNull();
+    expect(planInGroupError(undefined, "Day Pass")).toBeNull();
+  });
+
+  test("planRuleError spares non-plans and names the first broken facet", () => {
+    // The renewal tier rules call it with these facets in this order.
+    const facets = [
+      [true, "error.initial_site_months_required"],
+      [false, "error.assign_built_site_not_tier"],
+    ] as const;
+    expect(planRuleError(false, facets)).toBeNull();
+    expect(planRuleError(undefined, facets)).toBeNull();
+    expect(planRuleError(true, facets)).toBe(
+      t("error.initial_site_months_required"),
+    );
+    expect(planRuleError(true, [])).toBeNull();
   });
 
   // Each blocking case asserts the complete localized message: which rule won
