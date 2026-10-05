@@ -41,11 +41,13 @@ const VISITOR = "the visitor";
 const BUYER = "the buyer";
 
 /** Something on sale whose minimum the story is about. */
-const putsOnSaleWithMinimum = (
+const putsOnSaleWithMinimum = async (
   world: TicketsWorld,
   name: string,
   alsoSet: Parameters<typeof putsPlainThingOnSale>[2],
-): Promise<void> => putsPlainThingOnSale(world, name, alsoSet).then(() => {});
+): Promise<void> => {
+  await putsPlainThingOnSale(world, name, alsoSet);
+};
 
 Given(
   "the site sells a {word} selling at most {int} per purchase",
