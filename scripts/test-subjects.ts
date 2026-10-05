@@ -24,6 +24,7 @@
  * enough to unit-test from an in-memory map.
  */
 
+import { remembered } from "#shared/remembered.ts";
 import {
   type ImportMap,
   parseImportSpecifiers,
@@ -173,14 +174,5 @@ const followsFrom = (walk: Walk, path: string): boolean =>
   walk.testTreeFiles.has(path) && !walk.visited.has(path);
 
 /** A `readText` that reads from disk once per path and caches the text, so a
- *  helper shared by fifty tests is read one time for the whole walk. */
-export const cachingReader = (read: ReadText): ReadText => {
-  const cache = new Map<string, Promise<string>>();
-  return (path) => {
-    const cached = cache.get(path);
-    if (cached !== undefined) return cached;
-    const pending = read(path);
-    cache.set(path, pending);
-    return pending;
-  };
-};
+ * helper shared by fifty tests is read one time for the whole walk. */
+export const cachingReader = (read: ReadText): ReadText => remembered(read);

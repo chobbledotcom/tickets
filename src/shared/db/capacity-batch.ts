@@ -27,6 +27,7 @@ import {
   type SqlParameterToken,
 } from "#db/numbered-statement.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
+import { remembered } from "#shared/remembered.ts";
 
 /** One listing's or one group's cart demand. `perDay` holds the dated demand
  * on per-date counting listings, keyed by day. `everyDay` holds demand that
@@ -133,10 +134,14 @@ const perDayClause = (
   violation: (overflow: string, cap: string) => string,
   bucket: CapacityBucket,
   bind: SqlParameter,
-): string => `NOT EXISTS (
+): string =>
+  `NOT EXISTS (
     SELECT 1
       FROM (VALUES ${dayDemandRows(bucket, bind)}) AS dayDemand
-     WHERE ${violation(`(${countSql}) + dayDemand.column3 + ${bucket.everyDay}`, capSql)}
+     WHERE ${violation(
+       `(${countSql}) + dayDemand.column3 + ${bucket.everyDay}`,
+       capSql,
+     )}
   )`;
 
 const listingCapSql = (idSql: SqlParameterToken): string =>
@@ -246,6 +251,10 @@ const fitExpression = (demand: CartDemand, bind: SqlParameter): string => {
 /** One SELECT returning `fits` (1/0): does this cart demand fit right now?
  * The checkout preflight asks once for the whole cart; a refusal diagnosis
  * asks write-order prefixes this way, one statement per sampled prefix in
- * one snapshot batch. */
+ * one snapshot batch. The binder reuses a placeholder for a value it has
+ * bound already, so listings booking the same dates bind each day range
+ * once and the statement stays under SQLite's variable-number cap. */
 export const buildCartCapacitySql = (demand: CartDemand): SqlStatement =>
-  numberedStatement((bind) => `SELECT ${fitExpression(demand, bind)} AS fits`);
+  numberedStatement(
+    (bind) => `SELECT ${fitExpression(demand, remembered(bind))} AS fits`,
+  );
