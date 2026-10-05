@@ -2,8 +2,8 @@
  * Spreadable route-table factories for admin sections.
  *
  * A section's route table spreads these instead of hand-typing the standard
- * entries; a section with one bespoke step spreads the standard set and
- * restates just that key (e.g. a custom `:id/edit` POST).
+ * entries. A section with one bespoke step spreads the standard set and
+ * restates just that key, for example a custom `:id/edit` POST.
  */
 
 import type { EntityPage } from "#routes/admin/entity-pages.ts";

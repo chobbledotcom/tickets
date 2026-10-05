@@ -98,9 +98,9 @@ type SiteContentLifecycle = {
   update: ParamsRoute<{ id: number }>;
 };
 
-/** Write content and its activity row in one transaction. The callback may
- * reject before writing by returning a validation response; no activity is then
- * logged. */
+/** Write content and its activity row in one transaction. The callback can
+ * reject before writing by returning a validation response. No activity is
+ * then logged. */
 export const saveContent = async <T>(
   write: (transaction: TxScope) => Promise<T | Response>,
   complete: (value: T) => SavedContent,

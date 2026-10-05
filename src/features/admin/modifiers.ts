@@ -100,8 +100,9 @@ const childAddOnInputError = async (
   id: number | undefined,
 ): Promise<string | null> => {
   if (input.trigger !== "optional" || input.active !== true) return null;
-  // Resolve from the stored links (an edit doesn't change them; a create has
-  // none). `resolveAddOnScope` keeps only the set matching the input's scope.
+  // Resolve from the stored links. An edit does not change them, and a
+  // create has none. `resolveAddOnScope` keeps only the set matching the
+  // input's scope.
   const [listingIds, groupIds] = await Promise.all([
     id === undefined ? [] : modifierListings.getIds(id),
     id === undefined ? [] : modifierGroups.getIds(id),
@@ -258,8 +259,8 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
   navActive: { section: adminPattern("modifiers") },
 });
 
-// The list and entity page load the ledger-projected Modifier; writes and the
-// delete confirmation use the stored ModifierRow.
+// The list and entity page load the ledger-projected Modifier. Writes and
+// the delete confirmation use the stored ModifierRow.
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
@@ -301,10 +302,10 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   });
 
 /**
- * Handle POST /admin/modifiers/:id/revenue — post a manual `writeoff` adjustment
- * so the modifier's projected revenue matches the owner-entered figure
- * (decision 14). Owner-only; the delta is computed from the modifier's current
- * projected `total_revenue` (which may be negative for a net discount).
+ * Post a manual `writeoff` adjustment so the modifier's projected revenue
+ * matches the owner-entered figure. Owner-only. The delta is computed from
+ * the modifier's current projected `total_revenue`, which can be negative for
+ * a net discount.
  */
 const adjustModifierRevenueForm = makeMoneyAdjustHandler<Modifier>({
   adjust: (modifier, target) => adjustModifierRevenue(modifier.id, target),

@@ -1,14 +1,15 @@
 import { defineRoutes } from "#routes/router.ts";
 
 /**
- * Admin CRUD for user-created content Pages, under Site → Pages. Owner + editor
- * (SITE_FORM / requireSiteOr), hand-wired because create must assign a root
- * sort_order, root reordering is bounded to roots, and the edit page carries an
- * item manager the CRUD factory doesn't model. All the tree logic (forest,
- * eligibility, reorder neighbour) flows through the pure `site-pages/core`; the
- * read models live in `site-pages-data.ts`, and the edit page itself is the
- * shared tabbed entity page (Edit / Items / Images / Actions) in
- * `site-pages-page.ts`. This file owns the POST sub-actions and route wiring.
+ * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
+ * editor (SITE_FORM / requireSiteOr). The routes are hand-wired: create must
+ * assign a root sort_order, and root reordering is bounded to roots. The
+ * edit page carries an item manager the CRUD factory does not model. All the
+ * tree logic (forest, eligibility, reorder neighbour) flows through the pure
+ * `site-pages/core`. The read models live in `site-pages-data.ts`, and the
+ * edit page itself is the shared tabbed entity page (Edit / Items / Images /
+ * Actions) in `site-pages-page.ts`. This file owns the POST sub-actions and
+ * route wiring.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -90,8 +91,8 @@ const reservedSlugError = (
   errorPath: string,
 ): Response | undefined => {
   // The slug field's own validator already ran `validateSlug(normalizeSlug())`
-  // (so the format is known-good here); re-normalise for the reserved check and
-  // storage.
+  // (so the format is known-good here). Re-normalise for the reserved check
+  // and storage.
   const slug = normalizeSlug(value);
   if (isReservedSlug(slug)) {
     return errorRedirect(errorPath, t("site.pages.error.reserved"));
@@ -164,7 +165,7 @@ const content = defineSiteContent("/admin/site/pages", (paths) => ({
 
 const { paths } = content;
 const LIST_PATH = paths.list;
-/** The Items and Images tabs live under the entity page; their POST
+/** The Items and Images tabs live under the entity page. Their POST
  * sub-actions bounce back to the relevant tab, not the Edit form. */
 const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
 
@@ -201,17 +202,17 @@ const rootPageOrder = createOrderedCollectionHandlers({
 
 // ─── Item manager ───────────────────────────────────────────────
 
-/** Does `(type, id)` name a target this page may contain? Existence for a leaf;
- * full tree-eligibility (unparented, no cycle) for a page. Duplicate-edge and
- * single-parent/cycle races are settled authoritatively by `addPageItem`, which
- * reports a conflict rather than throwing. */
+/** Does `(type, id)` name a target this page can contain? Existence for a
+ * leaf. Full tree-eligibility (unparented, no cycle) for a page.
+ * Duplicate-edge and single-parent/cycle races are settled authoritatively by
+ * `addPageItem`, which reports a conflict rather than throwing. */
 const isEligibleTarget = async (
   pageId: number,
   type: SitePageItemType,
   itemId: number,
 ): Promise<boolean> => {
   if (type === "listing") {
-    // Mirror the picker: only an offerable listing may be added. Single-row
+    // Mirror the picker: only an offerable listing can be added. Single-row
     // reads — a POST validation never decrypts or scans the whole catalog.
     const [flags, childIds] = await Promise.all([
       getListingOfferFlags(itemId),
@@ -234,10 +235,10 @@ const handleAddItem = pageFormHandler(async (page, _session, form) => {
       t("site.pages.error.invalid_item"),
     );
   }
-  // Never trust the submitted select: re-check eligibility server-side, then let
-  // addPageItem settle any concurrent-add conflict atomically. Either failing is
-  // the same friendly "can't be added" (addPageItem isn't called when the target
-  // is already ineligible).
+  // Never trust the submitted select: re-check eligibility server-side, then
+  // let addPageItem settle any concurrent-add conflict atomically. Either
+  // failure answers with the same ineligible-error redirect, and addPageItem
+  // does not run when the target is already ineligible.
   const eligible = await isEligibleTarget(page.id, type, itemId);
   if (!eligible) {
     return errorRedirect(itemsPath(page.id), t("site.pages.error.ineligible"));

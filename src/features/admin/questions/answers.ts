@@ -69,8 +69,9 @@ export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
     onValid: async ({ params, values: { text } }) => {
       const question = await getQuestionWithAnswers(params.id);
       if (!question) return notFoundResponse();
-      // Free-text questions collect a typed value, never an answer id, so answer
-      // options (and any answer-triggered modifiers) would be silently ignored.
+      // Free-text questions collect a typed value, never an answer id, so the
+      // code silently ignores answer options (and any answer-triggered
+      // modifiers).
       if (question.display_type === "free_text") {
         return errorRedirect(
           `/admin/questions/${params.id}`,

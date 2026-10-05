@@ -1,6 +1,7 @@
 /** The child-add-on reachability check shared by modifier input validation and
- * the links-save guard: given candidate listing/group links, would an opt-in
- * add-on be reachable only through a suppressed child? */
+ * the links-save guard. It answers one question about candidate listing or
+ * group links: can an opt-in add-on be reached only through a suppressed
+ * child? */
 
 import { listingGroups } from "#db/groups/table.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
@@ -34,9 +35,9 @@ type AddOnSaveCandidate = {
   groupIds: number[];
 };
 
-/** The error message a links save or an input save earns when it would leave
- * an opt-in add-on reachable only through a suppressed child, or null when
- * every add-on stays reachable from a serving page. */
+/** The error message a links save or an input save earns when it leaves an
+ * opt-in add-on reachable only through a suppressed child. Null when every
+ * add-on stays reachable from a serving page. */
 export const childAddOnSaveError = async (
   candidate: AddOnSaveCandidate,
 ): Promise<string | null> => {
@@ -50,10 +51,10 @@ export const childAddOnSaveError = async (
     (listing) => toListingGroupMembership(listing, membership),
   );
   // Only an ACTIVE listing that serves its own booking page can rescue a
-  // child-only add-on. That is any active listing except a non-standalone child
-  // (a `bookable_alone` child DOES serve its own page, so it counts): public
-  // ticket contexts load active listings only (`withActiveListings`), so an
-  // inactive listing serves nothing. `childIds` here is the narrowed
+  // child-only add-on. That is any active listing except a non-standalone
+  // child. A `bookable_alone` child does serve its own page, so it counts.
+  // Public ticket contexts load active listings only (`withActiveListings`),
+  // so an inactive listing serves nothing. `childIds` here is the narrowed
   // non-standalone set, so a flagged child is neither suppressed nor excluded.
   const reachableIds = reachablePageIds(allListings, childIds);
   return childUnreachableAddOnError(

@@ -8,10 +8,10 @@ import { adminPattern } from "#shared/admin-surface.ts";
  * Admin routes for managing attendee statuses (owner-only).
  *
  * Enforces the status invariants: at most one public-default and one
- * paid-default, a paid-default is never a reservation, reservation amounts are
- * valid, and the last one and either default can't be deleted. A status
- * attendees hold is retired, not deleted: the delete page moves every held
- * attendee to a status the operator picks before the row goes.
+ * paid-default, a paid-default is never a reservation, and reservation
+ * amounts are valid. The last status and either default cannot be deleted. A
+ * status attendees hold is retired, not deleted: the delete page moves every
+ * held attendee to a status the operator picks before the row goes.
  */
 
 import {
@@ -147,9 +147,9 @@ const statusOrder = createOrderedCollectionHandlers({
 });
 
 /** The delete page, with the reassign choice a status attendees hold needs:
- *  the count, the warning, and a required picker of the other statuses — or
- *  the prerequisite the save would refuse on instead. The session guard (not
- *  the form policy) wraps it, because it is a GET page. */
+ * the count, the warning, and a required picker of the other statuses. The
+ * save refuses without it. The session guard (not the form policy) wraps it,
+ * because it is a GET page. */
 const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const status = await getAttendeeStatus(id);

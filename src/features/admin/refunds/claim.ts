@@ -38,7 +38,7 @@ export type RunFindings = {
   recorded: Set<string>;
 };
 
-/** Why a run could not take the complete set it loaded. */
+/** Why a run cannot take the complete set it loaded. */
 export type RefundRunBlock =
   | { kind: "claim_held"; reason: string }
   | { kind: "payment_set_changed"; reason: string }
@@ -177,9 +177,9 @@ export const underAttendeeClaim = async <TResult>(
     | { admit?: undefined; admissionRefused?: never }
   ),
 ): Promise<TResult> => {
-  // Taking the hold may itself spend the request allowance. Keep the complete
+  // Taking the hold can itself spend the request allowance. Keep the complete
   // settlement tail unavailable until the claim is known not to exist or its
-  // later release has been protected.
+  // later release is protected.
   const claim = await withSubrequestReserve(
     REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
     () => rowClaim.claim(attendees, run.admit),

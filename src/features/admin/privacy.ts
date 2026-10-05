@@ -1,10 +1,11 @@
 /**
  * Privacy page routes (owner-only).
  *
- * Hosts the data-minimisation tools described in plain language on the page:
- * purging orphaned attendee records (records left with no listing booking),
- * toggling whether that purge runs automatically, and performing a GDPR
- * erasure of a single contact's recognition record by email or phone.
+ * Hosts the data-minimisation tools described in plain language on the page.
+ * The tools purge orphaned attendee records (records left with no listing
+ * booking). They toggle whether that purge runs automatically. They also
+ * perform a GDPR erasure of one contact's recognition record by email or
+ * phone.
  */
 
 import { assert } from "@std/assert";
@@ -261,8 +262,8 @@ const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
 
 /**
  * POST /admin/privacy/orphans — save the retention age and auto-purge toggle.
- * The "Delete now" button additionally purges matching records immediately;
- * the "Save" button only stores the settings.
+ * The "Delete now" button additionally purges matching records immediately.
+ * The "Save" button only stores the settings.
  */
 const handleOrphansPost = ownerFormHandler(async ({ form }) => {
   const retention = form.getString("retention");

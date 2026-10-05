@@ -1,8 +1,8 @@
 /**
  * Admin CRUD for news posts, under Site → News. Owner + editor (the shared
- * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list with
- * no ordering controls; the `/news/:slug` permalink is auto-generated on
- * create (never entered) and editable on the edit page, which also
+ * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list
+ * with no ordering controls. The `/news/:slug` permalink is auto-generated on
+ * create (never entered) and editable on the edit page. The edit page also
  * carries the shared images panel (image_uses with item_type 'news').
  */
 
@@ -36,7 +36,6 @@ type NewsContentValues = Parameters<typeof seoContentInput>[0] & {
   snippet: string;
 };
 
-/** Turn the validated fields shared by both news forms into a write input. */
 const newsContentInput = (values: NewsContentValues): NewsPostWriteInput => ({
   ...seoContentInput(values),
   snippet: values.snippet,

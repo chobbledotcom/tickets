@@ -1,10 +1,11 @@
 /**
  * Listing Defaults settings page — owner only.
  *
- * GET renders the form; POST parses every defaultable field, sets only the ones
- * the operator gave a value to, validates them, and saves the blob. Saving bumps
- * the settings version, so listings inheriting defaults pick up the change on
- * their next read (defaults resolve live — see `resolveListingDefaults`).
+ * GET renders the form. POST parses every defaultable field, sets only the
+ * ones the operator gave a value to, validates them, and saves the blob.
+ * Saving bumps the settings version, so listings inheriting defaults pick up
+ * the change on their next read (defaults resolve live — see
+ * `resolveListingDefaults`).
  */
 
 /* jscpd:ignore-start -- imports */
@@ -35,7 +36,8 @@ import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx"
 type FieldParse = { value?: unknown; error?: string };
 
 /** The parsed defaults plus the first validation error, if any. `value` always
- * holds whatever parsed cleanly; `error` non-null means the handler rejects it. */
+ * holds whatever parsed cleanly. A non-null `error` means the handler rejects
+ * it. */
 type ParseResult = { value: ListingDefaults; error: string | null };
 
 /** Read a field's submitted value from the form. */
@@ -46,7 +48,8 @@ const submitted = (field: ListingDefaultField, form: FormParams): string =>
 const parseBool = (raw: string): boolean | undefined =>
   raw === "1" ? true : raw === "0" ? false : undefined;
 
-/** Parse one number field (a non-negative day count). Blank ⇒ unset; bad ⇒ error. */
+/** Parse one number field (a non-negative day count). Blank means unset, bad
+ * means error. */
 const parseNumberField = (
   field: ListingDefaultField,
   raw: string,
@@ -62,14 +65,14 @@ const parseNumberField = (
     : { value };
 };
 
-/** Parse one URL field. Blank ⇒ unset; unsafe ⇒ error. */
+/** Parse one URL field. Blank means unset, unsafe means error. */
 const parseUrlField = (
   field: ListingDefaultField,
   form: FormParams,
 ): FieldParse => {
-  // Demo mode blanks per-listing webhook URLs so demo users can't configure
-  // outbound callbacks; refuse the webhook default the same way, or a
-  // Use-defaults listing would resolve it and fire registration webhooks.
+  // Demo mode blanks per-listing webhook URLs so demo users cannot configure
+  // outbound callbacks. Refuse the webhook default the same way. Otherwise a
+  // Use-defaults listing can resolve it and fire registration webhooks.
   if (field.field === "webhook_url" && isDemoMode()) return {};
   const raw = submitted(field, form);
   if (raw === "") return {};
@@ -103,8 +106,8 @@ const parseDaysField = (form: FormParams): FieldParse => {
 };
 
 /** Per-kind parser. The `Record` is keyed by {@link ListingDefaultKind}, so a
- * new kind is a compile error here (and in the settings control + listing-form
- * formatter that dispatch the same way) rather than silently mis-parsed. */
+ * new kind is a compile error here rather than silently mis-parsed. The
+ * settings control and the listing-form formatter dispatch the same way. */
 const KIND_PARSERS: Record<
   ListingDefaultKind,
   (field: ListingDefaultField, form: FormParams) => FieldParse
@@ -160,10 +163,10 @@ export const handleListingDefaultsPost = settingsHandler<ParseResult>({
   // a clean value to persist.
   save: async (result) => {
     await settings.update.listingDefaults(result.value);
-    // Listings inherit defaults at the cache layer (`decryptListingWithCount`),
-    // which has its own TTL and is not invalidated by settings writes — so drop
-    // it here, otherwise warm isolates would serve stale inherited values until
-    // the TTL lapsed or an unrelated listing write cleared it.
+    // Listings inherit defaults at the cache layer (`decryptListingWithCount`).
+    // That cache has its own TTL and is not invalidated by settings writes.
+    // Drop it here, or warm isolates serve stale inherited values until the
+    // TTL lapses or an unrelated listing write clears it.
     invalidateListingsCache();
   },
   validate: (result) => result.error,

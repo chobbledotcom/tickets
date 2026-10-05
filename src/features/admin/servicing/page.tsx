@@ -54,7 +54,7 @@ export const activeServicingListings = (
   filter((listing: ListingWithCount) => listing.active)(listings);
 
 /** Keep inactive listings while an event still holds them, and report holds
- * whose listing row has been deleted. */
+ * whose listing row is deleted. */
 export const listingsForServicingEdit = (
   allListings: ListingWithCount[],
   event: ServicingEvent,

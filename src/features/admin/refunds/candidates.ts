@@ -35,14 +35,14 @@ export const loadedRefundAttendee = (
 /**
  * Whether a refund run still has work for this attendee.
  *
- * Money still with the provider is the obvious kind. A hold a run left behind
- * is the other: nothing else in the system can take one off, so an attendee
- * whose money is all back but whose row is still held has to be picked up
- * again — and until they are, their delete and their merge stay refused.
+ * Money still with the provider is the obvious kind. A hold a run left
+ * behind is the other. Nothing else in the system can take one off. An
+ * attendee whose money is all back but whose row is still held has to be
+ * picked up again. Until they are, their delete and their merge stay refused.
  *
- * The bulk list and the single-attendee page both ask this, so the page a
- * person is looking at and the run they start cannot disagree about whether
- * there is anything left to do.
+ * The bulk list and the single-attendee page both ask this. The page a person
+ * is looking at and the run they start cannot disagree about whether anything
+ * is left to do.
  */
 export const refundWorkRemains = (
   attendee: Pick<Attendee, "refunded">,

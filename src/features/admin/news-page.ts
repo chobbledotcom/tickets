@@ -1,6 +1,6 @@
 /**
  * The news entity page: the shared Site-content tabbed page (Edit / Images /
- * Actions) bound to a news post. News is Site-gated; the delete confirmation
+ * Actions) bound to a news post. News is Site-gated. The delete confirmation
  * and every POST sub-action keep their own routes in news.ts, so this file owns
  * only the GET surface. A bare /admin/site/news/:id lands on the Edit tab, and
  * /admin/site/news/:id/edit resolves to it too.

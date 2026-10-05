@@ -108,8 +108,8 @@ const parseAssignedAgentIds = (
   agents: LogisticsAgent[],
 ): number[] => selectedIdsFromForm(form, "agent_ids", agents);
 
-/** Persist a user's logistics-agent links from a submitted form, keeping only
- * ids that are real assignable agents. */
+/** Persist a user's logistics-agent links from a submitted form. Only ids
+ * that are real assignable agents survive. */
 const saveAgentSelection = async (
   userId: number,
   form: FormParams,
@@ -134,10 +134,10 @@ const toDisplayUser = async (
           .filter((name): name is string => name !== undefined)
       : undefined;
   // A user is activated once they have set a password (buildUserInsert stores a
-  // literal empty string until then). This is the universal activation signal —
-  // it holds for keyed roles (owner/manager/agent, who also gain a data key) and
-  // for the keyless editor (who never gets one), so status doesn't hinge on the
-  // data key the editor deliberately lacks.
+  // literal empty string until then). This is the universal activation signal.
+  // It holds for keyed roles (owner/manager/agent, who also gain a data key)
+  // and for the keyless editor (who never gets one). Status does not hinge on
+  // the data key the editor deliberately lacks.
   const activated = user.password_hash !== "";
   return {
     activated,
@@ -183,7 +183,7 @@ const usersErrorResponse = async (
   );
 
 /** The page opts every users screen carries: who is viewing (so their own row
- * can't offer self-delete), plus any flash notices from the last action. */
+ * cannot offer self-delete), plus any flash notices from the last action. */
 const userPageOpts = (
   session: AuthSession,
 ): { currentUserId: number; error?: string; success?: string } => {
@@ -314,9 +314,10 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
 
     // Editors hold no DATA_KEY: their invite carries no handoff, so they
     // self-activate at /join without ever gaining the private key that decrypts
-    // attendee PII. Every other role gets the shared DATA_KEY wrapped under their
-    // single-use invite code, so they self-activate under the password-bound
-    // (v2) KEK instead of an admin re-keying them from a stored password hash.
+    // attendee PII. Every other role gets the shared DATA_KEY wrapped under
+    // their single-use invite code. They self-activate under the
+    // password-bound (v2) KEK instead of an admin re-keying them from a
+    // stored password hash.
     const inviteWrappedDataKey =
       adminLevel === "editor"
         ? null
@@ -331,7 +332,8 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
       inviteWrappedDataKey,
     );
 
-    // Agent users carry the logistics agents they drive; ignored for staff.
+    // Agent users carry the logistics agents they drive. The call is ignored
+    // for staff.
     if (adminLevel === "agent") {
       await saveAgentSelection(user.id, form);
     }

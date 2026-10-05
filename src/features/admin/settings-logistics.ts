@@ -67,7 +67,7 @@ const logisticsAgentsResourceConfig = {
 const logisticsAgentsResource = defineResource(logisticsAgentsResourceConfig);
 
 /** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
- * so a crafted form can't link an editor (or unknown id) as a driver. */
+ * so a crafted form cannot link an editor (or unknown id) as a driver. */
 const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
   selectedIdsFromForm(form, "user_ids", await loadAgentUserOptions());
 
