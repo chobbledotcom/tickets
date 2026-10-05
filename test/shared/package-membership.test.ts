@@ -47,10 +47,10 @@ describe("packageMemberError", () => {
 
   test("planRuleError spares non-plans and names the first broken facet", () => {
     // The renewal tier rules call it with these facets in this order.
-    const facets = [
+    const facets: [boolean, string][] = [
       [true, "error.initial_site_months_required"],
       [false, "error.assign_built_site_not_tier"],
-    ] as const;
+    ];
     expect(planRuleError(false, facets)).toBeNull();
     expect(planRuleError(undefined, facets)).toBeNull();
     expect(planRuleError(true, facets)).toBe(
@@ -182,9 +182,9 @@ describe("packageMemberQuantityBroken", () => {
   });
 
   test("refuses an omitted pick count below the minimum", () => {
-    expect(packageMemberQuantityBroken(member({ minimum_quantity: 2 }))).toEqual(
-      { quantity: 1, reason: "minimum" },
-    );
+    expect(
+      packageMemberQuantityBroken(member({ minimum_quantity: 2 })),
+    ).toEqual({ quantity: 1, reason: "minimum" });
   });
 
   test("checks the cap before the minimum", () => {

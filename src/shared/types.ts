@@ -282,14 +282,6 @@ export const dayPriceFor = (
   return listing.day_prices[days] ?? null;
 };
 
-export {
-  type GroupIdsByListingId,
-  PARENT_CHILD_GROUP_UNITS,
-  type SharedGroupCapacity,
-  sharedGroupCapacity,
-  sharedGroupRemaining,
-} from "#shared/group-capacity.ts";
-
 export type ItemImageColumns = {
   /** Projected from the first `image_uses` row for this item. Storage ownership
    * lives in the first-class images tables. */

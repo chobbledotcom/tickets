@@ -154,7 +154,15 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
       validateListingInput(
         inputFor({ maxQuantity: 10, minimumQuantity: 0, name: "Min Zero" }),
       ),
-    ).resolves.toBe(t("error.listing_min_quantity_below_one"));
+    ).resolves.toBe(t("error.listing_min_quantity_whole"));
+  });
+
+  test("refuses a fractional minimum from the number-typed API body", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 10, minimumQuantity: 1.5, name: "Min Half" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_whole"));
   });
 
   test("refuses a minimum above the maximum with the exact catalog text", async () => {
@@ -186,9 +194,9 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
     const input = inputFor({ minimumQuantity: 2, name: "Default Max" });
     delete input.maxQuantity;
 
-    await expect(
-      validateListingInput(input),
-    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+    await expect(validateListingInput(input)).resolves.toBe(
+      t("error.listing_min_quantity_above_max"),
+    );
   });
 
   test("re-checks a merged update input against its maximum", async () => {

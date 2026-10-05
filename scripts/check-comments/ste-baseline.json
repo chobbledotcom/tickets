@@ -1126,7 +1126,7 @@
     "semicolon": 1
   },
   "src/shared/db/groups/membership/package-writes.ts": {
-    "semicolon": 5,
+    "semicolon": 4,
     "long-sentence": 6,
     "banned-modal": 1
   },

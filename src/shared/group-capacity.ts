@@ -20,6 +20,14 @@ const sharedCappedGroupIds = (
 ): number[] =>
   parentGroupIds.filter((g) => childGroupIds.includes(g) && byGroup.has(g));
 
+/** The tightest value over the shared group ids, or `undefined` when they
+ *  share none. Both capacity facts read it, so neither can drift. */
+const minOver = (
+  ids: number[],
+  byGroup: ReadonlyMap<number, number>,
+): number | undefined =>
+  ids.length === 0 ? undefined : Math.min(...ids.map((g) => byGroup.get(g)!));
+
 /**
  * The remaining spots of the capped group a parent and one of its children
  * share, or `undefined` when they share no capped group. Such a parent and
@@ -41,8 +49,7 @@ export const sharedGroupRemaining = (
     childGroupIds,
     remainingByGroupId,
   );
-  if (shared.length === 0) return;
-  return Math.min(...shared.map((g) => remainingByGroupId.get(g)!));
+  return minOver(shared, remainingByGroupId);
 };
 
 /**
@@ -89,11 +96,6 @@ export const sharedGroupCapacity = (
     childGroupIds,
     remainingByGroupId,
   );
-  const minOver = (
-    ids: number[],
-    byGroup: ReadonlyMap<number, number>,
-  ): number | undefined =>
-    ids.length === 0 ? undefined : Math.min(...ids.map((g) => byGroup.get(g)!));
   return {
     remaining: minOver(sharedForRemaining, remainingByGroupId),
     staticCap: minOver(sharedForCap, staticCapByGroupId),

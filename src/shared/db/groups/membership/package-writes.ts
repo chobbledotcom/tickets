@@ -18,6 +18,7 @@ import {
   groupStatesTx,
   type ListingState,
   listingStatesTx,
+  memberCapErrorTx,
   packageMembersErrorTx,
   sitePlanMemberErrorTx,
   storedPlanMemberErrorTx,
@@ -212,8 +213,15 @@ export const assignListingsToGroup: MembershipWrite = membershipWrite(
     }
     const batchError = await addListingsBatchError(tx, listings, state);
     if (batchError) return batchError;
-    // New members join with the default pick count of one, so their own cap
-    // always fits; the group-edit fence judges every saved quantity.
+    // A package join grants the default pick count of one. A listing whose
+    // minimum sits above one can never be booked inside the bundle, so the
+    // join refuses it like any other pick-count refusal.
+    if (state.isPackage) {
+      for (const listing of listings) {
+        const joinError = await memberCapErrorTx(listing, 1);
+        if (joinError) return joinError;
+      }
+    }
     await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
   },

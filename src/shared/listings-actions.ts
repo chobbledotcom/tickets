@@ -223,12 +223,16 @@ const listingNameError = async (
 };
 
 /** Validate a listing's minimum quantity. It must hold with the per-order
- *  maximum: at least 1, and at most that maximum. An absent maximum on a
- *  create stores 1, so an absent minimum pairs with it. */
+ *  maximum: a whole number of at least 1, and at most that maximum. An absent
+ *  maximum on a create stores 1, so an absent minimum pairs with it. */
 const validateMinimumQuantity = (input: ListingInput): string | null => {
   const minimum = input.minimumQuantity;
   if (minimum === undefined) return null;
-  if (minimum < 1) return t("error.listing_min_quantity_below_one");
+  // The API projection type-checks the value as a number only, so a fractional
+  // body value arrives here and refuses like any other non-quantity.
+  if (!Number.isInteger(minimum) || minimum < 1) {
+    return t("error.listing_min_quantity_whole");
+  }
   return minimum > (input.maxQuantity ?? 1)
     ? t("error.listing_min_quantity_above_max")
     : null;

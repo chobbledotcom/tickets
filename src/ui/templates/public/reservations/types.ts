@@ -8,8 +8,9 @@ import type { ListingAttributesById } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
+import type { GroupIdsByListingId } from "#shared/group-capacity.ts";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
-import type { GroupIdsByListingId, Image, ItemImageColumns } from "#types";
+import type { Image, ItemImageColumns } from "#types";
 /* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */
