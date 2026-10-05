@@ -156,13 +156,15 @@ describe("Layout document shell", () => {
     const html = String(Layout({ children: "", title: "Test" }));
 
     expect(html).toContain(
-      `<img alt="" class="header-image" src="${getImageProxyUrl("header.jpg")}">`,
+      `<img alt="" class="header-image" src="${getImageProxyUrl(
+        "header.jpg",
+      )}">`,
     );
   });
 
-  test("hides the configured header image in iframe mode", () => {
+  test("hides the configured header image in iframe mode", async () => {
     settings.setForTest({ header_image_url: "header.jpg" });
-    const html = withRequestContext(() => {
+    const html = await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       return String(Layout({ children: "", title: "Test" }));
     });

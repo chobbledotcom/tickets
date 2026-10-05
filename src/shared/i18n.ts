@@ -15,7 +15,7 @@ import {
 } from "#locales/manifest.ts";
 import { getEnv } from "#shared/env.ts";
 import { buildReplacer, needsIcu, type Replacer } from "#shared/rebrand.ts";
-import { getLocale as getLocaleOfCurrentRequest } from "#shared/request-context.ts";
+import { getLocale } from "#shared/request-context.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 
 const LOCALE_LOADERS = { en: ENGLISH_MESSAGE_LOADERS };
@@ -206,13 +206,6 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
     ? resolved
     : String(resolved.format(values));
 };
-
-// --- Request-scoped locale ---
-// The locale lives on the one request context (src/shared/request-context.ts);
-// the entry pipeline parses the Accept-Language header into it.
-
-/** Get the current request's locale (defaults to "en") */
-export const getLocale = (): string => getLocaleOfCurrentRequest();
 
 /**
  * Parse the Accept-Language header and return the best matching registered locale.

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { range } from "#fp";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   ErrorCode,
@@ -11,6 +12,7 @@ import {
 } from "#shared/logger.ts";
 import { getRequestId } from "#shared/request-context.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withCountedRandomWords } from "#test-utils/random.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv(
@@ -121,37 +123,16 @@ describeWithEnv(
     test("different requests get different IDs", async () => {
       // Feed each call a distinct fixed value, so the distinct-ids contract is
       // proven deterministically rather than left to a lucky random draw.
-      let draw = 0;
-      const counted = stub(
-        crypto,
-        "getRandomValues",
-        <T extends ArrayBufferView | null>(array: T): T => {
-          draw += 1;
-          new DataView((array as Uint8Array).buffer).setUint16(0, draw);
-          return array;
-        },
-      );
-      try {
-        const ids = await Promise.all(
+      const ids = await withCountedRandomWords(async () =>
+        Promise.all(
           Array.from({ length: 10 }, () =>
             withRequestContext(async () => getRequestId()),
           ),
-        );
-        expect(ids).toEqual([
-          "0001",
-          "0002",
-          "0003",
-          "0004",
-          "0005",
-          "0006",
-          "0007",
-          "0008",
-          "0009",
-          "000a",
-        ]);
-      } finally {
-        counted.restore();
-      }
+        ),
+      );
+      expect(ids).toEqual(
+        range(1, 11).map((draw) => draw.toString(16).padStart(4, "0")),
+      );
     });
 
     test("no prefix outside request context", () => {

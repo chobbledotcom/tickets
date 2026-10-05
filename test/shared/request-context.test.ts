@@ -9,6 +9,7 @@ import {
   getRequestId,
   getRequestTrace,
 } from "#shared/request-context.ts";
+import { withCountedRandomWords } from "#test-utils/random.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("request-context", () => {
@@ -20,6 +21,16 @@ describe("request-context", () => {
 
   test("defaults the locale to en outside a request", () => {
     expect(getLocale()).toBe("en");
+  });
+
+  test("keeps an empty-string locale rather than defaulting to en", async () => {
+    // getLocale coalesces only a *missing* store (undefined) to "en" using
+    // `??`; an explicitly-set empty string is a real (if odd) value and must
+    // survive. This pins `??` so it can't weaken to `||`, which would also
+    // swallow "".
+    expect(await withRequestContext(() => getLocale(), { locale: "" })).toBe(
+      "",
+    );
   });
 
   test("carries the client IP the boundary resolved", async () => {
@@ -41,17 +52,20 @@ describe("request-context", () => {
   });
 
   test("mints different ids for concurrent requests", async () => {
-    const [a, b] = await Promise.all([
-      withRequestContext(async () => {
-        await new Promise((r) => setTimeout(r, 5));
-        return getRequestId();
-      }),
-      withRequestContext(async () => {
-        await new Promise((r) => setTimeout(r, 5));
-        return getRequestId();
-      }),
-    ]);
-    expect(a).not.toBe(b);
+    await withCountedRandomWords(async () => {
+      const [a, b] = await Promise.all([
+        withRequestContext(async () => {
+          await new Promise((r) => setTimeout(r, 5));
+          return getRequestId();
+        }),
+        withRequestContext(async () => {
+          await new Promise((r) => setTimeout(r, 5));
+          return getRequestId();
+        }),
+      ]);
+      expect(a).toBe("0001");
+      expect(b).toBe("0002");
+    });
   });
 
   test("reads an empty id outside a request", () => {
