@@ -3,9 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
+  adminGet,
   createTestAgentSession,
   createTestEditorSession,
   getTestSession,
@@ -14,6 +17,30 @@ import {
 import { withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("admin listings route", { db: true }, () => {
+  test("narrows the listings page to the chosen group's members", async () => {
+    const { group } = await createGroupWithListings("Autumn fair", [
+      "Fair Listing",
+    ]);
+    await createTestListing({ name: "Outside Listing" });
+    const html = await (
+      await adminGet(`/admin/listings?group=${group.id}`)
+    ).text();
+    expect(html).toContain("Fair Listing");
+    expect(html).not.toContain("Outside Listing");
+    expect(html).toContain(
+      'Group: <a href="/admin/listings">All groups</a> / <strong><u>Autumn fair</u></strong>',
+    );
+  });
+
+  test("falls back to every listing for an unknown group", async () => {
+    await createGroupWithListings("Autumn fair", ["Fair Listing"]);
+    await createTestListing({ name: "Outside Listing" });
+    const html = await (await adminGet("/admin/listings?group=999999")).text();
+    expect(html).toContain("Fair Listing");
+    expect(html).toContain("Outside Listing");
+    expect(html).toContain("Group: <strong><u>All groups</u></strong>");
+  });
+
   test("editor listings ignore an invalid owner column layout", async () => {
     const { cookie } = await createTestEditorSession();
     const response = await withSetting(

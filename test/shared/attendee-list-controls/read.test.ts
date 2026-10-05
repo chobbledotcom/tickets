@@ -15,7 +15,6 @@ describe("reading the choices from a query string", () => {
     test("keeps a chosen listing the setup offers", () => {
       expect(read(testBrowserListSetup(), "listing=7").listingId).toBe(7);
     });
-
     test("falls back to all listings for an unknown listing", () => {
       expect(
         read(testBrowserListSetup(), "listing=999999").listingId,
@@ -28,6 +27,28 @@ describe("reading the choices from a query string", () => {
 
     test("is absent when nothing is chosen", () => {
       expect(read(testBrowserListSetup(), "").listingId).toBeNull();
+    });
+  });
+
+  describe("the group choice", () => {
+    test("keeps a chosen group the setup offers", () => {
+      expect(read(testBrowserListSetup(), "group=3").groupId).toBe(3);
+    });
+
+    test("falls back to all groups for an unknown group", () => {
+      expect(read(testBrowserListSetup(), "group=999999").groupId).toBeNull();
+    });
+
+    test("falls back to all groups for a malformed group", () => {
+      expect(read(testBrowserListSetup(), "group=3x").groupId).toBeNull();
+    });
+
+    test("is absent when nothing is chosen", () => {
+      expect(read(testBrowserListSetup(), "").groupId).toBeNull();
+    });
+
+    test("is absent on a list that offers no groups", () => {
+      expect(read(testRosterListSetup(), "group=3").groupId).toBeNull();
     });
   });
 
@@ -136,6 +157,7 @@ describe("reading the choices from a query string", () => {
     ).toEqual({
       checkin: "in",
       date: "2026-08-03",
+      groupId: null,
       listingId: null,
       page: 0,
       sort: "oldest",

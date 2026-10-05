@@ -25,6 +25,7 @@ const buildSetup = (
   csvPath: "/admin/attendees/csv",
   dates: [],
   defaultSort: "newest",
+  groups: [],
   listings,
   withCheckin: false,
   withDates: false,
@@ -37,6 +38,7 @@ const buildState = (
 ): AttendeeListState<AttendeeSort> => ({
   checkin: "all",
   date: null,
+  groupId: null,
   listingId: null,
   page: 0,
   sort: "newest",

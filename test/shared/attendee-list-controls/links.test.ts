@@ -37,6 +37,31 @@ describe("writing the choices back into links", () => {
     );
   });
 
+  test("writes a chosen group between the listing and type choices", () => {
+    const setup = testBrowserListSetup();
+    const state = read(setup, "group=5&sort=oldest");
+    expect(attendeeListHref(setup, state)).toBe(
+      "/admin/attendees?group=5&sort=oldest",
+    );
+  });
+
+  test("keeps a chosen group in a link that changes another choice", () => {
+    const setup = testBrowserListSetup();
+    const state = read(setup, "group=3&type=daily");
+    const link = attendeeListLink(setup, state);
+    expect(link({ listingId: 7 })).toBe(
+      "/admin/attendees?listing=7&group=3&type=daily",
+    );
+  });
+
+  test("carries the chosen group into the CSV download link", () => {
+    const setup = testBrowserListSetup();
+    const state = read(setup, "group=3");
+    expect(attendeeListCsvHref(setup, state)).toBe(
+      "/admin/attendees/csv?group=3",
+    );
+  });
+
   test("leaves the list's default sort out of the address", () => {
     const setup = testBrowserListSetup();
     expect(attendeeListHref(setup, read(setup, "sort=newest"))).toBe(

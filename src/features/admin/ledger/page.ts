@@ -11,8 +11,6 @@ import {
 } from "#accounting/queries.ts";
 import type { LedgerRange } from "#accounting/range.ts";
 import { groupListings } from "#db/groups/table.ts";
-import { getAllGroupNames } from "#db/groups.ts";
-import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { loadLedgerNames } from "#routes/admin/ledger/names.ts";
@@ -23,12 +21,14 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import {
+  groupScopeOptions,
   type LedgerScope,
   type LedgerScopeOption,
   listingIdsForLedgerScope,
   resolveLedgerScope,
 } from "#shared/ledger-scope.ts";
 import { sortByName } from "#shared/name-order.ts";
+import { loadListingsAndGroupNames } from "#shared/sort-listings.ts";
 import { dayStartEpochMs, todayInTz } from "#shared/timezone.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
@@ -143,16 +143,11 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
     const today = todayInTz(tz);
     const range = filterRange(from, to, tz);
 
-    const [listings, groupNames] = await Promise.all([
-      getAllListings(),
-      getAllGroupNames(),
-    ]);
+    const [listings, groupNames] = await loadListingsAndGroupNames();
     const listingOptions = sortScopeOptions(
       listings.map((listing) => ({ id: listing.id, name: listing.name })),
     );
-    const groupOptions = sortScopeOptions(
-      [...groupNames].map(([id, name]) => ({ id, name })),
-    );
+    const groupOptions = groupScopeOptions(groupNames);
     const scope = resolveLedgerScope(params, listingOptions, groupOptions);
     const groupListingIds =
       scope.kind === "group" ? await groupListings.getIds(scope.id) : [];

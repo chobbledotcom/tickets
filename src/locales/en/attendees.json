@@ -98,6 +98,7 @@
   "attendee_form.edit_attendee_details_summary": "Edit Attendee Details",
   "attendee_form.mixed_timings_warning": "This attendee's existing daily listings have different start dates or lengths. Saving will put them all on the one date range above.",
   "attendees_list.all_listings": "All listings",
+  "attendees_list.all_groups": "All groups",
   "attendees_list.deactivated": "(deactivated)",
   "attendees_list.sort": "Sort",
   "attendees_list.sort_by_date": "By date and name",

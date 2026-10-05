@@ -15,7 +15,10 @@ import {
   FilteredAttendeeTable,
 } from "#templates/attendee-table/controls.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { testRosterListSetup } from "#test-utils/attendee-list.ts";
+import {
+  testBrowserListSetup,
+  testRosterListSetup,
+} from "#test-utils/attendee-list.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const state = (
@@ -23,6 +26,7 @@ const state = (
 ): AttendeeListState => ({
   checkin: "all",
   date: null,
+  groupId: null,
   listingId: null,
   page: 0,
   sort: null,
@@ -107,6 +111,23 @@ describe("the shared attendee-list controls", () => {
     const html = controlsHtml(twoKinds, state());
     expect(html).toContain("Showing:");
     expect(html).toContain('href="/admin/attendees?type=daily"');
+  });
+
+  test("a group dropdown appears when the list offers groups", () => {
+    const browser = testBrowserListSetup();
+    const html = controlsHtml(browser, state({ groupId: 5, sort: "oldest" }));
+    expect(html).toContain('name="group"');
+    expect(html).toContain("All groups");
+    expect(html).toContain("Term two");
+    expect(html).toContain("Weekend");
+    expect(html).toContain('value="5"');
+    // The other active choices ride along in the form's hidden inputs.
+    expect(html).toContain('name="sort" type="hidden" value="oldest"');
+  });
+
+  test("no group dropdown when the list offers no groups", () => {
+    const roster = testRosterListSetup();
+    expect(controlsHtml(roster, state())).not.toContain('name="group"');
   });
 });
 

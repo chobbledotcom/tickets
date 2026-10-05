@@ -1,19 +1,25 @@
 /**
- * The attendees browser filters: narrowing the table to one listing, and
- * narrowing it to a listing type.
+ * The attendees browser filters: narrowing the table to one listing, to a
+ * listing type, and to one group's member listings.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setListingGroups } from "#db/groups.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { makeListing, seedListingFilterPair } from "./helpers.ts";
+import {
+  makeListing,
+  seedListingFilterPair,
+  seedGroupRoster as sharedSeedGroupRoster,
+} from "./helpers.ts";
 
 const expectFallsBackToAllListings = async (
   listingParam: (firstId: number) => string,
@@ -177,6 +183,118 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("No attendees yet");
       expect(html).not.toContain("Lonely");
+    });
+  });
+
+  describe("the group filter", () => {
+    const seedGroupRoster = sharedSeedGroupRoster;
+
+    test("offers a group dropdown with every stored group", async () => {
+      await seedGroupRoster();
+      const response = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).toContain('name="group"');
+      expect(html).toContain("All groups");
+      expect(html).toContain("Autumn fair");
+    });
+
+    test("hides the group dropdown when the site stores no groups", async () => {
+      await seedListingFilterPair();
+      const response = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).not.toContain('name="group"');
+    });
+
+    test("narrows the table to the group's member listings", async () => {
+      const { group } = await seedGroupRoster();
+      await expectHtml(await adminGet(`/admin/attendees?group=${group.id}`), {
+        contains: ["FairOne", "FairTwo"],
+        notContains: ["OutsidePerson"],
+      });
+    });
+
+    test("matches a listing that belongs to several groups", async () => {
+      const { group, listings } = await seedGroupRoster();
+      const shared = listings[0]!;
+      const second = await createTestGroup({ name: "Spring fair" });
+      await setListingGroups(shared.id, [group.id, second.id]);
+      await expectHtml(await adminGet(`/admin/attendees?group=${second.id}`), {
+        contains: ["FairOne"],
+        notContains: ["FairTwo", "OutsidePerson"],
+      });
+    });
+
+    test("keeps the group choice in the sort and CSV links", async () => {
+      const { group } = await seedGroupRoster();
+      const html = await (
+        await adminGet(`/admin/attendees?group=${group.id}`)
+      ).text();
+      expect(html).toContain(`group=${group.id}&sort=oldest`);
+      expect(html).toContain(`csv?group=${group.id}`);
+    });
+
+    test("falls back to all listings for an unknown group", async () => {
+      const { group } = await seedGroupRoster();
+      await expectHtml(await adminGet(`/admin/attendees?group=${group.id}9`), {
+        contains: ["FairOne", "FairTwo", "OutsidePerson"],
+      });
+    });
+
+    test("falls back to all listings for a malformed group", async () => {
+      const { group } = await seedGroupRoster();
+      await expectHtml(await adminGet(`/admin/attendees?group=${group.id}x`), {
+        contains: ["FairOne", "FairTwo", "OutsidePerson"],
+      });
+    });
+
+    test("an empty group shows the usual empty state", async () => {
+      const group = await createTestGroup({ name: "Empty group" });
+      await seedListingFilterPair();
+      await expectHtml(await adminGet(`/admin/attendees?group=${group.id}`), {
+        contains: ["No attendees yet"],
+        notContains: ["AliceOne"],
+      });
+    });
+
+    test("combines with the listing filter", async () => {
+      const { group, listings, outside } = await seedGroupRoster();
+      const workshop = listings[1]!;
+      // A member listing: the group narrows nothing further.
+      await expectHtml(
+        await adminGet(
+          `/admin/attendees?group=${group.id}&listing=${workshop.id}`,
+        ),
+        { contains: ["FairTwo"], notContains: ["FairOne", "OutsidePerson"] },
+      );
+      // A listing outside the group: both filters keep nothing.
+      await expectHtml(
+        await adminGet(
+          `/admin/attendees?group=${group.id}&listing=${outside.id}`,
+        ),
+        { contains: ["No attendees yet"], notContains: ["OutsidePerson"] },
+      );
+    });
+
+    test("combines with the type filter", async () => {
+      const daily = await createTestListing({
+        bookableDays: ["Monday"],
+        listingType: "daily",
+        maxAttendees: 100,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+        name: "Fair Day Pass",
+        thankYouUrl: "https://example.com",
+      });
+      const standard = await makeListing("Fair Stall");
+      const group = await createTestGroup({ name: "Type fair" });
+      await setListingGroups(daily.id, [group.id]);
+      await setListingGroups(standard.id, [group.id]);
+      await createTestAttendeeDirect(daily.id, "DailyGoer", "d@example.com");
+      await createTestAttendeeDirect(standard.id, "StdGoer", "s@example.com");
+      await expectHtml(
+        await adminGet(`/admin/attendees?group=${group.id}&type=daily`),
+        { contains: ["DailyGoer"], notContains: ["StdGoer"] },
+      );
     });
   });
 });

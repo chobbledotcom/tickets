@@ -4,11 +4,12 @@
  * listing detail and attendee edit pages.
  */
 
+/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesPage } from "#db/attendees/queries.ts";
+import { getListingsByGroupId } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import { getAllListings } from "#db/listings/records.ts";
 import { loadNotesForAttendees } from "#db/notes/queries.ts";
 import { settings } from "#db/settings.ts";
 import { fieldById, filter, unique } from "#fp";
@@ -31,20 +32,37 @@ import {
 } from "#shared/attendee-list-controls.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { type ListingFilter, listingCategory } from "#shared/listing-filter.ts";
+import {
+  groupScopeOptions,
+  type LedgerScopeOption,
+} from "#shared/ledger-scope.ts";
+import {
+  intersectListingIds,
+  type ListingFilter,
+  listingCategory,
+} from "#shared/listing-filter.ts";
 import { readAllPages } from "#shared/paged-read.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { sortListings } from "#shared/sort-listings.ts";
+import {
+  loadListingsAndGroupNames,
+  sortListings,
+} from "#shared/sort-listings.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 import type { Attendee, ListingWithCount } from "#types";
 
+/* jscpd:ignore-end */
+
+/** The browser's controls: every listing, every group, the type filter, sort
+ *  (newest first unless the address says otherwise), and paging. */
 const browserListSetup = (
   listings: ListingWithCount[],
+  groups: LedgerScopeOption[],
 ): AttendeeListSetup<AttendeeSort> => ({
   basePath: adminPattern("attendees"),
   csvPath: "/admin/attendees/csv",
   dates: [],
   defaultSort: "newest",
+  groups,
   listings,
   withCheckin: false,
   withDates: false,
@@ -53,8 +71,21 @@ const browserListSetup = (
 });
 
 /** `null` allows every listing. An empty array (a type with no listings)
- *  shows nothing. */
+ *  shows nothing. A chosen group narrows whatever those choices keep to the
+ *  group's member listings. One listing outside the group answers the empty
+ *  state, and an empty group shows nothing. */
 const resolveListingIds = (
+  listingId: number | null,
+  type: ListingFilter,
+  listings: ListingWithCount[],
+  memberIds: ReadonlySet<number> | null,
+): number[] | null =>
+  intersectListingIds(
+    resolveListingOrTypeIds(listingId, type, listings),
+    memberIds,
+  );
+
+const resolveListingOrTypeIds = (
   listingId: number | null,
   type: ListingFilter,
   listings: ListingWithCount[],
@@ -70,26 +101,41 @@ type BrowserList = {
   listingIds: number[] | null;
 };
 
-/** The start the attendees page and its CSV export share. */
+/** The start the attendees page and its CSV export share. A chosen group
+ * resolves to its member listings through the one shared membership read. */
 const withBrowserList = (
   request: Request,
   handler: (session: AuthSession, list: BrowserList) => Promise<Response>,
 ): Promise<Response> =>
   requireSessionOr(request, async (session) => {
-    const listings = await getAllListings();
-    const setup = browserListSetup(listings);
+    const [listings, groups] = await loadListingsAndGroupNames();
+    const setup = browserListSetup(listings, groupScopeOptions(groups));
     const state = readAttendeeListState(
       setup,
       new URL(request.url).searchParams,
     );
+    const memberIds =
+      state.groupId === null
+        ? null
+        : new Set((await getListingsByGroupId(state.groupId)).map((l) => l.id));
     return handler(session, {
-      listingIds: resolveListingIds(state.listingId, state.type, listings),
+      listingIds: resolveListingIds(
+        state.listingId,
+        state.type,
+        listings,
+        memberIds,
+      ),
       setup,
       state,
     });
   });
 
-/** The fixed page size lives in the query. */
+/**
+ * Handle GET /admin/attendees
+ *
+ * Renders one page of attendee bookings — newest first by default — with a
+ * listing filter and sort order. The fixed page size lives in the query.
+ */
 export const handleAttendeesListGet: TypedRouteHandler<
   "GET /admin/attendees"
 > = (request) =>
