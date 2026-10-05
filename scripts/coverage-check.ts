@@ -159,6 +159,15 @@ const COVERAGE_EXCLUSIONS = [
   "e2e-payments/src/cucumber/steps/refund.ts",
   "e2e-payments/src/cucumber/steps/setup.ts",
   "e2e-payments/src/cucumber/steps/site-plan.ts",
+  // Deno's coverage merger mis-attributes this file once several test
+  // isolates load it: the merged lcov records a module-load line (the
+  // lazyRef destructure) as unhit while the sibling module-load lines read
+  // as hit — internally impossible, since the lines execute in one
+  // statement. Every line and branch is exercised by the three direct
+  // suites that import the helper (declarations, type-visitor, visitor),
+  // which report the file at 100% when they run alone, and the mutation
+  // gate still mutates it against those tests.
+  "test/scripts/unread-fields/fields/fields-of-source.ts",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */
