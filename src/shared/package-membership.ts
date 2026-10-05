@@ -124,13 +124,19 @@ export type PackageMemberQuantity = {
 /** Which bound a member's pick count breaks, cap checked first: the package
  * must never grant more units of the member than the listing sells in one
  * order, nor fewer than the listing sells at least per purchase. An omitted
- * pick count grants one unit. The one home of that comparison. */
+ * pick count grants one unit — the resolved count travels with the verdict,
+ * so every message names the units the package actually grants. The one home
+ * of that comparison. */
 export const packageMemberQuantityBroken = (
   member: PackageMemberQuantity,
-): "cap" | "minimum" | null => {
+): { quantity: number; reason: "cap" | "minimum" } | null => {
   const quantity = member.quantity ?? 1;
-  if (quantity > member.max_quantity) return "cap";
-  return quantity < member.minimum_quantity ? "minimum" : null;
+  if (quantity > member.max_quantity) {
+    return { quantity, reason: "cap" };
+  }
+  return quantity < member.minimum_quantity
+    ? { quantity, reason: "minimum" }
+    : null;
 };
 
 /**

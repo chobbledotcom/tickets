@@ -214,16 +214,16 @@ const memberCapErrorTx = async (
   });
   if (broken === null) return null;
   const name = await decrypt(listing.name);
-  return broken === "cap"
+  return broken.reason === "cap"
     ? t("error.package_member_cap", {
         max_quantity: listing.maxQuantity,
         name,
-        quantity: quantity ?? 1,
+        quantity: broken.quantity,
       })
     : t("error.package_member_minimum", {
         minimum_quantity: listing.minimumQuantity,
         name,
-        quantity: quantity ?? 1,
+        quantity: broken.quantity,
       });
 };
 

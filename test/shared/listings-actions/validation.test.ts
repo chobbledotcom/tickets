@@ -180,6 +180,17 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
 
+  test("pairs an absent maximum with its stored default of one", async () => {
+    // A create body that omits max_quantity stores 1, so a minimum above 1
+    // pairs against that default and refuses.
+    const input = inputFor({ minimumQuantity: 2, name: "Default Max" });
+    delete input.maxQuantity;
+
+    await expect(
+      validateListingInput(input),
+    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+  });
+
   test("re-checks a merged update input against its maximum", async () => {
     // The admin JSON API merges the body over the stored row before calling
     // this rule, so the stored maximum arrives beside the body's minimum.
