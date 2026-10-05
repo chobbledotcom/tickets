@@ -1,40 +1,38 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { collectionPage } from "#templates/admin/site-content.tsx";
+import { describe, it as test } from "@std/testing/bdd";
 import {
-  OWNER_SESSION,
-  setupAdminPageTest,
-} from "#test-utils/admin-page-test.ts";
-import { withEnv } from "#test-utils/env.ts";
+  contentEntityEditPanel,
+  contentGuideFooter,
+} from "#templates/admin/site-content.tsx";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
-const renderPage = (readOnly: boolean): string => {
-  using _env = withEnv({
-    READ_ONLY_FROM: readOnly ? "2020-01-01T00:00:00.000Z" : undefined,
-  });
-  return collectionPage("site.pages", "/admin/site/pages")(
-    OWNER_SESSION,
-    "Pages loaded.",
-    <p>Page list</p>,
-  );
-};
+describe("contentEntityEditPanel", () => {
+  setupAdminPageTest();
 
-describe("site content collection page", () => {
-  beforeAll(setupAdminPageTest);
+  test("renders one entity's edit form posting to its update route", () => {
+    type Post = { id: number; name: string };
+    const editForm = {
+      render: (values: { name: string }) =>
+        `<input name="name" value="${values.name}">`,
+    };
+    const panel = contentEntityEditPanel<Post, { name: string }>(
+      "/admin/site/news",
+      editForm,
+      (post) => ({ name: post.name }),
+    );
 
-  test("renders the create action while the site is writable", () => {
-    const html = renderPage(false);
-
-    expect(html).toContain('href="/admin/site/pages/new"');
-    expect(html).toContain("Add Page");
-    expect(html).toContain("Pages loaded.");
-    expect(html).toContain("<p>Page list</p>");
+    const html = String(panel({ id: 17, name: "Launch &amp; Learn" }));
+    expect(html).toContain('action="/admin/site/news/17/edit"');
+    expect(html).toContain('value="Launch &amp; Learn"');
+    expect(html).toContain("Save Changes");
   });
 
-  test("hides the forbidden create action while the site is read-only", () => {
-    const html = renderPage(true);
-
-    expect(html).not.toContain('href="/admin/site/pages/new"');
-    expect(html).not.toContain("Add Page");
-    expect(html).toContain("<p>Page list</p>");
+  test("the site content guide footer links staff and hides from editors", () => {
+    const owner = String(contentGuideFooter("built-sites", "owner"));
+    expect(owner).toContain('href="/admin/guide#built-sites"');
+    expect(owner).toContain("Guide: pages, news &amp; images");
+    // Editors cannot open the staff-only guide, so the footer renders nothing
+    // rather than a link that 403s.
+    expect(String(contentGuideFooter("built-sites", "editor"))).toBe("");
   });
 });

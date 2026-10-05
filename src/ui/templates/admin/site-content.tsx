@@ -18,11 +18,11 @@ import type { AdminLevel, AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 
-/** Curried list page for a Site-tab collection at `base`: the AdminPage shell
- * with its success flash and Add button (the page's own flash + actions row),
- * with the caller supplying just the collection body. `messages` is the i18n
- * prefix carrying `.title` and `.add`. The page title lives on the browser tab
- * and the nav, so the body carries no redundant `<h1>`. */
+/** Curried list page for a Site-tab collection at `base`. It wraps the
+ * AdminPage shell with its success flash and Add button (the page's own flash
+ * + actions row), and the caller supplies just the collection body. `messages`
+ * is the i18n prefix carrying `.title` and `.add`. The page title lives on the
+ * browser tab and the nav, so the body carries no redundant `<h1>`. */
 export const collectionPage =
   (messages: string, base: string) =>
   (
@@ -54,6 +54,21 @@ export const collectionPage =
 export const contentEditPanel: RenderedFieldsSaveForm = renderedFieldsSaveForm(
   t("common.save_changes"),
 );
+
+/** The Edit-tab panel for one Site content entity (Pages, News): its form
+ * rendered from the entity's field values, posting to the entity's update
+ * route under the section's list path. */
+export const contentEntityEditPanel =
+  <E extends { id: number }, Values>(
+    listPath: string,
+    editForm: { render: (values: Values) => string },
+    valuesOf: (entity: E) => Values,
+  ) =>
+  (entity: E): JSX.Element =>
+    contentEditPanel(
+      `${listPath}/${entity.id}/edit`,
+      editForm.render(valuesOf(entity)),
+    );
 
 /** The "Guide: …" help link for a Site content page, rendered as a
  * `GuideFooter` at the bottom of the body (matching every other admin page)

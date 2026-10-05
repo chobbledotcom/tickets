@@ -103,6 +103,19 @@ const listPage = (
 describe("admin resource page factory", () => {
   beforeAll(setupAdminPageTest);
 
+  test("the writable name column keys itself as the row's name", () => {
+    const column = writableNameColumn<SyntheticResource>(
+      (item) => `/edit/${item.id}`,
+      (item) => item.name,
+    );
+    // The key names the column in the table's identity checks (uniqueness,
+    // hidden keys, filters), so an empty key would break those silently.
+    expect(column.key).toBe("name");
+    const cell = String(column.cell(entity, undefined, 0, [entity]));
+    expect(cell).toContain("/edit/17");
+    expect(cell).toContain("Widget &amp; One");
+  });
+
   test("renders the synthetic list schema and writable row link", () => {
     const html = listPage(
       [entity, secondEntity],

@@ -7,6 +7,7 @@
  */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import type {
   ReorderColumnOptions,
@@ -28,6 +29,17 @@ import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
+
+/** The type-the-name fields of a delete spec: the label above the input and
+ * the prompt paragraph, both naming the entity. */
+export const confirmByName = (labelKey: string, promptKey: string) => ({
+  label: t(labelKey),
+  name: (entity: { name: string }) => entity.name,
+  prompt: (entity: { name: string }) => ({
+    args: { name: entity.name },
+    key: promptKey,
+  }),
+});
 
 /** A delete confirmation spec, parameterised by the entity. */
 export type DeleteSpec<TEntity> = {
@@ -94,13 +106,12 @@ export type AdminResourcePagesConfig<TEntity extends { id: number }> = {
 export const writableNameColumn = <TEntity,>(
   editHref: (entity: TEntity) => string,
   name: (entity: TEntity) => string,
-  key = "name",
 ): TableColumn<TEntity> => ({
   cell: (entity) => (
     <WritableLink href={editHref(entity)}>{name(entity)}</WritableLink>
   ),
   header: translatedTableHeader("common.name"),
-  key,
+  key: "name",
 });
 
 /** The shape every resource list page shares: the rows to show, then the same
