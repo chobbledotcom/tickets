@@ -56,6 +56,8 @@
     "migrate:sites": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/site-migration.ts",
     "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
     "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts",
+    "cli:import-frontmatter":
+      "deno run --allow-env --allow-read --allow-write --allow-net --allow-run cli/import-frontmatter.ts",
     "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts",
     "mutation": "deno run -A scripts/mutation.ts",
     "check:equivalents": "deno run -A scripts/check-equivalent-mutants.ts",
