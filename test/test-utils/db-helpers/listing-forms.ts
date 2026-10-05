@@ -152,6 +152,9 @@ const buildUpdateNumericFields = (
     minimum_days_before: String(
       pickField(updates.minimumDaysBefore, existing.minimum_days_before),
     ),
+    minimum_quantity: String(
+      pickField(updates.minimumQuantity, existing.minimum_quantity),
+    ),
     months_per_unit: String(
       pickField(updates.monthsPerUnit, existing.months_per_unit),
     ),

@@ -203,7 +203,7 @@ export const storedPlanMemberErrorTx = async (
 /** The pick-count refusals for one listing against one membership quantity:
  *  cap first, then the minimum. Decrypts the name only for a member that
  *  fails. */
-const memberCapErrorTx = async (
+export const memberCapErrorTx = async (
   listing: ListingState,
   quantity?: number,
 ): Promise<string | null> => {
