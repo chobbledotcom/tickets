@@ -39,9 +39,9 @@ describe("writing the choices back into links", () => {
 
   test("writes a chosen group between the listing and type choices", () => {
     const setup = testBrowserListSetup();
-    const state = read(setup, "group=5&sort=oldest");
+    const state = read(setup, "listing=7&group=5&type=daily&sort=oldest");
     expect(attendeeListHref(setup, state)).toBe(
-      "/admin/attendees?group=5&sort=oldest",
+      "/admin/attendees?listing=7&group=5&type=daily&sort=oldest",
     );
   });
 

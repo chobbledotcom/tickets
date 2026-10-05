@@ -34,12 +34,12 @@ import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#shared/flash-context.ts";
+import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
   attributeFilterGroupsForListings,
   filterListingsByAttributes,
   selectedAttributeFiltersFromRequest,
 } from "#shared/listing-attribute-filter.ts";
-import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
   filterListingsByType,
   groupIdFromRequest,
