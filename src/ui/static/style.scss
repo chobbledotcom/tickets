@@ -3,8 +3,8 @@
 @use "sass:map";
 @use "field-visibility";
 @use "entity-page";
-
-// Keep this name equal to SCREENSHOT_LAYER in scripts/screenshots/layers.ts.
+@use "share-rows";
+// The layer name stays equal to SCREENSHOT_LAYER in scripts/screenshots/layers.ts.
 @layer __screenshot_layer__;
 
 :root {

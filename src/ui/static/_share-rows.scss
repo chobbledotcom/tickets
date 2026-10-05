@@ -1,0 +1,12 @@
+/* Share actions on public-page rows: under the link, wrapping on narrow
+ * screens, so a long URL never pushes them off the page. */
+.share-row {
+  display: block;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  margin-top: var(--space-s);
+}
