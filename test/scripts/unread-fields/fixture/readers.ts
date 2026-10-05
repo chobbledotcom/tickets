@@ -15,6 +15,7 @@ import {
   type CarriesATuple,
   type CarriesTwoElementsOfOneName,
   type DeletedInParens,
+  type Described,
   type ExtendsFarBase,
   type FixedAroundNever,
   type FixedByNegativeZero,
@@ -27,6 +28,7 @@ import {
   HoldsAClassInAStatic,
   type HoldsClasses,
   type HoldsAListOfTheSameName,
+  type HoldsANestedShape,
   type HoldsThingsInGenerics,
   type HoldsTwoKeyDomains,
   type InlineArmsShareIt,
@@ -48,14 +50,25 @@ import {
   type PassedThroughReadonly,
   type PassedThroughRequired,
   type ReachesThroughAGeneric,
+  type RealDescribed,
   type ReadsAnAsyncResult,
   type RunsItAsAProperty,
+  type CarriesTheField,
+  type SameArms,
   type ServesSettingsThroughASetter,
   type ServesItsValueThroughAGetter,
   type ServesItThroughAQuotedName,
   type ServesThroughAWorkedOutName,
+  type SqlRow,
   type SuppliedInBrackets,
+  type TwiceDescribed,
   type UsedAsAKey,
+  type LogLine,
+  type LoopSlot,
+  type NestedSlotSource,
+  type ParenOnly,
+  type RestCarrier,
+  type WithNever,
   type WrittenByARest,
   type WrappedInAngles,
   type WrittenThroughParens,
@@ -371,4 +384,83 @@ export const readByBracket = (record: MixedKeyRecord): number =>
 
 export const readRequired = (r: PassedThroughRequired): number =>
   r.maybeMissing?.readOnceFilled ?? 0;
+
+// A read through a class that implements the interface ties to the
+// interface's field through the heritage the class declares.
+export const readThroughImplementing = (real: RealDescribed): number =>
+  real.describedField;
+
+export const readThroughTwiceDescribed = (
+  twice: TwiceDescribed,
+): number => twice.describedField;
+
+export const readAnnotated = (held: Described): number => {
+  const { describedField }: Described = held;
+  return describedField;
+};
+
+export const readANestedPattern = (held: HoldsANestedShape): number => {
+  const { nested: { deep } } = held;
+  return deep;
+};
+
+export const readArrayElement = (pair: [Described, Described]): number => {
+  const [first] = pair;
+  return first.describedField;
+};
+
+export const readParenthesized = (held: Described): number => {
+  let out = 0;
+  (({ describedField: out }) = held);
+  return out;
+};
+
+export const readForOf = (rows: SqlRow[]): string[] => {
+  const seen: string[] = [];
+  for (const { sql } of rows) seen.push(sql);
+  return seen;
+};
+
+export const readACaughtRow = (rows: SqlRow[]): string => {
+  try {
+    return rows[0]!.sql;
+  } catch ({ sql }) {
+    return "unreadable";
+  }
+};
+
+export const readSameArms = (record: SameArms): number => record.shared;
+
+export const readWithNever = (record: WithNever): number => record.only;
+
+export const readASetForOf = (lines: Set<LogLine>): string[] => {
+  const seen: string[] = [];
+  for (const { text } of lines) seen.push(text);
+  return seen;
+};
+
+export const readANestedAssignedSlot = (held: NestedSlotSource): number => {
+  let out = 0;
+  ({ outer: { deep: out } } = held);
+  return out;
+};
+
+export const readAnAssignedSlotInALoop = (rows: LoopSlot[]): void => {
+  let out = 0;
+  for ({ direct: out } of rows) {}
+};
+
+export const readAParenthesizedSlot = (held: ParenOnly): number => {
+  let out = 0;
+  (({ slot: out }) = held);
+  return out;
+};
+
+export const readARestCarriersKept = (row: RestCarrier): number => {
+  const { kept, ...rest } = row;
+  return kept + Object.keys(rest).length;
+};
+
+export const readThroughTheCarrier = (value: CarriesTheField): number =>
+  value.carried;
 `;

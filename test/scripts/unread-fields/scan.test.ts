@@ -101,6 +101,38 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("Sum", "takenOutByPattern")).toBe("read");
   });
 
+  test("counts a field a for-of over a set draws out as read", () => {
+    // A set is no array: the element type comes from the loop, not from a
+    // number index.
+    expect(verdictOf("LogLine", "text")).toBe("read");
+  });
+
+  test("counts a field a nested destructuring assignment takes out as read", () => {
+    expect(verdictOf("NestedSlotSource", "outer")).toBe("read");
+    expect(verdictOf("NestedSlotSource.outer", "deep")).toBe("read");
+  });
+
+  test("counts a field a for-of assignment target takes in as read", () => {
+    expect(verdictOf("LoopSlot", "direct")).toBe("read");
+  });
+
+  test("counts a field a parenthesized assignment target takes in as read", () => {
+    expect(verdictOf("ParenOnly", "slot")).toBe("read");
+  });
+
+  test("does not count a rest binding's own name as a read of a same-named field", () => {
+    // The rest binding gathers what is left; it names no member, so the
+    // field that happens to share the local's name stays unread.
+    expect(verdictOf("RestCarrier", "rest")).toBe("never read");
+  });
+
+  test("counts a class field read through its interface as read", () => {
+    // The read names the interface member; the class field implements it,
+    // so the same read answers for both.
+    expect(verdictOf("CarriesTheField", "carried")).toBe("read");
+    expect(verdictOf("HoldsTheCarriedField", "carried")).toBe("read");
+  });
+
   test("counts a field a rest pattern names as read", () => {
     expect(verdictOf("Passed", "kept")).toBe("read");
   });
@@ -131,6 +163,27 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("WrittenByARest", "filledByAnObjectRest")).toBe(
       "never read",
     );
+  });
+
+  test("counts a read through a class that implements the interface", () => {
+    // The class member is its own declaration, but the class says it
+    // implements the interface, and a mention through the class reads the
+    // interface's field.
+    expect(verdictOf("Described", "describedField")).toBe("read");
+    expect(verdictOf("RealDescribed", "describedField")).toBe("read");
+  });
+
+  test("counts a field a for-of loop binds as read", () => {
+    // `for (const { sql } of rows)` takes every row's value out, one row at
+    // a time.
+    expect(verdictOf("SqlRow", "sql")).toBe("read");
+  });
+
+  test("counts the fields a nested pattern takes out as read", () => {
+    // `const { nested: { deep } } = held` reads `nested` to reach `deep`,
+    // and reads `deep` out of it.
+    expect(verdictOf("HoldsANestedShape", "nested")).toBe("read");
+    expect(verdictOf("HoldsANestedShape.nested", "deep")).toBe("read");
   });
 
   test("counts a class built on a field as reading it", () => {

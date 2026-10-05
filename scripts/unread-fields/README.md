@@ -6,7 +6,7 @@ Reports exported fields that nothing reads. Run it with:
 devenv shell deno task unread-fields
 ```
 
-The scan takes a few minutes. It prints a line per reported field, and it does
+The scan takes a few seconds. It prints a line per reported field, and it does
 not gate. It reports about one exported field in eight. Most of those are the
 false positives listed below, so the report is a place to start.
 
@@ -55,9 +55,10 @@ match calls the dead field alive.
 
 The scan asks TypeScript instead. It builds a program over `src`, and over
 `test`, `scripts`, `cli` and `e2e-payments/src` for the readers they hold. It
-translates the import map's `#` aliases into what the compiler expects, and asks
-the language service who refers to each field. The answer is per symbol, so the
-four other `failed` mentions do not count.
+translates the import map's `#` aliases into what the compiler expects, and
+walks the program once, asking who reads each field the compiler ties a
+mention to. The answer is per symbol, so the four other `failed` mentions do
+not count.
 
 It asks with the options the repository asks for, out of `deno.json`. That
 matters more than it looks. Under `strict`, an `if (!result.ok)` narrows a

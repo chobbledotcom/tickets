@@ -140,4 +140,59 @@ export class Answerer {
 const MADE_UP_LIST = [{ writtenInAList: 1 }] as const;
 
 export type FromAList = (typeof MADE_UP_LIST)[number];
+
+export interface Described {
+  describedField: number;
+}
+
+export class RealDescribed implements Described {
+  describedField = 0;
+}
+
+export interface AlsoDescribed extends Described {}
+
+export class TwiceDescribed implements Described, AlsoDescribed {
+  describedField = 0;
+}
+
+export interface HoldsANestedShape {
+  nested: { deep: number };
+}
+
+export interface SqlRow {
+  sql: string;
+}
+
+export type SameArms = { shared: number } | { shared: number };
+
+export type WithNever = { only: number } | never;
+
+export interface LogLine {
+  text: string;
+}
+
+export interface NestedSlotSource {
+  outer: { deep: number };
+}
+
+export interface LoopSlot {
+  direct: number;
+}
+
+export interface ParenOnly {
+  slot: number;
+}
+
+export interface RestCarrier {
+  kept: number;
+  rest: number;
+}
+
+export interface CarriesTheField {
+  carried: number;
+}
+
+export class HoldsTheCarriedField implements CarriesTheField {
+  carried = 0;
+}
 `;
