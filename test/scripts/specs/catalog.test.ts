@@ -48,6 +48,7 @@ describe("Cucumber story catalog", () => {
       "bookings.taking-a-holiday",
       "bookings.volunteer-sign-up",
       "bookings.when-booking-closes",
+      "catalogue.a-listing-can-require-a-minimum-quantity",
       "catalogue.asking-buyers-a-question",
       "catalogue.choosing-a-bulk-action-for-a-group",
       "catalogue.copy-a-group-of-listings",
