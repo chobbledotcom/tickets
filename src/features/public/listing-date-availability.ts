@@ -39,10 +39,10 @@ export const loadDailyDateAvailability = async (
       .filter(
         (listing) =>
           !getBookableStartDates(listing, [...holidays]).includes(date) ||
-          // The snapshot answers every row it was loaded for, so a missing
-          // entry would be a capacity-reader bug, not a bookable listing.
+          // A date with fewer places left than the listing's minimum is as
+          // unavailable as an empty one: no valid purchase can use it.
           requiredMapValue(remaining, listing.id, "Missing date availability") <
-            1,
+            listing.minimum_quantity,
       )
       .map((listing) => listing.id),
   );

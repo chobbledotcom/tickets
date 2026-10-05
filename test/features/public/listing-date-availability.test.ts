@@ -141,6 +141,30 @@ describeWithEnv(
       expect(soldOut).toEqual(new Set([fixed.id]));
     });
 
+    test("a date with places left below the listing's minimum is unavailable", async () => {
+      const { loadDailyDateAvailability } = await import(
+        "#routes/public/listing-date-availability.ts"
+      );
+      // Two places remain on the date, but the listing sells at least three
+      // per purchase — no valid purchase can use the date.
+      const listing = await createDailyTestListing({
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minimumQuantity: 3,
+        name: "Batches Only",
+      });
+      const date = (await bookableStartDates(listing.id))[0]!;
+      await bookAttendee(listing, {
+        date,
+        email: "two-left@example.com",
+        quantity: 3,
+      });
+
+      const soldOut = await loadDailyDateAvailability([listing], date, []);
+
+      expect(soldOut).toEqual(new Set([listing.id]));
+    });
+
     test("a fully booked daily member makes only its package sold out", async () => {
       await enablePublicSite();
       const { member } = await makePackage(0);

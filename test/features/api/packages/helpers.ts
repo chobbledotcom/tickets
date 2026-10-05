@@ -29,7 +29,12 @@ export const apiBookPackage = async (
     new Request(`http://localhost/api/packages/${slug}/book`, {
       body:
         rawBody ??
-        JSON.stringify({ email: "pkg@test.com", name: "Pkg Buyer", ...extra }),
+        JSON.stringify({
+          email: "pkg@test.com",
+          name: "Pkg Buyer",
+          quantity: 1,
+          ...extra,
+        }),
       headers: { "content-type": "application/json", host: "localhost" },
       method: "POST",
     }),

@@ -262,6 +262,10 @@ describe("booking model — capacity", () => {
       expect(quantityBelowMinimum(0, 3)).toBe(false);
     });
 
+    test("one is below any higher minimum", () => {
+      expect(quantityBelowMinimum(1, 2)).toBe(true);
+    });
+
     test("any count above zero but below the minimum is refused", () => {
       expect(quantityBelowMinimum(2, 3)).toBe(true);
     });

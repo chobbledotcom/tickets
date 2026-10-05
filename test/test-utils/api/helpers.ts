@@ -70,12 +70,15 @@ export const fetchPublicListing = async (slug: string) => {
   };
 };
 
-/** Book an listing by slug with given body fields */
+/** Book an listing by slug with given body fields. The default body carries
+ * quantity 1 — the smallest purchase any listing with the column default
+ * sells — so a caller booking more passes its own quantity. */
 export const bookListing = async (
   slug: string,
   bookingBody: Record<string, unknown> = {
     email: "alice@test.com",
     name: "Alice",
+    quantity: 1,
   },
 ): Promise<{ response: Response; body: BookResponseBody }> => {
   const response = await handleRequest(
