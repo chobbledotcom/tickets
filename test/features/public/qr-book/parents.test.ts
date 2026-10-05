@@ -72,4 +72,38 @@ describeWithEnv("QR booking parent gate", { db: true }, () => {
       expectStripeRedirect(response, stripe);
     });
   });
+
+  test("a token minted below a later minimum renders the form, not checkout", async () => {
+    // The token is signed while the listing sells one-at-a-time; the owner
+    // then raises the minimum. The stale quantity must never reach checkout.
+    const listing = await createTestListing({
+      fields: "",
+      maxAttendees: 10,
+      maxQuantity: 10,
+      minimumQuantity: 3,
+      unitPrice: 500,
+    });
+    const staleToken = await signQrBookToken(
+      listing.slug,
+      buildQrBookPayload({ name: "Ada", quantity: 1, value: 1000 }),
+    );
+    await withStripe(async (stripe) => {
+      const response = await awaitTestRequest(
+        qrBookPath(listing.slug, staleToken),
+      );
+      expect(response.status).toBe(200);
+      expect(stripe.calls()).toBe(0);
+    });
+
+    const freshToken = await signQrBookToken(
+      listing.slug,
+      buildQrBookPayload({ name: "Ada", quantity: 3, value: 1000 }),
+    );
+    await withStripe(async (stripe) => {
+      const response = await awaitTestRequest(
+        qrBookPath(listing.slug, freshToken),
+      );
+      expectStripeRedirect(response, stripe);
+    });
+  });
 });
