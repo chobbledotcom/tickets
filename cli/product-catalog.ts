@@ -91,6 +91,69 @@ export const readCategoryEntries = async (
   return entries;
 };
 
+/** The first spelling of a folded attribute name or option text, and the
+ *  file that carried it. */
+type FirstSpelling = { file: string; spelling: string };
+
+/** The spellings already seen for one folded attribute name. */
+type SeenAttribute = {
+  first: FirstSpelling;
+  values: Map<string, FirstSpelling>;
+};
+
+/** Record one product's attribute selection against the spellings already
+ *  seen, and refuse a second spelling of one folded attribute name or option
+ *  text: the site folds case and trims names, so both spellings are one
+ *  record to it, the second spelling would create a duplicate, and the next
+ *  import would fail the ambiguous-attribute check. */
+const recordAttributeSpelling = (
+  seen: Map<string, SeenAttribute>,
+  product: CatalogProduct,
+  name: string,
+  value: string,
+): void => {
+  const nameKey = normalizeEntityName(name);
+  let seenAttribute = seen.get(nameKey);
+  if (seenAttribute === undefined) {
+    seenAttribute = {
+      first: { file: product.filename, spelling: name },
+      values: new Map(),
+    };
+    seen.set(nameKey, seenAttribute);
+  } else if (seenAttribute.first.spelling !== name) {
+    throw new Error(
+      `attribute '${seenAttribute.first.spelling}' and '${name}' are one attribute to the site (${seenAttribute.first.file} and ${product.filename}); use one spelling and rerun`,
+    );
+  }
+  const valueKey = normalizeEntityName(value);
+  const firstValue = seenAttribute.values.get(valueKey);
+  if (firstValue !== undefined && firstValue.spelling !== value) {
+    throw new Error(
+      `attribute '${seenAttribute.first.spelling}' holds options '${firstValue.spelling}' and '${value}' (${firstValue.file} and ${product.filename}); they are one option to the site; use one spelling and rerun`,
+    );
+  }
+  seenAttribute.values.set(valueKey, {
+    file: product.filename,
+    spelling: value,
+  });
+};
+
+/** Refuse a catalog that spells one attribute name or option text two ways:
+ * the site folds case and trims names, so two spellings are one attribute or
+ * one option to it. The first import would create a duplicate under the
+ * second spelling, and the next import would fail the ambiguous-attribute
+ * check. */
+export const ensureConsistentAttributeSpellings = (
+  products: readonly CatalogProduct[],
+): void => {
+  const seen = new Map<string, SeenAttribute>();
+  for (const product of products) {
+    for (const { name, value } of product.filterAttributes) {
+      recordAttributeSpelling(seen, product, name, value);
+    }
+  }
+};
+
 /** Refuse a catalog whose files share a title: the importer matches listings
  *  by title, so two files with one title would fight over the same listing. */
 export const ensureUniqueTitles = (

@@ -2,24 +2,20 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseProductFile } from "#cli/product-catalog/parse.ts";
 import {
-  attributeVocabulary,
-  categoryTitle,
-  readCategoryEntries,
-} from "#cli/product-catalog.ts";
-import {
   composeDescription,
   conflictLine,
+  ensureNamespaceFree,
   listingBody,
   matchedIds,
   minorUnits,
   parseImportFlags,
   planLine,
+  refuseChangedFile,
   resolveImportPlan,
   resolveOptionIds,
   storedTicketsId,
   withTicketsMeta,
 } from "#cli/product-plan.ts";
-import { withTempDir } from "#test-utils/files.ts";
 
 describe("product catalog import", () => {
   const productFrontmatter = `---
@@ -72,31 +68,34 @@ Body text that the importer never reads.
   });
 
   test("replaces a stored placeholder and an older stamp", () => {
-    const placeholder = "---\ntitle: Batak Lite\ntickets_id:\n---\n";
+    const placeholder = "---\ntitle: Tumble Tower Hire\ntickets_id:\n---\n";
     expect(withTicketsMeta(placeholder, { id: 42, slug: "b" })).toBe(
-      "---\ntitle: Batak Lite\ntickets_id: 42\ntickets_slug: b\n---\n",
+      "---\ntitle: Tumble Tower Hire\ntickets_id: 42\ntickets_slug: b\n---\n",
     );
     const stamped = withTicketsMeta(placeholder, { id: 42, slug: "b" });
     expect(withTicketsMeta(stamped, { id: 43, slug: "c" })).toBe(
-      "---\ntitle: Batak Lite\ntickets_id: 43\ntickets_slug: c\n---\n",
+      "---\ntitle: Tumble Tower Hire\ntickets_id: 43\ntickets_slug: c\n---\n",
     );
   });
 
   test("leaves text without a closing fence unchanged", () => {
-    const text = "---\ntitle: Batak Lite";
+    const text = "---\ntitle: Tumble Tower Hire";
     expect(withTicketsMeta(text, { id: 42, slug: "b" })).toBe(text);
   });
 
   test("rejects a product with no rental options", () => {
     expect(() =>
-      parseProductFile("batak.md", "---\ntitle: Batak Lite\n---\n"),
-    ).toThrow("batak.md: a product needs at least one rental option");
+      parseProductFile(
+        "tumble-tower.md",
+        "---\ntitle: Tumble Tower Hire\n---\n",
+      ),
+    ).toThrow("tumble-tower.md: a product needs at least one rental option");
     expect(() =>
       parseProductFile(
-        "batak.md",
-        "---\ntitle: Batak Lite\noptions:\n  - max_quantity: 5\n---\n",
+        "tumble-tower.md",
+        "---\ntitle: Tumble Tower Hire\noptions:\n---\n",
       ),
-    ).toThrow("batak.md: a product needs at least one rental option");
+    ).toThrow("tumble-tower.md: a product needs at least one rental option");
   });
 
   test("reads the importer flags, consuming the directory operand", () => {
@@ -149,24 +148,85 @@ Body text that the importer never reads.
   });
 
   test("decides one action per product file", () => {
-    expect(resolveImportPlan(42, [], false)).toEqual({
-      action: "skip-imported",
-    });
-    expect(resolveImportPlan(null, [], false)).toEqual({
+    const listings = [
+      { id: 42, name: "Tumble Tower Hire" },
+      { id: 7, name: "Old Tumble Tower" },
+      { id: 9, name: "Reaction Wall Mini" },
+    ];
+    expect(
+      resolveImportPlan(
+        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
+        [],
+        false,
+        listings,
+      ),
+    ).toEqual({ action: "skip-imported" });
+    // The site folds case and trims names, so a differently spelled listing
+    // name still proves the stamp.
+    expect(
+      resolveImportPlan(
+        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
+        [],
+        false,
+        [{ id: 42, name: "  tumble tower hire " }],
+      ),
+    ).toEqual({ action: "skip-imported" });
+    expect(resolveImportPlan(null, [], false, listings)).toEqual({
       action: "create",
     });
-    expect(resolveImportPlan(null, [7], false)).toEqual({
+    expect(resolveImportPlan(null, [7], false, listings)).toEqual({
       action: "skip-conflict",
       listingId: 7,
     });
-    expect(resolveImportPlan(null, [7], true)).toEqual({
+    expect(resolveImportPlan(null, [7], true, listings)).toEqual({
       action: "update",
       listingId: 7,
     });
-    expect(resolveImportPlan(null, [7, 9], false)).toEqual({
+    expect(resolveImportPlan(null, [7, 9], false, listings)).toEqual({
       action: "skip-ambiguous",
       listingIds: [7, 9],
     });
+  });
+
+  test("refuses a stamp that names no live listing", () => {
+    // The site may have deleted the listing, or the import may point at
+    // another site: a skipped file would keep the invalid reference forever.
+    expect(() =>
+      resolveImportPlan(
+        { filename: "a.md", id: 43, title: "Tumble Tower Hire" },
+        [],
+        false,
+        [{ id: 42, name: "Tumble Tower Hire" }],
+      ),
+    ).toThrow(
+      "a.md: tickets_id 43 names no listing on the site; restore the listing or delete the stamp from the file",
+    );
+  });
+
+  test("refuses a stamp that names another product's listing", () => {
+    expect(() =>
+      resolveImportPlan(
+        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
+        [],
+        false,
+        [{ id: 42, name: "Reaction Wall Mini" }],
+      ),
+    ).toThrow(
+      "a.md: tickets_id 42 names listing 'Reaction Wall Mini', not 'Tumble Tower Hire'; delete the stamp from the file or rename one and rerun",
+    );
+  });
+
+  test("refuses to stamp a file that changed since the read", () => {
+    // The stamp is written from the snapshot every decision read: the write
+    // would discard the editor's newer content.
+    expect(() =>
+      refuseChangedFile("cat/src/products/a.md", "old text", "new text", 42),
+    ).toThrow(
+      "cat/src/products/a.md changed while the import ran; the listing holds id 42. Add the tickets_id and tickets_slug lines to the file by hand, or rerun with --update to stamp it",
+    );
+    expect(() =>
+      refuseChangedFile("cat/src/products/a.md", "same", "same", 42),
+    ).not.toThrow();
   });
 
   test("prints the plan from the product's own selection", () => {
@@ -205,14 +265,19 @@ Body text that the importer never reads.
   test("reads a stored tickets id, or null for a placeholder", () => {
     expect(storedTicketsId("a.md", "---\ntickets_id: 42\n---\n")).toBe(42);
     expect(storedTicketsId("a.md", "---\ntickets_id:\n---\n")).toBeNull();
-    expect(storedTicketsId("a.md", "---\ntitle: Batak Lite\n---\n")).toBeNull();
+    expect(
+      storedTicketsId("a.md", "---\ntitle: Tumble Tower Hire\n---\n"),
+    ).toBeNull();
   });
 
   test("ignores a tickets id line in the body", () => {
     // A body that repeats the field name must not make the importer skip a
     // product it never imported.
     expect(
-      storedTicketsId("a.md", "---\ntitle: Batak Lite\n---\n\ntickets_id: 5\n"),
+      storedTicketsId(
+        "a.md",
+        "---\ntitle: Tumble Tower Hire\n---\n\ntickets_id: 5\n",
+      ),
     ).toBeNull();
   });
 
@@ -224,13 +289,88 @@ Body text that the importer never reads.
     // The server folds case and trims names, so a catalog title that differs
     // only by case is the same listing, not a duplicate create.
     const existing = [
-      { id: 7, name: "  Batak LITE " },
-      { id: 9, name: "Giant Jenga Hire" },
+      { id: 7, name: "  TUMBLE TOWER HIRE " },
+      { id: 9, name: "Reaction Wall Mini" },
     ];
-    expect(matchedIds("batak lite", existing)).toEqual([7]);
-    expect(matchedIds("Batak Lite", existing)).toEqual([7]);
-    expect(matchedIds("Giant Jenga Hire", existing)).toEqual([9]);
+    expect(matchedIds("tumble tower hire", existing)).toEqual([7]);
+    expect(matchedIds("Tumble Tower Hire", existing)).toEqual([7]);
+    expect(matchedIds("Reaction Wall Mini", existing)).toEqual([9]);
     expect(matchedIds("Coconut Shy", existing)).toEqual([]);
+  });
+
+  test("refuses a product title a group already holds", () => {
+    // The server keeps one namespace for listings and groups, so the create
+    // would fail after the import had already written attributes and groups.
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [],
+        [],
+        [{ id: 7, name: "8 lane reindeer racing hire" }],
+      ),
+    ).toThrow(
+      "a group named '8 lane reindeer racing hire' already exists (id 7); a listing cannot take a group's name, so rename one and rerun",
+    );
+  });
+
+  test("refuses a product title a category of the same catalog holds", () => {
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [{ name: "8 LANE reindeer racing hire", slug: "christmas" }],
+        [],
+        [],
+      ),
+    ).toThrow(
+      "the product '8 Lane Reindeer Racing Hire' and the category '8 LANE reindeer racing hire' share a name; rename one and rerun",
+    );
+  });
+
+  test("refuses a category name a listing already holds", () => {
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [{ name: "Christmas Game Hire", slug: "christmas-game-hire" }],
+        [{ id: 9, name: "  christmas game hire " }],
+        [],
+      ),
+    ).toThrow(
+      "a listing named '  christmas game hire ' already exists (id 9); a group cannot take a listing's name, so rename one and rerun",
+    );
+  });
+
+  test("refuses two categories under one folded name", () => {
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [
+          { name: "Fun Days", slug: "fun-days" },
+          { name: "  fun days ", slug: "christmas-game-hire" },
+        ],
+        [],
+        [],
+      ),
+    ).toThrow(
+      "the categories 'fun-days' and 'christmas-game-hire' are both named '  fun days '; rename one and rerun",
+    );
+  });
+
+  test("leaves the plan's own name matches to the plan", () => {
+    // A title matching an existing listing is the plan's conflict path, and
+    // a category matching a group is the reuse path: neither is a refusal.
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [{ name: "Christmas Game Hire", slug: "christmas-game-hire" }],
+        [{ id: 9, name: "8 Lane Reindeer Racing Hire" }],
+        [{ id: 5, name: "christmas game hire" }],
+      ),
+    ).not.toThrow();
   });
 
   test("rejects a stored id that cannot name a listing", () => {
@@ -251,100 +391,23 @@ Body text that the importer never reads.
     }
   });
 
-  test("reads a category title, or the slug when the file has none", async () => {
-    await withTempDir(async (dir) => {
-      await Deno.writeTextFile(
-        `${dir}/christmas.md`,
-        "---\ntitle: Christmas Game Hire\n---\n",
-      );
-      await Deno.writeTextFile(`${dir}/untitled.md`, "no frontmatter");
-      expect(await categoryTitle(dir, "christmas")).toBe("Christmas Game Hire");
-      expect(await categoryTitle(dir, "untitled")).toBe("untitled");
-      // A file whose frontmatter holds no mapping (empty, or a scalar) has
-      // no title either.
-      await Deno.writeTextFile(`${dir}/bare.md`, "---\n---\n");
-      await Deno.writeTextFile(`${dir}/scalar.md`, "---\n5\n---\n");
-      expect(await categoryTitle(dir, "bare")).toBe("bare");
-      expect(await categoryTitle(dir, "scalar")).toBe("scalar");
-    });
-  });
-
-  test("stops when a category file is missing or cannot be read", async () => {
-    await withTempDir(async (dir) => {
-      // A stale or misspelled category path must not quietly create a
-      // wrongly named group.
-      await expect(categoryTitle(dir, "missing")).rejects.toThrow();
-      await Deno.writeTextFile(
-        `${dir}/broken.md`,
-        "---\ntitle: [unclosed\n---\n",
-      );
-      await expect(categoryTitle(dir, "broken")).rejects.toThrow(
-        `${dir}/broken.md: unparseable frontmatter:`,
-      );
-      // A slug that names a directory is a read error, not a missing file.
-      await Deno.mkdir(`${dir}/subdir.md`);
-      await expect(categoryTitle(dir, "subdir")).rejects.toThrow();
-    });
-  });
-
-  test("preflights every category name before any site change", async () => {
-    await withTempDir(async (dir) => {
-      await Deno.writeTextFile(
-        `${dir}/christmas-game-hire.md`,
-        "---\ntitle: Christmas Game Hire\n---\n",
-      );
-      await Deno.writeTextFile(
-        `${dir}/fun-days.md`,
-        "---\ntitle: Fun Days\n---\n",
-      );
-      expect(
-        await readCategoryEntries(dir, ["christmas-game-hire", "fun-days"]),
-      ).toEqual([
-        { name: "Christmas Game Hire", slug: "christmas-game-hire" },
-        { name: "Fun Days", slug: "fun-days" },
-      ]);
-      // The preflight runs before the first API call, so a stale category
-      // path cannot leave half the catalog imported.
-      await expect(readCategoryEntries(dir, ["missing"])).rejects.toThrow();
-    });
-  });
-
   test("keeps the stamp out of a body that mentions tickets_id", () => {
-    const text = "---\ntitle: Batak Lite\n---\n\nbody tickets_id: 5\n";
+    const text = "---\ntitle: Tumble Tower Hire\n---\n\nbody tickets_id: 5\n";
     expect(withTicketsMeta(text, { id: 42, slug: "b" })).toBe(
-      "---\ntitle: Batak Lite\ntickets_id: 42\ntickets_slug: b\n---\n\nbody tickets_id: 5\n",
+      "---\ntitle: Tumble Tower Hire\ntickets_id: 42\ntickets_slug: b\n---\n\nbody tickets_id: 5\n",
     );
   });
 
   test("stamps a CRLF file with its own line endings", () => {
     // A stamp must stay a two-line change: the body keeps the file's CRLF.
     expect(
-      withTicketsMeta("---\r\ntitle: Batak Lite\r\n---\r\n", {
+      withTicketsMeta("---\r\ntitle: Tumble Tower Hire\r\n---\r\n", {
         id: 42,
         slug: "b",
       }),
     ).toBe(
-      "---\r\ntitle: Batak Lite\r\ntickets_id: 42\r\ntickets_slug: b\r\n---\r\n",
+      "---\r\ntitle: Tumble Tower Hire\r\ntickets_id: 42\r\ntickets_slug: b\r\n---\r\n",
     );
-  });
-  test("collects the attribute vocabulary in first-seen order", () => {
-    const first = parseProductFile("a.md", productFrontmatter)!;
-    const second = parseProductFile(
-      "b.md",
-      productFrontmatter.replace("50-500+ guests", "20-200 guests"),
-    )!;
-    const vocabulary = attributeVocabulary([first, second]);
-    expect(vocabulary).toEqual([
-      {
-        name: "Guest Capacity",
-        // First seen first; the second product's value follows.
-        values: ["50-500+ guests", "20-200 guests"],
-      },
-      {
-        name: "Power Required",
-        values: ["Mains power required", "TBC"],
-      },
-    ]);
   });
 
   test("maps whole pounds to minor units", () => {
@@ -380,7 +443,7 @@ Body text that the importer never reads.
       group_ids: [5],
       hidden: true,
       listing_type: "daily",
-      max_attendees: 1,
+      max_attendees: 10,
       max_quantity: 10,
       name: "8 Lane Reindeer Racing Hire",
     });
@@ -390,7 +453,7 @@ Body text that the importer never reads.
       "a.md",
       [
         "---",
-        "title: Batak Lite",
+        "title: Tumble Tower Hire",
         "options:",
         "  - name: 1 Day",
         "    max_quantity: 10",
@@ -402,6 +465,10 @@ Body text that the importer never reads.
         "---",
       ].join("\n"),
     )!;
-    expect(listingBody(product, [], []).max_quantity).toBe(2);
+    // The site caps a daily listing's bookable quantity per date by
+    // max_attendees, so the capacity follows the strictest option too.
+    const body = listingBody(product, [], []);
+    expect(body.max_quantity).toBe(2);
+    expect(body.max_attendees).toBe(2);
   });
 });

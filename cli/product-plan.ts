@@ -3,6 +3,7 @@ import {
   type CatalogProduct,
   frontmatterBlock,
 } from "./product-catalog/parse.ts";
+import type { CategoryEntry } from "./product-catalog.ts";
 
 /** A row the importer matches by name: the listing list the API returns. */
 export type ApiNamedLike = { id: number; name: string };
@@ -20,6 +21,63 @@ export const matchedIds = (
         normalizeEntityName(listing.name) === normalizeEntityName(title),
     )
     .map((listing) => listing.id);
+
+/** The server keeps one namespace for listings and groups, so a create that
+ * takes the other kind's name fails after the import has already written
+ * attributes, options, and groups. Refuse every such name before the first
+ * write: a product title that a group holds, a product title that a category
+ * of the same catalog holds, a category name that a listing holds, and two
+ * categories under one folded name. A product title that an existing listing
+ * holds is not refused here: that match is the plan's own conflict path. */
+export const ensureNamespaceFree = (
+  products: readonly CatalogProduct[],
+  categoryEntries: readonly CategoryEntry[],
+  listings: readonly ApiNamedLike[],
+  groups: readonly ApiNamedLike[],
+): void => {
+  const byFoldedName = (
+    rows: readonly ApiNamedLike[],
+  ): Map<string, ApiNamedLike> => {
+    const index = new Map<string, ApiNamedLike>();
+    for (const row of rows) index.set(normalizeEntityName(row.name), row);
+    return index;
+  };
+  const groupsByName = byFoldedName(groups);
+  const listingsByName = byFoldedName(listings);
+  const categoryByName = new Map<string, CategoryEntry>();
+  for (const entry of categoryEntries) {
+    const key = normalizeEntityName(entry.name);
+    const seen = categoryByName.get(key);
+    if (seen !== undefined) {
+      throw new Error(
+        `the categories '${seen.slug}' and '${entry.slug}' are both named '${entry.name}'; rename one and rerun`,
+      );
+    }
+    categoryByName.set(key, entry);
+  }
+  for (const product of products) {
+    const group = groupsByName.get(normalizeEntityName(product.title));
+    if (group !== undefined) {
+      throw new Error(
+        `a group named '${group.name}' already exists (id ${group.id}); a listing cannot take a group's name, so rename one and rerun`,
+      );
+    }
+    const category = categoryByName.get(normalizeEntityName(product.title));
+    if (category !== undefined) {
+      throw new Error(
+        `the product '${product.title}' and the category '${category.name}' share a name; rename one and rerun`,
+      );
+    }
+  }
+  for (const entry of categoryEntries) {
+    const listing = listingsByName.get(normalizeEntityName(entry.name));
+    if (listing !== undefined) {
+      throw new Error(
+        `a listing named '${listing.name}' already exists (id ${listing.id}); a group cannot take a listing's name, so rename one and rerun`,
+      );
+    }
+  }
+};
 
 /** The flags the Markdown Frontmatter Importer accepts. */
 export type ImportFlags = {
@@ -101,6 +159,10 @@ export const listingBody = (
   const maxQuantity = Math.min(
     ...product.options.map((option) => option.max_quantity),
   );
+  // The site caps a daily listing's bookable quantity per date by
+  // max_attendees, so the catalog's own quantity limit is the capacity: a
+  // fixed 1 would leave every multi-unit option unable to sell past one
+  // unit on a date.
   return {
     attribute_option_ids: [...optionIds],
     customisable_days: true,
@@ -111,7 +173,7 @@ export const listingBody = (
     group_ids: [...groupIds],
     hidden: true,
     listing_type: "daily" as const,
-    max_attendees: 1,
+    max_attendees: maxQuantity,
     max_quantity: maxQuantity,
     name: product.title,
   };
@@ -146,6 +208,22 @@ export const withTicketsMeta = (
 /** The option id of one attribute value, keyed "AttributeName\nOptionText". */
 export const optionKey = (name: string, value: string): string =>
   `${name}\n${value}`;
+
+/** Refuse to stamp a file whose text changed since the import read it: the
+ *  stamp is written from the snapshot every decision read, so the write
+ *  would discard the editor's newer content. The listing already exists, so
+ *  the refusal names its id and the way to stamp the file afterwards. */
+export const refuseChangedFile = (
+  file: string,
+  snapshot: string,
+  current: string,
+  listingId: number,
+): void => {
+  if (snapshot === current) return;
+  throw new Error(
+    `${file} changed while the import ran; the listing holds id ${listingId}. Add the tickets_id and tickets_slug lines to the file by hand, or rerun with --update to stamp it`,
+  );
+};
 
 /** The option ids a product selects, in the order its file lists them. The
  * importer creates every option the catalog vocabulary plans, so a missing id
@@ -198,16 +276,35 @@ export type ImportPlan =
   | { action: "skip-imported" }
   | { action: "update"; listingId: number };
 
-/** Decide one product's action. A file that stores a tickets id is imported.
- *  A title that matches one existing listing is the operator's choice: the
+/** Decide one product's action. A file that stores a tickets id is imported
+ *  only when the stamp names a live listing of the product's own name: the
+ *  site may have deleted the listing, or the import may point at another
+ *  site, and a skipped file would keep the invalid reference forever. A
+ *  title that matches one existing listing is the operator's choice: the
  *  importer never overwrites an unrelated listing without --update. A title
  *  that matches several is always skipped: the operator renames one first. */
 export const resolveImportPlan = (
-  storedId: number | null,
+  stored: { filename: string; id: number; title: string } | null,
   matchedIds: readonly number[],
   update: boolean,
+  listings: readonly ApiNamedLike[],
 ): ImportPlan => {
-  if (storedId !== null) return { action: "skip-imported" };
+  if (stored !== null) {
+    const listing = listings.find((item) => item.id === stored.id);
+    if (listing === undefined) {
+      throw new Error(
+        `${stored.filename}: tickets_id ${stored.id} names no listing on the site; restore the listing or delete the stamp from the file`,
+      );
+    }
+    if (
+      normalizeEntityName(listing.name) !== normalizeEntityName(stored.title)
+    ) {
+      throw new Error(
+        `${stored.filename}: tickets_id ${stored.id} names listing '${listing.name}', not '${stored.title}'; delete the stamp from the file or rename one and rerun`,
+      );
+    }
+    return { action: "skip-imported" };
+  }
   const [firstMatch] = matchedIds;
   if (firstMatch === undefined) return { action: "create" };
   if (matchedIds.length > 1) {

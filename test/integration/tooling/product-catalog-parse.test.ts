@@ -80,7 +80,7 @@ describe("product catalog parse", () => {
   test("fills the option defaults for a bare option", () => {
     const product = parseProductFile(
       "a.md",
-      "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
+      "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
     )!;
     expect(product.options).toEqual([
       { days: 1, max_quantity: 10, name: "1 Day", unit_price: 100 },
@@ -91,7 +91,7 @@ describe("product catalog parse", () => {
   test("reads a numeric order, or sorts first without one", () => {
     const product = parseProductFile(
       "a.md",
-      "---\ntitle: Batak Lite\norder: 73\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
+      "---\ntitle: Tumble Tower Hire\norder: 73\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
     )!;
     expect(product.order).toBe(73);
   });
@@ -101,7 +101,7 @@ describe("product catalog parse", () => {
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\norder: soon\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
+        "---\ntitle: Tumble Tower Hire\norder: soon\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
       ),
     ).toThrow("a.md: order is not a number");
   });
@@ -112,7 +112,7 @@ describe("product catalog parse", () => {
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\norder: true\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
+        "---\ntitle: Tumble Tower Hire\norder: true\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
       ),
     ).toThrow("a.md: order is not a number");
   });
@@ -122,7 +122,7 @@ describe("product catalog parse", () => {
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n---\n",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n---\n",
       ),
     ).toThrow("a.md: option '1 Day' needs a unit_price");
   });
@@ -131,14 +131,14 @@ describe("product catalog parse", () => {
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    unit_price: free\n---\n",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    unit_price: free\n---\n",
       ),
     ).toThrow("a.md: option '1 Day' has a non-numeric unit_price");
     // Booleans read as numbers through Number(); reject them outright.
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    days: true\n    unit_price: 100\n---\n",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    days: true\n    unit_price: 100\n---\n",
       ),
     ).toThrow("a.md: option '1 Day' has a non-numeric days");
   });
@@ -150,7 +150,7 @@ describe("product catalog parse", () => {
         expect(() =>
           parseProductFile(
             "a.md",
-            `---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    unit_price: 100\n    ${field}: ${value}\n---\n`,
+            `---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    unit_price: 100\n    ${field}: ${value}\n---\n`,
           ),
         ).toThrow(
           `a.md: option '1 Day' has a ${field} that is not a positive whole number`,
@@ -165,16 +165,61 @@ describe("product catalog parse", () => {
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    unit_price: 100\n    days: 91\n---\n",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    unit_price: 100\n    days: 91\n---\n",
       ),
     ).toThrow("a.md: option '1 Day' books 91 days, above the maximum of 90");
+  });
+
+  test("rejects an option without a name", () => {
+    // A supplied option with a blank name would silently drop a rental
+    // period and its price from the listing.
+    expect(() =>
+      parseProductFile(
+        "a.md",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    unit_price: 100\n  - unit_price: 200\n---\n",
+      ),
+    ).toThrow("a.md: an option needs a name");
+  });
+
+  test("rejects list fields that are not lists", () => {
+    // A supplied container that is no list (a scalar, or a mapping) must
+    // stop the import: reading it as no entries would import the product
+    // without the field and stamp the file.
+    for (const [field, malformed] of [
+      ["categories", "categories/fun-days.md"],
+      ["features", "Public liability insurance included"],
+      ["specs", "3"],
+      ["filter_attributes", "hello"],
+    ] as const) {
+      expect(() =>
+        parseProductFile(
+          "a.md",
+          `---\ntitle: Tumble Tower Hire\n${field}: ${malformed}\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n`,
+        ),
+      ).toThrow(`a.md: ${field} is not a list`);
+    }
+    expect(() =>
+      parseProductFile(
+        "a.md",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  name: 1 Day\n  unit_price: 100\n---\n",
+      ),
+    ).toThrow("a.md: options is not a list");
+  });
+
+  test("rejects list entries that are not text", () => {
+    expect(() =>
+      parseProductFile(
+        "a.md",
+        "---\ntitle: Tumble Tower Hire\nfeatures:\n  - path: fun-days\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
+      ),
+    ).toThrow("a.md: features holds an entry that is not text");
   });
 
   test("rejects a negative option price", () => {
     expect(() =>
       parseProductFile(
         "a.md",
-        "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    unit_price: -5\n---\n",
+        "---\ntitle: Tumble Tower Hire\noptions:\n  - name: 1 Day\n    unit_price: -5\n---\n",
       ),
     ).toThrow("a.md: option '1 Day' has a negative unit_price");
   });
@@ -193,7 +238,7 @@ describe("product catalog parse", () => {
           "a.md",
           [
             "---",
-            "title: Batak Lite",
+            "title: Tumble Tower Hire",
             "options:",
             "  - name: 1 Day",
             "    unit_price: 100",
@@ -215,7 +260,7 @@ describe("product catalog parse", () => {
         "a.md",
         [
           "---",
-          "title: Batak Lite",
+          "title: Tumble Tower Hire",
           "options:",
           "  - name: 1 Day",
           "    unit_price: 100",
@@ -247,7 +292,7 @@ describe("product catalog parse", () => {
         "a.md",
         [
           "---",
-          "title: Batak Lite",
+          "title: Tumble Tower Hire",
           "options:",
           "  - name: 1 Day",
           "    unit_price: 100",
@@ -262,27 +307,27 @@ describe("product catalog parse", () => {
   test("reads a CRLF product file like a Unix one", () => {
     const product = parseProductFile(
       "a.md",
-      "---\r\ntitle: Batak Lite\r\noptions:\r\n  - name: 1 Day\r\n    unit_price: 100\r\n---\r\n",
+      "---\r\ntitle: Tumble Tower Hire\r\noptions:\r\n  - name: 1 Day\r\n    unit_price: 100\r\n---\r\n",
     )!;
-    expect(product.title).toBe("Batak Lite");
+    expect(product.title).toBe("Tumble Tower Hire");
     expect(product.options).toEqual([
       { days: 1, max_quantity: 10, name: "1 Day", unit_price: 100 },
     ]);
   });
 
-  test("reads nothing for scalar list fields and drops blank entries", () => {
+  test("drops blank text entries and reads no entries from an empty field", () => {
     const product = parseProductFile(
       "a.md",
       [
         "---",
-        "title: Batak Lite",
+        "title: Tumble Tower Hire",
         "subtitle: 5",
-        "categories: categories/fun-days.md",
         "features:",
         '  - ""',
         "  - Public liability insurance included",
-        "specs: 3",
-        "filter_attributes: hello",
+        "categories:",
+        "filter_attributes:",
+        "specs:",
         "options:",
         "  - name: 1 Day",
         "    unit_price: 100",
