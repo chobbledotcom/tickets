@@ -111,6 +111,18 @@ describe("quantityOptions", () => {
       '<option value="0" selected>0 months</option><option value="1">1 month</option><option value="2">2 months</option>',
     );
   });
+
+  test("offers none, then the minimum upward, when a minimum is set", () => {
+    expect(quantityOptions(5, 0, String, 3)).toBe(
+      '<option value="0" selected>0</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>',
+    );
+  });
+
+  test("keeps the plain zero-to-max list at the default minimum", () => {
+    expect(quantityOptions(2, 1)).toBe(
+      '<option value="0">0</option><option value="1" selected>1</option><option value="2">2</option>',
+    );
+  });
 });
 
 describe("restoredPackageQuantity", () => {
@@ -125,22 +137,22 @@ describe("restoredPackageQuantity", () => {
 
 describe("restoredQuantity", () => {
   test("restores the pre-filled quantity, clamped to the available range", () => {
-    expect(restoredQuantity(1, { quantity: 3 }, 10)).toBe(3);
-    expect(restoredQuantity(1, { quantity: 30 }, 10)).toBe(10);
+    expect(restoredQuantity(1, { quantity: 3 }, 10, 1)).toBe(3);
+    expect(restoredQuantity(1, { quantity: 30 }, 10, 1)).toBe(10);
   });
 
   test("stays at zero without a pre-fill", () => {
-    expect(restoredQuantity(1, undefined, 10)).toBe(0);
+    expect(restoredQuantity(1, undefined, 10, 1)).toBe(0);
   });
 
   test("stays at zero for a negative pre-fill", () => {
-    expect(restoredQuantity(1, { quantity: -3 }, 10)).toBe(0);
+    expect(restoredQuantity(1, { quantity: -3 }, 10, 1)).toBe(0);
   });
 
   test("restores the just-submitted count", () => {
     expect(
       withSubmittedValues({ quantity_1: "5" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(5);
   });
@@ -148,7 +160,7 @@ describe("restoredQuantity", () => {
   test("clamps a too-large submitted count", () => {
     expect(
       withSubmittedValues({ quantity_1: "30" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(10);
   });
@@ -156,7 +168,7 @@ describe("restoredQuantity", () => {
   test("keeps zero for a non-numeric submitted count", () => {
     expect(
       withSubmittedValues({ quantity_1: "abc" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
   });
@@ -164,7 +176,7 @@ describe("restoredQuantity", () => {
   test("keeps zero for a hex-looking submitted count", () => {
     expect(
       withSubmittedValues({ quantity_1: "0x10" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
   });
@@ -172,9 +184,33 @@ describe("restoredQuantity", () => {
   test("clamps a negative submitted count to zero", () => {
     expect(
       withSubmittedValues({ quantity_1: "-3" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
+  });
+
+  test("restores to zero for a submitted count below the minimum", () => {
+    expect(
+      withSubmittedValues({ quantity_1: "2" }, () =>
+        restoredQuantity(1, undefined, 10, 3),
+      ),
+    ).toBe(0);
+  });
+
+  test("restores a count at or above the minimum unchanged", () => {
+    expect(
+      withSubmittedValues({ quantity_1: "3" }, () =>
+        restoredQuantity(1, undefined, 10, 3),
+      ),
+    ).toBe(3);
+  });
+
+  test("restores to zero for a pre-fill below the minimum", () => {
+    expect(restoredQuantity(1, { quantity: 2 }, 10, 3)).toBe(0);
+  });
+
+  test("keeps a pre-fill at or above the minimum", () => {
+    expect(restoredQuantity(1, { quantity: 4 }, 10, 3)).toBe(4);
   });
 });
 

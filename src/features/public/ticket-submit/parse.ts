@@ -6,7 +6,8 @@
  */
 
 import type { buildBookingTree } from "#booking/build-tree.ts";
-import { parseCustomPrice } from "#booking/form.ts";
+import { bookingError, parseCustomPrice } from "#booking/form.ts";
+import { quantityBelowMinimum } from "#booking/model.ts";
 import {
   aggregateNodeQuantities,
   nodeQuantitiesFor,
@@ -44,6 +45,35 @@ import {
 } from "#templates/fields/ticket.ts";
 import type { ListingWithCount } from "#types";
 
+/** The page-wide refusal when no listing can take a submission. */
+const pageWideRefusal = (ctx: TicketCtx): string | null => {
+  if (!ctx.listings.every((e) => e.isSoldOut || e.isClosed)) return null;
+  return ctx.listings.every((e) => e.isClosed)
+    ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
+    : "Sorry, not enough spots available";
+};
+
+/** The per-listing refusal for one row's posted quantity, or null. */
+const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
+  for (const { listing, isClosed, maxPurchasable } of ctx.listings) {
+    const selectedQty =
+      parseNonNegativeInt(form.get(quantityFieldName(listing.id)) ?? "0") ?? 0;
+    if (isClosed && selectedQty > 0) {
+      return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
+    }
+    // A row the page offers never accepts a count in 1..minimum-1. The select
+    // cannot send one, so only a crafted or stale POST carries it. Sold-out
+    // rows keep the skip behaviour: their posted quantity is ignored.
+    if (
+      maxPurchasable > 0 &&
+      quantityBelowMinimum(selectedQty, listing.minimum_quantity)
+    ) {
+      return bookingError.minimum(listing.name, listing.minimum_quantity);
+    }
+  }
+  return null;
+};
+
 /** Validate page-level form state before deeper parsing. Returns an error
  * message, or null when the form state is acceptable. */
 export const validateFormState = (
@@ -53,23 +83,7 @@ export const validateFormState = (
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
   }
-
-  const allUnavailable = ctx.listings.every((e) => e.isSoldOut || e.isClosed);
-  if (allUnavailable) {
-    const allClosed = ctx.listings.every((e) => e.isClosed);
-    return allClosed
-      ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
-      : "Sorry, not enough spots available";
-  }
-
-  for (const { listing, isClosed } of ctx.listings) {
-    const selectedQty =
-      parseNonNegativeInt(form.get(quantityFieldName(listing.id)) ?? "0") ?? 0;
-    if (isClosed && selectedQty > 0) {
-      return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
-    }
-  }
-  return null;
+  return pageWideRefusal(ctx) ?? quantityRefusal(form, ctx);
 };
 
 /** Validate contact fields once the final priced checkout says whether it is paid. */

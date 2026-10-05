@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   buildTicketListing,
   parentAndChildFitGroup,
+  quantityBelowMinimum,
   ticketsThatFitInPool,
 } from "#booking/model.ts";
 import { listing } from "#test-utils/booking-model-fixtures.ts";
@@ -156,6 +157,125 @@ describe("booking model — capacity", () => {
       expect(tl.isClosed).toBe(true);
       expect(tl.isSoldOut).toBe(false);
       expect(tl.maxPurchasable).toBe(0);
+    });
+
+    test("sold out when remaining spots sit below the minimum", () => {
+      const tl = buildTicketListing(
+        listing({
+          attendee_count: 9,
+          listing_type: "standard",
+          max_attendees: 10,
+          max_quantity: 10,
+          minimum_quantity: 3,
+        }),
+        false,
+        undefined,
+      );
+      expect(tl.isSoldOut).toBe(true);
+      expect(tl.maxPurchasable).toBe(0);
+    });
+
+    test("allows exactly the minimum when remaining spots meet it", () => {
+      const tl = buildTicketListing(
+        listing({
+          attendee_count: 8,
+          listing_type: "standard",
+          max_attendees: 10,
+          max_quantity: 10,
+          minimum_quantity: 2,
+        }),
+        false,
+        undefined,
+      );
+      expect(tl.isSoldOut).toBe(false);
+      expect(tl.maxPurchasable).toBe(2);
+    });
+
+    test("clamps maxPurchasable to remaining spots above the minimum", () => {
+      const tl = buildTicketListing(
+        listing({
+          attendee_count: 0,
+          listing_type: "standard",
+          max_attendees: 10,
+          max_quantity: 10,
+          minimum_quantity: 3,
+        }),
+        false,
+        undefined,
+      );
+      expect(tl.maxPurchasable).toBe(10);
+    });
+
+    test("sold out when the shared group pool dips below the minimum", () => {
+      // The listing's own remaining is 10, but the group pool clamps it to 2.
+      const tl = buildTicketListing(
+        listing({
+          attendee_count: 0,
+          listing_type: "standard",
+          max_attendees: 10,
+          max_quantity: 10,
+          minimum_quantity: 3,
+        }),
+        false,
+        2,
+      );
+      expect(tl.isSoldOut).toBe(true);
+      expect(tl.maxPurchasable).toBe(0);
+    });
+
+    test("closed listings with stock above the minimum still sell nothing", () => {
+      const tl = buildTicketListing(
+        listing({
+          attendee_count: 0,
+          listing_type: "standard",
+          max_attendees: 10,
+          max_quantity: 10,
+          minimum_quantity: 3,
+        }),
+        true,
+        undefined,
+      );
+      expect(tl.isClosed).toBe(true);
+      expect(tl.isSoldOut).toBe(false);
+      expect(tl.maxPurchasable).toBe(0);
+    });
+
+    test("daily listings keep their max_quantity cap with no date-less own count", () => {
+      // Remaining is Infinity before a date is chosen, so the minimum never
+      // binds — max_quantity is the only ceiling.
+      const tl = buildTicketListing(
+        listing({
+          listing_type: "daily",
+          max_quantity: 5,
+          minimum_quantity: 3,
+        }),
+        false,
+        undefined,
+      );
+      expect(tl.isSoldOut).toBe(false);
+      expect(tl.maxPurchasable).toBe(5);
+    });
+  });
+
+  describe("quantityBelowMinimum", () => {
+    test("zero is never below the minimum", () => {
+      expect(quantityBelowMinimum(0, 3)).toBe(false);
+    });
+
+    test("any count above zero but below the minimum is refused", () => {
+      expect(quantityBelowMinimum(2, 3)).toBe(true);
+    });
+
+    test("the minimum itself is allowed", () => {
+      expect(quantityBelowMinimum(3, 3)).toBe(false);
+    });
+
+    test("counts above the minimum are allowed", () => {
+      expect(quantityBelowMinimum(5, 3)).toBe(false);
+    });
+
+    test("minimum 1 allows every positive count", () => {
+      expect(quantityBelowMinimum(0, 1)).toBe(false);
     });
   });
 });

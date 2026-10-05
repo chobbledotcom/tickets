@@ -117,12 +117,14 @@ describeWithEnv("concealed package API privacy", { db: true }, () => {
     const named = await soldOutDateKit(false);
     const namedBooked = await apiBookPackage(named.group.slug, {
       date: named.date,
+      quantity: 1,
     });
     expect(namedBooked.response.status).toBe(409);
 
     const concealed = await soldOutDateKit(true);
     const { body, response } = await apiBookPackage(concealed.group.slug, {
       date: concealed.date,
+      quantity: 1,
     });
 
     expect(response.status).toBe(400);
