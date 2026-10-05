@@ -182,4 +182,17 @@ export interface LoopSlot {
 export interface ParenOnly {
   slot: number;
 }
+
+export interface RestCarrier {
+  kept: number;
+  rest: number;
+}
+
+export interface CarriesTheField {
+  carried: number;
+}
+
+export class HoldsTheCarriedField implements CarriesTheField {
+  carried = 0;
+}
 `;

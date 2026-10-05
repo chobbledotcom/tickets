@@ -120,6 +120,19 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("ParenOnly", "slot")).toBe("read");
   });
 
+  test("does not count a rest binding's own name as a read of a same-named field", () => {
+    // The rest binding gathers what is left; it names no member, so the
+    // field that happens to share the local's name stays unread.
+    expect(verdictOf("RestCarrier", "rest")).toBe("never read");
+  });
+
+  test("counts a class field read through its interface as read", () => {
+    // The read names the interface member; the class field implements it,
+    // so the same read answers for both.
+    expect(verdictOf("CarriesTheField", "carried")).toBe("read");
+    expect(verdictOf("HoldsTheCarriedField", "carried")).toBe("read");
+  });
+
   test("counts a field a rest pattern names as read", () => {
     expect(verdictOf("Passed", "kept")).toBe("read");
   });

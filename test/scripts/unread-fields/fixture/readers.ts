@@ -53,6 +53,7 @@ import {
   type RealDescribed,
   type ReadsAnAsyncResult,
   type RunsItAsAProperty,
+  type CarriesTheField,
   type SameArms,
   type ServesSettingsThroughASetter,
   type ServesItsValueThroughAGetter,
@@ -66,6 +67,7 @@ import {
   type LoopSlot,
   type NestedSlotSource,
   type ParenOnly,
+  type RestCarrier,
   type WithNever,
   type WrittenByARest,
   type WrappedInAngles,
@@ -453,4 +455,12 @@ export const readAParenthesizedSlot = (held: ParenOnly): number => {
   (({ slot: out }) = held);
   return out;
 };
+
+export const readARestCarriersKept = (row: RestCarrier): number => {
+  const { kept, ...rest } = row;
+  return kept + Object.keys(rest).length;
+};
+
+export const readThroughTheCarrier = (value: CarriesTheField): number =>
+  value.carried;
 `;

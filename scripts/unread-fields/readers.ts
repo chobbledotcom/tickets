@@ -84,13 +84,18 @@ const takesValuesIn = (pattern: ts.ObjectLiteralExpression): boolean => {
 };
 
 /** The type a shorthand mention draws its value from, when the mention is
- * the shorthand. Nothing otherwise. */
+ * the shorthand. Nothing otherwise. A rest binding names no member — the
+ * local it declares gathers what is left, so the name answers no field. */
 const drawnFrom = (
   checker: ts.TypeChecker,
   node: ts.Identifier,
   parent: ts.Node,
 ): ts.Type | undefined => {
-  if (ts.isBindingElement(parent) && parent.name === node) {
+  if (
+    ts.isBindingElement(parent) &&
+    parent.name === node &&
+    !parent.dotDotDotToken
+  ) {
     const pattern = parent.parent;
     return ts.isObjectBindingPattern(pattern)
       ? typeADrawingBindsFrom(checker, pattern)
@@ -180,15 +185,21 @@ const sameNamedSymbolsInSuperTypes = (
 
 /** The same-named symbols one member ties to through the heritage of the
  * class or interface that owns it: the member a class implements of an
- * interface, and the member a subclass carries of its base. */
-const heritageSymbols = (checker: ts.TypeChecker) => {
+ * interface, and the member a subclass carries of its base. When only the
+ * classes count, an interface that redeclares a member it extends ties no
+ * read to the redeclaration: the read of the base member never asked the
+ * narrowed one. */
+const heritageSymbolsThrough = (
+  checker: ts.TypeChecker,
+  classesOnly: boolean,
+) => {
   const closureByRoot = new Map<ts.Symbol, readonly ts.Symbol[]>();
   const climb = (
     symbol: ts.Symbol,
     seen: Set<ts.Symbol>,
     found: ts.Symbol[],
   ): void => {
-    for (const holder of ownersOfSymbol(symbol)) {
+    for (const holder of climbingHolders(symbol, classesOnly)) {
       for (const base of sameNamedSymbolsInSuperTypes(
         checker,
         holder,
@@ -211,6 +222,22 @@ const heritageSymbols = (checker: ts.TypeChecker) => {
     return found;
   };
 };
+
+/** The holders one member's heritage climbs through: every class or
+ * interface when all count, only the classes when they alone do. */
+const climbingHolders = (symbol: ts.Symbol, classesOnly: boolean) => {
+  const holders = ownersOfSymbol(symbol);
+  if (!classesOnly) {
+    return holders;
+  }
+  return holders.filter(ts.isClassLike);
+};
+
+const heritageSymbols = (checker: ts.TypeChecker) =>
+  heritageSymbolsThrough(checker, false);
+
+const classHeritageSymbols = (checker: ts.TypeChecker) =>
+  heritageSymbolsThrough(checker, true);
 
 /** The symbols the class property a constructor parameter stands beside
  * answers for. The parameter is only one of them: a `this.` mention reaches
@@ -274,8 +301,11 @@ const symbolsDeclaredFor = (
 };
 
 /** Where every field answers: by the symbol its declaration stands for,
- * and by each declaration of that symbol. */
+ * by each declaration of that symbol, and by the members a field ties to
+ * through heritage — the read of an interface member also answers for the
+ * class field that implements it. */
 type FieldOwners = {
+  readonly heritageOwners: ReadonlyMap<ts.Symbol, readonly OwnedField[]>;
   readonly ownersOfSymbol: ReadonlyMap<ts.Symbol, readonly OwnedField[]>;
   readonly ownersOfDeclaration: ReadonlyMap<
     ts.Declaration,
@@ -284,18 +314,25 @@ type FieldOwners = {
 };
 
 /** Everything the one walk needs to answer for the fields. */
-type ReaderDeps = FieldOwners & {
+type ReaderDeps = HeritageAsk &
+  FieldOwners & {
+    readonly root: string;
+  };
+
+/** What one field question asks with: the checker, and the heritage walk
+ * that climbs from a member to the members it ties to. */
+type HeritageAsk = {
   readonly checker: ts.TypeChecker;
   readonly heritageOf: (root: ts.Symbol) => readonly ts.Symbol[];
-  readonly root: string;
 };
 
-/** The fields one symbol answers for, out of the two indexes. */
+/** The fields one symbol answers for, out of the three indexes. */
 const fieldsOfSymbol = (
   symbol: ts.Symbol,
   owners: FieldOwners,
 ): readonly OwnedField[] => [
   ...(owners.ownersOfSymbol.get(symbol) ?? []),
+  ...(owners.heritageOwners.get(symbol) ?? []),
   ...(symbol.declarations ?? []).flatMap(
     (declaration) => owners.ownersOfDeclaration.get(declaration) ?? [],
   ),
@@ -304,15 +341,13 @@ const fieldsOfSymbol = (
 /** The fields one read mention names: the fields its symbols answer for,
  * and the fields the members those tie to through heritage answer for. */
 const fieldsOfReadMention = (
-  checker: ts.TypeChecker,
-  heritageOf: (root: ts.Symbol) => readonly ts.Symbol[],
-  owners: FieldOwners,
+  asks: ReaderDeps,
   node: ts.Node,
 ): readonly OwnedField[] => {
   const fields: OwnedField[] = [];
-  for (const symbol of symbolsAtMention(checker, node)) {
-    for (const rootSymbol of [symbol, ...heritageOf(symbol)]) {
-      fields.push(...fieldsOfSymbol(rootSymbol, owners));
+  for (const symbol of symbolsAtMention(asks.checker, node)) {
+    for (const rootSymbol of [symbol, ...asks.heritageOf(symbol)]) {
+      fields.push(...fieldsOfSymbol(rootSymbol, asks));
     }
   }
   return fields;
@@ -327,12 +362,7 @@ const collectReadersIn =
     const file = source.fileName.replace(`${deps.root}/`, "");
     const read = (node: ts.Node): void => {
       if (namesAMember(node) && readsTheValue(node)) {
-        for (const field of fieldsOfReadMention(
-          deps.checker,
-          deps.heritageOf,
-          deps,
-          node,
-        )) {
+        for (const field of fieldsOfReadMention(deps, node)) {
           readersOfField.get(field)?.add(file);
         }
       }
@@ -341,23 +371,28 @@ const collectReadersIn =
     read(source);
   };
 
-/** Index the fields by the symbols their declarations stand for, and by
- * each declaration of those symbols. */
+/** Index the fields by the symbols their declarations stand for, by each
+ * declaration of those symbols, and by the members a field's heritage ties
+ * it to. */
 const indexFieldOwners = (
-  checker: ts.TypeChecker,
+  asks: HeritageAsk,
   fields: readonly OwnedField[],
 ): FieldOwners => {
+  const heritageOwners = new Map<ts.Symbol, OwnedField[]>();
   const ownersOfSymbol = new Map<ts.Symbol, OwnedField[]>();
   const ownersOfDeclaration = new Map<ts.Declaration, OwnedField[]>();
   for (const field of fields) {
-    for (const symbol of symbolsDeclaredFor(checker, field)) {
+    for (const symbol of symbolsDeclaredFor(asks.checker, field)) {
       addOwner(ownersOfSymbol, symbol, field);
+      for (const member of asks.heritageOf(symbol)) {
+        addOwner(heritageOwners, member, field);
+      }
       for (const declaration of symbol.declarations ?? []) {
         addOwner(ownersOfDeclaration, declaration, field);
       }
     }
   }
-  return { ownersOfDeclaration, ownersOfSymbol };
+  return { heritageOwners, ownersOfDeclaration, ownersOfSymbol };
 };
 
 const addOwner = <K>(
@@ -386,15 +421,18 @@ export const readersOfFields =
     const heritageOf = heritageSymbols(deps.checker);
     const readersOfField = new Map<OwnedField, Set<string>>();
     for (const field of fields) readersOfField.set(field, new Set());
-    const { ownersOfSymbol, ownersOfDeclaration } = indexFieldOwners(
-      deps.checker,
-      fields,
-    );
+    const classHeritageOf = classHeritageSymbols(deps.checker);
+    const { heritageOwners, ownersOfDeclaration, ownersOfSymbol } =
+      indexFieldOwners(
+        { checker: deps.checker, heritageOf: classHeritageOf },
+        fields,
+      );
     for (const source of deps.program.getSourceFiles()) {
       if (source.isDeclarationFile) continue;
       collectReadersIn({
         checker: deps.checker,
         heritageOf,
+        heritageOwners,
         ownersOfDeclaration,
         ownersOfSymbol,
         root: deps.root,
