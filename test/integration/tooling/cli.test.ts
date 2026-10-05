@@ -183,10 +183,19 @@ describe("CLI resources", () => {
     expect(resourcePath("listings", "123")).toBe("/api/admin/listings/123");
   });
 
+  test("builds nested option paths under a parent id", () => {
+    expect(resourcePath("attributes", "3/options")).toBe(
+      "/api/admin/attributes/3/options",
+    );
+    expect(resourcePath("attributes", "3/options/9")).toBe(
+      "/api/admin/attributes/3/options/9",
+    );
+  });
+
   test("parses known resources and rejects unknown resources", () => {
     expect(parseResource("holidays")).toBe("holidays");
     expect(() => parseResource("orders")).toThrow(
-      "Unknown resource: orders. Expected listings, groups, holidays",
+      "Unknown resource: orders. Expected attributes, listings, groups, holidays",
     );
   });
 
@@ -232,6 +241,16 @@ describe("CLI api-request", () => {
       body: { name: "Demo" },
       method: "POST",
       path: "/api/admin/listings",
+    });
+  });
+
+  test("builds a nested create from a parent path and body", () => {
+    expect(
+      buildRequest("create", "attributes", "3/options", '{"text":"2 players"}'),
+    ).toEqual({
+      body: { text: "2 players" },
+      method: "POST",
+      path: "/api/admin/attributes/3/options",
     });
   });
 

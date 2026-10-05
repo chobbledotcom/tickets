@@ -1514,9 +1514,6 @@
     "long-sentence": 3,
     "semicolon": 2
   },
-  "src/shared/db/attributes.ts": {
-    "semicolon": 1
-  },
   "src/shared/db/backup-snapshot.ts": {
     "long-sentence": 3,
     "semicolon": 1,
