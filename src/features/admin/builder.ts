@@ -63,7 +63,6 @@ const handleBuilderGet = (request: Request): Promise<Response> =>
     ? renderBuilderPage(request)
     : Promise.resolve(notFoundResponse());
 
-/** Return an error message when a DB provider isn't configured, else null. */
 const dbProviderConfigError = (
   providerVal: string | null | undefined,
   dbUrl: string | null | undefined,

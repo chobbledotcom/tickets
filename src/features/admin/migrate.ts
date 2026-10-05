@@ -1,10 +1,10 @@
 /** One-off migration pages: repairs for records written by older releases.
  *
- * The rebuild page gives a site's owner one address to send people to when
- * payments taken by an older release cannot be refunded in the app. It lists
- * the rows the next run would rewrite, because the owner is the only one who
- * knows which provider took each of them: a site can change provider, so one
- * page of old rows can span several. */
+ * The rebuild page gives a site's owner one address to send people to. It
+ * serves payments taken by an older release that the app cannot refund. It
+ * lists the rows the next run rewrites. The owner is the only one who knows
+ * which provider took each of them. A site can change provider, so one page
+ * of old rows can span several. */
 
 import { logActivity } from "#db/activity-log.ts";
 import {
@@ -33,8 +33,8 @@ const REBUILD_PATH = "/admin/migrate/rebuild-payment-references";
 const providerField = (paymentSessionId: string): string =>
   `provider_${encodeURIComponent(paymentSessionId)}`;
 
-/** The provider the owner stated for each row that needs one, or null when a
- * row is left unstated - the run then fails rather than guessing. */
+/** The provider the owner stated for each row that needs one. Null when a
+ * row is left unstated: the run then fails rather than guessing. */
 const statedProvidersFor = (
   form: FormParams,
   page: readonly LegacyPaymentReferencePreview[],
@@ -115,7 +115,6 @@ const handleRebuildPost = ownerFormHandler(async ({ form }) => {
   );
 });
 
-/** Migration page routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/migrate/rebuild-payment-references": handleRebuildGet,
   "POST /admin/migrate/rebuild-payment-references": handleRebuildPost,

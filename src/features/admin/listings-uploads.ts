@@ -105,9 +105,9 @@ const processFormAttachment = (
 /** Process attachment upload and redirect, reporting any upload errors.
  *
  * `warning`, when set, is a non-fatal caveat to surface even when the create
- * succeeded (e.g. a duplicate that couldn't carry its required-child gate — Fix
- * 1): the redirect becomes a warning flash (not a plain success) carrying the
- * caveat, so the operator is never told an unqualified "success" for a partial
+ * succeeded, for example a duplicate unable to carry its required-child gate.
+ * The redirect becomes a warning flash, not a plain success, carrying the
+ * caveat. The operator is never told an unqualified "success" for a partial
  * outcome. Upload errors still take precedence and are appended too. */
 export const processUploadsAndRedirect = async (
   formData: FormData,

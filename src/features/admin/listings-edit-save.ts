@@ -2,9 +2,9 @@
  * The listing edit tab's save path: aggregate parsing, duration-change
  * reconciliation, and the in-place error re-render.
  *
- * `handleAdminListingEditPost` in `listings-edit.ts` wires these to the route,
- * so a rejected edit keeps the operator's submitted group selection and an
- * accepted edit replays booked ranges with a group-capacity warning.
+ * `handleAdminListingEditPost` in `listings-edit.ts` wires these to the route.
+ * A rejected edit keeps the operator's submitted group selection. An accepted
+ * edit replays booked ranges with a group-capacity warning.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -59,8 +59,8 @@ const reconcileDurationChange = async (
 ): Promise<string> => {
   if (row.listing_type !== "daily") return "";
   // For customisable-days listings each booking has its own visitor-chosen
-  // span, so `duration_days` is only the maximum offered to new bookings —
-  // never rewrite existing bookings' stored ranges from it.
+  // span, so `duration_days` is only the maximum offered to new bookings.
+  // Never rewrite existing bookings' stored ranges from it.
   if (row.customisable_days) return "";
   if (row.duration_days === previousDurationDays) return "";
 
@@ -79,8 +79,9 @@ const reconcileDurationChange = async (
 };
 
 /** Re-render the Edit tab in place at 400 with the submitted error and the
- * operator's submitted group selection (not the saved set), so a rejected edit
- * doesn't silently drop their group changes. Deterministic — no flash stash. */
+ * operator's submitted group selection, not the saved set. A rejected edit
+ * then never silently drops their group changes. Deterministic — no flash
+ * stash. */
 export const renderListingEditError: EditErrorRenderer = editErrorRenderer(
   () => listingPage,
   "edit",
@@ -119,9 +120,10 @@ export const handleListingEditSuccess = async (
 
 /**
  * Parse the editable trigger-maintained aggregates (booked_quantity,
- * tickets_count, …) from an edit submission — but only for staff. Editors may
- * not touch these owner-level figures, so any such hidden fields they craft are
- * ignored rather than trusted: they always edit with a null aggregate input.
+ * tickets_count, …) from an edit submission — but only for staff. Editors
+ * cannot touch these owner-level figures. Any such hidden fields they craft
+ * are ignored rather than trusted: they always edit with a null aggregate
+ * input.
  */
 export const parseAggregatesForRole = (
   session: AdminSession,

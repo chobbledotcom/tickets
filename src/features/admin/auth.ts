@@ -1,10 +1,3 @@
-import { defineRoutes } from "#routes/router.ts";
-import { getRequestClientIp } from "#shared/request-context.ts";
-
-/**
- * Admin authentication routes - login and logout
- */
-
 import {
   deriveKEK,
   deriveKEKFromPassword,
@@ -31,6 +24,7 @@ import {
 } from "#routes/auth.ts";
 import { parseFormData } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { parseCookies } from "#routes/url.ts";
 import {
   buildSessionCookie,
@@ -39,6 +33,7 @@ import {
 } from "#shared/cookies.ts";
 import { verifySignedCsrfToken } from "#shared/csrf.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
 import { adminLogoutPage } from "#templates/admin/logout.tsx";
@@ -53,9 +48,9 @@ const randomDelay = (): Promise<void> =>
 
 /** Create a session and redirect to the user's landing page (delivery agents go
  * to their run sheet, editors to listings, staff to the dashboard). When the
- * user holds a DATA_KEY it is wrapped under the session token so the private key
- * can be derived later; the keyless editor gets a null wrap and so can never
- * derive it. */
+ * user holds a DATA_KEY, the session wraps it under the session token, so the
+ * private key can be derived later. The keyless editor gets a null wrap and so
+ * can never derive the private key. */
 const createLoginSession = async (
   dataKey: CryptoKey | null,
   userId: number,
@@ -94,12 +89,11 @@ const handleAdminLogin = async (
 
   const clientIp = getRequestClientIp();
 
-  // Check rate limiting
   if (await loginLimiter.isLimited(clientIp)) {
     return fail("/admin", t("error.too_many_attempts"));
   }
 
-  // A failed credential check should also log the user out of any existing
+  // A failed credential check also logs the user out of any existing
   // session, so the redirect lands on the login page (not the dashboard).
   const existingToken = parseCookies(request).get(getSessionCookieName());
   const failedCredentialsRedirect = async (): Promise<Response> => {
@@ -118,15 +112,12 @@ const handleAdminLogin = async (
 
   const { username, password } = validation.values;
 
-  // Look up user by username
   const user = await getUserByUsername(username);
   if (!user) return failedCredentialsRedirect();
 
-  // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) return failedCredentialsRedirect();
 
-  // Clear failed attempts on successful login
   await clearLoginAttempts(clientIp);
 
   const adminLevel = await decryptAdminLevel(user);
@@ -143,10 +134,10 @@ const handleAdminLogin = async (
     return fail("/admin", t("error.account_not_activated"));
   }
 
-  // Unwrap DATA_KEY using the user's KEK scheme. v2 derives the KEK from the raw
-  // password (so the wrap can't be reproduced from a DB dump); v1 (legacy)
-  // derives it from the stored hash. A correct password is the only thing that
-  // makes either unwrap succeed.
+  // Unwrap DATA_KEY with the user's KEK scheme. Version 2 derives the KEK
+  // from the raw password, so the wrap cannot be reproduced from a DB dump.
+  // Version 1 (legacy) derives it from the stored hash. A correct password is
+  // the only thing that makes either unwrap succeed.
   let dataKey: CryptoKey;
   try {
     dataKey =
@@ -157,7 +148,7 @@ const handleAdminLogin = async (
           )
         : await unwrapKey(user.wrapped_data_key, await deriveKEK(passwordHash));
   } catch {
-    // KEK mismatch - this shouldn't happen if password verification passed
+    // KEK mismatch. This cannot happen when password verification passed.
     return failedCredentialsRedirect();
   }
 
@@ -170,9 +161,6 @@ const handleAdminLogin = async (
   return createLoginSession(dataKey, user.id, adminLevel);
 };
 
-/**
- * Handle POST /admin/logout with CSRF validation
- */
 const handleAdminLogout = (request: Request): Promise<Response> =>
   withAuth(request, ANY_USER_FORM, async (session) => {
     await deleteSession(session.token);
@@ -181,7 +169,6 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
     });
   });
 
-/** Handle GET /admin/login - redirect to dashboard if already authenticated */
 const handleLoginGet = (request: Request): Promise<Response> =>
   withOptionalSession(request, (session) =>
     session
@@ -191,7 +178,6 @@ const handleLoginGet = (request: Request): Promise<Response> =>
 
 const handleLogoutGet = anyUserPage((session) => adminLogoutPage(session));
 
-/** Authentication routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/login": handleLoginGet,
   "GET /admin/logout": handleLogoutGet,

@@ -57,17 +57,16 @@ import type { ListingAttributeFilterView } from "#templates/admin/listing-attrib
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import type { ListingWithCount } from "#types";
 
-/** Login page response helper */
 export const loginResponse = async (
   request: Request,
   status = 200,
 ): Promise<Response> => {
-  // success (e.g. "Logged out") is rendered by the Layout backstop from context.
+  // success (for example, "Logged out") is rendered by the Layout backstop
+  // from context.
   const flash = await flashForPage(request);
   return htmlResponse(adminLoginPage(flash.error), status);
 };
 
-/** Maximum number of newest attendees to show on dashboard */
 const NEWEST_ATTENDEES_LIMIT = 10;
 
 const loadListingAttributeFilterContext = async (
@@ -91,16 +90,14 @@ const loadListingAttributeFilterContext = async (
   };
 };
 
-/**
- * Handle GET /admin/
- */
 const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      // Restricted roles have no dashboard: their landing path is their only
-      // page (agents), a page without the dashboard's financials (editors), or
-      // the doors list (scanner users). The landing map decides who redirects.
+      // Restricted roles have no dashboard. Their landing path is their only
+      // page (agents), a page without the dashboard's financials (editors),
+      // or the doors list (scanner users). The landing map decides who
+      // redirects.
       if (adminLandingPath(session.adminLevel) !== "/admin") {
         return redirectResponse(adminLandingPath(session.adminLevel));
       }
@@ -141,9 +138,9 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     () => loginResponse(request),
   );
 
-/** Handle GET /admin/listings — the listings index. Editors land here, so it is
- * gated to content roles (staff + editor); the template renders role-aware
- * columns/links so editors see no financials or forbidden detail links. */
+/** Editors land on this page, so it is gated to content roles (staff +
+ * editor). The template renders role-aware columns and links, so editors see
+ * no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
   contentPage(async (session, request) => {
     const { listings } = await loadSortedListings();
@@ -164,12 +161,11 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
     );
   });
 
-/** Handle GET /admin/listings/csv — export every listing (filtered by the same
- * ?type= category and attribute filters the listings views use) as a CSV
- * download. The attribute filter context is loaded from the full listing set
- * (before the type filter narrows it) so an attribute that only exists on a
- * different listing type is still recognised by selectedAttributeFiltersFromRequest
- * rather than silently dropped. */
+/** Exports every listing, filtered by the same ?type= category and attribute
+ * filters the listings views use. The attribute filter context loads from the
+ * full listing set, before the type filter narrows it. An attribute that only
+ * exists on a different listing type is then still recognised by
+ * selectedAttributeFiltersFromRequest rather than silently dropped. */
 const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
@@ -190,17 +186,16 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
     return csvResponse(csv, `listings${suffix}.csv`);
   });
 
-/** Maximum number of log entries to display */
 const LOG_DISPLAY_LIMIT = 200;
 
 /**
  * Resolve the attendee and listing display names referenced by a batch of log
- * entries, so the global log can show each entry's attendee/listing as a link.
- * Both are bounded id → name lookups over only the ids the entries reference —
- * attendee names decrypted with the current request's private key, listing names
- * from the listings table — so the page never scans whole tables to label a few
- * rows. An attendee that has since been deleted simply has no entry here; its
- * log rows keep the id but render without a link.
+ * entries. The global log then shows each entry's attendee and listing as a
+ * link. Both are bounded id → name lookups over only the ids the entries
+ * reference. Attendee names are decrypted with the current request's private
+ * key. Listing names come from the listings table. The page never scans whole
+ * tables to label a few rows. An attendee deleted since then has no entry
+ * here. Its log rows keep the id but render without a link.
  */
 const loadActivityLogRefs = async (
   entries: ActivityLogEntry[],
@@ -214,9 +209,6 @@ const loadActivityLogRefs = async (
   return { attendees, listings };
 };
 
-/**
- * Handle GET /admin/log
- */
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
@@ -227,7 +219,6 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   },
 );
 
-/** Dashboard routes */
 export const adminHandlers = defineRoutes({
   "GET /admin": handleAdminGet,
   "GET /admin/listings": handleAdminListingsGet,

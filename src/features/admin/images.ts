@@ -131,7 +131,7 @@ const siteContentImageOptions = async (): Promise<ImageItemOption[]> => [
   ),
 ];
 
-/** The link targets this session may manage. News posts and pages are
+/** The link targets this session can manage. News posts and pages are
  * Site-gated (owner + editor): a manager never sees them here, matching the
  * Site content image routes that exclude managers. */
 const imageItemOptions = async (
@@ -176,23 +176,23 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
     .filter((target): target is ImageUseTarget => target !== null);
 
 /** The image-use item types that are public Site content (owner + editor):
- * news posts and pages. An image on either surfaces publicly, so a manager may
- * not manage it. */
+ * news posts and pages. An image on either surfaces publicly, so a manager
+ * cannot manage it. */
 const isSiteContentImageType = (type: ImageUseItemType): boolean =>
   type === "news" || type === "page";
 
 /** Does this image sit on any Site content (a news post or a page)? Its
  * metadata (name/alt_text) and its presence render on that public surface, so
- * changing or removing it is a Site-gated action a manager may not take. */
+ * changing or removing it is a Site-gated action a manager cannot take. */
 const imageHasSiteContentUse = async (imageId: number): Promise<boolean> =>
   (await getImageUsesForImage(imageId)).some((use) =>
     isSiteContentImageType(use.item_type),
   );
 
-/** Block a non-Site session (a manager) from a save that would change an image
- * a news post or page uses — its metadata and links both surface as public Site
- * content. Returns the bounce-back response, or null when the save may proceed.
- * Shared by the edit and delete handlers. */
+/** Block a non-Site session (a manager) from a save that changes an image
+ * a news post or page uses. That image's metadata and links both surface as
+ * public Site content. Returns the bounce-back response, or null when the
+ * save can proceed. Shared by the edit and delete handlers. */
 const siteContentImageGate = async (
   adminLevel: AdminLevel,
   imageId: number,
@@ -202,7 +202,7 @@ const siteContentImageGate = async (
     ? redirect(redirectTo, t("images.news_gated"), false)
     : null;
 
-/** The link targets a save may apply. A non-Site session (manager) never
+/** The link targets a save can apply. A non-Site session (manager) never
  * attaches a Site-content target — any submitted `news:<id>`/`page:<id>` is
  * dropped. Editing an image that already HAS such a use is blocked outright by
  * {@link siteContentImageGate}, so there are no existing Site links to preserve
@@ -253,7 +253,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
   imageHandlers.post(async (image, form, adminLevel) => {
     const deletePath = `/admin/images/${image.id}/delete`;
     // deleteImageRecord prunes every use, including a news one, so a non-Site
-    // role may not delete an image a news post uses (public Site content).
+    // role cannot delete an image a news post uses (public Site content).
     const blocked = await siteContentImageGate(
       adminLevel,
       image.id,
@@ -262,9 +262,9 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) return redirect(deletePath, mismatch, false);
-    // Delete the stored files first: if storage cleanup fails, keep the DB
-    // record so the admin can retry, rather than orphaning the files under a
-    // deleted record with no library entry to delete them from.
+    // Delete the stored files first. If storage cleanup fails, keep the DB
+    // record so the admin can retry. Otherwise the files sit orphaned under
+    // a deleted record, with no library entry to delete them from.
     try {
       await deleteImageStorageFilesStrict(image);
     } catch {

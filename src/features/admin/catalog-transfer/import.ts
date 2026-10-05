@@ -91,7 +91,7 @@ const importedGroupMembersError = async (
   const listingById = mapById(identity<ListingWithCount>)(listings);
   const memberListings = memberIds.map((id) => listingById.get(id)!);
   // A built-site plan member joins no group — ordinary or package — so the
-  // whole import refuses the same way a direct membership write would.
+  // whole import refuses, as a direct membership write does.
   const sitePlan = memberListings.find((listing) => listing.assign_built_site);
   if (sitePlan) return sitePlanMemberError(sitePlan.name);
   const homogeneityError = membersHomogeneous(memberListings);
@@ -100,11 +100,12 @@ const importedGroupMembersError = async (
   return packageMembersError(memberListings, group.hidePackageListings);
 };
 
-/** Day-price override validation inside the write transaction, so a listing
+/** Day-price override validation inside the write transaction. A listing
  *  whose day counts changed between the pre-tx read and this write rolls
- *  back rather than committing an override for a day count it no longer offers.
- *  Reads the member listings through the transaction so the day-count check
- *  sees the current state, not the request-level cache. */
+ *  back. The import then never commits an override for a day count the
+ *  listing no longer offers. Reads the member listings through the
+ *  transaction so the day-count check sees the current state, not the
+ *  request-level cache. */
 const importedGroupDayPriceErrorTx = async (
   tx: TxScope,
   memberIds: readonly number[],

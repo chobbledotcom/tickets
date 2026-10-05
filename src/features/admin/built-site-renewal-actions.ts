@@ -52,7 +52,7 @@ const parseDeadlineDate = (dateStr: string): string | null =>
   isIsoDate(dateStr) ? `${dateStr}T23:59:59Z` : null;
 
 /** A reserved-but-unconfirmed token means the renewal URL never reached the
- * site: no deadline change may proceed while the retry path is the provision
+ * site: no deadline change can proceed while the retry path is the provision
  * route. Returns the tab error to return, or undefined to continue. */
 const reservedRenewalError = (site: BuiltSite, id: number) =>
   isReservedRenewal(site)
@@ -71,11 +71,10 @@ const whenProvisioned =
     return blocked ?? action(site, form, id);
   };
 
-/** POST /admin/built-sites/:id/bump-deadline */
 export const handleBumpDeadline = builtSiteAction(
   whenProvisioned(async (site, form, id) => {
-    // Storing a cutoff here would let the provision route refuse the retry
-    // while the site still has no renewal link.
+    // This route stores no cutoff: the provision route is the one that
+    // refuses the retry while the site still has no renewal link.
     const months = readClampedMonths(form);
     const newIso = addMonthsToRenewalDeadline(site, months);
     const result = await syncReadOnlyFrom(site, newIso);
@@ -88,7 +87,6 @@ export const handleBumpDeadline = builtSiteAction(
   }),
 );
 
-/** POST /admin/built-sites/:id/override-deadline */
 export const handleOverrideDeadline = builtSiteAction(
   whenProvisioned(async (site, form, id) => {
     const dateStr = form.getString("date");
@@ -109,7 +107,6 @@ export const handleOverrideDeadline = builtSiteAction(
   }),
 );
 
-/** POST /admin/built-sites/:id/re-sync-deadline */
 export const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   if (!site.readOnlyFrom) {
     return builtSiteTabError(id, "renewal", "No deadline to re-sync");
@@ -125,11 +122,9 @@ export const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   return renewalPushResult("Deadline re-synced")(id, result);
 });
 
-/** POST /admin/built-sites/:id/provision-renewal
- *
- * Gates on the existence of at least one qualifying renewal tier listing so an
- * admin doesn't generate a token that would dead-end at an empty /renew picker.
- * (The customer picks the actual tier at renew time.) */
+/** Gates on the existence of at least one qualifying renewal tier listing.
+ * Without the gate an admin generates a token that dead-ends at an empty
+ * /renew picker. The customer picks the actual tier at renew time. */
 export const handleProvisionRenewal = builtSiteAction(
   async (site, form, id) => {
     // A provisioned site with a set deadline is confirmed. Anything else —
