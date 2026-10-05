@@ -433,8 +433,10 @@ automatic.
 - `deno task specs:check` — parse and validate every Feature
 - `deno task specs:files <feature>... [--tags <expression>]` — run selected
   Features
-- `deno task lint` — format and lint code with Biome (`check --write`). Format
-  through this task
+- `deno task lint` — format and lint code with Biome (`check --write
+  --unsafe`). Format through this task. Fixable findings — including
+  unsafe-fix ones like unused imports — self-heal here instead of failing.
+  Warn and info findings are left to the strict `lint:ci` gate
 - `deno task lint:ci` — the strict read-only lint that precommit runs
 - `deno task build:edge` — build for Bunny Edge deployment
 - `deno task check:file-lengths` — the 500-line limit over every source tree,
