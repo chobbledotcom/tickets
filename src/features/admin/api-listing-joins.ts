@@ -159,9 +159,9 @@ export const persistListingJoins = async (
   value: PreparedListingJoins,
 ): Promise<void> => {
   if (value.attributeOptionIds !== undefined) {
-    // The existence check shares the link write's transaction: an option
+    // The existence check shares the link write's transaction. An option
     // deleted between the request parse and this read cannot leave an orphan
-    // id behind, and the query is bounded to the submitted ids.
+    // id behind. The query is bounded to the submitted ids.
     const missing = await missingAttributeOptionIds(
       tx,
       value.attributeOptionIds,
