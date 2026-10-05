@@ -1,7 +1,7 @@
 import { assert } from "@std/assert";
 import { Lexer, type Token, type Tokens } from "marked";
 
-interface ProseBlock {
+export interface ProseBlock {
   columns: number[];
   lines: number[];
   text: string;

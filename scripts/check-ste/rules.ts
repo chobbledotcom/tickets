@@ -1,5 +1,5 @@
 import type { PerFileFinding } from "#scripts/check-runner.ts";
-import { proseBlocks } from "./prose.ts";
+import { type ProseBlock, proseBlocks } from "./prose.ts";
 
 export interface SteIssue extends PerFileFinding {
   column: number;
@@ -28,7 +28,10 @@ const WORDY: Record<string, string> = {
   utilize: 'write "use"',
 };
 
-const RULES: Rule[] = [
+/** The mechanical STE patterns one prose run is judged by, shared by the
+ * Markdown check (`findIssues`) and the source-comment check
+ * (`scripts/check-comments/ste.ts`). */
+export const STE_RULES: Rule[] = [
   {
     fix: 'write the words in full, for example "do not"',
     pattern:
@@ -47,7 +50,11 @@ const RULES: Rule[] = [
   },
   // Capital May remains exempt because it also names a month.
   { fix: "use can, will, or must", pattern: /\bmay\b/g, rule: "banned-modal" },
-  { fix: "write two sentences", pattern: /;/g, rule: "semicolon" },
+  {
+    fix: "write two sentences",
+    pattern: /(?<!&[a-zA-Z]{1,10});/g,
+    rule: "semicolon",
+  },
   {
     fix: "write a new sentence",
     pattern:
@@ -61,9 +68,11 @@ const RULES: Rule[] = [
   })),
 ];
 
-export const findIssues = (content: string): SteIssue[] =>
-  proseBlocks(content).flatMap(({ text, lines, columns }) =>
-    RULES.flatMap(({ pattern, fix, rule }) =>
+/** Every STE finding the prose blocks hold, one per pattern match, each
+ * naming its line and column in the source the blocks were read from. */
+export const issuesInBlocks = (blocks: readonly ProseBlock[]): SteIssue[] =>
+  blocks.flatMap(({ text, lines, columns }) =>
+    STE_RULES.flatMap(({ pattern, fix, rule }) =>
       [...text.matchAll(pattern)].map((match) => ({
         column: columns[match.index]!,
         context: text,
@@ -77,3 +86,6 @@ export const findIssues = (content: string): SteIssue[] =>
       .sort((a, b) => a.index - b.index)
       .map(({ index: _index, ...issue }) => issue),
   );
+
+export const findIssues = (content: string): SteIssue[] =>
+  issuesInBlocks(proseBlocks(content));

@@ -41,11 +41,15 @@ const newlinesBetween = (content: string, from: number, to: number): number => {
   return count;
 };
 
-/** One comment as written, with where on the page it opens. */
+/** One comment as written, with where on the page it opens and closes. */
 interface SourceComment {
   /** How many characters precede it on its own line. */
   column: number;
+  /** The offset just past the comment's last character. */
+  end: number;
   line: number;
+  /** The offset of the comment's first character. */
+  start: number;
   text: string;
 }
 
@@ -57,11 +61,27 @@ const columnOf = (content: string, offset: number): number => {
 };
 
 /**
+ * The same directive tokens, anchored where the text a language check reads
+ * starts: a comment that only mentions a directive is prose.
+ */
+const DIRECTIVE_AT_START =
+  /^(?:\s|\*|\/\*)*(jscpd:ignore|<reference|biome-ignore|@ts-expect-error|@ts-ignore|@ts-nocheck|@ts-self-types|deno-fmt-ignore|test-groups:|sourceMappingURL)/;
+
+/** How a caller wants directive comments: dropped (the length checks) or
+ * kept (a check that reads the human explanation after the directive). */
+interface CommentOptions {
+  keepDirectives?: boolean;
+}
+
+/**
  * Every comment in a file, directives dropped, in source order. Spans arrive in
  * order, so the line number advances by counting newlines since the last one
  * rather than re-scanning from the top for each.
  */
-export const readComments = (content: string): SourceComment[] => {
+export const readComments = (
+  content: string,
+  { keepDirectives = false }: CommentOptions = {},
+): SourceComment[] => {
   const comments: SourceComment[] = [];
   let scanned = 0;
   let line = 1;
@@ -69,10 +89,33 @@ export const readComments = (content: string): SourceComment[] => {
     line += newlinesBetween(content, scanned, span.start);
     scanned = span.start;
     const text = content.slice(span.start, span.end);
-    if (DIRECTIVE.test(text)) continue;
-    comments.push({ column: columnOf(content, span.start), line, text });
+    if (!keepDirectives && DIRECTIVE.test(text)) continue;
+    comments.push({
+      column: columnOf(content, span.start),
+      end: span.end,
+      line,
+      start: span.start,
+      text,
+    });
   }
   return comments;
+};
+
+/** The directives whose reason follows the token without punctuation: a
+ * TypeScript suppression states its human reason in the same words. */
+const TS_SUPPRESSION = /@(?:ts-expect-error|ts-ignore)$/;
+
+/** The text a language check reads from a directive comment: the directive
+ * and its target gone, so only the human explanation after it stays. A
+ * TypeScript suppression's reason follows the token whole, colon or not. Any
+ * other directive without a `:` separator carries no explanation. */
+export const blankDirective = (text: string): string => {
+  const match = DIRECTIVE_AT_START.exec(text);
+  if (match === null) return text;
+  const rest = text.slice(match.index + match[0].length);
+  if (TS_SUPPRESSION.test(match[0])) return rest;
+  const colon = rest.indexOf(":");
+  return colon === -1 ? "" : rest.slice(colon + 1);
 };
 
 const tooLong = (

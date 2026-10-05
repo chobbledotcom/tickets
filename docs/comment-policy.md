@@ -9,6 +9,19 @@ lines at most **100 columns**. `deno task check:comments` enforces both in
 `precommit`; the numbers live in `scripts/check-comments/run.ts` and are meant
 to come down. See [Where we are](#where-we-are) for the remaining steps.
 
+**Decided and shipped.** A comment also holds to the mechanical
+Simplified Technical English rules: contractions, banned modals,
+present-perfect forms, semicolons, participles after a comma, the wordy
+list, and sentences past 25 words. `deno task check:comment-ste` enforces
+these in `precommit` against per-file counts that only fall. Quoted code
+and quoted error messages keep their own spelling. A bullet's marker is
+not a word, and the sentence after it holds to the limit. A table in a
+comment follows the Markdown rules, so the checker does not read a real
+table's rows. A fenced code block and an example body are not prose. The
+checker reads the explanation after a directive, and does not read the
+directive itself. The judgement half — a word too fancy, a sentence that
+says the wrong thing — stays with the person.
+
 All measurements come from `src/` at commit `470b47e` (1,181 files, 161,904
 lines), counted with the repo's own lexer (`scripts/typescript-lex.ts`), so a
 `//` inside a string is never miscounted. They describe the tree **before** the
