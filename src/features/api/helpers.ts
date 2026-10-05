@@ -21,7 +21,7 @@ export const bookingSuccessResponse = (attendee: {
 }): Response =>
   apiResponse({
     booking: {
-      // Outstanding balance in minor units. 0 when fully paid. Positive when
+      // Outstanding balance in minor units; 0 when fully paid, positive when
       // the booking was taken without collecting payment (no provider), so
       // the integration knows the amount left to collect from the buyer.
       amountOwed: attendee.remaining_balance,
@@ -39,22 +39,28 @@ export const checkoutResponse = (checkoutUrl: string): Response =>
 export const soldOutResponse = (): Response =>
   apiError(bookingError.generic, 409);
 
-/** Map a failed checkout-session creation to a response. The provider's own
+/** Map a failed checkout-session creation to a response: the provider's own
  * message when it gave one (a 400 the buyer can act on), otherwise the
  * generic 500. */
 export const checkoutFailedResponse = (error?: string): Response =>
   error ? apiError(error) : apiError(bookingError.paymentSessionFailed, 500);
 
-/** Resolve a booking's `quantity` field from a JSON body. It defaults to 1
- * for absent/malformed values and rejects an explicit 0 (the admin-only
- * no-quantity sentinel must never be created through the public API). Shared
- * by the standalone and package booking paths so they read quantity the same
- * way. */
+/** Resolve a booking's `quantity` field from a JSON body. The field is
+ * required: an absent or malformed value is a 400, never a default, so a
+ * caller can never book a count it did not name. An explicit 0 is refused (the
+ * admin-only no-quantity sentinel must never be created through the public
+ * API). Shared by the standalone and package booking paths so they read
+ * quantity the same way. */
 export const resolvePositiveQuantity = (
   body: Record<string, unknown>,
 ): number | Response => {
+  if (body.quantity === undefined) {
+    return apiError("Quantity is required");
+  }
   const parsedQuantity = parseNonNegativeInt(String(body.quantity));
-  if (parsedQuantity === null) return 1;
+  if (parsedQuantity === null) {
+    return apiError("Quantity must be a whole number of 1 or more");
+  }
   if (parsedQuantity === 0) {
     return apiError("Quantity must be at least 1");
   }
@@ -62,12 +68,11 @@ export const resolvePositiveQuantity = (
 };
 
 /** Resolve a pay-more listing's submitted `customPrice` (from the JSON body's
- * `customPrice` field). The result is the validated price for a
- * `can_pay_more` listing, `undefined` for a fixed-price one (nothing to
- * parse). A 400 response follows when the submitted price is out of range.
- * Shared by the standalone booking path and the parent-booking path (which
- * seeds the fold's customPrices with it). The two never parse the pay-more
- * price differently. */
+ * `customPrice` field): the validated price for a `can_pay_more` listing,
+ * `undefined` for a fixed-price one (nothing to parse), or a 400 response when
+ * the submitted price is out of range. Shared by the standalone booking path and
+ * the parent-booking path (which seeds the fold's customPrices with it) so
+ * the two never parse the pay-more price differently. */
 export const resolveCustomPrice = (
   listing: ListingWithCount,
   form: FormParams,
@@ -97,7 +102,7 @@ export const parseApiJsonBody: JsonBodyReader = async (request) => {
   if (!body.ok) return apiError("Invalid JSON body");
   const parsed = body.value;
   // JsonBodyReader promises a plain record. A body like `null` or `[...]` parses
-  // fine but is not a record. Reject it here rather than letting it reach the
+  // fine but is not a record, so reject it here rather than letting it reach the
   // route's field parsing and throw further in.
   if (!isRecord(parsed)) {
     return apiError("Invalid JSON body");
@@ -107,7 +112,7 @@ export const parseApiJsonBody: JsonBodyReader = async (request) => {
 
 /** Parse the request's JSON body and, unless it fails with a 400 response, hand
  * the parsed record to `use`. Lets a book route skip the parse-then-guard
- * boilerplate that every JSON endpoint otherwise repeats. */
+ * boilerplate that every JSON endpoint would otherwise repeat. */
 export const withApiBody = async (
   request: Request,
   use: (body: Record<string, unknown>) => Promise<Response>,
@@ -122,20 +127,20 @@ export type SlugRouteHandler = (
   params: { slug: string },
 ) => Promise<Response>;
 
-/** A handler that receives a slug-loaded value alongside the request. It is
- * the shape `withSlugLoaded` calls after the load succeeds. Each loaded
- * surface (an active listing, a bookable package) only spells how its loader
- * yields the value, not the request plumbing around it. */
+/** A handler that receives a slug-loaded value alongside the request — the
+ * shape `withSlugLoaded` calls after the load succeeds, so each loaded surface
+ * (an active listing, a bookable package) only spells how its loader yields the
+ * value, not the request plumbing around it. */
 type LoadedHandler<Loaded> = (
   request: Request,
   loaded: Loaded,
 ) => Promise<Response>;
 
-/** Wrap a `:slug` route handler that resolves its slug into a loaded value.
- * The loader's 404/error `Response` passes straight through when the load
- * fails. The single place the load-or-respond routing is spelled. The listing
- * and package endpoints (and any future `:slug`-loaded surface) never drift
- * on how a missing slug becomes a response. */
+/** Wrap a `:slug` route handler that resolves its slug into a loaded value,
+ * passing the loader's 404/error `Response` straight through when it fails. The
+ * single place the load-or-respond routing is spelled, so the listing and
+ * package endpoints (and any future `:slug`-loaded surface) never drift on how
+ * a missing slug becomes a response. */
 export const withSlugLoaded =
   <Loaded>(loader: (slug: string) => Promise<Loaded | Response>) =>
   (handler: LoadedHandler<Loaded>): SlugRouteHandler =>
@@ -159,7 +164,7 @@ export const toFormParams = (body: Record<string, unknown>): FormParams =>
 /**
  * Throttle a booking request by client IP. The booking endpoints are
  * unauthenticated and create rows, send emails, and fire webhooks, so a flood
- * can grief capacity and spam the owner. Returns a 429 response when over the
+ * could grief capacity and spam the owner. Returns a 429 response when over the
  * limit, or null to proceed (counting this attempt).
  */
 export const checkBookingRateLimit = async (): Promise<Response | null> => {

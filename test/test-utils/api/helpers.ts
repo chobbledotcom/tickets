@@ -91,7 +91,11 @@ export const bookListing = async (
 /** Book a listing by slug, assert 200 with a ticket token issued, and return
  * the booking body for further assertions. */
 export const bookForToken = async (slug: string): Promise<BookResponseBody> => {
-  const { response, body } = await bookListing(slug);
+  const { response, body } = await bookListing(slug, {
+    email: "alice@test.com",
+    name: "Alice",
+    quantity: 1,
+  });
   expect(response.status).toBe(200);
   expect(body.booking?.ticketToken).toBeDefined();
   return body;

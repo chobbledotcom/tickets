@@ -87,8 +87,14 @@ const listingControls = (
       ? `<input type="hidden" name="${fieldName}" value="1" />`
       : `<select name="${fieldName}">${quantityOptions(
           maxPurchasable,
-          restoredQuantity(listing.id, prefill, maxPurchasable),
+          restoredQuantity(
+            listing.id,
+            prefill,
+            maxPurchasable,
+            listing.minimum_quantity,
+          ),
           monthLabelsForListing(listing, renewal),
+          listing.minimum_quantity,
         )}</select>`,
     termNote: termNoteFor(listing, hideQuantity, renewal),
   };

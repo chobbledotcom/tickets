@@ -3,6 +3,7 @@
  * the allowed range. Shared by the per-listing and package-count restores so the
  * two can't drift. */
 
+import { quantityBelowMinimum } from "#booking/model.ts";
 /* jscpd:ignore-start */
 import {
   childQuantityFieldName,
@@ -46,14 +47,22 @@ export const monthLabelsForListing = (
     : (count) => t("public.ticket.month_option", { count: count * monthsEach });
 };
 
-/** An `<option>` list `0..max` for a quantity selector, with `selected` chosen.
- *  `labelFor` names what each count buys (default: the count itself). */
+/** An `<option>` list for a quantity selector: none (0), then `minimum..max`,
+ *  with `selected` chosen. `minimum` defaults to 1, which keeps the plain
+ *  `0..max` list. `labelFor` names what each count buys (default: the count). */
 export const quantityOptions = (
   max: number,
   selected: number,
   labelFor: (count: number) => string = String,
+  minimum = 1,
 ): string =>
-  Array.from({ length: max + 1 }, (_, i) => i)
+  [
+    0,
+    ...Array.from(
+      { length: Math.max(0, max - minimum + 1) },
+      (_, i) => i + minimum,
+    ),
+  ]
     .map(
       (n) =>
         `<option value="${n}"${
@@ -85,17 +94,22 @@ const clampSavedQuantity = (
 
 /** The quantity to pre-select for a row: the value the visitor just submitted
  * (restored when a validation error re-renders the page), else the QR/order
- * pre-fill — both clamped to the available range. */
+ * pre-fill — both clamped to the available range, and a count above none but
+ * below the minimum restores to 0 so a re-render or a stale prefill never
+ * selects a value the select does not offer. */
 export const restoredQuantity = (
   listingId: number,
   prefill: TicketPrefill | undefined,
   maxPurchasable: number,
-): number =>
-  clampSavedQuantity(
+  minimumQuantity: number,
+): number => {
+  const restored = clampSavedQuantity(
     savedFormValue(quantityFieldName(listingId)),
     maxPurchasable,
     resolveQuantity(prefill, maxPurchasable),
   );
+  return quantityBelowMinimum(restored, minimumQuantity) ? 0 : restored;
+};
 
 /** One package's count to pre-select: the value the buyer just submitted
  * (restored when a validation error re-renders the page) clamped to the limit,

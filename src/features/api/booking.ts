@@ -55,6 +55,9 @@ const resolveQuantityAndDate = async (
 ): Promise<{ quantity: number; date: string | null } | Response> => {
   const quantity = resolvePositiveQuantity(body);
   if (quantity instanceof Response) return quantity;
+  if (quantity < listing.minimum_quantity) {
+    return apiError(`Quantity must be at least ${listing.minimum_quantity}`);
+  }
   const clampedQuantity = Math.min(quantity, listing.max_quantity);
   if (!countsPerDate(listing.listing_type)) {
     return { date: null, quantity: clampedQuantity };
