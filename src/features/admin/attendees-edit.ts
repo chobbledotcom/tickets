@@ -1,11 +1,9 @@
 /**
- * Admin attendee refresh-payment route.
- *
- * The unified add/edit attendee page lives in `attendee-form-routes.ts`.
- * This module keeps the smaller refresh-payment handler that polls the
- * payment provider for an updated refund status and posts the refund to the
- * transfers ledger when the provider says it has been refunded — the ledger's
- * `refund_cash` leg is what the per-row `refunded` projection now reads.
+ * The unified add/edit attendee page lives in `attendee-form-routes.ts`. This
+ * module keeps the smaller refresh-payment handler. The handler polls the
+ * payment provider for an updated refund status. When the provider reports a
+ * refund, the handler posts the refund to the transfers ledger. The ledger's
+ * `refund_cash` leg is what the per-row `refunded` projection reads.
  */
 
 import { getFirstBooking } from "#db/attendees/queries.ts";
@@ -28,7 +26,6 @@ import {
   refreshClaimedPayment,
 } from "./refunds/refresh.ts";
 
-/** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
   attendee: Attendee;
   /** The attendee keeps its original listing id even after listing deletion. */
@@ -49,9 +46,6 @@ const loadRefreshContext = async (
   };
 };
 
-/** Load the attendee, listing, and payment references for a refresh. Returns
- *  either a Redirect (for the error paths: not found or no references) or the
- *  context the handler needs. */
 const loadRefreshState = async (
   attendeeId: number,
   form: FormParams,
@@ -125,7 +119,6 @@ const refreshPaymentResponse = (
   );
 };
 
-/** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
 > = (request, { attendeeId }) =>

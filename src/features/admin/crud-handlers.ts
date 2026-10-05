@@ -45,13 +45,13 @@ export const operationResponse = async <Success extends { ok: true }, Output>(
       : renderError(result.error);
 
 /**
- * `Row` is the stored row the resource writes; `Display` is the (optionally
- * richer) row the list page
- * renders. They differ only when a list column is projected at read time rather
- * than stored — e.g. modifiers, whose `total_revenue` is a ledger projection
- * absent from the stored {@link ModifierRow} but present on the displayed
- * {@link Modifier}. `Display` defaults to `Row`, so the common case (groups,
- * holidays, …) is unchanged.
+ * `Row` is the stored row the resource writes. `Display` is the optionally
+ * richer row the list page renders. They differ only when a list column is
+ * projected at read time rather than stored. An example is modifiers, whose
+ * `total_revenue` is a ledger projection. It is absent from the stored
+ * {@link ModifierRow} and present on the displayed {@link Modifier}.
+ * `Display` defaults to `Row`, so the common case (groups, holidays, …) is
+ * unchanged.
  */
 export type CollectionRenderers<Model> = {
   renderList: (
@@ -69,17 +69,17 @@ type CrudConfig<Row, Display = Row> = CollectionRenderers<Display[]> & {
   list: AdminDestinationId;
   /** Redirect path after create/edit. Falls back to the list page when not
    * provided.
-   * Receives the acting session so the target can be role-aware (e.g. editors,
-   * who can't open the staff detail page, return to the edit form instead). */
+   * Receives the acting session, so the target can be role-aware. Editors,
+   * who cannot open the staff detail page, return to the edit form instead. */
   getRowPath?: (row: Row, session: AdminSession) => string;
   /** Optional create-only target. This supports resources whose new records
    * return to the collection while edits open the canonical entity page. */
   getCreatePath?: (row: Row, session: AdminSession) => string;
   getAll: () => Promise<Display[]>;
-  /** The resource, or a factory that builds it. A factory lets a resource whose
-   * fields are a per-request builder (e.g. modifiers, whose picklist options
-   * resolve through `t()`) stay off the module-load / cold-start path — it is
-   * only invoked inside the per-request handlers below, never at setup. */
+  /** The resource, or a factory that builds it. A factory keeps a resource
+   * whose fields are a per-request builder off the module-load path. Modifiers
+   * are the example: their picklist options resolve through `t()`. The factory
+   * is only invoked inside the per-request handlers below, never at setup. */
   operations: NamedOperations<Row> | (() => NamedOperations<Row>);
   /** Render a rejected edit in place. Entity pages use this to preserve the
    * submitted values at status 400. */
@@ -159,7 +159,7 @@ export const createCrudHandlers = <Row, Display = Row>(
 
   // Surface a validation error stashed by a failed create (PRG redirect),
   // mirroring how listGet reads the success flash. Without this the create
-  // page would silently re-render blank after rejecting a submission.
+  // page silently re-renders blank after rejecting a submission.
   const newGet = authPage(auth.new)((session) =>
     cfg.renderNew(session, getFlash().error),
   );

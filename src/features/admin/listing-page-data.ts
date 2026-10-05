@@ -1,8 +1,8 @@
 /**
  * Data loaders for the listing entity page. Most serve the read-only tabs —
  * Overview, Attendees (roster), and Activity. Each one gathers exactly what
- * its own tab renders, so the expensive decrypted-attendee fetch runs for the
- * two tabs that show the roster and for no other.
+ * its own tab renders. The expensive decrypted-attendee fetch therefore runs
+ * for the two tabs that show the roster, and for no other.
  *
  * `getListingAndGroups` is the exception, because the edit form and the edit
  * tab's panels both need it. It sits here rather than inside either of them.
@@ -104,14 +104,13 @@ export const getListingAndGroups = async (
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
- * tab may gate on. `publicPage` is the one share-eligibility state from
- * {@link listingPublicPageState} — it explains why share, QR, and
- * booking-link actions are suppressed. `hasEmailableAttendees` gates
- * the owner-only Email
- * action so it never links to the compose page's 404 (empty-recipient) path; it
- * is resolved lazily by the Actions tab's `prepare` hook (via
- * {@link listingHasEmailableAttendees}) rather than in the page-wide load, so
- * the recipient decrypt never runs for a tab that has no Email action.
+ * tab can gate on. `publicPage` is the one share-eligibility state from
+ * {@link listingPublicPageState}. It explains why share, QR, and
+ * booking-link actions are suppressed. `hasEmailableAttendees` gates the
+ * owner-only Email action, so it never links to the compose page's
+ * empty-recipient 404. It resolves lazily in the Actions tab's `prepare` hook
+ * (via {@link listingHasEmailableAttendees}), not in the page-wide load. The
+ * recipient decrypt therefore never runs for a tab with no Email action.
  */
 export type LoadedListing = {
   listing: ListingWithCount;
@@ -129,10 +128,11 @@ export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
     publicPage: await listingPublicPageState(listing),
   }));
 
-/** Whether the listing has at least one attendee with an email on file — the
- *  same recipient resolution the bulk-email compose route uses, so the Email
- *  action's visibility matches whether that page would 404 on zero recipients.
- *  Runs only from the Actions tab's `prepare` hook, and only for owners. */
+/** Whether the listing has at least one attendee with an email on file. This
+ *  is the same recipient resolution the bulk-email compose route uses. The
+ *  Email action's visibility then matches that page: it 404s on zero
+ *  recipients. Runs only from the Actions tab's `prepare` hook, and only for
+ *  owners. */
 export const listingHasEmailableAttendees = async (
   listingId: number,
 ): Promise<boolean> => {
@@ -144,10 +144,10 @@ export const listingHasEmailableAttendees = async (
   return recipients.length > 0;
 };
 
-/** Load and decrypt a listing's attendees. Uses the attendees-only query (which
- *  yields an empty list for a listing with none) rather than the nullable
- *  listing+attendees fetch: the entity page has already confirmed the listing
- *  exists, so there is no missing-listing case to guard here. */
+/** Load and decrypt a listing's attendees. Uses the attendees-only query,
+ *  which yields an empty list for a listing with none. The nullable
+ *  listing+attendees fetch stays out: the entity page has already confirmed
+ *  the listing exists, so there is no missing-listing case to guard here. */
 const loadDecryptedListingAttendees = async (
   listingId: number,
   privateKey: CryptoKey,
@@ -250,11 +250,11 @@ export const loadListingRosterPanel = async (
       filteredByDate.map((a) => a.id),
     ),
     hydrateListingLinks(listingChildren, [listing.id]),
-    // The date-scoped group cap for the per-date capacity summary; a no-op
+    // The date-scoped group cap for the per-date capacity summary. A no-op
     // (null date) when no daily date is selected.
     loadGroupContext(listing, state.date),
-    // The contact/history notes summary that used to sit above the roster on
-    // the combined page — for the on-screen (date-filtered) attendees.
+    // The contact/history notes summary, for the on-screen (date-filtered)
+    // attendees.
     loadNotesForAttendees(
       filteredByDate.map((a) => a.id),
       requireRequestPrivateKey,
@@ -291,11 +291,11 @@ export const loadListingActivityPreview = ({
   getListingActivityLog(listing.id, ACTIVITY_PREVIEW_LIMIT);
 
 /** The full activity log for the Activity tab. Uses the batched listing+log
- *  fetch; the framework has already resolved (and 404'd) the listing before this
- *  tab loads, so the row is present — assert it rather than carry a null branch
- *  this tab can never reach. */
+ *  fetch. The framework has already resolved (and 404'd) the listing before
+ *  this tab loads, so the row is present. Assert it rather than carry a null
+ *  branch this tab can never reach. */
 export const loadListingActivity = async ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
-  // LoadedListing is created only after the same listing row has been found.
+  // LoadedListing is created only after the same listing row is found.
   (await getListingWithActivityLogOrNull(listing.id))!.entries;

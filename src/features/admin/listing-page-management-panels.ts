@@ -23,8 +23,8 @@ import { loadListingParentsSection } from "./listings-parents.ts";
 /**
  * Build the Edit tab: the multipart edit form and its side panels. Reloads via
  * getListingAndGroups so the form reads the listing's *stored* values (not the
- * defaults-resolved view the page frame loaded), matching the pre-migration
- * edit page. `error` is set only on a rejected-save in-place re-render.
+ * defaults-resolved view the page frame loaded). `error` is set only on a
+ * rejected-save in-place re-render.
  */
 export const loadListingEditPanel = async (
   { listing }: LoadedListing,
@@ -32,9 +32,9 @@ export const loadListingEditPanel = async (
   error?: string,
   selectedGroupIds?: number[],
 ): Promise<JSX.Element> => {
-  // The framework resolved (and 404'd) the listing before this tab loads, so the
-  // stored re-fetch the edit form needs always finds the row; assert it rather
-  // than carry a null branch this tab can never reach.
+  // The framework resolved (and 404'd) the listing before this tab loads, so
+  // the stored re-fetch the edit form needs always finds the row. Assert it
+  // rather than carry a null branch this tab can never reach.
   const ctxData = (await getListingAndGroups(listing.id))!;
   const parents = await loadListingParentsSection(ctxData.listing);
   return ListingEditPanel({
@@ -44,7 +44,7 @@ export const loadListingEditPanel = async (
     listing: ctxData.listing,
     parents,
     // On a rejected save re-render the checkboxes the operator submitted, not
-    // the stored set, so their group changes aren't silently dropped.
+    // the stored set, so their group changes are not silently dropped.
     selectedGroupIds: selectedGroupIds ?? ctxData.selectedGroupIds,
     session: ctx.session,
   });
@@ -64,8 +64,8 @@ type ListingPanelLoader = (entity: LoadedListing) => Promise<JSX.Element>;
  *  available item and this listing's selected ids in parallel, then render. The
  *  tab is owner-only (matching the route's own gate). Save feedback arrives as
  *  a redirect flash rendered by the page frame, so the panel carries no error
- *  of its own — an extra loader parameter here would silently receive the
- *  framework's page-context argument instead. */
+ *  of its own. An extra loader parameter here reads the framework's
+ *  page-context argument instead, never an error. */
 const listingChoicePanelLoader =
   <Item>(
     loadItems: () => Promise<Item[]>,

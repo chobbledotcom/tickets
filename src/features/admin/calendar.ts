@@ -181,7 +181,7 @@ const filterAttendeesByAgent = async (
   const assignments = await getLogisticsAssignmentsForAttendees(
     attendeeIds(attendees),
   );
-  // The booking keys whose assignment matches the filter; an attendee row is
+  // The booking keys whose assignment matches the filter. An attendee row is
   // kept when its (attendee, listing) booking is among them.
   const matching = new Set(
     assignments

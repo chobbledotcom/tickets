@@ -50,9 +50,9 @@ const listingImageHandlers = createItemImageHandlers({
  * The single-listing GET surface is the tabbed entity page (listing-page.ts):
  * `/admin/listing/:id` is its Overview, `/admin/listing/:id/:tab` its other
  * tabs (attendees, edit, questions, qr, activity, actions). The router prefers
- * literal segments over the `:tab` param, so the remaining literal sub-routes
- * below (duplicate, export, new, …) and those in the scanner / qr.json / refund
- * bundles keep resolving to their own handlers. */
+ * literal segments over the `:tab` param. The remaining literal sub-routes
+ * below (duplicate, export, new, …) and those in the scanner / qr.json /
+ * refund bundles therefore keep resolving to their own handlers. */
 export const adminHandlers = defineRoutes({
   ...entityTabRoutes(adminPattern("listing"), listingPage),
   "DELETE /admin/listing/:id/delete": handleAdminListingDelete,

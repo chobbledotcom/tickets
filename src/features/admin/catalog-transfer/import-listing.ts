@@ -144,7 +144,7 @@ export const memberDayOverrideKey = (
 };
 
 /** The error message for a package member whose day-price override targets a
- *  day count the member does not offer, or null when the override is valid. */
+ *  day count the member does not offer. Null when the override is valid. */
 const memberDayPriceError = (
   memberName: string,
   ...args: Parameters<typeof memberDayOverrideKey>
@@ -192,9 +192,9 @@ export const importListing = async (
   adminLevel: AdminLevel | undefined,
 ): Promise<Result<ImportedEntity>> => {
   const { groups: memberships, listing, parents } = transfer;
-  // A built-site plan never imports: its site assignment is bound to the
-  // exporting install, and such a listing can carry no relationships, which
-  // the memberships and parent references below would recreate.
+  // A built-site plan never imports. Its site assignment is bound to the
+  // exporting install. Such a listing can carry no relationships, so the
+  // memberships and parent references below must not recreate any.
   if (listing.assignBuiltSite) {
     return fail(
       t("catalog_transfer.site_plan_listing_refused", {

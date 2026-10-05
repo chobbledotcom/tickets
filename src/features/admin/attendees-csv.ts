@@ -1,9 +1,7 @@
 /**
- * Attendee CSV columns and the per-listing attendee export. The standard
- * attendee columns are shared with the calendar export; this module owns the
- * attendee-specific formatting and assembles the optional date / listing-info /
- * question columns. Everything is expressed as {@link Column}s and handed to the
- * pure {@link CSV.generate}.
+ * The standard attendee columns are shared with the calendar export. This
+ * module owns the attendee-specific formatting and the optional date,
+ * listing-info, and question columns.
  */
 
 import { isServicing } from "#db/attendees/kind.ts";
@@ -72,9 +70,9 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   {
     header: t("csv.col.ticket_url"),
     // Blank for a no-quantity sentinel row: its /t URL renders the attendee's
-    // other real bookings (or 404s), so it isn't this row's customer ticket.
+    // other real bookings (or 404s), so it is not this row's customer ticket.
     // Also blank for a servicing hold: its token route `/t/:token` 404s (kind
-    // filter), so the URL would be a dead link an operator can't follow.
+    // filter), so the URL is a dead link an operator cannot follow.
     value: (a) =>
       a.quantity === 0 || isServicing(a.kind)
         ? ""
@@ -83,10 +81,10 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
 ];
 
 /** Optional Listing Date / Listing Location columns, shared by the attendee and
- * calendar exports. Each column is emitted only when its `show` flag is set; its
- * `value` reads the cell from the row (a per-row listing for the calendar, a
- * fixed listing for a single-listing attendee export). The listing date is a UTC
- * ISO datetime, which the supplied `value` is expected to render in the site tz. */
+ * calendar exports. The value reads the cell from the row: a per-row listing
+ * for the calendar, a fixed listing for a single-listing attendee export. The
+ * listing date arrives as a UTC ISO datetime, and the supplied value must
+ * render it in the site timezone. */
 export const listingInfoColumns = <T>(
   date: { show: boolean; value: Column<T>["value"] },
   location: { show: boolean; value: Column<T>["value"] },
@@ -122,23 +120,17 @@ const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
   }));
 };
 
-/** Options describing which columns an attendee export includes. */
 type AttendeeCsvOptions = {
   /** Prepend a Date column (the booking's day/range) for daily listings. */
   includeDate: boolean;
-  /** Site domain, for the ticket-URL column. */
   domain: string;
-  /** Site timezone, for the optional Listing Date column. */
   tz: string;
   /** Prepend fixed Listing Date / Listing Location columns. */
   listingInfo?: CsvListingInfo | undefined;
-  /** Append one column per custom question. */
   questionData?: AttendeeQuestionData | undefined;
 };
 
-/** The ordered attendee columns for an export: an optional booking Date, then
- * optional listing info, the standard attendee columns, then question columns.
- * Pure — built per call so the active locale applies. */
+/** Built per call so the active locale applies. */
 const attendeeColumns = ({
   includeDate,
   domain,
@@ -169,10 +161,7 @@ const attendeeColumns = ({
 ];
 
 /**
- * Generate CSV content for a single listing's attendees. When includeDate is
- * true, prepends a Date column (daily listings); when listingInfo is provided,
- * prepends Listing Date / Listing Location; when questionData is provided,
- * appends one column per custom question. The Listing Date is rendered in `tz`.
+ * CSV content for one listing's attendees. The Listing Date renders in `tz`.
  */
 export const generateAttendeesCsv = (
   attendees: Attendee[],

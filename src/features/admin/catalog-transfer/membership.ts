@@ -18,7 +18,7 @@ import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
  * and quantity — the membership facet a catalog export captures for one listing.
- * A `null` `package_price` means "no override"; `quantity` defaults to 1. The
+ * A `null` `package_price` means "no override". `quantity` defaults to 1. The
  * flat override lives in the `group` dimension of `listing_prices` (the
  * `group_listings.package_price` column was retired), read back by subquery. */
 export const getListingGroupMemberships = (
@@ -46,8 +46,6 @@ export type ImportedMembership = {
   dayPrices: DayPrices;
 };
 
-/** Build a multi-row INSERT for `table(columns)` from `rows`, or null when there
- * are no rows. Each row supplies one value per column, in order. */
 const multiRowInsert = (
   table: string,
   columns: readonly string[],
@@ -65,7 +63,7 @@ const multiRowInsert = (
 
 /** The (at most two) batched statements that create every membership row plus
  * its price overrides. The `group_listings` row carries only membership +
- * `quantity`; the flat package override and each per-day override are `group` /
+ * `quantity`. The flat package override and each per-day override are `group` /
  * `group_day` rows in `listing_prices` (the `group_listings.package_price` column
  * was retired). Targeted inserts (no group-wide delete), so importing into an
  * already-populated package never disturbs its other members. */

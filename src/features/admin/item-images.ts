@@ -31,8 +31,9 @@ import { withUploadedImage } from "./image-upload.ts";
 /* jscpd:ignore-end */
 
 type ItemImageConfig<T> = {
-  /** Who may edit this entity's images. Defaults to the content gates; entities
-   * under the Site tab pass the site gates so managers stay excluded there. */
+  /** Who can edit this entity's images. Defaults to the content gates.
+   * Entities under the Site tab pass the site gates, so managers stay
+   * excluded there. */
   auth?: { form: AuthPolicy<"form">; multipart: AuthPolicy<"multipart"> };
   disabledPath: (id: number) => string;
   itemType: ImageUseItemType;

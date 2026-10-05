@@ -26,7 +26,7 @@ import { isDeliveryRole, type LogisticsAgent } from "#types";
 
 /* jscpd:ignore-end */
 
-/** Users that may drive a logistics agent, decrypted as assignable options. */
+/** Users that can drive a logistics agent, decrypted as assignable options. */
 export const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
   const users = await getUserDisplayFields();
   const options = await Promise.all(

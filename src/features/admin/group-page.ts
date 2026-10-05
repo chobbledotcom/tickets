@@ -39,7 +39,7 @@ const staffOnly = (_group: Group, session: AuthSession): boolean =>
 /** The Actions tab entries. Each `visible` repeats the gate its target route
  * enforces, so no dead or forbidden link renders. The tab itself is open to
  * content roles (staff + editor), so Bulk actions and Delete carry an explicit
- * `staffOnly` check — Export is the only button an editor may use. */
+ * `staffOnly` check. Export is the only button an editor can use. */
 const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   {
     // A JSON export download (see catalog-transfer). A read, so — unlike bulk
@@ -53,9 +53,9 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
     icon: "hammer",
     intent: "write-form",
     labelKey: "groups.detail.bulk_actions",
-    // Bulk actions mutate the group's listings, so hide the link in read-only
-    // mode (matching the old detail nav, which only showed it when writable)
-    // and restrict it to staff now that editors reach this tab too.
+    // Bulk actions mutate the group's listings, so hide the link in
+    // read-only mode. Restrict it to staff now that editors reach this tab
+    // too.
     visible: staffOnly,
   },
   {
@@ -68,15 +68,15 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   },
 ];
 
-/** The Edit tab is content-gated but hidden in read-only mode: the global guard
- * redirects the edit route to /read-only, so rather than render a link that
- * immediately bounces (and so an editor's bare-URL default can't resolve onto an
- * un-editable form), hide the tab. */
+/** The Edit tab is content-gated but hidden in read-only mode. The global
+ * guard redirects the edit route to /read-only. Rather than render a link
+ * that immediately bounces, hide the tab: an editor's bare-URL default then
+ * cannot resolve onto an un-editable form. */
 const editVisible = (): boolean => true;
 const imagesVisible = (): boolean => isStorageEnabled();
 
 /** The Actions tab: the plain export/bulk links plus the delete danger zone.
- * Open to editors too — they may only use Export, since Bulk actions and
+ * Open to editors too — they can only use Export, since Bulk actions and
  * Delete each carry their own `staffOnly` check. */
 const actionsTab = (): TabDef<Group> => ({
   labelKey: "entity.tab.actions",
@@ -111,12 +111,12 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
     ),
     {
       // The scanner is served by its own route (GET /admin/groups/:id/
-      // scanner, scanner.ts) rather than this tab framework's section
-      // loaders — the router tries literal paths before this page's /:tab
-      // wildcard, so that route always wins and this tab renders no content
-      // of its own. Its entry here exists only to promote the link into the
-      // top-level tab strip, the same promotion the listing page's scanner
-      // tab uses, behind the same staff-only gate its route enforces.
+      // scanner, scanner.ts), not by this tab framework's section loaders.
+      // The router tries literal paths before this page's /:tab wildcard, so
+      // that route always wins. This tab renders no content of its own. Its
+      // entry here exists only to promote the link into the top-level tab
+      // strip, the same promotion the listing page's scanner tab uses. The
+      // gate matches the staff-only gate its route enforces.
       labelKey: "groups.detail.scanner",
       sections: [],
       slug: "scanner",

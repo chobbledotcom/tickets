@@ -1,8 +1,7 @@
 /**
- * The SEO/content form fields shared by the Site tab's content editors
- * (Pages, News): the required name, the optional meta title/description pair,
- * and the markdown body — plus the matching value helpers for pre-filling an
- * edit form and reading a submitted one.
+ * The SEO and content form fields shared by the Site tab's content editors
+ * (Pages, News). The value helpers pre-fill an edit form and read a submitted
+ * one.
  */
 
 import { pick } from "@std/collections";
@@ -22,8 +21,8 @@ import { slugFieldBase } from "#templates/fields/validators.ts";
  */
 export const CONTENT_FIELD_LIMITS = {
   content: MAX_TEXTAREA_LENGTH,
-  // The SEO caps are display limits, not storage limits: search engines
-  // truncate a title past ~64 characters and a description past ~160, so a
+  // The SEO caps are display limits, not storage limits. Search engines
+  // truncate a title past ~64 characters and a description past ~160. A
   // longer value never shows however much the form accepts.
   meta_description: 160,
   meta_title: 64,
@@ -40,11 +39,11 @@ const contentNameField = (label: string) =>
     type: "text",
   }) as const;
 
-/** The editable slug field shared by the Site content editors (Pages, News):
- * slug-format validation plus, when a `publicLinkPath` is given, a "Public
- * link" to the saved slug's public page. The link is edit-only — omit the path
- * on a create form, where the entity has no live page yet and a restored slug
- * would otherwise render a link that 404s. */
+/** The editable slug field shared by the Site content editors (Pages, News).
+ * The field carries slug-format validation. With a `publicLinkPath` it also
+ * carries a "Public link" to the saved slug's public page. The link is
+ * edit-only: a create form omits the path, because the entity has no live page
+ * yet. A restored slug on a create form must not render a link that 404s. */
 export const contentSlugField = (publicLinkPath?: (slug: string) => string) =>
   ({
     ...slugFieldBase(),
@@ -53,7 +52,6 @@ export const contentSlugField = (publicLinkPath?: (slug: string) => string) =>
     ...(publicLinkPath ? { publicLinkPath } : {}),
   }) as const;
 
-/** The optional SEO meta title + description pair. */
 const seoMetaFields = () =>
   [
     {
@@ -72,7 +70,6 @@ const seoMetaFields = () =>
     },
   ] as const;
 
-/** The markdown body field, with the formatting-help hint. */
 const markdownContentField = () =>
   ({
     hintHtml: formattingHint(),
@@ -84,7 +81,8 @@ const markdownContentField = () =>
   }) as const;
 
 /** The fields after the name/slug, shared by the create and edit forms:
- * SEO meta, any per-editor extras (e.g. the news snippet), then the body. */
+ * SEO meta, any per-editor extras (for example, the news snippet), then the
+ * body. */
 type TrailingContentFields<Extra extends readonly Field[]> = readonly [
   ...ReturnType<typeof seoMetaFields>,
   ...Extra,
@@ -114,14 +112,14 @@ export type ContentForms<
 
 /**
  * Build the create + edit forms for a Site content editor (Pages, News).
- * The two editors share every field; a config carries what differs:
+ * The two editors share every field. A config carries what differs:
  *
  * - `createSlugFields` — `[contentSlugField()]` when the create form asks for
  *   the slug (Pages), `[]` when the slug is auto-generated on create (News).
  *   Either way the create form shows no public link: the entity has no live
- *   page yet, and a restored-after-error slug must not render a link that 404s.
+ *   page yet. A restored-after-error slug must not render a link that 404s.
  * - `extraFields` — per-editor fields between the SEO meta pair and the
- *   markdown body (e.g. the news snippet).
+ *   markdown body (for example, the news snippet).
  * - `publicLinkPath` — the saved slug's public page, linked on the edit form.
  */
 export const defineContentForms = <

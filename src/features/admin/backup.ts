@@ -33,7 +33,6 @@ import {
   type BackupPageState,
 } from "#templates/admin/backup.tsx";
 
-/** Parse one server-generated backup filename into its display values. */
 const parseBackupEntry = (file: StorageFileMeta): BackupEntry => {
   const takenAt = new Date(parseBackupTime(file.name)!);
   return {
@@ -77,8 +76,8 @@ const getBackupPageState = async (): Promise<BackupPageState> => {
     };
   } catch (err) {
     // A storage listing failure must not hide the encryption key or the
-    // out-of-band restore instructions — but it must be shown as a failure,
-    // never dressed up as an empty backup list.
+    // out-of-band restore instructions. The page shows it as a failure,
+    // never as an empty backup list.
     return {
       ...base,
       backups: [],

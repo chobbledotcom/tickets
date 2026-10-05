@@ -1,9 +1,3 @@
-import { defineRoutes } from "#routes/router.ts";
-
-/**
- * Admin routes for listing attributes.
- */
-
 import { logActivity } from "#db/activity-log.ts";
 import {
   type AttributeOption,
@@ -52,6 +46,7 @@ import {
   redirect,
   redirectToDetail,
 } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -111,8 +106,9 @@ const handleAttributesPost = createAuthedFormRoute({
 });
 
 /** The listing usage both detail pages show: which listings selected each of
- * the attribute's options, as per-option counts plus a builder that turns any
- * subset of the options into "listings using this" table rows. */
+ * the attribute's options. The answer holds per-option counts plus a builder
+ * that turns any subset of the options into "listings using this" table
+ * rows. */
 const loadAttributeListingUse = async (attributeId: number) => {
   const { listingIdsByOption, listings } =
     await getAttributeListingUse(attributeId);
@@ -296,7 +292,6 @@ const handleEditOptionGet = attributeOptionHandlers.get(
   },
 );
 
-/** Build the URL of an option sub-action (delete, edit) for a given option. */
 const optionPath =
   (action: string) =>
   ({ id, optionId }: AttributeOptionParams): string =>
