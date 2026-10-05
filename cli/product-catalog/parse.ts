@@ -22,7 +22,7 @@ export type CatalogFilterAttribute = { name: string; value: string };
 export type CatalogProduct = {
   categories: string[];
   features: string[];
-  /** The product file name without its extension, e.g. "batak-lite". */
+  /** The product file name without its extension, e.g. "tumble-tower-hire". */
   filename: string;
   filterAttributes: CatalogFilterAttribute[];
   order: number;

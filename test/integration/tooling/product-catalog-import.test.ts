@@ -68,28 +68,34 @@ Body text that the importer never reads.
   });
 
   test("replaces a stored placeholder and an older stamp", () => {
-    const placeholder = "---\ntitle: Batak Lite\ntickets_id:\n---\n";
+    const placeholder = "---\ntitle: Tumble Tower Hire\ntickets_id:\n---\n";
     expect(withTicketsMeta(placeholder, { id: 42, slug: "b" })).toBe(
-      "---\ntitle: Batak Lite\ntickets_id: 42\ntickets_slug: b\n---\n",
+      "---\ntitle: Tumble Tower Hire\ntickets_id: 42\ntickets_slug: b\n---\n",
     );
     const stamped = withTicketsMeta(placeholder, { id: 42, slug: "b" });
     expect(withTicketsMeta(stamped, { id: 43, slug: "c" })).toBe(
-      "---\ntitle: Batak Lite\ntickets_id: 43\ntickets_slug: c\n---\n",
+      "---\ntitle: Tumble Tower Hire\ntickets_id: 43\ntickets_slug: c\n---\n",
     );
   });
 
   test("leaves text without a closing fence unchanged", () => {
-    const text = "---\ntitle: Batak Lite";
+    const text = "---\ntitle: Tumble Tower Hire";
     expect(withTicketsMeta(text, { id: 42, slug: "b" })).toBe(text);
   });
 
   test("rejects a product with no rental options", () => {
     expect(() =>
-      parseProductFile("batak.md", "---\ntitle: Batak Lite\n---\n"),
-    ).toThrow("batak.md: a product needs at least one rental option");
+      parseProductFile(
+        "tumble-tower.md",
+        "---\ntitle: Tumble Tower Hire\n---\n",
+      ),
+    ).toThrow("tumble-tower.md: a product needs at least one rental option");
     expect(() =>
-      parseProductFile("batak.md", "---\ntitle: Batak Lite\noptions:\n---\n"),
-    ).toThrow("batak.md: a product needs at least one rental option");
+      parseProductFile(
+        "tumble-tower.md",
+        "---\ntitle: Tumble Tower Hire\noptions:\n---\n",
+      ),
+    ).toThrow("tumble-tower.md: a product needs at least one rental option");
   });
 
   test("reads the importer flags, consuming the directory operand", () => {
@@ -143,13 +149,13 @@ Body text that the importer never reads.
 
   test("decides one action per product file", () => {
     const listings = [
-      { id: 42, name: "Batak Lite" },
-      { id: 7, name: "Old Batak" },
-      { id: 9, name: "Giant Jenga Hire" },
+      { id: 42, name: "Tumble Tower Hire" },
+      { id: 7, name: "Old Tumble Tower" },
+      { id: 9, name: "Reaction Wall Mini" },
     ];
     expect(
       resolveImportPlan(
-        { filename: "a.md", id: 42, title: "Batak Lite" },
+        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
         [],
         false,
         listings,
@@ -159,10 +165,10 @@ Body text that the importer never reads.
     // name still proves the stamp.
     expect(
       resolveImportPlan(
-        { filename: "a.md", id: 42, title: "Batak Lite" },
+        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
         [],
         false,
-        [{ id: 42, name: "  batak lite " }],
+        [{ id: 42, name: "  tumble tower hire " }],
       ),
     ).toEqual({ action: "skip-imported" });
     expect(resolveImportPlan(null, [], false, listings)).toEqual({
@@ -187,10 +193,10 @@ Body text that the importer never reads.
     // another site: a skipped file would keep the invalid reference forever.
     expect(() =>
       resolveImportPlan(
-        { filename: "a.md", id: 43, title: "Batak Lite" },
+        { filename: "a.md", id: 43, title: "Tumble Tower Hire" },
         [],
         false,
-        [{ id: 42, name: "Batak Lite" }],
+        [{ id: 42, name: "Tumble Tower Hire" }],
       ),
     ).toThrow(
       "a.md: tickets_id 43 names no listing on the site; restore the listing or delete the stamp from the file",
@@ -200,13 +206,13 @@ Body text that the importer never reads.
   test("refuses a stamp that names another product's listing", () => {
     expect(() =>
       resolveImportPlan(
-        { filename: "a.md", id: 42, title: "Batak Lite" },
+        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
         [],
         false,
-        [{ id: 42, name: "Giant Jenga Hire" }],
+        [{ id: 42, name: "Reaction Wall Mini" }],
       ),
     ).toThrow(
-      "a.md: tickets_id 42 names listing 'Giant Jenga Hire', not 'Batak Lite'; delete the stamp from the file or rename one and rerun",
+      "a.md: tickets_id 42 names listing 'Reaction Wall Mini', not 'Tumble Tower Hire'; delete the stamp from the file or rename one and rerun",
     );
   });
 
@@ -259,14 +265,19 @@ Body text that the importer never reads.
   test("reads a stored tickets id, or null for a placeholder", () => {
     expect(storedTicketsId("a.md", "---\ntickets_id: 42\n---\n")).toBe(42);
     expect(storedTicketsId("a.md", "---\ntickets_id:\n---\n")).toBeNull();
-    expect(storedTicketsId("a.md", "---\ntitle: Batak Lite\n---\n")).toBeNull();
+    expect(
+      storedTicketsId("a.md", "---\ntitle: Tumble Tower Hire\n---\n"),
+    ).toBeNull();
   });
 
   test("ignores a tickets id line in the body", () => {
     // A body that repeats the field name must not make the importer skip a
     // product it never imported.
     expect(
-      storedTicketsId("a.md", "---\ntitle: Batak Lite\n---\n\ntickets_id: 5\n"),
+      storedTicketsId(
+        "a.md",
+        "---\ntitle: Tumble Tower Hire\n---\n\ntickets_id: 5\n",
+      ),
     ).toBeNull();
   });
 
@@ -278,12 +289,12 @@ Body text that the importer never reads.
     // The server folds case and trims names, so a catalog title that differs
     // only by case is the same listing, not a duplicate create.
     const existing = [
-      { id: 7, name: "  Batak LITE " },
-      { id: 9, name: "Giant Jenga Hire" },
+      { id: 7, name: "  TUMBLE TOWER HIRE " },
+      { id: 9, name: "Reaction Wall Mini" },
     ];
-    expect(matchedIds("batak lite", existing)).toEqual([7]);
-    expect(matchedIds("Batak Lite", existing)).toEqual([7]);
-    expect(matchedIds("Giant Jenga Hire", existing)).toEqual([9]);
+    expect(matchedIds("tumble tower hire", existing)).toEqual([7]);
+    expect(matchedIds("Tumble Tower Hire", existing)).toEqual([7]);
+    expect(matchedIds("Reaction Wall Mini", existing)).toEqual([9]);
     expect(matchedIds("Coconut Shy", existing)).toEqual([]);
   });
 
@@ -381,21 +392,21 @@ Body text that the importer never reads.
   });
 
   test("keeps the stamp out of a body that mentions tickets_id", () => {
-    const text = "---\ntitle: Batak Lite\n---\n\nbody tickets_id: 5\n";
+    const text = "---\ntitle: Tumble Tower Hire\n---\n\nbody tickets_id: 5\n";
     expect(withTicketsMeta(text, { id: 42, slug: "b" })).toBe(
-      "---\ntitle: Batak Lite\ntickets_id: 42\ntickets_slug: b\n---\n\nbody tickets_id: 5\n",
+      "---\ntitle: Tumble Tower Hire\ntickets_id: 42\ntickets_slug: b\n---\n\nbody tickets_id: 5\n",
     );
   });
 
   test("stamps a CRLF file with its own line endings", () => {
     // A stamp must stay a two-line change: the body keeps the file's CRLF.
     expect(
-      withTicketsMeta("---\r\ntitle: Batak Lite\r\n---\r\n", {
+      withTicketsMeta("---\r\ntitle: Tumble Tower Hire\r\n---\r\n", {
         id: 42,
         slug: "b",
       }),
     ).toBe(
-      "---\r\ntitle: Batak Lite\r\ntickets_id: 42\r\ntickets_slug: b\r\n---\r\n",
+      "---\r\ntitle: Tumble Tower Hire\r\ntickets_id: 42\r\ntickets_slug: b\r\n---\r\n",
     );
   });
 
@@ -442,7 +453,7 @@ Body text that the importer never reads.
       "a.md",
       [
         "---",
-        "title: Batak Lite",
+        "title: Tumble Tower Hire",
         "options:",
         "  - name: 1 Day",
         "    max_quantity: 10",
