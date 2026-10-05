@@ -70,8 +70,8 @@ export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
       const question = await getQuestionWithAnswers(params.id);
       if (!question) return notFoundResponse();
       // Free-text questions collect a typed value, never an answer id, so the
-      // code silently ignores answer options (and any answer-triggered
-      // modifiers).
+      // request is refused with an error, and any answer-triggered modifiers
+      // never run.
       if (question.display_type === "free_text") {
         return errorRedirect(
           `/admin/questions/${params.id}`,

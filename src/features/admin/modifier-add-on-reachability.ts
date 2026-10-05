@@ -36,8 +36,8 @@ type AddOnSaveCandidate = {
 };
 
 /** The error message a links save or an input save earns when it leaves an
- * opt-in add-on reachable only through a suppressed child. Null when every
- * add-on stays reachable from a serving page. */
+ * opt-in add-on reachable only through a suppressed child. Null when the
+ * candidate stays reachable from a serving page. */
 export const childAddOnSaveError = async (
   candidate: AddOnSaveCandidate,
 ): Promise<string | null> => {
