@@ -247,6 +247,12 @@ const bodyFieldExemptions: readonly [
     ["name"],
     "toAttributeInput on an update body",
   ],
+  [
+    "src/features/admin/api-listing-body.ts",
+    [{ name: "CreateListingBody" }],
+    ["attribute_option_ids"],
+    "withParsedJoinIds",
+  ],
 ];
 
 const bodyExemptions = exactFieldExemptions(

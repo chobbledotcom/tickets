@@ -212,16 +212,19 @@ export const defineCrudApi = <
 
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
-    withAuth(request, policy, (_session, body) =>
-      withValidated(config.toCreateInput(body), undefined, (input) =>
-        checkAndWrite(
-          { body, existing: null, input },
-          () => table.insertStatement!(input),
-          () => table.insert(input),
-          null,
-          "created",
-          201,
-        ),
+    withAuth(request, policy, (session, body) =>
+      withValidated(
+        config.toCreateInput(body, null, session),
+        undefined,
+        (input) =>
+          checkAndWrite(
+            { body, existing: null, input },
+            () => table.insertStatement!(input),
+            () => table.insert(input),
+            null,
+            "created",
+            201,
+          ),
       ),
     );
 
@@ -257,8 +260,8 @@ export const defineCrudApi = <
   );
 
   /** Update */
-  const handleUpdate = entityRoute((existing, _session, body, id) =>
-    withValidated(config.toUpdateInput(body, existing), id, (input) =>
+  const handleUpdate = entityRoute((existing, session, body, id) =>
+    withValidated(config.toUpdateInput(body, existing, session), id, (input) =>
       checkAndWrite(
         { body, existing, input },
         () => table.updateStatement!(existing.id, input),

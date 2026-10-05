@@ -23,9 +23,9 @@
   },
   "src/features/admin/api-listing-body.ts": {
     "wordy": 1,
-    "semicolon": 3,
-    "long-sentence": 2,
-    "contraction": 1
+    "semicolon": 2,
+    "contraction": 1,
+    "long-sentence": 2
   },
   "src/features/admin/api-listing-joins.ts": {
     "long-sentence": 7,
@@ -2712,9 +2712,9 @@
   },
   "src/shared/rest/crud-api-types.ts": {
     "wordy": 8,
-    "long-sentence": 5,
     "banned-modal": 2,
     "present-perfect": 1,
+    "long-sentence": 5,
     "semicolon": 3
   },
   "src/shared/rest/crud-api.ts": {

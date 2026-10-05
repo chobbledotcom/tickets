@@ -1,9 +1,13 @@
 /**
  * Related listing-data preparation and persistence for the admin API write
- * path: group links and day prices are written before child edges are checked,
- * and all three commit atomically with the listing row.
+ * path. Group links and day prices are written before child edges are
+ * checked. All three commit atomically with the listing row.
  */
 
+import {
+  listingAttributeOptions,
+  missingAttributeOptionIds,
+} from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
 import {
   anyHiddenPackageGroup,
@@ -15,6 +19,7 @@ import {
   setListingChildrenWithPackageCheckTx,
 } from "#db/listing-parents.ts";
 import { writeListingDayCounts } from "#db/listing-prices.ts";
+import { refuseTheWriteOn } from "#db/transaction.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
@@ -39,6 +44,7 @@ type PreparedChildEdges = number[] | null;
 /** A listing write's related data, prepared before the row write so it commits
  * in the same transaction. */
 export type PreparedListingJoins = {
+  attributeOptionIds: number[] | undefined;
   childEdges: PreparedChildEdges;
   dayPrices: DayPrices | undefined;
   groupIds: number[] | undefined;
@@ -98,7 +104,12 @@ export const prepareListingJoins = async (
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) {
     return {
-      value: { childEdges: null, dayPrices: input.dayPrices, groupIds },
+      value: {
+        attributeOptionIds: input.attributeOptionIds,
+        childEdges: null,
+        dayPrices: input.dayPrices,
+        groupIds,
+      },
     };
   }
   if ("error" in submitted) return submitted;
@@ -131,6 +142,7 @@ export const prepareListingJoins = async (
   return result.ok
     ? {
         value: {
+          attributeOptionIds: input.attributeOptionIds,
           childEdges: result.childIds,
           dayPrices: input.dayPrices,
           groupIds,
@@ -146,6 +158,25 @@ export const persistListingJoins = async (
   listingId: number,
   value: PreparedListingJoins,
 ): Promise<void> => {
+  if (value.attributeOptionIds !== undefined) {
+    // The existence check shares the link write's transaction: an option
+    // deleted between the request parse and this read cannot leave an orphan
+    // id behind, and the query is bounded to the submitted ids.
+    const missing = await missingAttributeOptionIds(
+      tx,
+      value.attributeOptionIds,
+    );
+    refuseTheWriteOn(
+      missing.length === 0
+        ? null
+        : "attribute_option_ids must name existing options",
+    );
+    await listingAttributeOptions.setIdsTx(
+      tx,
+      listingId,
+      value.attributeOptionIds,
+    );
+  }
   if (value.groupIds !== undefined) {
     await setListingGroupsTx(
       tx,

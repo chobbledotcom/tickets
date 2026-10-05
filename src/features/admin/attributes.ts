@@ -8,20 +8,19 @@ import { logActivity } from "#db/activity-log.ts";
 import {
   type AttributeOption,
   type AttributeWithOptions,
+  attributeOptionIdsIn,
   attributeOptionsOrder,
   attributeOptionsTable,
   attributesOrder,
   attributesTable,
   deleteAttribute,
   deleteAttributeOption,
-  getAllAttributeOptionIds,
   getAllAttributesWithOptions,
   getAttributeId,
   getAttributeIdsOrdered,
   getAttributeListingUse,
   getAttributeWithOptions,
   listingAttributeOptions,
-  pruneInvalidAttributeOptionIds,
 } from "#db/attributes.ts";
 import { type TxScope, writeRowInTransaction } from "#db/client.ts";
 import {
@@ -376,10 +375,7 @@ const handleListingAttributesPost = createListingChoicePost({
   label: "Attributes",
   noun: "option",
   readIds: async (form, fieldName) =>
-    pruneInvalidAttributeOptionIds(
-      await getAllAttributeOptionIds(),
-      form.getNumberArray(fieldName),
-    ),
+    attributeOptionIdsIn(await form.getNumberArray(fieldName)),
   saveIds: listingAttributeOptions.setIds,
   tab: "attributes",
 });

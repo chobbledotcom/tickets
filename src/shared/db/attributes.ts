@@ -15,6 +15,7 @@ import {
   queryAllPrimary,
   queryIdColumn,
   queryOne,
+  type TxScope,
 } from "#db/client.ts";
 import {
   idAndEncryptedNameSchema,
@@ -27,6 +28,7 @@ import {
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineTable } from "#db/table.ts";
+import { txIdSetInTable } from "#db/transaction.ts";
 /* jscpd:ignore-start */
 import { filter, groupToMap, map, reduce, sort, unique, uniqueBy } from "#fp";
 import type { Listing } from "#types";
@@ -273,8 +275,34 @@ export const getAttributeId = async (id: number): Promise<number | null> =>
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
   queryIdColumn("SELECT id FROM attributes ORDER BY sort_order, id");
 
-export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
-  new Set(await queryIdColumn("SELECT id FROM attribute_options"));
+/** The submitted option ids the site has. Unknown ids drop out. The order
+ * and any duplicates of the submitted list are kept. */
+export const attributeOptionIdsIn = async (
+  submitted: readonly number[],
+): Promise<number[]> => {
+  const unique = [...new Set(submitted)];
+  const found = new Set(
+    unique.length === 0
+      ? []
+      : await queryIdColumn(
+          `SELECT id FROM attribute_options WHERE id IN (${inPlaceholders(unique)})`,
+          unique,
+        ),
+  );
+  return filter((id: number) => found.has(id))(submitted);
+};
+
+/** The submitted option ids the site does not have, read through the open
+ * transaction that will write the links. The check and the write see the same
+ * option set, so a delete between check and write can never store an orphan.
+ * The query names only the submitted ids. */
+export const missingAttributeOptionIds = async (
+  tx: TxScope,
+  submitted: readonly number[],
+): Promise<number[]> => {
+  const found = await txIdSetInTable("attribute_options")(tx, submitted);
+  return [...new Set(submitted)].filter((id) => !found.has(id));
+};
 
 type OptionListingRow = StoredRowOf<
   Listing,
@@ -382,8 +410,3 @@ export const getSelectedAttributesForListings = async (
     )([...selectedRowsForListing(rows)]),
   );
 };
-
-export const pruneInvalidAttributeOptionIds = (
-  validOptionIds: Set<number>,
-  optionIds: number[],
-): number[] => filter((id: number) => validOptionIds.has(id))(optionIds);
