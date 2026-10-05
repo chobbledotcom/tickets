@@ -53,39 +53,6 @@ export const arrangeOrdinaryGroupPackaging = async (
   };
 };
 
-/** A hidden package with one member, with the group write asked to save the
- *  member at `submitted` pick counts against a `maxQuantity` per-order cap.
- *  `minQuantity` stores the listing's per-purchase floor beside the cap,
- *  so one suite can judge either bound alone. */
-export const arrangeGroupWrite = async (
-  name: string,
-  submitted: number,
-  maxQuantity: number,
-  minQuantity?: number,
-) => {
-  const group = await createHiddenPackageGroup(`${name} group`);
-  const member = await createTestListing({
-    groupId: group.id,
-    maxQuantity,
-    ...(minQuantity === undefined ? {} : { minQuantity }),
-    name,
-  });
-  return {
-    group,
-    member,
-    run: () =>
-      withTransaction((tx) =>
-        writePackageMembersTx(
-          tx,
-          group.id,
-          { hide_package_listings: false, is_package: true },
-          { isPackage: true },
-          [{ listingId: member.id, price: 0, quantity: submitted }],
-        ),
-      ),
-  };
-};
-
 /** A hidden package with one stored member at `quantity` pick counts, whose
  *  per-order cap the operator then lowers to `maxQuantity` — the state a
  *  listing save must judge. */
