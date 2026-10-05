@@ -144,7 +144,7 @@ describe("booking model — capacity", () => {
       expect(tl.maxPurchasable).toBe(3);
     });
 
-    test("closed listings have zero purchasable even with stock", () => {
+    test("closed listings have zero purchasable even with stock, at any minimum", () => {
       const tl = buildTicketListing(
         listing({
           attendee_count: 0,
@@ -157,6 +157,21 @@ describe("booking model — capacity", () => {
       expect(tl.isClosed).toBe(true);
       expect(tl.isSoldOut).toBe(false);
       expect(tl.maxPurchasable).toBe(0);
+      // A minimum above the stock cannot make a closed listing sell.
+      const withMinimum = buildTicketListing(
+        listing({
+          attendee_count: 0,
+          listing_type: "standard",
+          max_attendees: 10,
+          max_quantity: 10,
+          minimum_quantity: 3,
+        }),
+        true,
+        undefined,
+      );
+      expect(withMinimum.isClosed).toBe(true);
+      expect(withMinimum.isSoldOut).toBe(false);
+      expect(withMinimum.maxPurchasable).toBe(0);
     });
 
     test("sold out when remaining spots sit below the minimum", () => {
@@ -220,23 +235,6 @@ describe("booking model — capacity", () => {
         2,
       );
       expect(tl.isSoldOut).toBe(true);
-      expect(tl.maxPurchasable).toBe(0);
-    });
-
-    test("closed listings with stock above the minimum still sell nothing", () => {
-      const tl = buildTicketListing(
-        listing({
-          attendee_count: 0,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
-          minimum_quantity: 3,
-        }),
-        true,
-        undefined,
-      );
-      expect(tl.isClosed).toBe(true);
-      expect(tl.isSoldOut).toBe(false);
       expect(tl.maxPurchasable).toBe(0);
     });
 

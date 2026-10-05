@@ -26,12 +26,16 @@ const withListings = (
 
 describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => {
   describe("validateFormState", () => {
-    test("refuses a posted quantity below the minimum on an offered row", async () => {
-      const listing = await createTestListing({
+    /** A listing that sells at least three per purchase. */
+    const makeMinimumListing = () =>
+      createTestListing({
         maxAttendees: 5,
         maxQuantity: 10,
         minimumQuantity: 3,
       });
+
+    test("refuses a posted quantity below the minimum on an offered row", async () => {
+      const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
       expect(validateFormState(quantityForm({ [listing.id]: 2 }), ctx)).toBe(
@@ -40,11 +44,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
     });
 
     test("accepts a quantity of exactly the minimum", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
+      const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
       expect(validateFormState(quantityForm({ [listing.id]: 3 }), ctx)).toBe(
@@ -53,11 +53,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
     });
 
     test("accepts a quantity of zero", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
+      const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
       expect(validateFormState(quantityForm({ [listing.id]: 0 }), ctx)).toBe(
@@ -65,16 +61,14 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       );
     });
 
-    test("ignores a posted quantity on a sold-out row instead of refusing", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
+    test("a sold-out row's posted quantity is skipped, below or above the minimum", async () => {
+      const listing = await makeMinimumListing();
       const spare = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id, spare.id]);
       // The minimum listing's group pool (2) sits below its minimum (3), so
-      // its row is sold out; the spare row keeps the page bookable.
+      // its row is sold out; the spare row keeps the page bookable. The
+      // sold-out behaviour wins for a posted count of any size — the minimum
+      // refusal never fires.
       const soldOutByMinimum = withListings(ctx, [
         buildTicketListing(ctx.listings[0]!.listing, false, 2),
         ctx.listings[1]!,
@@ -86,14 +80,16 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
           soldOutByMinimum,
         ),
       ).toBe(null);
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 2, [spare.id]: 0 }),
+          soldOutByMinimum,
+        ),
+      ).toBe(null);
     });
 
     test("a closed row refuses with the closed message, not the minimum one", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
+      const listing = await makeMinimumListing();
       const spare = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id, spare.id]);
       const closedRow = withListings(ctx, [
@@ -104,29 +100,6 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       expect(
         validateFormState(quantityForm({ [listing.id]: 2 }), closedRow),
       ).toBe(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
-    });
-
-    test("a row sold out by its minimum skips its below-minimum quantity", async () => {
-      // Same shape as the sold-out skip, but the posted count is in 1..m-1 —
-      // the sold-out behaviour wins, the minimum refusal never fires.
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
-      const spare = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id, spare.id]);
-      const soldOutByMinimum = withListings(ctx, [
-        buildTicketListing(ctx.listings[0]!.listing, false, 2),
-        ctx.listings[1]!,
-      ]);
-
-      expect(
-        validateFormState(
-          quantityForm({ [listing.id]: 2, [spare.id]: 0 }),
-          soldOutByMinimum,
-        ),
-      ).toBe(null);
     });
   });
 });

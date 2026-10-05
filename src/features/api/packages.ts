@@ -280,7 +280,7 @@ const resolvePackageOrder = async (
 };
 
 /** POST /api/packages/:slug/book — book whole bundles. The body carries the
- * contact fields plus `quantity` (the package count — required), `date` for a dated
+ * contact fields plus `quantity` (package count, default 1), `date` for a dated
  * package, `dayCount` for a customisable one, and `children` — entries of
  * `{ parent, slug, quantity }` choosing each parent member's add-ons — all
  * driving the SAME context, clamp, fold, and pricing walk the web package page

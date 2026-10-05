@@ -129,17 +129,10 @@ export const childCapacityInfo = (
   staticCapByGroupId: childCaps.staticCap,
 });
 
-/** Checks whether this parent can offer this child on public listing surfaces. */
-const childCanBeBookedForParent = (
-  parent: ListingWithCount,
-  child: ListingWithCount,
-  caps: ChildCapacityInfo,
-  holidays: Holiday[],
-): boolean => childServedParentMax(parent, child, caps, holidays) >= 1;
-
 /** The parent quantity one child can serve beside its parent. The child's own
  * remaining, held down by the spots the shared group leaves for each
- * parent+child pair. Zero when the child cannot book at all. */
+ * parent+child pair. Zero when the child cannot book at all. A caller names
+ * its own bar: at least one ticket, or the listing minimum. */
 const childServedParentMax = (
   parent: ListingWithCount,
   child: ListingWithCount,
@@ -245,7 +238,7 @@ export const classifyForDiscovery = async (
     return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
-        childCanBeBookedForParent(p, child, caps, holidays),
+        childServedParentMax(p, child, caps, holidays) >= 1,
     );
   });
   const soldOutParentIds = new Set<number>();
@@ -305,8 +298,9 @@ export const applyBookingPageParentSoldOut = (
 ): TicketListing[] =>
   listings.map((info) => {
     const children = childrenByParentId.get(info.listing.id);
-    const anyBookable = children?.some((child) =>
-      childCanBeBookedForParent(info.listing, child.listing, caps, holidays),
+    const anyBookable = children?.some(
+      (child) =>
+        childServedParentMax(info.listing, child.listing, caps, holidays) >= 1,
     );
     if (children && children.length > 0 && !anyBookable) {
       return asSoldOut(info);
