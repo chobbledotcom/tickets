@@ -2,8 +2,8 @@
  * Listing create / duplicate / edit routes.
  *
  * The create and update flows share the form-extraction resources
- * (`listings-form.ts`) and the file-upload handling (`listings-uploads.ts`);
- * this module wires them to the new/edit/duplicate pages.
+ * (`listings-form.ts`) and the file-upload handling (`listings-uploads.ts`).
+ * This module wires them to the new/edit/duplicate pages.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -67,8 +67,6 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
 
 /**
- * Handle GET /admin/listing/new (show picker or create form)
- *
  * No ?template param → show the type-picker card page.
  * ?template=<known-id> → show the seeded, Customise-collapsed create form.
  * ?template=custom or unknown value → show the full form with Customise open.
@@ -90,7 +88,7 @@ export const handleNewListingGet: TypedRouteHandler<
 
 /** Look up the operator's chosen listing template. A template that needs
  * logistics while the feature is off is unavailable, so the picker page is
- * given back instead — the create GET gate and the create POST backstop (a
+ * given back instead. The create GET gate and the create POST backstop (a
  * form opened while logistics was enabled, or a crafted POST) share this
  * guard. */
 const chosenTemplateOrPicker = (
@@ -116,7 +114,6 @@ const renderNewListingPage = async (
   return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
 };
 
-/** Build a DimensionSource from submitted form params. */
 const formToDimensionSource = (form: FormParams) => ({
   date: form.getString("date_date") || "",
   listing_type: isListingType(form.getString("listing_type"))
@@ -129,7 +126,7 @@ const formToDimensionSource = (form: FormParams) => ({
 /**
  * Resolve the effective template id for a POST error re-render.
  *
- * Uses the carried `template_id` hidden field when present; falls back to
+ * Uses the carried `template_id` hidden field when present. It falls back to
  * inferring a template from the submitted dimensions so a duplicate form
  * (which has no template_id) re-renders with the right collapse state.
  */
@@ -144,8 +141,8 @@ const resolveErrorTemplateId = (form: FormParams): string | null => {
  * copy keeps its gate. The children are not duplicated: the copy references the
  * same child listings.
  *
- * Returns a **warning** when the gate could not be copied, because the edges
- * failed re-validation on the copy. A swallowed failure would leave a gateless
+ * Returns a **warning** when the gate is not copied, because the edges
+ * failed re-validation on the copy. A swallowed failure leaves a gateless
  * standalone bookable listing behind a silent success.
  */
 const copyEdgesFromDuplicateSource = async (
@@ -155,16 +152,16 @@ const copyEdgesFromDuplicateSource = async (
   const sourceId = form.getOptionalInt("duplicated_from");
   if (sourceId === null) return null;
   // The source's per-package price/quantity is copied onto the copy's membership
-  // rows atomically in the create write's afterWrite (see buildCreateListingResource);
-  // here we only carry the parent/child gate.
+  // rows atomically in the create write's afterWrite (see buildCreateListingResource).
+  // Here we only carry the parent/child gate.
   const childIds = await listingChildren.getIds(sourceId);
   if (childIds.length === 0) return null;
-  // A HIDDEN package's member can't gate required children (its members are
-  // collapsed to the package name, so a child selector would leak them), so a
-  // copy that joined a hidden package group must not inherit the source's child
-  // edges — keep it a valid member and tell the operator the gate wasn't
-  // carried over, mirroring the children endpoint's package invariant that the
-  // create path would otherwise bypass. A visible package renders the member's
+  // A HIDDEN package's member cannot gate required children. Its members are
+  // collapsed to the package name, so a child selector leaks them. A copy
+  // that joined a hidden package group must not inherit the source's child
+  // edges. Keep it a valid member and tell the operator the gate was not
+  // carried over. This mirrors the children endpoint's package invariant that
+  // the create path otherwise bypasses. A visible package renders the member's
   // child selector, so its copy keeps the gate.
   if (await anyHiddenPackageGroup(await listingGroups.getIds(newId))) {
     return t("listings_table.duplicate_children_dropped", {
@@ -200,9 +197,6 @@ const renderCreateListingError = async (
   );
 };
 
-/**
- * Handle POST /admin/listing (create listing)
- */
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
   contentMultipartRoute(async (session, formData) => {
     const form = parseListingForm(session, formData, {
@@ -216,7 +210,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     if ("picker" in gate) return gate.picker;
 
     // Template-specific date validation: reject a blank date when the operator
-    // chose the one-off-event template and hasn't changed the non-date dims.
+    // chose the one-off-event template and has not changed the non-date dims.
     const submittedDims = dimensionsOf(formToDimensionSource(form));
     if (
       submissionRequiresDate(chosenTemplateId, submittedDims) &&
@@ -246,7 +240,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     );
     // Staff land on the dashboard, which renders flashes. An editor cannot
     // open the dashboard, so they go to the new listing's own page, which
-    // renders Flash too: the success message and any upload caveats show.
+    // renders Flash too. The success message and any upload caveats show.
     const createdRedirect =
       session.adminLevel === "editor"
         ? entityReturnPath("/admin/listings", result.row.id)
@@ -269,10 +263,8 @@ const listingAndGroupsHandler =
     requireContentOr,
   );
 
-/**
- * Session-guarded GET handler that loads the listing + groups context and
- * renders a page from it. Shared by the duplicate and edit forms.
- */
+/** Loads the listing + groups context and renders a page from it. Shared by
+ * the duplicate and edit forms. */
 const listingAndGroupsPage = (
   renderPage: (
     ctx: ListingAndGroups,
@@ -284,7 +276,6 @@ const listingAndGroupsPage = (
     htmlResponse(renderPage(ctx, session, request)),
   );
 
-/** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
   listingAndGroupsPage((ctx, session) =>
     adminDuplicateListingPage(
@@ -295,14 +286,13 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
     ),
   );
 
-/** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
 > = (request, { id }) =>
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
-      // `existing` holds the listing's *stored* values (defaults not overlaid):
-      // a save preserves the listing's own columns, and the editor field locks
+      // `existing` holds the listing's *stored* values (defaults not overlaid).
+      // A save preserves the listing's own columns, and the editor field locks
       // re-apply the real stored webhook URL and use_defaults flag.
       const form = parseListingForm(session, formData, {
         useDefaults: existing.use_defaults,
@@ -315,7 +305,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
         return renderListingEditError(id, session, form, aggregates.error);
       }
 
-      // Build a resource that includes the slug field; uniqueness is enforced
+      // Build a resource that includes the slug field. Uniqueness is enforced
       // by validateListingInput when existingId is set.
       const result = await buildUpdateListingResource(form).update(id, form);
       if (result.ok) {
@@ -335,7 +325,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
 /**
  * Handle POST /admin/listing/:id/income — post a manual `writeoff` adjustment so
  * the listing's projected income matches the owner-entered figure (decision 14).
- * Owner-only; the delta is computed from the listing's current projected income.
+ * Owner-only. The delta is computed from the listing's current projected income.
  */
 const adjustListingIncomeForm = makeMoneyAdjustHandler<ListingWithCount>({
   adjust: (listing, target) => adjustListingIncome(listing.id, target),
@@ -346,7 +336,6 @@ const adjustListingIncomeForm = makeMoneyAdjustHandler<ListingWithCount>({
   successMessage: t("listings_table.adjust_income_success"),
 });
 
-/** Handle POST /admin/listing/:id/income */
 export const handleAdminListingIncomePost: TypedRouteHandler<
   "POST /admin/listing/:id/income"
 > = (request, { id }) => adjustListingIncomeForm(request, id);

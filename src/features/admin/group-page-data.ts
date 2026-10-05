@@ -1,10 +1,10 @@
 /**
  * Data loaders for the group entity page's tabs — Overview, Attendees, and
- * Edit. Each gathers exactly what its own tab renders (per-tab loading), so the
- * decrypted-attendee fetch runs only for the two tabs that show roster data,
- * never for a bare Edit render. The gathering mirrors the pre-migration detail
- * and edit handlers (groups.ts) so the tabs render the same data those separate
- * pages used to.
+ * Edit. Each gathers exactly what its own tab renders (per-tab loading). So
+ * the decrypted-attendee fetch runs only for the two tabs that show roster
+ * data, never for a bare Edit render. The gathering mirrors the pre-migration
+ * detail and edit handlers (groups.ts) so the tabs render the same data those
+ * separate pages used to.
  */
 
 // jscpd:ignore-start
@@ -41,23 +41,24 @@ import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { type Group, isPaidListing, type ListingWithCount } from "#types";
 import { loadItemImagesPanel } from "./item-images.ts";
 
-/** The group entity page's loaded row is just the stored group; every tab's
- * remaining data is fetched by its own loader below, so a bare page frame never
- * decrypts a roster it isn't about to show. */
+/** The group entity page's loaded row is just the stored group. Every tab's
+ * remaining data is fetched by its own loader below. So a bare page frame
+ * never decrypts a roster it is not about to show. */
 export const loadGroupForPage = (id: number): Promise<Group | null> =>
   getGroupById(id);
 
 /** Whether a group's roster has any paid attendee data to decrypt. A package
  * member can carry a `package_price` override while its own `unit_price` is 0,
- * so it's paid in practice; treat any positive override as paid (alongside the
- * usual {@link isPaidListing} checks) so the roster decrypts payment fields. */
+ * so it is paid in practice. Treat any positive override as paid (alongside
+ * the usual {@link isPaidListing} checks) so the roster decrypts payment
+ * fields. */
 export const groupHasPaidListing = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<boolean> => {
   if (listings.some(isPaidListing)) return true;
   if (!group.is_package) return false;
-  // Only a positive override charges money; a null (no override → base price,
+  // Only a positive override charges money. A null (no override → base price,
   // already covered above) or an explicit free (0) adds no revenue. Per-day
   // overrides can make an otherwise-free customisable member paid the same way.
   const rows = await getGroupPackagePrices(group.id);
@@ -69,9 +70,9 @@ export const groupHasPaidListing = async (
 };
 
 /** The group's sorted member listings, its decrypted attendees, the roster's
- * question data, the paid-listing flag that gated the decrypt, and the active
- * holidays used for sorting — shared by the Overview and Attendees tabs, which
- * both read the roster. */
+ * question data, and the paid-listing flag that gated the decrypt. It also
+ * carries the active holidays used for sorting. The Overview and Attendees
+ * tabs share this, and both read the roster. */
 const loadGroupRoster = async (group: Group) => {
   const [listings, holidays] = await Promise.all([
     getListingsByGroupId(group.id),
@@ -80,12 +81,12 @@ const loadGroupRoster = async (group: Group) => {
   const sortedListings = sortListings(listings, holidays);
   const listingIds = sortedListings.map((listing) => listing.id);
   // Package-aware: an override-priced package charges via package_price even
-  // when its member listings are free, so this decides whether the roster
+  // when its member listings are free. So this decides whether the roster
   // decrypts payment fields AND whether the detail table shows the revenue row.
   const hasPaidListing = await groupHasPaidListing(group, sortedListings);
   const privateKey = await requireRequestPrivateKey();
   // getAttendeesByListingIds resolves to [] for an empty id list, so no guard is
-  // needed — an empty group simply yields an empty roster.
+  // needed — an empty group yields an empty roster.
   const rawAttendees = await getAttendeesByListingIds(listingIds);
   const attendees = await decryptAttendees(
     rawAttendees,
@@ -122,8 +123,8 @@ const rosterPanelProps = (group: Group, roster: GroupRoster) => ({
     : {}),
 });
 
-/** Load the roster once, then hand it (with its group) to a panel builder — the
- * single place the Overview and Attendees tabs share their roster fetch. */
+/** Load the roster once, then hand it (with its group) to a panel builder. The
+ * Overview and Attendees tabs share their roster fetch in this single place. */
 const rosterTab =
   (
     build: (
@@ -147,10 +148,11 @@ export const loadGroupOverviewPanel = rosterTab(
       listingMoneyTotals(emptyRange, roster.listingIds),
     ]);
     const ungroupedListings = sortListings(listingsNotInGroup, roster.holidays);
-    // Mirror exactly when the public /ticket/<group> page renders vs 404s so the
-    // admin never offers a dead share/QR/embed link: it 404s when the
+    // Mirror exactly when the public /ticket/<group> page renders vs 404s so
+    // the admin never offers a dead share/QR/embed link. It 404s when the
     // buyer-visible member list is empty and, for a package, when the bundle
-    // isn't bookable. A regular group with merely sold-out members still renders.
+    // is not bookable. A regular group with merely sold-out members still
+    // renders.
     const shareable =
       visibleMembers.length > 0 &&
       (!group.is_package || (await groupBookable(group, visibleMembers)));
@@ -178,8 +180,8 @@ export const loadGroupAttendeesPanel = rosterTab(async (group, roster) =>
 );
 
 /** Build the Edit tab: the group form with the per-listing package-price table
- * pre-filled from the group's current overrides. A null price renders blank (no
- * override); an explicit 0 renders as 0 (free in the package). */
+ * pre-filled from the group's current overrides. A null price renders blank
+ * (no override). An explicit 0 renders as 0 (free in the package). */
 export const loadGroupEditPanel = async (
   group: Group,
 ): Promise<JSX.Element> => {

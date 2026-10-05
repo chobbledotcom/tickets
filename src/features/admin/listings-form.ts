@@ -1,8 +1,8 @@
 /**
  * Listing form parsing and resource builders.
  *
- * Turns the raw create/edit form into a {@link ListingInput}, and wraps the
- * shared listing fields into per-request create/update REST resources so the
+ * Turns the raw create/edit form into a {@link ListingInput}. It wraps the
+ * shared listing fields into per-request create/update REST resources, so the
  * dynamic `day_price_*` inputs can be read alongside the validated values.
  */
 
@@ -108,7 +108,6 @@ const resolveListingType = (
   value: ListingFormValues["listing_type"],
 ): ListingType => value || DEFAULT_LISTING_TYPE;
 
-/** Parse comma-separated day names, applying the submit-mode empty selection policy. */
 const parseBookableDays = (
   value: string,
   listingType: ListingType,
@@ -130,9 +129,9 @@ export const parseGroupIds = (form: FormParams): number[] =>
 
 /**
  * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
- * the raw form into a {@link DayPrices} map. Only days 1..maxDays are read
- * (matching the inputs the form renders); blank rows are skipped so that count
- * isn't offered. {@link parseDayPrices} drops any non-numeric entries.
+ * the raw form into a {@link DayPrices} map. Only days 1..maxDays are read,
+ * matching the inputs the form renders. Blank rows are skipped so the count
+ * is not offered. {@link parseDayPrices} drops any non-numeric entries.
  */
 const parseDayPricesFromForm = (
   form: FormParams,
@@ -140,7 +139,7 @@ const parseDayPricesFromForm = (
 ): DayPrices => {
   const result: DayPrices = {};
   for (const n of range(1, maxDays + 1)) {
-    // Optional per-day price: blank ⇒ skip (that day isn't offered). A non-blank
+    // Optional per-day price: blank ⇒ skip (that day is not offered). A non-blank
     // value that fails to parse is caught by validateDayPricesFromForm before
     // the save, so here a null result is only ever a blank.
     const price = parseOptionalMinorUnits(form.getString(`day_price_${n}`));
@@ -151,13 +150,13 @@ const parseDayPricesFromForm = (
 
 /**
  * Reject the save when a `day_price_*` field carries a non-blank value that
- * isn't a valid amount for the currency (e.g. `10.005` in GBP, `10.5` in JPY, or
- * `abc`). Without this, an invalid value would be silently dropped by
- * {@link parseDayPricesFromForm} — on an update that would remove an existing
- * day price rather than surfacing the error. Blank fields are skipped (that
- * duration simply isn't offered). Returns an error message, or null when every
- * present day price is valid. These dynamic fields aren't part of the static
- * field schema, so they're validated here through the resource's `validate` hook.
+ * is not a valid amount for the currency. Examples: `10.005` in GBP, `10.5`
+ * in JPY, or `abc`. Without this, {@link parseDayPricesFromForm} silently
+ * drops an invalid value. On an update that removes an existing day price
+ * instead of surfacing the error. Blank fields are skipped (that duration is
+ * not offered). Returns an error message, or null when every present day
+ * price is valid. These dynamic fields are not part of the static field
+ * schema, so they are validated here through the resource's `validate` hook.
  */
 const validateDayPricesFromForm = (form: FormParams): string | null => {
   const hasInvalid = [...form.entries()].some(
@@ -171,14 +170,12 @@ const validateDayPricesFromForm = (form: FormParams): string | null => {
     : null;
 };
 
-/** Normalize an optional datetime field to UTC, passing through a blank. */
 const normalizeOptionalDatetime = (raw: string, field: string): string =>
   raw ? normalizeDatetime(raw, field) : raw;
 
 const enabledChoice = (enabled: boolean, value: string): boolean =>
   enabled && value === "1";
 
-/** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (
   values: ListingFormValues,
   form: FormParams,
@@ -187,7 +184,7 @@ const extractCommonFields = (
   const webhookUrl = isDemoMode() ? "" : values.webhook_url;
   const durationDays = values.duration_days ?? 1;
   const listingType = resolveListingType(values.listing_type);
-  // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free); a valid
+  // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free). A valid
   // value is the currency-checked minor-units amount. `unit_price` is always a
   // string here, so no nullish fallback is needed before parsing.
   const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
@@ -220,7 +217,6 @@ const extractCommonFields = (
   };
 };
 
-/** Extract listing input from validated form (async to compute slugIndex) */
 const extractListingInput = async (
   values: ListingFormValues,
   form: FormParams,
@@ -233,7 +229,6 @@ const extractListingInput = async (
   };
 };
 
-/** Extract listing input for update (reads slug from form, normalizes it) */
 const extractListingUpdateInput = async (
   values: ListingEditFormValues,
   form: FormParams,
@@ -248,11 +243,13 @@ const extractListingUpdateInput = async (
 };
 
 /** Persist the listing's group memberships AND its per-day-count prices in the
- * row write's transaction. extractCommonFields always sets groupIds (parseGroupIds
- * returns an array) and dayPrices, so both are non-null here. The transactional
- * insertStatement/updateStatement path doesn't write `day_count` rows (they are
- * no longer a column), so this writes them from the submitted day prices; the
- * `base` mirror is reconciled from the `unit_price` column by afterCommit. */
+ * row write's transaction.
+ *
+ * extractCommonFields always sets groupIds (parseGroupIds returns an array)
+ * and dayPrices, so both are non-null here. The transactional
+ * insertStatement/updateStatement path does not write `day_count` rows because
+ * they are no longer a column. This writes them from the submitted day prices.
+ * The `base` mirror is reconciled from the `unit_price` column by afterCommit. */
 const writeListingGroups = async (
   tx: TxScope,
   id: number,
@@ -262,10 +259,10 @@ const writeListingGroups = async (
   await writeListingDayCounts(tx, id, input.dayPrices);
 };
 
-/** Create-only afterWrite: persist the memberships, then — for a duplicate —
- * copy the source's package overrides and attribute selections onto the new
- * rows in the SAME transaction, so the duplicate never commits as a live
- * package member at the default price when the override copy fails. */
+/** Create-only afterWrite. Persist the memberships. For a duplicate, copy the
+ * source's package overrides and attribute selections onto the new rows in the
+ * SAME transaction. The duplicate then never commits as a live package member
+ * at the default price when the override copy fails. */
 const writeCreateListingGroups =
   (form: FormParams) =>
   async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
@@ -274,8 +271,8 @@ const writeCreateListingGroups =
     if (sourceId !== null) {
       await copyPackageMemberOverridesTx(tx, sourceId, id);
       await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
-      // The override copy may raise the pick count above the fresh-join
-      // default of one the membership check judged; revalidate it as persisted.
+      // The override copy can raise the pick count above the fresh-join
+      // default of one the membership check judged. Revalidate it as persisted.
       requireMembershipValidation(
         await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
       );
@@ -285,10 +282,10 @@ const writeCreateListingGroups =
 /**
  * Build a per-request listings create resource whose `toInput` closes over the
  * raw form, so the dynamic `day_price_*` inputs can be read alongside the
- * validated fields (the resource only hands `toInput` the validated values).
+ * validated fields. The resource only hands `toInput` the validated values.
  */
 /** The listing validation for a request: reject an invalid day price first
- *  (the dynamic fields the static schema can't see), then the standard input
+ *  (the dynamic fields the static schema cannot see), then the standard input
  *  validation. Closes over the raw `form` so both create and update share it. */
 const listingValidate =
   (form: FormParams) =>
@@ -297,7 +294,7 @@ const listingValidate =
 
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
-    // Group membership rides the write transaction; listing_prices reconciles
+    // Group membership rides the write transaction. listing_prices reconciles
     // post-commit (afterCommit) since the transactional insertStatement path
     // bypasses the listingsTable wrapper that syncs direct writes.
     afterCommit: syncListingPrices,

@@ -30,14 +30,14 @@ import {
 import type { DayPrices, ListingWithCount } from "#types";
 import { validateChildEdges } from "./listings-parents.ts";
 
-/** A placeholder id for a not-yet-created parent: listing ids are positive
- * autoincrement, so no real listing (and so no real edge) can reference this,
- * making the pre-create child-edge validation behave exactly as for a parent
- * that doesn't exist yet. */
+/** A placeholder id for a not-yet-created parent. Listing ids are positive
+ * autoincrement, so no real listing (and so no real edge) can reference this.
+ * The pre-create child-edge validation then behaves exactly as for a parent
+ * that does not exist yet. */
 const UNCREATED_PARENT_ID = Number.MIN_SAFE_INTEGER;
 
 /** The prepared child-edge write: `null` = leave existing edges untouched
- * (field omitted / feature off); an array = replace the parent's edges with
+ * (field omitted / feature off). An array = replace the parent's edges with
  * these cleaned ids. */
 type PreparedChildEdges = number[] | null;
 
@@ -71,8 +71,8 @@ const submittedChildIds = (
     return { error: "child_listing_ids must be an array of listing ids" };
   }
   // Fail closed on any non-positive-integer entry (a stringified id, float, …)
-  // rather than filtering it out: silently dropping it could shrink the array to
-  // empty and turn a gated parent into a standalone listing.
+  // rather than filtering it out. Silently dropping an entry can shrink the
+  // array to empty and turn a gated parent into a standalone listing.
   if (
     !raw.every((id) => typeof id === "number" && Number.isInteger(id) && id > 0)
   ) {
@@ -84,16 +84,16 @@ const submittedChildIds = (
 };
 
 /**
- * Validate a write's `child_listing_ids` against the would-be parent BEFORE the
- * row is written (for atomicity): a rejected edge returns `{ error }` (the
- * whole write is skipped, leaving no partial row create/rename); otherwise it
- * yields the cleaned ids to write once the row exists. The would-be
- * {@link EdgeListing} comes from the parsed input (the *fully merged*
- * ListingInput — `bodyToUpdateInput` folds in the existing defaults, so its
- * fields are the authoritative post-save values) via the shared
- * {@link listingInputToEdge}; on create there is no row yet, so a placeholder id
- * stands in. `null` value when the field is omitted / the parents feature is off
- * (existing edges left intact); a present-but-malformed field is rejected.
+ * Validate a write's `child_listing_ids` against the parent BEFORE the row is
+ * written, for atomicity. A rejected edge returns `{ error }` and skips the
+ * whole write, so no partial row create/rename remains.
+ *
+ * The parent {@link EdgeListing} comes from the parsed input via
+ * {@link listingInputToEdge}. `bodyToUpdateInput` folds in the existing
+ * defaults, so the *fully merged* ListingInput fields are the authoritative
+ * post-save values. On create a placeholder id stands in for the missing row.
+ * A `null` value means the field is omitted or the parents feature is off.
+ * Existing edges stay intact, and a present-but-malformed field is rejected.
  */
 export const prepareListingJoins = async (
   input: ListingInput,
@@ -113,9 +113,9 @@ export const prepareListingJoins = async (
     };
   }
   if ("error" in submitted) return submitted;
-  // A listing gaining children becomes a parent; a HIDDEN package's member
-  // can't be a parent (the child selector would name the collapsed members),
-  // and a package member can't become a child. The group/listing validators
+  // A listing gaining children becomes a parent. A HIDDEN package's member
+  // cannot be a parent because the child selector names the collapsed members.
+  // A package member cannot become a child. The group/listing validators
   // only see edges that already exist, so reject the brand-new edges here,
   // before the row + edges commit together.
   const inputGroupIds = input.groupIds === undefined ? [] : input.groupIds;
@@ -127,12 +127,12 @@ export const prepareListingJoins = async (
   if (packageConflict) {
     return { error: packageChildEdgeError(packageConflict) };
   }
-  // Resolve add-on reachability against the POST-SAVE listing set: apply the
-  // submitted `group_id` to the parent in an in-memory listing set so a parent
-  // created/moved into the same group as a child's group-scoped add-on is judged
-  // by its would-be group, not the live table that ignores `group_id`.
-  // On create the row doesn't exist yet, so the would-be group still applies to
-  // the placeholder id (no live group membership to mislead the check).
+  // Resolve add-on reachability against the POST-SAVE listing set. Apply the
+  // submitted `group_id` to the parent in an in-memory listing set. A parent
+  // that joins a child's group-scoped add-on group is then judged by its
+  // future group, not the live table that ignores `group_id`.
+  // On create the row does not exist yet. The future group still applies
+  // to the placeholder id (no live group membership to mislead the check).
   const parentId = existing === null ? UNCREATED_PARENT_ID : existing.id;
   const result = await validateChildEdges(
     listingInputToEdge(input, parentId),
@@ -159,9 +159,9 @@ export const persistListingJoins = async (
   value: PreparedListingJoins,
 ): Promise<void> => {
   if (value.attributeOptionIds !== undefined) {
-    // The existence check shares the link write's transaction: an option
+    // The existence check shares the link write's transaction. An option
     // deleted between the request parse and this read cannot leave an orphan
-    // id behind, and the query is bounded to the submitted ids.
+    // id behind. The query is bounded to the submitted ids.
     const missing = await missingAttributeOptionIds(
       tx,
       value.attributeOptionIds,

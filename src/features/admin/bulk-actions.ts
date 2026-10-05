@@ -8,9 +8,9 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
  *
  * Provides a landing page listing available bulk operations for a group's
  * listings, and per-action form + handler pairs. The first action is
- * "Duplicate Group": create a new group and clone every listing into it,
- * applying a shared find/replace on the listing name and a date shift
- * derived from two reference dates.
+ * "Duplicate Group": create a new group and clone every listing into it.
+ * The clone applies a shared find/replace on the listing name and a date
+ * shift derived from two reference dates.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -73,7 +73,6 @@ import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
 /* jscpd:ignore-end */
 
-/** Render a bulk-actions sub-page for an authenticated group detail view. */
 const groupListingsPage =
   (
     render: (
@@ -92,19 +91,14 @@ const groupListingsPage =
       }),
     );
 
-/** GET /admin/groups/:id/bulk-actions */
 const handleBulkActionsGet = groupListingsPage(adminBulkActionsPage);
 
-/** GET /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupGet = groupListingsPage(adminDuplicateGroupPage);
 
-/** GET /admin/groups/:id/bulk-actions/deactivate */
 const handleDeactivateGroupGet = groupListingsPage(adminDeactivateGroupPage);
 
-/** GET /admin/groups/:id/bulk-actions/reactivate */
 const handleReactivateGroupGet = groupListingsPage(adminReactivateGroupPage);
 
-/** Factory for group-level bulk toggle handlers (deactivate/reactivate). */
 const groupTogglePost = (opts: { active: boolean; action: string }) => {
   const pageUrl = (group: Group) =>
     `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
@@ -149,24 +143,23 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
   });
 };
 
-/** POST /admin/groups/:id/bulk-actions/deactivate */
 const handleDeactivateGroupPost = groupTogglePost({
   action: "deactivate",
   active: false,
 });
 
-/** POST /admin/groups/:id/bulk-actions/reactivate */
 const handleReactivateGroupPost = groupTogglePost({
   action: "reactivate",
   active: true,
 });
 
-/** The first generated name — the new group or one of the clones — that would
- * break the cross-entity name invariant (already used by another listing/group,
- * or duplicated within this batch), or null when every name is unique. The batch
- * insert below bypasses the create-path validators, so the rules the form/API
- * enforce are re-checked here; otherwise a blank find/replace would clone names
- * verbatim and later make name-based catalog imports ambiguous. */
+/** The first generated name that breaks the cross-entity name invariant. The
+ * name belongs to the new group or one of the clones and is already used by
+ * another listing/group or duplicated within this batch. Returns null when
+ * every name is unique. The batch insert below bypasses the create-path
+ * validators, so the rules the form/API enforce are re-checked here. A blank
+ * find/replace otherwise clones names verbatim and later makes name-based
+ * catalog imports ambiguous. */
 const firstDuplicateNameError = async (
   newGroupName: string,
   cloneInputs: readonly { input: ListingInput }[],
@@ -175,8 +168,8 @@ const firstDuplicateNameError = async (
   const names = [newGroupName, ...cloneInputs.map(({ input }) => input.name)];
   for (const name of names) {
     // The length rule is re-checked for the same reason as the uniqueness
-    // rule: the batch insert bypasses the validators the form and API run,
-    // and one over-long clone name breaks Square checkouts like any other.
+    // rule: the batch insert bypasses the validators the form and API run.
+    // One over-long clone name breaks Square checkouts like any other.
     const lengthError = catalogNameLengthError(name);
     if (lengthError) return lengthError;
     const key = normalizeEntityName(name);
@@ -191,7 +184,6 @@ const firstDuplicateNameError = async (
   return null;
 };
 
-/** POST /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const formUrl = `/admin/groups/${group.id}/bulk-actions/duplicate`;
   const newName = form.getString("new_name").trim();
@@ -212,11 +204,11 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     ),
   );
   const { slug, slugIndex } = await generateUniqueGroupSlug();
-  // Build every clone's input up front — the reads (stored re-read + a fresh
-  // random slug) don't belong inside the write transaction, and the clone is
-  // taken from each listing's *stored* values, not the resolved view, so a
-  // duplicate made while a default is set doesn't bake that default into the
-  // new row (matching the single-listing edit/duplicate path).
+  // Build every clone's input up front. The reads (stored re-read + a fresh
+  // random slug) do not belong inside the write transaction. The clone is
+  // taken from each listing's *stored* values, not the resolved view. A
+  // duplicate made while a default is set therefore does not bake that
+  // default into the new row (matching the single-listing edit/duplicate path).
   const cloneInputs = await Promise.all(
     listings.map(async (listing) => {
       const stored = requiredMapValue(
@@ -239,8 +231,8 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const nameError = await firstDuplicateNameError(newName, cloneInputs);
   if (nameError) return errorRedirect(formUrl, nameError);
   // The clone batch bypasses the membership validators, so refuse the whole
-  // duplication here: a clone of a built-site plan would land inside the new
-  // group, a row no save path may create.
+  // duplication here. A clone of a built-site plan lands inside the new
+  // group, a row no save path can create.
   const sitePlanClone = cloneInputs.find(({ input }) => input.assignBuiltSite);
   if (sitePlanClone) {
     return errorRedirect(
@@ -253,13 +245,14 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     (await getGroupPackagePrices(group.id)).map((row) => [row.listing_id, row]),
   );
 
-  // The group row, its cloned listings, and their membership rows (each carrying
-  // the source's package price/quantity so a package duplicates identically) all
-  // land in ONE batch — atomic, a single round-trip, and clear of the
-  // interactive-transaction round-trip guard regardless of how many listings the
-  // group has. Memberships resolve the new group and clone by the slug_index each
-  // was just inserted with, so no per-row id read is needed. Parent/child edges
-  // are remapped after the batch commits, since they read the new clone rows.
+  // The group row, its cloned listings, and their membership rows all land in
+  // ONE batch: atomic, a single round-trip. Each membership row carries the
+  // source's package price/quantity so a package duplicates identically. The
+  // batch clears the interactive-transaction round-trip guard regardless of
+  // how many listings the group has. Memberships resolve the new group and
+  // clone by the slug_index each was just inserted with, so no per-row id
+  // read is needed. Parent/child edges are remapped after the batch commits,
+  // since they read the new clone rows.
   const groupInsert = await groups.table.insertStatement!({
     description: group.description,
     hidden: group.hidden,
@@ -298,9 +291,9 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const idBySlugIndex = new Map(
     (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
   );
-  // The clones were inserted via insertStatement in the batch above, bypassing
-  // the listingsTable wrapper, so sync their `base` price rows explicitly —
-  // otherwise a priced clone has no matching base row until it is edited.
+  // The clones above went through insertStatement in the batch, and this
+  // bypasses the listingsTable wrapper. Sync their `base` price rows
+  // explicitly, or a priced clone has no matching base row until it is edited.
   await syncListingPricesForIds([...idBySlugIndex.values()]);
   const idMap = new Map(
     cloneInputs.map(({ sourceId, input }) => [
@@ -309,7 +302,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     ]),
   );
   // The clones' own per-day-count prices are no longer a column, so the raw
-  // insert didn't carry them — write each clone's day_count rows from the day
+  // insert did not carry them. Write each clone's day_count rows from the day
   // prices its duplicate input carried over from the source.
   if (cloneInputs.length > 0) {
     await executeBatch(
@@ -318,10 +311,10 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       ),
     );
   }
-  // The members' package price overrides can't be batch-copied like the quantity
-  // (their `group`/`group_day` price_ids embed the group id, and the new group's
-  // id only exists after the batch), so rewrite them here keyed to the NEW group
-  // and each source member's clone.
+  // The members' package price overrides cannot be batch-copied like the
+  // quantity: their `group`/`group_day` price_ids embed the group id. The
+  // new group's id only exists after the batch. Rewrite them here, keyed to
+  // the NEW group and each source member's clone.
   const sourceDayPrices = await getGroupDayPrices(group.id);
   await executeBatch([
     ...groupFlatPriceStatements(
@@ -339,7 +332,6 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       })),
     ),
   ]);
-  // Copy each source listing's attribute selections onto its clone.
   await executeBatch(
     cloneInputs.map(({ sourceId }) => ({
       args: [idMap.get(sourceId)!, sourceId],
@@ -349,7 +341,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   );
 
   // A cloned parent whose remapped edge set fails re-validation is left gateless
-  // rather than written; surface those as a warning flash (mirroring the
+  // rather than written. Surface those as a warning flash (mirroring the
   // single-listing duplicate's "but: …" behaviour) instead of silently
   // reporting success while producing a gateless standalone clone.
   const edgeErrors = await remapDuplicatedGroupEdges(idMap);
@@ -372,7 +364,6 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   return redirect(`/admin/groups/${newGroupId}`, success, true);
 });
 
-/** Bulk actions routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
   "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,

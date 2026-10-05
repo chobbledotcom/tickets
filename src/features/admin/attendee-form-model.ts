@@ -54,33 +54,32 @@ export const ATTENDEE_FORM_ID = "attendee-form";
 // Domain types
 // ---------------------------------------------------------------------------
 
-/** One row of the listing editor — one booking PATH of a listing (its own
- * standalone row, one package's row, or an existing folded-child row) and its
- * quantity. */
+/** One row of the listing editor, and its quantity. The row is one booking
+ * PATH of a listing: its own standalone row, one package's row, or an
+ * existing folded-child row. */
 export type AttendeeFormLine = {
   /** Listing id this row books. */
   listingId: number;
   /** The package this line books through (0 = the listing's own row). An
-   * existing row's stored value; a blank line's chosen path. */
+   * existing row's stored value, or a blank line's chosen path. */
   packageGroupId: number;
-  /** The package's per-unit price override for this line's path (null = no
-   * override, so the listing's own price applies — always null on a
-   * standalone line). Prices the manual-add ledger legs. */
+  /** The package's per-unit price override for this line's path (null = the
+   * listing's own price applies — always null on a standalone line). Prices
+   * the manual-add ledger legs. */
   packagePrice: number | null;
   /** The parent an EXISTING row was folded under as an add-on (0 = none).
    * Display + slot identity only — the form never creates folded rows. */
   parentListingId: number;
-  /** Booked quantity; null/0 means the listing is not booked. */
+  /** Booked quantity. Null/0 means the listing is not booked. */
   quantity: number | null;
   /** True when the "no quantity" box is ticked: keep this line as a quantity-0
-   * sentinel rather than booking (quantity ≥ 1) or removing it (quantity 0,
-   * box unticked). */
+   * sentinel rather than booking (quantity ≥ 1) or removing it (box unticked). */
   noQuantity: boolean;
   /** Resolved listing reference (null when the id is unknown). */
   listing: ListingWithCount | null;
   /** Existing booking row, when the attendee already books this listing. */
   existingBooking: ListingAttendeeRow | null;
-  /** Stable key of the existing row (`${listingId}|${startAt}`); empty when new. */
+  /** Stable key of the existing row (`${listingId}|${startAt}`). Empty when new. */
   key: string;
   /** Line-level validation error (set by validateParsedForm). */
   error: string | null;
@@ -109,7 +108,7 @@ export type AttendeeBooking = {
 export type ParsedAttendeeForm = ContactInfo & {
   /** Selected attendee status id, or null for "no status". */
   statusId: number | null;
-  /** Shared start date (YYYY-MM-DD) for every daily listing; "" when unset. */
+  /** Shared start date (YYYY-MM-DD) for every daily listing, "" when unset. */
   startDate: string;
   /** Shared range length in days (≥ 1) for every daily listing. */
   dayCount: number;
@@ -130,8 +129,8 @@ export type ValidationResult =
       valid: false;
       attendeeError: AttendeeFieldError | null;
       dateError: string | null;
-      /** Form-wide error surfaced at the top of the page (e.g. a paid line was
-       * marked no-quantity), as opposed to a per-line error shown in the table. */
+      /** Form-wide error surfaced at the top of the page, for example a paid
+       * line marked no-quantity. A per-line error instead shows in the table. */
       formError: string | null;
       lineErrors: Map<number, string>;
       values: ParsedAttendeeForm;
@@ -152,7 +151,7 @@ type SharedDates = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** True when the line should become a booking (quantity ≥ 1). Governs capacity,
+/** True when the line becomes a booking (quantity ≥ 1). Governs capacity,
  * validation, warnings, and logistics — everything the quantity-0 sentinel is
  * deliberately absent from. */
 export const isBookedLine = (line: AttendeeFormLine): boolean =>
@@ -164,23 +163,23 @@ export const isNoQuantityLine = (line: AttendeeFormLine): boolean =>
   line.noQuantity && line.listing !== null;
 
 /** True when a line carries a captured payment (price_paid > 0 on its existing
- * booking). Such a line can't be marked no-quantity until the charge is
- * refunded — silently clearing price_paid would drop listing income and strand
- * the charge behind the quantity-0 refund guards — so the editor disables its
- * "no quantity" box ({@link PAID_NO_QUANTITY_MESSAGE} as the tooltip) and the
- * validator rejects a hand-crafted tick. */
+ * booking). Such a line cannot be marked no-quantity until the charge is
+ * refunded. Silently clearing price_paid drops listing income and strands the
+ * charge behind the quantity-0 refund guards. The editor disables
+ * the line's "no quantity" box ({@link PAID_NO_QUANTITY_MESSAGE} as the
+ * tooltip), and the validator rejects a hand-crafted tick. */
 export const isPaymentLockedLine = (line: AttendeeFormLine): boolean =>
   (line.existingBooking?.price_paid ?? 0) > 0;
 
-/** Why a paid line can't be marked no-quantity: shown at the top of the page on
- * a (hand-crafted) submission and as the disabled box's hover tooltip. */
+/** Why a paid line cannot be marked no-quantity. The message shows at the top
+ * of the page on a (hand-crafted) submission and on the disabled box's tooltip. */
 export const PAID_NO_QUANTITY_MESSAGE = (): string =>
   t("attendee_form.paid_no_quantity_line");
 
-/** True when the line should be persisted at all: a real booking OR a deliberate
- * no-quantity line. The persistence + no-lines paths use THIS (so a checked
- * quantity-0 line is kept and a no-quantity-only save isn't rejected as "book at
- * least one listing"), while capacity/validation keep {@link isBookedLine}. */
+/** True when the line is persisted at all: a real booking OR a deliberate
+ * no-quantity line. The persistence + no-lines paths use THIS. A checked
+ * quantity-0 line is kept, and a no-quantity-only save is not rejected as
+ * "book at least one listing". Capacity/validation keep {@link isBookedLine}. */
 export const isRetainedLine = (line: AttendeeFormLine): boolean =>
   isBookedLine(line) || isNoQuantityLine(line);
 
@@ -198,9 +197,10 @@ export const bookingDurationDays = (
 /**
  * Project the form's listing lines into read-only booking summaries: one per
  * line that carries a saved booking (the attendee's current registrations),
- * dropping not-yet-booked rows. A booked line always resolves its listing; the
- * `listing` guard only keeps a hand-crafted POST — one pairing a saved booking
- * key with an unknown listing id — from throwing by dropping that bogus line.
+ * dropping not-yet-booked rows. A booked line always resolves its listing.
+ * The `listing` guard only keeps a hand-crafted POST — one pairing a saved
+ * booking key with an unknown listing id — from throwing by dropping that
+ * bogus line.
  */
 export const attendeeBookingsFromLines = (
   lines: AttendeeFormLine[],
@@ -222,7 +222,6 @@ export const attendeeBookingsFromLines = (
     };
   })(lines);
 
-/** Clamp a submitted day count to the valid range; blank defaults to 1. */
 const clampDayCount = (raw: number | null): number =>
   clampDurationDays(raw ?? 1);
 
@@ -239,9 +238,9 @@ export const resolveStatusId = (
 
 /**
  * Derive the shared date range from an attendee's existing bookings. Only dated
- * (daily) rows count. When they agree, that range is returned; when they
- * disagree it seeds from the earliest start and longest duration and flags mixed
- * timings so the operator is warned before saving normalises them.
+ * (daily) rows count. When they agree, that range is returned. When they
+ * disagree, it seeds from the earliest start and longest duration and flags
+ * mixed timings. The operator is then warned before saving normalises them.
  */
 export const resolveSharedDates = (
   bookings: ListingAttendeeRow[],
@@ -341,7 +340,7 @@ const isBookedDaily = (line: AttendeeFormLine): boolean =>
  * is enforced form-wide ({@link validatePaidNoQuantity}) so its message lands at
  * the top of the page, not buried in the quantity table. */
 const validateLine = (line: AttendeeFormLine): string | null => {
-  // isBookedLine already guarantees an integer quantity ≥ 1; the only quantity
+  // isBookedLine already guarantees an integer quantity ≥ 1. The only quantity
   // error left is exceeding the listing's per-booking maximum.
   if (!isBookedLine(line)) return null;
   if (line.quantity! > line.listing!.max_quantity) {
@@ -353,7 +352,7 @@ const validateLine = (line: AttendeeFormLine): string | null => {
 /** Form-wide guard: forbid marking a PAID line no-quantity — the charge must be
  * refunded or retargeted to a real line first (enforces the §1 invariant). The
  * editor already disables the box for these lines, so this only fires on a
- * hand-crafted submission; its message is shown at the top of the page. */
+ * hand-crafted submission. Its message is shown at the top of the page. */
 const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
   parsed.lines.some((l) => isNoQuantityLine(l) && isPaymentLockedLine(l))
     ? PAID_NO_QUANTITY_MESSAGE()
@@ -361,7 +360,7 @@ const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
 
 /**
  * Validate the attendee block, the shared date, and each booked line. A daily
- * booking requires a valid shared start date; everything date- or
+ * booking requires a valid shared start date. Everything date- or
  * capacity-related beyond that is a warning, not an error.
  */
 export const validateParsedForm = (
@@ -421,7 +420,7 @@ const lineBookingFields = (
 } => ({
   ...lineDate(line, parsed),
   listingId: line.listingId,
-  // Each line books its own path, so two lines for one listing (its own
+  // Each line books its own path. Two lines for one listing (its own
   // row beside a package's row) persist as two rows on distinct slots.
   packageGroupId: line.packageGroupId,
   // A retained line always has a non-null quantity: isBookedLine guarantees
@@ -454,15 +453,14 @@ export const toCreateInput = (
 });
 
 /**
- * Build the gross priced order for a manual add's ledger legs: one line per
- * booked path at its current list price × quantity — a package-path line at
- * that package's per-unit override (an explicit 0 is a free member), any
- * other line at the listing's own price. The add form captures no amount paid
- * and no booking fee, so this carries no extras and a zero total —
- * `owedOrderForLedger`/`bookingFactsFromOrder` then recognise each line's gross
- * as a `sale` leg (income) with no `payment`/`fee` leg, and the manual-add poster
- * reconciles the owner-entered outstanding balance on top. A booked line always
- * resolves its listing (`isBookedLine`), so `listing!` is safe.
+ * Build the gross priced order for a manual add's ledger legs, one line per
+ * booked path at its current list price × quantity. A package-path line uses
+ * that package's per-unit override, and an explicit 0 is a free member. Any
+ * other line uses the listing's own price. The add form captures no amount
+ * paid and no booking fee, so this carries no extras and a zero total.
+ * `owedOrderForLedger`/`bookingFactsFromOrder` then recognise each line's
+ * gross as a `sale` leg (income) with no `payment`/`fee` leg. The manual-add
+ * poster reconciles the owner-entered outstanding balance on top.
  */
 export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
   const lines: PricedLine[] = parsed.lines
@@ -495,10 +493,10 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
  * Desired final-state lines for the atomic edit — one per retained editor
  * line. The editor renders one line per booking PATH (every stored row plus
  * the blank standalone/package lines), so the retained set IS the complete
- * desired state: a line that already has a row keeps that row's key (an
- * in-place UPDATE, even across a date move), a blank line given a quantity
- * INSERTs on its chosen path, and any stored row whose line was zeroed or
- * omitted falls out and is deleted.
+ * desired state. A line that already has a row keeps that row's key (an
+ * in-place UPDATE, even across a date move). A blank line given a quantity
+ * INSERTs on its chosen path. A stored row whose line was zeroed or omitted
+ * falls out and is deleted.
  */
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
@@ -508,9 +506,9 @@ export const toDesiredLines = (
   // deleted.
   parsed.lines.filter(isRetainedLine).map(
     (line): DesiredListingLine => ({
-      // The shared fields include the line's own path — an existing row's
-      // stored values, a blank line's chosen package — so the edit always
-      // targets exactly one slot.
+      // The shared fields include the line's own path: an existing row's
+      // stored values, or a blank line's chosen package. The edit therefore
+      // always targets exactly one slot.
       ...lineBookingFields(line, parsed),
       exists: Boolean(line.existingBooking),
       key: line.key,
@@ -523,9 +521,10 @@ export type BalanceNotice = { tone: "warning" | "info"; message: string };
 
 /**
  * Flag a mismatch between an attendee's status and their balance, or null when
- * the two agree: a paid status that still owes (warning), a reservation with no
- * recorded balance while part of the order is unpaid (warning), or a fully-paid
- * reservation still in a reservation status (info nudge).
+ * the two agree. The mismatch is one of these: a paid status that still owes
+ * (warning). A reservation with no recorded balance while part of the order is
+ * unpaid (warning). A fully-paid reservation still in a reservation status
+ * (info nudge).
  */
 export const attendeeBalanceNotice = (
   status: { is_paid_default: boolean; is_reservation: boolean } | null,

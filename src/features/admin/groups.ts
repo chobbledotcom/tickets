@@ -6,8 +6,8 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
  * Admin group management routes. Each route declares its own audience in
- * `admin-surface/areas.ts`, so the roles differ across this file: an editor
- * reaches the list and the record page, but only staff may delete.
+ * `admin-surface/areas.ts`, so the roles differ across this file. An editor
+ * reaches the list and the record page. Only staff can delete.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
@@ -79,13 +79,12 @@ type GroupValidator = (
   id?: number,
 ) => Promise<string | null>;
 
-/** Validate that a group's slug is not already in use */
 const validateGroupSlug: GroupValidator = async (input, id) => {
   const taken = await isGroupSlugTaken(input.slug, id);
   return taken ? t("error.slug_in_use_group") : null;
 };
 
-/** Reject marking a group as a package when any current member can't be packaged
+/** Reject marking a group as a package when a current member cannot be packaged
  * (see {@link packageMembersError}) — including hiding a package whose member
  * gates children. A falsy `isPackage` is always fine. Returns a member-naming
  * error message, or null when valid. */
@@ -99,11 +98,11 @@ const validatePackageCompatibility = async (
 };
 
 /** Error when the group is a HIDDEN package with sold tickets. Booking rows
- * keep its `package_group_id`, and a stale id resolves to NO package display —
- * existing /t tickets and confirmation emails would fall back to per-member
- * cards/rows, revealing the member names the hide flag concealed. Un-packaging
+ * keep its `package_group_id`, and a stale id resolves to NO package display.
+ * Existing /t tickets and confirmation emails fall back to per-member
+ * cards/rows and reveal the member names the hide flag concealed. Un-packaging
  * or deleting such a group is rejected until the operator clears the hide flag
- * first (an explicit reveal); a VISIBLE package still un-groups freely. */
+ * first (an explicit reveal). A VISIBLE package still un-groups freely. */
 export const soldHiddenPackageError = (id: number): Promise<string | null> =>
   withGroupOrNull(id, async (group) => {
     if (!group.is_package || !group.hide_package_listings) return null;
@@ -115,7 +114,7 @@ export const soldHiddenPackageError = (id: number): Promise<string | null> =>
 /** Combined validation: slug uniqueness plus the package invariant. On create
  * (`id` undefined) the group has no members yet, so only the slug is checked.
  * Deleting or un-packaging a package with sold tickets is allowed for a
- * VISIBLE package: the group's items are simply un-grouped — the booking rows'
+ * VISIBLE package: the group's items are un-grouped. The booking rows'
  * stored `package_group_id` stops resolving, and existing tickets fall back to
  * per-member cards. A HIDDEN sold package must not take that fall-back path
  * ({@link soldHiddenPackageError}). */
@@ -145,12 +144,12 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
 
 /** Parse one package-price input to minor units. A blank, non-numeric, or
  * negative value is `null` — "no override; use the listing's own price" — so a
- * typo can't fail the save or store a negative override. An explicit `0` is a
+ * typo cannot fail the save or store a negative override. An explicit `0` is a
  * real value: the listing is FREE within this package, distinct from "no
  * override". {@link parseOptionalMinorUnits} is exactly this optional-field
  * shape (blank ⇒ unset, never a real 0) and enforces the whole-string,
- * currency-decimal rule, so a typo like `12abc`/`1,50` falls back to no
- * override rather than a partial `12`/`1`. */
+ * currency-decimal rule. A typo like `12abc`/`1,50` falls back to no override
+ * rather than a partial `12`/`1`. */
 const parsePackagePrice = (raw: string): number | null =>
   parseOptionalMinorUnits(raw);
 
@@ -214,11 +213,9 @@ const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
   return members;
 };
 
-/** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) =>
   projectCatalogFields(groupCatalogFields, "form", values);
 
-/** Extract group input from create form values (auto-generates slug) */
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,
 ): Promise<GroupInput> => {
@@ -226,7 +223,6 @@ const extractGroupCreateInput = async (
   return { ...sharedGroupFields(values), slug, slugIndex };
 };
 
-/** Extract group input from edit form values (uses provided slug). */
 const extractGroupEditInput = async (
   values: GroupFormValues,
 ): Promise<GroupInput> => {
@@ -238,13 +234,12 @@ const extractGroupEditInput = async (
   };
 };
 
-/** Delete a group and reset its listings to ungrouped */
 export const deleteGroup = async (id: InValue) => {
   const groupId = Number(id);
   await resetGroupListings(groupId);
-  // Clear site-page membership edges atomically with the group row: a failed
-  // delete must never leave a page pointing at a still-present group, nor strip
-  // edges from a group that survives.
+  // Clear site-page membership edges atomically with the group row. A failed
+  // delete must never leave a page pointing at a still-present group, nor
+  // strip edges from a group that survives.
   await executeBatch([
     clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
@@ -253,10 +248,10 @@ export const deleteGroup = async (id: InValue) => {
 };
 
 /** Shared CRUD handler config. `renderEdit` is omitted because the edit page
- * needs the group's listings and package prices — the entity page's Edit tab
+ * needs the group's listings and package prices. The entity page's Edit tab
  * loads those (`loadGroupEditPanel`), and the edit POST stays generic. After
- * create/edit, staff land on the group detail page; editors can't open it (it
- * decrypts attendee PII), so they return to the group edit form instead — a
+ * create/edit, staff land on the group detail page. Editors cannot open it (it
+ * decrypts attendee PII), so they return to the group edit form instead. A
  * successful save never bounces them to a forbidden page. */
 const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
@@ -272,7 +267,7 @@ const crudConfig = {
 
 /** Groups resource for REST create operations (auto-generated slug). Validates
  * with {@link validateGroupWithPackage} so a new group's name uniqueness is
- * enforced on create too; the package checks it runs are no-ops on create (the
+ * enforced on create too. The package checks it runs are no-ops on create (the
  * group has no members yet) and the auto-generated slug is already unique. */
 /** Config shared by both group resources: the same table, delete hook and
  * package validation. The variants accept and read different form fields. */
@@ -291,10 +286,10 @@ const groupsCreateResource = defineResource({
 /** Groups resource for REST update operations (user-provided slug). Validates
  *  the package invariant and writes the dynamic overrides via afterWrite, so the
  *  generic CRUD edit route handles packages without a bespoke handler.
- *  `afterWrite` reads the `package_price_<id>` / `package_qty_<id>` inputs from
- *  the raw form, clears all overrides when the group is not a package, and
- *  rechecks the sold-hidden invariant so a checkout that committed between the
- *  request-level check and this write rolls the change back. */
+ *  `afterWrite` reads the `package_price_<id>` / `package_qty_<id>` inputs
+ *  from the raw form and clears all overrides when the group is not a
+ *  package. It rechecks the sold-hidden invariant. A checkout that committed
+ *  between the request-level check and this write rolls the change back. */
 const groupsResource = defineResource({
   ...groupResourceBase,
   afterWrite: (tx, id, input, form, flags) =>
@@ -312,8 +307,8 @@ const groupsResource = defineResource({
 
 // The two bundles differ only in which resource writes the row: creating a
 // group generates its slug, editing one does not. Each route takes its own
-// roles from its declaration, so editors reach the create and edit routes
-// while the destructive delete stays staff-only, from one bundle.
+// roles from its declaration. Editors reach the create and edit routes, while
+// the destructive delete stays staff-only, from one bundle.
 const create = createCrudHandlers({
   ...crudConfig,
   operations: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
@@ -323,7 +318,6 @@ const crud = createCrudHandlers({
   operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
 
-/** Look up group by id, return 404 if not found */
 export const withGroup = withEntityLoader((id: number) => getGroupById(id));
 
 const groupImageHandlers = createItemImageHandlers({
@@ -334,14 +328,13 @@ const groupImageHandlers = createItemImageHandlers({
   path: (id) => `/admin/groups/${id}/images`,
 });
 
-/** Group routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/groups": crud.listGet,
 
   // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
   // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
-  // actions). Per-tab authorization lives in the page definition (group-page.ts);
-  // literal sub-routes below (add-listings, and delete/export/bulk-actions in
+  // actions). Per-tab authorization lives in the page definition (group-page.ts).
+  // Literal sub-routes below (add-listings, and delete/export/bulk-actions in
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.

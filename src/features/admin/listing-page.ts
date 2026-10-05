@@ -49,8 +49,8 @@ import {
 const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
-/** Staff-only, and only when the listing also passes an extra check (e.g. it is
- * still active, or it is a paid listing). */
+/** Staff-only, and only when the listing also passes an extra check: for
+ * example it is still active, or it is a paid listing. */
 const staffAnd =
   (alsoAllowed: (entity: LoadedListing) => boolean) =>
   (entity: LoadedListing, session: AuthSession): boolean =>
@@ -68,9 +68,9 @@ const subAction =
 
 /** The Actions tab entries. Each `visible` repeats the gate its target route
  * enforces, so no dead or forbidden link renders. The tab itself is open to
- * content roles (staff + editor), so every mutation-risk entry below carries its
- * own explicit role check — only Duplicate and Export are safe for an editor to
- * use unrestricted. */
+ * content roles (staff + editor). So every mutation-risk entry below carries
+ * its own explicit role check. Only Duplicate and Export are safe for an
+ * editor to use unrestricted. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: subAction("duplicate"),
@@ -91,9 +91,9 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     icon: "arrow-right",
     intent: "write-form",
     labelKey: "common.email",
-    // Owner-only, and only when there is someone to email — the compose page
+    // Owner-only, and only when there is someone to email. The compose page
     // 404s for a listing target with zero recipients, so a link without
-    // emailable attendees would be a dead link (AGENTS.md: never render one).
+    // emailable attendees is a dead link (AGENTS.md: never render one).
     visible: (entity, session) =>
       isOwnerRole(session.adminLevel) && entity.hasEmailableAttendees,
   },
@@ -186,21 +186,21 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     ),
     {
       // The scanner is served by its own route (GET /admin/listing/:id/scanner,
-      // scanner.ts) rather than this tab framework's section loaders — the
-      // router tries literal paths before this page's /:tab wildcard, so that
-      // route always wins and this tab renders no content of its own. Its
-      // entry here exists only to promote the link into the top-level tab
-      // strip (out of the Actions tab's action list), same slug and same
+      // scanner.ts) rather than this tab framework's section loaders. The
+      // router tries literal paths before this page's /:tab wildcard. So that
+      // route always wins, and this tab renders no content of its own. Its
+      // entry here exists only to promote the link into the top-level
+      // tab strip (out of the Actions tab's action list). Same slug and same
       // check-in gate the standalone route's link always used.
       labelKey: "listings_table.scanner",
       sections: [],
       slug: "scanner",
       visible: staffAnd((entity) => !entity.listing.purchase_only),
     },
-    // Editors and above may edit, but not in read-only mode — where the
+    // Editors and above can edit, but not in read-only mode. In that mode the
     // global guard redirects the edit route to /read-only. Hide the tab then
-    // rather than render a link that immediately bounces (and so an editor's
-    // bare-URL default can't resolve onto an un-editable form).
+    // rather than render a link that immediately bounces. Then an editor's
+    // bare-URL default cannot resolve onto an un-editable form.
     writeFormTab("edit", "entity.tab.edit", (entity, ctx) =>
       loadListingEditPanel(entity, ctx),
     ),
@@ -219,11 +219,11 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       "entity.tab.questions",
       loadListingQuestionsPanel,
     ),
-    // Staff-only, and only while the listing's public page serves: a child
-    // has no standalone page at all, and an inactive listing's page is off, so
-    // either tab would link straight to a 404. Hidden in read-only mode too:
-    // the QR form posts to POST /admin/listing/:id/qr, which the read-only
-    // guard default-denies — so a followable tab would carry an unsubmittable
+    // Staff-only, and only while the listing's public page serves. A child
+    // has no standalone page at all, and an inactive listing's page is off.
+    // Either tab links straight to a 404. Hidden in read-only mode too: the
+    // QR form posts to POST /admin/listing/:id/qr, which the read-only
+    // guard default-denies. A followable tab then carries an unsubmittable
     // form.
     writeFormTab(
       "qr",
@@ -244,9 +244,10 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
           actions: LISTING_ACTIONS,
           kind: "actions",
           // The Email action is the only one gating on hasEmailableAttendees,
-          // and its recipient check decrypts PII — so resolve it here, when the
-          // Actions tab renders, instead of on every tab's page load. Owner-only
-          // (the sole role that sees Email); other staff skip the decrypt.
+          // and its recipient check decrypts PII. So resolve it here, when the
+          // Actions tab renders, instead of on every tab's page load.
+          // Owner-only (the sole role that sees Email). Other staff skip the
+          // decrypt.
           prepare: prepareOwnerFields<LoadedListing>(async (entity) => ({
             hasEmailableAttendees: await listingHasEmailableAttendees(
               entity.listing.id,
@@ -256,7 +257,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
         },
       ],
       slug: "actions",
-      // Open to editors too (unlike the other staff-only tabs): they may
+      // Open to editors too (unlike the other staff-only tabs). They can
       // still only use Duplicate and Export, since every other action above
       // carries its own `staffOnly` check.
       visible: (_entity, session) => isContentRole(session.adminLevel),
