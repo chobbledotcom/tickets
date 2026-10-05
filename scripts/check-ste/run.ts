@@ -1,12 +1,12 @@
 /** Compare repository prose with its accepted findings. Each allowance can only fall. */
 
 import { join } from "@std/path";
+import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import {
-  type CheckOutput,
-  formatFinding,
-  reportCheck,
-} from "#scripts/check-report.ts";
-import { countsRose, staleEntryLines } from "#scripts/check-runner.ts";
+  compareCounts,
+  type Registry,
+  staleEntryLines,
+} from "#scripts/check-runner.ts";
 import { countBy } from "#scripts/count-by.ts";
 import { collectFiles, directoryEntries } from "#scripts/walk-files.ts";
 import { findIssues, type SteIssue } from "./rules.ts";
@@ -20,10 +20,6 @@ import { findIssues, type SteIssue } from "./rules.ts";
 export interface Records {
   [path: string]: string;
 }
-
-/** The finding count each document carries today, one number per finding
- * identity. */
-export type Baseline = Record<string, Record<string, number>>;
 
 /** One Markdown file and its content, ready to check. */
 export interface DocumentFile {
@@ -87,17 +83,11 @@ const countsByIdentity = countBy(identityOf);
 export const freshEntry = (content: string): Record<string, number> =>
   countsByIdentity(findIssues(content));
 
-/** Whether any document's any finding rose above its record. */
-export const baselineRose = (recorded: Baseline, fresh: Baseline): boolean =>
-  Object.entries(fresh).some(([path, entry]) =>
-    countsRose(recorded[path] ?? {}, entry),
-  );
-
 /** The baseline every non-record document holds today. */
 export const freshBaseline = async (
   documents: readonly DocumentFile[],
   records: Records,
-): Promise<Baseline> =>
+): Promise<Registry> =>
   Object.fromEntries(
     documents
       .filter((file) => records[file.path] === undefined)
@@ -121,7 +111,7 @@ const byPath = (left: DocumentFile, right: DocumentFile): number =>
 export const runSteCheck = (
   files: readonly DocumentFile[],
   records: Records,
-  baseline: Baseline,
+  baseline: Registry,
   output: CheckOutput,
 ): number => {
   const paths = files.map((file) => file.path);
@@ -152,78 +142,22 @@ export const runSteCheck = (
       "Every policy document passes the simplified-technical-english checks.",
   });
 };
-/** One document's recorded baseline entry beside its current finding counts,
- * the pair every rise and shrink check compares. */
-interface ComparedCounts {
-  current: Record<string, number>;
-  recorded: Record<string, number>;
-}
-/** The count one identity holds, zero where it holds none. */
-const countOf = (counts: Record<string, number>, identity: string): number =>
-  counts[identity] ?? 0;
-
-/** Only the findings an identity holds beyond its recorded count, in order:
- * an identity allowed twice and seen three times reports one finding, not
- * three. */
-const risenFindings = (
-  issues: readonly SteIssue[],
-  { current, recorded }: ComparedCounts,
-): SteIssue[] => {
-  const risen: SteIssue[] = [];
-  const reportedPerIdentity = new Map<string, number>();
-  for (const issue of issues) {
-    const identity = identityOf(issue);
-    const reported = reportedPerIdentity.get(identity) ?? 0;
-    const excess = countOf(current, identity) - countOf(recorded, identity);
-    if (reported < excess) {
-      reportedPerIdentity.set(identity, reported + 1);
-      risen.push(issue);
-    }
-  }
-  return risen;
-};
-
-/** Whether any recorded identity count fell below its current count. */
-const anyShrank = ({ current, recorded }: ComparedCounts): boolean => {
-  for (const [identity, count] of Object.entries(recorded)) {
-    if (count > countOf(current, identity)) return true;
-  }
-  return false;
-};
-
 /** One document's findings against its baseline entry, or the prompt that
  * asks for the entry to be lowered. */
 const findingsFor = (
   file: DocumentFile,
   records: Records,
-  baseline: Baseline,
+  baseline: Registry,
 ): string[] => {
   if (records[file.path] !== undefined) return [];
-  const recorded = baseline[file.path] ?? {};
   const issues = findIssues(file.content);
-  const compared: ComparedCounts = {
+  return compareCounts({
     current: countsByIdentity(issues),
-    recorded,
-  };
-  if (countsRose(recorded, compared.current)) {
-    return risenFindings(issues, compared).map((issue) =>
-      formatFinding(`${file.path}:${issue.line}:${issue.column}`, issue),
-    );
-  }
-  if (!anyShrank(compared)) return [];
-  return [
-    formatFinding(file.path, {
-      fix: "run `deno task check:ste --update` to record the step",
-      problem: `fewer findings than recorded (${summaryOf(issues)})`,
-      rule: "improved",
-    }),
-  ];
-};
-
-/** One readable list of what a document still holds, e.g. `";": 12`. */
-const summaryOf = (issues: readonly SteIssue[]): string => {
-  const parts = Object.entries(countsByIdentity(issues)).map(
-    ([identity, count]) => `${identity}: ${count}`,
-  );
-  return parts.length === 0 ? "none" : parts.join(", ");
+    file: file.path,
+    findings: issues,
+    keyOf: identityOf,
+    recorded: baseline[file.path] ?? {},
+    updateCommand: "deno task check:ste --update",
+    whereOf: (issue) => `${file.path}:${issue.line}:${issue.column}`,
+  });
 };

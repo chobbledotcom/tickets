@@ -5,9 +5,11 @@
  * `formatFinding` prints.
  */
 
+import { fromFileUrl } from "@std/path";
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { notCoveredBy } from "#fp";
+import { integerAtLeast } from "#shared/validation/number.ts";
 import {
   type CheckOutput,
   formatFinding,
@@ -26,9 +28,82 @@ export type Counts = Record<string, number>;
 export const countsRose = (recorded: Counts, fresh: Counts): boolean =>
   Object.entries(fresh).some(([key, count]) => count > (recorded[key] ?? 0));
 
+/** One file's findings against its recorded counts: only the findings that
+ * sit past their recorded count, in source order, or the one prompt that
+ * asks for a fallen count to be recorded. The key decides what one count
+ * stands for: a rule for the comment check, a rule-plus-prose identity for
+ * the Markdown check. */
+/** The findings of the rules the recorded state does not allow, in source
+ * order, one per count past its record. */
+const risenFindings = <F extends PerFileFinding>(
+  findings: readonly F[],
+  excess: Map<string, number>,
+  keyOf: (finding: F) => string,
+  whereOf: (finding: F) => string,
+): string[] => {
+  const reported = new Map<string, number>();
+  const risen: string[] = [];
+  for (const finding of findings) {
+    const key = keyOf(finding);
+    const past = excess.get(key);
+    if (past === undefined) continue;
+    const shown = reported.get(key) ?? 0;
+    if (shown >= past) continue;
+    reported.set(key, shown + 1);
+    risen.push(formatFinding(whereOf(finding), finding));
+  }
+  return risen;
+};
+
+export const compareCounts = <F extends PerFileFinding>(input: {
+  file: string;
+  findings: readonly F[];
+  current: Counts;
+  recorded: Counts;
+  keyOf: (finding: F) => string;
+  whereOf: (finding: F) => string;
+  updateCommand: string;
+}): string[] => {
+  if (countsRose(input.recorded, input.current)) {
+    // How many findings of each rule the recorded state does not allow.
+    const excess = new Map<string, number>();
+    for (const [key, count] of Object.entries(input.current)) {
+      const past = count - (input.recorded[key] ?? 0);
+      if (past > 0) excess.set(key, past);
+    }
+    return risenFindings(input.findings, excess, input.keyOf, input.whereOf);
+  }
+  const fell = Object.entries(input.recorded).some(
+    ([key, count]) => count > (input.current[key] ?? 0),
+  );
+  if (!fell) return [];
+  const parts = Object.entries(input.current).map(
+    ([key, count]) => `${key}: ${count}`,
+  );
+  const summary = parts.length === 0 ? "none" : parts.join(", ");
+  return [
+    formatFinding(input.file, {
+      fix: `run \`${input.updateCommand}\` to record the step`,
+      problem: `fewer findings than recorded (${summary})`,
+      rule: "improved",
+    }),
+  ];
+};
+
+/** The counts one rule holds in one file: a whole count per rule, never
+ * negative. */
+const COUNTS_SCHEMA = v.record(v.string(), integerAtLeast(0));
+
+/** The shape a registry file holds: one entry per path. */
+const REGISTRY_SCHEMA = v.record(v.string(), COUNTS_SCHEMA);
+
 /** The counts registry at `path`, or a loud failure naming it. */
 export const readCounts = async (path: string): Promise<Counts> =>
-  await readJsonOrThrow(path, v.record(v.string(), v.number()));
+  await readJsonOrThrow(path, COUNTS_SCHEMA);
+
+/** One per-file ratchet's records: one entry per path, one count per rule
+ * or finding identity. */
+export type Registry = Record<string, Counts>;
 
 /** Which registry-recording mode the caller asked for on the command line. */
 export interface UpdateMode {
@@ -45,6 +120,37 @@ const SEED_ERROR =
 export const updateMode = (args: readonly string[]): UpdateMode => {
   if (args.includes("--seed")) throw new Error(SEED_ERROR);
   return { update: args.includes("--update") };
+};
+
+/** The absolute path of a registry file a check keeps beside its entry
+ * script. */
+export const registryPath = (from: string, relative: string): string =>
+  fromFileUrl(new URL(relative, from));
+
+/**
+ * One per-file ratchet's entry wiring: the registry lives beside the
+ * calling module at `relative`, the read is validated against the shared
+ * registry shape, and the record step runs for the mode `args` name, with
+ * the two-level registry rose refusing a rise.
+ */
+export const ratchetedState = async (
+  moduleUrl: string,
+  relative: string,
+  args: readonly string[],
+  fresh: () => Promise<Registry>,
+): Promise<Registry> => {
+  const path = registryPath(moduleUrl, relative);
+  return await recordedState(
+    path,
+    updateMode(args),
+    await readJsonOrThrow(path, REGISTRY_SCHEMA),
+    fresh,
+    // A count rose in any file, including a file the records never held.
+    (recorded, now) =>
+      Object.entries(now).some(([path, counts]) =>
+        countsRose(recorded[path] ?? {}, counts),
+      ),
+  );
 };
 
 /**

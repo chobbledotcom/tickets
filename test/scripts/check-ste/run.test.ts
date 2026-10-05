@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  baselineRose,
   type DocumentFile,
   freshBaseline,
   freshEntry,
@@ -272,17 +271,5 @@ describe("the baseline the update step records", () => {
     expect(entry).toEqual({
       'semicolon ";" in Write one; also two;': 2,
     });
-  });
-
-  test("baselineRose answers yes only when an identity's count rose", () => {
-    const recorded = { "a.md": freshEntry("Write; one.\n\nTwo; three.\n") };
-    const atBaseline = freshEntry("Write; one.\n\nTwo; three.\n");
-    expect(baselineRose(recorded, { "a.md": atBaseline })).toBe(false);
-    expect(baselineRose(recorded, {})).toBe(false);
-    const oneLeft = freshEntry("Write; one.\n");
-    expect(baselineRose(recorded, { "a.md": oneLeft })).toBe(false);
-    const oneMore = freshEntry("Write; one.\nTwo;\nThree;\n");
-    expect(baselineRose(recorded, { "a.md": oneMore })).toBe(true);
-    expect(baselineRose(recorded, { "b.md": oneLeft })).toBe(true);
   });
 });
