@@ -306,15 +306,17 @@ const symbolsDeclaredFor = (
  * class field that implements it. */
 type FieldOwners = {
   readonly heritageOwners: ReadonlyMap<ts.Symbol, readonly OwnedField[]>;
-  readonly ownersOfSymbol: ReadonlyMap<ts.Symbol, readonly OwnedField[]>;
-  readonly ownersOfDeclaration: ReadonlyMap<
+  readonly ownersBySymbol: ReadonlyMap<ts.Symbol, readonly OwnedField[]>;
+  readonly ownersByDeclaration: ReadonlyMap<
     ts.Declaration,
     readonly OwnedField[]
   >;
 };
 
-/** Everything the one walk needs to answer for the fields. */
-type ReaderDeps = HeritageAsk &
+/** Everything the one walk needs to answer for the fields. The ledger
+ * travels with the walk: the checker, the heritage walks, the indexes, and
+ * the repository root the reader paths are cut down to. */
+type ReaderLedger = HeritageAsk &
   FieldOwners & {
     readonly root: string;
   };
@@ -331,38 +333,43 @@ const fieldsOfSymbol = (
   symbol: ts.Symbol,
   owners: FieldOwners,
 ): readonly OwnedField[] => [
-  ...(owners.ownersOfSymbol.get(symbol) ?? []),
+  ...(owners.ownersBySymbol.get(symbol) ?? []),
   ...(owners.heritageOwners.get(symbol) ?? []),
   ...(symbol.declarations ?? []).flatMap(
-    (declaration) => owners.ownersOfDeclaration.get(declaration) ?? [],
+    (declaration) => owners.ownersByDeclaration.get(declaration) ?? [],
   ),
 ];
 
 /** The fields one read mention names: the fields its symbols answer for,
  * and the fields the members those tie to through heritage answer for. */
 const fieldsOfReadMention = (
-  asks: ReaderDeps,
+  ledger: ReaderLedger,
   node: ts.Node,
 ): readonly OwnedField[] => {
   const fields: OwnedField[] = [];
-  for (const symbol of symbolsAtMention(asks.checker, node)) {
-    for (const rootSymbol of [symbol, ...asks.heritageOf(symbol)]) {
-      fields.push(...fieldsOfSymbol(rootSymbol, asks));
+  for (const symbol of symbolsAtMention(ledger.checker, node)) {
+    for (const rootSymbol of [symbol, ...ledger.heritageOf(symbol)]) {
+      fields.push(...fieldsOfSymbol(rootSymbol, ledger));
     }
   }
   return fields;
 };
 
+/** One reader's file, as the report names it: the repository path cut down
+ * by the root the scan ran on. */
+const fileOf = (root: string, source: ts.SourceFile): string =>
+  source.fileName.replace(`${root}/`, "");
+
 const collectReadersIn =
-  (deps: ReaderDeps) =>
+  (ledger: ReaderLedger) =>
   (
     source: ts.SourceFile,
     readersOfField: Map<OwnedField, Set<string>>,
   ): void => {
-    const file = source.fileName.replace(`${deps.root}/`, "");
+    const file = fileOf(ledger.root, source);
     const read = (node: ts.Node): void => {
       if (namesAMember(node) && readsTheValue(node)) {
-        for (const field of fieldsOfReadMention(deps, node)) {
+        for (const field of fieldsOfReadMention(ledger, node)) {
           readersOfField.get(field)?.add(file);
         }
       }
@@ -370,30 +377,6 @@ const collectReadersIn =
     };
     read(source);
   };
-
-/** Index the fields by the symbols their declarations stand for, by each
- * declaration of those symbols, and by the members a field's heritage ties
- * it to. */
-const indexFieldOwners = (
-  asks: HeritageAsk,
-  fields: readonly OwnedField[],
-): FieldOwners => {
-  const heritageOwners = new Map<ts.Symbol, OwnedField[]>();
-  const ownersOfSymbol = new Map<ts.Symbol, OwnedField[]>();
-  const ownersOfDeclaration = new Map<ts.Declaration, OwnedField[]>();
-  for (const field of fields) {
-    for (const symbol of symbolsDeclaredFor(asks.checker, field)) {
-      addOwner(ownersOfSymbol, symbol, field);
-      for (const member of asks.heritageOf(symbol)) {
-        addOwner(heritageOwners, member, field);
-      }
-      for (const declaration of symbol.declarations ?? []) {
-        addOwner(ownersOfDeclaration, declaration, field);
-      }
-    }
-  }
-  return { heritageOwners, ownersOfDeclaration, ownersOfSymbol };
-};
 
 const addOwner = <K>(
   owners: Map<K, OwnedField[]>,
@@ -408,35 +391,55 @@ const addOwner = <K>(
   }
 };
 
+/** The ledger the walk carries: the checker, the heritage walks, the three
+ * indexes the fields answer through, and the root the reader paths cut to. */
+const ledgerOf = (
+  checker: ts.TypeChecker,
+  root: string,
+  fields: readonly OwnedField[],
+): ReaderLedger => {
+  const classHeritageOf = classHeritageSymbols(checker);
+  const heritageOf = heritageSymbols(checker);
+  const heritageOwners = new Map<ts.Symbol, OwnedField[]>();
+  const ownersBySymbol = new Map<ts.Symbol, OwnedField[]>();
+  const ownersByDeclaration = new Map<ts.Declaration, OwnedField[]>();
+  for (const field of fields) {
+    for (const symbol of symbolsDeclaredFor(checker, field)) {
+      addOwner(ownersBySymbol, symbol, field);
+      for (const member of classHeritageOf(symbol)) {
+        addOwner(heritageOwners, member, field);
+      }
+      for (const declaration of symbol.declarations ?? []) {
+        addOwner(ownersByDeclaration, declaration, field);
+      }
+    }
+  }
+  return {
+    checker,
+    heritageOf,
+    heritageOwners,
+    ownersByDeclaration,
+    ownersBySymbol,
+    root,
+  };
+};
+
 /** Everyone who reads the fields, in one walk over every non-declaration
  * file the program holds. Each member mention that takes a value out names
  * the field its symbol belongs to. */
 export const readersOfFields =
-  (deps: {
+  (start: {
     readonly checker: ts.TypeChecker;
     readonly program: ts.Program;
     readonly root: string;
   }) =>
   (fields: readonly OwnedField[]): Map<OwnedField, readonly string[]> => {
-    const heritageOf = heritageSymbols(deps.checker);
+    const ledger = ledgerOf(start.checker, start.root, fields);
     const readersOfField = new Map<OwnedField, Set<string>>();
     for (const field of fields) readersOfField.set(field, new Set());
-    const classHeritageOf = classHeritageSymbols(deps.checker);
-    const { heritageOwners, ownersOfDeclaration, ownersOfSymbol } =
-      indexFieldOwners(
-        { checker: deps.checker, heritageOf: classHeritageOf },
-        fields,
-      );
-    for (const source of deps.program.getSourceFiles()) {
+    for (const source of start.program.getSourceFiles()) {
       if (source.isDeclarationFile) continue;
-      collectReadersIn({
-        checker: deps.checker,
-        heritageOf,
-        heritageOwners,
-        ownersOfDeclaration,
-        ownersOfSymbol,
-        root: deps.root,
-      })(source, readersOfField);
+      collectReadersIn(ledger)(source, readersOfField);
     }
     return new Map(
       [...readersOfField].map(([field, files]) => [field, [...files]] as const),
