@@ -8,18 +8,18 @@ import { logActivity } from "#db/activity-log.ts";
 import {
   type AttributeOption,
   type AttributeWithOptions,
+  attributeOptionIdSets,
   attributeOptionsOrder,
   attributeOptionsTable,
+  attributeReads,
   attributesOrder,
   attributesTable,
   deleteAttribute,
   deleteAttributeOption,
-  getAllAttributeOptionIds,
   getAllAttributesWithOptions,
   getAttributeId,
   getAttributeIdsOrdered,
   getAttributeListingUse,
-  getAttributeWithOptions,
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
 } from "#db/attributes.ts";
@@ -125,7 +125,7 @@ const loadAttributeListingUse = async (attributeId: number) => {
 };
 
 const handleAttributeGet = ownerGetById(
-  getAttributeWithOptions,
+  (id) => attributeReads.any(id),
   async (attribute, session) => {
     const { listingCounts, rowsFor } = await loadAttributeListingUse(
       attribute.id,
@@ -148,7 +148,7 @@ type AttributeOptionContext = {
 
 const redirectToAttribute = redirectToDetail("/admin/attributes");
 
-const logAttributeOptionActivity = (
+export const logAttributeOptionActivity = (
   optionText: string,
   action: string,
   attribute: AttributeWithOptions,
@@ -163,6 +163,47 @@ const logAttributeOptionActivity = (
     transaction,
   );
 
+/** Delete one option and log it against its attribute; the one delete the
+ * HTML route and the JSON API route share. */
+export const deleteAttributeOptionWithLog = async (
+  attribute: AttributeWithOptions,
+  option: AttributeOption,
+): Promise<void> => {
+  await deleteAttributeOption(option.id);
+  await logAttributeOptionActivity(option.text, "deleted from", attribute);
+};
+
+/** Insert an option and place it in its attribute's order, atomically. */
+const addOptionRow = insertScopedOrderedRow(
+  attributeOptionsTable,
+  attributeOptionsOrder,
+);
+
+/** Add an option to an attribute, in its order, and log it; the one add the
+ * HTML route and the JSON API route share. */
+export const addAttributeOptionWithLog = async (
+  attribute: AttributeWithOptions,
+  text: string,
+): Promise<void> => {
+  await addOptionRow(
+    attribute.id,
+    { attributeId: attribute.id, sortOrder: 0, text },
+    (transaction) =>
+      logAttributeOptionActivity(text, "added to", attribute, transaction),
+  );
+};
+
+/** Rename an option and log it; the one rename the HTML route and the JSON
+ * API route share. */
+export const renameAttributeOption = async (
+  attribute: AttributeWithOptions,
+  option: AttributeOption,
+  text: string,
+): Promise<void> => {
+  await attributeOptionsTable.update(option.id, { text });
+  await logAttributeOptionActivity(text, "updated in", attribute);
+};
+
 const handleAttributeEdit = createAuthedFormRoute<
   { name: string },
   AttributeParams
@@ -171,7 +212,7 @@ const handleAttributeEdit = createAuthedFormRoute<
   form: attributeNameForm,
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { name } }) =>
-    orNotFound(getAttributeWithOptions(params.id), async () => {
+    orNotFound(attributeReads.any(params.id), async () => {
       await attributesTable.update(params.id, { name });
       await logActivity(`Attribute '${name}' updated`);
       return redirect(
@@ -182,12 +223,6 @@ const handleAttributeEdit = createAuthedFormRoute<
     }),
 });
 
-/** Insert an option and place it in its attribute's order, atomically. */
-const addOptionRow = insertScopedOrderedRow(
-  attributeOptionsTable,
-  attributeOptionsOrder,
-);
-
 const handleAddOption = createAuthedFormRoute<
   { text: string },
   AttributeParams
@@ -196,16 +231,10 @@ const handleAddOption = createAuthedFormRoute<
   form: attributeOptionForm,
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { text } }) =>
-    orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
+    orNotFound(attributeReads.any(params.id), async (attribute) => {
       // One transaction: an option must never exist without its place in the
-      // order or its log line. The inserted sortOrder is a placeholder the
-      // append overwrites before anything can read it.
-      await addOptionRow(
-        params.id,
-        { attributeId: params.id, sortOrder: 0, text },
-        (transaction) =>
-          logAttributeOptionActivity(text, "added to", attribute, transaction),
-      );
+      // order or its log line.
+      await addAttributeOptionWithLog(attribute, text);
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
     }),
 });
@@ -213,7 +242,7 @@ const handleAddOption = createAuthedFormRoute<
 const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
   identifier: (attribute) => attributeNameFlat(attribute.name),
   identifierLabel: "Attribute name",
-  load: (id) => getAttributeWithOptions(id),
+  load: (id) => attributeReads.any(id),
   onConfirm: confirmDeleteWithLog(
     deleteAttribute,
     "Attribute",
@@ -227,7 +256,7 @@ const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
 });
 
 const loadAttributeOption = ({ id, optionId }: AttributeOptionParams) =>
-  throughParent(getAttributeWithOptions(id), (attribute) => {
+  throughParent(attributeReads.any(id), (attribute) => {
     const option = attribute.options.find((item) => item.id === optionId);
     return option ? { attribute, option } : null;
   });
@@ -287,8 +316,7 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   loadContext: loadAttributeOption,
   mismatchRedirect: (_context, params) => optionDeletePath(params),
   onConfirm: async ({ context: { attribute, option } }) => {
-    await deleteAttributeOption(option.id);
-    await logAttributeOptionActivity(option.text, "deleted from", attribute);
+    await deleteAttributeOptionWithLog(attribute, option);
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Option deleted",
@@ -310,8 +338,7 @@ const handleEditOptionPost = createAuthedFormRoute<
   onInvalid: ({ error, params }) =>
     errorRedirect(editOptionPath(params), error),
   onValid: async ({ context: { attribute, option }, values: { text } }) => {
-    await attributeOptionsTable.update(option.id, { text });
-    await logAttributeOptionActivity(text, "updated in", attribute);
+    await renameAttributeOption(attribute, option, text);
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Option updated",
@@ -350,7 +377,7 @@ const handleListingAttributesPost = createListingChoicePost({
   noun: "option",
   readIds: async (form, fieldName) =>
     pruneInvalidAttributeOptionIds(
-      await getAllAttributeOptionIds(),
+      await attributeOptionIdSets.any(),
       form.getNumberArray(fieldName),
     ),
   saveIds: listingAttributeOptions.setIds,

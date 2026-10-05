@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttributeWithOptions } from "#db/attributes.ts";
+import { attributeReads } from "#db/attributes.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -18,7 +18,7 @@ import { adminFormPost, adminGet } from "#test-utils/session.ts";
 /** The stored options of an attribute the test knows exists — a missing
  * attribute is a broken fixture, so it fails the test by name. */
 const attributeOptions = async (id: number) => {
-  const attribute = await getAttributeWithOptions(id);
+  const attribute = await attributeReads.any(id);
   if (!attribute) throw new Error(`No attribute ${id} in the database`);
   return attribute.options;
 };
@@ -99,7 +99,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
       await adminFormPost(`/admin/attributes/${id}/options`, {
         text: "In person",
       });
-      const before = (await getAttributeWithOptions(id))!;
+      const before = (await attributeReads.any(id))!;
       const second = before.options[1]!;
 
       const edited = await adminFormPost(
@@ -122,7 +122,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         true,
       )(moved.response);
 
-      const after = (await getAttributeWithOptions(id))!;
+      const after = (await attributeReads.any(id))!;
       expect(after.options.map((option) => option.text)).toEqual([
         "In-person",
         "Online",
@@ -132,7 +132,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
       await adminFormPost(
         `/admin/attributes/${id}/options/${second.id}/move-down`,
       );
-      const restored = (await getAttributeWithOptions(id))!;
+      const restored = (await attributeReads.any(id))!;
       expect(restored.options.map((option) => option.text)).toEqual([
         "Online",
         "In-person",

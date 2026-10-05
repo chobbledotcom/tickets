@@ -143,6 +143,9 @@ interface CatalogInput {
 export interface ListingInput
   extends CatalogInput,
     Omit<OptionalCatalogFieldValues<typeof listingCatalogFields>, "name"> {
+  /** Transient selected attribute option ids; the listing_attribute_options
+   * table stores them. */
+  attributeOptionIds?: number[];
   /** Transient group membership; the group_listings table stores it. */
   groupIds?: number[];
   maxAttendees: number;

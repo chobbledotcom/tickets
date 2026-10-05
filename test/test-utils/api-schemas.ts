@@ -176,6 +176,9 @@ export const AdminListingSchema = v.strictObject({
     ],
     v.boolean(),
   ),
+  /** The attribute options the listing selects, added to every admin
+   * response. */
+  attribute_option_ids: v.array(v.number()),
   bookable_days: v.array(v.string()),
   closes_at: v.nullable(v.string()),
   day_prices: v.record(v.string(), v.number()),

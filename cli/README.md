@@ -44,9 +44,18 @@ deno task cli:api create holidays '{"name":"Christmas","start_date":"2025-12-25"
 
 ## Resources
 
-The resource names — `listings`, `groups`, and `holidays` — mirror the admin
-JSON API exactly. `cli/resources.ts` is the single source of truth: both the TUI
-and the agent script read from it, and `test/integration/tooling/cli.test.ts`
-derives the expected set from the server's `adminApiRoutes` and fails if the two
-ever diverge. Exposing a new `/api/admin/:resource` family is therefore a
-one-line addition here.
+The resource names — `attributes`, `listings`, `groups`, and `holidays` —
+mirror the admin JSON API exactly. `cli/resources.ts` is the single source of
+truth: both the TUI and the agent script read from it, and
+`test/integration/tooling/cli.test.ts` derives the expected set from the
+server's `adminApiRoutes` and fails if the two ever diverge. Exposing a new
+`/api/admin/:resource` family is therefore a one-line addition here.
+
+A nested resource addresses the parent id and the subpath in the id argument:
+
+```sh
+deno task cli:api create attributes '{"name":"Game Length"}'
+deno task cli:api create attributes 1/options '{"text":"1-2 minutes"}'
+deno task cli:api update attributes 1/options/2 '{"text":"2 minutes"}'
+deno task cli:api delete attributes 1/options/2 '{"confirm_identifier":"2 minutes"}'
+```

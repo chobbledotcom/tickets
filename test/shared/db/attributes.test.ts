@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  attributeOptionIdSets,
   attributeOptionsOrder,
+  attributeReads,
   attributesOrder,
   deleteAttribute,
   deleteAttributeOption,
-  getAllAttributeOptionIds,
   getAllAttributesWithOptions,
-  getAttributeWithOptions,
   getSelectedAttributesForListings,
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
@@ -57,10 +57,10 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "Step-free",
     ]);
 
-    const found = await getAttributeWithOptions(attribute.id);
+    const found = await attributeReads.any(attribute.id);
     expect(found?.name).toBe("Access");
     expect(optionTexts(found?.options ?? [])).toEqual(["Step-free"]);
-    expect(await getAttributeWithOptions(999_999)).toBeNull();
+    expect(await attributeReads.any(999_999)).toBeNull();
   });
 
   test("stores selected option ids for a listing and replaces them on save", async () => {
@@ -144,7 +144,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
     expect(await listingAttributeOptions.getIds(listing.id)).toEqual([
       attribute.options[1]!.id,
     ]);
-    const found = await getAttributeWithOptions(attribute.id);
+    const found = await attributeReads.any(attribute.id);
     expect(optionTexts(found?.options ?? [])).toEqual(["Autumn"]);
   });
 
@@ -163,7 +163,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
 
     await deleteAttribute(attribute.id);
 
-    expect(await getAttributeWithOptions(attribute.id)).toBeNull();
+    expect(await attributeReads.any(attribute.id)).toBeNull();
     expect(await listingAttributeOptions.getIds(listing.id)).toEqual([]);
   });
 
@@ -176,7 +176,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
     const otherOption = await createTestAttributeOption(other.id, "Other");
 
     expect(
-      pruneInvalidAttributeOptionIds(await getAllAttributeOptionIds(), [
+      pruneInvalidAttributeOptionIds(await attributeOptionIdSets.any(), [
         attribute.options[1]!.id,
         123_456,
         otherOption.id,

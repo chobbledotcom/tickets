@@ -12,6 +12,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  queryAllPrimary,
   queryIdColumn,
   queryOne,
 } from "#db/client.ts";
@@ -226,20 +227,39 @@ export const getAllAttributesWithOptions = async (): Promise<
     ),
   );
 
-export const getAttributeWithOptions = async (
-  id: number,
-): Promise<AttributeWithOptions | null> => {
-  const rows = await queryAll<JoinedAttributeRow>(
-    `SELECT ${ATTRIBUTE_COLS}
+const ATTRIBUTE_JOINED_SQL = `SELECT ${ATTRIBUTE_COLS}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption
          ON attributeOption.attribute_id = attribute.id
       WHERE attribute.id = ?
-      ORDER BY attributeOption.sort_order, attributeOption.id`,
-    [id],
-  );
-  const [attribute] = await groupAttributeRows(rows);
-  return attribute ?? null;
+      ORDER BY attributeOption.sort_order, attributeOption.id`;
+
+const attributeFromRows = async (
+  rows: JoinedAttributeRow[],
+): Promise<AttributeWithOptions | null> =>
+  (await groupAttributeRows(rows))[0] ?? null;
+
+/** The joined attribute rows for one id, on the replica (normal reads) or the
+ * primary (read-your-writes after a write). */
+const attributeRows = (id: number, primary: boolean) =>
+  primary
+    ? queryAllPrimary<JoinedAttributeRow>({
+        args: [id],
+        sql: ATTRIBUTE_JOINED_SQL,
+      })
+    : queryAll<JoinedAttributeRow>(ATTRIBUTE_JOINED_SQL, [id]);
+
+const attributeWithOptions =
+  (primary: boolean) =>
+  async (id: number): Promise<AttributeWithOptions | null> =>
+    attributeFromRows(await attributeRows(id, primary));
+
+/** The attribute reads the feature runs. `any` may serve a read from a
+ * replica. `forWrite` pins to the primary, so a write sequence (create an
+ * attribute, then its first option) cannot miss the row the write just made. */
+export const attributeReads = {
+  any: attributeWithOptions(false),
+  forWrite: attributeWithOptions(true),
 };
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
@@ -253,8 +273,22 @@ export const getAttributeId = async (id: number): Promise<number | null> =>
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
   queryIdColumn("SELECT id FROM attributes ORDER BY sort_order, id");
 
-export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
-  new Set(await queryIdColumn("SELECT id FROM attribute_options"));
+/** The option-id sets the feature reads. `any` serves normal reads from a
+ * replica; `forWrite` pins to the primary, so a listing write that names
+ * options created moments earlier validates against them. */
+export const attributeOptionIdSets = {
+  any: async (): Promise<Set<number>> =>
+    new Set(await queryIdColumn("SELECT id FROM attribute_options")),
+  forWrite: async (): Promise<Set<number>> =>
+    new Set(
+      (
+        await queryAllPrimary<{ id: number }>({
+          args: [],
+          sql: "SELECT id FROM attribute_options",
+        })
+      ).map((row) => row.id),
+    ),
+};
 
 type OptionListingRow = StoredRowOf<
   Listing,

@@ -8,6 +8,7 @@
  */
 
 import { decryptAttendees } from "#db/attendees/pii.ts";
+import { listingAttributeOptions } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
@@ -18,7 +19,8 @@ import {
   listingsTable,
 } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
-import { mapById } from "#fp";
+import { mapById, requiredMapValue } from "#fp";
+import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -34,7 +36,7 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import { withApiEntity } from "#shared/rest/crud-parsers.ts";
+import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Attendee, Listing, ListingWithCount } from "#types";
 
@@ -54,25 +56,11 @@ import {
 // Custom routes (delete with cleanup, activate/deactivate)
 // =============================================================================
 
-const withListing = (
-  request: Request,
-  listingId: number,
-  handler: (
-    listing: ListingWithCount,
-    body: Record<string, unknown>,
-  ) => Promise<Response>,
-): Promise<Response> =>
-  withApiEntity(
-    request,
-    getListingWithCount,
-    listingId,
-    "Listing",
-    (listing, _session, body) => handler(listing, body),
-  );
+const listingGate = apiEntityGate(getListingWithCount, "Listing");
 
 /** Custom DELETE handler: performListingDelete handles storage cleanup + logging with counts */
 const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
-  withListing(request, listingId as number, async (listing, body) => {
+  listingGate(request, listingId as number, async (listing, body) => {
     const error = verifyIdentifierOrJsonError(
       listing.name,
       body.confirm_identifier,
@@ -91,7 +79,7 @@ const handleToggleActive = (
   listingId: number,
   active: boolean,
 ): Promise<Response> =>
-  withListing(request, listingId, async (listing) => {
+  listingGate(request, listingId, async (listing) => {
     const result = await toggleListingActive(listingId, listing, active);
     if ("noChange" in result) {
       return apiErrorResponse(
@@ -108,27 +96,34 @@ export const toAdminListing = ({
   ...rest
 }: ListingWithCount): AdminListing => rest;
 
-/** Batched `group_ids` hydration for a set of listing rows, keyed by listing id
- * — one join-table query for the whole list rather than one per row (the
+/** Batched join-table hydration for a set of listing rows, keyed by listing id
+ * — one query per link table for the whole list rather than one per row (the
  * single-row `hydrate` reuses it with a one-element list). */
-const hydrateListingGroupIds = async (
+const hydrateListingJoins = async (
   rows: { id: number }[],
 ): Promise<ReadonlyMap<number, Record<string, unknown>>> => {
-  const groupIdsByListing = await listingGroups.getIdsByKeys(
-    rows.map((r) => r.id),
-  );
+  const ids = rows.map((row) => row.id);
+  const [groupIdsByListing, optionIdsByListing] = await Promise.all([
+    listingGroups.getIdsByKeys(ids),
+    listingAttributeOptions.getIdsByKeys(ids),
+  ]);
   return mapById((row: (typeof rows)[number]) => ({
+    attribute_option_ids: requiredMapValue(
+      optionIdsByListing,
+      row.id,
+      "Missing listing attribute selection",
+    ),
     group_ids: listingGroups.idsFor(groupIdsByListing, row.id),
   }))(rows);
 };
 
 /** One listing as every admin endpoint answers with it: the stored fields plus
- * the ids of the groups it is in. */
+ * the ids of the groups it is in and the attribute options it selects. */
 const toApiListing = async (
   row: ListingWithCount,
 ): Promise<Record<string, unknown>> => ({
   ...toAdminListing(row),
-  ...(await hydrateListingGroupIds([row])).get(row.id),
+  ...(await hydrateListingJoins([row])).get(row.id),
 });
 
 /** One of the listing's on/off routes: deactivate turns it off, reactivate
@@ -189,7 +184,7 @@ const listingApiRoutes = defineCrudApi<
     "POST /api/admin/listings/:listingId/reactivate": toggleActiveRoute(true),
   },
   getAll: getAllListings,
-  hydrate: hydrateListingGroupIds,
+  hydrate: hydrateListingJoins,
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
   lookup: getListingWithCount,
@@ -209,6 +204,7 @@ const listingApiRoutes = defineCrudApi<
 });
 
 export const adminApiRoutes = {
+  ...attributeApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,
   ...listingApiRoutes,

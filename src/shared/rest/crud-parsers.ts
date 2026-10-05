@@ -165,3 +165,40 @@ export const withApiEntity = <Row>(
     if (!row) return apiErrorResponse(`${notFoundLabel} not found`, 404);
     return handler(row, session, body);
   });
+
+/** A JSON API handler that needs no session: the loaded row and the raw body. */
+export type RowBodyHandler<Row> = (
+  row: Row,
+  body: Record<string, unknown>,
+) => Promise<Response>;
+
+/** Lifts a no-session handler into the withApiEntity handler shape. */
+const withSession =
+  <Row>(handler: RowBodyHandler<Row>): EntityHandler<Row> =>
+  (row, _session, body) =>
+    handler(row, body);
+
+/**
+ * One entity's JSON API gate: the loader, its not-found label, and the auth
+ * policy bound once, so every route for the entity loads and guards the same
+ * way.
+ */
+export const apiEntityGate =
+  <Row>(
+    lookup: (id: number) => Promise<Row | null>,
+    notFoundLabel: string,
+    policy?: AuthPolicy<"json">,
+  ) =>
+  (
+    request: Request,
+    id: number,
+    handler: RowBodyHandler<Row>,
+  ): Promise<Response> =>
+    withApiEntity(
+      request,
+      lookup,
+      id,
+      notFoundLabel,
+      withSession(handler),
+      policy,
+    );

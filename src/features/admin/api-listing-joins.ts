@@ -4,6 +4,10 @@
  * and all three commit atomically with the listing row.
  */
 
+import {
+  attributeOptionIdSets,
+  listingAttributeOptions,
+} from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
 import {
   anyHiddenPackageGroup,
@@ -39,6 +43,7 @@ type PreparedChildEdges = number[] | null;
 /** A listing write's related data, prepared before the row write so it commits
  * in the same transaction. */
 export type PreparedListingJoins = {
+  attributeOptionIds: number[] | undefined;
   childEdges: PreparedChildEdges;
   dayPrices: DayPrices | undefined;
   groupIds: number[] | undefined;
@@ -97,9 +102,11 @@ export const prepareListingJoins = async (
   const groupIds = input.groupIds;
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) {
-    return {
-      value: { childEdges: null, dayPrices: input.dayPrices, groupIds },
-    };
+    return prepareAttributeOptionIds(input.attributeOptionIds, {
+      childEdges: null,
+      dayPrices: input.dayPrices,
+      groupIds,
+    });
   }
   if ("error" in submitted) return submitted;
   // A listing gaining children becomes a parent; a HIDDEN package's member
@@ -129,15 +136,31 @@ export const prepareListingJoins = async (
     { wouldBeGroupIds: inputGroupIds },
   );
   return result.ok
-    ? {
-        value: {
-          childEdges: result.childIds,
-          dayPrices: input.dayPrices,
-          groupIds,
-        },
-      }
+    ? prepareAttributeOptionIds(input.attributeOptionIds, {
+        childEdges: result.childIds,
+        dayPrices: input.dayPrices,
+        groupIds,
+      })
     : { error: result.error };
 };
+
+/** Reject a submitted attribute selection that names an option the site does
+ * not have, so a stale or typoed id is a 400 rather than a silently smaller
+ * selection. */
+const prepareAttributeOptionIds = (
+  attributeOptionIds: number[] | undefined,
+  value: Omit<PreparedListingJoins, "attributeOptionIds">,
+): Promise<{ error: string } | { value: PreparedListingJoins }> =>
+  attributeOptionIds === undefined
+    ? Promise.resolve({ value: { ...value, attributeOptionIds } })
+    : (async () => {
+        // The write may name options created moments earlier, so the valid set
+        // comes from the primary; a lagging replica must not 400 them.
+        const valid = await attributeOptionIdSets.forWrite();
+        return attributeOptionIds.every((id) => valid.has(id))
+          ? { value: { ...value, attributeOptionIds } }
+          : { error: "attribute_option_ids must name existing options" };
+      })();
 
 /** Write groups and prices before validating child edges against their current
  * transaction-local state. */
@@ -146,6 +169,13 @@ export const persistListingJoins = async (
   listingId: number,
   value: PreparedListingJoins,
 ): Promise<void> => {
+  if (value.attributeOptionIds !== undefined) {
+    await listingAttributeOptions.setIdsTx(
+      tx,
+      listingId,
+      value.attributeOptionIds,
+    );
+  }
   if (value.groupIds !== undefined) {
     await setListingGroupsTx(
       tx,

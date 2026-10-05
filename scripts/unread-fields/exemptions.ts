@@ -197,15 +197,16 @@ const schemaReason = (evidence: string): ExemptionReason => ({
   kind: "schema-driven",
 });
 
-const liquidReason = (subject: string): ExemptionReason => ({
-  evidence: `Liquid reads each ${subject} field by its template name`,
-  kind: "dynamic-read",
-});
-
 const stripeReason: ExemptionReason = {
   evidence: "createStripeRequest serialises the complete Stripe request",
   kind: "provider-input",
 };
+
+/** A field a handler reads by key off a raw record. */
+const dynamicReason = (evidence: string): ExemptionReason => ({
+  evidence,
+  kind: "dynamic-read",
+});
 
 const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
 const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
@@ -219,6 +220,51 @@ const templateEntryPath = (...tail: Step[]): Step[] => [
   { way: "[]" },
   ...tail,
 ];
+
+/** The JSON body fields the admin API reads by key, with the reader that
+ * touches each: one row per exempted field, folded into exemptions below. */
+const bodyFieldExemptions: readonly [
+  source: string,
+  path: readonly Step[],
+  fields: readonly string[],
+  reader: string,
+][] = [
+  [
+    "src/features/admin/api-attributes.ts",
+    [{ name: "AttributeOptionBody" }],
+    ["text"],
+    "the attribute option create and update routes",
+  ],
+  [
+    "src/features/admin/api-attributes.ts",
+    [{ name: "CreateAttributeBody" }],
+    ["name"],
+    "toAttributeInput on a create body",
+  ],
+  [
+    "src/features/admin/api-attributes.ts",
+    [{ name: "UpdateAttributeBody" }],
+    ["name"],
+    "toAttributeInput on an update body",
+  ],
+  [
+    "src/features/admin/api-listing-body.ts",
+    [{ name: "CreateListingBody" }],
+    ["attribute_option_ids"],
+    "withParsedJoinIds",
+  ],
+];
+
+const bodyExemptions = exactFieldExemptions(
+  bodyFieldExemptions.map(([source, path, fields, reader]) => ({
+    fields,
+    path,
+    reason: dynamicReason(
+      `${reader} reads the field by key off the raw JSON body record`,
+    ),
+    source,
+  })),
+);
 
 const attendeeTypeInTypes = [{ name: "Attendee" }];
 
@@ -240,17 +286,19 @@ const exactExemptions = exactFieldExemptions([
   liquidFields(
     templateEntryPath(),
     ["listing"],
-    liquidReason("template entry"),
+    dynamicReason(
+      "Liquid reads each template entry field by its template name",
+    ),
   ),
   liquidFields(
     templateEntryPath({ name: "attendee" }),
     ["answers", "price_paid", "quantity"],
-    liquidReason("attendee"),
+    dynamicReason("Liquid reads each attendee field by its template name"),
   ),
   liquidFields(
     templateEntryPath({ name: "listing" }),
     ["is_paid", "name", "slug"],
-    liquidReason("listing"),
+    dynamicReason("Liquid reads each listing field by its template name"),
   ),
   selectFields(
     [
@@ -307,6 +355,7 @@ const exactExemptions = exactFieldExemptions([
 ]);
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
+  ...bodyExemptions,
   ...exactExemptions,
   ...publicListings,
   ...settingsPageStates,

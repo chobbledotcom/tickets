@@ -157,7 +157,7 @@ describe("documented admin CRUD endpoints", () => {
     update: Record<string, unknown>;
     updateResponse: Record<string, unknown>;
   }[] =>
-    ["listings", "groups", "holidays"].map((plural) => {
+    ["attributes", "listings", "groups", "holidays"].map((plural) => {
       const singular = plural.slice(0, -1);
       const forPath = (method: string, suffix: string) =>
         documented(
@@ -246,6 +246,7 @@ describe("documented admin CRUD endpoints", () => {
     ).map((e: EndpointDoc) => Object.keys(JSON.parse(e.response)));
 
     expect(singleResponses).toEqual([
+      ["attribute"],
       ["listing"],
       ["attendees"],
       ["group"],
@@ -258,7 +259,7 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    expect(deletes.length).toBe(3);
+    expect(deletes.length).toBe(5);
     for (const endpoint of deletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
     }

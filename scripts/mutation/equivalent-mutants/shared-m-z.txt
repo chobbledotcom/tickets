@@ -254,7 +254,6 @@ src/shared/rebrand.ts::stepTag.closed%2etagIsCode~0zhp0n6  false → true   # st
 # extra no-op character and returns the same index with the same quote state.
 src/shared/rebrand.ts::stepProse.end~17odbj7  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
 src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
-src/features/admin/attributes.ts::handleAddOption.onValid.sortOrder~1g336tf  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
 
 # Payment plumbing (main #2020): an ignored success flag, non-empty provider
 # strings, a sort tie-break, and validation messages nothing reads.

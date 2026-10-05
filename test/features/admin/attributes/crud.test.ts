@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
-import {
-  getAllAttributesWithOptions,
-  getAttributeWithOptions,
-} from "#db/attributes.ts";
+import { attributeReads, getAllAttributesWithOptions } from "#db/attributes.ts";
 import {
   attributeNameForm,
   attributeOptionForm,
@@ -155,9 +152,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         "Attribute updated",
         true,
       )(response);
-      expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
-        "New name",
-      );
+      expect((await attributeReads.any(attribute.id))?.name).toBe("New name");
       expect(await activityMessages()).toContain(
         "Attribute 'New name' updated",
       );
@@ -183,9 +178,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
           });
         }),
       ).rejects.toThrow("feature enable failed");
-      expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
-        "Before",
-      );
+      expect((await attributeReads.any(attribute.id))?.name).toBe("Before");
     });
 
     test("returns 404 when changing a missing attribute", async () => {
@@ -225,7 +218,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         "Attribute name does not match. Please type the exact attribute name to confirm deletion.",
         false,
       )(response);
-      expect(await getAttributeWithOptions(attribute.id)).not.toBeNull();
+      expect(await attributeReads.any(attribute.id)).not.toBeNull();
     });
 
     test("deleting removes the attribute, logs it, and says so", async () => {
@@ -250,7 +243,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         "Attribute deleted",
         true,
       )(response);
-      expect(await getAttributeWithOptions(attribute.id)).toBeNull();
+      expect(await attributeReads.any(attribute.id)).toBeNull();
       expectStatus(404)(await adminGet(`/admin/attributes/${attribute.id}`));
       expect(await activityMessages()).toContain(
         "Attribute 'Audience' deleted",

@@ -30,6 +30,8 @@ export type CreateListingBody = Omit<
   CatalogApiBody<typeof listingCatalogFields>,
   "date"
 > & {
+  /** Selected attribute option ids (the Attributes feature). */
+  attribute_option_ids?: number[];
   date?: string | null;
   name: string;
   max_attendees: number;
@@ -92,30 +94,52 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
   )(Object.entries(raw));
 };
 
-/** Parse the optional `group_ids` array (group membership). An absent field
- * yields `undefined` (leave membership unchanged); an explicit array (including
- * `[]`) replaces it. Fails closed: any non-positive-integer entry rejects the
- * whole request rather than being silently dropped, so a typo like
- * `["5"]` can't quietly clear a listing's groups. */
-const parseGroupIds = (raw: unknown): Result<number[] | undefined> =>
-  parseOptionalArray<number>(raw, "group_ids", (entry) =>
+/** Parse an optional array of positive integer ids (group membership or
+ * selected attribute options). An absent field yields `undefined` (leave the
+ * stored links unchanged); an explicit array (including `[]`) replaces them.
+ * Fails closed: any non-positive-integer entry rejects the whole request rather
+ * than being silently dropped, so a typo like `["5"]` can't quietly clear a
+ * listing's links. */
+const parseOptionalIdArray = (
+  raw: unknown,
+  label: string,
+): Result<number[] | undefined> =>
+  parseOptionalArray<number>(raw, label, (entry) =>
     typeof entry === "number" && Number.isInteger(entry) && entry > 0
       ? okResult(entry)
-      : errorResult("group_ids must contain only positive integer ids"),
+      : errorResult(`${label} must contain only positive integer ids`),
   );
 
-/** Validate mapped fields and group ids before building the listing input. */
-const withParsedGroupIds = (
+/** The join-table id arrays a listing write body can carry, keyed by the JSON
+ * field names the clients send. */
+export type ListingJoinIds = {
+  attributeOptionIds: number[] | undefined;
+  groupIds: number[] | undefined;
+};
+
+/** Validate mapped fields and the join-table id arrays before building the
+ * listing input. */
+const withParsedJoinIds = (
   body: Record<string, unknown>,
-  build: (groupIds: number[] | undefined) => Promise<Result<ListingInput>>,
+  build: (joinIds: ListingJoinIds) => Promise<Result<ListingInput>>,
 ): Promise<Result<ListingInput>> => {
   const invalid = API_BODY_FIELD_RULES.find(
     ([apiKey, schema]) =>
       body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
   );
   if (invalid) return Promise.resolve(errorResult(invalid[2]));
-  const groups = parseGroupIds(body.group_ids);
-  return groups.ok ? build(groups.value) : Promise.resolve(groups);
+  const groupIds = parseOptionalIdArray(body.group_ids, "group_ids");
+  if (!groupIds.ok) return Promise.resolve(groupIds);
+  const attributeOptionIds = parseOptionalIdArray(
+    body.attribute_option_ids,
+    "attribute_option_ids",
+  );
+  return attributeOptionIds.ok
+    ? build({
+        attributeOptionIds: attributeOptionIds.value,
+        groupIds: groupIds.value,
+      })
+    : Promise.resolve(attributeOptionIds);
 };
 
 /** Convert JSON body to ListingInput for create (auto-generates slug) */
@@ -134,12 +158,13 @@ export const bodyToCreateInput = (
   const name = body.name.trim();
   const maxAttendees = body.max_attendees;
 
-  return withParsedGroupIds(body, async (groupIds) => {
+  return withParsedJoinIds(body, async (joinIds) => {
     const { slug, slugIndex } = await generateUniqueListingSlug();
     return okResult({
       ...projectCatalogFields(listingCatalogFields, "api", body),
+      attributeOptionIds: joinIds.attributeOptionIds,
       dayPrices: parseDayPrices(body.day_prices),
-      groupIds,
+      groupIds: joinIds.groupIds,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", 0),
       name,
@@ -159,7 +184,7 @@ export const bodyToUpdateInput = async (
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
-  return withParsedGroupIds(body, async (groupIds) => {
+  return withParsedJoinIds(body, async (joinIds) => {
     const maxAttendees = bodyNumber(
       body,
       "max_attendees",
@@ -181,14 +206,18 @@ export const bodyToUpdateInput = async (
       // as the update's final facts — an update that adds groups or children
       // must read them the way the validators do, not as absent-and-false.
       assignBuiltSite: existing.assign_built_site,
+      // An omitted attribute_option_ids leaves the stored links untouched:
+      // persistListingJoins skips the link write for an undefined selection,
+      // so an unrelated update never restores a stale one.
+      attributeOptionIds: joinIds.attributeOptionIds,
       dayPrices:
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
           : existing.day_prices,
       groupIds:
-        groupIds === undefined
+        joinIds.groupIds === undefined
           ? await listingGroups.getIds(existing.id)
-          : groupIds,
+          : joinIds.groupIds,
       initialSiteMonths: existing.initial_site_months,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),

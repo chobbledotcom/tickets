@@ -12,6 +12,7 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
+import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import {
   persistListingJoins,
   prepareListingJoins,
@@ -46,6 +47,7 @@ const persistAfterRowChange = (
   withTransaction(async (tx) => {
     await tx.execute(statement);
     await persistListingJoins(tx, listingId, {
+      attributeOptionIds: undefined,
       childEdges: null,
       dayPrices: undefined,
       groupIds: undefined,
@@ -53,6 +55,21 @@ const persistAfterRowChange = (
   });
 
 describeWithEnv("api-listing-joins", { db: true }, () => {
+  test("an update that omits attribute_option_ids carries undefined, not a stored snapshot", async () => {
+    // persistListingJoins skips the link write for an undefined selection, so
+    // an unrelated update must carry undefined — never the links re-read and
+    // rewritten, which a lagging read would turn into a stale restore.
+    const listing = await createTestListing({ name: "Snapshot" });
+    const resolved = await getListingWithCount(listing.id);
+    if (!resolved) throw new Error(`no listing ${listing.id} in the database`);
+    const result = await bodyToUpdateInput(
+      { description: "Unrelated edit" },
+      resolved,
+    );
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.attributeOptionIds).toBeUndefined();
+  });
+
   test("returns null child edges when child_listing_ids is omitted", async () => {
     const result = await prepareListingJoins(baseInput(), {}, null);
 
@@ -147,6 +164,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: [child.id],
         dayPrices: undefined,
         groupIds: [group.id],
@@ -164,6 +182,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: null,
         dayPrices: undefined,
         groupIds: undefined,
@@ -214,6 +233,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: [],
         dayPrices: undefined,
         groupIds: undefined,
@@ -239,6 +259,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction((tx) =>
       persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: [child.id],
         dayPrices: { 2: 1800 },
         groupIds: undefined,
