@@ -106,37 +106,27 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         ),
       );
 
-    test("refuses an editor with 403 and keeps the group", async () => {
-      const group = await createTestGroup({ name: "Editor Proof" });
-      const editor = await createTestEditorSession();
+    test("refuses a role below staff with 403 and keeps the group", async () => {
+      const refusals = [
+        { make: createTestAgentSession, name: "Agent Proof" },
+        { make: createTestEditorSession, name: "Editor Proof" },
+      ];
+      for (const { make, name } of refusals) {
+        const group = await createTestGroup({ name });
+        const role = await make();
+        const cookie = typeof role === "string" ? role : role.cookie;
 
-      const response = await deleteAs(
-        editor.cookie,
-        await signCsrfToken(),
-        group.id,
-        "Editor Proof",
-      );
-      expect(response.status).toBe(403);
+        const response = await deleteAs(
+          cookie,
+          await signCsrfToken(),
+          group.id,
+          name,
+        );
+        expect(response.status).toBe(403);
 
-      const all = await groups.cache.getAll();
-      expect(all.find((g) => g.id === group.id)).toBeDefined();
-    });
-
-    test("refuses an agent with 403 and keeps the group", async () => {
-      // Agents sit below the content-admin level the group pages declare.
-      const group = await createTestGroup({ name: "Agent Proof" });
-      const agent = await createTestAgentSession();
-
-      const response = await deleteAs(
-        agent.cookie,
-        await signCsrfToken(),
-        group.id,
-        "Agent Proof",
-      );
-      expect(response.status).toBe(403);
-
-      const all = await groups.cache.getAll();
-      expect(all.find((g) => g.id === group.id)).toBeDefined();
+        const all = await groups.cache.getAll();
+        expect(all.find((g) => g.id === group.id)).toBeDefined();
+      }
     });
 
     test("admits a manager cookie session", async () => {
