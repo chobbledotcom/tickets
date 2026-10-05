@@ -118,8 +118,8 @@ const hydrateListingJoins = async (
   }))(rows);
 };
 
-/** One listing as every admin endpoint answers with it: the stored fields plus
- * the ids of the groups it is in and the attribute options it selects. */
+/** One listing as every admin endpoint answers with it: the stored fields,
+ * plus the ids of the groups it is in, plus the attribute options it selects. */
 const toApiListing = async (
   row: ListingWithCount,
 ): Promise<Record<string, unknown>> => ({

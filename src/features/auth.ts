@@ -89,7 +89,8 @@ const invalidateSession = async (token?: string): Promise<null> => {
 /**
  * Get authenticated session if valid
  * Returns null if not authenticated
- * Includes wrapped_data_key for deriving the private key when needed
+ * Includes wrapped_data_key. Callers derive the private key from it when
+ * they need it.
  * Loads user info and decrypts admin_level for role checking
  *
  * Validates that wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY.
@@ -135,9 +136,9 @@ export const getAuthenticatedSession = async (
 };
 
 /** Where a user should land after authenticating, based on their role.
- * Delivery agents go straight to their run sheet (the only page they may see);
- * editors go to the listings index (the dashboard shows financials they may not
- * see); scanner users go to the doors list, where they pick a door; staff go to
+ * Delivery agents go straight to their run sheet (the only page they may see).
+ * Editors go to the listings index; the dashboard shows financials they may not
+ * see. Scanner users go to the doors list, where they pick a door. Staff go to
  * the dashboard. */
 export const adminLandingPath = (adminLevel: AdminLevel): string => {
   if (adminLevel === "agent") return "/admin/deliveries";

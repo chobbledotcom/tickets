@@ -9,8 +9,8 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
-/** An atomic body-only side effect (e.g. relationship edges) for a create or
- *  update. Two-phase, so the whole write is all-or-nothing:
+/** An atomic body-only side effect (for example relationship edges) for a
+ *  create or update. Two-phase, so the whole write is all-or-nothing:
  *  `validate` runs BEFORE the write and either rejects (400, nothing written)
  *  or yields a prepared `value`. `persist` then runs in the SAME transaction
  *  as the row write, so a failure rolls the row write back too. There is
@@ -71,8 +71,8 @@ export type CheckTxHook<Input> = (
 
 /** Convert a resource's JSON body to its typed input. `existing` is null on
  *  create and the stored row on update. The session rides along so a
- *  field-level gate (an owner-only field) can refuse per actor: production
- *  routes always pass it, and a direct call without one counts as non-owner
+ *  field-level gate (an owner-only field) can refuse per actor. Production
+ *  routes always pass it; a direct call without one counts as non-owner
  *  for any gated field. */
 export type InputParser<Input, Existing> = (
   body: Record<string, unknown>,

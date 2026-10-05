@@ -239,8 +239,8 @@ export const groupApiRoutes = defineCrudApi<
       input.isPackage === false ? [] : input.packageMembers,
     ),
   // Role parity with the group pages: the list and edit pages admit content
-  // admins (owner, manager, editor — areas-a-l.ts "groups"), while the delete
-  // page is staff-only ("groupDelete"), so an editor edits through the API
+  // admins (owner, manager, editor — areas-a-l.ts "groups"). The delete page
+  // is staff-only ("groupDelete"), so an editor edits through the API
   // exactly as far as the dashboard allows.
   deletePolicy: ADMIN_API,
   getAll: () => groups.cache.getAll(),
