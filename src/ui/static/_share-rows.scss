@@ -1,0 +1,20 @@
+/* Share actions on public-page rows: under the link, wrapping on narrow
+ * screens, so a long URL never pushes them off the page. The row keeps its
+ * cell narrow: the URL text may break, so the actions wrap at the cell width
+ * instead of widening the fit-content table into a sideways scroll. */
+.share-row {
+  display: block;
+  max-width: 100%;
+}
+
+.share-row [data-share-link] {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  margin-top: var(--space-s);
+}

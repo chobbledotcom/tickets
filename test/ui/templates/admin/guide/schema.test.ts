@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
 import { GUIDE_MESSAGE_GROUPS } from "#locales/manifest.ts";
-import type { GuideSection } from "#templates/admin/guide/components.tsx";
+import { Faq, type GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
@@ -100,6 +100,23 @@ describe("guide schema", () => {
       .filter((id): id is string => id !== undefined);
 
     expect(ids).toEqual(unique(ids));
+  });
+
+  test("faq entry anchor ids are unique", () => {
+    // Every data-driven faq entry renders its id as an anchor, so a share row
+    // can link straight to one answer (e.g. /admin/guide#embed_booking_form).
+    const ids = allSections()
+      .flatMap((section) => section.entries)
+      .map((entry) => ("faq" in entry ? entry.faq : undefined))
+      .filter((id): id is string => id !== undefined);
+
+    expect(ids).toEqual(unique(ids));
+  });
+
+  test("a faq entry renders its id as the anchor on its details element", () => {
+    expect(String(Faq({ id: "embed_booking_form" }))).toContain(
+      '<details id="embed_booking_form">',
+    );
   });
 
   test("every section has at least one entry", () => {

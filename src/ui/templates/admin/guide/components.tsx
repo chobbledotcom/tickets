@@ -67,11 +67,14 @@ export const ExampleCode = ({
   </>
 );
 
-/** Data-driven FAQ entry: question and answer HTML come from locale keys. */
+/** Data-driven FAQ entry: question and answer HTML come from guide.q.* / guide.a.* keys.
+ * The details element carries the entry's id as an anchor, so admin pages can
+ * link straight to one answer. */
 export const Faq = ({ id }: { id: string }): JSX.Element => (
-  <Q q={t(`guide.q.${id}`)}>
+  <details id={id}>
+    <summary>{t(`guide.q.${id}`)}</summary>
     <Raw html={t(`guide.a.${id}`)} />
-  </Q>
+  </details>
 );
 
 /**

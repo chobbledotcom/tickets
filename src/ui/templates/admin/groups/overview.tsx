@@ -117,14 +117,12 @@ const GroupAttendeesRow = ({
 /** Public share rows, or a note when the public group route would not work. */
 const GroupShareRows = ({
   group,
-  allowedDomain,
   ticketUrl,
   embedScriptCode,
   embedIframeCode,
   shareable,
 }: {
   group: Group;
-  allowedDomain: string;
   ticketUrl: string;
   embedScriptCode: string;
   embedIframeCode: string;
@@ -135,7 +133,6 @@ const GroupShareRows = ({
       <LabelledRow label={t("common.public_url")}>
         <PublicTicketLink
           href={ticketUrl}
-          label={`${allowedDomain}/ticket/${group.slug}`}
           qrHref={`/ticket/${group.slug}/qr`}
         />
       </LabelledRow>
@@ -221,7 +218,6 @@ export const GroupOverviewPanel = ({
             <th colspan="2">{group.name}</th>
           </tr>
           <GroupShareRows
-            allowedDomain={allowedDomain}
             embedIframeCode={embedIframeCode}
             embedScriptCode={embedScriptCode}
             group={group}

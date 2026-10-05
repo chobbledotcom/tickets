@@ -36,9 +36,11 @@ import { initQrRefresh } from "./admin/qr-refresh.ts";
 import { initRunningTotal } from "./admin/running-total.ts";
 import { initSchemaAtlas } from "./admin/schema-atlas.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
+import { initShareButtons } from "./admin/share-button.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 
 initSelectOnClick();
+initShareButtons();
 initNavSelect();
 initAvailabilityChecker();
 initAttendeeDates();
