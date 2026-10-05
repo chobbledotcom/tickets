@@ -112,6 +112,8 @@ export const loadListingQrPanel = async ({
     bookableDates,
     canDirectCheckout,
     listing,
-    values: EMPTY_QR_VALUES,
+    // The pristine form opens at the smallest quantity the listing sells, so
+    // the required number box never starts below its own minimum.
+    values: { ...EMPTY_QR_VALUES, quantity: String(listing.minimum_quantity) },
   });
 };

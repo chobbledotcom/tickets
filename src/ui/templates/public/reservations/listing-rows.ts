@@ -120,7 +120,7 @@ const renderListingRow: RenderListingControls = (
   attributes,
   renewal,
 ): string => {
-  const { listing, isSoldOut, isClosed } = info;
+  const { listing, isClosed } = info;
   const imageHtml = renderListingImage(listing);
   const attributesHtml = renderListingAttributes(attributes);
 
@@ -135,7 +135,12 @@ const renderListingRow: RenderListingControls = (
     `;
   }
 
-  if (isSoldOut) {
+  // Required children can cap the parent below its own capacity. A ceiling
+  // under the minimum is as unsellable as an empty one.
+  const soldOut =
+    info.isSoldOut ||
+    childLimitedMax(info, childCtx) < listing.minimum_quantity;
+  if (soldOut) {
     return `
       <div class="ticket-row sold-out">
         ${imageHtml}

@@ -213,8 +213,8 @@ export const buildTicketListing = (
       ? listingRemaining
       : Math.min(listingRemaining, groupRemaining);
   const isSoldOut = spotsRemaining < listing.minimum_quantity;
-  // A listing with fewer spots left than its minimum is sold out: 0 is then
-  // the only valid choice, so the row shows no quantity selector at all.
+  // Fewer spots left than the minimum is sold out: 0 is then the only valid
+  // choice, and the row shows no quantity selector at all.
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
   return { isClosed: closed, isSoldOut, listing, maxPurchasable };

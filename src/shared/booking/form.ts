@@ -1,3 +1,4 @@
+import { t } from "#i18n";
 import {
   type AttendeeFailureFormatter,
   attendeeFailureFormatter,
@@ -25,7 +26,7 @@ export const bookingError = {
   invalidDate: "Please select a valid date",
   /** Below the listing's minimum quantity. */
   minimum: (name: string, minimumQuantity: number): string =>
-    `Sorry, ${name} sells at least ${minimumQuantity} tickets per booking`,
+    t("public.ticket.minimum_per_booking", { minimum: minimumQuantity, name }),
   /** The payment provider wouldn't open a checkout session. */
   paymentSessionFailed: "Failed to create payment session",
   /** Out of capacity on a named listing. */
