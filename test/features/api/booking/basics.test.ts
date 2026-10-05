@@ -71,7 +71,12 @@ describePublicApi(() => {
 
     test("requires the quantity field instead of booking one ticket", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response, body } = await bookListing(listing.slug);
+      // The helper's default body carries quantity 1, so the absence the API
+      // refuses is spelled out here.
+      const { response, body } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+      });
       // The API no longer defaults an absent quantity to 1: every booking
       // must state how many places it books.
       expect(response.status).toBe(400);

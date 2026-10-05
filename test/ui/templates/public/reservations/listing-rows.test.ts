@@ -144,6 +144,35 @@ describe("buildPageListingRows", () => {
     expect(html).not.toContain('name="quantity_1"');
   });
 
+  test("a parent whose child-limited ceiling sits below its minimum is sold out", () => {
+    // The parent's own capacity is 10, but its required add-on can only serve
+    // 2 — below the parent's minimum of 3, so no valid purchase exists.
+    const html = renderRows({
+      childCtx: {
+        ...childCtx(),
+        children: new Map([
+          [7, [tl(10, 2, { name: "Add-on", slug: "add010" })]],
+        ]),
+      },
+      listings: [
+        tl(7, 10, { minimum_quantity: 3, name: "Bundled", slug: "bun010" }),
+      ],
+    });
+    expect(html).toContain("Sold Out");
+    expect(html).not.toContain('name="quantity_7"');
+  });
+
+  test("a parent at or above its minimum under the same ceiling stays bookable", () => {
+    const html = renderRows({
+      childCtx: childCtx(),
+      listings: [
+        tl(7, 10, { minimum_quantity: 3, name: "Bundled", slug: "bun010" }),
+      ],
+    });
+    expect(html).toContain('name="quantity_7"');
+    expect(html).not.toContain("ticket-row sold-out");
+  });
+
   test("a row with pay-what-you-want renders its price input, a priced row does not", () => {
     const payMore = tl(2, 10, {
       can_pay_more: true,

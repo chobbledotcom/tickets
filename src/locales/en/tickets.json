@@ -29,6 +29,7 @@
   "public.ticket.location_label": "Location:",
   "public.ticket.registration_closed": "Registration closed.",
   "public.ticket.listing_full": "Sorry, this listing is full.",
+  "public.ticket.minimum_per_booking": "Sorry, {name} sells at least {minimum} tickets per booking.",
   "public.ticket.select_date": "Select Date",
   "public.ticket.select_date_placeholder": "— Select a date —",
   "public.ticket.select_answer_placeholder": "Select an answer",
