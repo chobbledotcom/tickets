@@ -39,7 +39,9 @@ const parsed = (
 const statuses = (): AttendeeStatus[] => [
   {
     id: 4,
-    is_paid_default: true,
+    // The public default is not the paid default, so a mutant that resolves
+    // the selection with the wrong flag cannot pass.
+    is_paid_default: false,
     is_public_default: true,
     is_reservation: false,
     name: "Confirmed",
@@ -48,7 +50,7 @@ const statuses = (): AttendeeStatus[] => [
   },
   {
     id: 9,
-    is_paid_default: false,
+    is_paid_default: true,
     is_public_default: false,
     is_reservation: false,
     name: "Cancelled",
