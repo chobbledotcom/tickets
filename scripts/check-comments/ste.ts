@@ -132,7 +132,8 @@ const markdownOf = (
       fenceMarker = "";
       rows.push({ line: comment.line, text: "" });
     }
-    comment.text.split("\n").forEach((raw, index) => {
+    let rowLine = comment.line;
+    for (const raw of comment.text.split("\n")) {
       const prose = blankInlineTags(
         blankDirective(raw.replace(CLOSER, "").replace(gutter, "")),
       ).trimEnd();
@@ -140,11 +141,12 @@ const markdownOf = (
       inExample = exampleOf(prose, state);
       fenceMarker = fenceOf(prose, state);
       rows.push({
-        line: comment.line + index,
+        line: rowLine,
         text: rowTextOf(prose, { fenceMarker, inExample }),
       });
-      lastLine = comment.line + index;
-    });
+      lastLine = rowLine;
+      rowLine += 1;
+    }
     lastEnd = comment.end;
     afterBlock = !isLine;
     if (!isLine) {
@@ -162,10 +164,11 @@ const markdownOf = (
 /** The sentences one prose block carries: the block's normalised text split
  * on sentence punctuation, each sentence named by the source line it starts
  * on. A period followed by a lower-case word reads as mid-sentence, so an
- * abbreviation such as "etc." does not end a sentence. */
+ * abbreviation such as "etc." does not end a sentence. A closing bracket or
+ * quote between the period and the space still ends it. */
 const sentencesOf = (block: ProseBlock): { line: number; text: string }[] => {
   let searchFrom = 0;
-  return block.text.split(/(?<=[.!?])\s+(?![a-z])/).map((sentence) => {
+  return block.text.split(/(?<=[.!?]["')\]]?)\s+(?![a-z])/).map((sentence) => {
     const offset = block.text.indexOf(sentence, searchFrom);
     searchFrom = offset + sentence.length;
     return { line: block.lines[offset]!, text: sentence };

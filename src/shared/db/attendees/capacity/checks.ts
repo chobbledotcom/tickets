@@ -29,9 +29,9 @@ import type { ListingCapacityRow } from "./types.ts";
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity or active condition: it demands
- * no places, so it can land on a full or inactive listing too — but by
- * default it still names a listing that must exist, because
- * listing_attendees has no foreign key. An overbook caller (the payment
+ * no places, so it can land on a full or inactive listing too. By default it
+ * still names a listing that must exist, because listing_attendees has no
+ * foreign key. An overbook caller (the payment
  * ghost store) explicitly asks for the row whatever the listing state. An
  * order-level extra condition still applies. */
 export const buildCapacityCheckedInsert = (

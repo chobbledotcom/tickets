@@ -101,15 +101,21 @@ export const readComments = (
   return comments;
 };
 
+/** The directives whose reason follows the token without punctuation: a
+ * TypeScript suppression states its human reason in the same words. */
+const TS_SUPPRESSION = /@(?:ts-expect-error|ts-ignore)$/;
+
 /** The text a language check reads from a directive comment: the directive
  * and its target gone, so only the human explanation after it stays. A
- * directive without a `:` separator carries no explanation, so it reads as
- * no prose at all. */
+ * directive without a `:` separator carries no explanation, unless the
+ * directive is a TypeScript suppression whose reason follows the token. */
 export const blankDirective = (text: string): string => {
   const match = DIRECTIVE_AT_START.exec(text);
   if (match === null) return text;
-  const colon = text.indexOf(":", match.index + match[0].length);
-  return colon === -1 ? "" : text.slice(colon + 1);
+  const rest = text.slice(match.index + match[0].length);
+  const colon = rest.indexOf(":");
+  if (colon !== -1) return rest.slice(colon + 1);
+  return TS_SUPPRESSION.test(match[0]) ? rest : "";
 };
 
 const tooLong = (

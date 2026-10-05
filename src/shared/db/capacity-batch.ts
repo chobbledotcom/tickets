@@ -3,7 +3,7 @@
  * It reuses the write predicate's counting subqueries from `#db/capacity.ts`,
  * so the read-time preflight and the write-time guard can never count
  * capacity differently. The public checkout books every dated line on one
- * date and filters zero quantities before the preflight, so multi-date carts
+ * date and filters zero quantities before the preflight. Multi-date carts
  * and zero-quantity lines reach these clauses only from an operator's
  * hand-built creation or edit.
  *

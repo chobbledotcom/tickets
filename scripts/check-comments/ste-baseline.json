@@ -655,7 +655,7 @@
     "banned-modal": 2
   },
   "src/features/api/payment-processing/store-refund.ts": {
-    "long-sentence": 7,
+    "long-sentence": 6,
     "contraction": 5,
     "banned-modal": 4,
     "semicolon": 2
@@ -778,7 +778,7 @@
   "src/features/public/balance.ts": {
     "semicolon": 4,
     "contraction": 3,
-    "long-sentence": 2,
+    "long-sentence": 1,
     "wordy": 1
   },
   "src/features/public/cart.ts": {

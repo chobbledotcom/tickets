@@ -124,7 +124,6 @@ describe("comment language rules", () => {
   });
 
   test("a bare block-comment closer adds no word to the last sentence", () => {
-    // The closer's slash used to survive as a 26th word.
     expect(
       findCommentSteIssues(`/**\n * ${sentenceOf(MAX_SENTENCE_WORDS)}\n */`),
     ).toHaveLength(0);
@@ -411,6 +410,28 @@ describe("comment language rules", () => {
     expect(
       findCommentSteIssues("/* jscpd:ignore-start -- imports */"),
     ).toHaveLength(0);
+  });
+
+  test("a suppression's reason without a colon is prose too", () => {
+    findsOne(
+      "// @ts-expect-error The call should fail in this test.",
+      "banned-modal",
+      1,
+    );
+  });
+
+  test("a sentence ends at a period inside a closing parenthesis", () => {
+    expect(
+      findCommentSteIssues(
+        "// (The panel hides the rows from the operator because the dashboard owns them.) Then the page shows one card for every day of the week that holds slots.",
+      ),
+    ).toHaveLength(0);
+  });
+
+  test("an HTML entity's semicolon is not a sentence separator", () => {
+    expect(() =>
+      rulesOf("// The Google URL's & is escaped to &amp; in the href."),
+    ).toThrow();
   });
 
   test("findings report in source order across comment kinds", () => {

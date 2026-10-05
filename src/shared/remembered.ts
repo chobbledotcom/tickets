@@ -7,7 +7,7 @@ export const remembered = <In, Out>(
   const answers = new Map<In, Out>();
   return (input) => {
     const known = answers.get(input);
-    // A stored `undefined` is a real answer; only an absent key recomputes.
+    // A stored `undefined` is a real answer. Only an absent key recomputes.
     if (answers.has(input)) return known!;
     const fresh = answer(input);
     answers.set(input, fresh);

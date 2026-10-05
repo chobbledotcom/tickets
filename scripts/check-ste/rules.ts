@@ -50,7 +50,11 @@ export const STE_RULES: Rule[] = [
   },
   // Capital May remains exempt because it also names a month.
   { fix: "use can, will, or must", pattern: /\bmay\b/g, rule: "banned-modal" },
-  { fix: "write two sentences", pattern: /;/g, rule: "semicolon" },
+  {
+    fix: "write two sentences",
+    pattern: /(?<!&[a-zA-Z]{1,10});/g,
+    rule: "semicolon",
+  },
   {
     fix: "write a new sentence",
     pattern:
