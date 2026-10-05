@@ -91,8 +91,8 @@ export interface ResourceConfig<
     form: FormParams,
     state: State | null,
   ) => Promise<void>;
-  /** A guard run inside the row write's transaction, before the row statement;
-   * a returned message refuses the write and rolls it back. */
+  /** A guard run inside the row write's transaction, before the row statement.
+   * A returned message refuses the write and rolls it back. */
   checkTx?: CheckTxHook<Input>;
   form: FormSchema<Values>;
   /** Custom delete function (e.g., to delete related records first) */

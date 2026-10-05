@@ -105,10 +105,10 @@ export const loadListingParentsSection = async (
   return { candidates, childIds: new Set(childIds), offeredUnder };
 };
 
-/** Resolve the name of an opt-in add-on that `childId` would orphan from a
+/** Resolve the name of an opt-in add-on that `childId` orphans from a
  * parent page of `pageIds`, or null. The default resolves add-on scopes from the
  * LIVE listings table (the HTML children form, where the parent row's `group_id`
- * is already persisted); the admin API supplies a would-be variant that resolves
+ * is already persisted); the admin API supplies a pending variant that resolves
  * against an in-memory listing set carrying the submitted `group_id`. */
 type ChildOnlyAddOnResolver = (
   childId: number,

@@ -1,7 +1,7 @@
 /**
  * The add-on reachability guards: the checks that recompute the listing set
  * with a pending change applied — a listing save, a bulk deactivation, or the
- * group page's removal — and refuse the ones that would orphan a child-scoped
+ * group page's removal. They refuse the change when it orphans a child-scoped
  * add-on.
  */
 
@@ -35,7 +35,7 @@ import { requireValue } from "#shared/required-value.ts";
  * change it judged is safe. */
 type GuardRefusal = Promise<string | null>;
 
-/** The would-be group sets a change gives some listings, by listing id. A
+/** The group sets a change gives some listings, by listing id. A
  * listing absent from the map keeps its current groups. */
 type WouldBeGroups = ReadonlyMap<number, readonly number[]>;
 
@@ -53,9 +53,10 @@ const listingStates = async (
         resultRows(await tx.execute(listingStateColumns.statement())),
       );
 
-/** The would-be listing set a guard judges, with the reads behind it: every
- * listing with its would-be groups, the non-standalone child ids, and the
- * add-on scopes resolved against those groups. `addOns` reads on first use. */
+/** The listing set a guard judges, with the reads behind it: every
+ * listing with its pending groups, the non-standalone child ids, and the
+ * add-on scopes. The scopes resolve against those groups. `addOns` reads on
+ * first use. */
 type WouldBeBase = {
   addOns: () => Promise<OptionalAddOns>;
   listings: ListingGroupMembership[];
@@ -90,7 +91,7 @@ const wouldBeBase = async (
 };
 
 /**
- * Run the shared child-scoped-add-on reachability over a would-be base, with
+ * Run the shared child-scoped-add-on reachability over a pending base, with
  * the `inactiveIds` listings taken offline. The `forceSuppressed` ids count as
  * non-standalone children even when the database still reads them otherwise
  * (a just-cleared `bookable_alone` flag the pending save has not committed).
@@ -113,13 +114,13 @@ const orphanedAddOnOverWouldBe = async (
   );
 };
 
-/** The add-on reachability check a listing save runs when it drops a group
- * (the group-only case of the listing form's untick guard): a member leaving a
+/** The add-on reachability check a listing save runs when it drops a group:
+ * the group-only case of the listing form's untick guard. A member leaving a
  * group can be the only page a child-scoped add-on is reachable from.
  * `wouldBeGroups` holds each leaving listing's complete remaining group set,
  * and one walk judges all of them at once, however many were selected. Used
  * by the group page's remove form, so it cannot orphan an add-on the listing
- * edit form would have refused to untick. */
+ * edit form refuses to untick. */
 export const groupLeavingOrphanedAddOnError = async (
   wouldBeGroups: WouldBeGroups,
   tx?: TxScope,
@@ -136,7 +137,7 @@ export const deactivationOrphanedAddOnError = async (
   // Deactivation does not clear bookable_alone, so a flagged child's stored row
   // still reads `bookable_alone = 1` and getNonStandaloneChildIds keeps excluding
   // it from the suppressed set — yet taking its page offline removes the only
-  // surface a child-only add-on could sell from. Force every deactivated flagged
+  // surface a child-only add-on can sell from. Force every deactivated flagged
   // child (a child of some parent whose flag is still set) into the suppressed
   // set, matching the edit-save path's untick guard.
   const childLinks = await listingParents.getIdsByKeys([...inactiveIds], tx);
@@ -151,9 +152,9 @@ export const deactivationOrphanedAddOnError = async (
 
 /** A {@link GroupScopeResolver} that expands each group-scoped modifier against
  * an in-memory listing set, so a caller can test reachability under a listing's
- * would-be `group_id` (which the live `modifier_groups`→`listings` join would
- * not yet reflect). It maps each modifier's linked group ids to the supplied
- * listings' ids via {@link listingIdsInGroups}. */
+ * pending `group_id`. The live `modifier_groups`→`listings` join does not
+ * reflect that pending id yet. It maps each modifier's linked group ids to the
+ * supplied listings' ids via {@link listingIdsInGroups}. */
 const inMemoryGroupScopeResolver =
   (allListings: ListingGroupMembership[], tx?: TxScope) =>
   async (groupScopedIds: number[]) => {
@@ -176,7 +177,7 @@ export const resolveWouldBeAddOns = (
 
 /**
  * Like {@link childOnlyAddOnName}, but judging against add-on scopes the
- * caller already resolved for its would-be listing set (via
+ * caller already resolved for its pending listing set (via
  * {@link resolveWouldBeAddOns}), so a save walking several edges reads the
  * scopes once instead of per edge.
  */
@@ -224,8 +225,8 @@ type ListingSave = {
   wouldBeGroupIds: readonly number[];
 };
 
-/** The first child-only add-on the listing's edges would orphan under its
- * would-be groups, or null. The listing is checked both as a parent (its
+/** The first child-only add-on the listing's edges orphan under its
+ * pending groups, or null. The listing is checked both as a parent (its
  * children, against its own page id) and as a child (under each parent's
  * page id). The base is read only when an edge exists. */
 const orphanedAddOnAfterChange = ({

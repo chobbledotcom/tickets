@@ -48,8 +48,8 @@ export const listingChildren = listingEdges.pointsAt;
 /** The parents a child is offered under, keyed by child id — the reverse
  * side. `addIdsTx` is the catalog-import writer for a freshly-created listing
  * that is a child of already-existing parents: additive (never a group-wide
- * delete), so it can't disturb a parent's other children the way a
- * `listingChildren.setIdsTx` replace would. */
+ * delete), so it does not disturb a parent's other children the way a
+ * `listingChildren.setIdsTx` replace does. */
 export const listingParents = listingEdges.pointedAtBy;
 
 /** Replaces child edges only when the transaction's package memberships allow

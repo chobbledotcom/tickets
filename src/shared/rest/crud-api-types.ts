@@ -12,7 +12,7 @@ import type { AdminSession } from "#types";
 /** An atomic body-only side effect (e.g. relationship edges) for a create/update.
  *  Two-phase so the whole write is all-or-nothing:
  *  `validate` runs BEFORE the write and either rejects (400, nothing written) or
- *  yields a prepared `value`; `persist` then runs in the SAME transaction as the
+ *  yields a prepared `value`. `persist` then runs in the SAME transaction as the
  *  row write, so a failure rolls the row write back too — never an orphan row
  *  without its side effect. A resource with no side effects omits it and takes
  *  the plain (untransacted) single-statement path. */
