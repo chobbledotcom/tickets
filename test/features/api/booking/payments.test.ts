@@ -25,7 +25,11 @@ describePublicApi(() => {
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { response, body } = await bookListing(listing.slug);
+      const { response, body } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 1,
+      });
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
       expect(typeof body.booking?.checkoutUrl).toBe("string");
@@ -41,6 +45,7 @@ describePublicApi(() => {
       const { response } = await bookListing(listing.slug, {
         email: "s@test.com",
         name: "Second",
+        quantity: 1,
       });
       expect(response.status).toBe(409);
     });
@@ -102,6 +107,7 @@ describePublicApi(() => {
         date: dates[0],
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -109,7 +115,11 @@ describePublicApi(() => {
 
     test("returns 400 for daily listing without date", async () => {
       const listing = await createDailyTestListing();
-      const { response, body } = await bookListing(listing.slug);
+      const { response, body } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 1,
+      });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
     });
@@ -120,6 +130,7 @@ describePublicApi(() => {
         date: "1999-01-01",
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
@@ -134,6 +145,7 @@ describePublicApi(() => {
         customPrice: 5.0,
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       // Price is 0 base and no payment provider, so goes free path
       expect(response.status).toBe(200);
@@ -148,6 +160,7 @@ describePublicApi(() => {
         customPrice: "abc",
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/price/i);
@@ -162,6 +175,7 @@ describePublicApi(() => {
         customPrice: 1.0,
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/minimum/i);
@@ -176,6 +190,7 @@ describePublicApi(() => {
         customPrice: 999.0,
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/maximum/i);
@@ -191,6 +206,7 @@ describePublicApi(() => {
         customPrice: 10.0,
         email: "alice@test.com",
         name: "Alice",
+        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
@@ -201,7 +217,11 @@ describePublicApi(() => {
         maxPrice: 10000,
         unitPrice: 0,
       });
-      const { response, body } = await bookListing(listing.slug);
+      const { response, body } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 1,
+      });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
     });
@@ -211,34 +231,40 @@ describePublicApi(() => {
         maxPrice: 10000,
         unitPrice: 500,
       });
-      const { response, body } = await bookListing(listing.slug);
+      const { response, body } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 1,
+      });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/price/i);
     });
 
-    test("handles invalid quantity in booking gracefully", async () => {
+    test("rejects an unparseable quantity instead of booking one ticket", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
         quantity: "abc",
       });
-      expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      expect(response.status).toBe(400);
+      expect(body.error).toBe("Quantity must be a whole number of 1 or more");
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
-    test("does not parse a malformed booking quantity prefix", async () => {
+    test("rejects a malformed booking quantity prefix", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response } = await bookListing(listing.slug, {
+      const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
         quantity: "2x",
       });
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(400);
+      expect(body.error).toBe("Quantity must be a whole number of 1 or more");
 
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees[0]!.quantity).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
     test("handles booking when email not in listing fields", async () => {
@@ -249,6 +275,7 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         name: "Alice",
         phone: "1234567890",
+        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -261,7 +288,11 @@ describePublicApi(() => {
         unitPrice: 1000,
       });
       await withCheckoutStub(null, async () => {
-        const { response, body } = await bookListing(listing.slug);
+        const { response, body } = await bookListing(listing.slug, {
+          email: "alice@test.com",
+          name: "Alice",
+          quantity: 1,
+        });
         expect(response.status).toBe(500);
         expect(body.error).toMatch(/payment session/i);
       });
@@ -274,7 +305,11 @@ describePublicApi(() => {
         unitPrice: 1000,
       });
       await withCheckoutStub({ error: "Invalid amount" }, async () => {
-        const { response, body } = await bookListing(listing.slug);
+        const { response, body } = await bookListing(listing.slug, {
+          email: "alice@test.com",
+          name: "Alice",
+          quantity: 1,
+        });
         expect(response.status).toBe(400);
         expect(body.error).toBe("Invalid amount");
       });
