@@ -6,8 +6,8 @@ import {
   packageChildEdgeError,
   packageChildEdgeErrorOrNull,
   packageGroups,
-  packageMemberCapError,
   packageMemberError,
+  packageMemberQuantityBroken,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
 
@@ -108,58 +108,66 @@ describe("packageMemberError", () => {
   });
 });
 
-describe("packageMemberCapError", () => {
-  /** A member row with the given pick count and per-order cap. */
-  const member = (name: string, quantity: number, maxQuantity: number) => ({
-    max_quantity: maxQuantity,
-    name,
-    quantity,
+describe("packageMemberQuantityBroken", () => {
+  /** A member row with the given pick count and the bounds it sells within. */
+  const member = (
+    over: {
+      max_quantity?: number;
+      minimum_quantity?: number;
+      quantity?: number;
+    } = {},
+  ) => ({
+    max_quantity: over.max_quantity ?? 5,
+    minimum_quantity: over.minimum_quantity ?? 1,
+    quantity: over.quantity,
   });
 
   test("refuses a pick count above the member's per-order cap", () => {
-    expect(packageMemberCapError(member("Boat Trip", 2, 1))).toBe(
-      t("error.package_member_cap", {
-        max_quantity: 1,
-        name: "Boat Trip",
-        quantity: 2,
-      }),
-    );
-  });
-
-  test("names the member whose cap the pick count breaks", () => {
-    const message = packageMemberCapError(member("Day Pass", 4, 3))!;
-    expect(message).toContain("Day Pass");
-    expect(message).toContain("3");
+    expect(packageMemberQuantityBroken(member({ quantity: 6 }))).toBe("cap");
   });
 
   test("allows a pick count at the cap", () => {
-    expect(packageMemberCapError(member("Day Pass", 3, 3))).toBeNull();
-  });
-
-  test("treats an omitted pick count as one unit per package", () => {
-    expect(
-      packageMemberCapError({ max_quantity: 1, name: "Day Pass" }),
-    ).toBeNull();
-  });
-
-  test("refuses a member that sells nothing when the pick count is omitted", () => {
-    expect(packageMemberCapError({ max_quantity: 0, name: "Day Pass" })).toBe(
-      t("error.package_member_cap", {
-        max_quantity: 0,
-        name: "Day Pass",
-        quantity: 1,
-      }),
-    );
-  });
-
-  test("a zero pick count never breaches the cap", () => {
-    expect(
-      packageMemberCapError({ max_quantity: 0, name: "Day Pass", quantity: 0 }),
-    ).toBeNull();
+    expect(packageMemberQuantityBroken(member({ quantity: 5 }))).toBeNull();
   });
 
   test("allows a pick count below the cap", () => {
-    expect(packageMemberCapError(member("Day Pass", 1, 9))).toBeNull();
+    expect(packageMemberQuantityBroken(member({ quantity: 1 }))).toBeNull();
+  });
+
+  test("treats an omitted pick count as one unit per package", () => {
+    expect(packageMemberQuantityBroken(member())).toBeNull();
+    expect(packageMemberQuantityBroken(member({ max_quantity: 0 }))).toBe(
+      "cap",
+    );
+  });
+
+  test("refuses a pick count below the listing's minimum", () => {
+    expect(
+      packageMemberQuantityBroken(member({ minimum_quantity: 2, quantity: 1 })),
+    ).toBe("minimum");
+  });
+
+  test("allows a pick count at the minimum", () => {
+    expect(
+      packageMemberQuantityBroken(member({ minimum_quantity: 2, quantity: 2 })),
+    ).toBeNull();
+  });
+
+  test("refuses an omitted pick count below the minimum", () => {
+    expect(packageMemberQuantityBroken(member({ minimum_quantity: 2 }))).toBe(
+      "minimum",
+    );
+  });
+
+  test("checks the cap before the minimum", () => {
+    // Both bounds break only when the stored minimum exceeds the stored
+    // maximum — a listing the quantity rules refuse — so cap-first is the
+    // order a crafted row meets.
+    expect(
+      packageMemberQuantityBroken(
+        member({ max_quantity: 1, minimum_quantity: 4, quantity: 9 }),
+      ),
+    ).toBe("cap");
   });
 });
 

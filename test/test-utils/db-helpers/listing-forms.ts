@@ -79,6 +79,7 @@ export const buildCreateListingForm = (
     max_quantity: String(input.maxQuantity ?? 1),
     maximum_days_after: optionalNumber(input.maximumDaysAfter),
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
+    minimum_quantity: String(input.minimumQuantity ?? 1),
     months_per_unit: String(input.monthsPerUnit ?? 0),
     name: input.name,
     non_transferable: flagChoice(input.nonTransferable),

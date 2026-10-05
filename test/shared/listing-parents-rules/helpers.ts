@@ -8,6 +8,7 @@ export const edgeListing = (over: Partial<EdgeListing> = {}): EdgeListing => ({
   duration_days: 1,
   id: 1,
   listing_type: "standard",
+  minimum_quantity: 1,
   months_per_unit: 0,
   name: "Test",
   ...over,

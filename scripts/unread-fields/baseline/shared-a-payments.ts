@@ -56,7 +56,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     "fields",
     "location",
     "maxAttendees",
-    "maxQuantity",
     "minimumDaysBefore",
     "nonTransferable",
     "useDefaults",

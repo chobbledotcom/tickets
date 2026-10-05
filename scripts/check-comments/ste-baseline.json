@@ -1122,7 +1122,7 @@
     "long-sentence": 1
   },
   "src/shared/db/groups/membership.ts": {
-    "long-sentence": 6,
+    "long-sentence": 5,
     "semicolon": 1
   },
   "src/shared/db/groups/membership/package-writes.ts": {
@@ -1930,9 +1930,9 @@
     "semicolon": 1
   },
   "src/shared/package-membership.ts": {
-    "semicolon": 3,
+    "semicolon": 2,
     "banned-modal": 4,
-    "long-sentence": 3,
+    "long-sentence": 2,
     "contraction": 2
   },
   "src/shared/package-privacy.ts": {
@@ -2534,7 +2534,7 @@
     "semicolon": 1
   },
   "src/shared/types.ts": {
-    "long-sentence": 13,
+    "long-sentence": 11,
     "wordy": 2,
     "semicolon": 19,
     "contraction": 2,

@@ -5,25 +5,41 @@
 
 import { execute, withTransaction } from "#db/client.ts";
 import { writePackageMembersTx } from "#db/groups/membership/package-writes.ts";
+import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
+/** Judge one listing against one group through the listing-save membership
+ *  fence, inside one transaction. Shared by the suites that read the outcome. */
+export const judgeListingMembership = async (
+  listingId: number,
+  groupId: number,
+) =>
+  withTransaction((tx) =>
+    validateListingGroupMembershipsTx(tx)([listingId], [groupId]),
+  );
+
 /** A hidden package with one member, with the group write asked to save the
- *  member at `submitted` pick counts against a `maxQuantity` per-order cap. */
+ *  member at `submitted` pick counts against a `maxQuantity` per-order cap.
+ *  `minimumQuantity` stores the listing's per-purchase floor beside the cap,
+ *  so one suite can judge either bound alone. */
 export const arrangeGroupWrite = async (
   name: string,
   submitted: number,
   maxQuantity: number,
+  minimumQuantity?: number,
 ) => {
   const group = await createHiddenPackageGroup(`${name} group`);
   const member = await createTestListing({
     groupId: group.id,
     maxQuantity,
+    ...(minimumQuantity === undefined ? {} : { minimumQuantity }),
     name,
   });
   return {
     group,
+    member,
     run: () =>
       withTransaction((tx) =>
         writePackageMembersTx(
