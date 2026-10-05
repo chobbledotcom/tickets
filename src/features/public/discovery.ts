@@ -30,7 +30,10 @@ import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { sharedGroupCapacity } from "#shared/group-capacity.ts";
+import {
+  PARENT_CHILD_GROUP_UNITS,
+  sharedGroupCapacity,
+} from "#shared/group-capacity.ts";
 import { availableDayCounts, type ListingWithCount } from "#types";
 
 /**
@@ -132,32 +135,48 @@ const childCanBeBookedForParent = (
   child: ListingWithCount,
   caps: ChildCapacityInfo,
   holidays: Holiday[],
-): boolean => {
-  const capacityFits = parentAndChildFitGroup(
-    sharedGroupCapacity(
-      listingGroups.idsFor(caps.membership, parent.id),
-      listingGroups.idsFor(caps.membership, child.id),
-      caps.staticCapByGroupId,
-      caps.remainingByGroupId,
-    ),
+): boolean => childServedParentMax(parent, child, caps, holidays) >= 1;
+
+/** The parent quantity one child can serve beside its parent. The child's own
+ * remaining, held down by the spots the shared group leaves for each
+ * parent+child pair. Zero when the child cannot book at all. */
+const childServedParentMax = (
+  parent: ListingWithCount,
+  child: ListingWithCount,
+  caps: ChildCapacityInfo,
+  holidays: Holiday[],
+): number => {
+  const childInfo = buildTicketListing(
+    child,
+    isRegistrationClosed(child),
+    caps.childOwnRemaining.get(child.id),
   );
-  return (
-    childCanBeBooked(
-      buildTicketListing(
-        child,
-        isRegistrationClosed(child),
-        caps.childOwnRemaining.get(child.id),
-      ),
-      holidays,
-      parentOfferedDayCounts(parent),
-      // A daily child must be bookable on a date the PARENT can serve, not merely on
-      // its own calendar: else disjoint weekdays leave the parent advertised
-      // while `getTicketContext`'s date union renders no valid date. A non-daily
-      // parent has no date calendar (null), which the daily-only overlap test ignores
-      // for a (necessarily standard) child.
-      parentDatesOf(parent, holidays),
-    ) && capacityFits
+  const childBooks = childCanBeBooked(
+    childInfo,
+    holidays,
+    parentOfferedDayCounts(parent),
+    // A daily child must be bookable on a date the PARENT can serve, not merely on
+    // its own calendar: else disjoint weekdays leave the parent advertised
+    // while `getTicketContext`'s date union renders no valid date. A non-daily
+    // parent has no date calendar (null), which the daily-only overlap test ignores
+    // for a (necessarily standard) child.
+    parentDatesOf(parent, holidays),
   );
+  if (!childBooks) return 0;
+  const shared = sharedGroupCapacity(
+    listingGroups.idsFor(caps.membership, parent.id),
+    listingGroups.idsFor(caps.membership, child.id),
+    caps.staticCapByGroupId,
+    caps.remainingByGroupId,
+  );
+  if (!parentAndChildFitGroup(shared)) return 0;
+  // Every parent ticket takes one parent spot and one child spot from the
+  // shared group. The group allows as many parent tickets as whole pairs.
+  const groupMax =
+    shared.remaining === undefined
+      ? childInfo.maxPurchasable
+      : Math.floor(shared.remaining / PARENT_CHILD_GROUP_UNITS);
+  return Math.min(childInfo.maxPurchasable, groupMax);
 };
 
 /**
@@ -232,10 +251,14 @@ export const classifyForDiscovery = async (
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = listingById.get(parentId);
+    // The parent must also reach its own minimum: a child that serves fewer
+    // parent tickets than that minimum sells the parent nothing.
     const anyBookable =
       parent !== undefined &&
-      children.some((child) =>
-        childCanBeBookedForParent(parent, child, caps, holidays),
+      children.some(
+        (child) =>
+          childServedParentMax(parent, child, caps, holidays) >=
+          parent.minimum_quantity,
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
