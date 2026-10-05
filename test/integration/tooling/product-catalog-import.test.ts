@@ -9,6 +9,7 @@ import {
 import {
   composeDescription,
   conflictLine,
+  ensureNamespaceFree,
   listingBody,
   matchedIds,
   minorUnits,
@@ -231,6 +232,81 @@ Body text that the importer never reads.
     expect(matchedIds("Batak Lite", existing)).toEqual([7]);
     expect(matchedIds("Giant Jenga Hire", existing)).toEqual([9]);
     expect(matchedIds("Coconut Shy", existing)).toEqual([]);
+  });
+
+  test("refuses a product title a group already holds", () => {
+    // The server keeps one namespace for listings and groups, so the create
+    // would fail after the import had already written attributes and groups.
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [],
+        [],
+        [{ id: 7, name: "8 lane reindeer racing hire" }],
+      ),
+    ).toThrow(
+      "a group named '8 lane reindeer racing hire' already exists (id 7); a listing cannot take a group's name, so rename one and rerun",
+    );
+  });
+
+  test("refuses a product title a category of the same catalog holds", () => {
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [{ name: "8 LANE reindeer racing hire", slug: "christmas" }],
+        [],
+        [],
+      ),
+    ).toThrow(
+      "the product '8 Lane Reindeer Racing Hire' and the category '8 LANE reindeer racing hire' share a name; rename one and rerun",
+    );
+  });
+
+  test("refuses a category name a listing already holds", () => {
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [{ name: "Christmas Game Hire", slug: "christmas-game-hire" }],
+        [{ id: 9, name: "  christmas game hire " }],
+        [],
+      ),
+    ).toThrow(
+      "a listing named '  christmas game hire ' already exists (id 9); a group cannot take a listing's name, so rename one and rerun",
+    );
+  });
+
+  test("refuses two categories under one folded name", () => {
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [
+          { name: "Fun Days", slug: "fun-days" },
+          { name: "  fun days ", slug: "christmas-game-hire" },
+        ],
+        [],
+        [],
+      ),
+    ).toThrow(
+      "the categories 'fun-days' and 'christmas-game-hire' are both named '  fun days '; rename one and rerun",
+    );
+  });
+
+  test("leaves the plan's own name matches to the plan", () => {
+    // A title matching an existing listing is the plan's conflict path, and
+    // a category matching a group is the reuse path: neither is a refusal.
+    const product = parseProductFile("a.md", productFrontmatter)!;
+    expect(() =>
+      ensureNamespaceFree(
+        [product],
+        [{ name: "Christmas Game Hire", slug: "christmas-game-hire" }],
+        [{ id: 9, name: "8 Lane Reindeer Racing Hire" }],
+        [{ id: 5, name: "christmas game hire" }],
+      ),
+    ).not.toThrow();
   });
 
   test("rejects a stored id that cannot name a listing", () => {

@@ -1,7 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { parseProductFile } from "#cli/product-catalog/parse.ts";
-import { ensureUniqueTitles, readProducts } from "#cli/product-catalog.ts";
+import {
+  type CatalogProduct,
+  parseProductFile,
+} from "#cli/product-catalog/parse.ts";
+import {
+  ensureConsistentAttributeSpellings,
+  ensureUniqueTitles,
+  readProducts,
+} from "#cli/product-catalog.ts";
 
 const productFrontmatter = `---
 title: 8 Lane Reindeer Racing Hire
@@ -42,6 +49,18 @@ faqs:
 Body text that the importer never reads.
 `;
 
+/** One product file whose single filter attribute carries one name and
+ *  value. */
+const productWithAttribute = (
+  filename: string,
+  name: string,
+  value: string,
+): CatalogProduct =>
+  parseProductFile(
+    filename,
+    `---\ntitle: Product ${filename}\noptions:\n  - name: 1 Day\n    unit_price: 100\nfilter_attributes:\n  - name: ${name}\n    value: ${value}\n---\n`,
+  )!;
+
 describe("product catalog", () => {
   test("refuses a catalog whose files share a title", () => {
     const first = parseProductFile("a.md", productFrontmatter)!;
@@ -66,6 +85,33 @@ describe("product catalog", () => {
     expect(() => ensureUniqueTitles([first, second])).toThrow(
       "duplicate product title '8 LANE reindeer racing hire' in a and b",
     );
+  });
+
+  test("refuses two spellings of one attribute name", () => {
+    // The site folds case and trims names, so both spellings are one
+    // attribute: the second create would be a duplicate that the next
+    // import cannot match.
+    const first = productWithAttribute("a.md", "Colour", "Red");
+    const second = productWithAttribute("b.md", "colour", "Blue");
+    expect(() => ensureConsistentAttributeSpellings([first, second])).toThrow(
+      "attribute 'Colour' and 'colour' are one attribute to the site (a and b); use one spelling and rerun",
+    );
+  });
+
+  test("refuses two spellings of one option text", () => {
+    const first = productWithAttribute("a.md", "Colour", "Red");
+    const second = productWithAttribute("b.md", "Colour", "red");
+    expect(() => ensureConsistentAttributeSpellings([first, second])).toThrow(
+      "attribute 'Colour' holds options 'Red' and 'red' (a and b); they are one option to the site; use one spelling and rerun",
+    );
+  });
+
+  test("allows one spelling used across products", () => {
+    const first = productWithAttribute("a.md", "Colour", "Red");
+    const second = productWithAttribute("b.md", "Colour", "Red");
+    expect(() =>
+      ensureConsistentAttributeSpellings([first, second]),
+    ).not.toThrow();
   });
 
   test("reads every product file in site order", async () => {

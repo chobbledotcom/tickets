@@ -25,6 +25,7 @@ import type { CatalogProduct } from "./product-catalog/parse.ts";
 import {
   attributeVocabulary,
   type CategoryEntry,
+  ensureConsistentAttributeSpellings,
   ensureUniqueTitles,
   type PlannedAttribute,
   readCategoryEntries,
@@ -32,6 +33,7 @@ import {
 } from "./product-catalog.ts";
 import {
   conflictLine,
+  ensureNamespaceFree,
   type ImportFlags,
   type ImportPlan,
   listingBody,
@@ -169,18 +171,15 @@ const syncAttributes = async (
 };
 
 /** Create the groups the categories need; returns group id by slug. The
- * category names arrive preflighted, so no file is read here. */
+ * category names arrive preflighted, so no file is read here, and the group
+ * list arrives from the same snapshot the namespace preflight read. */
 const syncGroups = async (
   api: ApiClient,
+  existing: readonly (ApiNamed & { is_package: boolean })[],
   entries: readonly CategoryEntry[],
   plan: boolean,
   report: Report,
 ): Promise<Map<string, number>> => {
-  const existing = (
-    await api<{ groups: (ApiNamed & { is_package: boolean })[] }>({
-      path: "/api/admin/groups",
-    })
-  ).groups;
   const idsBySlug = new Map<string, number>();
   for (const { name, slug } of entries) {
     // The server folds case and trims names, so match the way it does: a
@@ -229,7 +228,6 @@ const importProduct = async (
   api: ApiClient,
   product: CatalogProduct,
   text: string,
-  _existing: readonly ApiNamed[],
   plan: ImportPlan,
   productsDir: string,
   optionIds: ReadonlyMap<string, number>,
@@ -308,6 +306,11 @@ const main = async () => {
       path: "/api/admin/listings",
     })
   ).listings;
+  const existingGroups = (
+    await api<{ groups: (ApiNamed & { is_package: boolean })[] }>({
+      path: "/api/admin/groups",
+    })
+  ).groups;
   // Every plan is decided before the first write: only products that will be
   // created or updated drive the attribute, option, and group syncs, so a
   // rerun cannot leave site records behind for products it then skips.
@@ -339,6 +342,15 @@ const main = async () => {
     `${flags.dir}/src/categories`,
     [...new Set(active.flatMap(({ product }) => product.categories))],
   );
+  // Both preflights read nothing but the two name snapshots, and both must
+  // pass before the first write: a refusal here leaves the site untouched.
+  ensureNamespaceFree(
+    active.map(({ product }) => product),
+    categoryEntries,
+    existing,
+    existingGroups,
+  );
+  ensureConsistentAttributeSpellings(active.map(({ product }) => product));
   const optionIds = await syncAttributes(
     api,
     attributeVocabulary(active.map(({ product }) => product)),
@@ -347,6 +359,7 @@ const main = async () => {
   );
   const groupIdsBySlug = await syncGroups(
     api,
+    existingGroups,
     categoryEntries,
     flags.plan,
     report,
@@ -356,7 +369,6 @@ const main = async () => {
       api,
       product,
       text,
-      existing,
       plans.get(product.filename)!,
       productsDir,
       optionIds,

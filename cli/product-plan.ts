@@ -3,6 +3,7 @@ import {
   type CatalogProduct,
   frontmatterBlock,
 } from "./product-catalog/parse.ts";
+import type { CategoryEntry } from "./product-catalog.ts";
 
 /** A row the importer matches by name: the listing list the API returns. */
 export type ApiNamedLike = { id: number; name: string };
@@ -20,6 +21,63 @@ export const matchedIds = (
         normalizeEntityName(listing.name) === normalizeEntityName(title),
     )
     .map((listing) => listing.id);
+
+/** The server keeps one namespace for listings and groups, so a create that
+ * takes the other kind's name fails after the import has already written
+ * attributes, options, and groups. Refuse every such name before the first
+ * write: a product title that a group holds, a product title that a category
+ * of the same catalog holds, a category name that a listing holds, and two
+ * categories under one folded name. A product title that an existing listing
+ * holds is not refused here: that match is the plan's own conflict path. */
+export const ensureNamespaceFree = (
+  products: readonly CatalogProduct[],
+  categoryEntries: readonly CategoryEntry[],
+  listings: readonly ApiNamedLike[],
+  groups: readonly ApiNamedLike[],
+): void => {
+  const byFoldedName = (
+    rows: readonly ApiNamedLike[],
+  ): Map<string, ApiNamedLike> => {
+    const index = new Map<string, ApiNamedLike>();
+    for (const row of rows) index.set(normalizeEntityName(row.name), row);
+    return index;
+  };
+  const groupsByName = byFoldedName(groups);
+  const listingsByName = byFoldedName(listings);
+  const categoryByName = new Map<string, CategoryEntry>();
+  for (const entry of categoryEntries) {
+    const key = normalizeEntityName(entry.name);
+    const seen = categoryByName.get(key);
+    if (seen !== undefined) {
+      throw new Error(
+        `the categories '${seen.slug}' and '${entry.slug}' are both named '${entry.name}'; rename one and rerun`,
+      );
+    }
+    categoryByName.set(key, entry);
+  }
+  for (const product of products) {
+    const group = groupsByName.get(normalizeEntityName(product.title));
+    if (group !== undefined) {
+      throw new Error(
+        `a group named '${group.name}' already exists (id ${group.id}); a listing cannot take a group's name, so rename one and rerun`,
+      );
+    }
+    const category = categoryByName.get(normalizeEntityName(product.title));
+    if (category !== undefined) {
+      throw new Error(
+        `the product '${product.title}' and the category '${category.name}' share a name; rename one and rerun`,
+      );
+    }
+  }
+  for (const entry of categoryEntries) {
+    const listing = listingsByName.get(normalizeEntityName(entry.name));
+    if (listing !== undefined) {
+      throw new Error(
+        `a listing named '${listing.name}' already exists (id ${listing.id}); a group cannot take a listing's name, so rename one and rerun`,
+      );
+    }
+  }
+};
 
 /** The flags the Markdown Frontmatter Importer accepts. */
 export type ImportFlags = {
