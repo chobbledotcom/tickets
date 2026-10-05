@@ -187,6 +187,14 @@ const createQrFormValidator = (
     if (quantity === null) {
       return { error: "Quantity must be at least 1", valid: false };
     }
+    // The token pre-selects the buyer's quantity control, which offers none
+    // or the minimum upward. A below-minimum prefill lands on 0.
+    if (quantity < listing.minimum_quantity) {
+      return {
+        error: `Quantity must be at least ${listing.minimum_quantity}`,
+        valid: false,
+      };
+    }
     if (quantity > listing.max_quantity) {
       return {
         error: `Quantity cannot exceed ${listing.max_quantity}`,

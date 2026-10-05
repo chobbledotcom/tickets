@@ -41,7 +41,7 @@ export const expectPackageNeedsEmail = async (slug: string): Promise<void> => {
   const { body, response } = await apiBookPackage(
     slug,
     {},
-    JSON.stringify({ name: "No Email" }),
+    JSON.stringify({ name: "No Email", quantity: 1 }),
   );
   expect(response.status).toBe(400);
   expect(body.error).toMatch(/email/i);

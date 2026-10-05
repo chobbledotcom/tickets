@@ -86,6 +86,39 @@ export const arrangeGroupWrite = async (
   };
 };
 
+/** A hidden package with one member whose listing stores `minimumQuantity`
+ *  as its per-purchase floor, with the group write asked to save the member
+ *  at `submitted` pick counts. Mirrors {@link arrangeGroupWrite} for the
+ *  minimum rule. */
+export const arrangeGroupWriteMinimum = async (
+  name: string,
+  submitted: number,
+  minimumQuantity: number,
+) => {
+  const group = await createHiddenPackageGroup(`${name} group`);
+  const member = await createTestListing({
+    groupId: group.id,
+    // A cap well above the floor, so only the minimum rule can refuse.
+    maxQuantity: 10,
+    minimumQuantity,
+    name,
+  });
+  return {
+    group,
+    member,
+    run: () =>
+      withTransaction((tx) =>
+        writePackageMembersTx(
+          tx,
+          group.id,
+          { hide_package_listings: false, is_package: true },
+          { isPackage: true },
+          [{ listingId: member.id, price: 0, quantity: submitted }],
+        ),
+      ),
+  };
+};
+
 /** A hidden package with one stored member at `quantity` pick counts, whose
  *  per-order cap the operator then lowers to `maxQuantity` — the state a
  *  listing save must judge. */
