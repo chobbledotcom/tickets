@@ -147,7 +147,10 @@ describe("packageMemberQuantityBroken", () => {
   });
 
   test("refuses a pick count above the member's per-order cap", () => {
-    expect(packageMemberQuantityBroken(member({ quantity: 6 }))).toBe("cap");
+    expect(packageMemberQuantityBroken(member({ quantity: 6 }))).toEqual({
+      quantity: 6,
+      reason: "cap",
+    });
   });
 
   test("allows a pick count at the cap", () => {
@@ -160,15 +163,16 @@ describe("packageMemberQuantityBroken", () => {
 
   test("treats an omitted pick count as one unit per package", () => {
     expect(packageMemberQuantityBroken(member())).toBeNull();
-    expect(packageMemberQuantityBroken(member({ max_quantity: 0 }))).toBe(
-      "cap",
-    );
+    expect(packageMemberQuantityBroken(member({ max_quantity: 0 }))).toEqual({
+      quantity: 1,
+      reason: "cap",
+    });
   });
 
   test("refuses a pick count below the listing's minimum", () => {
     expect(
       packageMemberQuantityBroken(member({ minimum_quantity: 2, quantity: 1 })),
-    ).toBe("minimum");
+    ).toEqual({ quantity: 1, reason: "minimum" });
   });
 
   test("allows a pick count at the minimum", () => {
@@ -178,8 +182,8 @@ describe("packageMemberQuantityBroken", () => {
   });
 
   test("refuses an omitted pick count below the minimum", () => {
-    expect(packageMemberQuantityBroken(member({ minimum_quantity: 2 }))).toBe(
-      "minimum",
+    expect(packageMemberQuantityBroken(member({ minimum_quantity: 2 }))).toEqual(
+      { quantity: 1, reason: "minimum" },
     );
   });
 
@@ -191,7 +195,7 @@ describe("packageMemberQuantityBroken", () => {
       packageMemberQuantityBroken(
         member({ max_quantity: 1, minimum_quantity: 4, quantity: 9 }),
       ),
-    ).toBe("cap");
+    ).toEqual({ quantity: 9, reason: "cap" });
   });
 });
 
