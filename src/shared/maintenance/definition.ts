@@ -18,8 +18,8 @@ export type MaintenanceWakePolicy = "organic_safe" | "scheduled_only";
 
 /** The runner for a due-queue task: take the task's queue, run one pass over
  * each row, and report whether the batch filled. A filled batch means work
- * likely remains, so the caller asks to be run again rather than working
- * through a backlog inside one request's subrequest budget. */
+ * likely remains. The caller then asks to be run again, instead of working
+ * through the backlog inside one request's subrequest budget. */
 export const dueBatchRunner =
   <Row>(
     due: () => Promise<readonly Row[]>,
