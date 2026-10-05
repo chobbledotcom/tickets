@@ -225,9 +225,9 @@ src/features/admin/bulk-email.ts::handleComposeGet.draft.marketing~0aepv7o  ?? �
 src/features/public/ticket-form.ts::collectValuesByListing.list~0zcnvvx  ?? → ||   # the answer bucket is an array or absent, and an array is always truthy
 src/features/public/ticket-form.ts::parseQuantities.raw~11sglfa  0 → ""   # "" parses to null then the minimum supplies 0; the literal "0" parses to 0 directly
 src/features/public/ticket-form.ts::parseAddOnSelections.quantity~1ksz3r2  0 → ""   # both spellings parse to zero add-ons, which the caller drops
-src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1av017t  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
-src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  ?? → ||   # form.get answers a string or absent; "" parses to null and falls to the same 0 the "0" literal parses to
-src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
+src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1av017t  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1bh9sz0  ?? → ||   # form.get answers a string or absent; "" parses to null and falls to the same 0 the "0" literal parses to
+src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
 src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit.ts::parseQuantityPrefill.promo~0tck3kx  ?? → ||   # URLSearchParams.get answers a string or null, and the only falsy string is the empty fallback
