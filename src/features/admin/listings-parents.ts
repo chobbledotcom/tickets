@@ -49,20 +49,20 @@ import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 import type { ListingWithCount } from "#types";
 
 /** Error shown when the parent is itself offered as a child: single-level
- * nesting means it can't also gate children. */
+ * nesting means it cannot also gate children. */
 const parentIsChildError = (parent: EdgeListing): string =>
   t("listings_table.children_err_parent_is_child", { name: parent.name });
 
 /** Error shown when a chosen child is itself a parent: single-level nesting
- * means it can't also be a child. */
+ * means it cannot also be a child. */
 const childIsParentError = (child: EdgeListing): string =>
   t("listings_table.children_err_child_is_parent", { name: child.name });
 
-/** Why `candidate` can't be a child of `parent` for the edit-page candidate list,
- * or null when allowed — the synchronous structural + field blocks, mirroring
- * {@link childEdgeError} so the pre-disable and the save agree. The async
- * add-on-reachability block is left to the save: it needs per-edge scope
- * resolution and is the rare case. */
+/** Why `candidate` cannot be a child of `parent` for the edit-page candidate
+ * list, or null when allowed. This covers the synchronous structural and field
+ * blocks and mirrors {@link childEdgeError}, so the pre-disable and the save
+ * agree. The async add-on-reachability block is left to the save. It needs
+ * per-edge scope resolution and is the rare case. */
 const childEdgeIneligibility = (
   parent: EdgeListing,
   candidate: EdgeListing,
@@ -85,11 +85,11 @@ export const loadListingParentsSection = async (
   const linkedParents = offeredUnderLinks.listingsByKey.get(listing.id);
   const offeredUnder = linkedParents === undefined ? [] : linkedParents;
   const others = allListings.filter((other) => other.id !== listing.id);
-  // Single-level nesting: a listing already offered as a child can't also be a
-  // parent, so every candidate is ineligible in that case.
+  // Single-level nesting: a listing already offered as a child cannot also be
+  // a parent, so every candidate is ineligible in that case.
   const parentIsChild = offeredUnder.length > 0;
-  // One query for which candidates are themselves parents (so can't be a child),
-  // instead of an N+1 over each candidate's children.
+  // One query for which candidates are themselves parents (so they cannot be
+  // a child), instead of an N+1 over each candidate's children.
   const childrenOf = await listingChildren.getIdsByKeys(
     others.map((other) => other.id),
   );
@@ -106,10 +106,11 @@ export const loadListingParentsSection = async (
 };
 
 /** Resolve the name of an opt-in add-on that `childId` orphans from a
- * parent page of `pageIds`, or null. The default resolves add-on scopes from the
- * LIVE listings table (the HTML children form, where the parent row's `group_id`
- * is already persisted); the admin API supplies a pending variant that resolves
- * against an in-memory listing set carrying the submitted `group_id`. */
+ * parent page of `pageIds`, or null. The default resolves add-on scopes from
+ * the LIVE listings table. That fits the HTML children form, where the parent
+ * row's `group_id` is already persisted. The admin API supplies a pending
+ * variant that resolves against an in-memory listing set carrying the
+ * submitted `group_id`. */
 type ChildOnlyAddOnResolver = (
   childId: number,
   pageIds: readonly number[],
@@ -120,9 +121,9 @@ type ChildOnlyAddOnResolver = (
  * add-on scoping cannot honour. A parent must not itself be a child, and a
  * child must not itself be a parent.
  *
- * An **empty** child set is always allowed. It clears the listing's edges, so a
- * listing that is itself a child can still save its blank children form, and a
- * stuck nested state can be cleared.
+ * An **empty** child set is always allowed. It clears the listing's edges. A
+ * listing that is itself a child can still save its blank children form, and
+ * a stuck nested state can be cleared.
  */
 const childEdgeError = async (
   parent: EdgeListing,
@@ -141,10 +142,11 @@ const childEdgeError = async (
     const fieldError = edgeFieldError(parent, listing);
     if (fieldError) return fieldError;
     // v1 has no child-scoped add-on render/parse path, so an add-on reachable
-    // only through the suppressed child would become a dead end — hard block it.
-    // A `bookable_alone` child keeps its OWN booking page, so its add-on is still
-    // reachable and the edge must not be blocked (mirrors the modifier/listing
-    // save reachability, which count a flagged child among the live pages).
+    // only through the suppressed child becomes a dead end. Hard block it.
+    // A `bookable_alone` child keeps its OWN booking page, so its add-on is
+    // still reachable and the edge must not be blocked. This mirrors the
+    // modifier/listing save reachability, which count a flagged child among
+    // the live pages.
     if (listing.bookable_alone) continue;
     const addOn = await resolveChildOnlyAddOn(listing.id, pageIds);
     if (addOn) return childAddOnError(addOn, listing.name);
@@ -159,24 +161,25 @@ export type ChildEdgeValidation =
   | { ok: true; childIds: number[] };
 
 /**
- * Optional would-be group context for the admin JSON API: the parent's
- * submitted `group_id`, applied to an in-memory listing set so a group-scoped
- * add-on's reachability is resolved against the move the save is about to make
- * (the live `modifier_groups`→`listings` join can't yet see it). Omitted by the
- * HTML children form, whose parent row already carries its live `group_id`.
+ * Optional group context for the admin JSON API: the parent's submitted
+ * `group_id`, applied to an in-memory listing set. The save is about to make
+ * that move, and the live `modifier_groups`→`listings` join cannot yet see
+ * it. A group-scoped add-on's reachability therefore resolves against the
+ * submitted group. Omitted by the HTML children form, whose parent row already
+ * carries its live `group_id`.
  */
 export type ChildEdgeOptions = { wouldBeGroupIds: number[] };
 
-/** Build the add-on resolver for a child-edge validation: the live-table check
- * for the HTML form, or the in-memory would-be-group check for the admin API
- * mirroring {@link orphanedAddOnAfterChange}'s would-be approach.
+/** Build the add-on resolver for a child-edge validation. The HTML form uses
+ * the live-table check. The admin API uses an in-memory check against the
+ * submitted groups and mirrors {@link orphanedAddOnAfterChange}'s approach.
  *
- * The would-be set carries the parent at its **submitted** `group_id`: an
- * existing parent is remapped in place; a not-yet-created parent (placeholder id)
- * is **appended** so it sits in that group too — otherwise a group-scoped
- * add-on's in-memory scope (the group's member listings) wouldn't include the new
- * parent and the add-on would look unreachable from its page, wrongly rejecting a
- * create into the add-on's own group. */
+ * The in-memory set carries the parent at its **submitted** `group_id`.
+ * An existing parent is remapped in place. A not-yet-created parent
+ * (placeholder id) is **appended** so it sits in that group too. Otherwise a
+ * group-scoped add-on's in-memory scope (the group's member listings) does not
+ * include the new parent, and the add-on looks unreachable from its page.
+ * That wrongly rejects a create into the add-on's own group. */
 const childOnlyAddOnResolver = async (
   parent: EdgeListing,
   options: ChildEdgeOptions | undefined,
@@ -191,12 +194,12 @@ const childOnlyAddOnResolver = async (
       ? { ...withGroups, groupIds: options.wouldBeGroupIds }
       : withGroups;
   });
-  // On create the parent row doesn't exist in `live` yet, so append a
-  // placeholder carrying its would-be group set.
+  // On create the parent row does not exist in `live` yet, so append a
+  // placeholder carrying its submitted group set.
   const allListings: ListingGroupMembership[] = hasParent
     ? base
     : [...base, { groupIds: options.wouldBeGroupIds, id: parent.id }];
-  // The would-be scopes resolve once per save, not once per child edge.
+  // These scopes resolve once per save, not once per child edge.
   const addOns = await resolveWouldBeAddOns(allListings);
   return async (childId, pageIds) =>
     childOnlyAddOnNameForListings(childId, pageIds, addOns);
@@ -207,9 +210,9 @@ const childOnlyAddOnResolver = async (
  * both enforce one rule set.
  *
  * `parent` is an {@link EdgeListing}, not the full row, so the API can validate
- * **would-be** edge fields BEFORE the row is written. A create has no persisted
- * row yet, and an update's rename must not persist when an edge is rejected. A
- * create passes a placeholder id no real listing can reference.
+ * edge fields for the submitted state BEFORE the row is written. A create has
+ * no persisted row yet, and an update's rename must not persist when an edge is
+ * rejected. A create passes a placeholder id no real listing can reference.
  */
 export const validateChildEdges = async (
   parent: EdgeListing,
@@ -217,11 +220,12 @@ export const validateChildEdges = async (
   options?: ChildEdgeOptions,
 ): Promise<ChildEdgeValidation> => {
   const byId = await getListingsById();
-  // Drop self-edges and unknown ids, then collapse duplicates (preserving order):
-  // a repeated child id (API body `[7,7]` or repeated form values) would make
-  // `setChildIds` insert two `(parent, child)` rows and violate the unique index
-  // — and on the API side-effect path that happens AFTER the row write, a partial
-  // change. Dedupe once here so validation and persist agree.
+  // Drop self-edges and unknown ids, then collapse duplicates (preserving
+  // order). A repeated child id (API body `[7,7]` or repeated form values)
+  // makes `setChildIds` insert two `(parent, child)` rows and violates the
+  // unique index. On the API side-effect path that happens AFTER the row
+  // write, a partial change. Dedupe once here so validation and persist
+  // agree.
   const childIds = unique(
     submittedChildIds.filter(
       (childId) => childId !== parent.id && byId.has(childId),
@@ -255,8 +259,8 @@ export const validateChildEdges = async (
  * standalone bookable copy.
  *
  * Validation legitimately fails when an edge is reachable only through the
- * *source*, for example a child whose opt-in add-on is scoped to
- * `{originalParent, child}` and so dead-ends from the new parent.
+ * *source*. For example, a child whose opt-in add-on is scoped to
+ * `{originalParent, child}` dead-ends from the new parent.
  */
 export const copyDuplicatedChildEdges = async (
   newParent: ListingWithCount,
@@ -305,8 +309,8 @@ interface GroupEdgePlan {
 }
 
 /** Apply each edge plan in order and collect distinct validation errors.
- * Existing children are kept when an outside parent gains cloned children;
- * replacing them would clobber the gate it already had. */
+ * Existing children are kept when an outside parent gains cloned children.
+ * Replacing them clobbers the gate it already had. */
 const copyGroupEdgePlans = async (
   idMap: ReadonlyMap<number, number>,
   plans: GroupEdgePlan[],

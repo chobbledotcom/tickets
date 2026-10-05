@@ -168,11 +168,10 @@ const updateTargetPiiFromDecision = async (
   source: MergeSource,
   target: Attendee,
 ): Promise<void> => {
-  // The pinned location belongs to the address it was pinned for, so it
-  // follows whichever side's address the operator keeps. When the kept side
-  // has no pin but the OTHER side pinned the very same address text, keep
-  // that pin — identical addresses render as one "(same)" value on the merge
-  // form, so dropping the only pin there would be a silent loss.
+  // The pin follows whichever side's address the operator keeps. When the kept
+  // side has no pin but the OTHER side pinned the very same address text, keep
+  // that pin. Identical addresses render as one "(same)" value on the merge
+  // form, so dropping the only pin there is a silent loss.
   const kept = decision.pii.address === "source" ? source : target;
   const other = kept === source ? target : source;
   const keptIsPinned = Boolean(kept.lat && kept.lng);
@@ -196,10 +195,9 @@ const updateTargetPiiFromDecision = async (
     ),
     ticket_token: target.ticket_token,
   });
-  // The target keeps its ticket token, but the merge may switch its kept email
-  // or phone to the source's value. Keep that token attached to whichever
-  // contact now owns it. The deleted source's token is left stale and simply
-  // filtered out on read.
+  // The target keeps its ticket token, but the merge can switch its kept email
+  // or phone to the source's value. The token follows whichever contact now
+  // owns it. The deleted source's token stays stale and filtered out on read.
   await syncAttendeeContactTokens({
     after: { email, phone },
     before: { email: target.email, phone: target.phone },
@@ -219,7 +217,8 @@ const mergeCountParts = (fields: [number, string][]): string[] =>
   )(fields);
 
 /** The booking-movement counts every merge message leads with, before each
- *  surface adds its own (the log is fuller; the flash is a short confirmation). */
+ *  surface adds its own (the log is fuller, and the flash is a short
+ *  confirmation). */
 const bookingMoveParts = (summary: MergeSummary): [number, string][] => [
   [summary.bookingsMoved, "booking(s) moved"],
   [summary.bookingsSkipped, "booking(s) skipped"],
@@ -356,7 +355,7 @@ const oneChoiceOf =
   (raw) =>
     known.find((choice) => choice === raw) ?? fallback;
 
-/** Which side a PII field takes; anything but "source" keeps the target. */
+/** Which side a PII field takes. Anything but "source" keeps the target. */
 const toPiiChoice = oneChoiceOf(["source", "target"], "target");
 
 /** Parse PII decisions from form (each field: "source" or "target") */
@@ -398,8 +397,8 @@ const toBookingChoice = oneChoiceOf(
 
 /** Build a per-conflict decision Record by parsing each NON-moveable booking's
  *  form field (keyed by "listingId:startAt"). A `parse` result of `undefined`
- *  leaves the entry out — so a blank money choice stays absent and validation can
- *  demand it, while `toBookingChoice` (which always resolves) fills every row. */
+ *  leaves the entry out. A blank money choice stays absent, and validation can
+ *  demand it. `toBookingChoice` always resolves, so it fills every row. */
 const parseConflictDecisions = <T>(
   diff: AttendeeMergeDiff,
   parse: (key: string) => T | undefined,
@@ -423,13 +422,13 @@ const conflictDecisions =
 /** Parse booking decisions from form (only non-moveable items) */
 const parseBookingDecisions = conflictDecisions("booking", toBookingChoice);
 
-/** Normalize a raw money choice; an empty/unknown value is left ABSENT so
- *  validation can require an explicit decision (decision 17 — never defaulted). */
+/** Normalize a raw money choice. An empty or unknown value stays ABSENT, so
+ *  validation can require an explicit decision (decision 17, never defaulted). */
 const toMoneyChoice = oneChoiceOf(["credit", "writeoff"], undefined);
 
-/** Parse money decisions from form (only conflicting items); a blank choice is
- *  omitted so validateAttendeeMergeDecision rejects the merge until the operator
- *  decides what happens to the discarded booking's money. */
+/** Parse money decisions from form (only conflicting items). A blank choice is
+ *  omitted, so validateAttendeeMergeDecision rejects the merge until the
+ *  operator decides what happens to the discarded booking's money. */
 const parseMoneyDecisions = conflictDecisions("money", toMoneyChoice);
 
 /** Parse merge decision form data into AttendeeMergeDecisionInput */
@@ -449,9 +448,10 @@ const mergeHandler = createEntityHandler<AttendeeRouteParams, Attendee>(
 )(formGuard(AUTH_FORM));
 
 /**
- * Build the merge panel for the attendee page's Actions tab: the token search
- * form alone, or — when a `?token=` search is in flight — the source preview
- * and decision form (with an inline message when the token doesn't resolve).
+ * Build the merge panel for the attendee page's Actions tab. It holds the
+ * token search form alone. When a `?token=` search is in flight, it holds the
+ * source preview and decision form. The message shows inline when the token
+ * does not resolve.
  */
 export const loadMergePanel = async (
   target: Attendee,
@@ -487,9 +487,9 @@ export const handleMergePost: ParamsRoute<AttendeeRouteParams> = mergeHandler(
     const { source, sourceToken } = input;
     const diff = await buildMergeDiffFor(target, source, target.id);
     const decision = parseMergeDecisionForm(form, diff);
-    // Where anything that stops the merge sends the operator: back to the
-    // Actions tab's merge panel, where the decision radios reset (they always
-    // have) but the message flashes and the search re-runs.
+    // Anything that stops the merge sends the operator back to the Actions
+    // tab's merge panel. There the decision radios reset, as always, but the
+    // message flashes and the search re-runs.
     const mergePanel = `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
       sourceToken,
     )}`;

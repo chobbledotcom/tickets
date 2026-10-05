@@ -1,7 +1,7 @@
 /**
  * Data loaders for the attendee entity page — everything the
  * tabs and the create form need, factored so each tab loads only its own
- * data. The submit handlers live in attendee-form-routes.ts; the page
+ * data. The submit handlers live in attendee-form-routes.ts. The page
  * definition lives in attendee-page.ts. This module is the seam between
  * them, so neither imports the other.
  */
@@ -76,7 +76,7 @@ const attendeePaymentReferences = async (
 
 /** Whether the attendee still holds a real (quantity > 0) booking on this exact
  * listing. Read from the lines the page has already loaded: asking the database
- * again would answer the same question the same way. A no-quantity line does
+ * again answers the same question the same way. A no-quantity line does
  * not count, so a line marked no-quantity stops offering the refund. */
 const holdsRealLineOn = (
   existing: readonly ExistingLine[],
@@ -86,7 +86,7 @@ const holdsRealLineOn = (
     ({ booking }) => booking.listing_id === listingId && booking.quantity > 0,
   );
 
-/** Whether the page may offer a refund: automatic payment money that still has
+/** Whether the page can offer a refund: automatic payment money that still has
  * work left, against a booking the attendee really holds. */
 const refundIsOffered = (
   attendee: Attendee,
@@ -98,7 +98,7 @@ const refundIsOffered = (
   refundWorkRemains(attendee, paymentReferences.references) &&
   holdsRealLineOn(existing, attendee.listing_id);
 
-/** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
+/** Load an attendee + all its lines, or null (→ 404) when it does not exist. */
 export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
@@ -117,8 +117,8 @@ export const loadAttendeeForEdit: (
 );
 
 /** Listings to render rows for: every active listing, plus any inactive listing
- * the attendee already books (so an existing inactive registration still shows
- * its quantity and can be edited). Active first, then inactive-booked. */
+ * the attendee already books. The existing inactive registration then still
+ * shows its quantity and can be edited. Active first, then inactive-booked. */
 export const getRenderListings = async (
   existing: ExistingLine[],
 ): Promise<ListingWithCount[]> => {
@@ -131,9 +131,9 @@ export const getRenderListings = async (
   return [...active, ...inactiveBooked];
 };
 
-/** One package path an editor line can book through: the package, the member
- * listings it would book, and each member's per-unit price override (absent =
- * no override — the listing's own price). Loaded once per form render. */
+/** One package path an editor line can book through. The path names the
+ * package, the member listings it books, and each member's per-unit price
+ * override (absent = the listing's own price). Loaded once per form render. */
 export type PackagePath = {
   groupId: number;
   packageName: string;
@@ -142,7 +142,7 @@ export type PackagePath = {
 };
 
 /** Every (package, member) path the editor offers blank lines for, in group
- * order. Members are the package's CURRENT listings; a package with no
+ * order. Members are the package's CURRENT listings. A package with no
  * members offers nothing. */
 export const loadPackagePaths = async (): Promise<PackagePath[]> => {
   const packages = (await groups.cache.getAll()).filter(
@@ -157,7 +157,7 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
   return packages.map((group) => ({
     groupId: group.id,
     // The members loader seeds every requested group id, so that lookup
-    // always hits; the price loader returns only groups with membership
+    // always hits. The price loader returns only groups with membership
     // rows, so a memberless package prices from an empty row set.
     memberListingIds: membersByGroupId
       .get(group.id)!
@@ -169,8 +169,8 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
 };
 
 /** The packages each listing can book through, with each path's price
- * override — the map the parser validates a blank line's chosen path against
- * and prices the manual-add ledger from. */
+ * override. The parser validates a blank line's chosen path against this map
+ * and prices the manual-add ledger from it. */
 export const packagesByListingIdFrom = (
   paths: PackagePath[],
 ): Map<number, Map<number, number | null>> => {
@@ -227,11 +227,11 @@ const blankLine = (
   quantity,
 });
 
-/** Build the editor's lines: one per EXISTING row (in stored order), then a
- * blank standalone line for every rendered listing without a standalone row,
- * then a blank line per unbooked (package, member) path — so every booking
- * path a public buyer could take is one quantity box away, with the blank
- * lines tucked behind the pure-CSS toggles. */
+/** Build the editor's lines: one per EXISTING row (in stored order). Then a
+ * blank standalone line for every rendered listing without a standalone row.
+ * Then a blank line per unbooked (package, member) path. Every booking path a
+ * public buyer can take is then one quantity box away, with the blank lines
+ * tucked behind the pure-CSS toggles. */
 const buildFormLines = (
   renderListings: ListingWithCount[],
   existing: ExistingLine[],
@@ -282,8 +282,8 @@ const buildFormLines = (
 };
 
 /** Build a create-mode form: a blank standalone line per active listing
- * (quantity from any pre-selection), a blank line per package path, and the
- * shared start date from the deep link. */
+ * (quantity from any pre-selection), a blank line per package path. The
+ * shared start date comes from the deep link. */
 export const buildCreateForm = (
   renderListings: ListingWithCount[],
   packagePaths: PackagePath[],
@@ -388,8 +388,8 @@ const listingBookingFor = (
   };
 };
 
-/** The set of booked listing ids that overbook capacity, judged with one
- * batched self-excluding check (the same one the save uses) over each
+/** The set of booked listing ids that overbook capacity. The check is one
+ * batched self-excluding pass (the same one the save uses) over each
  * listing's summed lines. A daily listing with no valid shared date is
  * skipped — the date error already blocks saving. */
 const overbookedListingIds = async (
@@ -427,14 +427,14 @@ const overbookedListingIds = async (
 };
 
 /**
- * Incomplete-parent warnings, keyed by parent listing id: a booked line that is
- * a parent (has required-child edges) whose required child is NOT also booked on
- * this attendee. The manual add/edit form books plain lines and never folds a
- * child the way the public booking flow enforces, so an operator who books a
- * parent alone — or opens an attendee already in that state — would otherwise
- * have a booking the gate considers incomplete. The message names the children
- * to add so it is obvious and easily fixed (usability #6). Reuses the
- * relationship accessor; no-op (no query) when no booked line is a parent.
+ * Incomplete-parent warnings, keyed by parent listing id. A warning fires
+ * for a booked line that is a parent (has required-child edges) whose
+ * required child is NOT also booked on this attendee. The manual add/edit
+ * form books plain lines and never folds a child. An operator who books a
+ * parent alone, or opens an attendee in that state, ends with a booking the
+ * gate considers incomplete. The message names the children to add so it is
+ * obvious and easily fixed (usability #6). Reuses the relationship
+ * accessor. No-op (no query) when no booked line is a parent.
  */
 const incompleteParentWarnings = async (
   booked: AttendeeFormLine[],
@@ -486,8 +486,8 @@ const computeWarnings = async (
   ]);
   const byListing = new Map<number, string[]>();
   const top: string[] = [];
-  // One warning set per LISTING (its lines share capacity and the date
-  // range), attached to its first booked line and shown on each of its rows.
+  // One warning set per LISTING (its lines share capacity and the date range).
+  // It attaches to the listing's first booked line and shows on each of its rows.
   const seenListings = new Set<number>();
   for (const line of booked) {
     if (seenListings.has(line.listingId)) continue;
@@ -553,7 +553,7 @@ const loadTemplateParts = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee | null,
 ) => {
-  // The order totals come from the saved booking (edit only); create has none.
+  // The order totals come from the saved booking (edit only). Create has none.
   const summary = attendee
     ? getAttendeeOrderSummary(attendee.id)
     : Promise.resolve(null);
@@ -597,9 +597,9 @@ const assembleTemplateData = (
     ),
     dateError: opts.dateError ?? null,
     formError: opts.formError ?? null,
-    // The shared date range only affects daily listings; the form's rendered
+    // The shared date range only affects daily listings. The form's rendered
     // lines cover every active listing plus any inactive one this attendee
-    // already books, so a daily line here is exactly when the dates matter.
+    // already books. A daily line here is exactly when the dates matter.
     hasDailyListings: parsed.lines.some(
       (l) => l.listing?.listing_type === "daily",
     ),
@@ -621,8 +621,8 @@ const assembleTemplateData = (
 };
 
 /** Build the form template data: everything the editable form itself renders
- * (statuses, balance notice, warnings, logistics), and nothing the other tabs
- * own (log, ledger, notes, contact history). */
+ * (statuses, balance notice, warnings, logistics). It includes nothing the
+ * other tabs own (log, ledger, notes, contact history). */
 export const buildTemplateData = async (
   mode: "create" | "edit",
   parsed: ParsedAttendeeForm,
@@ -643,10 +643,10 @@ export const EMPTY_CONTACT_RECORDS: ContactRecordsByChannel = {
 /** Load and decrypt one channel's contact record (null when no value on file).
  * Notes are owner-encrypted, so this needs the session private key. A corrupt/
  * undecryptable stats_blob for one contact must not take down the whole
- * attendee page: `getContactRecordOrRepair` surfaces it for repair and keeps
+ * attendee page. `getContactRecordOrRepair` surfaces it for repair and keeps
  * the channel with its surviving counts and (crucially) its /admin/history
- * link, so the operator can still open the editor and overwrite the bad row —
- * dropping the channel here would hide the only path to fix it. */
+ * link. The operator can then still open the editor and overwrite the bad
+ * row. Dropping the channel here hides the only path to fix it. */
 const loadChannelRecordOrRepair = getContactRecordOrRepair("contact history");
 const loadChannelRecord = async (
   value: string,
@@ -663,8 +663,8 @@ const loadChannelRecord = async (
 
 /** Read the attendee's per-channel contact history for the read-only panel.
  * The private key is only needed (and only requested) when there is at least
- * one contact value to decrypt, so an attendee with no email/phone never forces
- * a key prompt. */
+ * one contact value to decrypt. An attendee with no email/phone therefore
+ * never forces a key prompt. */
 export const loadContactRecords = async (
   attendee: Attendee,
 ): Promise<ContactRecordsByChannel> => {

@@ -4,12 +4,12 @@ import { defineRoutes } from "#routes/router.ts";
  * Delivery run sheet routes.
  *
  * `/admin/deliveries` shows the drop-offs and collections for the logistics
- * agents a user drives, with a per-leg done toggle. An agent-class user is sent
- * here as their only page (every other admin route is closed to agents by the
- * default auth gate) and is pinned to today and tomorrow. Owners and managers
- * reach it from the Calendar submenu, keep the full staff navigation, and get
- * the shared calendar date picker so they can open any date (and the day after
- * it) rather than only today and tomorrow.
+ * agents a user drives, with a per-leg done toggle. An agent-class user is
+ * sent here as their only page and is pinned to today and tomorrow. Every
+ * other admin route is closed to agents by the default auth gate. Owners and
+ * managers reach it from the Calendar submenu and keep the full staff
+ * navigation. They get the shared calendar date picker, so they can open any
+ * date (and the day after it) rather than only today and tomorrow.
  */
 
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -65,7 +65,7 @@ const legOrder = (kind: AgentRunLeg["kind"]): number =>
 
 /** Group one date's legs into bookings, so a listing's drop-off and collection
  * for the day appear together under a single entry. Bookings are ordered by
- * their earliest leg time then listing name; within a booking the drop-off
+ * their earliest leg time then listing name. Within a booking the drop-off
  * comes before the collection. Each leg comes from a real booking for one of
  * the user's real agents, so the attendee/listing/agent lookups always hit. */
 const bookingsForDate = (
@@ -109,9 +109,9 @@ const bookingsForDate = (
   );
 };
 
-/** A day's heading relative to the real today: the opened day and its
+/** A day's heading relative to the real today. The opened day and its
  * following day read as "Today"/"Tomorrow" when they line up with the real
- * calendar, and as a full date label ("Monday 6 July 2026") otherwise — so a
+ * calendar, and as a full date label ("Monday 6 July 2026") otherwise. So a
  * staff member who opens a future date sees which day each section is. */
 const dayHeading = (date: string, today: string): string =>
   date === today
@@ -162,8 +162,8 @@ const loadLegLookups = async (
 };
 
 /** Build the staff date picker for the run sheet: every date the user's agents
- * have a delivery on is a selectable link, using the same calendar component as
- * the calendar page. Agents never see it, so this only runs for staff. */
+ * have a delivery on is a selectable link. It uses the same calendar component
+ * as the calendar page. Agents never see it, so this only runs for staff. */
 const buildDateNav = async (
   agentIds: number[],
   today: string,
@@ -179,10 +179,10 @@ const buildDateNav = async (
   return { availableDates, selected, today, viewMonth };
 };
 
-/** Handle GET /admin/deliveries — render the run sheet. Agents are sent here as
- * their only page and are pinned to today and tomorrow; staff (owner/manager)
- * reach it from the Calendar submenu and may open any date via the calendar
- * picker, seeing that date and the day after it. */
+/** Handle GET /admin/deliveries — render the run sheet. Agents are sent here
+ * as their only page and are pinned to today and tomorrow. Staff (owner and
+ * manager) reach it from the Calendar submenu and can open any date via the
+ * calendar picker. They see that date and the day after it. */
 const handleDeliveriesGet = deliveryPage(async (session, request) => {
   const flash = getFlash();
   const staff = isStaffRole(session.adminLevel);
@@ -198,8 +198,8 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
   }
 
   const today = todayInTz(settings.timezone);
-  // Only staff may open a different date; an agent's date/month params are
-  // ignored so a driver always sees just today and tomorrow.
+  // Only staff can open a different date. An agent's date and month params
+  // are ignored, so a driver always sees just today and tomorrow.
   const selected = staff ? getDateFilter(request) : null;
   const viewMonth = staff ? getMonthFilter(request) : null;
   const baseDate = selected ?? today;
@@ -222,9 +222,9 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
 });
 
 /** Whether a mark for `date` is allowed for the marking user. An agent only
- * ever sees today and tomorrow, so a mark from one may name only those two
- * days; staff may open any date on the run sheet, so their date is left to the
- * query's per-day scoping (and agent ownership) to police. */
+ * ever sees today and tomorrow, so a mark from one can name only those two
+ * days. Staff can open any date on the run sheet, so their date is left to
+ * the query's per-day scoping (and agent ownership) to police. */
 const markDateAllowed = (session: AuthSession, date: string): boolean => {
   if (isStaffRole(session.adminLevel)) return true;
   const today = todayInTz(settings.timezone);

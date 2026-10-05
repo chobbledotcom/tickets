@@ -73,8 +73,8 @@ const resolveAttendeeName = async (
   awb: AttendeeWithBookings,
   privateKey: CryptoKey,
 ): Promise<string> => {
-  // One token belongs to one attendee, so every entry names the same person;
-  // the first entry answers, and an empty entry list falls back to the blob.
+  // One token belongs to one attendee, so every entry names the same person.
+  // The first entry answers, and an empty entry list falls back to the blob.
   const fromEntry = allEntries[0]?.attendee.name;
   if (fromEntry) return fromEntry;
   const decrypted = await decryptAttendees(
@@ -84,7 +84,7 @@ const resolveAttendeeName = async (
   return decrypted[0]!.name;
 };
 
-/** Build a wrong_listing response when scanned token doesn't match the listing.
+/** Build a wrong_listing response when the scanned token does not match the listing.
  * A wrong_listing decision always carries the ticket's own door-safe rows, so
  * the names are never empty. */
 const wrongListingResponse = (
@@ -109,9 +109,9 @@ const listingNamesOf = (rows: readonly TokenEntry[]): string =>
 /** The tickets the covered lines hold in total. */
 const lineTickets = sumOf((row: TokenEntry) => row.attendee.quantity);
 
-/** The JSON answer for one ticket: who they are, the tickets this answer
- * covers, the tickets the covered lines hold in total, and the listing
- * names that drove it. */
+/** The JSON answer for one ticket. It names who they are, the tickets this
+ * answer covers, the tickets the covered lines hold in total, and the
+ * listing names that drove it. */
 const scanBody = (
   rows: readonly TokenEntry[],
   attendeeName: string,
@@ -135,14 +135,14 @@ const alreadyCheckedIn = (
   );
 
 /** Perform one scan's whole admission as one transaction: every unit's
- * admit, and one activity row per listing that really admitted tickets,
- * carrying that listing's own name and count. The write skips refunded
- * lines, so a merged attendee's refunded order on the same listing stays
- * untouched. A failure in either write rolls both back, so a check-in never
- * lands without its activity record. Answers the tickets the lines really
- * took (less than planned when another door admitted some first) and what
- * the booking still owes after the write, so the response never reports a
- * door race as tickets left. */
+ * admit, and one activity row per listing that really admitted tickets.
+ * Each activity row carries that listing's own name and count. The write
+ * skips refunded lines, so a merged attendee's refunded order on the same
+ * listing stays untouched. A failure in either write rolls both back. A
+ * check-in never lands without its activity record. The function answers
+ * the tickets the lines really took (less than planned when another door
+ * admitted some first). It also answers what the booking still owes after
+ * the write. The response then never reports a door race as tickets left. */
 const performCheckIns = async (
   decision: Extract<ScanDecision, { kind: "admit" }>,
 ): Promise<{ admitted: number; remaining: number }> => {
@@ -165,9 +165,9 @@ const performCheckIns = async (
         `Listing ${move.listingId} is no unit of this scan`,
       )}'`,
   );
-  // What the write left: the touched pairs' post-write owed (the
-  // transaction saw every ticket a racing door took), plus the owed of
-  // rows the scan did not admit — a widened scan counts every listing.
+  // What the write left: the touched pairs' post-write owed, plus the owed
+  // of rows the scan did not admit. The transaction saw every ticket a
+  // racing door took. A widened scan counts every listing.
   const plannedOwed = sumOf((unit: ScanUnit) =>
     sumOf((row: TokenEntry) => remainingTickets(row.attendee))(unit.rows),
   )(decision.units);
@@ -190,13 +190,13 @@ type ScanControls = {
   idVerified: boolean;
 };
 
-/** One door scan, however the request names its person: resolve that person
+/** One door scan, however the request names its person. Resolve that person
  * (a camera-read token, or a manual pick's attendee id), then answer the
  * door's decision. A camera read names the person it decoded — the guest
- * presented the credential, so a wrong-door answer may say so. A manual pick
- * answers a stranger strictly: an id that resolves to nobody on this door's
- * listings answers not_found, never another door's roster — the ids are
- * sequential, and a wrong-listing body would name people a scanner has no
+ * presented the credential, so a wrong-door answer can say so. A manual pick
+ * answers a stranger strictly. An id that resolves to nobody on this door's
+ * listings answers not_found, never another door's roster. The ids are
+ * sequential, and a wrong-listing body names people a scanner has no
  * door business reading. */
 const scanBy = async (
   scope: ScanScope,
@@ -287,7 +287,7 @@ export const processScan = async (
     });
     return apiErrorResponse("Decryption unavailable", 500);
   }
-  // A camera read carries the ticket token it decoded; a manual pick
+  // A camera read carries the ticket token it decoded. A manual pick
   // carries the attendee id its roster option holds.
   const cameraRead = typeof body.token === "string";
   const load = cameraRead
@@ -300,10 +300,10 @@ export const processScan = async (
           ).get(body.attendee_id as number) ?? null
       : null;
   if (!load) return apiErrorResponse("Missing token");
-  // A token is the credential the guest presented, so the answer may name a
+  // A token is the credential the guest presented, so the answer can name a
   // wrong door, and the guest's own credential is what force overrides. A
-  // picked id is neither — force must never widen it, or a crafted id would
-  // admit someone on another door's listings outright.
+  // picked id is neither — force must never widen it. A crafted id otherwise
+  // admits someone on another door's listings outright.
   return scanBy(
     scope,
     load,

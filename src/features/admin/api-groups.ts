@@ -54,9 +54,9 @@ import {
 /** A package member override in a JSON request body. `price` is minor units:
  * `null` means no override (use the listing's own price), `0` means free in the
  * package, and a positive value overrides the price. `quantity` defaults to 1.
- * `day_prices` repriced spans for a customisable member (day count → per-unit
- * minor units); omitted/empty means every span charges the listing's own day
- * price, and a non-null flat `price` wins over the per-day entries. */
+ * `day_prices` reprices spans for a customisable member (day count → per-unit
+ * minor units). Omitted or empty means every span charges the listing's own
+ * day price. A non-null flat `price` wins over the per-day entries. */
 export type PackageMemberBody = {
   listing_id: number;
   price: number | null;
@@ -81,8 +81,9 @@ export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
  * in the package, and a positive integer overrides the price. `quantity` is
  * optional and defaults to 1. */
 /** Parse one member's optional `day_prices` object into a {@link DayPrices}
- * map, failing closed on anything malformed: keys must be positive whole day
- * counts and values non-negative integer minor units. `undefined` when absent. */
+ * map, failing closed on anything malformed. Keys must be positive whole day
+ * counts, and values must be non-negative integer minor units. `undefined`
+ * when absent. */
 const parseMemberDayPrices = (raw: unknown): Result<DayPrices | undefined> =>
   parseOptionalResult(raw, (value) => {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -135,10 +136,10 @@ const parsePackageMember = (item: unknown): Result<PackageMemberInput> => {
 };
 
 /**
- * Parse the optional `package_members` array from a JSON body. `undefined` when
- * the key is absent (partial update: leave existing overrides untouched); an
- * empty array clears them. Fails closed (see {@link parseOptionalArray}): any
- * malformed entry rejects the whole request rather than being dropped.
+ * Parse the optional `package_members` array from a JSON body. `undefined`
+ * means the key is absent (partial update: leave existing overrides untouched).
+ * An empty array clears them. Fails closed (see {@link parseOptionalArray}):
+ * any malformed entry rejects the whole request rather than being dropped.
  */
 const parsePackageMembers = (
   body: Record<string, unknown>,
@@ -151,17 +152,18 @@ const parsePackageMembers = (
 
 /**
  * Persist package overrides in the group write's transaction, with
- * partial-update semantics: clearing the group's package flag clears all
- * overrides; absent `package_members` leaves existing rows untouched; otherwise
- * the rows are set. Rechecks the sold-hidden invariant when un-packaging so a
- * checkout that committed between the request-level check and this write rolls
- * the change back rather than revealing concealed member names.
+ * partial-update semantics. Clearing the group's package flag clears all
+ * overrides. Absent `package_members` leaves existing rows untouched.
+ * Otherwise the rows are set. Rechecks the sold-hidden invariant when
+ * un-packaging. A checkout that committed between the request-level check and
+ * this write then rolls the change back, rather than revealing concealed
+ * member names.
  */
 
 /** Map a stored membership row (plus any per-day overrides) to the JSON
- * `package_members` entry shape clients PUT, so list and single-row hydration
- * serialize members identically and the configuration round-trips losslessly.
- * `day_prices` is only present when overrides exist. */
+ * `package_members` entry shape clients PUT. List and single-row hydration
+ * then serialize members identically, and the configuration round-trips
+ * losslessly. `day_prices` is only present when overrides exist. */
 const toMember = (
   m: GroupListing,
   dayPrices: ReadonlyMap<number, number> | undefined,
@@ -236,7 +238,7 @@ export const groupApiRoutes = defineCrudApi<
       input.isPackage === false ? [] : input.packageMembers,
     ),
   getAll: () => groups.cache.getAll(),
-  // Only package groups appear in the map; non-package groups hydrate to no
+  // Only package groups appear in the map. Non-package groups hydrate to no
   // extra fields. Single-row responses use this same batch path with one row.
   hydrate: async (rows) => {
     const pkgGroups = packageGroups(rows);

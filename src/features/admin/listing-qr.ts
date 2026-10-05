@@ -70,17 +70,17 @@ export const loadBookableDates = async (
 
 const withListing = withEntityLoader(getListingWithCount);
 
-/** Run `fn` only when `listing` has a standalone booking entry point: a child
- * without its own page cannot use a standalone booking QR, and an inactive
- * listing's page is switched off so the QR would encode a 404. */
+/** Run `fn` only when `listing` has a standalone booking entry point. A child
+ * without its own page cannot use a standalone booking QR. An inactive
+ * listing's page is switched off, so the QR encodes a 404. */
 const unlessChild = async (
   listing: ListingWithCount,
   fn: () => Promise<Response>,
 ): Promise<Response> =>
   (await standalonePageServes(listing)) ? fn() : notFoundResponse();
 
-/** A listing with its child-constrained bookable date set, the context
- * the QR validator needs so a submitted date is checked against the same dates
+/** A listing with its child-constrained bookable date set. The QR validator
+ * needs this context, so a submitted date is checked against the same dates
  * the form offers. */
 type QrContext = { listing: ListingWithCount; bookableDates: string[] };
 
@@ -105,7 +105,7 @@ export const loadQrFormContext = async (
   return { bookableDates, canDirectCheckout };
 };
 
-/** Render the QR admin page; 404 when the listing is missing */
+/** Render the QR admin page. 404 when the listing is missing */
 const renderPage = (
   listingId: number,
   session: AdminSession,
@@ -146,15 +146,16 @@ const getPriceBounds = (
 });
 
 /**
- * Build a form validator for the QR form, using listing config for range checks.
- * `bookableDates` is the child-constrained date set the form offers: a
- * daily listing's submitted date must be one of them, so an admin can't sign a
- * QR for a date a required child can't serve (which the scanned booking form
- * would then reject) by posting a raw date past the dropdown.
+ * Build a form validator for the QR form. It uses listing config for range
+ * checks. `bookableDates` is the child-constrained date set the form offers:
+ * a daily listing's submitted date must be one of them. An admin cannot sign
+ * a QR for a date a required child cannot serve by posting a raw date past
+ * the dropdown. The scanned booking form rejects such a date.
  */
-/** The error for a daily listing's submitted date, or null when it is allowed:
- * required, and one of the child-constrained `bookableDates` the form offers
- * A no-op for a non-daily listing (which has no date control). */
+/** The error for a daily listing's submitted date, or null when it is allowed.
+ * A valid date is required, and it is one of the child-constrained
+ * `bookableDates` the form offers. This is a no-op for a non-daily listing
+ * (which has no date control). */
 const qrDateError = (
   listing: ListingWithCount,
   date: string,
@@ -195,9 +196,9 @@ const createQrFormValidator = (
       };
     }
 
-    // The signed name pre-fills a booking or rides direct-checkout metadata,
-    // so it answers to the same contact-name rule the booking form runs —
-    // an unchecked name only fails later, at the buyer's form or at Square.
+    // The signed name pre-fills a booking or rides direct-checkout metadata.
+    // It answers to the same contact-name rule the booking form runs. An
+    // unchecked name only fails later, at the buyer's form or at Square.
     const nameError = validateName(values.customer_name);
     if (nameError) return { error: nameError, valid: false };
 
@@ -293,8 +294,8 @@ const handlePost = createAuthedFormRoute<
 /**
  * GET /admin/listing/:id/qr.json
  *
- * Used by the admin page's client-side auto-refresh: it reads the current
- * form values, calls this endpoint, and swaps the rendered QR every minute
+ * Used by the admin page's client-side auto-refresh. It reads the current
+ * form values and calls this endpoint. It swaps the rendered QR every minute
  * so stale links become obvious to any admin watching the screen.
  */
 const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
@@ -322,8 +323,8 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
   );
 
 /** Exported admin routes for the QR generator. The GET form is the listing
- * entity page's QR tab now; the POST (result render) + qr.json refresh stay
- * here. */
+ * entity page's QR tab now. The POST (result render) and the qr.json
+ * refresh stay here. */
 export const adminHandlers = defineRoutes({
   "GET /admin/listing/:id/qr.json": handleJsonGet,
   "POST /admin/listing/:id/qr": handlePost,

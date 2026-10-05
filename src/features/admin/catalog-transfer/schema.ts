@@ -22,18 +22,19 @@ import { isContactField, ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
  * True when `value` is storable in a datetime column: empty (no value), or a
  * real calendar datetime — a naive `YYYY-MM-DDTHH:MM[:SS]` or an offset instant
  * (the exported shape). Impossible dates like `2026-02-30` are rejected (a bare
- * `Date` would silently roll them into March). Deliberately self-contained (no
- * Temporal/timezone import) so this early-loaded schema module stays free of the
- * settings-loading graph; it matches the strictness of the form's validator.
+ * `Date` silently rolls them into March). The code is deliberately
+ * self-contained (no Temporal/timezone import) so this early-loaded schema
+ * module stays free of the settings-loading graph. It matches the strictness
+ * of the form's validator.
  */
 const isStorableDatetime = (value: string): boolean => {
   if (value === "") return true;
   // Anchored end ($) so trailing junk ("…T00:00not-a-zone") is rejected rather
-  // than silently emptied by the storage normaliser: optional seconds (with
-  // optional fractional seconds only *after* seconds — "T00:00.123" is not a real
-  // instant), and an optional Z / ±HH:MM offset are the only tails. The offset
-  // hours/minutes are captured so an out-of-range offset ("+99:99") is rejected
-  // too, not just range-checked on the local time.
+  // than silently emptied by the storage normaliser. The only tails are
+  // optional seconds (with optional fractional seconds only *after* seconds —
+  // "T00:00.123" is not a real instant) and an optional Z / ±HH:MM offset. The
+  // offset hours/minutes are captured so an out-of-range offset ("+99:99") is
+  // rejected too, not just range-checked on the local time.
   const m = value.match(
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-](\d{2}):(\d{2}))?$/,
   );
@@ -58,7 +59,7 @@ const isStorableDatetime = (value: string): boolean => {
   ) {
     return false;
   }
-  // Round-trip through UTC: a rolled-over impossible date won't match its parts.
+  // Round-trip through UTC: a rolled-over impossible date does not match its parts.
   const dt = new Date(Date.UTC(y, mo - 1, d));
   return (
     dt.getUTCFullYear() === y &&
@@ -73,14 +74,14 @@ const DatetimeSchema = v.pipe(
   v.check(isStorableDatetime, "must be a valid datetime"),
 );
 
-/** Bump when the format changes incompatibly; a blob at another version is
+/** Bump when the format changes incompatibly. A blob at another version is
  * rejected with an intelligible message rather than mis-imported. */
 export const CATALOG_TRANSFER_VERSION = 1;
 
-/** A whole integer of at least `min`. Uses `safeInteger` (not just `integer`)
- * so an out-of-safe-range magnitude like `1e100` — which `Number.isInteger`
- * accepts — is a field error here rather than being rounded or throwing a raw
- * error at the storage layer, matching the form's money parser. */
+/** A whole integer of at least `min`. Uses `safeInteger` (not just `integer`).
+ * An out-of-safe-range magnitude like `1e100` is then a field error here rather
+ * than being rounded or throwing a raw error at the storage layer. The choice
+ * matches the form's money parser. `Number.isInteger` accepts `1e100`. */
 /** A whole non-negative integer (counts, day windows, minor-unit prices). */
 const NonNegativeIntSchema = integerAtLeast(0);
 /** A whole positive integer (durations, quantities). */
@@ -111,9 +112,9 @@ const BookableDaySchema = v.picklist(VALID_DAY_NAMES);
 const PriceSchema = integerAtLeast(0);
 /** A required, trimmed, non-empty name reference. */
 const NameRefSchema = v.pipe(v.string(), v.trim(), v.nonEmpty());
-/** A day-count JSON key: a positive whole number within the bookable range, so a
- * typo key ("weekday") or an out-of-range count is a field error rather than a
- * silently-dropped override. */
+/** A day-count JSON key: a positive whole number within the bookable range. A
+ * typo key ("weekday") or an out-of-range count is then a field error rather
+ * than a silently-dropped override. */
 const DayCountKeySchema = v.pipe(
   v.string(),
   v.regex(/^[1-9]\d*$/, "day count must be a positive whole number"),
@@ -125,9 +126,9 @@ const DayCountKeySchema = v.pipe(
 /** Per-day-count price overrides as they appear in JSON (validated string keys). */
 const DayPricesSchema = v.record(DayCountKeySchema, PriceSchema);
 
-// Reused optional-field shapes — aliased so the schemas below read as data and
-// don't repeat the same `v.optional(...)` token runs (which the duplication gate
-// flags across the parallel listing/group schemas).
+// Reused optional-field shapes — aliased so the schemas below read as data.
+// They do not repeat the same `v.optional(...)` token runs (which the
+// duplication gate flags across the parallel listing/group schemas).
 const optString = v.optional(v.string());
 const optBoolean = v.optional(v.boolean());
 const optNonNegInt = v.optional(NonNegativeIntSchema);
@@ -157,7 +158,7 @@ const TRANSFER_FIELD_SCHEMAS = {
  *
  * `strictObject`, here and below, because the format is exact-version gated. A
  * misspelled key (`hidde`, or `parent` for `parents`) must fail rather than be
- * dropped, which would import a listing missing that column or its whole
+ * dropped. A drop imports a listing missing that column or its whole
  * parent/group set.
  */
 const ListingFieldsSchema = v.strictObject(
@@ -165,10 +166,10 @@ const ListingFieldsSchema = v.strictObject(
 );
 
 /** Drop day-price keys beyond the listing's own duration: the form only reads
- * `day_price_1..durationDays`, so a stored/blob entry above that (e.g. duration 2
- * with a "5" price) is inert and must not silently activate if the duration is
- * later raised. Filtered (not rejected) to mirror the form, which just ignores
- * the extra inputs. */
+ * `day_price_1..durationDays`. A stored/blob entry above that (for example
+ * duration 2 with a "5" price) is inert and must not silently activate if the
+ * duration is later raised. Filtered (not rejected) to mirror the form, which
+ * just ignores the extra inputs. */
 const filterDayPricesToDuration = (
   data: v.InferOutput<typeof ListingFieldsSchema>,
 ): v.InferOutput<typeof ListingFieldsSchema> => {
@@ -248,15 +249,15 @@ export const CatalogTransferSchema = v.variant("kind", [
 export type CatalogTransfer = v.InferOutput<typeof CatalogTransferSchema>;
 
 /**
- * Turn valibot parse issues into a single operator-facing message that names the
- * offending fields, so a malformed blob explains *which* field is missing or
- * invalid rather than surfacing a raw system error.
+ * Turn valibot parse issues into a single operator-facing message that names
+ * the offending fields. A malformed blob then explains *which* field is
+ * missing or invalid rather than surfacing a raw system error.
  */
 export const formatTransferIssues = (
   issues: readonly [v.BaseIssue<unknown>, ...v.BaseIssue<unknown>[]],
 ): string => {
   // Every failure of these (object variant) schemas lands in `root` (the whole
-  // blob is the wrong type) or `nested` (a keyed field is wrong), so those two
+  // blob is the wrong type) or `nested` (a keyed field is wrong). Those two
   // buckets always carry at least one message — no empty-parts fallback needed.
   const flat = v.flatten(issues);
   const parts = [

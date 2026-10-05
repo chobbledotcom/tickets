@@ -148,7 +148,7 @@ const loadEditContext = async (
 };
 
 /** Re-render the submitted form in place: the bare create page in create
- * mode, the entity page's Edit tab in edit mode — entered values and their
+ * mode, the entity page's Edit tab in edit mode. Entered values and their
  * errors survive deterministically, with no redirect or stash involved. */
 const renderSubmittedForm = (
   session: AuthSession,
@@ -237,7 +237,7 @@ const handleSubmitInner = async (
   }
 
   // The logistics plan is read from the submitted agent selects (only when the
-  // feature is on); it is applied after the booking rows exist.
+  // feature is on). It is applied after the booking rows exist.
   const logisticsPlan = settings.features.logistics
     ? parseLogisticsPlan(
         form,
@@ -276,10 +276,11 @@ type SaveOutcome =
 /**
  * True when any no-quantity line satisfies a check, judged from the live DB (not
  * the form's submitted key). Used by applyEdit to block marking a line
- * no-quantity while it still holds an assigned built site (the assignment +
- * public /renew/ path would survive behind a hidden line) or a recorded payment
- * (a stale form key would otherwise hide the booking from the per-line model
- * guard and let the atomic edit drop the paid row). One query over all the IDs.
+ * no-quantity while it still holds an assigned built site or a recorded payment.
+ * With a built site, the assignment plus public /renew/ path survives behind a
+ * hidden line. With a payment, a stale form key otherwise hides the booking from
+ * the per-line model guard and lets the atomic edit drop the paid row.
+ * One query over all the IDs.
  */
 const anyNoQuantityLineMatches = (
   attendeeId: number,
@@ -335,13 +336,14 @@ const applyCreate = async (
   if (input.bookings.length === 0) {
     return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
-  // Admin manual add may deliberately overbook (a warning is shown, not blocked)
-  // and is tagged as an "admin" booking so it counts separately from online
-  // checkouts in the contact's booking history. The ledger poster records the
-  // booking's gross `sale` legs in the SAME create transaction, so the owed
-  // amount projects from the ledger (rather than silently reading back as £0)
-  // and lands atomically with the rows. The attendee owes the full gross; an
-  // operator records any already-paid portion afterwards through the ledger.
+  // Admin manual add can deliberately overbook (a warning shows, the system
+  // does not block). The booking is tagged as an "admin" booking so it counts
+  // separately from online checkouts in the contact's booking history. The
+  // ledger poster records the booking's gross `sale` legs in the SAME create
+  // transaction. The owed amount then projects from the ledger (rather than
+  // silently reading back as £0) and lands atomically with the rows. The
+  // attendee owes the full gross. An operator records any already-paid portion
+  // afterwards through the ledger.
   const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
@@ -402,7 +404,7 @@ const applyEdit = async (
   }
 
   // The Edit tab has no location inputs, so the Logistics pin survives only
-  // while the address it was pinned for stays the same — an edit that changes
+  // while the address it was pinned for stays the same. An edit that changes
   // the address clears the now-stale pin (a fresh one is set on the
   // Logistics tab).
   const addressUnchanged = parsed.address === attendee.address;
@@ -419,7 +421,7 @@ const applyEdit = async (
   };
 
   const desired = toDesiredLines(parsed);
-  // Admin manual edit may deliberately overbook (warned, not blocked).
+  // Admin manual edit can deliberately overbook (warned, not blocked).
   const editResult = await attendeesApi.applyAttendeeAtomicEdit(
     attendeeId,
     pii,
@@ -433,10 +435,11 @@ const applyEdit = async (
     return { ok: false, saveError: t("attendee_form.error_capacity") };
   }
 
-  // The edit form only writes the status; the outstanding balance projects from
-  // the ledger and is adjusted there, never from this form. The one exception is
-  // a save that leaves no payable line: its stranded receivable (which the
-  // public pay gate would refuse) is cleared to 0 alongside the status write.
+  // The edit form only writes the status. The outstanding balance projects
+  // from the ledger and is adjusted there, never from this form. The one
+  // exception is a save that leaves no payable line. Its stranded receivable,
+  // which the public pay gate refuses, is cleared to 0 alongside the status
+  // write.
   const hasRealLine = desired.some((line) => line.quantity > 0);
   await updateAttendeeStatus(attendeeId, parsed.statusId, !hasRealLine);
 

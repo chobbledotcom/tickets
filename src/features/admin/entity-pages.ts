@@ -43,17 +43,17 @@ export type EntityId = number | string;
 /** Per-request context handed to every loader and href builder. */
 export interface PageCtx {
   /** The slug of the tab this request lands on — what sibling-page links
-   * (e.g. a pager's prev/next arrows) carry so following one keeps the tab. */
+   * (for example, a pager's prev/next arrows) carry so following one keeps the tab. */
   activeTabSlug: string;
-  /** The request's origin (for absolute links, e.g. the customer pay link).
+  /** The request's origin (for absolute links, for example the customer pay link).
    * Empty on POST failure re-renders, which never build absolute links. */
   baseUrl: string;
-  /** The request's query string (e.g. a `return_url` a caller threaded in). */
+  /** The request's query string (for example a `return_url` a caller threaded in). */
   query: URLSearchParams;
   /** The canonical URL of the active tab — what sub-actions return to. */
   returnUrl: string;
   session: AuthSession;
-  /** Mint a sibling tab's URL (e.g. an Overview preview linking to the full
+  /** Mint a sibling tab's URL (for example, an Overview preview linking to the full
    * Activity tab). The only sanctioned way to build a tab URL. */
   tabHref: (slug: string) => string;
 }
@@ -69,14 +69,14 @@ export const prepareOwnerFields =
       : entity;
 
 /** A loader for one of a page's optional element slots (banner, guide footer,
- * prose extra) or a custom section: it turns the entity into markup, or null
+ * prose extra) or a custom section. It turns the entity into markup, or null
  * to render nothing. */
 export type SlotLoader<E> = (
   entity: E,
   ctx: PageCtx,
 ) => Promise<JSX.Element | null>;
 
-/** Fields shared by any admin item that shows a label and may be hidden by
+/** Fields shared by any admin item that shows a label and can be hidden by
  * role: its `intent`, its `labelKey`, and its server-side `visible` guard. */
 export interface AdminGatedItem<E> {
   intent?: AdminRouteIntent;
@@ -114,10 +114,10 @@ export type Section<E> =
       kind: "actions";
       titleKey: string;
       actions: readonly ActionDef<E>[];
-      /** Optional per-tab augmentation run only when this (Actions) tab renders,
-       * so an action's `visible` predicate can gate on data too expensive to
-       * gather in the page-wide `load` — e.g. a decrypt that only the Actions
-       * surface needs. Returns the entity the action predicates see. */
+      /** Optional per-tab augmentation run only when this (Actions) tab renders.
+       * It lets an action's `visible` predicate gate on data too expensive to
+       * gather in the page-wide `load` — for example, a decrypt that only the
+       * Actions surface needs. Returns the entity the action predicates see. */
       prepare?: (entity: E, ctx: PageCtx) => Promise<E>;
     }
   | {
@@ -141,23 +141,24 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Always-visible region above the tab strip (alerts, notes, status). */
   banner?: SlotLoader<E>;
   /** The route this page serves. Its declaration gives the page both its URLs
-   * and its GET auth floor — the weakest role that may see any tab — so
-   * neither is written here a second time. */
+   * and its GET auth floor — the weakest role that can see any tab. Neither
+   * is written here a second time. */
   destination: AdminDestinationId;
   /** A guide link rendered at the very bottom of the body via `GuideFooter`,
-   *  matching every other admin page (e.g. the Site content editors). */
+   *  matching every other admin page (for example, the Site content editors). */
   guideFooter?: SlotLoader<E>;
   load: (id: Id, session: AuthSession) => Promise<E | null>;
   /** What the admin nav marks active. A single-item entity page passes
    * `{ section }` so the section's top link highlights without re-opening its
-   * "Add" sub-nav; a page that IS a real section route (e.g. the Site content
-   * editors, whose route is itself a sub-nav item) passes a plain route string. */
+   * "Add" sub-nav. A page that IS a real section route passes a plain route
+   * string. For example, the Site content editors' route is itself a sub-nav
+   * item. */
   navActive: NavActive;
   /** Extra content rendered inside the prose block beside the page `<h1>`
-   *  (e.g. the attendee page's "Add a note" link). */
+   *  (for example, the attendee page's "Add a note" link). */
   proseExtra?: SlotLoader<E>;
   tabs: readonly TabDef<E>[];
-  /** Flanking controls around the `<h1>`, e.g. a built-site pager whose
+  /** Flanking controls around the `<h1>`, for example a built-site pager whose
    * arrows keep the viewer on the same tab. */
   titleNav?: (entity: E, ctx: PageCtx) => Promise<FlankingNav | null>;
   titleOf: (entity: E) => string;
@@ -218,8 +219,8 @@ const loadSection = async <E>(
 };
 
 /** Options for {@link EntityPage.renderPage}: an HTTP status (400 for
- * failure re-renders) and an optional replacement panel for the active tab
- * (the failing form, submitted values and errors intact). */
+ * failure re-renders). It also takes an optional replacement panel for the
+ * active tab (the failing form, submitted values and errors intact). */
 export interface RenderPageOpts<E> {
   baseUrl?: string;
   panel?: SlotLoader<E>;
