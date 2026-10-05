@@ -18,7 +18,10 @@ const endedStores = new WeakSet<object>();
 
 /** Runs `fn` inside an async scope whose store dies when `fn`'s promise
  * settles. The named type keeps every such runner's signature in one place. */
-export type ScopeRunner = <T>(fn: () => Promise<T>) => Promise<T>;
+export type ScopeRunner = <T>(fn: PromiseTask<T>) => Promise<T>;
+
+/** An asynchronous task a scope runner accepts. */
+export type PromiseTask<T> = () => Promise<T>;
 
 /**
  * A per-run store bound to the current async scope. The base mechanism every

@@ -3,10 +3,11 @@
 // another suite decide that before this file installs its fetch stub.
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { ErrorCode, logDebug, runWithRequestId } from "#shared/logger.ts";
+import { ErrorCode, logDebug } from "#shared/logger.ts";
 import { captureServerError, initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 
 const DSN = "https://key@bugs.example.test/1";
@@ -61,10 +62,10 @@ describe("report breadcrumbs", () => {
     using fetchStub = stubFetch(() => new Response("{}", { status: 200 }));
     await initSentry();
 
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       logDebug("Setup", "the neighbouring request");
     });
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       logDebug("Setup", "the reporting request");
       await captureServerError({ code: ErrorCode.DB_QUERY });
     });

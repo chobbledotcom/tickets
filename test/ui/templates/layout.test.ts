@@ -14,8 +14,8 @@ import {
   runWithFlashContext,
   setFlashContext,
 } from "#shared/flash-context.ts";
-import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -28,6 +28,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import type { AdminSession } from "#types";
 
 const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
@@ -161,7 +162,7 @@ describe("Layout document shell", () => {
 
   test("hides the configured header image in iframe mode", () => {
     settings.setForTest({ header_image_url: "header.jpg" });
-    const html = runWithIframeContext(() => {
+    const html = withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       return String(Layout({ children: "", title: "Test" }));
     });

@@ -12,16 +12,9 @@ import { lazyRef } from "#fp";
 import { BUILD_COMMIT } from "#shared/build-info.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getEnv } from "#shared/env.ts";
-import {
-  type ErrorContext,
-  formatErrorMessage,
-  getRequestId,
-} from "#shared/logger.ts";
-import {
-  getRequestTrace,
-  getTracedRoute,
-  getTracedUrl,
-} from "#shared/request-trace.ts";
+import { type ErrorContext, formatErrorMessage } from "#shared/logger.ts";
+import { getRequestId, getRequestTrace } from "#shared/request-context.ts";
+import { getTracedRoute, getTracedUrl } from "#shared/request-trace.ts";
 
 type SentrySdk = typeof import("#shared/sentry-sdk.ts")["sentrySdk"];
 type LoadedSentry = {

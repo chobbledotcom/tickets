@@ -2,14 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   getRequestTrace,
-  getTracedRoute,
-  getTracedUrl,
-  runWithRequestTrace,
-} from "#shared/request-trace.ts";
+  runWithRequestContext,
+} from "#shared/request-context.ts";
+import { getTracedRoute, getTracedUrl } from "#shared/request-trace.ts";
 
 const trace = <T>(url: string, method: string, read: () => T): Promise<T> =>
-  runWithRequestTrace(new Request(url, { method }), () =>
-    Promise.resolve(read()),
+  runWithRequestContext(
+    new Request(url, { method }),
+    { clientIp: "203.0.113.7", locale: "en" },
+    () => Promise.resolve(read()),
   );
 
 describe("request trace", () => {

@@ -5,8 +5,7 @@
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";
-import { appendIframeParam } from "#shared/iframe.ts";
-import { getRequestId } from "#shared/logger.ts";
+import { appendIframeParam, getRequestId } from "#shared/request-context.ts";
 import {
   databaseBusyPage,
   migrationInProgressPage,

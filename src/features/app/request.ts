@@ -45,7 +45,6 @@ import {
   clearSavedFormData,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
 import {
   createRequestTimer,
   ErrorCode,
@@ -54,6 +53,7 @@ import {
   logRequest,
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp, servesBodyRequests } from "./routes.ts";

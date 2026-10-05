@@ -9,7 +9,6 @@ import {
   withApiBody,
   withSlugLoaded,
 } from "#routes/api/helpers.ts";
-import { runWithClientIp } from "#shared/client-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -17,6 +16,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const expectError = async (
   result: unknown,
@@ -104,17 +104,22 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
   });
 
   test("records attempts per client IP and returns the exact rate-limit response", async () => {
-    await runWithClientIp("192.0.2.25", async () => {
-      for (let attempt = 0; attempt < MAX_BOOKING_ATTEMPTS; attempt++) {
-        expect(await checkBookingRateLimit()).toBeNull();
-      }
-    });
-    expect(
-      await runWithClientIp("192.0.2.26", () => checkBookingRateLimit()),
-    ).toBeNull();
-    const limited = await runWithClientIp("192.0.2.25", () =>
-      checkBookingRateLimit(),
+    await withRequestContext(
+      async () => {
+        for (let attempt = 0; attempt < MAX_BOOKING_ATTEMPTS; attempt++) {
+          expect(await checkBookingRateLimit()).toBeNull();
+        }
+      },
+      { clientIp: "192.0.2.25" },
     );
+    expect(
+      await withRequestContext(() => checkBookingRateLimit(), {
+        clientIp: "192.0.2.26",
+      }),
+    ).toBeNull();
+    const limited = await withRequestContext(() => checkBookingRateLimit(), {
+      clientIp: "192.0.2.25",
+    });
     expect(limited).toBeInstanceOf(Response);
     expect((limited as Response).status).toBe(429);
     expect(await (limited as Response).json()).toEqual({

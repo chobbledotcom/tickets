@@ -5,8 +5,8 @@ import {
   requestScopedHandler,
   runWithRequestScopes,
 } from "#routes/request-scopes.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   countExternalSubrequest,

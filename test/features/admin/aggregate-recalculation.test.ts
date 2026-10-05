@@ -9,7 +9,7 @@ import {
 import { parseFlashValue } from "#shared/cookies.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
-import { runWithRequestId } from "#shared/logger.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const FIELDS = ["income", "tickets"] as const;
 
@@ -98,7 +98,7 @@ describe("runRecalculatePost", () => {
 
   test("resets selected aggregates, logs, and redirects", async () => {
     const calls: string[] = [];
-    const response = await runWithRequestId(() =>
+    const response = await withRequestContext(() =>
       runRecalculatePost({
         fields: FIELDS,
         form: new FormParams("recalculate_fields=tickets"),

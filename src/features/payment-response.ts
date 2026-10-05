@@ -4,7 +4,7 @@
  * only the lazily-loaded payment routes need them.
  */
 
-import { getIframeMode } from "#shared/iframe.ts";
+import { getIframeMode } from "#shared/request-context.ts";
 import type { LabelledLine } from "#templates/components/labelled-para.tsx";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import { htmlResponse, redirectResponse } from "./response.ts";

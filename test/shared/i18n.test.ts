@@ -7,7 +7,6 @@ import {
   getRegisteredLocales,
   parseAcceptLanguage,
   resetI18nForTest,
-  runWithLocale,
   t,
   withMessageGroups,
 } from "#i18n";
@@ -17,6 +16,7 @@ import {
 } from "#locales/manifest.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { allEnglishMessages, withColdMessages } from "#test-utils/i18n.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const en = await allEnglishMessages();
 
@@ -185,9 +185,11 @@ describe("i18n", () => {
     });
   });
 
-  describe("runWithLocale", () => {
-    test("sets locale within callback", () => {
-      const result = runWithLocale("de", () => getLocale());
+  describe("locale on the request context", () => {
+    test("sets locale within callback", async () => {
+      const result = await withRequestContext(() => getLocale(), {
+        locale: "de",
+      });
       expect(result).toBe("de");
     });
 
@@ -195,12 +197,14 @@ describe("i18n", () => {
       expect(getLocale()).toBe("en");
     });
 
-    test("keeps an empty-string locale rather than defaulting to en", () => {
+    test("keeps an empty-string locale rather than defaulting to en", async () => {
       // getLocale coalesces only a *missing* store (undefined) to "en" using
       // `??`; an explicitly-set empty string is a real (if odd) value and must
       // survive. This pins `??` so it can't weaken to `||`, which would also
       // swallow "".
-      expect(runWithLocale("", () => getLocale())).toBe("");
+      expect(await withRequestContext(() => getLocale(), { locale: "" })).toBe(
+        "",
+      );
     });
   });
 

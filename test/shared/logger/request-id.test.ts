@@ -4,170 +4,174 @@ import { spy, stub } from "@std/testing/mock";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   ErrorCode,
-  getRequestId,
   logDebug,
   logErrorLocal,
   logRequest,
-  runWithRequestId,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
+import { getRequestId } from "#shared/request-context.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
-describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
-  beforeEach(() => {
-    setSuppressRequestLogs(false);
-    // Debug suppression is module state another test file may have switched
-    // on (setupTestEncryptionKey does); these tests assert on logDebug output.
-    setSuppressDebugLogs(false);
-  });
-
-  afterEach(() => {
-    setSuppressRequestLogs(null);
-    setSuppressDebugLogs(null);
-  });
-
-  test("getRequestId returns 4-char hex ID inside request context", async () => {
-    await runWithRequestId(async () => {
-      expect(getRequestId()).toMatch(/^[0-9a-f]{4}$/);
+describeWithEnv(
+  "request id in the request context",
+  { env: { NTFY_URL: undefined } },
+  () => {
+    beforeEach(() => {
+      setSuppressRequestLogs(false);
+      // Debug suppression is module state another test file may have switched
+      // on (setupTestEncryptionKey does); these tests assert on logDebug output.
+      setSuppressDebugLogs(false);
     });
-  });
 
-  test("pads a small random value to exactly four hex chars", async () => {
-    // A zeroed buffer forces the shortest possible hex ("0"), so the id is
-    // all padding — the case a lucky random draw would never pin down.
-    const zeroed = stub(
-      crypto,
-      "getRandomValues",
-      <T extends ArrayBufferView | null>(array: T): T => array,
-    );
-    try {
-      await runWithRequestId(async () => {
-        expect(getRequestId()).toBe("0000");
+    afterEach(() => {
+      setSuppressRequestLogs(null);
+      setSuppressDebugLogs(null);
+    });
+
+    test("getRequestId returns 4-char hex ID inside request context", async () => {
+      await withRequestContext(async () => {
+        expect(getRequestId()).toMatch(/^[0-9a-f]{4}$/);
       });
-    } finally {
-      zeroed.restore();
-    }
-  });
+    });
 
-  test("getRequestId returns empty string outside request context", () => {
-    expect(getRequestId()).toBe("");
-  });
+    test("pads a small random value to exactly four hex chars", async () => {
+      // A zeroed buffer forces the shortest possible hex ("0"), so the id is
+      // all padding — the case a lucky random draw would never pin down.
+      const zeroed = stub(
+        crypto,
+        "getRandomValues",
+        <T extends ArrayBufferView | null>(array: T): T => array,
+      );
+      try {
+        await withRequestContext(async () => {
+          expect(getRequestId()).toBe("0000");
+        });
+      } finally {
+        zeroed.restore();
+      }
+    });
 
-  test("prefixes logRequest with request ID", async () => {
-    const debugSpy = spy(console, "debug");
-    try {
-      let id = "";
-      await runWithRequestId(async () => {
-        id = getRequestId();
+    test("getRequestId returns empty string outside request context", () => {
+      expect(getRequestId()).toBe("");
+    });
+
+    test("prefixes logRequest with request ID", async () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        let id = "";
+        await withRequestContext(async () => {
+          id = getRequestId();
+          logRequest({
+            durationMs: 10,
+            method: "GET",
+            path: "/admin",
+            status: 200,
+          });
+        });
+
+        expect(
+          debugSpy.calls.some(
+            (c) => c.args[0] === `[${id}] [Request] GET /admin 200 10ms`,
+          ),
+        ).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+
+    test("prefixes logErrorLocal with same request ID", async () => {
+      const errorSpy = spy(console, "error");
+      try {
+        let id = "";
+        await withRequestContext(async () => {
+          id = getRequestId();
+          logErrorLocal({ code: ErrorCode.DB_CONNECTION });
+        });
+
+        expect(
+          errorSpy.calls.some(
+            (c) => c.args[0] === `[${id}] [Error] E_DB_CONNECTION`,
+          ),
+        ).toBe(true);
+      } finally {
+        errorSpy.restore();
+      }
+    });
+
+    test("prefixes logDebug with request ID", async () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        let id = "";
+        await withRequestContext(async () => {
+          id = getRequestId();
+          logDebug("Setup", "test message");
+        });
+
+        expect(
+          debugSpy.calls.some(
+            (c) => c.args[0] === `[${id}] [Setup] test message`,
+          ),
+        ).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+
+    test("different requests get different IDs", async () => {
+      // Feed each call a distinct fixed value, so the distinct-ids contract is
+      // proven deterministically rather than left to a lucky random draw.
+      let draw = 0;
+      const counted = stub(
+        crypto,
+        "getRandomValues",
+        <T extends ArrayBufferView | null>(array: T): T => {
+          draw += 1;
+          new DataView((array as Uint8Array).buffer).setUint16(0, draw);
+          return array;
+        },
+      );
+      try {
+        const ids = await Promise.all(
+          Array.from({ length: 10 }, () =>
+            withRequestContext(async () => getRequestId()),
+          ),
+        );
+        expect(ids).toEqual([
+          "0001",
+          "0002",
+          "0003",
+          "0004",
+          "0005",
+          "0006",
+          "0007",
+          "0008",
+          "0009",
+          "000a",
+        ]);
+      } finally {
+        counted.restore();
+      }
+    });
+
+    test("no prefix outside request context", () => {
+      const debugSpy = spy(console, "debug");
+      try {
         logRequest({
           durationMs: 10,
           method: "GET",
           path: "/admin",
           status: 200,
         });
-      });
 
-      expect(
-        debugSpy.calls.some(
-          (c) => c.args[0] === `[${id}] [Request] GET /admin 200 10ms`,
-        ),
-      ).toBe(true);
-    } finally {
-      debugSpy.restore();
-    }
-  });
-
-  test("prefixes logErrorLocal with same request ID", async () => {
-    const errorSpy = spy(console, "error");
-    try {
-      let id = "";
-      await runWithRequestId(async () => {
-        id = getRequestId();
-        logErrorLocal({ code: ErrorCode.DB_CONNECTION });
-      });
-
-      expect(
-        errorSpy.calls.some(
-          (c) => c.args[0] === `[${id}] [Error] E_DB_CONNECTION`,
-        ),
-      ).toBe(true);
-    } finally {
-      errorSpy.restore();
-    }
-  });
-
-  test("prefixes logDebug with request ID", async () => {
-    const debugSpy = spy(console, "debug");
-    try {
-      let id = "";
-      await runWithRequestId(async () => {
-        id = getRequestId();
-        logDebug("Setup", "test message");
-      });
-
-      expect(
-        debugSpy.calls.some(
-          (c) => c.args[0] === `[${id}] [Setup] test message`,
-        ),
-      ).toBe(true);
-    } finally {
-      debugSpy.restore();
-    }
-  });
-
-  test("different requests get different IDs", async () => {
-    // Feed each call a distinct fixed value, so the distinct-ids contract is
-    // proven deterministically rather than left to a lucky random draw.
-    let draw = 0;
-    const counted = stub(
-      crypto,
-      "getRandomValues",
-      <T extends ArrayBufferView | null>(array: T): T => {
-        draw += 1;
-        new DataView((array as Uint8Array).buffer).setUint16(0, draw);
-        return array;
-      },
-    );
-    try {
-      const ids = await Promise.all(
-        Array.from({ length: 10 }, () =>
-          runWithRequestId(async () => getRequestId()),
-        ),
-      );
-      expect(ids).toEqual([
-        "0001",
-        "0002",
-        "0003",
-        "0004",
-        "0005",
-        "0006",
-        "0007",
-        "0008",
-        "0009",
-        "000a",
-      ]);
-    } finally {
-      counted.restore();
-    }
-  });
-
-  test("no prefix outside request context", () => {
-    const debugSpy = spy(console, "debug");
-    try {
-      logRequest({
-        durationMs: 10,
-        method: "GET",
-        path: "/admin",
-        status: 200,
-      });
-
-      expect(
-        debugSpy.calls.some(
-          (c) => c.args[0] === "[Request] GET /admin 200 10ms",
-        ),
-      ).toBe(true);
-    } finally {
-      debugSpy.restore();
-    }
-  });
-});
+        expect(
+          debugSpy.calls.some(
+            (c) => c.args[0] === "[Request] GET /admin 200 10ms",
+          ),
+        ).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+  },
+);
