@@ -194,8 +194,6 @@ const childOnlyAddOnResolver = async (
       ? { ...withGroups, groupIds: options.wouldBeGroupIds }
       : withGroups;
   });
-  // On create the parent row does not exist in `live` yet, so append a
-  // placeholder carrying its submitted group set.
   const allListings: ListingGroupMembership[] = hasParent
     ? base
     : [...base, { groupIds: options.wouldBeGroupIds, id: parent.id }];
@@ -223,16 +221,12 @@ export const validateChildEdges = async (
   // Drop self-edges and unknown ids, then collapse duplicates (preserving
   // order). A repeated child id (API body `[7,7]` or repeated form values)
   // makes `setChildIds` insert two `(parent, child)` rows and violates the
-  // unique index. On the API side-effect path that happens AFTER the row
-  // write, a partial change. Dedupe once here so validation and persist
-  // agree.
+  // unique index. Dedupe once here so validation and persist agree.
   const childIds = unique(
     submittedChildIds.filter(
       (childId) => childId !== parent.id && byId.has(childId),
     ),
   );
-  // Nesting state: whether this listing is already a child (parentIds), and
-  // which chosen children are themselves parents (childrenByParent).
   const [parentIds, resolveChildOnlyAddOn, childrenByParent] =
     await Promise.all([
       listingParents.getIds(parent.id),
@@ -282,7 +276,6 @@ export const copyDuplicatedChildEdges = async (
   }
 };
 
-/** Group parent/child pairs into the child set for each parent. */
 const groupChildEdges = (edges: ParentChildEdge[]): Map<number, number[]> =>
   groupToMap(
     (edge: ParentChildEdge) => edge.parentId,
@@ -308,8 +301,7 @@ interface GroupEdgePlan {
   toEdge: (cloneId: number, relatedId: number) => ParentChildEdge | null;
 }
 
-/** Apply each edge plan in order and collect distinct validation errors.
- * Existing children are kept when an outside parent gains cloned children.
+/** Existing children are kept when an outside parent gains cloned children.
  * Replacing them clobbers the gate it already had. */
 const copyGroupEdgePlans = async (
   idMap: ReadonlyMap<number, number>,
@@ -376,7 +368,6 @@ export const remapDuplicatedGroupEdges = async (
   ]);
 };
 
-/** Handle POST /admin/listing/:id/children (set the required child listings). */
 const listingChildrenHandler = createIdEntityHandler<ListingWithCount>(
   getListingWithCount,
 )(formGuard(CONTENT_FORM));

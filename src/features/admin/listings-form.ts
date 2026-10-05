@@ -108,7 +108,6 @@ const resolveListingType = (
   value: ListingFormValues["listing_type"],
 ): ListingType => value || DEFAULT_LISTING_TYPE;
 
-/** Parse comma-separated day names, applying the submit-mode empty selection policy. */
 const parseBookableDays = (
   value: string,
   listingType: ListingType,
@@ -171,14 +170,12 @@ const validateDayPricesFromForm = (form: FormParams): string | null => {
     : null;
 };
 
-/** Normalize an optional datetime field to UTC, passing through a blank. */
 const normalizeOptionalDatetime = (raw: string, field: string): string =>
   raw ? normalizeDatetime(raw, field) : raw;
 
 const enabledChoice = (enabled: boolean, value: string): boolean =>
   enabled && value === "1";
 
-/** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (
   values: ListingFormValues,
   form: FormParams,
@@ -220,7 +217,6 @@ const extractCommonFields = (
   };
 };
 
-/** Extract listing input from validated form (async to compute slugIndex) */
 const extractListingInput = async (
   values: ListingFormValues,
   form: FormParams,
@@ -233,7 +229,6 @@ const extractListingInput = async (
   };
 };
 
-/** Extract listing input for update (reads slug from form, normalizes it) */
 const extractListingUpdateInput = async (
   values: ListingEditFormValues,
   form: FormParams,

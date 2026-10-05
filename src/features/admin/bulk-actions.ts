@@ -73,7 +73,6 @@ import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
 /* jscpd:ignore-end */
 
-/** Render a bulk-actions sub-page for an authenticated group detail view. */
 const groupListingsPage =
   (
     render: (
@@ -92,19 +91,14 @@ const groupListingsPage =
       }),
     );
 
-/** GET /admin/groups/:id/bulk-actions */
 const handleBulkActionsGet = groupListingsPage(adminBulkActionsPage);
 
-/** GET /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupGet = groupListingsPage(adminDuplicateGroupPage);
 
-/** GET /admin/groups/:id/bulk-actions/deactivate */
 const handleDeactivateGroupGet = groupListingsPage(adminDeactivateGroupPage);
 
-/** GET /admin/groups/:id/bulk-actions/reactivate */
 const handleReactivateGroupGet = groupListingsPage(adminReactivateGroupPage);
 
-/** Factory for group-level bulk toggle handlers (deactivate/reactivate). */
 const groupTogglePost = (opts: { active: boolean; action: string }) => {
   const pageUrl = (group: Group) =>
     `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
@@ -149,13 +143,11 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
   });
 };
 
-/** POST /admin/groups/:id/bulk-actions/deactivate */
 const handleDeactivateGroupPost = groupTogglePost({
   action: "deactivate",
   active: false,
 });
 
-/** POST /admin/groups/:id/bulk-actions/reactivate */
 const handleReactivateGroupPost = groupTogglePost({
   action: "reactivate",
   active: true,
@@ -192,7 +184,6 @@ const firstDuplicateNameError = async (
   return null;
 };
 
-/** POST /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const formUrl = `/admin/groups/${group.id}/bulk-actions/duplicate`;
   const newName = form.getString("new_name").trim();
@@ -341,7 +332,6 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       })),
     ),
   ]);
-  // Copy each source listing's attribute selections onto its clone.
   await executeBatch(
     cloneInputs.map(({ sourceId }) => ({
       args: [idMap.get(sourceId)!, sourceId],
@@ -374,7 +364,6 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   return redirect(`/admin/groups/${newGroupId}`, success, true);
 });
 
-/** Bulk actions routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
   "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,

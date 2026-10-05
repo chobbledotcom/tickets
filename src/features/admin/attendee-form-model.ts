@@ -222,7 +222,6 @@ export const attendeeBookingsFromLines = (
     };
   })(lines);
 
-/** Clamp a submitted day count to the valid range. Blank defaults to 1. */
 const clampDayCount = (raw: number | null): number =>
   clampDurationDays(raw ?? 1);
 

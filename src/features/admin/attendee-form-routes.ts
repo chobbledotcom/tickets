@@ -89,10 +89,6 @@ import {
 import type { Attendee, ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
-// ---------------------------------------------------------------------------
-// GET /admin/attendees/new
-// ---------------------------------------------------------------------------
-
 /** Handle GET /admin/attendees/new — render the create form, pre-filled from a
  * calendar deep link when present. */
 export const handleAttendeeNewGet: TypedRouteHandler<
@@ -124,7 +120,6 @@ type EditContext = SelectedQuestionAnswers & {
   existingByKey: Map<string, ListingAttendeeRow>;
 };
 
-/** Create mode has no attendee, lines, or questions to preload. */
 const EMPTY_EDIT_CONTEXT: EditContext = {
   attendee: null,
   existingByKey: new Map(),
@@ -327,7 +322,6 @@ const applyLogisticsPlan = (
     ? setLogisticsAssignments(attendeeId, plan.split, plan.perListing)
     : Promise.resolve();
 
-/** Run the atomic create flow. */
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
   logisticsPlan: LogisticsPlan,
@@ -374,7 +368,6 @@ const applyCreate = async (
   };
 };
 
-/** Run the atomic edit flow. */
 const applyEdit = async (
   attendeeId: number,
   parsed: ParsedAttendeeForm,

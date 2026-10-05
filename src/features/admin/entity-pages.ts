@@ -40,7 +40,6 @@ import { type AdminLevel, isOwnerRole } from "#types";
  * keyed pages like /admin/history/:hmac. */
 export type EntityId = number | string;
 
-/** Per-request context handed to every loader and href builder. */
 export interface PageCtx {
   /** The slug of the tab this request lands on — what sibling-page links
    * (for example, a pager's prev/next arrows) carry so following one keeps the tab. */
@@ -164,7 +163,6 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   titleOf: (entity: E) => string;
 }
 
-/** Evaluate an action list's predicates and mint each href. */
 const resolveActions = <E>(
   actions: readonly ActionDef<E>[],
   entity: E,
@@ -245,8 +243,6 @@ export interface EntityPage<E, Id extends EntityId = number> {
   ) => Promise<Response>;
 }
 
-/** Resolve one of the page's optional element slots (banner, guide footer,
- * prose extra): run its loader when present, else null. */
 const resolveSlot = <E>(
   loader: SlotLoader<E> | undefined,
   entity: E,
@@ -260,7 +256,6 @@ type ResolvedPageTab<E> = {
   states: TabState[];
 };
 
-/** Resolve the visible tab strip and the requested active tab together. */
 const resolvePageTab = <E>(
   tabs: readonly TabDef<E>[],
   entity: E,
@@ -283,7 +278,6 @@ const resolvePageTab = <E>(
   };
 };
 
-/** Load either the rejected form panel or every section in the active tab. */
 const loadPageSections = async <E>(
   active: TabDef<E>,
   entity: E,
@@ -296,7 +290,6 @@ const loadPageSections = async <E>(
   );
 };
 
-/** Turn one page definition into its handlers + path helper. */
 export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
 ): EntityPage<E, Id> => {

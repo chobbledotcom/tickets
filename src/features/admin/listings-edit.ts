@@ -67,8 +67,6 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
 
 /**
- * Handle GET /admin/listing/new (show picker or create form)
- *
  * No ?template param → show the type-picker card page.
  * ?template=<known-id> → show the seeded, Customise-collapsed create form.
  * ?template=custom or unknown value → show the full form with Customise open.
@@ -116,7 +114,6 @@ const renderNewListingPage = async (
   return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
 };
 
-/** Build a DimensionSource from submitted form params. */
 const formToDimensionSource = (form: FormParams) => ({
   date: form.getString("date_date") || "",
   listing_type: isListingType(form.getString("listing_type"))
@@ -200,9 +197,6 @@ const renderCreateListingError = async (
   );
 };
 
-/**
- * Handle POST /admin/listing (create listing)
- */
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
   contentMultipartRoute(async (session, formData) => {
     const form = parseListingForm(session, formData, {
@@ -269,10 +263,8 @@ const listingAndGroupsHandler =
     requireContentOr,
   );
 
-/**
- * Session-guarded GET handler that loads the listing + groups context and
- * renders a page from it. Shared by the duplicate and edit forms.
- */
+/** Loads the listing + groups context and renders a page from it. Shared by
+ * the duplicate and edit forms. */
 const listingAndGroupsPage = (
   renderPage: (
     ctx: ListingAndGroups,
@@ -284,7 +276,6 @@ const listingAndGroupsPage = (
     htmlResponse(renderPage(ctx, session, request)),
   );
 
-/** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
   listingAndGroupsPage((ctx, session) =>
     adminDuplicateListingPage(
@@ -295,7 +286,6 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
     ),
   );
 
-/** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
 > = (request, { id }) =>
@@ -346,7 +336,6 @@ const adjustListingIncomeForm = makeMoneyAdjustHandler<ListingWithCount>({
   successMessage: t("listings_table.adjust_income_success"),
 });
 
-/** Handle POST /admin/listing/:id/income */
 export const handleAdminListingIncomePost: TypedRouteHandler<
   "POST /admin/listing/:id/income"
 > = (request, { id }) => adjustListingIncomeForm(request, id);

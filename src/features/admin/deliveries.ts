@@ -120,7 +120,6 @@ const dayHeading = (date: string, today: string): string =>
       ? t("deliveries.tomorrow")
       : formatDateLabel(date);
 
-/** Group the run sheet into two sections: the opened day and the day after. */
 const buildGroups = (
   legs: AgentRunLeg[],
   baseDate: string,
@@ -138,7 +137,6 @@ const buildGroups = (
   },
 ];
 
-/** Build the per-attendee, per-listing and per-agent lookups for a leg set. */
 const loadLegLookups = async (
   legs: AgentRunLeg[],
   privateKey: CryptoKey,
@@ -179,10 +177,8 @@ const buildDateNav = async (
   return { availableDates, selected, today, viewMonth };
 };
 
-/** Handle GET /admin/deliveries — render the run sheet. Agents are sent here
- * as their only page and are pinned to today and tomorrow. Staff (owner and
- * manager) reach it from the Calendar submenu and can open any date via the
- * calendar picker. They see that date and the day after it. */
+/** Handle GET /admin/deliveries. The date scope is the module header's agent
+ * pin for agents and the calendar picker for staff. */
 const handleDeliveriesGet = deliveryPage(async (session, request) => {
   const flash = getFlash();
   const staff = isStaffRole(session.adminLevel);
@@ -278,7 +274,6 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
     );
   });
 
-/** Delivery agent routes. */
 export const adminHandlers = defineRoutes({
   "GET /admin/deliveries": handleDeliveriesGet,
   "POST /admin/deliveries/mark": handleDeliveriesMark,

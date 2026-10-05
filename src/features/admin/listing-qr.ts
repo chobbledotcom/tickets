@@ -129,7 +129,6 @@ const renderPage = (
     }),
   );
 
-/** Extract raw form values without validation */
 const extractRawValues = (form: FormParams): AdminListingQrValues => ({
   customer_name: form.getString("customer_name").trim(),
   date: form.getString("date").trim(),
@@ -137,7 +136,6 @@ const extractRawValues = (form: FormParams): AdminListingQrValues => ({
   value: form.getString("value").trim(),
 });
 
-/** Price range for an listing: min/max allowed in minor units */
 const getPriceBounds = (
   listing: ListingWithCount,
 ): { minPrice: number; maxPrice: number } => ({

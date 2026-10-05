@@ -79,7 +79,6 @@ type GroupValidator = (
   id?: number,
 ) => Promise<string | null>;
 
-/** Validate that a group's slug is not already in use */
 const validateGroupSlug: GroupValidator = async (input, id) => {
   const taken = await isGroupSlugTaken(input.slug, id);
   return taken ? t("error.slug_in_use_group") : null;
@@ -214,11 +213,9 @@ const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
   return members;
 };
 
-/** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) =>
   projectCatalogFields(groupCatalogFields, "form", values);
 
-/** Extract group input from create form values (auto-generates slug) */
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,
 ): Promise<GroupInput> => {
@@ -226,7 +223,6 @@ const extractGroupCreateInput = async (
   return { ...sharedGroupFields(values), slug, slugIndex };
 };
 
-/** Extract group input from edit form values (uses provided slug). */
 const extractGroupEditInput = async (
   values: GroupFormValues,
 ): Promise<GroupInput> => {
@@ -238,7 +234,6 @@ const extractGroupEditInput = async (
   };
 };
 
-/** Delete a group and reset its listings to ungrouped */
 export const deleteGroup = async (id: InValue) => {
   const groupId = Number(id);
   await resetGroupListings(groupId);
@@ -323,7 +318,6 @@ const crud = createCrudHandlers({
   operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
 
-/** Look up group by id, return 404 if not found */
 export const withGroup = withEntityLoader((id: number) => getGroupById(id));
 
 const groupImageHandlers = createItemImageHandlers({
@@ -334,7 +328,6 @@ const groupImageHandlers = createItemImageHandlers({
   path: (id) => `/admin/groups/${id}/images`,
 });
 
-/** Group routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/groups": crud.listGet,
 
