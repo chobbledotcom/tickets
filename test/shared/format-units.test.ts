@@ -4,6 +4,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  countLabel,
   durationWords,
   formatBytes,
   formatLimitValue,
@@ -58,5 +59,15 @@ describe("format-units", () => {
     expect(durationWords(15 * 60)).toBe("15 minutes");
     expect(durationWords(90 * 60)).toBe("90 minutes");
     expect(durationWords(90)).toBe("90 seconds");
+  });
+
+  test("a count label stays singular on one and names every other count", () => {
+    // The restore summary shape: multi-word nouns, several counts in a row.
+    expect(countLabel(1, "SQL statement")).toBe("1 SQL statement");
+    expect(countLabel(2, "SQL statement")).toBe("2 SQL statements");
+    expect(countLabel(0, "table")).toBe("0 tables");
+    // The activity-log shape: a counted choice update.
+    expect(countLabel(1, "listing choice")).toBe("1 listing choice");
+    expect(countLabel(4, "listing choice")).toBe("4 listing choices");
   });
 });

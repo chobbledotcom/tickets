@@ -2785,7 +2785,7 @@
     "semicolon": 1
   },
   "src/shared/square/link-expiry-run.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "semicolon": 1,
     "banned-modal": 1
   },
@@ -2858,7 +2858,7 @@
     "banned-modal": 1
   },
   "src/shared/sumup/recovery-run.ts": {
-    "long-sentence": 3,
+    "long-sentence": 2,
     "semicolon": 1,
     "banned-modal": 1
   },
@@ -3290,7 +3290,7 @@
     "banned-modal": 1
   },
   "src/ui/templates/admin/ledger.tsx": {
-    "long-sentence": 7,
+    "long-sentence": 6,
     "semicolon": 2,
     "banned-modal": 1
   },

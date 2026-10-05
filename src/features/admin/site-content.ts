@@ -149,6 +149,16 @@ export const defineSiteContent = <
     newPage: `${basePath}/new`,
   };
   const definition = define(paths);
+  /** The flash, log line, and redirect target for one saved write. */
+  const savedContent = <Entity extends { id: number }, Values>(
+    entity: Entity,
+    values: Values,
+    step: Pick<ContentStep<Values, Entity, []>, "flashMessage" | "logMessage">,
+  ): SavedContent => ({
+    flashMessage: step.flashMessage,
+    logMessage: step.logMessage(entity, values),
+    path: paths.edit(entity.id),
+  });
   const loadEntity = ({ id }: { id: number }): Promise<Entity | null> =>
     definition.load(id);
   const create = createAuthedFormRoute({
@@ -159,11 +169,7 @@ export const defineSiteContent = <
         ? error
         : saveContent(
             (transaction) => definition.create.write(values, transaction),
-            (entity) => ({
-              flashMessage: definition.create.flashMessage,
-              logMessage: definition.create.logMessage(entity, values),
-              path: paths.edit(entity.id),
-            }),
+            (entity) => savedContent(entity, values, definition.create),
           );
     },
   });
@@ -181,11 +187,7 @@ export const defineSiteContent = <
         : saveContent(
             (transaction) =>
               definition.update.write(values, transaction, entity),
-            (saved) => ({
-              flashMessage: definition.update.flashMessage,
-              logMessage: definition.update.logMessage(saved, values),
-              path: paths.edit(saved.id),
-            }),
+            (saved) => savedContent(saved, values, definition.update),
           );
     },
   });

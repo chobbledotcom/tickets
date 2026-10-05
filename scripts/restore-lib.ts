@@ -10,7 +10,7 @@ import { SCHEMA_HASH } from "#db/migrations.ts";
 import { sum } from "#fp";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { formatBytes } from "#shared/format-units.ts";
+import { countLabel, formatBytes } from "#shared/format-units.ts";
 
 export const RESTORE_CONFIRMATION = "RESTORE";
 export const RESTORE_USAGE = "Usage: deno task restore <backup.zip>";
@@ -44,9 +44,6 @@ const progressMessages: Record<
   rebuilding: () => "Recreating the database schema...",
   resetting: () => "Deleting current database data...",
 };
-
-const countLabel = (count: number, name: string): string =>
-  `${count} ${name}${count === 1 ? "" : "s"}`;
 
 const readRestoreDbUrlOrNull = (deps: RestoreCliDeps): string | null => {
   const dbUrl = deps.getEnv("DB_URL");

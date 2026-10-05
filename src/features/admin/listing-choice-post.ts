@@ -6,6 +6,7 @@ import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { countLabel } from "#shared/format-units.ts";
 
 type ListingChoicePostConfig = {
   feature: AdminFeatureKey;
@@ -19,9 +20,6 @@ type ListingChoicePostConfig = {
   saveIds: (listingId: number, ids: number[]) => Promise<void>;
   tab: string;
 };
-
-const countLabel = (count: number, noun: string): string =>
-  `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 export const createListingChoicePost = ({
   feature,

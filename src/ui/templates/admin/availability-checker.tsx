@@ -12,12 +12,13 @@
  */
 
 /* jscpd:ignore-start */
-import { sort } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
+import { adminListingLink } from "#templates/admin/admin-page.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
@@ -64,9 +65,7 @@ const availabilityColumns: readonly TableColumn<AvailabilityRow>[] = [
     ),
     key: "select",
   },
-  translatedTableColumn("listing", "availability.listing", (row) => (
-    <a href={`/admin/listing/${row.id}`}>{row.name}</a>
-  )),
+  translatedTableColumn("listing", "availability.listing", adminListingLink),
   translatedTableColumn(
     "remaining",
     "availability.remaining",
@@ -112,13 +111,9 @@ export const AvailabilityChecker = ({
           method="get"
         >
           {date && <input name={START_DATE_FIELD} type="hidden" value={date} />}
-          {renderTable(
-            availabilityTable,
-            sort((a: AvailabilityRow, b: AvailabilityRow) =>
-              a.name.localeCompare(b.name),
-            )(rows),
-            { tableClass: "availability-table" },
-          )}
+          {renderTable(availabilityTable, sortByName(rows), {
+            tableClass: "availability-table",
+          })}
           <div class="order-actions">
             <button class="order-cart" type="submit">
               <OrderCartButtonBody

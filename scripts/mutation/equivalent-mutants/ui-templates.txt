@@ -98,7 +98,7 @@ src/ui/templates/admin/users.tsx::usersTable.key~14rcnj0  status → ""   # same
 
 # renewal-tier summary table (built-sites) — same class as the key table above:
 # RenewalTierSummary renders it with no options at all.
-src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~035yw77  tier → ""   # the tier table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~1dx691i  tier → ""   # the tier table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
 src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~1cvsdgu  months → ""   # same as the tier key — the tier table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~1qd3mhi  price → ""   # same as the tier key — the tier table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~0pama76  units → ""   # same as the tier key — the tier table renders without columnKeys, hiddenKeys, or filters
@@ -106,7 +106,7 @@ src/ui/templates/admin/built-sites/renewal-summary.tsx::renewalTierColumns~0pama
 # availability checker table — same class as the renewal tiers above: the
 # checker renders it with only a table class, so nothing reads a column key.
 src/ui/templates/admin/availability-checker.tsx::availabilityColumns.key~1i3cwde  select → ""   # the availability table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
-src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1icoqk7  listing → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1y9hpxw  listing → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/availability-checker.tsx::availabilityColumns~15bbaul  remaining → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/availability-checker.tsx::availabilityColumns~1ra2ram  price → ""   # same as the select key — the availability table renders without columnKeys, hiddenKeys, or filters
 

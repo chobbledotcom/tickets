@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { map, sort, unique } from "#fp";
+import { map, unique } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
@@ -32,6 +32,7 @@ import {
   listingFilterLabel,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import {
@@ -75,9 +76,7 @@ const categoriesOf = (view: AttendeeListView): ListingFilter[] =>
 /** Listing options sorted by name, deactivated listings flagged inline, with a
  * leading "all listings" entry. */
 const listingOptions = (listings: ListingWithCount[]): SelectOption[] => {
-  const sorted = sort((a: ListingWithCount, b: ListingWithCount) =>
-    a.name.localeCompare(b.name),
-  )(listings);
+  const sorted = sortByName(listings);
   return [
     { label: t("attendees_list.all_listings"), value: "" },
     ...sorted.map((e) => ({

@@ -7,6 +7,7 @@ import {
   attendeeActions,
   attendeeActionUrlWithReturn,
   getReturnUrl,
+  loadAttendeeForListing,
 } from "#routes/admin/attendees-route-helpers.ts";
 import { setupRefundTest } from "#test/features/admin/refunds-helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -15,6 +16,7 @@ import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("admin attendee action loaders", { db: true }, () => {
   test("keeps a return address in attendee action URLs only when one exists", () => {
@@ -101,6 +103,20 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
       "Attendee name does not match. Please type the exact attendee name to confirm refund.",
       false,
     )(response);
+  });
+
+  test("loadAttendeeForListing reads the attendee's booking line for the listing", async () => {
+    const ctx = await setupRefundTest("pi_loader_reads_single_line");
+    await withTestSession(async () => {
+      const loaded = await loadAttendeeForListing(
+        ctx.listing.id,
+        ctx.attendee.id,
+      );
+      expect(loaded).not.toBeNull();
+      expect(loaded!.listing.id).toBe(ctx.listing.id);
+      expect(loaded!.attendee.id).toBe(ctx.attendee.id);
+      expect(loaded!.attendee.name).toBe("John Doe");
+    });
   });
 });
 

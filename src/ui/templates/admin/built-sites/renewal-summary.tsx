@@ -4,6 +4,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
+import { adminListingLink } from "#templates/admin/admin-page.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
@@ -12,9 +13,11 @@ import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
-  translatedTableColumn("tier", "built_sites.tier_table_tier", (tier) => (
-    <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>
-  )),
+  translatedTableColumn(
+    "tier",
+    "built_sites.tier_table_tier",
+    adminListingLink,
+  ),
   translatedTableColumn(
     "months",
     "built_sites.tier_table_months",

@@ -6,6 +6,11 @@
  * use it.
  */
 
+/** Append the return URL to an admin href, so the mutation lands the operator
+ * back where they started. The twin of {@link ReturnUrlField}. */
+export const withReturnUrl = (href: string, returnUrl: string): string =>
+  `${href}?return_url=${encodeURIComponent(returnUrl)}`;
+
 export const ReturnUrlField = ({
   returnUrl,
 }: {

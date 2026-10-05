@@ -31,6 +31,10 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import {
+  ledgerEntryAddHref,
+  ledgerEntryEditHref,
+} from "#shared/ledger-links.ts";
 import { nowIso } from "#shared/now.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
@@ -61,14 +65,6 @@ const returnUrlFromRequest = (request: Request, fallback: string): string =>
 
 const returnUrlFromForm = (form: FormParams, fallback: string): string =>
   pathFromUrlValue(form.getString("return_url"), fallback);
-
-const editEntryPath = (id: number, returnUrl: string): string =>
-  `/admin/ledger/entries/${id}/edit?return_url=${encodeURIComponent(returnUrl)}`;
-
-const addEntryPath = (account: AccountRef, returnUrl: string): string =>
-  `/admin/ledger/${account.type}/${account.id}/add?return_url=${encodeURIComponent(
-    returnUrl,
-  )}`;
 
 const transferFormValues = (transfer: Transfer) => ({
   amount: toMajorUnits(transfer.amount),
@@ -138,7 +134,11 @@ const editPostedTransfer = async (
   const transfer = await getEditableTransferById(id);
   if (!transfer) return null;
   const returnUrl = returnUrlFromForm(form, "/admin/ledger");
-  return { redirectUrl: editEntryPath(id, returnUrl), returnUrl, transfer };
+  return {
+    redirectUrl: ledgerEntryEditHref(id, returnUrl),
+    returnUrl,
+    transfer,
+  };
 };
 
 type PostedTransferHandler = ResponseHandler<
@@ -204,7 +204,7 @@ export const handleLedgerEntryAddPost: TypedRouteHandler<
       form,
       accountStatementPath(loaded.account),
     );
-    const redirectUrl = addEntryPath(loaded.account, returnUrl);
+    const redirectUrl = ledgerEntryAddHref(loaded.account, returnUrl);
     const parsed = defineLedgerEntryAddForm(loaded.options).validate(form);
     if (!parsed.valid) return errorRedirect(redirectUrl, parsed.error);
     await postManualLedgerEntry({

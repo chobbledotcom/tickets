@@ -6,8 +6,8 @@ import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import {
   bookingConflictLabel,
-  bookingKey,
   hasBookingConflicts,
+  itemBookingKey,
   nonConflictAnswerLabel,
 } from "#shared/merge/attendee-merge.ts";
 import type {
@@ -236,14 +236,6 @@ const bookingDateLabel = (item: AttendeeMergeDiffBookingItem): string =>
     ? formatDateRangeLabel(item.startAt, item.sourceBooking.end_at)
     : "—";
 
-const bookingDecisionName = (item: AttendeeMergeDiffBookingItem): string =>
-  bookingKey(
-    item.listingId,
-    item.startAt,
-    item.parentListingId,
-    item.packageGroupId,
-  );
-
 const bookingStatus = (item: AttendeeMergeDiffBookingItem): JSX.Element => {
   if (item.conflictClass === "moveable") {
     return <span class="muted">{t("admin.attendees.merge_will_move")}</span>;
@@ -272,7 +264,7 @@ const BookingChoice = ({
   item: AttendeeMergeDiffBookingItem;
 }): JSX.Element | null => {
   if (item.conflictClass === "moveable") return null;
-  const key = bookingDecisionName(item);
+  const key = itemBookingKey(item);
   const name = `booking_${key}`;
   const moneyAtStake = Math.max(item.sourceSaleAmount, item.targetSaleAmount);
   return (

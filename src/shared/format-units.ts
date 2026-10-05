@@ -75,3 +75,8 @@ export const durationWords = (seconds: number): string => {
   }
   return `${seconds} seconds`;
 };
+
+/** A count with the thing it counts, plural only when the count is not one:
+ * `3 rows`, `1 row`, `0 tables`. */
+export const countLabel = (count: number, noun: string): string =>
+  `${count} ${noun}${count === 1 ? "" : "s"}`;

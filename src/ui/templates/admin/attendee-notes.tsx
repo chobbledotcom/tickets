@@ -22,6 +22,7 @@ import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderField } from "#shared/forms/rendering.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown, withoutLinksTo } from "#shared/markdown.ts";
+import { withReturnUrl } from "#shared/return-url-field.tsx";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
@@ -45,9 +46,10 @@ const attendeeUrl = (attendeeId: number): string =>
 
 /** The are-you-sure delete page for one note, returning to `returnUrl`. */
 const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
-  `/admin/attendee/${note.entity_id}/note/${note.id}/delete?return_url=${encodeURIComponent(
+  withReturnUrl(
+    `/admin/attendee/${note.entity_id}/note/${note.id}/delete`,
     returnUrl,
-  )}`;
+  );
 
 /** One note plus whether the viewer is an owner (the only role allowed to
  * open the ledger pages a note may link to). */
@@ -158,9 +160,10 @@ export const AddNoteLink = ({
 }): JSX.Element => (
   <p>
     <a
-      href={`/admin/attendee/${attendeeId}/note?return_url=${encodeURIComponent(
+      href={withReturnUrl(
+        `/admin/attendee/${attendeeId}/note`,
         attendeeUrl(attendeeId),
-      )}`}
+      )}
     >
       {t("notes.add_link")}
     </a>

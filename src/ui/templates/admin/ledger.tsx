@@ -26,7 +26,10 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import { listingLedgerHref } from "#shared/ledger-links.ts";
+import {
+  ledgerEntryEditHref,
+  listingLedgerHref,
+} from "#shared/ledger-links.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
@@ -159,23 +162,6 @@ export const accountCellFor =
     const { text, href } = resolveAccountLabel(account, names);
     return href === undefined ? text : <a href={href}>{text}</a>;
   };
-
-/** A path-safe return URL is threaded into edit/add forms so mutations can send
- * the operator back to the exact statement or filtered ledger they came from. */
-const withReturnUrl = (href: string, returnUrl: string): string =>
-  `${href}?return_url=${encodeURIComponent(returnUrl)}`;
-
-export const ledgerEntryEditHref = (
-  transferId: number,
-  returnUrl: string,
-): string =>
-  withReturnUrl(`/admin/ledger/entries/${transferId}/edit`, returnUrl);
-
-export const ledgerEntryAddHref = (
-  account: AccountRef,
-  returnUrl: string,
-): string =>
-  withReturnUrl(`/admin/ledger/${account.type}/${account.id}/add`, returnUrl);
 
 export const canAddLedgerEntry = (
   account: AccountRef,
