@@ -37,11 +37,7 @@ describePublicApi(() => {
     ): Promise<CheckoutIntent | undefined> => {
       const { checkout, getCaptured } = stubCheckout("sess_test");
       try {
-        const { response } = await bookListing(slug, {
-          email: "alice@test.com",
-          name: "Alice",
-          quantity: 1,
-        });
+        const { response } = await bookListing(slug);
         expect(response.status).toBe(200);
       } finally {
         checkout.restore();
@@ -51,11 +47,7 @@ describePublicApi(() => {
 
     test("refuses to book a child listing on its own", async () => {
       const { children } = await freeParentWithChild();
-      const { response, body } = await bookListing(children[0]!.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 1,
-      });
+      const { response, body } = await bookListing(children[0]!.slug);
       expect(response.status).toBe(400);
       expect(body).toEqual({
         error: "This listing must be booked through its parent listing.",
@@ -65,11 +57,7 @@ describePublicApi(() => {
     test("returns a checkout URL for a parent whose child is paid", async () => {
       await setupStripe();
       const parent = await parentWithPaidChild();
-      const { response, body } = await bookListing(parent.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 1,
-      });
+      const { response, body } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
     });
@@ -78,11 +66,7 @@ describePublicApi(() => {
       await setupStripe();
       const parent = await parentWithPaidChild();
       await withCheckoutStub({ error: "Provider rejected" }, async () => {
-        const { response, body } = await bookListing(parent.slug, {
-          email: "alice@test.com",
-          name: "Alice",
-          quantity: 1,
-        });
+        const { response, body } = await bookListing(parent.slug);
         expect(response.status).toBe(400);
         expect(body.error).toBe("Provider rejected");
       });
@@ -92,11 +76,7 @@ describePublicApi(() => {
       await setupStripe();
       const parent = await parentWithPaidChild();
       await withCheckoutStub(null, async () => {
-        const { response, body } = await bookListing(parent.slug, {
-          email: "alice@test.com",
-          name: "Alice",
-          quantity: 1,
-        });
+        const { response, body } = await bookListing(parent.slug);
         expect(response.status).toBe(500);
         expect(body.error).toMatch(/payment session/i);
       });
@@ -124,11 +104,7 @@ describePublicApi(() => {
       // The free path threads the fold's allocations into createFreeReservation,
       // so the auto-folded child is stored as its own row under the parent.
       const { parent, child } = await freeParentWithChild();
-      const { body } = await bookListing(parent.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 1,
-      });
+      const { body } = await bookListing(parent.slug);
       const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
       const [attendee] = await getAttendeesByTokens([
         body.booking!.ticketToken!,
@@ -168,7 +144,6 @@ describePublicApi(() => {
         children: [{ customPrice: 30, quantity: 1, slug: child.slug }],
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.amountOwed).toBe(3000);
@@ -253,11 +228,7 @@ describePublicApi(() => {
       // booking and the web free path. The activity log is the observable proof
       // the notifier ran (it also fires the email/webhook).
       const { parent, child } = await freeParentWithChild();
-      const { response } = await bookListing(parent.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 1,
-      });
+      const { response } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
 
       const { getListingActivityLog } = await import(

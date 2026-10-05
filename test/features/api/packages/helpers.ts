@@ -29,12 +29,7 @@ export const apiBookPackage = async (
     new Request(`http://localhost/api/packages/${slug}/book`, {
       body:
         rawBody ??
-        JSON.stringify({
-          email: "pkg@test.com",
-          name: "Pkg Buyer",
-          quantity: 1,
-          ...extra,
-        }),
+        JSON.stringify({ email: "pkg@test.com", name: "Pkg Buyer", ...extra }),
       headers: { "content-type": "application/json", host: "localhost" },
       method: "POST",
     }),
@@ -46,7 +41,7 @@ export const expectPackageNeedsEmail = async (slug: string): Promise<void> => {
   const { body, response } = await apiBookPackage(
     slug,
     {},
-    JSON.stringify({ name: "No Email", quantity: 1 }),
+    JSON.stringify({ name: "No Email" }),
   );
   expect(response.status).toBe(400);
   expect(body.error).toMatch(/email/i);

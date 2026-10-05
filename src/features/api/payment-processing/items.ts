@@ -6,8 +6,6 @@
  * mid-checkout.
  */
 
-import { bookingError } from "#booking/form.ts";
-import { quantityBelowMinimum } from "#booking/model.ts";
 import {
   bookedOutsideParent,
   lineGroupId,
@@ -36,12 +34,11 @@ import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
-/** Judge one already-loaded line against the current listing: gone, closed,
- * below the minimum the owner can have raised, or good to price. */
+/** Judge one already-loaded line against the current listing: gone, closed, or
+ * good to price. */
 const validateListingForPayment = (
   listing: ListingWithCount,
   name: string,
-  quantity: number,
 ): ListingValidation => {
   if (!listing.active) {
     return {
@@ -57,15 +54,6 @@ const validateListingForPayment = (
       error: name
         ? `Sorry, registration for ${name} closed while you were completing payment.`
         : "Sorry, registration closed while you were completing payment.",
-      ok: false,
-      status: 410,
-    };
-  }
-  // The buyer can open a paid checkout before the owner raises the
-  // minimum. The webhook is the last stop, so it re-reads the stored fact.
-  if (quantityBelowMinimum(quantity, listing.minimum_quantity)) {
-    return {
-      error: bookingError.minimum(name, listing.minimum_quantity),
       ok: false,
       status: 410,
     };
@@ -185,7 +173,7 @@ export const validateAllItems = async (
       );
     }
     const name = nameFor(item, listing);
-    const vp = validateListingForPayment(listing, name, item.q);
+    const vp = validateListingForPayment(listing, name);
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package

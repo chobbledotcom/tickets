@@ -73,7 +73,7 @@ describeWithEnv("API package booking", { db: true }, () => {
 
     let result: Awaited<ReturnType<typeof apiBookPackage>>;
     try {
-      result = await apiBookPackage(group.slug, { quantity: 1 });
+      result = await apiBookPackage(group.slug);
     } finally {
       restoreDb();
     }
@@ -91,21 +91,15 @@ describeWithEnv("API package booking", { db: true }, () => {
     expect(bad.response.status).toBe(400);
   });
 
-  test("POST requires the quantity field", async () => {
-    const { group } = await fixedPackage("Required Kit", "required-kit");
-    const { response, body } = await apiBookPackage(group.slug, {});
-    // Package bundles state their count too: no default to one bundle.
-    expect(response.status).toBe(400);
-    expect(body.error).toBe("Quantity is required");
-  });
-
-  test("POST rejects a malformed quantity", async () => {
-    const { group } = await fixedPackage("Default Kit", "default-kit");
-    const { response, body } = await apiBookPackage(group.slug, {
+  test("POST treats a malformed quantity as 1 bundle", async () => {
+    const { a, b, group } = await fixedPackage("Default Kit", "default-kit");
+    const { body, response } = await apiBookPackage(group.slug, {
       quantity: "lots",
     });
-    expect(response.status).toBe(400);
-    expect(body.error).toBe("Quantity must be a whole number of 1 or more");
+    expect(response.status).toBe(200);
+    expect(body.booking!.amountOwed).toBe(2500);
+    expect((await bookingRows(a.id))[0]!.quantity).toBe(2);
+    expect((await bookingRows(b.id))[0]!.quantity).toBe(1);
   });
 
   test("POST rejects a booking missing the required contact fields", async () => {
@@ -142,7 +136,6 @@ describeWithEnv("API package booking", { db: true }, () => {
       // Member A books 2 units per package; a single chosen add-on undershoots.
       const { body, response } = await apiBookPackage(group.slug, {
         children: [{ parent: a.slug, quantity: 1, slug: child.slug }],
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       // A concealed package's refusals are one generic message, so a probe
@@ -158,16 +151,13 @@ describeWithEnv("API package booking", { db: true }, () => {
   }
 
   test("POST returns 404 for an unknown package", async () => {
-    const { response } = await apiBookPackage("nope", { quantity: 1 });
+    const { response } = await apiBookPackage("nope");
     expect(response.status).toBe(404);
   });
 
   test("POST requires a valid date for a dated bundle and a day count for a customisable one", async () => {
     const { group } = await customisablePackage("Gate Kit", "gate-kit");
-    const noDate = await apiBookPackage(group.slug, {
-      dayCount: 2,
-      quantity: 1,
-    });
+    const noDate = await apiBookPackage(group.slug, { dayCount: 2 });
     expect(noDate.response.status).toBe(400);
     expect(noDate.body.error).toContain("valid date");
 
@@ -175,10 +165,7 @@ describeWithEnv("API package booking", { db: true }, () => {
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
     const date = pkg.availableDates[0];
-    const noDays = await apiBookPackage(group.slug, {
-      date,
-      quantity: 1,
-    });
+    const noDays = await apiBookPackage(group.slug, { date });
     expect(noDays.response.status).toBe(400);
     expect(noDays.body.error).toContain("days");
   });
@@ -195,7 +182,6 @@ describeWithEnv("API package booking", { db: true }, () => {
     const { body, response } = await apiBookPackage(group.slug, {
       date,
       dayCount: 2,
-      quantity: 1,
     });
     expect(response.status).toBe(200);
     // The boat's per-day override (1500) + the hut's own 2-day price (900).
@@ -214,7 +200,6 @@ describeWithEnv("API package booking", { db: true }, () => {
         { parent: a.slug, quantity: 1, slug: child.slug },
         { parent: a.slug, quantity: 1, slug: childB.slug },
       ],
-      quantity: 1,
     });
     expect(response.status).toBe(200);
     // 2500 bundle + 300 + 400 chosen add-ons, exactly once.
@@ -224,14 +209,12 @@ describeWithEnv("API package booking", { db: true }, () => {
 
     const unknown = await apiBookPackage(group.slug, {
       children: [{ parent: "not-a-member", quantity: 1, slug: child.slug }],
-      quantity: 1,
     });
     expect(unknown.response.status).toBe(400);
     expect(unknown.body.error).toContain("not a member");
 
     const malformed = await apiBookPackage(group.slug, {
       children: [{ quantity: 1, slug: child.slug }],
-      quantity: 1,
     });
     expect(malformed.response.status).toBe(400);
     expect(malformed.body.error).toContain("parent");
@@ -242,7 +225,6 @@ describeWithEnv("API package booking", { db: true }, () => {
       children: [
         { customPrice: "x", parent: a.slug, quantity: 1, slug: child.slug },
       ],
-      quantity: 1,
     });
     expect(badPrice.response.status).toBe(400);
 
@@ -250,7 +232,6 @@ describeWithEnv("API package booking", { db: true }, () => {
     const { b } = await fixedPackage("Childless Kit", "childless-kit");
     const childless = await apiBookPackage("childless-kit", {
       children: [{ parent: b.slug, quantity: 1, slug: child.slug }],
-      quantity: 1,
     });
     expect(childless.response.status).toBe(400);
     expect(childless.body.error).toContain("not a child");
@@ -283,7 +264,7 @@ describeWithEnv("API package booking", { db: true }, () => {
     );
 
     try {
-      const visible = await apiBookPackage(group.slug, { quantity: 1 });
+      const visible = await apiBookPackage(group.slug);
       expect(visible.response.status).toBe(200);
       expect(visible.body.booking!.checkoutUrl).toContain("stripe.test");
       // The package id rides per line now: every member item carries it.
@@ -298,7 +279,6 @@ describeWithEnv("API package booking", { db: true }, () => {
 
       const concealed = await apiBookPackage(hidden.group.slug, {
         children: [{ parent: hidden.a.slug, quantity: 2, slug: child.slug }],
-        quantity: 1,
       });
       expect(concealed.response.status).toBe(200);
       // A hidden package's hosted checkout must never name its members.
@@ -332,14 +312,12 @@ describeWithEnv("API package booking", { db: true }, () => {
       const { response } = await apiBookPackage(group.slug, {
         email: `limit${i}@test.com`,
         name: `Limit ${i}`,
-        quantity: 1,
       });
       expect(response.status).toBe(200);
     }
     const { body, response } = await apiBookPackage(group.slug, {
       email: "blocked@test.com",
       name: "Blocked",
-      quantity: 1,
     });
     expect(response.status).toBe(429);
     expect(body.error).toMatch(/too many/i);

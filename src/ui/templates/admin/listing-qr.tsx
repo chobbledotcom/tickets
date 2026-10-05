@@ -210,7 +210,7 @@ export const ListingQrPanel = ({
           {t("common.quantity")}
           <input
             max={listing.max_quantity}
-            min={listing.minimum_quantity}
+            min="1"
             name="quantity"
             required
             type="number"
