@@ -107,7 +107,6 @@ export const ListingOverviewPanel = (
     <PageRegions>
       <ListingDetailsTable
         aggregateRecalculation={aggregateRecalculation}
-        allowedDomain={allowedDomain}
         capacity={capacity}
         embedIframeCode={links.embedIframeCode}
         embedScriptCode={links.embedScriptCode}

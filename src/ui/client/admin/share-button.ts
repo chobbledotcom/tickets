@@ -5,16 +5,10 @@
  * Select the link's text when the browser offers neither. */
 const COPIED_MS = 2000;
 
-/** Give the row's link text a selection, so a manual copy needs one
- * right-click. Works where the share sheet and the clipboard both refuse. */
-const selectLink = (button: HTMLButtonElement): void => {
-  const link = button.closest(".share-row")?.querySelector("[data-share-link]");
-  if (!link) return;
-  const selection = window.getSelection();
-  if (!selection) return;
-  selection.removeAllRanges();
-  selection.selectAllChildren(link);
-};
+/** How the share sheet answered: it took the URL, the visitor stopped it, or
+ * the browser never offered one. A stopped sheet ends the click: the visitor
+ * said no, so no copy follows. */
+type ShareAnswer = "shared" | "stopped" | "absent";
 
 /** The value, or a fallback when it is absent. */
 const valueOr = (
@@ -46,8 +40,32 @@ const copyUrl = (url: string): Promise<boolean> =>
     navigator.clipboard.writeText(url),
   );
 
-const shareUrl = (url: string): Promise<boolean> =>
-  whenOffered(Boolean(navigator.share), () => navigator.share({ url }));
+const shareUrl = async (url: string): Promise<ShareAnswer> => {
+  if (!navigator.share) return "absent";
+  try {
+    await navigator.share({ url });
+    return "shared";
+  } catch (error) {
+    // The Web Share spec rejects a cancelled sheet with an AbortError. The
+    // visitor stopped the share, so the click ends without a copy.
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return "stopped";
+    }
+    return "absent";
+  }
+};
+
+/** Give the row's link text a selection, so a manual copy needs one
+ * right-click. The link shows the full URL, so the copy carries one too.
+ * Works where the share sheet and the clipboard both refuse. */
+const selectLink = (button: HTMLButtonElement): void => {
+  const link = button.closest(".share-row")?.querySelector("[data-share-link]");
+  if (!link) return;
+  const selection = window.getSelection();
+  if (!selection) return;
+  selection.removeAllRanges();
+  selection.selectAllChildren(link);
+};
 
 /** Swap the button to its copied label for a moment, then back. The original
  * label is captured once, so a click during the flash restores it. */
@@ -67,12 +85,12 @@ const flashCopied = (button: HTMLButtonElement): void => {
 };
 
 /** One Share click: the share sheet first, the clipboard second, the link
- * selection when the browser offers neither. Awaitable so tests meet the
- * whole chain. */
-export const shareOrCopy = async (button: HTMLButtonElement): Promise<void> => {
+ * selection when the browser offers neither. A cancelled share sheet ends
+ * the click; the clipboard takes over only on a failed share attempt. The
+ * wiring only hands over buttons that carry a share URL. */
+const shareOrCopy = async (button: HTMLButtonElement): Promise<void> => {
   const url = valueOr(button.getAttribute("data-share-url"), "");
-  if (url === "") return;
-  if (await shareUrl(url)) return;
+  if ((await shareUrl(url)) !== "absent") return;
   if (await copyUrl(url)) flashCopied(button);
   else selectLink(button);
 };

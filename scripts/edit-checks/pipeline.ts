@@ -47,6 +47,8 @@ export const scansFor = (relPath: string): ScanRun[] => {
   const stylesheetFiles = [
     "src/ui/static/style.scss",
     "src/ui/static/_field-visibility.scss",
+    "src/ui/static/_entity-page.scss",
+    "src/ui/static/_share-rows.scss",
   ];
   if (stylesheetFiles.includes(relPath)) {
     return [

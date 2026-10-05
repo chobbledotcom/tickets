@@ -10,17 +10,18 @@ describe("public page share rows", () => {
     String(
       PublicTicketLink({
         href: "https://fair.example/ticket/sunday",
-        label: "fair.example/ticket/sunday",
         qrHref: "/ticket/sunday/qr",
       }),
     );
 
-  test("keeps the page link as the row's first content", () => {
+  test("shows the full URL as the row's first content", () => {
     const html = availableRow();
     expect(html).toContain(
       '<a data-share-link href="https://fair.example/ticket/sunday">',
     );
-    expect(html).toContain("fair.example/ticket/sunday");
+    // The link text equals its href, so a manual selection copies the whole
+    // address and not a schemeless label.
+    expect(html).toContain(">https://fair.example/ticket/sunday</a>");
   });
 
   test("offers Share, QR, and Embed under the link, never beside it", () => {
@@ -31,8 +32,8 @@ describe("public page share rows", () => {
     );
     expect(html).toContain(">Share</button>");
     expect(html).toContain('href="/ticket/sunday/qr"');
-    // The Guide section that explains the embed codes.
-    expect(html).toContain('href="/admin/guide#listings"');
+    // The Guide answer that explains the embed codes, at its own anchor.
+    expect(html).toContain('href="/admin/guide#embed_booking_form"');
     // The actions block follows the link inside one wrapping row.
     expect(html.indexOf("data-share-link")).toBeLessThan(
       html.indexOf("share-actions"),

@@ -106,12 +106,10 @@ const DailyScheduleRows = ({ listing }: ListingRowProps): JSX.Element => (
 
 const PublicUrlRow = ({
   listing,
-  allowedDomain,
   ticketUrl,
   publicPage,
 }: {
   listing: ListingWithCount;
-  allowedDomain: string;
   ticketUrl: string;
   publicPage: "available" | "child" | "inactive";
 }): JSX.Element =>
@@ -142,7 +140,6 @@ const PublicUrlRow = ({
         />
         <PublicTicketLink
           href={ticketUrl}
-          label={`${allowedDomain}/ticket/${listing.slug}`}
           qrHref={`/ticket/${listing.slug}/qr`}
         />
       </td>
@@ -202,7 +199,6 @@ const buildListingCopyRows = (
 export const ListingDetailsTable = ({
   listing,
   aggregateRecalculation,
-  allowedDomain,
   ticketUrl,
   embedScriptCode,
   embedIframeCode,
@@ -212,7 +208,6 @@ export const ListingDetailsTable = ({
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  allowedDomain: string;
   ticketUrl: string;
   embedScriptCode: string;
   embedIframeCode: string;
@@ -297,7 +292,6 @@ export const ListingDetailsTable = ({
           </td>
         </tr>
         <PublicUrlRow
-          allowedDomain={allowedDomain}
           listing={listing}
           publicPage={publicPage}
           ticketUrl={ticketUrl}

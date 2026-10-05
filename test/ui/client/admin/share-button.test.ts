@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import {
-  initShareButtons,
-  shareOrCopy,
-} from "#src/ui/client/admin/share-button.ts";
+import { initShareButtons } from "#src/ui/client/admin/share-button.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
 describe("share buttons", () => {
@@ -23,12 +20,13 @@ describe("share buttons", () => {
   });
 
   /** One share row installed onto the DOM, the script wired, and the button
-   *  handed back. */
+   *  handed back. The link shows the full URL, so a manual selection carries
+   *  the whole address. */
   const setup = () => {
     const window = dom.installDom(`
       <span class="share-row">
         <a data-share-link href="https://fair.example/ticket/sunday">
-          fair.example/ticket/sunday
+          https://fair.example/ticket/sunday
         </a>
         <span class="share-actions">
           <button data-copied-label="Copied" data-share-url="https://fair.example/ticket/sunday"
@@ -55,6 +53,18 @@ describe("share buttons", () => {
     });
   };
 
+  /** Stub the clipboard with a recording write and hand the copies back. */
+  const clipboardCopies = (): string[] => {
+    const written: string[] = [];
+    stubNavigator("clipboard", {
+      writeText: (text: string) => {
+        written.push(text);
+        return Promise.resolve();
+      },
+    });
+    return written;
+  };
+
   /** Answer every selection call, and hold the text the last one selected. */
   const captureSelection = (window: { getSelection: unknown }): string[] => {
     const selected: string[] = [];
@@ -70,37 +80,31 @@ describe("share buttons", () => {
     return selected;
   };
 
-  /** Stub the clipboard with a recording write and hand the copies back. */
-  const clipboardCopies = (): string[] => {
-    const written: string[] = [];
-    stubNavigator("clipboard", {
-      writeText: (text: string) => {
-        written.push(text);
-        return Promise.resolve();
-      },
-    });
-    return written;
+  /** Click the wired button and let its handler chain run to the clipboard
+   *  write or the selection in microtasks; the two-second revert timer stays
+   *  pending until the test ticks it. */
+  const clickAndSettle = async (
+    time: FakeTime,
+    button: HTMLButtonElement,
+  ): Promise<void> => {
+    button.click();
+    await time.tickAsync(0);
   };
 
   test("a browser share sheet takes the URL and no copy runs", async () => {
+    using time = new FakeTime();
     const { button } = setup();
     const shared: string[] = [];
     stubNavigator("share", (data: { url: string }) => {
       shared.push(data.url);
       return Promise.resolve();
     });
-    let copied = false;
-    stubNavigator("clipboard", {
-      writeText: () => {
-        copied = true;
-        return Promise.resolve();
-      },
-    });
+    const written = clipboardCopies();
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
 
     expect(shared).toEqual(["https://fair.example/ticket/sunday"]);
-    expect(copied).toBe(false);
+    expect(written).toEqual([]);
     expect(button.textContent).toBe("Share");
   });
 
@@ -112,7 +116,7 @@ describe("share buttons", () => {
     stubNavigator("share", shareStub);
     const written = clipboardCopies();
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
 
     expect(written).toEqual(["https://fair.example/ticket/sunday"]);
     expect(button.textContent).toBe("Copied");
@@ -129,6 +133,22 @@ describe("share buttons", () => {
     await fallsBackToCopy(() => Promise.reject(new Error("unsupported")));
   });
 
+  test("a cancelled share sheet copies nothing and keeps the label", async () => {
+    using time = new FakeTime();
+    const { button } = setup();
+    const cancelled = new DOMException(
+      "The user aborted a request.",
+      "AbortError",
+    );
+    stubNavigator("share", () => Promise.reject(cancelled));
+    const written = clipboardCopies();
+
+    await clickAndSettle(time, button);
+
+    expect(written).toEqual([]);
+    expect(button.textContent).toBe("Share");
+  });
+
   test("a copy during the flash still restores the original label", async () => {
     using time = new FakeTime();
     const { button } = setup();
@@ -136,41 +156,45 @@ describe("share buttons", () => {
       writeText: () => Promise.resolve(),
     });
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
     expect(button.textContent).toBe("Copied");
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
     expect(button.textContent).toBe("Copied");
 
     time.tick(2000);
     expect(button.textContent).toBe("Share");
   });
 
-  test("a refused clipboard copy selects the link text instead", async () => {
+  test("a refused clipboard copy selects the full link URL instead", async () => {
+    using time = new FakeTime();
     const { button, window } = setup();
     stubNavigator("clipboard", {
       writeText: () => Promise.reject(new Error("denied")),
     });
     const selected = captureSelection(window);
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
 
-    expect(selected).toEqual(["fair.example/ticket/sunday"]);
+    expect(selected).toEqual(["https://fair.example/ticket/sunday"]);
+    expect(button.textContent).toBe("Share");
   });
 
-  test("no share sheet and no clipboard selects the link text", async () => {
+  test("no share sheet and no clipboard selects the full link URL", async () => {
+    using time = new FakeTime();
     const { button, window } = setup();
     stubNavigator("share", null);
     stubNavigator("clipboard", null);
     const selected = captureSelection(window);
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
 
-    expect(selected).toEqual(["fair.example/ticket/sunday"]);
+    expect(selected).toEqual(["https://fair.example/ticket/sunday"]);
     expect(button.textContent).toBe("Share");
   });
 
   test("a share button with no link in its row selects nothing", async () => {
+    using time = new FakeTime();
     const window = dom.installDom(
       '<button data-share-url="https://fair.example/ticket/sunday" type="button">Share</button>',
     );
@@ -182,23 +206,9 @@ describe("share buttons", () => {
     stubNavigator("clipboard", null);
     const selected = captureSelection(window);
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
 
     expect(selected).toEqual([]);
-  });
-
-  test("a button with no share URL does nothing", async () => {
-    const window = dom.installDom('<button type="button">Share</button>');
-    const button = window.document.querySelector(
-      "button",
-    ) as unknown as HTMLButtonElement;
-    stubNavigator("share", null);
-    const written = clipboardCopies();
-
-    await shareOrCopy(button);
-
-    expect(written).toEqual([]);
-    expect(button.textContent).toBe("Share");
   });
 
   test("a click on the wired button runs the chain and flashes Copied", async () => {
@@ -213,10 +223,7 @@ describe("share buttons", () => {
     stubNavigator("share", null);
     const written = clipboardCopies();
 
-    button.click();
-    // One fake-tick flush: the click's handler chain runs to the clipboard
-    // write in microtasks, and the two-second revert timer stays pending.
-    await time.tickAsync(0);
+    await clickAndSettle(time, button);
 
     expect(written).toEqual(["https://fair.example/ticket/sunday"]);
     // No data-copied-label on this row, so the module's default shows.
@@ -227,6 +234,7 @@ describe("share buttons", () => {
   });
 
   test("a browser without a selection API selects nothing", async () => {
+    using time = new FakeTime();
     const { button, window } = setup();
     stubNavigator("share", null);
     stubNavigator("clipboard", null);
@@ -235,7 +243,7 @@ describe("share buttons", () => {
       value: () => null,
     });
 
-    await shareOrCopy(button);
+    await clickAndSettle(time, button);
 
     expect(button.textContent).toBe("Share");
   });
