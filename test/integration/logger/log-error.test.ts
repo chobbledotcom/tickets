@@ -1,5 +1,11 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it as test,
+} from "@std/testing/bdd";
 import {
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
@@ -17,6 +23,7 @@ import {
   withDeferredErrorReports,
 } from "#shared/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
+import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -43,6 +50,14 @@ describe("error code table", () => {
 });
 
 describe("log-error", () => {
+  // The first Stripe call of an isolate opens the pooled socket to
+  // stripe-mock. Open it here, outside any test's span, so the leak detector
+  // does not pin a shared socket on whichever test runs first.
+  beforeAll(async () => {
+    const client = await stripeClientRuntime.get();
+    if (client) await client.balance.retrieve();
+  });
+
   describe("logError", () => {
     const spyRef = setupErrorSpy();
     let env: EnvScope;
