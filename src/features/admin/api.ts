@@ -25,7 +25,13 @@ import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
+import {
+  ADMIN_API,
+  type AuthPolicy,
+  type AuthSession,
+  authenticateFor,
+  CONTENT_API,
+} from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
@@ -40,6 +46,7 @@ import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Attendee, Listing, ListingWithCount } from "#types";
+import { ALL_ADMIN_LEVELS } from "#types";
 
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
@@ -135,8 +142,8 @@ const toggleActiveRoute =
     handleToggleActive(request, params.listingId as number, active);
 
 /** One attendee booking row as the admin API answers with it: the decrypted
- * roster row minus the sealed PII blob and its blind index — storage details,
- * the same way slug_index is stripped from listing responses. */
+ * roster row minus the sealed PII blob and its blind index. Storage details go
+ * the same way slug_index goes from listing responses. */
 export type AdminApiAttendee = Omit<
   Attendee,
   "pii_blob" | "ticket_token_index"
@@ -209,6 +216,28 @@ const listingApiRoutes = defineCrudApi<
   toUpdateInput: bodyToUpdateInput,
   validate: validateListingInput,
 });
+
+/**
+ * The /api/admin mount gate: proves the caller holds a real admin session or
+ * API key, and nothing more. Each admin API route declares its own audience
+ * (OWNER_API, CONTENT_API, or ADMIN_API's staff default), so a mount-level
+ * role veto can never refuse what a route's declared policy admits.
+ */
+export const ADMIN_API_MOUNT: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  roles: ALL_ADMIN_LEVELS,
+};
+
+/** Authenticate an admin API request before importing its resource handlers.
+ * Role decisions belong to each route's own policy (see ADMIN_API_MOUNT). */
+export const requireAdminApiOr = async (
+  request: Request,
+  handler: (session: AuthSession) => Response | null | Promise<Response | null>,
+): Promise<Response | null> => {
+  const auth = await authenticateFor(request, ADMIN_API_MOUNT);
+  return auth instanceof Response ? auth : handler(auth.session);
+};
 
 export const adminApiRoutes = {
   ...attributeApiRoutes,

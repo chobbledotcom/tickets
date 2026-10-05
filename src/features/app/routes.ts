@@ -349,12 +349,16 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
 
 const apiPrefixHandler: RouterFn = async (request, path, method) => {
   if (path.startsWith("/api/admin/")) {
-    const { requireAdminApiOr } = await import("#routes/auth.ts");
-    return await requireAdminApiOr(request, () =>
-      withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
+    // Dynamic import: the gate must authenticate before the admin resource
+    // handlers load. That keeps the handler modules out of cold-start module
+    // evaluation. The import runs inside the API's message groups because the
+    // handler modules translate form schemas while they evaluate.
+    return await withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () => {
+      const { requireAdminApiOr } = await import("#routes/admin/api.ts");
+      return await requireAdminApiOr(request, async () =>
         (await loadAdminApiRoutes())(request, path, method),
-      ),
-    );
+      );
+    });
   }
   return settings.showPublicApi
     ? withMessageGroups(PUBLIC_API_MESSAGE_GROUPS, async () =>

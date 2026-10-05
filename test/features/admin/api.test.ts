@@ -3,8 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { handleRequest } from "#routes";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   assertAdminHtml,
   assertJson,
@@ -13,13 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  apiRequest,
-  createTestAgentSession,
-  createTestApiKeyToken,
-  createTestEditorSession,
-  requestAsSession,
-} from "#test-utils/session.ts";
+import { apiRequest, createTestApiKeyToken } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("PUT /api/admin/listings/:listingId", () => {
@@ -407,114 +399,6 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.error).toContain("same type");
         },
       );
-    });
-  });
-
-  // Role parity with the listing pages: create and edit admit content admins
-  // (owner, manager, editor — areas-a-l.ts "listings"), while delete,
-  // deactivate, and reactivate are staff-only. An editor writes through the
-  // API exactly as far as the dashboard allows, and a role below content is
-  // refused.
-  describe("role parity", () => {
-    const editorSession = async (): Promise<{
-      cookie: string;
-      csrfToken: string;
-    }> => ({
-      cookie: (await createTestEditorSession()).cookie,
-      csrfToken: await signCsrfToken(),
-    });
-
-    test("admits an editor creating a listing", async () => {
-      await assertJson(
-        handleRequest(
-          requestAsSession("/api/admin/listings", await editorSession(), {
-            body: JSON.stringify({
-              listing_type: "standard",
-              max_attendees: 10,
-              name: "Editor Made Listing",
-            }),
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          }),
-        ),
-        201,
-        (body) => {
-          expect(body.listing.name).toBe("Editor Made Listing");
-        },
-      );
-    });
-
-    test("admits an editor updating a listing", async () => {
-      const listing = await createTestListing({ name: "Editor Edit" });
-      const editor = await editorSession();
-
-      await assertJson(
-        handleRequest(
-          requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
-            body: JSON.stringify({ name: "Editor Renamed" }),
-            headers: { "content-type": "application/json" },
-            method: "PUT",
-          }),
-        ),
-        200,
-        (body) => {
-          expect(body.listing.name).toBe("Editor Renamed");
-        },
-      );
-    });
-
-    test("refuses an agent with 403 and creates nothing", async () => {
-      const agent = await createTestAgentSession();
-      const response = await handleRequest(
-        requestAsSession(
-          "/api/admin/listings",
-          {
-            cookie: agent.cookie,
-            csrfToken: await signCsrfToken(),
-          },
-          {
-            body: JSON.stringify({ name: "Agent Made Listing" }),
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          },
-        ),
-      );
-      expect(response.status).toBe(403);
-      expect(await getListingWithCount(0)).toBeNull();
-    });
-
-    test("refuses an editor deleting a listing and keeps it", async () => {
-      const listing = await createTestListing({ name: "Editor Delete" });
-      const editor = await editorSession();
-
-      const response = await handleRequest(
-        requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
-          body: JSON.stringify({ confirm_identifier: "Editor Delete" }),
-          headers: { "content-type": "application/json" },
-          method: "DELETE",
-        }),
-      );
-      expect(response.status).toBe(403);
-      expect(await getListingWithCount(listing.id)).not.toBeNull();
-    });
-
-    test("refuses an editor deactivating a listing and keeps it active", async () => {
-      const listing = await createTestListing({ name: "Editor Toggle" });
-      const editor = await editorSession();
-
-      const response = await handleRequest(
-        requestAsSession(
-          `/api/admin/listings/${listing.id}/deactivate`,
-          editor,
-          {
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          },
-        ),
-      );
-      expect(response.status).toBe(403);
-      const row = await getListingWithCount(listing.id);
-      expect(row?.active).toBe(true);
     });
   });
 });

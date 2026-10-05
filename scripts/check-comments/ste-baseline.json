@@ -24,8 +24,8 @@
     "long-sentence": 2
   },
   "src/features/admin/api.ts": {
-    "long-sentence": 2,
-    "semicolon": 1
+    "semicolon": 1,
+    "long-sentence": 2
   },
   "src/features/admin/attendee-delete.ts": {
     "semicolon": 1
@@ -607,7 +607,7 @@
     "wordy": 5,
     "banned-modal": 9,
     "semicolon": 4,
-    "long-sentence": 11,
+    "long-sentence": 9,
     "contraction": 2
   },
   "src/features/checkin.ts": {
