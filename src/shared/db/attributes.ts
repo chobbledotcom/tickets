@@ -2,7 +2,7 @@
  * Listing attributes: reusable multiple-choice metadata shown on listing pages.
  *
  * Attributes do not participate in booking. A listing stores selected option
- * ids only; display code resolves those ids back to ordered attribute groups.
+ * ids only. Display code resolves those ids back to ordered attribute groups.
  */
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
@@ -12,6 +12,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  queryAllPrimary,
   queryIdColumn,
   queryOne,
 } from "#db/client.ts";
@@ -226,21 +227,40 @@ export const getAllAttributesWithOptions = async (): Promise<
     ),
   );
 
-export const getAttributeWithOptions = async (
-  id: number,
-): Promise<AttributeWithOptions | null> => {
-  const rows = await queryAll<JoinedAttributeRow>(
-    `SELECT ${ATTRIBUTE_COLS}
+const ATTRIBUTE_JOINED_SQL = `SELECT ${ATTRIBUTE_COLS}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption
          ON attributeOption.attribute_id = attribute.id
       WHERE attribute.id = ?
-      ORDER BY attributeOption.sort_order, attributeOption.id`,
-    [id],
-  );
-  const [attribute] = await groupAttributeRows(rows);
-  return attribute ?? null;
-};
+      ORDER BY attributeOption.sort_order, attributeOption.id`;
+
+const attributeFromRows = async (
+  rows: JoinedAttributeRow[],
+): Promise<AttributeWithOptions | null> =>
+  (await groupAttributeRows(rows))[0] ?? null;
+
+/** The joined attribute rows for one id, on the replica (normal reads) or the
+ * primary (read-your-writes after a write). */
+const attributeRows = (id: number, primary: boolean) =>
+  primary
+    ? queryAllPrimary<JoinedAttributeRow>({
+        args: [id],
+        sql: ATTRIBUTE_JOINED_SQL,
+      })
+    : queryAll<JoinedAttributeRow>(ATTRIBUTE_JOINED_SQL, [id]);
+
+const attributeWithOptions =
+  (primary: boolean) =>
+  async (id: number): Promise<AttributeWithOptions | null> =>
+    attributeFromRows(await attributeRows(id, primary));
+
+/** One attribute with its options, read normally. A replica can serve it. */
+export const getAttributeWithOptions = attributeWithOptions(false);
+
+/** The same read pinned to the primary. A write sequence that creates an
+ * attribute and then its first option cannot miss the row the create just
+ * made. */
+export const getAttributeWithOptionsOnPrimary = attributeWithOptions(true);
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (

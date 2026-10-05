@@ -8,6 +8,11 @@
 
 import { type AdminApiAttendee, toAdminListing } from "#routes/admin/api.ts";
 import type {
+  AttributeOptionBody,
+  CreateAttributeBody,
+  UpdateAttributeBody,
+} from "#routes/admin/api-attributes.ts";
+import type {
   CreateGroupBody,
   UpdateGroupBody,
 } from "#routes/admin/api-groups.ts";
@@ -37,7 +42,8 @@ export const BOOKING_TOTAL_FIELDS = [
 ];
 
 /** The example listing exactly as the admin endpoints answer with it: the
- * stored fields, plus the ids of the groups it is in. The example is in none. */
+ * stored fields, plus the ids of the groups it is in. The example is in
+ * none. */
 export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
   group_ids: number[];
 } = { ...toAdminListing(API_EXAMPLE_LISTING), group_ids: [] };
@@ -134,6 +140,64 @@ const ADMIN_API_HOLIDAY_UPDATE_BODY = {
 const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",
 } satisfies DeleteBody;
+
+// =============================================================================
+// Attribute examples (owner only)
+// =============================================================================
+
+/** Example attribute response: the attribute and its options in display
+ * order. */
+const ADMIN_API_EXAMPLE_ATTRIBUTE = {
+  id: 6,
+  name: "Difficulty",
+  options: [
+    { attribute_id: 6, id: 11, sort_order: 0, text: "Easy" },
+    { attribute_id: 6, id: 12, sort_order: 1, text: "Hard" },
+  ],
+  sort_order: 2,
+};
+
+const ADMIN_API_ATTRIBUTE_CREATE_BODY = {
+  name: "Difficulty",
+} satisfies CreateAttributeBody;
+
+const ADMIN_API_ATTRIBUTE_UPDATE_BODY = {
+  name: "Difficulty (Updated)",
+} satisfies UpdateAttributeBody;
+
+const ADMIN_API_ATTRIBUTE_DELETE_BODY = {
+  confirm_identifier: "Difficulty",
+} satisfies DeleteBody;
+
+const ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY = {
+  text: "Medium",
+} satisfies AttributeOptionBody;
+
+const ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY = {
+  text: "Very hard",
+} satisfies AttributeOptionBody;
+
+const ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY = {
+  confirm_identifier: "Hard",
+} satisfies DeleteBody;
+
+const ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM = {
+  ...ADMIN_API_EXAMPLE_ATTRIBUTE,
+  options: [
+    ...ADMIN_API_EXAMPLE_ATTRIBUTE.options,
+    { attribute_id: 6, id: 13, sort_order: 2, text: "Medium" },
+  ],
+};
+
+/** The answer to an option rename: the attribute's own name is untouched, so
+ * the example must not read like the request also renames the attribute. */
+const ADMIN_API_EXAMPLE_OPTION_RENAMED = {
+  ...ADMIN_API_EXAMPLE_ATTRIBUTE,
+  options: ADMIN_API_EXAMPLE_ATTRIBUTE.options.map((option) => ({
+    ...option,
+    text: option.text === "Hard" ? "Very hard" : option.text,
+  })),
+};
 
 /** Example attendee booking row, exactly as the attendees endpoint answers
  * with it: the decrypted roster row minus the sealed PII blob and its blind
@@ -240,6 +304,54 @@ const crudDocs = (c: {
 };
 
 export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
+  ...crudDocs({
+    createBody: ADMIN_API_ATTRIBUTE_CREATE_BODY,
+    deleteBody: ADMIN_API_ATTRIBUTE_DELETE_BODY,
+    desc: [
+      "List all attributes with their options (owner only)",
+      "Get a single attribute by ID (owner only)",
+      "Create an attribute (owner only)",
+      "Update an attribute (owner only, all fields optional)",
+      "Delete an attribute (owner only, requires name confirmation)",
+    ],
+    example: ADMIN_API_EXAMPLE_ATTRIBUTE,
+    idParam: "attributeId",
+    listResponse: { attributes: [ADMIN_API_EXAMPLE_ATTRIBUTE] },
+    // A brand-new attribute has no options yet, whatever the example record
+    // shows for the get/list answers.
+    newRecordDefaults: { options: [] },
+    plural: "attributes",
+    singular: "attribute",
+    updateBody: ADMIN_API_ATTRIBUTE_UPDATE_BODY,
+  }),
+  {
+    description:
+      "Add an option to an attribute (owner only). The answer shows the attribute with its full option list, new option last.",
+    method: "POST",
+    path: "/api/admin/attributes/:attributeId/options",
+    request: json(ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY),
+    response: json({
+      attribute: ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM,
+    }),
+  },
+  {
+    description:
+      "Rename an attribute option (owner only). The answer shows the attribute with its full option list.",
+    method: "PUT",
+    path: "/api/admin/attributes/:attributeId/options/:optionId",
+    request: json(ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY),
+    response: json({
+      attribute: ADMIN_API_EXAMPLE_OPTION_RENAMED,
+    }),
+  },
+  {
+    description:
+      "Delete an attribute option (owner only, requires the option text as confirmation).",
+    method: "DELETE",
+    path: "/api/admin/attributes/:attributeId/options/:optionId",
+    request: json(ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY),
+    response: json({ status: "ok" }),
+  },
   ...crudDocs({
     createBody: ADMIN_API_CREATE_BODY,
     deleteBody: ADMIN_API_DELETE_BODY,

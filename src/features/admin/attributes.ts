@@ -163,6 +163,47 @@ const logAttributeOptionActivity = (
     transaction,
   );
 
+/** Delete one option and log it against its attribute. The one delete the
+ * HTML route and the JSON API route share. */
+export const deleteAttributeOptionWithLog = async (
+  attribute: AttributeWithOptions,
+  option: AttributeOption,
+): Promise<void> => {
+  await deleteAttributeOption(option.id);
+  await logAttributeOptionActivity(option.text, "deleted from", attribute);
+};
+
+/** Insert an option and place it in its attribute's order, atomically. */
+const addOptionRow = insertScopedOrderedRow(
+  attributeOptionsTable,
+  attributeOptionsOrder,
+);
+
+/** Add an option to an attribute, in its order, and log it. The one add the
+ * HTML route and the JSON API route share. */
+export const addAttributeOptionWithLog = async (
+  attribute: AttributeWithOptions,
+  text: string,
+): Promise<void> => {
+  await addOptionRow(
+    attribute.id,
+    { attributeId: attribute.id, sortOrder: 0, text },
+    (transaction) =>
+      logAttributeOptionActivity(text, "added to", attribute, transaction),
+  );
+};
+
+/** Rename an option and log it. The one rename the HTML route and the JSON
+ * API route share. */
+export const renameAttributeOptionWithLog = async (
+  attribute: AttributeWithOptions,
+  option: AttributeOption,
+  text: string,
+): Promise<void> => {
+  await attributeOptionsTable.update(option.id, { text });
+  await logAttributeOptionActivity(text, "updated in", attribute);
+};
+
 const handleAttributeEdit = createAuthedFormRoute<
   { name: string },
   AttributeParams
@@ -182,12 +223,6 @@ const handleAttributeEdit = createAuthedFormRoute<
     }),
 });
 
-/** Insert an option and place it in its attribute's order, atomically. */
-const addOptionRow = insertScopedOrderedRow(
-  attributeOptionsTable,
-  attributeOptionsOrder,
-);
-
 const handleAddOption = createAuthedFormRoute<
   { text: string },
   AttributeParams
@@ -198,14 +233,8 @@ const handleAddOption = createAuthedFormRoute<
   onValid: ({ params, values: { text } }) =>
     orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
       // One transaction: an option must never exist without its place in the
-      // order or its log line. The inserted sortOrder is a placeholder the
-      // append overwrites before anything can read it.
-      await addOptionRow(
-        params.id,
-        { attributeId: params.id, sortOrder: 0, text },
-        (transaction) =>
-          logAttributeOptionActivity(text, "added to", attribute, transaction),
-      );
+      // order or its log line.
+      await addAttributeOptionWithLog(attribute, text);
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
     }),
 });
@@ -213,7 +242,7 @@ const handleAddOption = createAuthedFormRoute<
 const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
   identifier: (attribute) => attributeNameFlat(attribute.name),
   identifierLabel: "Attribute name",
-  load: (id) => getAttributeWithOptions(id),
+  load: getAttributeWithOptions,
   onConfirm: confirmDeleteWithLog(
     deleteAttribute,
     "Attribute",
@@ -287,8 +316,7 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   loadContext: loadAttributeOption,
   mismatchRedirect: (_context, params) => optionDeletePath(params),
   onConfirm: async ({ context: { attribute, option } }) => {
-    await deleteAttributeOption(option.id);
-    await logAttributeOptionActivity(option.text, "deleted from", attribute);
+    await deleteAttributeOptionWithLog(attribute, option);
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Option deleted",
@@ -310,8 +338,7 @@ const handleEditOptionPost = createAuthedFormRoute<
   onInvalid: ({ error, params }) =>
     errorRedirect(editOptionPath(params), error),
   onValid: async ({ context: { attribute, option }, values: { text } }) => {
-    await attributeOptionsTable.update(option.id, { text });
-    await logAttributeOptionActivity(text, "updated in", attribute);
+    await renameAttributeOptionWithLog(attribute, option, text);
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Option updated",
