@@ -5,9 +5,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { groups } from "#db/groups.ts";
+import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { apiRequest } from "#test-utils/session.ts";
+import {
+  apiRequest,
+  createTestAgentSession,
+  createTestEditorSession,
+  requestAsSession,
+} from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("POST /api/admin/groups", () => {
@@ -26,6 +33,54 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.slug_index).toBeUndefined();
         },
       );
+    });
+
+    // Role parity with the group pages: the new-group page admits content
+    // admins (owner, manager, editor — areas-a-l.ts "groups"), so an editor
+    // creates through the API too, and a role below content is refused.
+    test("admits an editor cookie session", async () => {
+      const editor = await createTestEditorSession();
+      await assertJson(
+        handleRequest(
+          requestAsSession(
+            "/api/admin/groups",
+            {
+              cookie: editor.cookie,
+              csrfToken: await signCsrfToken(),
+            },
+            {
+              body: JSON.stringify({ name: "Editor Made Group" }),
+              headers: { "content-type": "application/json" },
+              method: "POST",
+            },
+          ),
+        ),
+        201,
+        (body) => {
+          expect(body.group.name).toBe("Editor Made Group");
+        },
+      );
+    });
+
+    test("refuses an agent with 403 and creates nothing", async () => {
+      const agent = await createTestAgentSession();
+      const response = await handleRequest(
+        requestAsSession(
+          "/api/admin/groups",
+          {
+            cookie: agent.cookie,
+            csrfToken: await signCsrfToken(),
+          },
+          {
+            body: JSON.stringify({ name: "Agent Made Group" }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          },
+        ),
+      );
+      expect(response.status).toBe(403);
+      const all = await groups.cache.getAll();
+      expect(all.find((g) => g.name === "Agent Made Group")).toBeUndefined();
     });
 
     test("returns 400 when the name is longer than 250 characters", async () => {

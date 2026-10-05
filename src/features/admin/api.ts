@@ -25,6 +25,7 @@ import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
+import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
@@ -177,6 +178,11 @@ const listingApiRoutes = defineCrudApi<
   // The add-on reachability half of the save refuses inside the row write's
   // transaction, so two concurrent page-removing saves cannot both commit.
   checkTx: listingSaveOrphanedAddOnTx,
+  // Role parity with the listing pages: create/edit/duplicate admit content
+  // admins (owner, manager, editor — areas-a-l.ts "listings"), while the
+  // delete, deactivate, and reactivate routes are staff-only, so an editor
+  // writes through the API exactly as far as the dashboard allows.
+  deletePolicy: ADMIN_API,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "GET /api/admin/listings/:listingId/attendees": handleListingAttendees,
@@ -191,6 +197,7 @@ const listingApiRoutes = defineCrudApi<
   lookupAfterWrite: getListingWithCountPrimary,
   name: "listings",
   nameField: "name",
+  policy: CONTENT_API,
   sideEffect: {
     persist: persistListingJoins,
     validate: prepareListingJoins,

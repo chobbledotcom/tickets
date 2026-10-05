@@ -4,6 +4,7 @@ import { resultRows } from "#db/client.ts";
 import type { Table } from "#db/table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { isNotNullish } from "#fp";
+import { ADMIN_API } from "#routes/auth.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import type { CrudApiConfig } from "#shared/rest/crud-api-types.ts";
 import { okResult } from "#shared/result.ts";
@@ -30,6 +31,7 @@ const makeRoutes = <State = never>(
     getAll: () => table.read.many(),
     name: "widgets",
     nameField: "name",
+    policy: ADMIN_API,
     singular: "Widget",
     table,
     toCreateInput: (body) => okResult({ name: String(body.name) }),

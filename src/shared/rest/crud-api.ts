@@ -10,7 +10,7 @@ import { logActivity } from "#db/activity-log.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, withAuth } from "#routes/auth.ts";
+import { type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -55,8 +55,16 @@ export const defineCrudApi = <
 >(
   config: CrudApiConfig<Row, Input, FullRow, Prepared, State>,
 ): Record<string, RouteHandlerFn> => {
-  const { name, singular, table, getAll, nameField, stripKeys = [] } = config;
-  const policy = config.policy === undefined ? ADMIN_API : config.policy;
+  const {
+    name,
+    singular,
+    table,
+    getAll,
+    nameField,
+    stripKeys = [],
+    policy,
+    deletePolicy = policy,
+  } = config;
   const responseKey = singular.toLowerCase();
   const listKey = name;
   const lookup: (id: number) => Promise<FullRow | null> =
@@ -239,6 +247,7 @@ export const defineCrudApi = <
       body: Record<string, unknown>,
       id: number,
     ) => Promise<Response>,
+    routePolicy: AuthPolicy<"json"> = policy,
   ): RouteHandlerFn => {
     const getId = (
       params: Record<string, string | number | undefined>,
@@ -250,7 +259,7 @@ export const defineCrudApi = <
         getId(params),
         singular,
         (row, s, b) => handler(row, s, b, getId(params)),
-        policy,
+        routePolicy,
       );
   };
 
@@ -294,7 +303,7 @@ export const defineCrudApi = <
     }
     await logActivity(`${singular} '${existing.name}' deleted`);
     return jsonResponse({ status: "ok" });
-  });
+  }, deletePolicy);
 
   const extraRoutes = config.extraRoutes;
   return {

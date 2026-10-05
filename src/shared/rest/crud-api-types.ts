@@ -97,6 +97,10 @@ export interface CrudApiConfig<
   /** A guard run inside the row write's transaction, before the row statement;
    * a returned message refuses the write (400) and rolls it back. */
   checkTx?: CheckTxHook<Input>;
+  /** Auth policy for the delete route alone, when the entity page's delete is
+   *  more restricted than its edit (e.g. groups: editors edit, only staff
+   *  delete). Defaults to `policy`. */
+  deletePolicy?: AuthPolicy<"json">;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Every row, from cache. May carry more than the table, such as counts. */
@@ -126,9 +130,12 @@ export interface CrudApiConfig<
   nameField: keyof FullRow & string;
   /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
   onDelete?: (id: InValue) => Promise<void>;
-  /** Auth policy for all generated routes. Defaults to ADMIN_API (any admin);
-   *  pass OWNER_API for resources whose web management is owner-only. */
-  policy?: AuthPolicy<"json">;
+  /** Auth policy for the read, create, and update routes. Declared per
+   *  resource so the JSON side can never fall back to a different audience
+   *  than the entity pages declare: CONTENT_API where the pages admit
+   *  editors, OWNER_API where they are owner-only, ADMIN_API where they are
+   *  staff-only. */
+  policy: AuthPolicy<"json">;
   /** Read only the pre-update fields needed by transactional hooks. */
   readState?: TransactionStateReader<State> | undefined;
   /** An atomic body-only side effect run around the row write. `Prepared` is

@@ -335,6 +335,27 @@ export const OWNER_API: AuthPolicy<"json"> = {
   role: "owner",
 };
 /**
+ * Content-admin JSON API: the same audience the groups and listings pages
+ * declare, so an editor can do through the API what the dashboard allows,
+ * and the reverse.
+ */
+export const CONTENT_API: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  roles: CONTENT_ADMIN_LEVELS,
+};
+/**
+ * The /api/admin mount gate: proves the caller holds a real admin session or
+ * API key, and nothing more. Each admin API route declares its own audience
+ * (OWNER_API, CONTENT_API, or ADMIN_API's staff default), so a mount-level
+ * role veto can never refuse what a route's declared policy admits.
+ */
+export const ADMIN_API_MOUNT: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  roles: ALL_ADMIN_LEVELS,
+};
+/**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
  * the session lifetime, so a logged-in admin can keep the scanner page open for
  * a whole listing without check-ins failing on CSRF expiry. Door roles only —
@@ -703,12 +724,13 @@ const authenticateFor = async <T extends BodyMode>(
       );
 };
 
-/** Authenticate an admin API request before importing its resource handlers. */
+/** Authenticate an admin API request before importing its resource handlers.
+ *  Role decisions belong to each route's own policy (see ADMIN_API_MOUNT). */
 export const requireAdminApiOr = async (
   request: Request,
   handler: (session: AuthSession) => Response | null | Promise<Response | null>,
 ): Promise<Response | null> => {
-  const auth = await authenticateFor(request, ADMIN_API);
+  const auth = await authenticateFor(request, ADMIN_API_MOUNT);
   return isResponse(auth) ? auth : handler(auth.session);
 };
 

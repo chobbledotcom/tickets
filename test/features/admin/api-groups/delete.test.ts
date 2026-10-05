@@ -6,11 +6,19 @@ import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { apiRequest } from "#test-utils/session.ts";
+import {
+  apiRequest,
+  createTestAgentSession,
+  createTestEditorSession,
+  createTestManagerSession,
+  requestAsSession,
+} from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("DELETE /api/admin/groups/:groupId", () => {
@@ -73,6 +81,77 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.error).toBe("Group not found");
         },
       );
+    });
+  });
+
+  // Role parity with the delete page: the dashboard's groupDelete route is
+  // staff-only (areas-a-l.ts), so an editor — who edits groups there — must
+  // still be refused here, and the staff roles must not lose the delete.
+  describe("delete role parity", () => {
+    const deleteAs = async (
+      cookie: string,
+      csrfToken: string,
+      groupId: number,
+      name: string,
+    ): Promise<Response> =>
+      handleRequest(
+        requestAsSession(
+          `/api/admin/groups/${groupId}`,
+          { cookie, csrfToken },
+          {
+            body: JSON.stringify({ confirm_identifier: name }),
+            headers: { "content-type": "application/json" },
+            method: "DELETE",
+          },
+        ),
+      );
+
+    test("refuses an editor with 403 and keeps the group", async () => {
+      const group = await createTestGroup({ name: "Editor Proof" });
+      const editor = await createTestEditorSession();
+
+      const response = await deleteAs(
+        editor.cookie,
+        await signCsrfToken(),
+        group.id,
+        "Editor Proof",
+      );
+      expect(response.status).toBe(403);
+
+      const all = await groups.cache.getAll();
+      expect(all.find((g) => g.id === group.id)).toBeDefined();
+    });
+
+    test("refuses an agent with 403 and keeps the group", async () => {
+      // Agents sit below the content-admin level the group pages declare.
+      const group = await createTestGroup({ name: "Agent Proof" });
+      const agent = await createTestAgentSession();
+
+      const response = await deleteAs(
+        agent.cookie,
+        await signCsrfToken(),
+        group.id,
+        "Agent Proof",
+      );
+      expect(response.status).toBe(403);
+
+      const all = await groups.cache.getAll();
+      expect(all.find((g) => g.id === group.id)).toBeDefined();
+    });
+
+    test("admits a manager cookie session", async () => {
+      const group = await createTestGroup({ name: "Manager Proof" });
+
+      const response = await deleteAs(
+        await createTestManagerSession(),
+        await signCsrfToken(),
+        group.id,
+        "Manager Proof",
+      );
+      expect(response.status).toBe(200);
+
+      const all = await groups.cache.getAll();
+      expect(all.find((g) => g.id === group.id)).toBeUndefined();
     });
   });
 });
