@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { requireAdminApiOr } from "#routes/admin/api.ts";
+import { requireAdminApiOr } from "#routes/admin/api-mount.ts";
 import {
   type AuthPolicy,
   type AuthSession,

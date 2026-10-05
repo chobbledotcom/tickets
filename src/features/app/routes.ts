@@ -349,16 +349,16 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
 
 const apiPrefixHandler: RouterFn = async (request, path, method) => {
   if (path.startsWith("/api/admin/")) {
-    // Dynamic import: the gate must authenticate before the admin resource
-    // handlers load. That keeps the handler modules out of cold-start module
-    // evaluation. The import runs inside the API's message groups because the
-    // handler modules translate form schemas while they evaluate.
-    return await withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () => {
-      const { requireAdminApiOr } = await import("#routes/admin/api.ts");
-      return await requireAdminApiOr(request, async () =>
+    // Dynamic import: the gate module stays free of resource imports, so an
+    // unauthenticated request is refused before any resource copy loads. The
+    // resource modules translate form schemas while they evaluate, so they
+    // load inside the API's message groups, after the gate has passed.
+    const { requireAdminApiOr } = await import("#routes/admin/api-mount.ts");
+    return await requireAdminApiOr(request, () =>
+      withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
         (await loadAdminApiRoutes())(request, path, method),
-      );
-    });
+      ),
+    );
   }
   return settings.showPublicApi
     ? withMessageGroups(PUBLIC_API_MESSAGE_GROUPS, async () =>

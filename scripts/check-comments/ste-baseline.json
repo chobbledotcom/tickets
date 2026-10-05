@@ -25,7 +25,7 @@
   },
   "src/features/admin/api.ts": {
     "semicolon": 1,
-    "long-sentence": 2
+    "long-sentence": 1
   },
   "src/features/admin/attendee-delete.ts": {
     "semicolon": 1
