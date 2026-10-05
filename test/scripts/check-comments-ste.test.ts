@@ -265,6 +265,29 @@ describe("comment language rules", () => {
     expect(issues[0]!.rule).toBe("long-sentence");
   });
 
+  test("an inline link's target is not prose and its label stays", () => {
+    expect(() =>
+      rulesOf("// Delegates to {@link should} when the asset is ready."),
+    ).toThrow();
+    findsOne("// The {@link guide should} page loads.", "banned-modal", 1);
+  });
+
+  test("a decorator line stays inside an unfenced example", () => {
+    expect(
+      findCommentSteIssues(
+        "/**\n * @example\n * @sealed\n * class Example { should = true; }\n */",
+      ),
+    ).toHaveLength(0);
+  });
+
+  test("a known tag still ends an unfenced example", () => {
+    findsOne(
+      "/**\n * @example\n * const value = 1;\n * @returns the resource\n */\n// The form should save.",
+      "banned-modal",
+      6,
+    );
+  });
+
   test("a tag inside a fence leaves no example state behind", () => {
     findsOne(
       "// ```ts\n// @example\n// ```\n// The form should save.",

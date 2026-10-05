@@ -30,21 +30,23 @@ describe("readComments", () => {
   test("finds a line comment and a block comment", () => {
     const found = readComments("// one\nconst a = 1;\n/* two */\n");
     expect(found).toEqual([
-      { column: 0, line: 1, text: "// one" },
-      { column: 0, line: 3, text: "/* two */" },
+      { column: 0, end: 6, line: 1, start: 0, text: "// one" },
+      { column: 0, end: 29, line: 3, start: 20, text: "/* two */" },
     ]);
   });
 
   test("reports the line a comment opens on, not the file start", () => {
     const found = readComments("const a = 1;\n\n\n// here\n");
-    expect(found).toEqual([{ column: 0, line: 4, text: "// here" }]);
+    expect(found).toEqual([
+      { column: 0, end: 22, line: 4, start: 15, text: "// here" },
+    ]);
   });
 
   test("counts a newline the file opens with", () => {
     // The scan starts at the very first character, so a file beginning with a
     // blank line still puts its first comment on line 2.
     expect(readComments("\n// here\n")).toEqual([
-      { column: 0, line: 2, text: "// here" },
+      { column: 0, end: 8, line: 2, start: 1, text: "// here" },
     ]);
   });
 
@@ -66,7 +68,7 @@ describe("readComments", () => {
       "// kept",
     ].join("\n");
     expect(readComments(source)).toEqual([
-      { column: 0, line: 6, text: "// kept" },
+      { column: 0, end: 146, line: 6, start: 139, text: "// kept" },
     ]);
   });
 
@@ -78,7 +80,13 @@ describe("readComments", () => {
   // The directive family retired with deno lint, so its comments are prose.
   test("keeps a deno-lint-ignore comment as prose", () => {
     expect(readComments("// deno-lint-ignore no-explicit-any\n")).toEqual([
-      { column: 0, line: 1, text: "// deno-lint-ignore no-explicit-any" },
+      {
+        column: 0,
+        end: 35,
+        line: 1,
+        start: 0,
+        text: "// deno-lint-ignore no-explicit-any",
+      },
     ]);
   });
 });

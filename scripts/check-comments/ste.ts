@@ -35,10 +35,12 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})/;
  * shares its line with. */
 const CLOSER = /\*\/\s*$/;
 
-/** The JSDoc tag whose body is code, and any JSDoc tag, which ends that
- * body and names its own description. */
+/** The JSDoc tag whose body is code, and the JSDoc block tags that end that
+ * body. A decorator such as `@sealed` is not a JSDoc tag, so it stays inside
+ * the sample. */
 const EXAMPLE_TAG = /^@example\b/;
-const ANY_TAG = /^@[A-Za-z]+/;
+const KNOWN_TAG =
+  /^@(?:abstract|access|alias|arg|argument|async|augments|author|borrows|callback|class|classdesc|constant|constructs|copyright|default(?:value)?|deprecated|description|enum|event|example|exports|external|file|fires|function|generator|global|hideconstructor|ignore|implements|inheritdoc|inner|instance|interface|internal|kind|lends|license|listens|member(?:of)?|mixes|mixin|module|name|namespace|override|package|param|private|property|protected|public|readonly|requires|returns?|satisfies|see|since|static|summary|template|this|throws|todo|tutorial|type|typedef|variation|version|yields?)\b/;
 
 /** One row of the virtual Markdown document: its prose, and the source line
  * its findings name. */
@@ -61,7 +63,7 @@ interface ProseState {
 const exampleOf = (prose: string, state: ProseState): boolean =>
   state.fenceMarker !== ""
     ? state.inExample
-    : EXAMPLE_TAG.test(prose) || (state.inExample && !ANY_TAG.test(prose));
+    : EXAMPLE_TAG.test(prose) || (state.inExample && !KNOWN_TAG.test(prose));
 
 /** The fence state one prose line leaves: a marker opens the fence, and a
  * closer must repeat the opener's character at least its length. Text after
@@ -81,6 +83,17 @@ const fenceOf = (prose: string, state: ProseState): string => {
 /** JSDoc tags whose argument is machine-owned: the name after the tag is
  * code's, not prose. */
 const TAG_WITH_ARGUMENT = /^@(?:param|arg|argument|property|template)\b/;
+
+/** An inline JSDoc tag: its target is code's, not prose. A human-readable
+ * label after the target stays. A tag without one leaves "%", so the period
+ * before it still ends its sentence and its identifier adds no word. */
+const INLINE_TAG = /\{\s*@link(?:code|plain)?\s+([^{}]*)}/g;
+
+const blankInlineTags = (prose: string): string =>
+  prose.replace(
+    INLINE_TAG,
+    (_, body: string) => body.replace(/^\S+\s*/, "") || "%",
+  );
 
 /** The prose one comment line contributes: none inside an example or a
  * fence, and none for a fence marker, with the JSDoc tag, its type, and its
@@ -120,8 +133,8 @@ const markdownOf = (
       rows.push({ line: comment.line, text: "" });
     }
     comment.text.split("\n").forEach((raw, index) => {
-      const prose = blankDirective(
-        raw.replace(CLOSER, "").replace(gutter, ""),
+      const prose = blankInlineTags(
+        blankDirective(raw.replace(CLOSER, "").replace(gutter, "")),
       ).trimEnd();
       const state = { fenceMarker, inExample };
       inExample = exampleOf(prose, state);

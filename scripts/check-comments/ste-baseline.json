@@ -247,7 +247,7 @@
     "contraction": 1
   },
   "src/features/admin/groups.ts": {
-    "long-sentence": 11,
+    "long-sentence": 10,
     "banned-modal": 2,
     "contraction": 3,
     "semicolon": 4,
@@ -313,7 +313,7 @@
     "long-sentence": 1
   },
   "src/features/admin/listings-form.ts": {
-    "long-sentence": 6,
+    "long-sentence": 5,
     "semicolon": 5,
     "contraction": 8,
     "wordy": 2,
@@ -554,7 +554,7 @@
     "wordy": 1
   },
   "src/features/api/folded-booking.ts": {
-    "long-sentence": 17,
+    "long-sentence": 16,
     "semicolon": 7,
     "contraction": 5,
     "banned-modal": 4
@@ -792,7 +792,7 @@
   },
   "src/features/public/discovery.ts": {
     "banned-modal": 4,
-    "long-sentence": 9,
+    "long-sentence": 8,
     "semicolon": 1,
     "participle": 1,
     "wordy": 1
@@ -846,7 +846,7 @@
   },
   "src/features/public/site-nav.ts": {
     "banned-modal": 2,
-    "long-sentence": 4,
+    "long-sentence": 3,
     "semicolon": 1,
     "contraction": 1
   },
@@ -993,7 +993,7 @@
     "long-sentence": 4
   },
   "src/shared/accounting/mappers.ts": {
-    "long-sentence": 11,
+    "long-sentence": 10,
     "banned-modal": 8,
     "semicolon": 5,
     "wordy": 2
@@ -1033,7 +1033,7 @@
     "banned-modal": 1
   },
   "src/shared/accounting/store.ts": {
-    "long-sentence": 10,
+    "long-sentence": 8,
     "semicolon": 3,
     "banned-modal": 2,
     "wordy": 1
@@ -1141,7 +1141,7 @@
     "banned-modal": 1
   },
   "src/shared/booking/build-tree.ts": {
-    "long-sentence": 12,
+    "long-sentence": 11,
     "banned-modal": 1,
     "semicolon": 7
   },
@@ -1153,7 +1153,7 @@
     "semicolon": 1
   },
   "src/shared/booking/fold-tree.ts": {
-    "long-sentence": 14,
+    "long-sentence": 12,
     "contraction": 1,
     "semicolon": 3
   },
@@ -1193,7 +1193,7 @@
   },
   "src/shared/booking/price-tree.ts": {
     "semicolon": 7,
-    "long-sentence": 13,
+    "long-sentence": 11,
     "contraction": 1
   },
   "src/shared/booking/signed-metadata.ts": {
@@ -1265,7 +1265,7 @@
     "semicolon": 4
   },
   "src/shared/catalog-transfer-example.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "banned-modal": 2
   },
   "src/shared/checkout-complete.ts": {
@@ -1498,7 +1498,7 @@
   },
   "src/shared/db/attendees/servicing.ts": {
     "banned-modal": 8,
-    "long-sentence": 29,
+    "long-sentence": 28,
     "semicolon": 8,
     "contraction": 7,
     "participle": 2
@@ -1570,7 +1570,7 @@
   },
   "src/shared/db/client.ts": {
     "semicolon": 11,
-    "long-sentence": 17,
+    "long-sentence": 14,
     "contraction": 2,
     "banned-modal": 10,
     "wordy": 2
@@ -1598,7 +1598,7 @@
     "semicolon": 1
   },
   "src/shared/db/groups.ts": {
-    "long-sentence": 27,
+    "long-sentence": 25,
     "banned-modal": 9,
     "wordy": 2,
     "semicolon": 12,
@@ -1714,8 +1714,8 @@
     "banned-modal": 1
   },
   "src/shared/db/migrations/define.ts": {
-    "long-sentence": 3,
     "semicolon": 3,
+    "long-sentence": 2,
     "contraction": 2
   },
   "src/shared/db/migrations/lock.ts": {
@@ -1822,7 +1822,7 @@
     "wordy": 1
   },
   "src/shared/db/modifier-usage.ts": {
-    "long-sentence": 5
+    "long-sentence": 4
   },
   "src/shared/db/modifiers.ts": {
     "long-sentence": 7,
@@ -2103,7 +2103,7 @@
   "src/shared/db/table.ts": {
     "wordy": 10,
     "banned-modal": 6,
-    "long-sentence": 11,
+    "long-sentence": 10,
     "semicolon": 3,
     "contraction": 1
   },
@@ -2318,8 +2318,8 @@
     "banned-modal": 2
   },
   "src/shared/limits.ts": {
-    "long-sentence": 15,
     "wordy": 1,
+    "long-sentence": 14,
     "semicolon": 3,
     "banned-modal": 10
   },
@@ -2356,7 +2356,7 @@
   },
   "src/shared/listings-actions.ts": {
     "banned-modal": 12,
-    "long-sentence": 11,
+    "long-sentence": 10,
     "contraction": 8,
     "wordy": 3
   },
@@ -2504,7 +2504,7 @@
     "semicolon": 1
   },
   "src/shared/payment/money.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "semicolon": 1
   },
   "src/shared/payment/placeholder-refund.ts": {
@@ -2594,7 +2594,7 @@
     "semicolon": 1
   },
   "src/shared/payment/sumup-recovery-machine-spec.ts": {
-    "long-sentence": 13,
+    "long-sentence": 12,
     "banned-modal": 6,
     "semicolon": 2,
     "wordy": 1
@@ -2830,7 +2830,6 @@
     "contraction": 6
   },
   "src/shared/site-pages/load.ts": {
-    "long-sentence": 1,
     "participle": 1
   },
   "src/shared/site-pages/target.ts": {
@@ -2860,8 +2859,7 @@
     "semicolon": 2
   },
   "src/shared/slug.ts": {
-    "participle": 1,
-    "long-sentence": 1
+    "participle": 1
   },
   "src/shared/sms/e2e.ts": {
     "long-sentence": 1,
@@ -3351,7 +3349,7 @@
     "contraction": 1
   },
   "src/ui/templates/admin/debug.tsx": {
-    "long-sentence": 3,
+    "long-sentence": 2,
     "semicolon": 1
   },
   "src/ui/templates/admin/deliveries.tsx": {
@@ -3565,7 +3563,7 @@
     "wordy": 3,
     "semicolon": 1,
     "banned-modal": 2,
-    "long-sentence": 3
+    "long-sentence": 2
   },
   "src/ui/templates/components/address-field.tsx": {
     "semicolon": 1
@@ -3648,7 +3646,6 @@
     "long-sentence": 1
   },
   "src/ui/templates/components/prose-heading.tsx": {
-    "long-sentence": 1,
     "contraction": 1
   },
   "src/ui/templates/components/prose-section.tsx": {
@@ -3768,7 +3765,7 @@
     "banned-modal": 5
   },
   "src/ui/templates/public/homepage.tsx": {
-    "long-sentence": 11,
+    "long-sentence": 10,
     "banned-modal": 2,
     "semicolon": 6,
     "contraction": 5
