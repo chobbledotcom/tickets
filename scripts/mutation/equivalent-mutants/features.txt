@@ -180,7 +180,6 @@ src/features/public/order.ts::loadOrderPools.spanOf~13yakgc  1 → 0   # with no
 src/features/public/order.ts::loadOrderPools~15mruqs  1 → 0   # every listing's span is at least 1, so the floor never wins; with no listings at all the reading has no days either way
 src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated"   # the same key always carries its id, so the id half is never missing
-src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # buildTicketListing sets maxPurchasable to 0 for a sold-out or closed listing and to at least 1 otherwise (max_quantity is at least 1), so the two thresholds never disagree once the checks beside them have passed
 
 # Listing form (listings-form.ts) — a redundant day-price row the parser drops,
 # a default the field's own bounds make unreachable, error text no surface can
