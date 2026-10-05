@@ -170,6 +170,51 @@ describe("product catalog parse", () => {
     ).toThrow("a.md: option '1 Day' books 91 days, above the maximum of 90");
   });
 
+  test("rejects an option without a name", () => {
+    // A supplied option with a blank name would silently drop a rental
+    // period and its price from the listing.
+    expect(() =>
+      parseProductFile(
+        "a.md",
+        "---\ntitle: Batak Lite\noptions:\n  - name: 1 Day\n    unit_price: 100\n  - unit_price: 200\n---\n",
+      ),
+    ).toThrow("a.md: an option needs a name");
+  });
+
+  test("rejects list fields that are not lists", () => {
+    // A supplied container that is no list (a scalar, or a mapping) must
+    // stop the import: reading it as no entries would import the product
+    // without the field and stamp the file.
+    for (const [field, malformed] of [
+      ["categories", "categories/fun-days.md"],
+      ["features", "Public liability insurance included"],
+      ["specs", "3"],
+      ["filter_attributes", "hello"],
+    ] as const) {
+      expect(() =>
+        parseProductFile(
+          "a.md",
+          `---\ntitle: Batak Lite\n${field}: ${malformed}\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n`,
+        ),
+      ).toThrow(`a.md: ${field} is not a list`);
+    }
+    expect(() =>
+      parseProductFile(
+        "a.md",
+        "---\ntitle: Batak Lite\noptions:\n  name: 1 Day\n  unit_price: 100\n---\n",
+      ),
+    ).toThrow("a.md: options is not a list");
+  });
+
+  test("rejects list entries that are not text", () => {
+    expect(() =>
+      parseProductFile(
+        "a.md",
+        "---\ntitle: Batak Lite\nfeatures:\n  - path: fun-days\noptions:\n  - name: 1 Day\n    unit_price: 100\n---\n",
+      ),
+    ).toThrow("a.md: features holds an entry that is not text");
+  });
+
   test("rejects a negative option price", () => {
     expect(() =>
       parseProductFile(
@@ -270,19 +315,19 @@ describe("product catalog parse", () => {
     ]);
   });
 
-  test("reads nothing for scalar list fields and drops blank entries", () => {
+  test("drops blank text entries and reads no entries from an empty field", () => {
     const product = parseProductFile(
       "a.md",
       [
         "---",
         "title: Batak Lite",
         "subtitle: 5",
-        "categories: categories/fun-days.md",
         "features:",
         '  - ""',
         "  - Public liability insurance included",
-        "specs: 3",
-        "filter_attributes: hello",
+        "categories:",
+        "filter_attributes:",
+        "specs:",
         "options:",
         "  - name: 1 Day",
         "    unit_price: 100",

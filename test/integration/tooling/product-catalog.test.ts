@@ -5,10 +5,14 @@ import {
   parseProductFile,
 } from "#cli/product-catalog/parse.ts";
 import {
+  attributeVocabulary,
+  categoryTitle,
   ensureConsistentAttributeSpellings,
   ensureUniqueTitles,
+  readCategoryEntries,
   readProducts,
 } from "#cli/product-catalog.ts";
+import { withTempDir } from "#test-utils/files.ts";
 
 const productFrontmatter = `---
 title: 8 Lane Reindeer Racing Hire
@@ -112,6 +116,84 @@ describe("product catalog", () => {
     expect(() =>
       ensureConsistentAttributeSpellings([first, second]),
     ).not.toThrow();
+  });
+
+  test("reads a category title, or the slug when the file has none", async () => {
+    await withTempDir(async (dir) => {
+      await Deno.writeTextFile(
+        `${dir}/christmas.md`,
+        "---\ntitle: Christmas Game Hire\n---\n",
+      );
+      await Deno.writeTextFile(`${dir}/untitled.md`, "no frontmatter");
+      expect(await categoryTitle(dir, "christmas")).toBe("Christmas Game Hire");
+      expect(await categoryTitle(dir, "untitled")).toBe("untitled");
+      // A file whose frontmatter holds no mapping (empty, or a scalar) has
+      // no title either.
+      await Deno.writeTextFile(`${dir}/bare.md`, "---\n---\n");
+      await Deno.writeTextFile(`${dir}/scalar.md`, "---\n5\n---\n");
+      expect(await categoryTitle(dir, "bare")).toBe("bare");
+      expect(await categoryTitle(dir, "scalar")).toBe("scalar");
+    });
+  });
+
+  test("stops when a category file is missing or cannot be read", async () => {
+    await withTempDir(async (dir) => {
+      // A stale or misspelled category path must not quietly create a
+      // wrongly named group.
+      await expect(categoryTitle(dir, "missing")).rejects.toThrow();
+      await Deno.writeTextFile(
+        `${dir}/broken.md`,
+        "---\ntitle: [unclosed\n---\n",
+      );
+      await expect(categoryTitle(dir, "broken")).rejects.toThrow(
+        `${dir}/broken.md: unparseable frontmatter:`,
+      );
+      // A slug that names a directory is a read error, not a missing file.
+      await Deno.mkdir(`${dir}/subdir.md`);
+      await expect(categoryTitle(dir, "subdir")).rejects.toThrow();
+    });
+  });
+
+  test("preflights every category name before any site change", async () => {
+    await withTempDir(async (dir) => {
+      await Deno.writeTextFile(
+        `${dir}/christmas-game-hire.md`,
+        "---\ntitle: Christmas Game Hire\n---\n",
+      );
+      await Deno.writeTextFile(
+        `${dir}/fun-days.md`,
+        "---\ntitle: Fun Days\n---\n",
+      );
+      expect(
+        await readCategoryEntries(dir, ["christmas-game-hire", "fun-days"]),
+      ).toEqual([
+        { name: "Christmas Game Hire", slug: "christmas-game-hire" },
+        { name: "Fun Days", slug: "fun-days" },
+      ]);
+      // The preflight runs before the first API call, so a stale category
+      // path cannot leave half the catalog imported.
+      await expect(readCategoryEntries(dir, ["missing"])).rejects.toThrow();
+    });
+  });
+
+  test("collects the attribute vocabulary in first-seen order", () => {
+    const first = parseProductFile("a.md", productFrontmatter)!;
+    const second = parseProductFile(
+      "b.md",
+      productFrontmatter.replace("50-500+ guests", "20-200 guests"),
+    )!;
+    const vocabulary = attributeVocabulary([first, second]);
+    expect(vocabulary).toEqual([
+      {
+        name: "Guest Capacity",
+        // First seen first; the second product's value follows.
+        values: ["50-500+ guests", "20-200 guests"],
+      },
+      {
+        name: "Power Required",
+        values: ["Mains power required", "TBC"],
+      },
+    ]);
   });
 
   test("reads every product file in site order", async () => {

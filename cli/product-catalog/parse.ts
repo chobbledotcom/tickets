@@ -43,8 +43,30 @@ const canonicalAttributeName = (name: string): string =>
 const asString = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
 
-const asStringList = (value: unknown): string[] =>
-  Array.isArray(value) ? value.map(asString).filter((item) => item !== "") : [];
+/** The text entries of one frontmatter list. A supplied container that is no
+ *  list, or an entry that is no text, is malformed external data and stops
+ *  the import naming the file and the field; a missing or empty container
+ *  holds no entries. */
+const asStringList = (
+  filename: string,
+  field: string,
+  value: unknown,
+): string[] => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`${filename}: ${field} is not a list`);
+  }
+  return value
+    .map((item) => {
+      if (typeof item !== "string") {
+        throw new Error(
+          `${filename}: ${field} holds an entry that is not text`,
+        );
+      }
+      return item.trim();
+    })
+    .filter((item) => item !== "");
+};
 
 /** The frontmatter block of a markdown file, or null when the file opens with
  *  no closing fence. Windows line endings read like Unix ones. */
@@ -137,15 +159,19 @@ const parseFrontmatter = (
   return parsed as Record<string, unknown>;
 };
 
-/** The entries of one frontmatter list. A supplied entry that holds no fields
- * (null, a scalar, an array) is malformed external data and stops the import
- * naming the file and the field; it must not read as an absent entry. */
+/** The entries of one frontmatter list. A supplied container that is no list,
+ *  or an entry that holds no fields (null, a scalar, an array), is malformed
+ *  external data and stops the import naming the file and the field; it must
+ *  not read as an absent entry. */
 const recordEntries = (
   filename: string,
   field: string,
   raw: unknown,
 ): Record<string, unknown>[] => {
-  if (!Array.isArray(raw)) return [];
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error(`${filename}: ${field} is not a list`);
+  }
   for (const entry of raw) {
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
       throw new Error(
@@ -156,17 +182,24 @@ const recordEntries = (
   return raw as Record<string, unknown>[];
 };
 
-/** A product's rental options, validated: a price is required, two options
- * that book one day count would silently replace each other's price in the
- * day-price map, and an option-less product would write nonsense into the
- * listing body. Each failure names the file. */
+/** A product's rental options, validated: every supplied option carries a
+ *  name, a price is required, two options that book one day count would
+ *  silently replace each other's price in the day-price map, and an
+ *  option-less product would write nonsense into the listing body. Each
+ *  failure names the file. */
 const parseOptions = (
   filename: string,
   raw: unknown,
 ): CatalogProduct["options"] => {
-  const named = recordEntries(filename, "options", raw)
-    .map((option) => ({ name: asString(option.name), option }))
-    .filter((entry) => entry.name !== "");
+  const named = recordEntries(filename, "options", raw).map((option) => {
+    const name = asString(option.name);
+    // A supplied option without a name would silently drop a rental period
+    // and its price from the listing.
+    if (name === "") {
+      throw new Error(`${filename}: an option needs a name`);
+    }
+    return { name, option };
+  });
   if (named.length === 0) {
     throw new Error(`${filename}: a product needs at least one rental option`);
   }
@@ -210,13 +243,14 @@ export const parseProductFile = (
   const title = asString(front.title);
   if (title === "") return null;
   return {
-    categories: asStringList(front.categories).map((path) =>
-      path
-        .replace(/^src\//, "")
-        .replace(/\.md$/, "")
-        .replace(/^categories\//, ""),
+    categories: asStringList(filename, "categories", front.categories).map(
+      (path) =>
+        path
+          .replace(/^src\//, "")
+          .replace(/\.md$/, "")
+          .replace(/^categories\//, ""),
     ),
-    features: asStringList(front.features),
+    features: asStringList(filename, "features", front.features),
     filename: filename.replace(/\.md$/, ""),
     filterAttributes: recordEntries(
       filename,

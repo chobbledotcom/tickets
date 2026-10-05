@@ -2,11 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseProductFile } from "#cli/product-catalog/parse.ts";
 import {
-  attributeVocabulary,
-  categoryTitle,
-  readCategoryEntries,
-} from "#cli/product-catalog.ts";
-import {
   composeDescription,
   conflictLine,
   ensureNamespaceFree,
@@ -15,12 +10,12 @@ import {
   minorUnits,
   parseImportFlags,
   planLine,
+  refuseChangedFile,
   resolveImportPlan,
   resolveOptionIds,
   storedTicketsId,
   withTicketsMeta,
 } from "#cli/product-plan.ts";
-import { withTempDir } from "#test-utils/files.ts";
 
 describe("product catalog import", () => {
   const productFrontmatter = `---
@@ -93,10 +88,7 @@ Body text that the importer never reads.
       parseProductFile("batak.md", "---\ntitle: Batak Lite\n---\n"),
     ).toThrow("batak.md: a product needs at least one rental option");
     expect(() =>
-      parseProductFile(
-        "batak.md",
-        "---\ntitle: Batak Lite\noptions:\n  - max_quantity: 5\n---\n",
-      ),
+      parseProductFile("batak.md", "---\ntitle: Batak Lite\noptions:\n---\n"),
     ).toThrow("batak.md: a product needs at least one rental option");
   });
 
@@ -150,24 +142,85 @@ Body text that the importer never reads.
   });
 
   test("decides one action per product file", () => {
-    expect(resolveImportPlan(42, [], false)).toEqual({
-      action: "skip-imported",
-    });
-    expect(resolveImportPlan(null, [], false)).toEqual({
+    const listings = [
+      { id: 42, name: "Batak Lite" },
+      { id: 7, name: "Old Batak" },
+      { id: 9, name: "Giant Jenga Hire" },
+    ];
+    expect(
+      resolveImportPlan(
+        { filename: "a.md", id: 42, title: "Batak Lite" },
+        [],
+        false,
+        listings,
+      ),
+    ).toEqual({ action: "skip-imported" });
+    // The site folds case and trims names, so a differently spelled listing
+    // name still proves the stamp.
+    expect(
+      resolveImportPlan(
+        { filename: "a.md", id: 42, title: "Batak Lite" },
+        [],
+        false,
+        [{ id: 42, name: "  batak lite " }],
+      ),
+    ).toEqual({ action: "skip-imported" });
+    expect(resolveImportPlan(null, [], false, listings)).toEqual({
       action: "create",
     });
-    expect(resolveImportPlan(null, [7], false)).toEqual({
+    expect(resolveImportPlan(null, [7], false, listings)).toEqual({
       action: "skip-conflict",
       listingId: 7,
     });
-    expect(resolveImportPlan(null, [7], true)).toEqual({
+    expect(resolveImportPlan(null, [7], true, listings)).toEqual({
       action: "update",
       listingId: 7,
     });
-    expect(resolveImportPlan(null, [7, 9], false)).toEqual({
+    expect(resolveImportPlan(null, [7, 9], false, listings)).toEqual({
       action: "skip-ambiguous",
       listingIds: [7, 9],
     });
+  });
+
+  test("refuses a stamp that names no live listing", () => {
+    // The site may have deleted the listing, or the import may point at
+    // another site: a skipped file would keep the invalid reference forever.
+    expect(() =>
+      resolveImportPlan(
+        { filename: "a.md", id: 43, title: "Batak Lite" },
+        [],
+        false,
+        [{ id: 42, name: "Batak Lite" }],
+      ),
+    ).toThrow(
+      "a.md: tickets_id 43 names no listing on the site; restore the listing or delete the stamp from the file",
+    );
+  });
+
+  test("refuses a stamp that names another product's listing", () => {
+    expect(() =>
+      resolveImportPlan(
+        { filename: "a.md", id: 42, title: "Batak Lite" },
+        [],
+        false,
+        [{ id: 42, name: "Giant Jenga Hire" }],
+      ),
+    ).toThrow(
+      "a.md: tickets_id 42 names listing 'Giant Jenga Hire', not 'Batak Lite'; delete the stamp from the file or rename one and rerun",
+    );
+  });
+
+  test("refuses to stamp a file that changed since the read", () => {
+    // The stamp is written from the snapshot every decision read: the write
+    // would discard the editor's newer content.
+    expect(() =>
+      refuseChangedFile("cat/src/products/a.md", "old text", "new text", 42),
+    ).toThrow(
+      "cat/src/products/a.md changed while the import ran; the listing holds id 42. Add the tickets_id and tickets_slug lines to the file by hand, or rerun with --update to stamp it",
+    );
+    expect(() =>
+      refuseChangedFile("cat/src/products/a.md", "same", "same", 42),
+    ).not.toThrow();
   });
 
   test("prints the plan from the product's own selection", () => {
@@ -327,64 +380,6 @@ Body text that the importer never reads.
     }
   });
 
-  test("reads a category title, or the slug when the file has none", async () => {
-    await withTempDir(async (dir) => {
-      await Deno.writeTextFile(
-        `${dir}/christmas.md`,
-        "---\ntitle: Christmas Game Hire\n---\n",
-      );
-      await Deno.writeTextFile(`${dir}/untitled.md`, "no frontmatter");
-      expect(await categoryTitle(dir, "christmas")).toBe("Christmas Game Hire");
-      expect(await categoryTitle(dir, "untitled")).toBe("untitled");
-      // A file whose frontmatter holds no mapping (empty, or a scalar) has
-      // no title either.
-      await Deno.writeTextFile(`${dir}/bare.md`, "---\n---\n");
-      await Deno.writeTextFile(`${dir}/scalar.md`, "---\n5\n---\n");
-      expect(await categoryTitle(dir, "bare")).toBe("bare");
-      expect(await categoryTitle(dir, "scalar")).toBe("scalar");
-    });
-  });
-
-  test("stops when a category file is missing or cannot be read", async () => {
-    await withTempDir(async (dir) => {
-      // A stale or misspelled category path must not quietly create a
-      // wrongly named group.
-      await expect(categoryTitle(dir, "missing")).rejects.toThrow();
-      await Deno.writeTextFile(
-        `${dir}/broken.md`,
-        "---\ntitle: [unclosed\n---\n",
-      );
-      await expect(categoryTitle(dir, "broken")).rejects.toThrow(
-        `${dir}/broken.md: unparseable frontmatter:`,
-      );
-      // A slug that names a directory is a read error, not a missing file.
-      await Deno.mkdir(`${dir}/subdir.md`);
-      await expect(categoryTitle(dir, "subdir")).rejects.toThrow();
-    });
-  });
-
-  test("preflights every category name before any site change", async () => {
-    await withTempDir(async (dir) => {
-      await Deno.writeTextFile(
-        `${dir}/christmas-game-hire.md`,
-        "---\ntitle: Christmas Game Hire\n---\n",
-      );
-      await Deno.writeTextFile(
-        `${dir}/fun-days.md`,
-        "---\ntitle: Fun Days\n---\n",
-      );
-      expect(
-        await readCategoryEntries(dir, ["christmas-game-hire", "fun-days"]),
-      ).toEqual([
-        { name: "Christmas Game Hire", slug: "christmas-game-hire" },
-        { name: "Fun Days", slug: "fun-days" },
-      ]);
-      // The preflight runs before the first API call, so a stale category
-      // path cannot leave half the catalog imported.
-      await expect(readCategoryEntries(dir, ["missing"])).rejects.toThrow();
-    });
-  });
-
   test("keeps the stamp out of a body that mentions tickets_id", () => {
     const text = "---\ntitle: Batak Lite\n---\n\nbody tickets_id: 5\n";
     expect(withTicketsMeta(text, { id: 42, slug: "b" })).toBe(
@@ -402,25 +397,6 @@ Body text that the importer never reads.
     ).toBe(
       "---\r\ntitle: Batak Lite\r\ntickets_id: 42\r\ntickets_slug: b\r\n---\r\n",
     );
-  });
-  test("collects the attribute vocabulary in first-seen order", () => {
-    const first = parseProductFile("a.md", productFrontmatter)!;
-    const second = parseProductFile(
-      "b.md",
-      productFrontmatter.replace("50-500+ guests", "20-200 guests"),
-    )!;
-    const vocabulary = attributeVocabulary([first, second]);
-    expect(vocabulary).toEqual([
-      {
-        name: "Guest Capacity",
-        // First seen first; the second product's value follows.
-        values: ["50-500+ guests", "20-200 guests"],
-      },
-      {
-        name: "Power Required",
-        values: ["Mains power required", "TBC"],
-      },
-    ]);
   });
 
   test("maps whole pounds to minor units", () => {
@@ -456,7 +432,7 @@ Body text that the importer never reads.
       group_ids: [5],
       hidden: true,
       listing_type: "daily",
-      max_attendees: 1,
+      max_attendees: 10,
       max_quantity: 10,
       name: "8 Lane Reindeer Racing Hire",
     });
@@ -478,6 +454,10 @@ Body text that the importer never reads.
         "---",
       ].join("\n"),
     )!;
-    expect(listingBody(product, [], []).max_quantity).toBe(2);
+    // The site caps a daily listing's bookable quantity per date by
+    // max_attendees, so the capacity follows the strictest option too.
+    const body = listingBody(product, [], []);
+    expect(body.max_quantity).toBe(2);
+    expect(body.max_attendees).toBe(2);
   });
 });

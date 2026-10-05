@@ -41,6 +41,7 @@ import {
   optionKey,
   parseImportFlags,
   planLine,
+  refuseChangedFile,
   resolveImportPlan,
   resolveOptionIds,
   storedTicketsId,
@@ -278,6 +279,12 @@ const importProduct = async (
   await writeOut(
     `${plan.action === "update" ? "updated" : "created"} listing ${product.title} -> id ${saved.listing.id}\n`,
   );
+  refuseChangedFile(
+    file,
+    text,
+    await Deno.readTextFile(file),
+    saved.listing.id,
+  );
   await Deno.writeTextFile(
     file,
     withTicketsMeta(text, {
@@ -315,14 +322,24 @@ const main = async () => {
   // created or updated drive the attribute, option, and group syncs, so a
   // rerun cannot leave site records behind for products it then skips.
   const plans = new Map<string, ImportPlan>(
-    catalog.map(({ product, text }) => [
-      product.filename,
-      resolveImportPlan(
-        storedTicketsId(product.filename, text),
-        matchedIds(product.title, existing),
-        flags.update,
-      ),
-    ]),
+    catalog.map(({ product, text }) => {
+      const storedId = storedTicketsId(product.filename, text);
+      return [
+        product.filename,
+        resolveImportPlan(
+          storedId === null
+            ? null
+            : {
+                filename: product.filename,
+                id: storedId,
+                title: product.title,
+              },
+          matchedIds(product.title, existing),
+          flags.update,
+          existing,
+        ),
+      ];
+    }),
   );
   const active = catalog.filter(({ product }) => {
     const plan = plans.get(product.filename)!;
