@@ -96,7 +96,9 @@ export const requestSlot = <S>(slot: RequestSlot<S>): S | undefined => {
   const store = currentRequestStore();
   if (!store) return;
   const existing = slot.read(store);
-  if (existing) return existing;
+  // Any allocated slot counts, including falsy values such as 0: the slot
+  // exists, and re-running `fresh()` throws the stored value away.
+  if (existing !== undefined) return existing;
   const value = slot.fresh();
   slot.write(store, value);
   return value;
@@ -109,7 +111,7 @@ export const withRequestSlot = <S>(
   use: (state: S) => void,
 ): void => {
   const state = requestSlot(slot);
-  if (state) use(state);
+  if (state !== undefined) use(state);
 };
 
 /** The current request's locale, or "en" outside a request. */

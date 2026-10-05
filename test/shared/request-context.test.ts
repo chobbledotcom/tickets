@@ -8,6 +8,9 @@ import {
   getRequestClientIp,
   getRequestId,
   getRequestTrace,
+  type RequestSlot,
+  requestSlot,
+  withRequestSlot,
 } from "#shared/request-context.ts";
 import { withCountedRandomWords } from "#test-utils/random.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -160,6 +163,63 @@ describe("request-context", () => {
       ]);
       expect(embedded).toBe(true);
       expect(normal).toBe(false);
+    });
+  });
+
+  describe("request slots", () => {
+    // The slot keeps its value in the test closure, so the counting fresh()
+    // proves the generic helper allocates once and never re-initialises a
+    // slot that already holds a value.
+    test("a slot holds one allocation across reads", async () => {
+      await withRequestContext(() => {
+        let draws = 0;
+        let stored: { marker: string } | undefined;
+        const slot: RequestSlot<{ marker: string }> = {
+          fresh: () => {
+            draws += 1;
+            return { marker: `draw-${draws}` };
+          },
+          read: () => stored,
+          write: (_store, value) => {
+            stored = value;
+          },
+        };
+        const first = requestSlot(slot);
+        expect(first?.marker).toBe("draw-1");
+        expect(requestSlot(slot)).toBe(first);
+        expect(draws).toBe(1);
+      });
+    });
+
+    test("withRequestSlot applies the allocated state", async () => {
+      await withRequestContext(() => {
+        let stored: { marker: string } | undefined;
+        const slot: RequestSlot<{ marker: string }> = {
+          fresh: () => ({ marker: "draw-1" }),
+          read: () => stored,
+          write: (_store, value) => {
+            stored = value;
+          },
+        };
+        let seen: { marker: string } | undefined;
+        withRequestSlot(slot, (state) => {
+          seen = state;
+        });
+        expect(seen?.marker).toBe("draw-1");
+      });
+    });
+
+    test("withRequestSlot skips a slot outside a request", () => {
+      let ran = false;
+      const slot: RequestSlot<{ marker: string }> = {
+        fresh: () => ({ marker: "" }),
+        read: () => undefined,
+        write: () => {},
+      };
+      withRequestSlot(slot, () => {
+        ran = true;
+      });
+      expect(ran).toBe(false);
     });
   });
 });
