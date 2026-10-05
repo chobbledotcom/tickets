@@ -15,9 +15,10 @@ import {
   getAuthenticatedSession,
 } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { runWithSessionContext } from "#shared/session-context.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   createTestApiKeyToken,
   getTestSession,
@@ -35,7 +36,7 @@ describeWithEnv("who is calling, kept for the request", { db: true }, () => {
   test("answers the same session after the row it came from is gone", async () => {
     const { cookie } = await getTestSession();
 
-    await runWithSessionContext(async () => {
+    await withRequestContext(async () => {
       const first = await getAuthenticatedSession(requestWith(cookie));
       expect(first?.adminLevel).toBe("owner");
 
@@ -50,7 +51,7 @@ describeWithEnv("who is calling, kept for the request", { db: true }, () => {
     // the next request, not this one.
     const token = "a-token-nothing-knows-yet";
 
-    await runWithSessionContext(async () => {
+    await withRequestContext(async () => {
       expect(await getAuthenticatedSession(requestWith(cookieFor(token)))).toBe(
         null,
       );
@@ -69,7 +70,7 @@ describeWithEnv("who is calling, kept for the request", { db: true }, () => {
     const apiKey = await createTestApiKeyToken();
     const request = requestAsApiKey("/api/admin/x", apiKey);
 
-    await runWithSessionContext(async () => {
+    await withRequestContext(async () => {
       const byKey = await getAuthenticatedApiKey(request);
       expect(byKey?.adminLevel).toBe("owner");
 
@@ -85,7 +86,7 @@ describeWithEnv("a session that cannot be honoured", { db: true }, () => {
     const token = "expired-token";
     await createSession(token, "csrf", Date.now() - 1000, null, 1);
 
-    await runWithSessionContext(async () => {
+    await withRequestContext(async () => {
       expect(await getAuthenticatedSession(requestWith(cookieFor(token)))).toBe(
         null,
       );
@@ -97,7 +98,7 @@ describeWithEnv("a session that cannot be honoured", { db: true }, () => {
     await createSession(token, "csrf", Date.now() + 60_000, null, 1);
     await execute("DELETE FROM users WHERE id = 1");
 
-    await runWithSessionContext(async () => {
+    await withRequestContext(async () => {
       expect(await getAuthenticatedSession(requestWith(cookieFor(token)))).toBe(
         null,
       );
@@ -109,7 +110,7 @@ describeWithEnv("a session that cannot be honoured", { db: true }, () => {
   });
 
   test("is refused when the request carries no cookie at all", async () => {
-    await runWithSessionContext(async () => {
+    await withRequestContext(async () => {
       expect(await getAuthenticatedSession(requestWith())).toBe(null);
     });
   });

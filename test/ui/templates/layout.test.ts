@@ -9,11 +9,7 @@ import {
   JS_PATH,
 } from "#shared/asset-paths.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
-import {
-  consumeFlash,
-  runWithFlashContext,
-  setFlashContext,
-} from "#shared/flash-context.ts";
+import { consumeFlash, setFlashContext } from "#shared/flash-context.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -182,8 +178,8 @@ describe("Layout document shell", () => {
     expect(demoHtml).toContain('class="demo-banner"');
   });
 
-  test("renders an unconsumed request flash before the page content", () => {
-    const html = runWithFlashContext(() => {
+  test("renders an unconsumed request flash before the page content", async () => {
+    const html = await withRequestContext(() => {
       setFlashContext({ success: "Saved from context" });
       return String(Layout({ children: "Page body", title: "Test" }));
     });
@@ -193,8 +189,8 @@ describe("Layout document shell", () => {
     );
   });
 
-  test("does not repeat a consumed request flash", () => {
-    const html = runWithFlashContext(() => {
+  test("does not repeat a consumed request flash", async () => {
+    const html = await withRequestContext(() => {
       setFlashContext({ error: "Already shown" });
       consumeFlash();
       return String(Layout({ children: "Page body", title: "Test" }));

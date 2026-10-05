@@ -20,13 +20,6 @@ src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → ||   
 src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
 src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
 
-# request-scoped ambient fallback: scope.current() is T|undefined where T is
-# always a truthy container object (never a falsy-non-null value), so
-# `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT
-# equivalent — a falsy scoped value must win over the fallback — and the
-# "falsy value still wins" test kills it.)
-src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
-
 # Registration delivery is always queued through pending-work. After its fixed
 # incident has been recorded, flushPendingWork intentionally consumes either
 # fulfilment or rejection with Promise.allSettled, so changing the one-error

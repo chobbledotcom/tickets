@@ -13,9 +13,13 @@
 
 import type { QueryLogState } from "#db/query-log.ts";
 import type { AuditState } from "#db/settings-audit.ts";
+import type { FlashStore } from "#shared/flash-context.ts";
+import type { SavedFormState } from "#shared/forms/saved-data.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { redactPath } from "#shared/redact-path.ts";
 import { createScope, type PromiseTask } from "#shared/request-scoped.ts";
+import type { SessionState } from "#shared/session-context.ts";
+import type { AdminFooterState } from "#templates/admin/footer.tsx";
 
 /** The safe-to-report identity of one request. */
 export type RequestTrace = {
@@ -42,6 +46,21 @@ export type RequestStore = {
   /** Settings-audit bookkeeping, allocated only while the audit is enabled
    * (src/shared/db/settings-audit.ts). */
   settingsAudit?: AuditState;
+  /** The flash message, allocated when middleware populates it
+   * (src/shared/flash-context.ts). */
+  flash?: FlashStore;
+  /** Session memoisation, allocated when the session resolves
+   * (src/shared/session-context.ts). */
+  session?: SessionState;
+  /** The most recently minted CSRF token, for synchronous JSX rendering
+   * (src/shared/csrf.ts). */
+  csrfToken?: string;
+  /** The stashed submitted form for re-filling a redirected form
+   * (src/shared/forms/saved-data.ts). */
+  savedForm?: SavedFormState;
+  /** Set while an admin page renders, consumed by the Layout footer
+   * (src/ui/templates/admin/footer.tsx). */
+  adminFooter?: AdminFooterState;
 };
 
 const requestScope = createScope<RequestStore>();

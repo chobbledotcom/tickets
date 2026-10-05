@@ -12,18 +12,10 @@ import { verifySignedValue } from "#crypto/signed-value.ts";
 import { base64ToBase64Url, generateSecureToken } from "#crypto/utils.ts";
 import { t } from "#i18n";
 import { nowSeconds } from "#shared/now.ts";
-import { createRequestScoped } from "#shared/request-scoped.ts";
+import { currentRequestStore } from "#shared/request-context.ts";
 
 const SIGNED_PREFIX = "s1.";
 const DEFAULT_MAX_AGE_S = 3600; // 1 hour
-
-/** Most recently generated CSRF token, readable synchronously by CsrfForm */
-const tokenScope = createRequestScoped<{ value: string }>(() => ({
-  value: "",
-}));
-
-/** Run a function within a CSRF-token scope (one container per request) */
-export const runWithCsrfContext = <T>(fn: () => T): T => tokenScope.run(fn);
 
 /** Default message for invalid/expired CSRF form submissions (request-scoped). */
 export const csrfInvalidFormMessage = (): string => t("error.csrf_invalid");
@@ -39,12 +31,14 @@ export const signCsrfToken = async (): Promise<string> => {
   const message = buildMessage(timestamp, nonce);
   const hmac = base64ToBase64Url(await hmacHash(message));
   const token = `${message}.${hmac}`;
-  tokenScope.current().value = token;
+  const store = currentRequestStore();
+  if (store) store.csrfToken = token;
   return token;
 };
 
 /** Get the most recently generated CSRF token (for synchronous JSX rendering) */
-export const getCurrentCsrfToken = (): string => tokenScope.current().value;
+export const getCurrentCsrfToken = (): string =>
+  currentRequestStore()?.csrfToken ?? "";
 
 /** Check whether a token uses the signed format */
 export const isSignedCsrfToken = (token: string): boolean =>

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import {
@@ -7,14 +7,9 @@ import {
   renderFields,
   renderSelectOptions,
 } from "#shared/forms/rendering.tsx";
-import {
-  clearSavedFormData,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
-
-const field = (
-  overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides }) as Field;
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
+import { field } from "#test-utils/field.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const rendered = (
   overrides: Partial<Field> & { name: string; label: string },
@@ -332,8 +327,6 @@ describe("renderFields", () => {
   });
 
   describe("saved form data precedence", () => {
-    afterEach(() => clearSavedFormData());
-
     for (const { description, expected, saved, value } of [
       {
         description: "a non-empty explicit value over saved data",
@@ -354,16 +347,18 @@ describe("renderFields", () => {
         value: undefined,
       },
     ] as const) {
-      test(`uses ${description}`, () => {
-        setSavedFormData(new FormParams(`name=${saved}`));
-        expect(
-          renderFields(
-            [field({ defaultValue: "Default", label: "Name", name: "name" })],
-            value === undefined ? {} : { name: value },
-          ),
-        ).toBe(
-          `<label>Name<input maxlength="250" name="name" type="text" value="${expected}"></label>`,
-        );
+      test(`uses ${description}`, async () => {
+        await withRequestContext(() => {
+          setSavedFormData(new FormParams(`name=${saved}`));
+          expect(
+            renderFields(
+              [field({ defaultValue: "Default", label: "Name", name: "name" })],
+              value === undefined ? {} : { name: value },
+            ),
+          ).toBe(
+            `<label>Name<input maxlength="250" name="name" type="text" value="${expected}"></label>`,
+          );
+        });
       });
     }
 

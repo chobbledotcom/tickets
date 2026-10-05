@@ -4,10 +4,7 @@ import { ensureMessageGroups } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { validateForm } from "#shared/forms/validation.ts";
-
-const field = (
-  overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides }) as Field;
+import { field } from "#test-utils/field.ts";
 
 const requiredName: Field[] = [
   field({ label: "Name", name: "name", required: true }),

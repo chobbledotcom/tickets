@@ -12,6 +12,7 @@ import {
   expectRedirectWithFlash,
   parseFlashCookie,
 } from "#test-utils/assertions.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("redirect form re-fill stash", () => {
   beforeEach(() => {
@@ -29,20 +30,24 @@ describe("redirect form re-fill stash", () => {
     return takeForm(formToken);
   };
 
-  test("stashes captured values without the CSRF token after an error", () => {
-    setSavedFormData(new FormParams("name=Alice&csrf_token=secret"));
-    const response = redirect(
-      "/admin/groups/new",
-      "Group Name is required",
-      false,
-    );
-    expect(stashedForm(response)).toBe("name=Alice");
+  test("stashes captured values without the CSRF token after an error", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams("name=Alice&csrf_token=secret"));
+      const response = redirect(
+        "/admin/groups/new",
+        "Group Name is required",
+        false,
+      );
+      expect(stashedForm(response)).toBe("name=Alice");
+    });
   });
 
-  test("does not stash on success", () => {
-    setSavedFormData(new FormParams("name=Bob"));
-    const response = redirect("/admin/groups", "Group created", true);
-    expect(parseFlashCookie(response).formToken).toBeUndefined();
+  test("does not stash on success", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams("name=Bob"));
+      const response = redirect("/admin/groups", "Group created", true);
+      expect(parseFlashCookie(response).formToken).toBeUndefined();
+    });
   });
 
   test("does not stash when nothing was captured", () => {
@@ -50,40 +55,50 @@ describe("redirect form re-fill stash", () => {
     expect(parseFlashCookie(response).formToken).toBeUndefined();
   });
 
-  test("does not stash a submission that is only a CSRF token", () => {
-    setSavedFormData(new FormParams("csrf_token=secret"));
-    const response = redirect(
-      "/admin/groups/new",
-      "Group Name is required",
-      false,
-    );
-    expect(parseFlashCookie(response).formToken).toBeUndefined();
+  test("does not stash a submission that is only a CSRF token", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams("csrf_token=secret"));
+      const response = redirect(
+        "/admin/groups/new",
+        "Group Name is required",
+        false,
+      );
+      expect(parseFlashCookie(response).formToken).toBeUndefined();
+    });
   });
 
-  test("removes secret fields without changing safe repeated values", () => {
-    setSavedFormData(
-      new FormParams(
-        "name=Bob&name=Alice&monkey=yes&keyword=book&password=hunter2&stripe_secret_key=sk_live_x&api_key=abc&webhook_token=zzz&API_SECRET=private",
-      ),
-    );
-    const response = redirect("/admin/settings", "Invalid key", false);
-    expect(stashedForm(response)).toBe(
-      "name=Bob&name=Alice&monkey=yes&keyword=book",
-    );
+  test("removes secret fields without changing safe repeated values", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(
+        new FormParams(
+          "name=Bob&name=Alice&monkey=yes&keyword=book&password=hunter2&stripe_secret_key=sk_live_x&api_key=abc&webhook_token=zzz&API_SECRET=private",
+        ),
+      );
+      const response = redirect("/admin/settings", "Invalid key", false);
+      expect(stashedForm(response)).toBe(
+        "name=Bob&name=Alice&monkey=yes&keyword=book",
+      );
+    });
   });
 
-  test("skips a submission larger than the size cap", () => {
-    setSavedFormData(new FormParams(`bio=${"x".repeat(FORM_STASH_MAX_BYTES)}`));
-    const response = redirect("/admin/groups/new", "Too big", false);
-    expect(parseFlashCookie(response).formToken).toBeUndefined();
+  test("skips a submission larger than the size cap", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(
+        new FormParams(`bio=${"x".repeat(FORM_STASH_MAX_BYTES)}`),
+      );
+      const response = redirect("/admin/groups/new", "Too big", false);
+      expect(parseFlashCookie(response).formToken).toBeUndefined();
+    });
   });
 
-  test("prefers an explicitly supplied form over the capture", () => {
-    setSavedFormData(new FormParams("name=captured"));
-    const form = new URLSearchParams("name=explicit&csrf_token=secret");
-    expect(stashedForm(redirect("/admin/x", "bad", false, { form }))).toBe(
-      "name=explicit",
-    );
+  test("prefers an explicitly supplied form over the capture", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams("name=captured"));
+      const form = new URLSearchParams("name=explicit&csrf_token=secret");
+      expect(stashedForm(redirect("/admin/x", "bad", false, { form }))).toBe(
+        "name=explicit",
+      );
+    });
   });
 
   test("rejects invalid targets before adding flash data", () => {

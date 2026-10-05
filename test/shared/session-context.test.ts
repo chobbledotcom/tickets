@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AuthSession } from "#routes/auth.ts";
-import {
-  getCachedSession,
-  runWithSessionContext,
-  setCachedSession,
-} from "#shared/session-context.ts";
+import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const makeSession = (token = "tok"): AuthSession => ({
   adminLevel: "owner",
@@ -21,13 +18,13 @@ describe("session-context", () => {
     });
 
     test("returns undefined before session is resolved", () => {
-      runWithSessionContext(() => {
+      withRequestContext(() => {
         expect(getCachedSession()).toBeUndefined();
       });
     });
 
     test("returns null after caching null", () => {
-      runWithSessionContext(() => {
+      withRequestContext(() => {
         setCachedSession(null);
         expect(getCachedSession()).toBeNull();
       });
@@ -35,7 +32,7 @@ describe("session-context", () => {
 
     test("returns session after caching a session", () => {
       const session = makeSession();
-      runWithSessionContext(() => {
+      withRequestContext(() => {
         setCachedSession(session);
         expect(getCachedSession()).toBe(session);
       });
@@ -54,10 +51,10 @@ describe("session-context", () => {
       const outer = makeSession("outer");
       const inner = makeSession("inner");
 
-      runWithSessionContext(() => {
+      withRequestContext(() => {
         setCachedSession(outer);
 
-        runWithSessionContext(() => {
+        withRequestContext(() => {
           expect(getCachedSession()).toBeUndefined();
           setCachedSession(inner);
           expect(getCachedSession()!.token).toBe("inner");
@@ -67,8 +64,8 @@ describe("session-context", () => {
       });
     });
 
-    test("returns the value from the wrapped function", () => {
-      const result = runWithSessionContext(() => 42);
+    test("returns the value from the wrapped function", async () => {
+      const result = await withRequestContext(() => 42);
       expect(result).toBe(42);
     });
 
@@ -78,7 +75,7 @@ describe("session-context", () => {
       // the event loop. A leak here would let one request read another's
       // session (and thus derive another user's private key).
       const flow = (token: string, delayMs: number): Promise<string> =>
-        runWithSessionContext(async () => {
+        withRequestContext(async () => {
           setCachedSession(makeSession(token));
           // Yield control so the other flow runs between setup and read.
           await new Promise((resolve) => setTimeout(resolve, delayMs));

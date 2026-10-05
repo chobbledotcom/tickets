@@ -3,7 +3,6 @@ import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import {
   type Flash as FlashMessage,
-  runWithFlashContext,
   setFlashContext,
   setFlashFormId,
 } from "#shared/flash-context.ts";
@@ -25,8 +24,8 @@ const csrfFormInFlash = (
   props: { action: string; id?: string },
   flash: FlashMessage,
   formId: string | null,
-): string =>
-  runWithFlashContext(() => {
+): Promise<string> =>
+  withRequestContext(() => {
     setFlashContext(flash);
     setFlashFormId(formId);
     return String(CsrfForm(props));
@@ -110,8 +109,8 @@ describe("Flash", () => {
   });
 });
 
-test("requestFlash renders every message from the request context", () => {
-  const html = runWithFlashContext(() => {
+test("requestFlash renders every message from the request context", async () => {
+  const html = await withRequestContext(() => {
     setFlashContext({ error: "Bad", info: "Notice", success: "Saved" });
     return String(requestFlash());
   });
@@ -165,8 +164,8 @@ describe("CsrfForm", () => {
     expect(html).toContain("Submit here");
   });
 
-  test("shows success flash when id matches the targeted form", () => {
-    const html = csrfFormInFlash(
+  test("shows success flash when id matches the targeted form", async () => {
+    const html = await csrfFormInFlash(
       { action: "/submit", id: "my-form" },
       { success: "Saved" },
       "my-form",
@@ -175,9 +174,9 @@ describe("CsrfForm", () => {
     expect(html).toContain('class="success"');
   });
 
-  test("does not show success when id does not match", () => {
+  test("does not show success when id does not match", async () => {
     expect(
-      csrfFormInFlash(
+      await csrfFormInFlash(
         { action: "/submit", id: "my-form" },
         { success: "Saved" },
         "other-form",
@@ -185,14 +184,18 @@ describe("CsrfForm", () => {
     ).not.toContain('class="success"');
   });
 
-  test("does not show success when no id on form", () => {
+  test("does not show success when no id on form", async () => {
     expect(
-      csrfFormInFlash({ action: "/submit" }, { success: "Saved" }, "my-form"),
+      await csrfFormInFlash(
+        { action: "/submit" },
+        { success: "Saved" },
+        "my-form",
+      ),
     ).not.toContain('class="success"');
   });
 
-  test("shows error flash when id matches the targeted form", () => {
-    const html = csrfFormInFlash(
+  test("shows error flash when id matches the targeted form", async () => {
+    const html = await csrfFormInFlash(
       { action: "/submit", id: "my-form" },
       { error: "Something went wrong" },
       "my-form",
@@ -201,9 +204,9 @@ describe("CsrfForm", () => {
     expect(html).toContain('class="error"');
   });
 
-  test("does not show error when id does not match", () => {
+  test("does not show error when id does not match", async () => {
     expect(
-      csrfFormInFlash(
+      await csrfFormInFlash(
         { action: "/submit", id: "my-form" },
         { error: "err" },
         "other-form",

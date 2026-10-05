@@ -13,8 +13,8 @@ import {
 import {
   markAdminFooter,
   renderAdminFooter,
-  runWithAdminFooterContext,
 } from "#templates/admin/footer.tsx";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("request scopes", () => {
   test("binds request values while building the response", async () => {
@@ -54,7 +54,7 @@ describe("request scopes", () => {
   });
 
   test("keeps an ambient admin footer marker out of a request", async () => {
-    await runWithAdminFooterContext(async () => {
+    await withRequestContext(async () => {
       markAdminFooter("owner");
 
       const response = await runWithRequestScopes(

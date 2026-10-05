@@ -106,27 +106,3 @@ export const createBooleanScope = (): {
     runUnder: <T>(fn: () => T): T => flag.run(true, fn),
   };
 };
-
-/** A request-scoped container plus the helpers its owning module builds on. */
-export type RequestScoped<T extends object> = {
-  /** Run `fn` with a fresh per-request container bound to the async scope. */
-  run: <R>(fn: () => R) => R;
-  /** The active request's container, or the ambient fallback outside a scope. */
-  current: () => T;
-};
-
-/**
- * Build a request-scoped container. `initial` is called to mint a fresh
- * container for each scope (and once for the ambient fallback), so callers must
- * return a new object each time rather than sharing one instance.
- */
-export const createRequestScoped = <T extends object>(
-  initial: () => T,
-): RequestScoped<T> => {
-  const scope = createScope<T>();
-  const fallback = initial();
-  return {
-    current: () => scope.current() ?? fallback,
-    run: (fn) => scope.run(initial(), fn),
-  };
-};

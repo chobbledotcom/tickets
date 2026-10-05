@@ -15,11 +15,12 @@ import {
   verifyIdentifierOrJsonError,
   verifyOrRedirect,
 } from "#routes/admin/confirmation.ts";
-import { runWithFlashContext, setFlashContext } from "#shared/flash-context.ts";
+import { setFlashContext } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   createTestManagerSession,
   testCookie,
@@ -203,7 +204,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
     test("keeps a flash error ahead of a guard's error on GET", async () => {
       const cookie = await testCookie();
 
-      const response = await runWithFlashContext(async () => {
+      const response = await withRequestContext(async () => {
         setFlashContext({ error: "flash from the blocked POST" });
         return build({ guardError: () => Promise.resolve("guard") }).get(
           mockRequest("/admin/test/1/delete", { headers: { cookie } }),
@@ -217,7 +218,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
     test("keeps an empty flash error over the guard on GET", async () => {
       const cookie = await testCookie();
 
-      const response = await runWithFlashContext(async () => {
+      const response = await withRequestContext(async () => {
         setFlashContext({ error: "" });
         return build({
           guardError: () => Promise.resolve("guard"),
