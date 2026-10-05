@@ -6,6 +6,7 @@ import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
 import type { TicketListing } from "#booking/model.ts";
 import {
   type PackageLimitInfo,
+  packageChildTicketLimits,
   pageBundleLimits,
 } from "#booking/package-cap.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
@@ -42,9 +43,21 @@ export const packagePageAvailability = (
   page: PackageLimitInfo,
 ): { packageLimits: Map<number, number>; soldOut: boolean } => {
   const packageLimits = pageBundleLimits(tree, packages, page);
+  const childCeilings = packageChildTicketLimits(page);
+  const childrenByParentId = page.childrenByParentId;
   const standaloneUnavailable = listings
     .filter((info) => standaloneRowIds.has(info.listing.id))
-    .every((e) => e.isSoldOut || e.isClosed);
+    .every((e) => {
+      if (e.isSoldOut || e.isClosed) return true;
+      // A parent whose bookable children serve fewer parent tickets than its
+      // own minimum sells nothing, so the whole page reads sold out.
+      const hasChildren =
+        (childrenByParentId?.get(e.listing.id)?.length ?? 0) > 0;
+      const ceiling = hasChildren
+        ? (childCeilings.get(e.listing.id) ?? 0)
+        : e.maxPurchasable;
+      return ceiling < e.listing.minimum_quantity;
+    });
   const packagesUnavailable = [...packageLimits.values()].every(
     (limit) => limit === 0,
   );

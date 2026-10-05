@@ -47,6 +47,37 @@ describeWithEnv(
         expect(location).toContain(`q_${b.id}=1`);
       });
 
+      test("pre-fills a minimum-quantity listing at its minimum, not one", async () => {
+        // The booking page offers no quantity below the minimum, so a pre-fill
+        // of one would lose the buyer's selection on arrival.
+        const item = await createTestListing({
+          maxQuantity: 5,
+          minimumQuantity: 3,
+          name: "Batch Widget",
+        });
+        const response = await selectOrder([item.id]);
+        expectRedirect(response, `/ticket/${item.slug}?q_${item.id}=3`);
+      });
+
+      test("names a minimum-quantity listing in the URL but pre-fills nothing when too few remain", async () => {
+        const item = await createTestListing({
+          maxAttendees: 5,
+          maxQuantity: 5,
+          minimumQuantity: 3,
+          name: "Too Few",
+        });
+        // Sales leave 2 spots: below the minimum, so no quantity is valid.
+        await createTestAttendee(
+          item.id,
+          item.slug,
+          "Bulk",
+          "a@example.com",
+          3,
+        );
+        const location = expectRedirect(await selectOrder([item.id]));
+        expect(location).toBe(`/ticket/${item.slug}`);
+      });
+
       test("includes a sold-out pick as a slug but does not pre-fill it", async () => {
         const open = await createTestListing({ name: "In Stock" });
         const sold = await createTestListing({

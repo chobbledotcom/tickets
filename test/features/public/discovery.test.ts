@@ -323,6 +323,36 @@ describeWithEnv(
         await assertSoldOut(parent.slug);
       });
 
+      test("a parent whose minimum exceeds what its children can serve is sold out", async () => {
+        // The parent sells at least 3 per purchase, but its only child can
+        // serve 2 parent tickets. No child serves the minimum, so the gallery
+        // must read the parent sold out — the API detail projects the same
+        // classification, so a client never books a below-minimum quantity.
+        const { parent } = await makeParent({
+          children: [{ maxQuantity: 2, name: "Two-ticket add-on" }],
+          parent: {
+            maxQuantity: 10,
+            minimumQuantity: 3,
+            name: "Bulk base unit",
+          },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
+      test("a parent whose minimum is served by a child stays bookable", async () => {
+        // Same shape with a child that serves the parent minimum: the Book link
+        // must survive the new minimum check.
+        const { parent } = await makeParent({
+          children: [{ maxQuantity: 5, name: "Wide add-on" }],
+          parent: {
+            maxQuantity: 10,
+            minimumQuantity: 3,
+            name: "Bulk bookable unit",
+          },
+        });
+        await assertBookable(parent.slug);
+      });
+
       test("a daily parent + daily child sharing a 2-cap group stays bookable date-less", async () => {
         // Static cap 2 meets the parent+child minimum; a daily child's per-date
         // remaining is deferred to the submit fold — so discovery keeps the Book
