@@ -1,6 +1,6 @@
 /** The package half of a group write: every path that packages a group, sets
- *  its members, or assigns listings to it rechecks transaction-fresh state
- *  through the guards and fences here. */
+ *  its members, or assigns listings to it. Each path rechecks
+ *  transaction-fresh state through the guards and fences here. */
 /* jscpd:ignore-start -- imports */
 
 import {

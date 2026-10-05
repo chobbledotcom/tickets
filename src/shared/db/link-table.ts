@@ -52,8 +52,8 @@ export type LinkTableSide = {
    * through it with one. */
   getIdsByKeys: ReadIdsByKeys;
   /** Replace a key's linked set with exactly `ids` (deduped): delete the key's
-   * rows, then insert the new ones, as a single batch so a failure never
-   * leaves a partial set. */
+   * rows, then insert the new ones. The delete and the insert run as a single
+   * batch, so a failure never leaves a partial set. */
   setIds: (keyId: number, ids: readonly number[]) => Promise<void>;
   /** Like {@link LinkTableSide.setIds} but run on an existing write
    * transaction, so the links commit atomically with the caller's row write. */
@@ -85,8 +85,9 @@ const oneDirectionReader = (
 /** Rows of one link table, as the two id columns this module works in. */
 type LinkRow = { key_id: number; value_id: number };
 
-/** One side's by-key read as a single statement — the one query both the bare
- * per-request reader and the transaction reader run, so the two cannot drift. */
+/** One side's by-key read as a single statement: the one query both readers
+ * run, so the bare per-request reader and the transaction reader cannot
+ * drift. */
 const byKeysStatement = (
   table: string,
   keyColumn: string,
