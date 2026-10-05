@@ -1,16 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  attributeOptionIdsIn,
   attributeOptionsOrder,
   attributesOrder,
   deleteAttribute,
   deleteAttributeOption,
-  getAllAttributeOptionIds,
   getAllAttributesWithOptions,
   getAttributeWithOptions,
   getSelectedAttributesForListings,
   listingAttributeOptions,
-  pruneInvalidAttributeOptionIds,
 } from "#db/attributes.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -167,7 +166,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
     expect(await listingAttributeOptions.getIds(listing.id)).toEqual([]);
   });
 
-  test("keeps only option ids that exist", async () => {
+  test("keeps only option ids that exist, in submitted order", async () => {
     const attribute = await createTestAttributeWithOptions("Food", [
       "Vegan",
       "Gluten-free",
@@ -176,16 +175,20 @@ describeWithEnv("db > attributes", { db: true }, () => {
     const otherOption = await createTestAttributeOption(other.id, "Other");
 
     expect(
-      pruneInvalidAttributeOptionIds(await getAllAttributeOptionIds(), [
+      await attributeOptionIdsIn([
         attribute.options[1]!.id,
         123_456,
         otherOption.id,
+        attribute.options[0]!.id,
         attribute.options[0]!.id,
       ]),
     ).toEqual([
       attribute.options[1]!.id,
       otherOption.id,
       attribute.options[0]!.id,
+      attribute.options[0]!.id,
     ]);
+    expect(await attributeOptionIdsIn([123_456])).toEqual([]);
+    expect(await attributeOptionIdsIn([])).toEqual([]);
   });
 });

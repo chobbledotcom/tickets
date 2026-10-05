@@ -6,12 +6,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
+import { listingAttributeOptions } from "#db/attributes.ts";
 import { type SqlStatement, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
+import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import {
   persistListingJoins,
   prepareListingJoins,
@@ -46,6 +48,7 @@ const persistAfterRowChange = (
   withTransaction(async (tx) => {
     await tx.execute(statement);
     await persistListingJoins(tx, listingId, {
+      attributeOptionIds: undefined,
       childEdges: null,
       dayPrices: undefined,
       groupIds: undefined,
@@ -53,6 +56,40 @@ const persistAfterRowChange = (
   });
 
 describeWithEnv("api-listing-joins", { db: true }, () => {
+  test("an update that omits attribute_option_ids carries undefined, not a stored snapshot", async () => {
+    // persistListingJoins skips the link write for an undefined selection, so
+    // an unrelated update must carry undefined — never the links re-read and
+    // rewritten, which a lagging read would turn into a stale restore.
+    const listing = await createTestListing({ name: "Snapshot" });
+    const resolved = await getListingWithCount(listing.id);
+    if (!resolved) throw new Error(`no listing ${listing.id} in the database`);
+    const result = await bodyToUpdateInput(
+      { description: "Unrelated edit" },
+      resolved,
+      { adminLevel: "owner" },
+    );
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.attributeOptionIds).toBeUndefined();
+  });
+
+  test("refuses option ids that do not exist when the links are written", async () => {
+    // The existence check shares the link write's transaction, so an option
+    // deleted between the request's parse and the write cannot leave an
+    // orphan id: the refusal rolls the whole write back.
+    const listing = await createTestListing({ name: "Race" });
+    await withTransaction(async (tx) => {
+      await expect(
+        persistListingJoins(tx, listing.id, {
+          attributeOptionIds: [424_242],
+          childEdges: null,
+          dayPrices: undefined,
+          groupIds: undefined,
+        }),
+      ).rejects.toThrow("attribute_option_ids must name existing options");
+    });
+    expect(await listingAttributeOptions.getIds(listing.id)).toEqual([]);
+  });
+
   test("returns null child edges when child_listing_ids is omitted", async () => {
     const result = await prepareListingJoins(baseInput(), {}, null);
 
@@ -147,6 +184,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: [child.id],
         dayPrices: undefined,
         groupIds: [group.id],
@@ -164,6 +202,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: null,
         dayPrices: undefined,
         groupIds: undefined,
@@ -214,6 +253,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: [],
         dayPrices: undefined,
         groupIds: undefined,
@@ -239,6 +279,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     await withTransaction((tx) =>
       persistListingJoins(tx, parent.id, {
+        attributeOptionIds: undefined,
         childEdges: [child.id],
         dayPrices: { 2: 1800 },
         groupIds: undefined,

@@ -41,12 +41,17 @@ export const BOOKING_TOTAL_FIELDS = [
   "tickets_count",
 ];
 
-/** The example listing exactly as the admin endpoints answer with it: the
- * stored fields, plus the ids of the groups it is in. The example is in
- * none. */
+/** The example listing, exactly as the admin endpoints answer with it. It
+ * adds the ids of the groups it is in and the attribute options it selects.
+ * The example is in neither. */
 export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
+  attribute_option_ids: number[];
   group_ids: number[];
-} = { ...toAdminListing(API_EXAMPLE_LISTING), group_ids: [] };
+} = {
+  ...toAdminListing(API_EXAMPLE_LISTING),
+  attribute_option_ids: [],
+  group_ids: [],
+};
 
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {

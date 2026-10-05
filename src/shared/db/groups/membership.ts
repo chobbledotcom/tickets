@@ -8,7 +8,7 @@ import {
   type GroupListingSettings,
 } from "#db/groups/homogeneity.ts";
 import { groupListings } from "#db/groups/table.ts";
-import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
+import { TransactionValidationError, txIdSetInTable } from "#db/transaction.ts";
 import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
@@ -89,14 +89,10 @@ export const groupStatesTx = async (
 /** Returns the set of group ids that are packages in the transaction's current
  *  view, so a catalog import derives package overrides from fresh state rather
  *  than a pre-transaction snapshot that can go stale. */
-export const packageGroupIdsTx = (
-  tx: TxScope,
-  groupIds: readonly number[],
-): Promise<Set<number>> =>
-  txIdSet(tx, groupIds, (unique) => ({
-    args: unique,
-    sql: `SELECT id FROM groups WHERE is_package = 1 AND id IN (${inPlaceholders(unique)})`,
-  }));
+export const packageGroupIdsTx = txIdSetInTable(
+  "groups",
+  " AND is_package = 1",
+);
 
 type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   name: EnvKeyEncrypted;

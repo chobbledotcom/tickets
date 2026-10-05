@@ -9,13 +9,14 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
-/** An atomic body-only side effect (e.g. relationship edges) for a create/update.
- *  Two-phase so the whole write is all-or-nothing:
- *  `validate` runs BEFORE the write and either rejects (400, nothing written) or
- *  yields a prepared `value`. `persist` then runs in the SAME transaction as the
- *  row write, so a failure rolls the row write back too — never an orphan row
- *  without its side effect. A resource with no side effects omits it and takes
- *  the plain (untransacted) single-statement path. */
+/** An atomic body-only side effect (e.g. relationship edges) for a create or
+ *  update. Two-phase, so the whole write is all-or-nothing:
+ *  `validate` runs BEFORE the write and either rejects (400, nothing written)
+ *  or yields a prepared `value`. `persist` then runs in the SAME transaction
+ *  as the row write, so a failure rolls the row write back too. There is
+ *  never an orphan row without its side effect. A resource with no side
+ *  effects omits it and takes the plain (untransacted) single-statement
+ *  path. */
 export interface CrudSideEffect<Input, FullRow, Prepared, State = never> {
   /** Persist the prepared value on the open write transaction `tx`, given the
    *  written row's `id` and narrow pre-update state. A throw rolls back the row
@@ -47,9 +48,9 @@ export interface AfterCommitConfig {
   afterCommit?: (id: number) => Promise<void>;
 }
 
-/** A join-table write run inside the row's write transaction, given the open
- *  transaction scope, the written row's id, parsed input, and narrow pre-update
- *  state (null on create or when no reader is configured). */
+/** A join-table write run inside the row's write transaction. It receives the
+ *  open transaction scope, the written row's id, the parsed input, and the
+ *  pre-update state (null on create, or with no reader configured). */
 export type AfterWriteHook<Input, State = never> = (
   tx: TxScope,
   id: number,
@@ -67,6 +68,17 @@ export type CheckTxHook<Input> = (
   id: number,
   input: Input,
 ) => Promise<string | null>;
+
+/** Convert a resource's JSON body to its typed input. `existing` is null on
+ *  create and the stored row on update. The session rides along so a
+ *  field-level gate (an owner-only field) can refuse per actor: production
+ *  routes always pass it, and a direct call without one counts as non-owner
+ *  for any gated field. */
+export type InputParser<Input, Existing> = (
+  body: Record<string, unknown>,
+  existing: Existing,
+  session?: AdminSession,
+) => Result<Input> | Promise<Result<Input>>;
 
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<
@@ -129,15 +141,13 @@ export interface CrudApiConfig<
   stripKeys?: string[];
   /** Table with CRUD operations */
   table: Table<Row, Input>;
-  /** Convert JSON body to Input for create */
-  toCreateInput: (
-    body: Record<string, unknown>,
-  ) => Result<Input> | Promise<Result<Input>>;
-  /** Convert JSON body + existing row to Input for update */
-  toUpdateInput: (
-    body: Record<string, unknown>,
-    existing: FullRow,
-  ) => Result<Input> | Promise<Result<Input>>;
+  /** Convert a JSON body to Input. `existing` is null on create and the
+   *  stored row on update. The session rides along so a field-level gate (an
+   *  owner-only field) can refuse per actor: production routes always pass
+   *  it, and a direct call without one counts as non-owner for any gated
+   *  field. */
+  toCreateInput: InputParser<Input, null>;
+  toUpdateInput: InputParser<Input, FullRow>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
   /** Optional delete guard: a returned message blocks the deletion with a 400
