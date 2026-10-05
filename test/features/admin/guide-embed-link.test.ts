@@ -42,26 +42,24 @@ const get = (path: string, session: { cookie: string; csrfToken: string }) =>
 
 describeWithEnv("the share row's Embed link", { db: true }, () => {
   for (const [role, name] of STAFF_ROLES) {
-    test(`${role} sees the share row with its Embed link on the group page`, async () => {
+    test(`${role} sees the share row with its Embed link on the group and listing pages`, async () => {
       const { group } = await createGroupWithListings(`share row ${role}`, [
         `share row ${role} listing`,
       ]);
+      const listing = await createTestListing({
+        name: `share row ${role} page`,
+      });
       const session = await sessionAs(role, name);
-      const response = await get(`/admin/groups/${group.id}`, session);
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("data-share-url");
-      expect(html).toContain('href="/admin/guide#embed_booking_form"');
-    });
-
-    test(`${role} sees the share row with its Embed link on the listing page`, async () => {
-      const listing = await createTestListing({ name: `share row ${role}` });
-      const session = await sessionAs(role, name);
-      const response = await get(`/admin/listing/${listing.id}`, session);
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("data-share-url");
-      expect(html).toContain('href="/admin/guide#embed_booking_form"');
+      for (const path of [
+        `/admin/groups/${group.id}`,
+        `/admin/listing/${listing.id}`,
+      ]) {
+        const response = await get(path, session);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("data-share-url");
+        expect(html).toContain('href="/admin/guide#embed_booking_form"');
+      }
     });
 
     test(`${role} opens the guide at the embed answer`, async () => {

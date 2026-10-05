@@ -108,11 +108,16 @@ describe("share buttons", () => {
     expect(button.textContent).toBe("Share");
   });
 
-  /** When the share sheet is absent or refuses, the copy takes over: the
-   *  copied label flashes, then the original label returns. */
-  const fallsBackToCopy = async (shareStub: unknown): Promise<void> => {
+  /** The share sheet is absent (or refused), so the copy takes over: the
+   *  copied label flashes, then the original label returns. `bare` swaps the
+   *  full row for a button with no link beside it and no copied label of its
+   *  own. */
+  const fallsBackToCopy = async (
+    bare: boolean,
+    shareStub: unknown = null,
+  ): Promise<void> => {
     using time = new FakeTime();
-    const { button } = setup();
+    const { button } = bare ? setupBareButton() : setup();
     stubNavigator("share", shareStub);
     const written = clipboardCopies();
 
@@ -126,11 +131,13 @@ describe("share buttons", () => {
   };
 
   test("without a share sheet the URL is copied and the button says Copied", async () => {
-    await fallsBackToCopy(null);
+    await fallsBackToCopy(false);
   });
 
   test("a failed share falls back to the clipboard", async () => {
-    await fallsBackToCopy(() => Promise.reject(new Error("unsupported")));
+    await fallsBackToCopy(false, () =>
+      Promise.reject(new Error("unsupported")),
+    );
   });
 
   test("a cancelled share sheet copies nothing and keeps the label", async () => {
@@ -193,8 +200,9 @@ describe("share buttons", () => {
     expect(button.textContent).toBe("Share");
   });
 
-  test("a share button with no link in its row selects nothing", async () => {
-    using time = new FakeTime();
+  /** A bare share button on the DOM (no link beside it), wired, and handed
+   *  back with its window. */
+  const setupBareButton = () => {
     const window = dom.installDom(
       '<button data-share-url="https://fair.example/ticket/sunday" type="button">Share</button>',
     );
@@ -202,6 +210,12 @@ describe("share buttons", () => {
     const button = window.document.querySelector(
       "button[data-share-url]",
     ) as unknown as HTMLButtonElement;
+    return { button, window };
+  };
+
+  test("a share button with no link in its row selects nothing", async () => {
+    using time = new FakeTime();
+    const { button, window } = setupBareButton();
     stubNavigator("share", null);
     stubNavigator("clipboard", null);
     const selected = captureSelection(window);
@@ -212,25 +226,9 @@ describe("share buttons", () => {
   });
 
   test("a click on the wired button runs the chain and flashes Copied", async () => {
-    using time = new FakeTime();
-    const window = dom.installDom(
-      '<button data-share-url="https://fair.example/ticket/sunday" type="button">Share</button>',
-    );
-    initShareButtons();
-    const button = window.document.querySelector(
-      "button[data-share-url]",
-    ) as unknown as HTMLButtonElement;
-    stubNavigator("share", null);
-    const written = clipboardCopies();
-
-    await clickAndSettle(time, button);
-
-    expect(written).toEqual(["https://fair.example/ticket/sunday"]);
-    // No data-copied-label on this row, so the module's default shows.
-    expect(button.textContent).toBe("Copied");
-
-    time.tick(2000);
-    expect(button.textContent).toBe("Share");
+    // The bare row carries no data-copied-label, so the module's default
+    // label shows.
+    await fallsBackToCopy(true);
   });
 
   test("a browser without a selection API selects nothing", async () => {
