@@ -90,7 +90,7 @@ describe("getTicketFields — field composition", () => {
 
   test("attaches the lookup panel to the address field only when a provider is set", () => {
     const settingsAny = settings as unknown as Record<string, unknown>;
-    const original = settingsAny.addressLookup;
+    const original: typeof settings.addressLookup = settings.addressLookup;
     try {
       settingsAny.addressLookup = { ...original, provider: "none" };
       const plain = getTicketFields("address", false)[1]!;

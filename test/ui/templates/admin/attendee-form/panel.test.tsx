@@ -3,10 +3,8 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import type {
-  AttendeeFormLine,
-  ParsedAttendeeForm,
-} from "#routes/admin/attendee-form-model.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
+import type { ParsedAttendeeForm } from "#routes/admin/attendee-form-model.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
   AttendeeFormPanel,
@@ -17,23 +15,10 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
+import { formData } from "./fixtures.ts";
 
 // jscpd:ignore-end
-
-const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
-  error: null,
-  existingBooking: null,
-  key: "",
-  listing: testListingWithCount({ id: 1, max_quantity: 5 }),
-  listingId: 1,
-  noQuantity: false,
-  packageGroupId: 0,
-  packagePrice: null,
-  parentListingId: 0,
-  quantity: null,
-  ...overrides,
-});
 
 const parsed = (
   overrides: Partial<ParsedAttendeeForm> = {},
@@ -41,7 +26,7 @@ const parsed = (
   address: "",
   dayCount: 1,
   email: "",
-  lines: [line()],
+  lines: [attendeeFormLine()],
   name: "Test",
   phone: "",
   returnUrl: "",
@@ -84,27 +69,11 @@ const question = (): QuestionWithAnswers => ({
 
 const data = (
   overrides: Partial<AttendeeFormTemplateData> = {},
-): AttendeeFormTemplateData => ({
-  atBooking: [],
-  attendee: null,
-  attendeeError: null,
-  balanceNotice: null,
-  dateError: null,
-  formError: null,
-  hasDailyListings: false,
-  hasMixedTimings: false,
-  lineWarnings: new Map(),
-  mode: "create",
-  packageNamesById: new Map([[10, "Weekend pass"]]),
-  parentNamesById: new Map([[20, "Main tour"]]),
-  parsed: parsed(),
-  questions: [],
-  selectedAnswerIds: [],
-  selectedTextAnswers: new Map(),
-  statuses: statuses(),
-  topWarnings: [],
-  ...overrides,
-});
+): AttendeeFormTemplateData =>
+  formData(parsed(), {
+    statuses: statuses(),
+    ...overrides,
+  });
 
 const render = (overrides: Partial<AttendeeFormTemplateData> = {}): string =>
   String(AttendeeFormPanel({ data: data(overrides) }));
@@ -176,7 +145,9 @@ describe("attendee form panel", () => {
       { saveError: "The server refused the save." },
       {
         parsed: parsed({
-          lines: [line({ error: "Not enough places left on 5 June." })],
+          lines: [
+            attendeeFormLine({ error: "Not enough places left on 5 June." }),
+          ],
         }),
       },
     ] as Partial<AttendeeFormTemplateData>[];
@@ -398,7 +369,7 @@ describe("attendee form page shells", () => {
 
   test("the attendees page shell defaults its active section to the list", () => {
     const html = AttendeesPage({
-      children: "<p>Body</p>",
+      children: Raw({ html: "<p>Body</p>" }),
       session: OWNER_SESSION,
       title: "Attendees",
     });

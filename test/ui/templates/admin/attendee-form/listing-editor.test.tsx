@@ -9,21 +9,9 @@ import { formatDateRangeLabel } from "#shared/dates.ts";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-
-const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
-  error: null,
-  existingBooking: null,
-  key: "",
-  listing: testListingWithCount({ id: 1, max_quantity: 5 }),
-  listingId: 1,
-  noQuantity: false,
-  packageGroupId: 0,
-  packagePrice: null,
-  parentListingId: 0,
-  quantity: null,
-  ...overrides,
-});
+import { formData } from "./fixtures.ts";
 
 const booking = (
   overrides: Partial<ListingAttendeeRow> = {},
@@ -59,27 +47,7 @@ const parsed = (lines: AttendeeFormLine[]): ParsedAttendeeForm => ({
 const data = (
   lines: AttendeeFormLine[],
   overrides: Partial<AttendeeFormTemplateData> = {},
-): AttendeeFormTemplateData => ({
-  atBooking: [],
-  attendee: null,
-  attendeeError: null,
-  balanceNotice: null,
-  dateError: null,
-  formError: null,
-  hasDailyListings: false,
-  hasMixedTimings: false,
-  lineWarnings: new Map(),
-  mode: "create",
-  packageNamesById: new Map([[10, "Weekend pass"]]),
-  parentNamesById: new Map([[20, "Main tour"]]),
-  parsed: parsed(lines),
-  questions: [],
-  selectedAnswerIds: [],
-  selectedTextAnswers: new Map(),
-  statuses: [],
-  topWarnings: [],
-  ...overrides,
-});
+): AttendeeFormTemplateData => formData(parsed(lines), overrides);
 
 describe("ListingEditor", () => {
   beforeAll(setupAdminPageTest);
@@ -89,13 +57,13 @@ describe("ListingEditor", () => {
       ListingEditor({
         data: data(
           [
-            line(),
-            line({ listingId: 2, packageGroupId: 10 }),
-            line({ listingId: 3, packageGroupId: 11 }),
-            line({ listingId: 4, parentListingId: 20 }),
-            line({ listingId: 5, parentListingId: 21 }),
-            line({ listingId: 6, packageGroupId: 1 }),
-            line({ listingId: 7, parentListingId: 1 }),
+            attendeeFormLine(),
+            attendeeFormLine({ listingId: 2, packageGroupId: 10 }),
+            attendeeFormLine({ listingId: 3, packageGroupId: 11 }),
+            attendeeFormLine({ listingId: 4, parentListingId: 20 }),
+            attendeeFormLine({ listingId: 5, parentListingId: 21 }),
+            attendeeFormLine({ listingId: 6, packageGroupId: 1 }),
+            attendeeFormLine({ listingId: 7, parentListingId: 1 }),
           ],
           {
             packageNamesById: new Map([
@@ -136,9 +104,12 @@ describe("ListingEditor", () => {
     // A package id of 1 keeps every "is this a package path?" check honest.
     const html = String(
       ListingEditor({
-        data: data([line({ key: "p", listingId: 2, packageGroupId: 1 })], {
-          packageNamesById: new Map([[1, "Day pass"]]),
-        }),
+        data: data(
+          [attendeeFormLine({ key: "p", listingId: 2, packageGroupId: 1 })],
+          {
+            packageNamesById: new Map([[1, "Day pass"]]),
+          },
+        ),
       }),
     );
 
@@ -156,7 +127,9 @@ describe("ListingEditor", () => {
     // A quantity picked on the form (no stored booking yet) still counts as a
     // booked line, so the editor stays in its filtered shape.
     const html = String(
-      ListingEditor({ data: data([line({ key: "s", quantity: 1 })]) }),
+      ListingEditor({
+        data: data([attendeeFormLine({ key: "s", quantity: 1 })]),
+      }),
     );
 
     expect(html).toContain('class="listing-editor"');
@@ -175,7 +148,7 @@ describe("ListingEditor", () => {
       refunded: 1,
       start_at: "2026-07-01T00:00:00Z",
     });
-    const bookedLine = line({
+    const bookedLine = attendeeFormLine({
       error: "Choose a smaller quantity.",
       existingBooking,
       key: "1|2026-07-01",
@@ -194,8 +167,8 @@ describe("ListingEditor", () => {
         data: data(
           [
             bookedLine,
-            line({ key: "s", quantity: 1 }),
-            line({
+            attendeeFormLine({ key: "s", quantity: 1 }),
+            attendeeFormLine({
               existingBooking: booking(),
               key: "p",
               packageGroupId: 10,
