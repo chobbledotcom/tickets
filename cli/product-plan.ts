@@ -1,5 +1,8 @@
 import { normalizeEntityName } from "#db/name-registry.ts";
-import { type CatalogProduct, frontmatterBlock } from "./product-catalog.ts";
+import {
+  type CatalogProduct,
+  frontmatterBlock,
+} from "./product-catalog/parse.ts";
 
 /** A row the importer matches by name: the listing list the API returns. */
 export type ApiNamedLike = { id: number; name: string };

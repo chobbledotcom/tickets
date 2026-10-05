@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { parseProductFile } from "#cli/product-catalog/parse.ts";
 import {
   attributeVocabulary,
   categoryTitle,
-  parseProductFile,
   readCategoryEntries,
 } from "#cli/product-catalog.ts";
 import {
@@ -260,6 +260,12 @@ Body text that the importer never reads.
       await Deno.writeTextFile(`${dir}/untitled.md`, "no frontmatter");
       expect(await categoryTitle(dir, "christmas")).toBe("Christmas Game Hire");
       expect(await categoryTitle(dir, "untitled")).toBe("untitled");
+      // A file whose frontmatter holds no mapping (empty, or a scalar) has
+      // no title either.
+      await Deno.writeTextFile(`${dir}/bare.md`, "---\n---\n");
+      await Deno.writeTextFile(`${dir}/scalar.md`, "---\n5\n---\n");
+      expect(await categoryTitle(dir, "bare")).toBe("bare");
+      expect(await categoryTitle(dir, "scalar")).toBe("scalar");
     });
   });
 

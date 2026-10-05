@@ -114,15 +114,6 @@ const COVERAGE_EXCLUSIONS = [
   // but coverage only sees the module-load path the test runner took —
   // not the alternative env states the harness boots in for each target.
   "e2e-payments/src/config.ts",
-  // Deno's coverage merger mis-attributes cli/product-catalog.ts once several
-  // test isolates load it: the merged lcov reads DA:...,0 for lines inside
-  // parseFrontmatter, parseOptions, and categoryTitle while the raw V8
-  // profile records those ranges with counts (parseFrontmatter's body
-  // FNDA:30, its catch arm count 1) — internally impossible. The functions
-  // genuinely run: product-catalog.test.ts and product-catalog-import.test.ts
-  // assert the throws and the parsed shapes, and the mutation gate still
-  // mutates the file against its direct tests.
-  "cli/product-catalog.ts",
   // Deno's coverage merger mis-attributes this file once several test
   // isolates load it: the merged lcov records FNDA:34,leadingWhitespaceLength
   // while the function's own body line reads DA:16,0 — internally impossible.
