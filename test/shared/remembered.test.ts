@@ -16,6 +16,20 @@ describe("remembered", () => {
     expect(callCount).toBe(2);
   });
 
+  test("keeps an undefined answer, so the same input costs one computation", () => {
+    let callCount = 0;
+    const classify = remembered((input: string) => {
+      callCount++;
+      return input === "unknown" ? undefined : input;
+    });
+
+    expect(classify("unknown")).toBeUndefined();
+    expect(classify("unknown")).toBeUndefined();
+    expect(callCount).toBe(1);
+    expect(classify("known")).toBe("known");
+    expect(callCount).toBe(2);
+  });
+
   test("distinguishes equal-length string inputs", () => {
     const upper = remembered((input: string) => input.toUpperCase());
 
