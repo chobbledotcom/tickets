@@ -12,13 +12,10 @@ import {
 } from "#accounting/queries.ts";
 import { emptyRange, type LedgerRange } from "#accounting/range.ts";
 import { postTransfers } from "#accounting/store.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 // jscpd:ignore-end
 
@@ -196,7 +193,7 @@ describe("db > accounting > operator ledger stats and visible list", () => {
 
   test("visibleTransfers asks the database nothing when no listing is chosen", async () => {
     await seedLedger();
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       expect(await visibleTransfers(emptyRange, [], 100)).toEqual([]);
       expect(getQueryLog()).toEqual([]);

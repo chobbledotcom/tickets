@@ -10,11 +10,7 @@ import {
   getListingsByGroupId,
 } from "#db/groups.ts";
 import { listingsTable } from "#db/listings/records.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,6 +19,7 @@ import {
   createTwoListingsSharingOnePlace,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { line } from "./helpers.ts";
 
@@ -83,7 +80,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // must stay bounded at the stride sample however many lines there are —
     // the facts batch, then batches sharing one round-trip window each.
     const lines = await seventeenLinesSharingOnePlace();
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       await refusedOrderUnfitListingIds(lines);
       const probeBatches = Map.groupBy(

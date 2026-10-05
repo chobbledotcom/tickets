@@ -4,11 +4,7 @@ import { spy, stub } from "@std/testing/mock";
 import { getPbkdf2Iterations, hashPassword } from "#crypto/hashing.ts";
 import { generateDataKey } from "#crypto/keys.ts";
 import type { WrappedKey } from "#crypto/sealed.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
 import {
   createUser,
@@ -37,6 +33,7 @@ import { validEmail } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const captureConsoleErrors = <T>(
   body: () => T,
@@ -141,7 +138,7 @@ const createOwnerUser =
 const withSuperuserQueryLog = async <T>(
   body: () => T | Promise<T>,
 ): Promise<T> =>
-  runWithQueryLogContext(async () => {
+  withRequestContext(async () => {
     enableQueryLog();
     return await body();
   });

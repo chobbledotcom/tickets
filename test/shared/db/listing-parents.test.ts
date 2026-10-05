@@ -11,16 +11,13 @@ import {
   type TouchingEdge,
 } from "#db/listing-parents.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { t } from "#i18n";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { edgeListing } from "#test/shared/listing-parents-rules/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b);
 
@@ -207,7 +204,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
     test("reads edge ids without loading listing rows", async () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
-      const queries = await runWithQueryLogContext(async () => {
+      const queries = await withRequestContext(async () => {
         enableQueryLog();
         await firstTouchingEdgeError(parent.id, () => null);
         return getQueryLog().map((entry) => entry.sql);

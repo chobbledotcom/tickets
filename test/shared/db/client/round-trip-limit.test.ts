@@ -2,7 +2,7 @@ import type { Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryBatch, setDb, withTransaction } from "#db/client.ts";
-import { runWithQueryLogContext } from "#db/query-log.ts";
+
 import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestUsage,
@@ -10,10 +10,11 @@ import {
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > client round-trip limit", { db: true }, () => {
   test("counts every database operation at the client boundary", async () => {
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       // Eleven guarded calls below are counted, including the rolledBack
       // rollback: a rollback is counted like any other subrequest (it is only
       // exempt from being *blocked*), so the running total stays accurate.
@@ -98,7 +99,7 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     ];
     for (const { label, needsTx, run } of operations) {
       let tx: Transaction | undefined;
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         if (needsTx) tx = await getDb().transaction("write");
         const fills = BUNNY_SUBREQUEST_LIMIT - (needsTx ? 1 : 0);
         await Promise.all(
@@ -124,7 +125,7 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     // beat Bunny's hard limit, it stays under it.
     const reservedCap = 6;
     await runWithSubrequestBudget(() =>
-      runWithQueryLogContext(async () => {
+      withRequestContext(async () => {
         await withSubrequestAllowance(
           { database: reservedCap, external: reservedCap, total: reservedCap },
           async () => {
@@ -161,7 +162,7 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     // never past the real round-trip limit: at the platform cap the rollback
     // would be a genuine over-limit subrequest that Bunny rejects, so the guard
     // blocks it here too rather than pretending it succeeds.
-    const tx = await runWithQueryLogContext(async () => {
+    const tx = await withRequestContext(async () => {
       const openTx = await getDb().transaction("write");
       await Promise.all(
         Array.from({ length: BUNNY_SUBREQUEST_LIMIT - 1 }, () =>
@@ -188,8 +189,8 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     database: number;
     total: number;
   }): Promise<string> =>
-    runWithSubrequestBudget(() =>
-      runWithQueryLogContext(() =>
+    runWithSubrequestBudget(async () =>
+      withRequestContext(() =>
         withSubrequestAllowance(
           { external: BUNNY_SUBREQUEST_LIMIT, ...allowance },
           () => withTransaction(() => Promise.resolve("committed")),
@@ -237,7 +238,7 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     // guard on top: each statement would then count two round trips, halving
     // the real budget (the 26th statement would throw here).
     setDb(getDb());
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       await Promise.all(
         Array.from({ length: 30 }, () => getDb().execute("SELECT 1")),
       );

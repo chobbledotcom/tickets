@@ -16,11 +16,7 @@ import {
   requireListingWithCount,
 } from "#db/listings/records.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -29,6 +25,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
   describe("batch queries", () => {
@@ -38,7 +35,7 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
     });
 
     test("getStoredListingsWithCountsByIds asks the database nothing for no ids", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
         expect(getQueryLog()).toEqual([]);
@@ -86,7 +83,7 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
       const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
       await deactivateTestListing(beta.id);
 
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         const options = await getAllListingOptions();
 
@@ -238,7 +235,7 @@ describeWithEnv(
     test("a warm read asks nothing, and dependency writes empty the cache", async () => {
       await createTestListing({ name: "Cache Warmth" });
       await getAllListings();
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         await getAllListings();
         expect(getQueryLog()).toEqual([]);
@@ -265,7 +262,7 @@ describeWithEnv(
       ];
       for (const [table, sql] of writes) {
         await execute(sql);
-        const calls = await runWithQueryLogContext(async () => {
+        const calls = await withRequestContext(async () => {
           enableQueryLog();
           await getAllListings();
           return getQueryLog().length;

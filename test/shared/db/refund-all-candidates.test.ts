@@ -3,11 +3,7 @@ import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, setDb } from "#db/client.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import {
   getRefundAllSummary,
   loadRefundAllBatch,
@@ -40,6 +36,7 @@ import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 // jscpd:ignore-end
 
@@ -342,7 +339,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     const listing = await createPaidListing();
     await seedTaggedBatchAttendees(listing, "pi_bounded_pii_", 7);
 
-    const statements = await runWithQueryLogContext(async () => {
+    const statements = await withRequestContext(async () => {
       enableQueryLog();
       await loadRefundAllBatch(listing.id);
       return getQueryLog().map(({ sql }) => sql);

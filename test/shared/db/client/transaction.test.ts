@@ -4,7 +4,6 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { getDb, withTransaction, writeRowInTransaction } from "#db/client.ts";
 import {
-  runWithQueryLogContext,
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
@@ -17,6 +16,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /**
  * Interactive-transaction internals: the per-transaction statement budget (the
@@ -37,7 +37,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
    *  N+1 read guard (per-SQL, threshold 25) stays quiet and only the
    *  transaction's own statement budget is exercised. */
   const runChattyTransaction = (executes: number): Promise<unknown> =>
-    runWithQueryLogContext(() =>
+    withRequestContext(() =>
       withTransaction(async (tx) => {
         for (let i = 0; i < executes; i++) {
           await tx.execute(`SELECT ${i}`);
@@ -54,7 +54,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
 
   test("the single-statement over the budget throws", async () => {
     await expect(
-      runWithQueryLogContext(() =>
+      withRequestContext(() =>
         withTransaction(async (tx) => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
             await tx.execute(`SELECT ${i}`);

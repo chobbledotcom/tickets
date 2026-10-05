@@ -9,13 +9,11 @@ import {
   writeRawBatch,
 } from "#db/settings/raw-writes.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
-import {
-  assertSettingsReadsDeclared,
-  runWithSettingsAudit,
-} from "#db/settings-audit.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+import { assertSettingsReadsDeclared } from "#db/settings-audit.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
 import { statementSql } from "#test-utils/record-queries.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const expectSquareLocationAbsent = async (): Promise<void> => {
   expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBeNull();
@@ -73,7 +71,7 @@ describeWithEnv("writeRaw", { db: true }, () => {
   });
 
   test("registers audit-loaded keys", async () => {
-    await runWithSettingsAudit(async () => {
+    await withRequestContext(async () => {
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_one");
       await writeRawBatch([[CONFIG_KEYS.SUMUP_MERCHANT_CODE, "audit_two"]]);
       settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
@@ -90,7 +88,7 @@ describeWithEnv("writeRaw", { db: true }, () => {
 
   test("written keys are not refilled later in the same request", async () => {
     settings.invalidateCache();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "same_request");
       await writeRawBatch([
@@ -133,7 +131,7 @@ describeWithEnv("deleteRaw", { db: true }, () => {
 
 describeWithEnv("settings write audit", { db: true }, () => {
   test("writeRaw marks the key loaded so snap() audit passes", async () => {
-    await runWithSettingsAudit(async () => {
+    await withRequestContext(async () => {
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_snap");
       settings.square.locationId;
       assertSettingsReadsDeclared("snap-audit");
@@ -141,7 +139,7 @@ describeWithEnv("settings write audit", { db: true }, () => {
   });
 
   test("writeRawBatch marks every key loaded so snap() audit passes", async () => {
-    await runWithSettingsAudit(async () => {
+    await withRequestContext(async () => {
       await writeRawBatch([
         [CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_batch"],
         [CONFIG_KEYS.SUMUP_MERCHANT_CODE, "audit_batch_mc"],

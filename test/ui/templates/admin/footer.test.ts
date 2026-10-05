@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { enableFooterDebug, runWithQueryLogContext } from "#db/query-log.ts";
+import { enableFooterDebug } from "#db/query-log.ts";
 import {
   adminFooterHtml,
   type DebugFooterData,
@@ -9,6 +9,7 @@ import {
   renderAdminFooter,
 } from "#templates/admin/footer.tsx";
 import { expectHtmlEscaped } from "#test-utils/assertions.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("admin footer templates", () => {
   describe("debugDetailsHtml", () => {
@@ -260,13 +261,13 @@ describe("admin footer templates", () => {
 
   describe("renderAdminFooter", () => {
     test("returns empty string when the page was not flagged as admin", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(renderAdminFooter()).toBe("");
       });
     });
 
     test("renders the footer with logout once flagged, with no debug menu when query logging is off", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         markAdminFooter("owner");
         const html = renderAdminFooter();
         expect(html).toContain('<footer class="admin-footer">');
@@ -281,7 +282,7 @@ describe("admin footer templates", () => {
     });
 
     test("renders only logout for a non-staff role flagged via the store", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         markAdminFooter("editor");
         const html = renderAdminFooter();
         expect(html).toContain('<a href="/admin/logout">Log out</a>');
@@ -291,7 +292,7 @@ describe("admin footer templates", () => {
     });
 
     test("consumes the flag so a later render is empty", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         markAdminFooter("owner");
         renderAdminFooter();
         expect(renderAdminFooter()).toBe("");
@@ -299,7 +300,7 @@ describe("admin footer templates", () => {
     });
 
     test("includes the debug menu and uptime when footer debug is enabled", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableFooterDebug();
         markAdminFooter("owner");
         const html = renderAdminFooter();

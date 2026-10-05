@@ -1,10 +1,7 @@
-import { runWithQueryLogContext } from "#db/query-log.ts";
-import { runWithSettingsAudit } from "#db/settings-audit.ts";
 import { parseAcceptLanguage } from "#i18n";
 import { runWithCsrfContext } from "#shared/csrf.ts";
 import { runWithFlashContext } from "#shared/flash-context.ts";
 import { runWithSavedFormContext } from "#shared/forms/saved-data.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
 import { runWithRequestContext } from "#shared/request-context.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
@@ -24,13 +21,10 @@ export const runWithRequestScopes = (
 ): Promise<Response> => {
   const locale = parseAcceptLanguage(request.headers.get("accept-language"));
   const scopes: ((next: () => Promise<Response>) => Promise<Response>)[] = [
-    runWithRequestCache,
-    runWithQueryLogContext,
     runWithFlashContext,
     runWithSessionContext,
     runWithCsrfContext,
     runWithSavedFormContext,
-    runWithSettingsAudit,
     runWithAdminFooterContext,
   ];
 

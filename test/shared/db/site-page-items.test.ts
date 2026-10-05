@@ -17,11 +17,12 @@ import {
   sitePageItemOrder,
 } from "#db/site-page-items.ts";
 import { getSitePageById } from "#db/site-pages.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > site-page-items", { db: true }, () => {
   describe("page items", () => {
@@ -165,7 +166,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
     test("a page-item write clears the request-scoped edge cache", async () => {
       const p = await createTestSitePage("cachebust");
       await addPageItem(p.id, "listing", 1); // seed one edge (outside the scope)
-      await runWithRequestCache(async () => {
+      await withRequestContext(async () => {
         expect((await getAllPageItems()).length).toBe(1); // warm the cache
         await removePageItem(p.id, "listing", 1); // write auto-invalidates it
         expect(await getAllPageItems()).toEqual([]); // must re-fetch fresh

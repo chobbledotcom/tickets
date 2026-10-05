@@ -14,12 +14,13 @@ import {
   updateNewsPost,
 } from "#db/news-posts.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > news-posts", { db: true }, () => {
   const errors = setupErrorSpy();
@@ -288,8 +289,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(await hasNewsPosts()).toBe(false);
     });
 
-    test("request cache is invalidated by a write inside the same request", () =>
-      runWithRequestCache(async () => {
+    test("request cache is invalidated by a write inside the same request", async () =>
+      await withRequestContext(async () => {
         expect(await hasNewsPosts()).toBe(false);
         await createTestNewsPost("Mid-request");
         expect(await hasNewsPosts()).toBe(true);

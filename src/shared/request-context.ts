@@ -11,6 +11,8 @@
  * write only a live store.
  */
 
+import type { QueryLogState } from "#db/query-log.ts";
+import type { AuditState } from "#db/settings-audit.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { redactPath } from "#shared/redact-path.ts";
 import { createScope, type PromiseTask } from "#shared/request-scoped.ts";
@@ -26,15 +28,20 @@ export type RequestTrace = {
 
 /** The facts one request carries. Minted fresh by runWithRequestContext. */
 export type RequestStore = {
-  /** The locale the request's Accept-Language header negotiated. */
-  locale: string;
-  /** The client IP resolved at the boundary, or "direct" for in-process calls. */
   clientIp: string;
-  /** The 4-character hex id every log line of this request carries. */
+  iframe: boolean;
+  locale: string;
   requestId: string;
   trace: RequestTrace;
-  /** Set from the request URL early in the pipeline, read by renderers. */
-  iframe: boolean;
+  /** Slots the per-request caches keep their data in
+   * (src/shared/request-cache.ts). */
+  cache: Map<symbol, unknown>;
+  /** Query recording and guard counters, allocated on the request's first
+   * database call (src/shared/db/query-log.ts). */
+  queryLog?: QueryLogState;
+  /** Settings-audit bookkeeping, allocated only while the audit is enabled
+   * (src/shared/db/settings-audit.ts). */
+  settingsAudit?: AuditState;
 };
 
 const requestScope = createScope<RequestStore>();
@@ -57,6 +64,7 @@ export const runWithRequestContext = <T>(
   const url = new URL(request.url);
   return requestScope.run(
     {
+      cache: new Map(),
       clientIp: facts.clientIp,
       iframe: url.searchParams.get("iframe") === "true",
       locale: facts.locale,
@@ -71,9 +79,40 @@ export const runWithRequestContext = <T>(
   );
 };
 
-/** The live request's store, or undefined outside one. */
-const current = (): RequestStore | undefined => requestScope.current();
+/** The current request's store, or undefined outside one. */
+export const currentRequestStore = (): RequestStore | undefined =>
+  requestScope.current();
 
+/** A lazily-initialised slot on the request store, owned by one module. */
+export type RequestSlot<S> = {
+  fresh: () => S;
+  read: (store: RequestStore) => S | undefined;
+  write: (store: RequestStore, value: S) => void;
+};
+
+/** Get or allocate one slot on the current request's store. Undefined
+ * outside a request. */
+export const requestSlot = <S>(slot: RequestSlot<S>): S | undefined => {
+  const store = currentRequestStore();
+  if (!store) return;
+  const existing = slot.read(store);
+  if (existing) return existing;
+  const value = slot.fresh();
+  slot.write(store, value);
+  return value;
+};
+
+/** Apply `use` to one slot's state, allocating it on first use. No-op
+ * outside a request. */
+export const withRequestSlot = <S>(
+  slot: RequestSlot<S>,
+  use: (state: S) => void,
+): void => {
+  const state = requestSlot(slot);
+  if (state) use(state);
+};
+
+/** The current request's locale, or "en" outside a request. */
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
   const buf = crypto.getRandomValues(new Uint8Array(2));
@@ -81,25 +120,28 @@ const generateRequestId = (): string => {
 };
 
 /** The current request's locale, or "en" outside a request. */
-export const getLocale = (): string => current()?.locale ?? "en";
+export const getLocale = (): string => currentRequestStore()?.locale ?? "en";
 
 /** The current request's client IP, or "direct" when not in a request scope. */
-export const getRequestClientIp = (): string => current()?.clientIp ?? "direct";
+export const getRequestClientIp = (): string =>
+  currentRequestStore()?.clientIp ?? "direct";
 
 /** The current request's log-correlation id, or "" outside a request. */
-export const getRequestId = (): string => current()?.requestId ?? "";
+export const getRequestId = (): string =>
+  currentRequestStore()?.requestId ?? "";
 
 /** The request being served, or null when nothing is being served. */
 export const getRequestTrace = (): RequestTrace | null =>
-  current()?.trace ?? null;
+  currentRequestStore()?.trace ?? null;
 
 /** Get the current request's iframe mode */
-export const getIframeMode = (): boolean => current()?.iframe ?? false;
+export const getIframeMode = (): boolean =>
+  currentRequestStore()?.iframe ?? false;
 
 /** Detect iframe mode from a request URL and store it for the current request.
  * A no-op outside a request, so a direct render cannot set the ambient mode. */
 export const detectIframeMode = (url: URL): void => {
-  const store = current();
+  const store = currentRequestStore();
   if (store) store.iframe = url.searchParams.get("iframe") === "true";
 };
 

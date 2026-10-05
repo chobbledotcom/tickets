@@ -5,11 +5,7 @@ import { getDb } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 /* jscpd:ignore-start -- imports */
 import { getListingWithCount } from "#db/listings/records.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -18,6 +14,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 /* jscpd:ignore-end */
 import type { ListingWithCount } from "#types";
 
@@ -196,7 +193,7 @@ describeWithEnv(
         const listing = await createDailyTestListing({ maxAttendees: 5 });
         listings.push(await row(listing.id));
       }
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         const map = await getListingRemainingForRange(listings, "2026-05-01");
         expect(map.size).toBe(28);

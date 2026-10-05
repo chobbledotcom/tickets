@@ -13,11 +13,12 @@ import {
   updateSitePage,
 } from "#db/site-pages.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import type { SitePage } from "#types";
 
 const makePage = async (
@@ -97,12 +98,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(orders[1]).toBeLessThan(orders[2]!);
     });
 
-    test("createSitePage clears the nav cache so the new page shows", () =>
+    test("createSitePage clears the nav cache so the new page shows", async () =>
       // The nav projection is request-scoped, so hold one request open across
       // the populate → create → re-read: the raw transactional insert must
       // invalidate the cache, or this second read returns the stale projection
       // without the new page.
-      runWithRequestCache(async () => {
+      await withRequestContext(async () => {
         await sitePages.getAll(); // populate the cached projection
         const created = await createTestSitePage("fresh-cache", {
           content: "Body",

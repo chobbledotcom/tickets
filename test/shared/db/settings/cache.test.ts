@@ -10,8 +10,9 @@ import {
   settings,
 } from "#db/settings.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > settings > cache", { db: true }, () => {
   describe("the cached state itself", () => {
@@ -98,7 +99,7 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
     });
 
     test("a settings write through the client refreshes this request's version memo", async () => {
-      await runWithRequestCache(async () => {
+      await withRequestContext(async () => {
         await settings.setRaw("memo_version", "one");
         await settings.loadKeys(["memo_version"]);
         expect(settings.getCachedRaw("memo_version")).toBe("one");

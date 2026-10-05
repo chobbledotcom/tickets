@@ -4,9 +4,9 @@ import {
   assertSettingsReadsDeclared,
   recordSettingRead,
   recordSettingsLoaded,
-  runWithSettingsAudit,
   setSettingsAuditEnabled,
 } from "#db/settings-audit.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("settings-audit", () => {
   afterEach(() => {
@@ -16,7 +16,7 @@ describe("settings-audit", () => {
   describe("when enabled", () => {
     test("passes when every read key was loaded", () => {
       setSettingsAuditEnabled(true);
-      runWithSettingsAudit(() => {
+      withRequestContext(() => {
         recordSettingsLoaded(["theme", "country"]);
         recordSettingRead("theme");
         // No throw: reads ⊆ loaded.
@@ -26,7 +26,7 @@ describe("settings-audit", () => {
 
     test("throws naming the route and the undeclared keys", () => {
       setSettingsAuditEnabled(true);
-      runWithSettingsAudit(() => {
+      withRequestContext(() => {
         recordSettingsLoaded(["theme"]);
         recordSettingRead("theme");
         recordSettingRead("stripe_secret_key");
@@ -38,7 +38,7 @@ describe("settings-audit", () => {
 
     test("treats a key written this request as available to read", () => {
       setSettingsAuditEnabled(true);
-      runWithSettingsAudit(() => {
+      withRequestContext(() => {
         recordSettingsLoaded(["country"]);
         recordSettingsLoaded(["business_email"]); // e.g. a write
         recordSettingRead("business_email");
@@ -48,13 +48,8 @@ describe("settings-audit", () => {
   });
 
   describe("when disabled (production)", () => {
-    test("runWithSettingsAudit passes the value straight through", () => {
-      const result = runWithSettingsAudit(() => 42);
-      expect(result).toBe(42);
-    });
-
-    test("record/assert helpers are no-ops outside an audit scope", () => {
-      // No scope entered: nothing recorded, assert never throws.
+    test("record/assert helpers are no-ops outside an audit", () => {
+      // No state, nothing recorded, assert never throws.
       recordSettingRead("stripe_secret_key");
       recordSettingsLoaded(["theme"]);
       assertSettingsReadsDeclared("GET /");

@@ -3,8 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
-import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
+import { requestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("requestCache", () => {
   const makeCountingCache = () => {
@@ -19,7 +20,7 @@ describe("requestCache", () => {
   test("fetches on first call and caches within request", async () => {
     const { cache, getCalls } = makeCountingCache();
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       const first = await cache.getAll();
       expect(first).toEqual([1, 2, 3]);
       const second = await cache.getAll();
@@ -32,8 +33,8 @@ describe("requestCache", () => {
     let counter = 0;
     const cache = requestCache(() => Promise.resolve([++counter]));
 
-    const first = await runWithRequestCache(() => cache.getAll());
-    const second = await runWithRequestCache(() => cache.getAll());
+    const first = await withRequestContext(() => cache.getAll());
+    const second = await withRequestContext(() => cache.getAll());
     expect(first).toEqual([1]);
     expect(second).toEqual([2]);
   });
@@ -42,7 +43,7 @@ describe("requestCache", () => {
     let counter = 0;
     const cache = requestCache(() => Promise.resolve([++counter]));
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect(await cache.getAll()).toEqual([1]);
       cache.invalidate();
       expect(await cache.getAll()).toEqual([2]);
@@ -57,8 +58,8 @@ describe("requestCache", () => {
     });
 
     cache.invalidate("write");
-    await runWithRequestCache(() => cache.getAll());
-    await runWithRequestCache(() => cache.getAll());
+    await withRequestContext(() => cache.getAll());
+    await withRequestContext(() => cache.getAll());
 
     expect(reads).toEqual([true, true]);
   });
@@ -87,7 +88,7 @@ describe("requestCache", () => {
       release = resolve;
     });
     let afterRequest!: Promise<number>;
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await cache.getAll(); // memoised for this request (1 fetch)
       afterRequest = (async () => {
         await gate;
@@ -104,7 +105,7 @@ describe("requestCache", () => {
   test("concurrent reads within request share one fetch", async () => {
     const { cache, getCalls } = makeCountingCache();
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       const [a, b] = await Promise.all([cache.getAll(), cache.getAll()]);
       expect(a).toBe(b); // same reference
       expect(getCalls()).toBe(1);
@@ -124,7 +125,7 @@ describe("requestCache", () => {
         : Promise.resolve([calls]);
     });
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await expect(cache.getAll()).rejects.toThrow("no such table");
       expect(await cache.getAll()).toEqual([2]);
       expect(calls).toBe(2);
@@ -138,7 +139,7 @@ describe("requestCache", () => {
       return Promise.reject(new Error(`boom ${calls}`));
     });
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       const [a, b] = await Promise.allSettled([cache.getAll(), cache.getAll()]);
       expect(a.status).toBe("rejected");
       expect(b.status).toBe("rejected");
@@ -150,7 +151,7 @@ describe("requestCache", () => {
   test("size returns 0 before fetch and count after", async () => {
     const cache = requestCache(() => Promise.resolve([1, 2, 3]));
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect(cache.size()).toBe(0);
       await cache.getAll();
       expect(cache.size()).toBe(3);
@@ -160,7 +161,7 @@ describe("requestCache", () => {
   test("size returns 0 after invalidate", async () => {
     const cache = requestCache(() => Promise.resolve([1, 2, 3]));
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await cache.getAll();
       expect(cache.size()).toBe(3);
       cache.invalidate();
@@ -182,7 +183,7 @@ describe("requestCache", () => {
     const cacheA = requestCache(() => Promise.resolve(["a"]));
     const cacheB = requestCache(() => Promise.resolve(["b"]));
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect(await cacheA.getAll()).toEqual(["a"]);
       expect(await cacheB.getAll()).toEqual(["b"]);
       cacheA.invalidate();
@@ -201,7 +202,7 @@ describeWithEnv("caching integration", { db: true }, () => {
     });
 
     // Within a request, same data is returned (cached reference)
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       const first = await holidays.getAll();
       const second = await holidays.getAll();
       expect(first).toBe(second); // same reference = cached
@@ -211,7 +212,7 @@ describeWithEnv("caching integration", { db: true }, () => {
   });
 
   test("each request gets fresh data after writes", async () => {
-    const first = await runWithRequestCache(() => holidays.getAll());
+    const first = await withRequestContext(() => holidays.getAll());
     expect(first).toHaveLength(0);
 
     await holidays.table.insert({
@@ -220,7 +221,7 @@ describeWithEnv("caching integration", { db: true }, () => {
       startDate: "2026-12-20",
     });
 
-    const second = await runWithRequestCache(() => holidays.getAll());
+    const second = await withRequestContext(() => holidays.getAll());
     expect(second).toHaveLength(1);
     expect(second[0]!.name).toBe("Winter Break");
   });
@@ -233,7 +234,7 @@ describeWithEnv("caching integration", { db: true }, () => {
     }));
 
     try {
-      await runWithRequestCache(async () => {
+      await withRequestContext(async () => {
         await cache.getAll();
         const stats = getAllCacheStats();
         const testStat = stats.find((s) => s.name === "test-integration");

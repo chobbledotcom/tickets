@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
   enforceTransactionRoundTripGuard,
-  runWithQueryLogContext,
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
@@ -11,6 +10,7 @@ import {
   captureScenarioEvidence,
   EVIDENCE_HOOK_TIMEOUT_MS,
 } from "#scripts/specs/evidence/hook.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const world = {
   attach: () => Promise.resolve(),
@@ -61,8 +61,8 @@ describe("Cucumber evidence hook", () => {
 
 // The checks below use the public transaction guard, which shares the same
 // reportGuardViolation path as the N+1 read guard.
-const expectGuardThrowsOnN1Violation = (): void =>
-  runWithQueryLogContext(() => {
+const expectGuardThrowsOnN1Violation = async (): Promise<void> =>
+  await withRequestContext(() => {
     expect(() =>
       enforceTransactionRoundTripGuard(
         TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
@@ -72,7 +72,7 @@ const expectGuardThrowsOnN1Violation = (): void =>
   });
 
 const expectGuardAllowsN1Violation = async (): Promise<void> => {
-  await runWithQueryLogContext(async () => {
+  await withRequestContext(async () => {
     expect(() =>
       enforceTransactionRoundTripGuard(
         TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
@@ -101,7 +101,7 @@ describe("Cucumber evidence hook restores the N+1 guard after capture", () => {
       Promise.resolve(() => Promise.resolve()),
     );
 
-    expectGuardThrowsOnN1Violation();
+    await expectGuardThrowsOnN1Violation();
   });
 
   test("restores the default throw mode even when the capture itself throws", async () => {
@@ -111,6 +111,6 @@ describe("Cucumber evidence hook restores the N+1 guard after capture", () => {
       ),
     ).rejects.toThrow("capture boom");
 
-    expectGuardThrowsOnN1Violation();
+    await expectGuardThrowsOnN1Violation();
   });
 });

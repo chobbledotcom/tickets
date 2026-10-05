@@ -11,7 +11,7 @@ import type { LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import { execute } from "#db/client.ts";
-import { enableQueryLog, runWithQueryLogContext } from "#db/query-log.ts";
+import { enableQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -21,6 +21,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { awaitObservedProbe, DAY, line } from "./helpers.ts";
 
@@ -290,7 +291,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       lines.push(line(listing.id));
     }
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       const diagnosis = refusedOrderUnfitListingIds(lines);
       // The probe batch's log entries appear together once the batch lands,

@@ -7,11 +7,7 @@ import {
   answerModifierQuantities,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
@@ -31,6 +27,7 @@ import {
   linkModifierListing,
   patchModifier,
 } from "#test-utils/modifiers.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 /**
@@ -286,7 +283,7 @@ describeWithEnv(
         }),
       );
 
-      const { scopeQueries, specs } = await runWithQueryLogContext(async () => {
+      const { scopeQueries, specs } = await withRequestContext(async () => {
         enableQueryLog();
         const specs = await resolveModifiers([checkoutItem({ listingId: 1 })]);
         return {

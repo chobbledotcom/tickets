@@ -8,7 +8,6 @@ import {
 } from "@std/testing/bdd";
 import {
   N_PLUS_ONE_THRESHOLD,
-  runWithQueryLogContext,
   setN1GuardNotifyOnly,
   trackSql,
 } from "#db/query-log.ts";
@@ -31,6 +30,7 @@ import { minimalEmailMessage, testEmailConfig } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.
@@ -266,7 +266,7 @@ describe("log-error", () => {
         setN1GuardNotifyOnly(true);
         try {
           await runWithPendingWork(() =>
-            runWithQueryLogContext(async () => {
+            withRequestContext(async () => {
               for (let count = 0; count < N_PLUS_ONE_THRESHOLD; count++) {
                 await trackSql(settingsRead, () => Promise.resolve());
               }

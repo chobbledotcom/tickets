@@ -7,11 +7,12 @@ import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const addPage = async (name: string, slug: string, sortOrder: number) =>
@@ -69,7 +70,7 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
   test("builds the whole nav from a single round trip", async () => {
     await addPage("About", "about", 1);
 
-    const calls = await runWithRequestCache(() =>
+    const calls = await withRequestContext(() =>
       // The three little tables the nav needs are read together, and nothing
       // it does afterwards goes back for more.
       countDatabaseCalls(1, () => publicNavProps(null)),
@@ -84,7 +85,7 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
       sitePageItemTargets.of("page")(page.id),
     );
 
-    const calls = await runWithRequestCache(() =>
+    const calls = await withRequestContext(() =>
       countDatabaseCalls(3, () => publicNavModel(current)),
     );
 

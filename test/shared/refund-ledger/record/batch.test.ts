@@ -13,7 +13,7 @@ import {
 import { legReference } from "#accounting/refs.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
-import { runWithQueryLogContext } from "#db/query-log.ts";
+
 import {
   REFUND_LEDGER_BATCH_DATABASE_CALLS,
   recordAttendeeRefund,
@@ -34,6 +34,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv(
@@ -75,7 +76,7 @@ describeWithEnv(
         });
       }
 
-      const calls = await runWithQueryLogContext(() =>
+      const calls = await withRequestContext(() =>
         countDatabaseCalls(REFUND_LEDGER_BATCH_DATABASE_CALLS, () =>
           recordAttendeeRefundsBatch(
             attendeeIds.map((attendeeId) =>
