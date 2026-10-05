@@ -1,12 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { settings } from "#db/settings.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
-import { fieldsApi, getTicketFields } from "#templates/fields/ticket.ts";
+import {
+  extractContact,
+  fieldsApi,
+  getTicketFields,
+  SUBDOMAIN_INPUT_PATTERN,
+} from "#templates/fields/ticket.ts";
 import {
   validateAddress,
+  validateEmail,
   validateName,
   validatePhone,
   validateSpecialInstructions,
@@ -42,6 +49,101 @@ describe("getTicketFields — field composition", () => {
 
   test("returns only name for empty setting", () => {
     expect(fieldNames("")).toEqual(["name"]);
+  });
+
+  test("pins the name and email field definitions", () => {
+    expect(getTicketFields("email", false)).toEqual([
+      {
+        autocomplete: "name",
+        label: "Your Name",
+        maxlength: 250,
+        name: "name",
+        required: true,
+        type: "text",
+        validate: validateName,
+      },
+      {
+        autocomplete: "email",
+        label: "Your Email",
+        maxlength: 250,
+        name: "email",
+        required: true,
+        type: "email",
+        validate: validateEmail,
+      },
+    ]);
+  });
+
+  test("pins the phone field's pattern and tooltip", () => {
+    const phone = getTicketFields("phone", false)[1]!;
+    expect(phone.pattern).toBe("[+\\d][\\d\\s\\-\\(\\)]{5,}");
+    expect(phone.title).toBe(
+      "Phone number (digits, spaces, hyphens, parentheses, optional leading +)",
+    );
+  });
+
+  test("keeps the subdomain input pattern a DNS label", () => {
+    expect(SUBDOMAIN_INPUT_PATTERN).toBe(
+      "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?",
+    );
+  });
+
+  test("attaches the lookup panel to the address field only when a provider is set", () => {
+    const settingsAny = settings as unknown as Record<string, unknown>;
+    const original = settingsAny.addressLookup;
+    try {
+      settingsAny.addressLookup = { ...original, provider: "none" };
+      const plain = getTicketFields("address", false)[1]!;
+      expect(plain.beforeHtml).toBeUndefined();
+
+      settingsAny.addressLookup = { ...original, provider: "easypostcodes" };
+      const withPanel = getTicketFields("address", false)[1]!;
+      expect(typeof withPanel.beforeHtml).toBe("string");
+      expect(withPanel.beforeHtml).toContain("<fieldset");
+      // The panel never attaches to a non-address field.
+      const email = getTicketFields("email", false)[1]!;
+      expect(email.beforeHtml).toBeUndefined();
+    } finally {
+      settingsAny.addressLookup = original;
+    }
+  });
+});
+
+describe("extractContact", () => {
+  test("reads every contact field from validated values", () => {
+    expect(
+      extractContact({
+        address: "1 Road",
+        email: "ada@example.com",
+        name: "Ada Byron",
+        phone: "07946 123456",
+        special_instructions: "Leave at the desk",
+      }),
+    ).toEqual({
+      address: "1 Road",
+      email: "ada@example.com",
+      name: "Ada Byron",
+      phone: "07946 123456",
+      special_instructions: "Leave at the desk",
+    });
+  });
+
+  test("answers with empty strings for absent optional fields", () => {
+    expect(
+      extractContact({
+        address: null,
+        email: null,
+        name: "Ada Byron",
+        phone: null,
+        special_instructions: null,
+      }),
+    ).toEqual({
+      address: "",
+      email: "",
+      name: "Ada Byron",
+      phone: "",
+      special_instructions: "",
+    });
   });
 });
 
