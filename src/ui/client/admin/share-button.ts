@@ -86,7 +86,7 @@ const flashCopied = (button: HTMLButtonElement): void => {
 
 /** One Share click: the share sheet first, the clipboard second, the link
  * selection when the browser offers neither. A cancelled share sheet ends
- * the click; the clipboard takes over only on a failed share attempt. The
+ * the click. The clipboard takes over only on a failed share attempt. The
  * wiring only hands over buttons that carry a share URL. */
 const shareOrCopy = async (button: HTMLButtonElement): Promise<void> => {
   const url = valueOr(button.getAttribute("data-share-url"), "");

@@ -9,7 +9,7 @@ const EMBED_GUIDE_HREF = "/admin/guide#embed_booking_form";
  * are Share (the browser share sheet, or a copy), the QR code page, and the
  * embed guide. The actions sit below the link and wrap. A long URL never
  * pushes them off a narrow screen. The rows render on staff-only tabs, so
- * every viewer may open the guide the Embed action names. */
+ * every viewer can open the guide the Embed action names. */
 export const PublicTicketLink = ({
   href,
   qrHref,
