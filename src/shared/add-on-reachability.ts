@@ -137,7 +137,7 @@ export const deactivationOrphanedAddOnError = async (
   // still reads `bookable_alone = 1` and getNonStandaloneChildIds keeps
   // excluding it from the suppressed set. Yet taking its page offline removes
   // the only surface a child-only add-on can sell from. Force every deactivated
-  // flagged child (a child of some parent whose flag is still set) into the
+  // flagged child (a child whose own `bookable_alone` flag is still set) into the
   // suppressed set, matching the edit-save path's untick guard.
   const childLinks = await listingParents.getIdsByKeys([...inactiveIds], tx);
   const childIds = listingIdsWithLinks(childLinks);

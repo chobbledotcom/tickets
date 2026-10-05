@@ -40,7 +40,7 @@ const CLOSER = /\*\/\s*$/;
  * the sample. */
 const EXAMPLE_TAG = /^@example\b/;
 const KNOWN_TAG =
-  /^@(?:abstract|access|alias|arg|argument|async|augments|author|borrows|callback|class|classdesc|constant|constructs|copyright|default(?:value)?|deprecated|description|enum|event|example|exports|external|file|fires|function|generator|global|hideconstructor|ignore|implements|inheritdoc|inner|instance|interface|internal|kind|lends|license|listens|member(?:of)?|mixes|mixin|module|name|namespace|override|package|param|private|property|protected|public|readonly|requires|returns?|satisfies|see|since|static|summary|template|this|throws|todo|tutorial|type|typedef|variation|version|yields?)\b/;
+  /^@(?:abstract|access|alias|arg|argument|async|augments|author|borrows|callback|class|classdesc|constant|constructs|copyright|default(?:value)?|deprecated|description|enum|event|example|exports|external|file|fires|function|generator|global|hideconstructor|ignore|implements|inheritdoc|inner|instance|interface|internal|kind|lends|license|listens|member(?:of)?|mixes|mixin|module|name|namespace|override|package|param|private|property|protected|public|readonly|requires|remarks|returns?|satisfies|see|since|static|summary|template|this|throws|todo|tutorial|type|typedef|variation|version|yields?)\b/;
 
 /** One row of the virtual Markdown document: its prose, and the source line
  * its findings name. */

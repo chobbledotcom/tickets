@@ -420,6 +420,22 @@ describe("comment language rules", () => {
     );
   });
 
+  test("a suppression's reason keeps its words before a colon", () => {
+    findsOne(
+      "// @ts-expect-error The call should fail: invalid input.",
+      "banned-modal",
+      1,
+    );
+  });
+
+  test("a remarks tag ends an example", () => {
+    findsOne(
+      "/**\n * @example\n * const value = 1;\n * @remarks The form should save.\n */",
+      "banned-modal",
+      4,
+    );
+  });
+
   test("a sentence ends at a period inside a closing parenthesis", () => {
     expect(
       findCommentSteIssues(

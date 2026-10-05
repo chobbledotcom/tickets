@@ -107,15 +107,15 @@ const TS_SUPPRESSION = /@(?:ts-expect-error|ts-ignore)$/;
 
 /** The text a language check reads from a directive comment: the directive
  * and its target gone, so only the human explanation after it stays. A
- * directive without a `:` separator carries no explanation, unless the
- * directive is a TypeScript suppression whose reason follows the token. */
+ * TypeScript suppression's reason follows the token whole, colon or not. Any
+ * other directive without a `:` separator carries no explanation. */
 export const blankDirective = (text: string): string => {
   const match = DIRECTIVE_AT_START.exec(text);
   if (match === null) return text;
   const rest = text.slice(match.index + match[0].length);
+  if (TS_SUPPRESSION.test(match[0])) return rest;
   const colon = rest.indexOf(":");
-  if (colon !== -1) return rest.slice(colon + 1);
-  return TS_SUPPRESSION.test(match[0]) ? rest : "";
+  return colon === -1 ? "" : rest.slice(colon + 1);
 };
 
 const tooLong = (
