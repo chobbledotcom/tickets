@@ -52,7 +52,7 @@ describeWithEnv(
         // of one would lose the buyer's selection on arrival.
         const item = await createTestListing({
           maxQuantity: 5,
-          minQuantity: 3,
+          minimumQuantity: 3,
           name: "Batch Widget",
         });
         const response = await selectOrder([item.id]);
@@ -63,7 +63,7 @@ describeWithEnv(
         const item = await createTestListing({
           maxAttendees: 5,
           maxQuantity: 5,
-          minQuantity: 3,
+          minimumQuantity: 3,
           name: "Too Few",
         });
         // Sales leave 2 spots: below the minimum, so no quantity is valid.
