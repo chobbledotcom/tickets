@@ -31,7 +31,25 @@ src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   #
 # incident has been recorded, flushPendingWork intentionally consumes either
 # fulfilment or rejection with Promise.allSettled, so changing the one-error
 # rethrow threshold has no further observable result.
-src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1   # one error is already reported; pending-work consumes the later rejection
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~0pfucc6@2  0 → 1   # one error is already reported; pending-work consumes the later rejection
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1   # the rethrown error's value is unobservable: every caller hands the promise to pending-work, which settles it with allSettled
+src/shared/webhook/delivery.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is undefined or a RegistrationPackageFacts object carrying two Maps; every present object is truthy
+src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  false → true   # the arm's errors array always holds the rejection reason, so errors.length > 0 reports it and the failed flag is never read
+# Re-derived against the five delivery suites on this branch. The
+# needsPackageFacts "> → <=" mutant and the packageFacts ternary arm swap died
+# once the budget tests counted exactly (a call past a tight subrequest limit
+# throws without being counted, and pending work swallows the throw), so their
+# entries are gone. The needsPackageFacts "|| → &&" entry left with them: when
+# webhooks are on but the URL list is oversized, the mutated gate skips the
+# queue's facts read entirely, and the send refuses before its fallback, so
+# the budget test reads the queue read's calls. The one-webhook URL gate
+# mutant below survives: when it skips the queue load, sendRegistrationWebhooks
+# performs the same facts read and reports a failed read through the same
+# incident path.
+src/shared/webhook/delivery.ts::queueRegistrationNotifications.needsPackageFacts~0u9opea  0 → 1   # as above: with one webhook URL the mutated gate defers to the send's own fallback load, which is the same read with the same result
+src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
+src/shared/webhook/delivery.ts::logAndNotifyRegistration~0y21tpk  ?? → ||   # priorActivities is undefined or an activity array; an empty array is truthy, so both operators fall back only on undefined
+src/shared/webhook/delivery.ts::logAndNotifyRegistration~18zsvut  ?? → ||   # siteAssignmentEntries is undefined or an EmailEntry array; arrays are always truthy
 
 # public-listing.ts: both ?? fallbacks guard an array-typed value, and every
 # array is truthy, so the ?? and || fallbacks agree — only undefined/null fall

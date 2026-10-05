@@ -116,8 +116,10 @@ describeWithEnv("registration notification budget", { db: true }, () => {
   test("does not read package facts when email and webhooks are off", async () => {
     const entries = await packagedEntries("Disabled", 1, "");
 
+    // A generous limit keeps the counter honest: a call past a tight limit
+    // throws without being counted, and pending work swallows the throw.
     expect(
-      await countDatabaseCalls(1, () =>
+      await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
         runWithPendingWork(() => logAndNotifyRegistration(entries)),
       ),
     ).toBe(1);
@@ -127,7 +129,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const entries = await packagedEntries("Enabled", 1);
 
     expect(
-      await countDatabaseCalls(4, () =>
+      await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
         runWithPendingWork(() => logAndNotifyRegistration(entries)),
       ),
     ).toBe(4);
@@ -137,11 +139,36 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const entries = await packagedEntries("Shared", 1);
     await configureTestEmail();
 
+    // The one load serves both senders: the count stays at the email-off
+    // flow's calls plus the email send's own two, not two fact loads.
     expect(
-      await countDatabaseCalls(4, () =>
+      await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
         runWithPendingWork(() => logAndNotifyRegistration(entries)),
       ),
-    ).toBe(4);
+    ).toBe(6);
+  });
+
+  test("reads package facts before an oversized webhook list refuses the send", async () => {
+    // Seventeen distinct webhook URLs pass MAX_REGISTRATION_WEBHOOK_URLS, so
+    // the send refuses before its own facts read; the queue has already
+    // priced the notification once. The || → && mutant skips that read and
+    // reports a failed load through the weaker incident path.
+    const groups: EmailEntry[][] = [];
+    for (let index = 0; index < 17; index += 1) {
+      groups.push(
+        await packagedEntries(
+          `Oversized${index}`,
+          1,
+          `https://hook-${index}.example.com/hook`,
+        ),
+      );
+    }
+
+    expect(
+      await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
+        runWithPendingWork(() => logAndNotifyRegistration(groups.flat())),
+      ),
+    ).toBe(5);
   });
 
   test("uses supplied package facts without reading the database", async () => {

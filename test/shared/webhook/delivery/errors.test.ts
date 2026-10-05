@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { PRICE_TYPE_GROUP } from "#db/price-types.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { t, withMessageGroups } from "#i18n";
 import { runWithPendingWork } from "#shared/pending-work.ts";
@@ -24,6 +26,8 @@ import {
 } from "#test/shared/webhook/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -326,6 +330,33 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       return errorSpy.calls.map(({ args }) => String(args[0]));
     });
 
-    expectOneError(logs, "E_DB_QUERY");
+    // The detail names the write that failed, so an operator can tell a
+    // broken delivery write from every other database error.
+    expect(expectOneError(logs, "E_DB_QUERY")).toContain(
+      "Registration delivery failure activity write",
+    );
+  });
+
+  test("prices the notification from the loaded package facts", async () => {
+    // Webhooks on: the queue loads the package pricing and hands it to the
+    // send, so the payload's ticket price is the package's flat override
+    // (2500), not the member listing's own price.
+    const group = await createTestGroup({ isPackage: true });
+    const listing = await createTestListing();
+    await assignListingsToGroup([listing.id], group.id);
+    await execute(
+      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
+      [listing.id, PRICE_TYPE_GROUP, String(group.id), 2500],
+    );
+    const entry = makeEntry(
+      { id: listing.id, webhook_url: "https://hook.example.com" },
+      { package_group_id: group.id },
+    );
+
+    await withErrorSpy(() =>
+      runWithPendingWork(() => logAndNotifyRegistration([entry])),
+    );
+
+    expect(fetchSpy.firstBody().tickets[0]!.unit_price).toBe(2500);
   });
 });
