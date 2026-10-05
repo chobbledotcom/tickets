@@ -45,22 +45,15 @@ export const soldOutResponse = (): Response =>
 export const checkoutFailedResponse = (error?: string): Response =>
   error ? apiError(error) : apiError(bookingError.paymentSessionFailed, 500);
 
-/** Resolve a booking's `quantity` field from a JSON body. The field is
- * required: an absent or malformed value is a 400, never a default, so a
- * caller can never book a count it did not name. An explicit 0 is refused (the
- * admin-only no-quantity sentinel must never be created through the public
- * API). Shared by the standalone and package booking paths so they read
- * quantity the same way. */
+/** Resolve a booking's `quantity` field from a JSON body — defaults to 1 for
+ * absent/malformed values, rejects an explicit 0 (the admin-only no-quantity
+ * sentinel must never be created through the public API). Shared by the
+ * standalone and package booking paths so they read quantity the same way. */
 export const resolvePositiveQuantity = (
   body: Record<string, unknown>,
 ): number | Response => {
-  if (body.quantity === undefined) {
-    return apiError("Quantity is required");
-  }
   const parsedQuantity = parseNonNegativeInt(String(body.quantity));
-  if (parsedQuantity === null) {
-    return apiError("Quantity must be a whole number of 1 or more");
-  }
+  if (parsedQuantity === null) return 1;
   if (parsedQuantity === 0) {
     return apiError("Quantity must be at least 1");
   }
