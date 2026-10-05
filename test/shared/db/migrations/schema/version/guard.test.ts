@@ -112,8 +112,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-29_checkout_pending_answers",
         "2026-09-30_checked_in_count",
         "2026-10-01_square_link_ends",
+        "2026-10-05_listing_minimum_quantity",
       ],
-      schemaHash: "q24qov",
+      schemaHash: "iux4ip",
     });
   });
 
@@ -128,7 +129,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Stage one sealed cancel handle per unpaid Square checkout, so the link expiry task can end it at the checkout window.",
+        "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

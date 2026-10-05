@@ -147,3 +147,52 @@ describeWithEnv("validateListingInput package edges", { db: true }, () => {
     );
   });
 });
+
+describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
+  test("refuses a minimum below one with the exact catalog text", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 10, minimumQuantity: 0, name: "Min Zero" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_below_one"));
+  });
+
+  test("refuses a minimum above the maximum with the exact catalog text", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 5, minimumQuantity: 6, name: "Min High" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+  });
+
+  test("accepts a minimum equal to the maximum", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 8, minimumQuantity: 8, name: "Min Equal" }),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  test("accepts an absent minimum on create", async () => {
+    const input = inputFor({ maxQuantity: 5, name: "No Minimum" });
+    delete input.minimumQuantity;
+
+    await expect(validateListingInput(input)).resolves.toBeNull();
+  });
+
+  test("re-checks a merged update input against its maximum", async () => {
+    // The admin JSON API merges the body over the stored row before calling
+    // this rule, so the stored maximum arrives beside the body's minimum.
+    const listing = await createTestListing({ maxQuantity: 3 });
+    await expect(
+      validateListingInput(
+        await storedInputFor(listing.id, {
+          // The factory's generated names collide on a second read; the rule
+          // under test is the quantity pair, not name uniqueness.
+          minimumQuantity: 4,
+          name: "Merged Update Min High",
+        }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+  });
+});

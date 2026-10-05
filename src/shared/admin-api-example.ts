@@ -68,6 +68,7 @@ const ADMIN_API_CREATE_BODY = {
   max_attendees: 20,
   max_price: 3000,
   max_quantity: 4,
+  minimum_quantity: 1,
   name: "Summer Workshop",
   non_transferable: true,
   thank_you_url: "https://example.com/thanks",

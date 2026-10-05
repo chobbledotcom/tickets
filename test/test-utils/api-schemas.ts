@@ -154,6 +154,7 @@ export const AdminListingSchema = v.strictObject({
       "max_quantity",
       "maximum_days_after",
       "minimum_days_before",
+      "minimum_quantity",
       "months_per_unit",
       "profit",
       "tickets_count",

@@ -106,6 +106,13 @@ export const listingCatalogFields = {
     CATALOG_API_FORM,
     1,
   ],
+  minimumQuantity: [
+    "minimum_quantity",
+    oneColumn,
+    "positiveInt",
+    CATALOG_API_FORM,
+    1,
+  ],
   monthsPerUnit: [
     "months_per_unit",
     zeroColumn,

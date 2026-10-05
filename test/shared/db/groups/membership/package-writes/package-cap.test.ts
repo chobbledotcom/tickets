@@ -5,12 +5,14 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { withTransaction } from "#db/client.ts";
-import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { arrangeGroupWrite, arrangeStoredMember } from "./arrange.ts";
+import {
+  arrangeGroupWrite,
+  arrangeStoredMember,
+  judgeListingMembership,
+} from "./arrange.ts";
 
 describeWithEnv("db > groups > package member caps", { db: true }, () => {
   test("the group write refuses a pick count above the member's cap", async () => {
@@ -38,11 +40,7 @@ describeWithEnv("db > groups > package member caps", { db: true }, () => {
   test("the listing side refuses a stored pick count its lowered cap breaks", async () => {
     const { group, member } = await arrangeStoredMember("Stored Member", 2, 1);
 
-    const result = await withTransaction((tx) =>
-      validateListingGroupMembershipsTx(tx)([member.id], [group.id]),
-    );
-
-    expect(result).toEqual({
+    expect(await judgeListingMembership(member.id, group.id)).toEqual({
       error: t("error.package_member_cap", {
         max_quantity: 1,
         name: "Stored Member",
@@ -55,10 +53,9 @@ describeWithEnv("db > groups > package member caps", { db: true }, () => {
   test("the listing side allows a stored pick count at the cap", async () => {
     const { group, member } = await arrangeStoredMember("Kept Member", 2, 2);
 
-    const result = await withTransaction((tx) =>
-      validateListingGroupMembershipsTx(tx)([member.id], [group.id]),
-    );
-
-    expect(result).toEqual({ error: null, listingMissing: false });
+    expect(await judgeListingMembership(member.id, group.id)).toEqual({
+      error: null,
+      listingMissing: false,
+    });
   });
 });

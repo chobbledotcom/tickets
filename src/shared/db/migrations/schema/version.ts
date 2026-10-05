@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Stage one sealed cancel handle per unpaid Square checkout, so the link expiry task can end it at the checkout window.";
+  "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";
