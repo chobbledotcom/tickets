@@ -28,7 +28,6 @@
   "test/features/admin/built-sites/server.test.ts": 726,
   "test/features/admin/calendar.test.ts": 511,
   "test/features/admin/debug/server.test.ts": 667,
-  "test/features/public/discovery.test.ts": 610,
   "test/features/public/ticket-payment.test.ts": 705,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 581,
