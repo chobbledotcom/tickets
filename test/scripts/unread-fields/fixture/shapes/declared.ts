@@ -166,4 +166,20 @@ export interface SqlRow {
 export type SameArms = { shared: number } | { shared: number };
 
 export type WithNever = { only: number } | never;
+
+export interface LogLine {
+  text: string;
+}
+
+export interface NestedSlotSource {
+  outer: { deep: number };
+}
+
+export interface LoopSlot {
+  direct: number;
+}
+
+export interface ParenOnly {
+  slot: number;
+}
 `;

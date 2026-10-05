@@ -19,9 +19,6 @@ import type { OwnedField } from "./fields.ts";
 import { answered } from "./host.ts";
 import { namesAMember, readsTheValue } from "./writes.ts";
 
-/** A yes-or-no question about one node of the tree. */
-type AsksAboutNode = (node: ts.Node) => boolean;
-
 /** The symbols a field's name stands for beyond its own. */
 type SymbolsOfAName = (
   checker: ts.TypeChecker,
@@ -55,51 +52,35 @@ const typeAtNegativeMember = (
   return checker.getTypeOfAssignmentPattern(pattern);
 };
 
-/** Whether an object literal is the pattern an assignment takes members out
- * of: `({ total } = held)`. Parentheses around the pattern change nothing. */
-const isAssignedPattern: AsksAboutNode = (node) => {
-  const { parent } = node;
-  if (ts.isParenthesizedExpression(parent)) return isAssignedPattern(parent);
-  return (
-    ts.isBinaryExpression(parent) &&
-    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-    parent.left === node
-  );
-};
-
 /** The type one binding pattern draws its members out of, where the compiler
- * ties a shorthand binding to the field it reads. The annotation wins, then
- * the initializer, then the context a parameter carries, then the element a
- * for-of loop hands it. */
+ * ties a shorthand binding to the field it reads. The compiler applies the
+ * annotation, the initializer, the context a parameter carries, and the
+ * element a for-of loop hands it — including a set or a generator, whose
+ * element type no number index answers. */
 const typeADrawingBindsFrom = (
   checker: ts.TypeChecker,
   pattern: ts.ObjectBindingPattern,
-): ts.Type | undefined => {
-  // An object binding pattern only ever sits in one of these three, so the
-  // three questions below ask at everything there is.
-  const holder = pattern.parent as
-    | ts.VariableDeclaration
-    | ts.ParameterDeclaration
-    | ts.BindingElement;
-  if (ts.isVariableDeclaration(holder)) {
-    if (holder.type) return checker.getTypeAtLocation(holder.type);
-    if (holder.initializer) {
-      return checker.getTypeAtLocation(holder.initializer);
-    }
-    // A for-of binding has neither: it draws from the element the loop
-    // hands it.
-    const list = holder.parent;
-    const loop = list?.parent;
-    if (!ts.isForOfStatement(loop)) {
-      return;
-    }
-    return checker.getTypeAtLocation(loop.expression).getNumberIndexType();
+): ts.Type | undefined => checker.getTypeAtLocation(pattern);
+
+/** Whether one object literal takes values in through a destructuring
+ * assignment, however deeply it nests: `({ a: { b: out } } = held)`,
+ * `for ({ a: out } of rows)`, and the parenthesized `(({ a: out }) = held)`. */
+const takesValuesIn = (pattern: ts.ObjectLiteralExpression): boolean => {
+  const { parent } = pattern;
+  if (ts.isPropertyAssignment(parent)) return takesValuesIn(parent.parent);
+  if (ts.isParenthesizedExpression(parent)) {
+    return (
+      ts.isBinaryExpression(parent.parent) &&
+      parent.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      parent.parent.left === parent
+    );
   }
-  if (ts.isParameter(holder)) {
-    return checker.getTypeAtLocation(holder);
-  }
-  // What is left is the nested pattern's holder.
-  return checker.getTypeAtLocation(holder.name);
+  return (
+    (ts.isBinaryExpression(parent) &&
+      parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      parent.left === pattern) ||
+    (ts.isForOfStatement(parent) && parent.initializer === pattern)
+  );
 };
 
 /** The type a shorthand mention draws its value from, when the mention is
@@ -115,16 +96,24 @@ const drawnFrom = (
       ? typeADrawingBindsFrom(checker, pattern)
       : undefined;
   }
-  const isAnAssignedSlot =
+  const namesAnAssignedSlot =
     (ts.isShorthandPropertyAssignment(parent) ||
       ts.isPropertyAssignment(parent)) &&
     parent.name === node &&
-    isAssignedPattern(parent.parent);
-  if (isAnAssignedSlot) {
-    const assignment = parent.parent.parent;
-    return ts.isBinaryExpression(assignment)
-      ? checker.getTypeAtLocation(assignment.right)
-      : undefined;
+    ts.isObjectLiteralExpression(parent.parent) &&
+    takesValuesIn(parent.parent);
+  if (namesAnAssignedSlot) {
+    const pattern = parent.parent;
+    // Parentheses hide the target from the compiler's per-pattern
+    // question, so the assignment's right side answers there.
+    if (ts.isParenthesizedExpression(pattern.parent)) {
+      const assignment = pattern.parent.parent as ts.BinaryExpression;
+      return checker.getTypeAtLocation(assignment.right);
+    }
+    // The compiler works the type out per pattern: the key of a nested
+    // pattern draws from the type that pattern takes in, not from the
+    // whole assignment's source.
+    return checker.getTypeOfAssignmentPattern(pattern);
   }
   return;
 };

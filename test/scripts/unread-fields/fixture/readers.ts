@@ -62,6 +62,10 @@ import {
   type SuppliedInBrackets,
   type TwiceDescribed,
   type UsedAsAKey,
+  type LogLine,
+  type LoopSlot,
+  type NestedSlotSource,
+  type ParenOnly,
   type WithNever,
   type WrittenByARest,
   type WrappedInAngles,
@@ -426,4 +430,27 @@ export const readACaughtRow = (rows: SqlRow[]): string => {
 export const readSameArms = (record: SameArms): number => record.shared;
 
 export const readWithNever = (record: WithNever): number => record.only;
+
+export const readASetForOf = (lines: Set<LogLine>): string[] => {
+  const seen: string[] = [];
+  for (const { text } of lines) seen.push(text);
+  return seen;
+};
+
+export const readANestedAssignedSlot = (held: NestedSlotSource): number => {
+  let out = 0;
+  ({ outer: { deep: out } } = held);
+  return out;
+};
+
+export const readAnAssignedSlotInALoop = (rows: LoopSlot[]): void => {
+  let out = 0;
+  for ({ direct: out } of rows) {}
+};
+
+export const readAParenthesizedSlot = (held: ParenOnly): number => {
+  let out = 0;
+  (({ slot: out }) = held);
+  return out;
+};
 `;

@@ -101,6 +101,25 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("Sum", "takenOutByPattern")).toBe("read");
   });
 
+  test("counts a field a for-of over a set draws out as read", () => {
+    // A set is no array: the element type comes from the loop, not from a
+    // number index.
+    expect(verdictOf("LogLine", "text")).toBe("read");
+  });
+
+  test("counts a field a nested destructuring assignment takes out as read", () => {
+    expect(verdictOf("NestedSlotSource", "outer")).toBe("read");
+    expect(verdictOf("NestedSlotSource.outer", "deep")).toBe("read");
+  });
+
+  test("counts a field a for-of assignment target takes in as read", () => {
+    expect(verdictOf("LoopSlot", "direct")).toBe("read");
+  });
+
+  test("counts a field a parenthesized assignment target takes in as read", () => {
+    expect(verdictOf("ParenOnly", "slot")).toBe("read");
+  });
+
   test("counts a field a rest pattern names as read", () => {
     expect(verdictOf("Passed", "kept")).toBe("read");
   });
