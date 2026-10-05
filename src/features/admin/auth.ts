@@ -1,5 +1,5 @@
 import { defineRoutes } from "#routes/router.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 
 /**
  * Admin authentication routes - login and logout

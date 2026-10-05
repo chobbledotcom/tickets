@@ -5,7 +5,7 @@ import {
   clearSavedFormData,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   TicketPageForm,
@@ -21,6 +21,7 @@ import {
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const renderForm = (
   overrides: Partial<Parameters<typeof TicketPageForm>[0]> = {},
@@ -247,19 +248,21 @@ describe("ticketPage — fields & form", () => {
     expect(prefilledHtml).toContain('<option value="2026-08-01" selected>');
   });
 
-  test("appends ?iframe=true to form action in iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = singleListingPageHtml();
-    expect(html).toContain('action="/ticket/ab12c?iframe=true"');
-    expect(html).toContain('class="iframe"');
-    detectIframeMode(new URL("https://example.com/"));
+  test("appends ?iframe=true to form action in iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const html = singleListingPageHtml();
+      expect(html).toContain('action="/ticket/ab12c?iframe=true"');
+      expect(html).toContain('class="iframe"');
+    });
   });
 
-  test("includes iframe-resizer child script in iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = singleListingPageHtml();
-    expect(html).toContain("iframe-resizer-child.js");
-    detectIframeMode(new URL("https://example.com/"));
+  test("includes iframe-resizer child script in iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const html = singleListingPageHtml();
+      expect(html).toContain("iframe-resizer-child.js");
+    });
   });
 
   test("excludes iframe-resizer child script without iframe mode", () => {

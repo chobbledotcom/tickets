@@ -7,7 +7,7 @@ import {
   getFlashFormId,
 } from "#shared/flash-context.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import { appendIframeParam } from "#shared/iframe.ts";
+import { appendIframeParam } from "#shared/request-context.ts";
 
 export const CsrfForm = ({
   action,

@@ -5,7 +5,7 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import type { StaffDiagnostics } from "#routes/payment-response.ts";
-import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
+import { appendIframeParam, getIframeMode } from "#shared/request-context.ts";
 import { ActionButton, Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { LabelledParas } from "#templates/components/labelled-para.tsx";

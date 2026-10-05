@@ -14,9 +14,10 @@ import {
   renderSuccess,
   requestFlash,
 } from "#shared/forms/flash.tsx";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** Render a CsrfForm inside a flash context targeting `formId`, so the form's
  *  inline-flash branch (id === target form) can be exercised. */
@@ -210,17 +211,21 @@ describe("CsrfForm", () => {
     ).not.toContain('class="error"');
   });
 
-  test("appends ?iframe=true to action when in iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    expect(String(CsrfForm({ action: "/ticket/test" }))).toContain(
-      'action="/ticket/test?iframe=true"',
-    );
+  test("appends ?iframe=true to action when in iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      expect(String(CsrfForm({ action: "/ticket/test" }))).toContain(
+        'action="/ticket/test?iframe=true"',
+      );
+    });
   });
 
-  test("does not append iframe param outside iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/"));
-    const html = String(CsrfForm({ action: "/ticket/test" }));
-    expect(html).toContain('action="/ticket/test"');
-    expect(html).not.toContain("iframe");
+  test("does not append iframe param outside iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/"));
+      const html = String(CsrfForm({ action: "/ticket/test" }));
+      expect(html).toContain('action="/ticket/test"');
+      expect(html).not.toContain("iframe");
+    });
   });
 });

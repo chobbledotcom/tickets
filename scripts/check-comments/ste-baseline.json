@@ -1172,10 +1172,6 @@
   "src/shared/child-parents.ts": {
     "long-sentence": 1
   },
-  "src/shared/client-context.ts": {
-    "wordy": 1,
-    "contraction": 1
-  },
   "src/shared/config.ts": {
     "long-sentence": 4,
     "banned-modal": 1,
@@ -2112,10 +2108,10 @@
     "long-sentence": 1
   },
   "src/shared/i18n.ts": {
-    "semicolon": 3,
-    "long-sentence": 4,
     "banned-modal": 1,
+    "long-sentence": 3,
     "contraction": 1,
+    "semicolon": 2,
     "wordy": 2
   },
   "src/shared/images/broken.ts": {
@@ -2583,7 +2579,6 @@
     "long-sentence": 3
   },
   "src/shared/request-trace.ts": {
-    "long-sentence": 1,
     "banned-modal": 1
   },
   "src/shared/reservation-amount.ts": {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
@@ -12,6 +12,7 @@ import {
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import type { ListingWithCount } from "#types";
 
 describeWithEnv(
@@ -129,12 +130,15 @@ describeWithEnv(
         expect(html).not.toContain("/image/");
       });
 
-      test("does not show image in iframe mode", () => {
-        detectIframeMode(new URL("https://example.com/?iframe=true"));
-        const listing = testListingWithCount({ image_url: "listing-img.jpg" });
-        const html = renderSingleListing(listing);
-        expect(html).not.toContain("listing-img.jpg");
-        detectIframeMode(new URL("https://example.com/"));
+      test("does not show image in iframe mode", async () => {
+        await withRequestContext(() => {
+          detectIframeMode(new URL("https://example.com/?iframe=true"));
+          const listing = testListingWithCount({
+            image_url: "listing-img.jpg",
+          });
+          const html = renderSingleListing(listing);
+          expect(html).not.toContain("listing-img.jpg");
+        });
       });
     });
 

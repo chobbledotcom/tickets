@@ -19,13 +19,13 @@ import {
   temporaryErrorResponse,
   withCookie,
 } from "#routes/response.ts";
-import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
-import { runWithRequestId } from "#shared/logger.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import {
   expectHtmlResponse,
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 // jscpd:ignore-end
@@ -116,9 +116,6 @@ describeWithEnv("route responses", { db: true }, () => {
   });
 
   describe("redirect", () => {
-    const withRequestContext = <T>(fn: () => T): Promise<T> =>
-      runWithRequestId(async () => fn());
-
     test("stores a success message without adding it to the URL", () =>
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
@@ -186,7 +183,7 @@ describeWithEnv("route responses", { db: true }, () => {
     });
 
     test("carries iframe mode into the redirect location", () =>
-      runWithIframeContext(() => {
+      withRequestContext(() => {
         detectIframeMode(new URL("https://example.com/?iframe=true"));
         const response = redirectResponse("/ticket/reserved?tokens=abc");
         expect(response.headers.get("location")).toBe(
@@ -195,7 +192,7 @@ describeWithEnv("route responses", { db: true }, () => {
       }));
 
     test("leaves the location alone outside iframe mode", () =>
-      runWithIframeContext(() => {
+      withRequestContext(() => {
         const response = redirectResponse("/ticket/test");
         expect(response.headers.get("location")).toBe("/ticket/test");
       }));

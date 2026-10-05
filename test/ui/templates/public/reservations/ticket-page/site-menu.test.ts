@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import {
@@ -8,6 +8,7 @@ import {
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** A minimal public-nav prop set — the fixed root links only, no page tree. */
 const navProps = (): PublicNavProps => ({
@@ -38,15 +39,17 @@ describe("ticketPage (site menu)", () => {
     expect(html).toContain('<a href="/listings">');
   });
 
-  test("drops the site menu in iframe mode even when one is supplied", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = ticketPage({
-      listings: [ticketListing({ name: "Listing" })],
-      nav: navProps(),
-      slugs: ["listing"],
+  test("drops the site menu in iframe mode even when one is supplied", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const html = ticketPage({
+        listings: [ticketListing({ name: "Listing" })],
+        nav: navProps(),
+        slugs: ["listing"],
+      });
+      expect(html).toContain('<body class="iframe">');
+      expect(html).not.toContain("admin-nav-group");
+      expect(html).not.toContain('aria-label="Site menu"');
     });
-    expect(html).toContain('<body class="iframe">');
-    expect(html).not.toContain("admin-nav-group");
-    expect(html).not.toContain('aria-label="Site menu"');
   });
 });

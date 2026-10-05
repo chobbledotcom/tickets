@@ -5,8 +5,8 @@ import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
 import { orResponse } from "#routes/response.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { isRecord, type ListingWithCount } from "#types";
 

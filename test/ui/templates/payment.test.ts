@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { detectIframeMode } from "#shared/request-context.ts";
 import {
   checkoutPopupPage,
   paymentCancelPage,
@@ -13,6 +13,7 @@ import {
 } from "#templates/payment.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListing } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("paymentPage", () => {
   beforeAll(setupAdminPageTest);
@@ -59,9 +60,6 @@ describe("paymentPage", () => {
 
 describe("successPage", () => {
   beforeAll(setupAdminPageTest);
-  afterEach(() => {
-    detectIframeMode(new URL("https://example.com/"));
-  });
 
   test("renders order success message when paid", () => {
     const html = successPage({
@@ -139,12 +137,13 @@ describe("successPage", () => {
     expect(html).not.toContain("view your ticket");
   });
 
-  test("includes iframe-resizer child script in iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = successPage({ ticketUrl: "/t/abc123" });
-    expect(html).toContain("iframe-resizer-child.js");
-    expect(html).toContain('class="iframe"');
-    detectIframeMode(new URL("https://example.com/"));
+  test("includes iframe-resizer child script in iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const html = successPage({ ticketUrl: "/t/abc123" });
+      expect(html).toContain("iframe-resizer-child.js");
+      expect(html).toContain('class="iframe"');
+    });
   });
 
   test("excludes iframe-resizer child script when not in iframe mode", () => {
@@ -153,11 +152,12 @@ describe("successPage", () => {
     expect(html).not.toContain('class="iframe"');
   });
 
-  test("includes scroll-into-view marker in iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = successPage({ ticketUrl: "/t/abc123" });
-    expect(html).toContain("data-scroll-into-view");
-    detectIframeMode(new URL("https://example.com/"));
+  test("includes scroll-into-view marker in iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const html = successPage({ ticketUrl: "/t/abc123" });
+      expect(html).toContain("data-scroll-into-view");
+    });
   });
 
   test("excludes scroll-into-view marker when not in iframe mode", () => {
@@ -234,8 +234,8 @@ describe("checkoutPopupPage", () => {
     );
   });
 
-  test("renders the iframe confirmation URL for the parent navigation", () => {
-    const html = runWithIframeContext(() => {
+  test("renders the iframe confirmation URL for the parent navigation", async () => {
+    const html = await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       return checkoutPopupPage("https://checkout.stripe.com/session123");
     });

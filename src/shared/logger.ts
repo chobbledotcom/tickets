@@ -12,20 +12,10 @@ import {
   makeSuppressibleLogFlag,
   shouldSuppressDebugLogs,
 } from "#shared/log-settings.ts";
-import {
-  addPendingWork,
-  hasPendingWorkScope,
-  runWithPendingWork,
-} from "#shared/pending-work.ts";
+import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { redactPath } from "#shared/redact-path.ts";
-import {
-  createScope,
-  createScopedValue,
-  type ScopeRunner,
-} from "#shared/request-scoped.ts";
-
-/** Request-scoped random ID for correlating log entries ("" outside a request). */
-const requestId = createScopedValue(() => "");
+import { getRequestId as requestIdOfCurrentRequest } from "#shared/request-context.ts";
+import { createScope, type ScopeRunner } from "#shared/request-scoped.ts";
 
 /** Error fan-out held until a critical command has completely unwound. */
 const deferredErrorReports = createScope<ErrorContext[]>();
@@ -45,24 +35,11 @@ export const setSuppressRequestLogs = (value: boolean | null): void => {
 /** Check if request logs should be suppressed */
 const shouldSuppressRequestLogs = (): boolean => requestLogFlag.isSuppressed();
 
-/** Generate a 4-char lowercase hex string */
-const generateRequestId = (): string => {
-  const buf = crypto.getRandomValues(new Uint8Array(2));
-  return new DataView(buf.buffer).getUint16(0).toString(16).padStart(4, "0");
-};
-
-/** Get the current request ID prefix, or empty string if outside request context */
+/** The log-line prefix carrying the current request's correlation id. */
 const getLogPrefix = (): string => {
-  const id = requestId.read();
+  const id = requestIdOfCurrentRequest();
   return id ? `[${id}] ` : "";
 };
-
-/** Get the current request ID, or empty string if outside request context */
-export const getRequestId = (): string => requestId.read();
-
-/** Run a function with a request-scoped random ID for log correlation */
-export const runWithRequestId: ScopeRunner = (fn) =>
-  requestId.run(generateRequestId(), () => runWithPendingWork(fn));
 
 /**
  * Error code definitions: each key maps to [wire code, human-readable label].

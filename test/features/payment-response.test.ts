@@ -4,7 +4,8 @@ import {
   checkoutResponse,
   paymentErrorResponse,
 } from "#routes/payment-response.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("paymentErrorResponse", () => {
   test("renders the message on a 400 by default", async () => {
@@ -48,11 +49,11 @@ describe("checkoutResponse", () => {
     );
   });
 
-  test("renders the popup page inside an iframe", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-
-    const response = checkoutResponse("https://checkout.example.com/pay");
-
-    expect(response.status).toBe(200);
+  test("renders the popup page inside an iframe", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const response = checkoutResponse("https://checkout.example.com/pay");
+      expect(response.status).toBe(200);
+    });
   });
 });

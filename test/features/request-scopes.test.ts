@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getLocale } from "#i18n";
 import {
   requestScopedHandler,
   runWithRequestScopes,
 } from "#routes/request-scopes.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { getLocale, getRequestClientIp } from "#shared/request-context.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   countExternalSubrequest,
@@ -97,7 +96,9 @@ describe("request scopes", () => {
     );
 
     expect(blocked).toContain(
-      `Subrequest allowance exceeded: 0 database + ${BUNNY_SUBREQUEST_LIMIT + 1} external calls`,
+      `Subrequest allowance exceeded: 0 database + ${
+        BUNNY_SUBREQUEST_LIMIT + 1
+      } external calls`,
     );
   });
 });

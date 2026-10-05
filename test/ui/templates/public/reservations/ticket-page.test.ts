@@ -6,7 +6,7 @@ import {
   clearSavedFormData,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
   bigAndSmallListings,
@@ -19,6 +19,7 @@ import {
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const attributeWithOptions = (
   id: number,
@@ -94,16 +95,18 @@ describe("ticketPage — packages", () => {
     expect(html).not.toContain("<h1>Listing heading</h1>");
   });
 
-  test("hides the header and marks the layout in iframe mode", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = ticketPage({
-      groupName: "Iframe-only heading",
-      listings: [ticketListing({ name: "Listing" })],
-      slugs: ["group-page"],
+  test("hides the header and marks the layout in iframe mode", async () => {
+    await withRequestContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      const html = ticketPage({
+        groupName: "Iframe-only heading",
+        listings: [ticketListing({ name: "Listing" })],
+        slugs: ["group-page"],
+      });
+      expect(html).toContain('<body class="iframe">');
+      expect(html).toContain('class="page-regions public-page"');
+      expect(html).not.toContain("<h1>Iframe-only heading</h1>");
     });
-    expect(html).toContain('<body class="iframe">');
-    expect(html).toContain('class="page-regions public-page"');
-    expect(html).not.toContain("<h1>Iframe-only heading</h1>");
   });
 
   test("hides quantity when exactly one open listing allows one ticket", () => {

@@ -15,6 +15,7 @@ import {
 } from "#locales/manifest.ts";
 import { getEnv } from "#shared/env.ts";
 import { buildReplacer, needsIcu, type Replacer } from "#shared/rebrand.ts";
+import { getLocale } from "#shared/request-context.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 
 const LOCALE_LOADERS = { en: ENGLISH_MESSAGE_LOADERS };
@@ -157,7 +158,7 @@ const resolveMessage = (locale: string, key: string): Resolved | null => {
   // ICU template arrives as a parse tree, which the formatter takes as-is.
   const msg = getReplacer()(raw);
 
-  // Plain copy is cached and returned as-is; only genuine ICU needs a formatter.
+  // Plain copy is cached and returned as-is. Only genuine ICU needs a formatter.
   // ignoreTag: treat <tags> in messages as literal text (locale values may
   // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
   const resolved: Resolved =
@@ -205,17 +206,6 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
     ? resolved
     : String(resolved.format(values));
 };
-
-// --- Request-scoped locale ---
-
-const requestLocale = createScopedValue(() => "en");
-
-/** Run a function with a specific locale in scope */
-export const runWithLocale = <T>(locale: string, fn: () => T): T =>
-  requestLocale.run(locale, fn);
-
-/** Get the current request's locale (defaults to "en") */
-export const getLocale = (): string => requestLocale.read();
 
 /**
  * Parse the Accept-Language header and return the best matching registered locale.

@@ -3,11 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { IntlMessageFormat } from "intl-messageformat";
 import {
   ensureMessageGroups,
-  getLocale,
   getRegisteredLocales,
   parseAcceptLanguage,
   resetI18nForTest,
-  runWithLocale,
   t,
   withMessageGroups,
 } from "#i18n";
@@ -182,25 +180,6 @@ describe("i18n", () => {
   describe("getRegisteredLocales", () => {
     test("includes en by default", () => {
       expect(getRegisteredLocales()).toContain("en");
-    });
-  });
-
-  describe("runWithLocale", () => {
-    test("sets locale within callback", () => {
-      const result = runWithLocale("de", () => getLocale());
-      expect(result).toBe("de");
-    });
-
-    test("defaults to en outside callback", () => {
-      expect(getLocale()).toBe("en");
-    });
-
-    test("keeps an empty-string locale rather than defaulting to en", () => {
-      // getLocale coalesces only a *missing* store (undefined) to "en" using
-      // `??`; an explicitly-set empty string is a real (if odd) value and must
-      // survive. This pins `??` so it can't weaken to `||`, which would also
-      // swallow "".
-      expect(runWithLocale("", () => getLocale())).toBe("");
     });
   });
 
