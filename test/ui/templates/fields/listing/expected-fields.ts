@@ -76,6 +76,14 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
+    hint: "The smallest quantity a customer can buy in one transaction",
+    label: "Min tickets per purchase",
+    min: 1,
+    name: "minimum_quantity",
+    section: "tickets",
+    type: "number",
+  },
+  {
     hint: "Select which days of the week are available for booking",
     label: "Bookable days (for daily listings)",
     name: "bookable_days",
