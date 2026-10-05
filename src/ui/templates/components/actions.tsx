@@ -149,7 +149,7 @@ export const SpanOrLink = ({
  * A link that can be disabled. When enabled, renders an `<a>` pointing at
  * `href`. When `disabled`, renders a non-interactive `<span>` carrying
  * `.btn--disabled` (greyed out, not clickable) so the affordance stays visible
- * but inert — `title` should explain why. Pass `class` to layer on button
+ * but inert — the `title` must explain why. Pass `class` to layer on button
  * styling (e.g. "btn") or omit it for a plain link.
  */
 export const MaybeButtonLink = ({
@@ -245,3 +245,9 @@ export const GuideFooter = ({
       <GuideLink href={href}>{children}</GuideLink>
     </p>
   );
+
+/** A footer that links one Guide section, labelled from the catalog. The
+ * staff-only pages it serves may always render the link. */
+export const guideFooterFor = (href: string, labelKey: string): SafeHtml => (
+  <GuideFooter href={href}>{t(labelKey)}</GuideFooter>
+);

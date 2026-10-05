@@ -24,7 +24,10 @@ import {
   recordEditPanel,
   successListPage,
 } from "#templates/admin/admin-page.tsx";
-import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
+import {
+  confirmByName,
+  defineAdminResourcePages,
+} from "#templates/admin/resource-pages.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import {
@@ -153,12 +156,7 @@ export const logisticsAgentPages = defineAdminResourcePages<LogisticsAgent>({
     }),
     danger: false,
     heading: t("logistics.delete_logistics_agent"),
-    label: t("logistics.agent_name"),
-    name: (agent) => agent.name,
-    prompt: (agent) => ({
-      args: { name: agent.name },
-      key: "logistics.type_name_to_confirm",
-    }),
+    ...confirmByName("logistics.agent_name", "logistics.type_name_to_confirm"),
   },
   labels: {
     addHeading: t("logistics.add_logistics_agent"),

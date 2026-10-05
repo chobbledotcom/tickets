@@ -7,6 +7,7 @@ import {
   BackButton,
   GuideFooter,
   GuideLink,
+  guideFooterFor,
   Icon,
   MaybeButtonLink,
   SaveActions,
@@ -231,5 +232,14 @@ describe("GuideFooter", () => {
       }),
     );
     expect(html).toBe("<div></div>");
+  });
+
+  test("guideFooterFor links one section with the catalog label", () => {
+    const html = String(
+      guideFooterFor("/admin/guide#settings", "settings.guide_link"),
+    );
+    expect(html).toContain('href="/admin/guide#settings"');
+    expect(html).toContain('class="guide-footer"');
+    expect(html).toContain("Settings guide");
   });
 });

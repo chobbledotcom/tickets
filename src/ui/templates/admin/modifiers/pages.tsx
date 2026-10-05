@@ -2,7 +2,7 @@
 
 import type { ModifierRow } from "#db/modifiers.ts";
 import { t } from "#i18n";
-import { Raw } from "#jsx/jsx-runtime.ts";
+import { Raw, type SafeHtml } from "#jsx/jsx-runtime.ts";
 import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -15,7 +15,7 @@ import {
 } from "#templates/admin/ledger/statement.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
-import { GuideFooter } from "#templates/components/actions.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import {
   SaveForm,
@@ -47,11 +47,8 @@ const renderModifierFormFields = (
   return form.render(values ?? modifierToFieldValues(modifier, form.fields));
 };
 
-export const ModifiersGuideFooter = (): JSX.Element => (
-  <GuideFooter href="/admin/guide#modifiers">
-    {t("modifiers.guide_link")}
-  </GuideFooter>
-);
+export const ModifiersGuideFooter = (): SafeHtml =>
+  guideFooterFor("/admin/guide#modifiers", "modifiers.guide_link");
 
 const ModifierRevenueAdjustSection = ({
   modifier,
