@@ -39,6 +39,9 @@ export type RequestStore = {
 
 const requestScope = createScope<RequestStore>();
 
+/** The facts the request boundary resolved before the context began. */
+export type RequestFacts = { clientIp: string; locale: string };
+
 /**
  * Run `fn` inside one request context. The store dies when `fn`'s promise
  * settles (the request-scoped leak trap), so a later, unrelated piece of work
@@ -46,9 +49,6 @@ const requestScope = createScope<RequestStore>();
  * site, so this module stays free of the i18n import (i18n reads this module,
  * not the other way round).
  */
-/** The facts the request boundary resolved before the context began. */
-export type RequestFacts = { clientIp: string; locale: string };
-
 export const runWithRequestContext = <T>(
   request: Request,
   facts: RequestFacts,
