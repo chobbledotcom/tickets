@@ -203,7 +203,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         { quantity: "2x" },
       );
       const body = await response.text();
-      expect(body).toContain("Quantity must be at least 1");
+      expect(body).toContain("Enter a whole-number quantity of at least 1.");
     });
 
     test("renders a validation error when daily listing is missing a date", async () => {

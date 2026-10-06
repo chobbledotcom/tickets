@@ -291,7 +291,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
 
       expect(result).toEqual({
-        error: "max_attendees must be >= 1",
+        error: "max_attendees must be a whole number of at least 1",
         ok: false,
       });
     });
