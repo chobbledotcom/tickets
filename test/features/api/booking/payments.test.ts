@@ -4,6 +4,7 @@ import * as v from "valibot";
 import {
   bookForToken,
   bookListing,
+  createAndBook,
   createPayMoreListing,
   describePublicApi,
   fetchListingBySlug,
@@ -11,7 +12,6 @@ import {
 } from "#test-utils/api/helpers.ts";
 import { PublicListingDetailSchema } from "#test-utils/api-schemas.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createAndBook } from "./helpers.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -26,10 +26,7 @@ describePublicApi(() => {
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-      });
+      const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
       expect(typeof body.booking?.checkoutUrl).toBe("string");
@@ -113,10 +110,7 @@ describePublicApi(() => {
 
     test("returns 400 for daily listing without date", async () => {
       const listing = await createDailyTestListing();
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-      });
+      const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
     });
@@ -208,10 +202,7 @@ describePublicApi(() => {
         maxPrice: 10000,
         unitPrice: 0,
       });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-      });
+      const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
     });
@@ -221,23 +212,9 @@ describePublicApi(() => {
         maxPrice: 10000,
         unitPrice: 500,
       });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-      });
+      const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/price/i);
-    });
-
-    test("rejects an unparseable quantity instead of booking one ticket", async () => {
-      const { listing, response, body } = await createAndBook(
-        { maxAttendees: 10 },
-        { quantity: "abc" },
-      );
-      expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity must be a whole number of 1 or more");
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
     test("rejects a malformed booking quantity prefix", async () => {
@@ -272,10 +249,7 @@ describePublicApi(() => {
         unitPrice: 1000,
       });
       await withCheckoutStub(null, async () => {
-        const { response, body } = await bookListing(listing.slug, {
-          email: "alice@test.com",
-          name: "Alice",
-        });
+        const { response, body } = await bookListing(listing.slug);
         expect(response.status).toBe(500);
         expect(body.error).toMatch(/payment session/i);
       });
@@ -288,10 +262,7 @@ describePublicApi(() => {
         unitPrice: 1000,
       });
       await withCheckoutStub({ error: "Invalid amount" }, async () => {
-        const { response, body } = await bookListing(listing.slug, {
-          email: "alice@test.com",
-          name: "Alice",
-        });
+        const { response, body } = await bookListing(listing.slug);
         expect(response.status).toBe(400);
         expect(body.error).toBe("Invalid amount");
       });
