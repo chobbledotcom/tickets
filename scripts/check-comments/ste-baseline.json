@@ -139,8 +139,7 @@
   },
   "src/features/public/discovery.ts": {
     "banned-modal": 4,
-    "long-sentence": 8,
-    "semicolon": 1,
+    "long-sentence": 7,
     "participle": 1,
     "wordy": 1
   },
