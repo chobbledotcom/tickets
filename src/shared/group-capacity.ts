@@ -59,46 +59,44 @@ export type ChildCapacityPart = {
   ownMax: number;
 };
 
-/** The parent tickets a parent's children can serve together. Each child
- *  contributes its own ceiling. Every capped group a child shares with the
- *  parent holds whole parent+child pairs. Its remaining bounds the tickets
- *  drawn from that pool once, not once per child. Children partitioned by the
- *  exact set of groups they share draw separate pools, so their parts add. */
+/** The parent tickets a parent's children can serve together. Two bounds hold
+ *  for any split of the children across their shared pools. The children's own
+ *  ceilings sum to the whole. And every capped group a child shares with the
+ *  parent holds whole parent+child pairs. The tickets its users draw from it,
+ *  plus the ceilings of the children that do not use it, bound the whole.
+ *  The tightest cut answers exactly for children that share one pool, overlap
+ *  partially, or draw separate pools. */
 export const combinedChildCapacityForParent = (
   parentGroupIds: readonly number[],
   children: readonly ChildCapacityPart[],
   remainingByGroupId: ReadonlyMap<number, number>,
 ): number => {
-  const partsByPoolSet = new Map<string, number[]>();
+  const ownTotal = children.reduce((sum, child) => sum + child.ownMax, 0);
+  const userCeilings = new Map<number, number>();
   for (const child of children) {
-    const shared = sharedCappedGroupIds(
+    for (const groupId of sharedCappedGroupIds(
       parentGroupIds,
       child.groupIds,
       remainingByGroupId,
-    );
-    // A partition key: any order-independent form will do.
-    const key = shared.sort().join(",");
-    const ownMaxList = partsByPoolSet.get(key) ?? [];
-    ownMaxList.push(child.ownMax);
-    partsByPoolSet.set(key, ownMaxList);
-  }
-  let total = 0;
-  for (const [key, ownMaxList] of partsByPoolSet) {
-    let part = ownMaxList.reduce((sum, own) => sum + own, 0);
-    for (const groupId of key.split(",").filter(Boolean).map(Number)) {
-      const remaining = remainingByGroupId.get(groupId);
-      if (remaining !== undefined) {
-        part = Math.min(part, ticketsThatFit(remaining));
-      }
+    )) {
+      userCeilings.set(
+        groupId,
+        (userCeilings.get(groupId) ?? 0) + child.ownMax,
+      );
     }
-    total += part;
   }
-  return total;
+  let bound = ownTotal;
+  for (const [groupId, userCeiling] of userCeilings) {
+    const remaining = remainingByGroupId.get(groupId);
+    if (remaining === undefined) continue;
+    const outside = ownTotal - userCeiling;
+    bound = Math.min(
+      bound,
+      Math.floor(remaining / PARENT_CHILD_GROUP_UNITS) + outside,
+    );
+  }
+  return bound;
 };
-
-/** Whole parent+child pairs a pool of `remaining` spots still serves. */
-const ticketsThatFit = (remaining: number): number =>
-  Math.floor(remaining / PARENT_CHILD_GROUP_UNITS);
 
 /**
  * The capacity a parent and one of its children share, as two separate facts:
