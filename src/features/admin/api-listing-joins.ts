@@ -83,6 +83,21 @@ const submittedChildIds = (
   return { childIds: raw };
 };
 
+/** The listing joins a page save or API write carries, without child edges:
+ *  group memberships, day prices, and attribute options from the input. The
+ *  page form has no child or attribute fields. The JSON API adds child edges
+ *  through {@link prepareChildEdges} when its body carries them. */
+export const prepareListingJoins = async (
+  input: ListingInput,
+): Promise<{ value: PreparedListingJoins }> => ({
+  value: {
+    attributeOptionIds: input.attributeOptionIds,
+    childEdges: null,
+    dayPrices: input.dayPrices,
+    groupIds: input.groupIds,
+  },
+});
+
 /**
  * Validate a write's `child_listing_ids` against the parent BEFORE the row is
  * written, for atomicity. A rejected edge returns `{ error }` and skips the
@@ -95,29 +110,14 @@ const submittedChildIds = (
  * A `null` value means the field is omitted or the parents feature is off.
  * Existing edges stay intact, and a present-but-malformed field is rejected.
  */
-export const prepareListingJoins = async (
-  input: ListingInput,
+export const prepareChildEdges = async (
   body: Record<string, unknown>,
+  input: ListingInput,
   existing: ListingWithCount | null,
-): Promise<{ error: string } | { value: PreparedListingJoins }> => {
-  const groupIds = input.groupIds;
+): Promise<{ error: string } | { childIds: number[] | null }> => {
   const submitted = submittedChildIds(body);
-  if ("skip" in submitted) {
-    return {
-      value: {
-        attributeOptionIds: input.attributeOptionIds,
-        childEdges: null,
-        dayPrices: input.dayPrices,
-        groupIds,
-      },
-    };
-  }
+  if ("skip" in submitted) return { childIds: null };
   if ("error" in submitted) return submitted;
-  // A listing gaining children becomes a parent. A HIDDEN package's member
-  // cannot be a parent because the child selector names the collapsed members.
-  // A package member cannot become a child. The group/listing validators
-  // only see edges that already exist, so reject the brand-new edges here,
-  // before the row + edges commit together.
   const inputGroupIds = input.groupIds === undefined ? [] : input.groupIds;
   const packageConflict = await packageChildEdgeConflict(
     submitted.childIds,
@@ -139,16 +139,7 @@ export const prepareListingJoins = async (
     submitted.childIds,
     { wouldBeGroupIds: inputGroupIds },
   );
-  return result.ok
-    ? {
-        value: {
-          attributeOptionIds: input.attributeOptionIds,
-          childEdges: result.childIds,
-          dayPrices: input.dayPrices,
-          groupIds,
-        },
-      }
-    : { error: result.error };
+  return result.ok ? { childIds: result.childIds } : { error: result.error };
 };
 
 /** Write groups and prices before validating child edges against their current

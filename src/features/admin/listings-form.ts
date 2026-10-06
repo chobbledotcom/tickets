@@ -245,24 +245,17 @@ const extractListingUpdateInput = async (
   };
 };
 
-/** Prepare the page save's joins and persist them inside `tx`, through the
- *  same pair the JSON API uses. The page form carries no child or attribute
- *  fields. The prepare step therefore yields no child edges and no attribute
- *  options, and the persist writes the group memberships and the per-day-count
- *  prices. The `base` mirror is reconciled from the `unit_price` column by
- *  afterCommit. */
-const persistPreparedListingJoins = async (
-  input: ListingInput,
-  form: FormParams,
+/** The page save's join write, through the same pair the JSON API uses. The
+ *  page form carries no child or attribute fields, so the prepare step yields
+ *  no child edges and no attribute options. The persist writes the group
+ *  memberships and the per-day-count prices. The `base` mirror is reconciled
+ *  from the `unit_price` column by afterCommit. */
+const writeListingJoins = async (
   tx: TxScope,
   id: number,
+  input: ListingInput,
 ): Promise<void> => {
-  const prepared = await prepareListingJoins(
-    input,
-    Object.fromEntries(form.entries()),
-    null,
-  );
-  if ("error" in prepared) throw new Error(prepared.error);
+  const prepared = await prepareListingJoins(input);
   await persistListingJoins(tx, id, prepared.value);
 };
 
@@ -273,7 +266,7 @@ const persistPreparedListingJoins = async (
 const writeCreateListingJoins =
   (form: FormParams) =>
   async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
-    await persistPreparedListingJoins(input, form, tx, id);
+    await writeListingJoins(tx, id, input);
     const sourceId = form.getOptionalInt("duplicated_from");
     if (sourceId !== null) {
       await copyPackageMemberOverridesTx(tx, sourceId, id);
@@ -316,8 +309,7 @@ export const buildCreateListingResource = (form: FormParams) =>
 export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
     afterCommit: syncListingPrices,
-    afterWrite: (tx, id, input) =>
-      persistPreparedListingJoins(input, form, tx, id),
+    afterWrite: writeListingJoins,
     // The add-on reachability half of the save refuses inside the row write's
     // transaction, so two concurrent page-removing saves cannot both commit.
     checkTx: listingSaveOrphanedAddOnTx,

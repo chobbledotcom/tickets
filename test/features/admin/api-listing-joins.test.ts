@@ -16,6 +16,7 @@ import { t } from "#i18n";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import {
   persistListingJoins,
+  prepareChildEdges,
   prepareListingJoins,
 } from "#routes/admin/api-listing-joins.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -91,17 +92,15 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   });
 
   test("returns null child edges when child_listing_ids is omitted", async () => {
-    const result = await prepareListingJoins(baseInput(), {}, null);
+    const result = await prepareChildEdges({}, baseInput(), null);
 
-    expect(result).toEqual({
-      value: { childEdges: null, dayPrices: undefined, groupIds: undefined },
-    });
+    expect(result).toEqual({ childIds: null });
   });
 
   test("rejects a non-array child_listing_ids", async () => {
-    const result = await prepareListingJoins(
-      baseInput(),
+    const result = await prepareChildEdges(
       { child_listing_ids: "1" },
+      baseInput(),
       null,
     );
 
@@ -114,9 +113,9 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   });
 
   test("rejects a fractional child_listing_ids entry", async () => {
-    const result = await prepareListingJoins(
-      baseInput(),
+    const result = await prepareChildEdges(
       { child_listing_ids: [1.5] },
+      baseInput(),
       null,
     );
 
@@ -131,25 +130,22 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   test("accepts positive integer child_listing_ids and returns them cleaned", async () => {
     const child = await createTestListing({ name: "Valid child" });
 
-    const result = await prepareListingJoins(
-      baseInput(),
+    const result = await prepareChildEdges(
       { child_listing_ids: [child.id] },
+      baseInput(),
       null,
     );
 
-    expect("value" in result).toBe(true);
-    if ("value" in result) {
-      expect(result.value.childEdges).toEqual([child.id]);
-    }
+    expect(result).toEqual({ childIds: [child.id] });
   });
 
   test("rejects child edges when the listing is in a hidden package", async () => {
     const hiddenPackage = await createHiddenPackageGroup("Edge hidden pkg");
     const child = await createTestListing({ name: "Hidden pkg child" });
 
-    const result = await prepareListingJoins(
-      baseInput({ groupIds: [hiddenPackage.id] }),
+    const result = await prepareChildEdges(
       { child_listing_ids: [child.id] },
+      baseInput({ groupIds: [hiddenPackage.id] }),
       null,
     );
 
@@ -159,13 +155,11 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     }
   });
 
-  test("passes groupIds through from the input", async () => {
+  test("prepareListingJoins passes groupIds through from the input", async () => {
     const group = await createTestGroup({ name: "Join group" });
 
     const result = await prepareListingJoins(
       baseInput({ groupIds: [group.id] }),
-      {},
-      null,
     );
 
     expect(result).toEqual({
