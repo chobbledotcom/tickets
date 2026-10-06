@@ -68,10 +68,12 @@ const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
 const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
 
 /** The rule one package day-price field must satisfy: the day count the key
- *  names is a positive safe integer, and the price parses. The API day-price
- *  map applies the same rule to its keys. */
+ *  names is a positive safe integer, and the price parses. The key arrives
+ *  from a find() that already matched the family's shape, so the text after
+ *  its last underscore is the day count. The API day-price map applies the
+ *  same rule to its keys. */
 const validMemberDayPrice = (raw: string, key: string): boolean => {
-  const day = wholeNumberValue(PACKAGE_DAY_PRICE_KEY.exec(key)?.[2] ?? "");
+  const day = wholeNumberValue(key.slice(key.lastIndexOf("_") + 1));
   return (
     day !== null &&
     Number.isSafeInteger(day) &&
