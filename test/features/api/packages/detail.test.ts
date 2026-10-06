@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -217,6 +218,16 @@ describeWithEnv("API package detail", { db: true }, () => {
     });
     const pkg = await withAddonGetPackage(member.id, child.id, group.slug);
     expect(pkg.maxPurchasable).toBe(2);
+
+    // The booking refusal half of the name: a third bundle asks for a unit
+    // the child's own capacity cannot serve, so the API refuses it and
+    // books nothing.
+    const refused = await apiBookPackage(group.slug, {
+      children: [{ parent: member.slug, quantity: 2, slug: child.slug }],
+      quantity: 3,
+    });
+    expect(refused.response.status).toBe(400);
+    expect(await getAttendeesRaw(member.id)).toEqual([]);
 
     const { body, response } = await apiBookPackage(group.slug, {
       children: [{ parent: member.slug, quantity: 2, slug: child.slug }],
