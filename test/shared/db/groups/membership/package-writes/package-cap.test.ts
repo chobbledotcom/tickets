@@ -10,11 +10,27 @@ import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   arrangeGroupWrite,
+  arrangeOrdinaryGroupPackaging,
   arrangeStoredMember,
   judgeListingMembership,
 } from "./arrange.ts";
 
 describeWithEnv("db > groups > package member caps", { db: true }, () => {
+  test("turning an ordinary group into a package judges stored members", async () => {
+    // The member stored the default pick count of one; the listing sells at
+    // least two per purchase. Enabling the package without submitting
+    // members keeps the stored count, so the write refuses it.
+    const { run } = await arrangeOrdinaryGroupPackaging("Packaging Member", 2);
+
+    await expect(run()).rejects.toThrow(
+      t("error.package_member_minimum", {
+        minimum_quantity: 2,
+        name: "Packaging Member",
+        quantity: 1,
+      }),
+    );
+  });
+
   test("the group write refuses a pick count above the member's cap", async () => {
     const { run } = await arrangeGroupWrite("Single Seat", 2, 1);
 
