@@ -179,6 +179,35 @@ describe("rest/resource", () => {
       expectResultError("Name already taken")(result);
     });
 
+    test("returns the form-level error before the schema parses the form", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        form: testForm,
+        table,
+        toInput,
+        validateForm: (form) =>
+          form.getString("name").includes("!") ? "Name cannot hold '!'" : null,
+      });
+      // "value" is missing, which the schema alone would refuse; the form
+      // check must win and report its own message.
+      const result = await resource.create(new FormParams({ name: "Bad!" }));
+      expectResultError("Name cannot hold '!'")(result);
+    });
+
+    test("passes through when the form-level check accepts the form", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        form: testForm,
+        table,
+        toInput,
+        validateForm: () => null,
+      });
+      const result = await resource.create(
+        new FormParams({ name: "Ok", value: "1" }),
+      );
+      expect(result.ok).toBe(true);
+    });
+
     test("succeeds when custom validate passes on create", async () => {
       const table = createTestTable();
       const resource = defineResource({

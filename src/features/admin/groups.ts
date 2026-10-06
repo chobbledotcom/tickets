@@ -51,6 +51,7 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { isValidMemberQuantity } from "#shared/groups/package-member-values.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
@@ -189,9 +190,54 @@ const parseMemberDayPrices = (
   return byListing;
 };
 
-/** Read the per-listing `package_price_<id>` / `package_qty_<id>` /
- * `package_day_price_<id>_<n>` inputs from the edit form into one member entry
- * per listing whose price input is present. */
+// The package-member form fields are dynamic — one price and quantity pair
+// per member listing, keyed by listing id — so the static form schema cannot
+// declare them. The save's form-level validation walks them and refuses the
+// first malformed one in plain words, instead of the parse silently
+// defaulting it: a junk price used to become "no override", a junk quantity
+// became 1, and a junk day price was dropped.
+const PACKAGE_PRICE_KEY = /^package_price_(\d+)$/;
+const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
+const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
+
+/** One member override field family: how to recognise its keys, the rule a
+ *  typed value must satisfy, and which message a broken value reports. */
+const MEMBER_FORM_FIELDS: readonly {
+  key: RegExp;
+  message: string;
+  valid: (raw: string) => boolean;
+}[] = [
+  {
+    key: PACKAGE_QTY_KEY,
+    message: "error.package_member_quantity",
+    valid: (raw) => isValidMemberQuantity(Number(raw)),
+  },
+  {
+    key: PACKAGE_PRICE_KEY,
+    message: "error.package_member_price",
+    valid: (raw) => parsePackagePrice(raw) !== null,
+  },
+  {
+    key: PACKAGE_DAY_PRICE_KEY,
+    message: "error.package_member_day_price",
+    valid: (raw) => parsePackagePrice(raw) !== null,
+  },
+];
+
+/** The strict form check the package routes run before their parse: every
+ *  package_price_, package_qty_, and package_day_price_ field must hold a
+ *  value the member rules accept. Blank stays legal — it means "no
+ *  override". Returns the first error message, or null. */
+export const validatePackageMemberForm = (form: FormParams): string | null => {
+  for (const [key, raw] of form.entries()) {
+    const field = MEMBER_FORM_FIELDS.find((entry) => entry.key.test(key));
+    if (field === undefined) continue;
+    if (raw.trim() === "") continue;
+    if (!field.valid(raw)) return t(field.message);
+  }
+  return null;
+};
+
 const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
   const members: PackageMemberInput[] = [];
   const keys = new Set(form.keys());
@@ -275,6 +321,7 @@ const groupResourceBase = {
   onDelete: deleteGroup,
   table: groups.table,
   validate: validateGroupWithPackage,
+  validateForm: validatePackageMemberForm,
 } as const;
 
 const groupsCreateResource = defineResource({
