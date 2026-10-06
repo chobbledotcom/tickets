@@ -130,26 +130,19 @@ describeWithEnv("Quantity refusal table", { db: true }, () => {
         unitPrice: 500,
       });
 
-    // Below the minimum: the token carries a quantity the listing no longer
-    // sells, so the scan renders the booking form and starts no checkout.
-    await scanWithStripe(
-      await makeListing("Code Door", 10),
-      async ({ response, stripe }) => {
-        expect(response.status).toBe(200);
-        expect(stripe.calls()).toBe(0);
-      },
-      { name: "Ada", quantity: 2, value: 500 },
-    );
-
-    // Above the maximum: the same staleness in the other direction.
-    await scanWithStripe(
-      await makeListing("Code Door High", 10),
-      async ({ response, stripe }) => {
-        expect(response.status).toBe(200);
-        expect(stripe.calls()).toBe(0);
-      },
-      { name: "Ada", quantity: 6, value: 500 },
-    );
+    // Below the minimum and above the maximum: the token carries a quantity
+    // the listing no longer sells, so the scan renders the booking form and
+    // starts no checkout.
+    for (const quantity of [2, 6]) {
+      await scanWithStripe(
+        await makeListing(`Code Door ${quantity}`, 10),
+        async ({ response, stripe }) => {
+          expect(response.status).toBe(200);
+          expect(stripe.calls()).toBe(0);
+        },
+        { name: "Ada", quantity, value: 500 },
+      );
+    }
 
     // Fewer places than the minimum: the skip's own guards pass (the token
     // quantity sits between the stored minimum and maximum), so the checkout
