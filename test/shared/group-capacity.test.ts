@@ -12,6 +12,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  combinedChildCapacityForParent,
   PARENT_CHILD_GROUP_UNITS,
   sharedGroupCapacity,
   sharedGroupRemaining,
@@ -110,5 +111,82 @@ describe("sharedGroupCapacity", () => {
     expect(
       sharedGroupCapacity([7], [7], byGroup({ 7: 1 }), byGroup({})),
     ).toEqual({ remaining: undefined, staticCap: 1 });
+  });
+});
+
+describe("combinedChildCapacityForParent", () => {
+  test("sums the children's own ceilings when they share no capped group", () => {
+    expect(
+      combinedChildCapacityForParent(
+        [7],
+        [
+          { groupIds: [8], ownMax: 2 },
+          { groupIds: [], ownMax: 1 },
+        ],
+        byGroup({ 8: 100 }),
+      ),
+    ).toBe(3);
+  });
+
+  test("bounds children sharing one pool once, not once per child", () => {
+    // Two children in the same pool of four spots: two whole pairs fit, so
+    // together they serve two parent tickets, never the sum of their
+    // ceilings (four).
+    expect(
+      combinedChildCapacityForParent(
+        [7],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [7], ownMax: 2 },
+        ],
+        byGroup({ 7: 4 }),
+      ),
+    ).toBe(2);
+  });
+
+  test("bounds a pool across children whose shared sets merely overlap", () => {
+    // One child uses pool A alone, the other pools A and B. Both draw pairs
+    // from A, so A bounds their total even though the children partition
+    // into different shared sets.
+    expect(
+      combinedChildCapacityForParent(
+        [7, 8],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [7, 8], ownMax: 2 },
+        ],
+        byGroup({ 7: 4, 8: 4 }),
+      ),
+    ).toBe(2);
+  });
+
+  test("adds the ceilings of children that draw separate pools", () => {
+    // Two pools of four spots each, one child per pool: four parent tickets
+    // can be served, two through each pool.
+    expect(
+      combinedChildCapacityForParent(
+        [7, 8],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [8], ownMax: 2 },
+        ],
+        byGroup({ 7: 4, 8: 4 }),
+      ),
+    ).toBe(4);
+  });
+
+  test("spares children that do not use a tight pool", () => {
+    // Pool A is tight but only one child draws from it: that child is held to
+    // one pair while the child outside the pool keeps its full ceiling.
+    expect(
+      combinedChildCapacityForParent(
+        [7],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [8], ownMax: 3 },
+        ],
+        byGroup({ 7: 2, 8: 100 }),
+      ),
+    ).toBe(4);
   });
 });
