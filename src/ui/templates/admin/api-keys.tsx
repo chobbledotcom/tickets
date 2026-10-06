@@ -257,9 +257,8 @@ export const adminApiDocsPage = (
           heading: t("api_keys.admin_api"),
           intro: (
             <>
-              Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
-              Each endpoint allows the same roles as the matching page in this
-              dashboard.
+              Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.{" "}
+              {t("api_keys.role_parity_note")}
             </>
           ),
         },

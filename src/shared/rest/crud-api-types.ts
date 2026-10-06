@@ -136,6 +136,14 @@ export interface CrudApiConfig<
    *  editors, OWNER_API where they are owner-only, ADMIN_API where they are
    *  staff-only. */
   policy: AuthPolicy<"json">;
+  /** Role-aware projection applied to every response row (single, list, and
+   *  post-write). Declared per resource where some stored fields are
+   *  staff-only. The matching page hides them from the roles the policy
+   *  admits, so the API answers must hide them too. */
+  projectResponse?: (
+    row: Record<string, unknown>,
+    session: AdminSession,
+  ) => Record<string, unknown>;
   /** Read only the pre-update fields needed by transactional hooks. */
   readState?: TransactionStateReader<State> | undefined;
   /** An atomic body-only side effect run around the row write. `Prepared` is

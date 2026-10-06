@@ -12,6 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
+  createTestManagerSession,
   requestAsSession,
 } from "#test-utils/session.ts";
 
@@ -111,5 +112,143 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     expect(response.status).toBe(403);
     const row = await getListingWithCount(listing.id);
     expect(row?.active).toBe(true);
+  });
+
+  // The dashboard's editor form locks the webhook fields (parseListingForm:
+  // the registration webhook posts full attendee PII to the URL) and offers no
+  // active control (lifecycle routes are staff-only). The JSON body must obey
+  // the same locks, not silently accept the fields.
+  test("freezes the webhook fields to stored values for an editor update", async () => {
+    const listing = await createTestListing({
+      name: "Editor Lock",
+      useDefaults: false,
+      webhookUrl: "https://hooks.example.com/stored",
+    });
+    const editor = await editorSession();
+
+    const response = await handleRequest(
+      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
+        body: JSON.stringify({
+          active: false,
+          name: "Editor Lock Renamed",
+          use_defaults: true,
+          webhook_url: "https://editor.example/exfil",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(response.status).toBe(200);
+
+    const row = await getListingWithCount(listing.id);
+    expect(row?.name).toBe("Editor Lock Renamed");
+    expect(row?.active).toBe(true);
+    expect(row?.use_defaults).toBe(false);
+    expect(row?.webhook_url).toBe("https://hooks.example.com/stored");
+  });
+
+  test("ignores the locked fields for an editor create", async () => {
+    const created = await assertJson<{
+      listing: {
+        active: boolean;
+        id: number;
+        use_defaults: boolean;
+        webhook_url: string;
+      };
+    }>(
+      handleRequest(
+        requestAsSession("/api/admin/listings", await editorSession(), {
+          body: JSON.stringify({
+            active: false,
+            listing_type: "standard",
+            max_attendees: 10,
+            name: "Editor Locked Create",
+            use_defaults: true,
+            webhook_url: "https://editor.example/exfil",
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      ),
+      201,
+      (body) => {
+        expect(body.listing.active).toBe(true);
+        expect(body.listing.use_defaults).toBe(false);
+        expect(body.listing.webhook_url).toBe("");
+      },
+    );
+    expect(created.listing.id).toBeGreaterThan(0);
+  });
+
+  test("keeps active staff-only on the update body for every role", async () => {
+    const listing = await createTestListing({ name: "Owner Active Lock" });
+    const managerCookie = await createTestManagerSession();
+
+    const response = await handleRequest(
+      requestAsSession(
+        `/api/admin/listings/${listing.id}`,
+        {
+          cookie: managerCookie,
+          csrfToken: await signCsrfToken(),
+        },
+        {
+          body: JSON.stringify({ active: false }),
+          headers: { "content-type": "application/json" },
+          method: "PUT",
+        },
+      ),
+    );
+    expect(response.status).toBe(200);
+    const row = await getListingWithCount(listing.id);
+    expect(row?.active).toBe(true);
+  });
+
+  // The dashboard's editor table is money-free (listing-table.tsx), so the
+  // editor's API answers hide the staff-only money totals too.
+  test("hides staff money totals from editor reads", async () => {
+    const listing = await createTestListing({ name: "Editor Money Read" });
+    const editor = await editorSession();
+
+    const one = await handleRequest(
+      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {}),
+    );
+    const oneBody = await one.json();
+    expect(one.status).toBe(200);
+    expect(oneBody.listing).toBeDefined();
+    for (const field of ["cost", "income", "profit"]) {
+      expect(field in oneBody.listing).toBe(false);
+    }
+
+    const list = await handleRequest(
+      requestAsSession("/api/admin/listings", editor, {}),
+    );
+    const listBody = await list.json();
+    expect(list.status).toBe(200);
+    for (const row of listBody.listings) {
+      for (const field of ["cost", "income", "profit"]) {
+        expect(field in row).toBe(false);
+      }
+    }
+  });
+
+  test("keeps staff money totals in staff reads", async () => {
+    const listing = await createTestListing({ name: "Manager Money Read" });
+    const managerCookie = await createTestManagerSession();
+
+    const one = await handleRequest(
+      requestAsSession(
+        `/api/admin/listings/${listing.id}`,
+        {
+          cookie: managerCookie,
+          csrfToken: await signCsrfToken(),
+        },
+        {},
+      ),
+    );
+    const oneBody = await one.json();
+    expect(one.status).toBe(200);
+    expect(typeof oneBody.listing.income).toBe("number");
+    expect(typeof oneBody.listing.cost).toBe("number");
+    expect(typeof oneBody.listing.profit).toBe("number");
   });
 });

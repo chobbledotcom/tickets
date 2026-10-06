@@ -198,6 +198,13 @@ const listingApiRoutes = defineCrudApi<
   name: "listings",
   nameField: "name",
   policy: CONTENT_API,
+  /** The dashboard's editor table is money-free (listing-table.tsx), so the
+   *  editor's API answers hide the staff-only money totals too. */
+  projectResponse: (row, session) => {
+    if (session.adminLevel !== "editor") return row;
+    const { cost: _cost, income: _income, profit: _profit, ...rest } = row;
+    return rest;
+  },
   sideEffect: {
     persist: persistListingJoins,
     validate: prepareListingJoins,
