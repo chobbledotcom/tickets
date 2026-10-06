@@ -35,6 +35,12 @@ import {
   LISTING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
+
+/** The stored values an editor's submitted form freezes the locked fields
+ *  back to. */
+type EditorFormExisting = { useDefaults: boolean; webhookUrl: string };
+
 import {
   generateUniqueListingSlug,
   validateListingInput,
@@ -73,20 +79,33 @@ type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
  *
  * Both fields are forced to their existing values, so a submitted value is
  * ignored. The editor form hides them too. This is the backstop. The field
- * list is the page-side half of EDITOR_LOCKED_LISTING_FIELDS
- * (api-listing-body.ts). `active` completes it on the API side, where the body
- * can carry it. The page form has no active control at all.
+ * list is the API's own EDITOR_LOCKED_LISTING_FIELDS, so the surfaces cannot
+ * drift. The freeze map is exhaustive over that list, so a new locked field
+ * must name its page behaviour to compile.
  */
+const EDITOR_FORM_FREEZE: Record<
+  (typeof EDITOR_LOCKED_LISTING_FIELDS)[number],
+  ((form: FormParams, existing: EditorFormExisting) => void) | null
+> = {
+  // The page form has no active control, so the page parser never reads the
+  // key and there is nothing to freeze.
+  active: null,
+  use_defaults: (form, existing) =>
+    form.set("use_defaults", existing.useDefaults ? "1" : ""),
+  webhook_url: (form, existing) => form.set("webhook_url", existing.webhookUrl),
+};
+
 export const parseListingForm = (
   session: AdminSession,
   formData: FormData,
-  existing: { webhookUrl: string; useDefaults: boolean },
+  existing: EditorFormExisting,
 ): FormParams => {
   const form = formDataToParams(formData);
   applyDemoOverrides(form, LISTING_DEMO_FIELDS);
   if (session.adminLevel === "editor") {
-    form.set("webhook_url", existing.webhookUrl);
-    form.set("use_defaults", existing.useDefaults ? "1" : "");
+    for (const field of EDITOR_LOCKED_LISTING_FIELDS) {
+      EDITOR_FORM_FREEZE[field]?.(form, existing);
+    }
   }
   return form;
 };

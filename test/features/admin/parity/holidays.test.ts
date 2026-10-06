@@ -140,9 +140,9 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     );
   });
 
-  // L1's named behaviour change: a non-text date is refused instead of
-  // coerced into stored text. The create and update mappers answer the same
-  // body with the same field-named message, whichever name rule runs.
+  // The create and update mappers answer the same bad body with the same
+  // field-named message, whichever name rule runs, so the invalid-date error
+  // comes first on both surfaces.
   test("api update refuses a non-text date with the field message", async () => {
     const created = await assertJson<{ holiday: { id: number } }>(
       ownerApiPost("/api/admin/holidays", {
