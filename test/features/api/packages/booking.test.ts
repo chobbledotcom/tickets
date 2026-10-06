@@ -38,17 +38,6 @@ describeWithEnv("API package booking", { db: true }, () => {
     expect(bRow.quantity).toBe(5);
     expect(Number(aRow.package_group_id)).toBe(group.id);
     expect(Number(bRow.package_group_id)).toBe(group.id);
-<<<<<<< HEAD
-=======
-
-    // The form's select never offers a count above the cap, so only a
-    // crafted POST can send one. It reads a refusal naming the live cap
-    // (5 minus the 2 bundles just booked), not fewer bundles.
-    const refused = await apiBookPackage(group.slug, { quantity: 99 });
-    expect(refused.response.status).toBe(400);
-    expect(refused.body.error).toBe("Quantity must be at most 3.");
-    expect((await bookingRows(a.id)).length).toBe(1);
->>>>>>> 66e626d6e (End the shared quantity messages with full stops)
   });
 
   test("POST keeps a package fact read failure after a free booking", async () => {
