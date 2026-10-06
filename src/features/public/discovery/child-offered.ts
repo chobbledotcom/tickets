@@ -10,14 +10,31 @@
 import {
   childHasDateOrStockForDays,
   childInStock,
+  fixedParentDays,
   type TicketListing,
 } from "#booking/model.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
+import { availableDayCounts, type ListingWithCount } from "#types";
 
 /** Day counts the parent can pass to a daily child: a customisable daily
  *  parent offers every start day, a fixed daily parent offers its duration. */
 export type ParentDayCounts = (number | null)[];
+
+/** The day counts the parent's booking form offers a child. */
+export const parentOfferedDayCounts = (
+  parent: ListingWithCount,
+): ParentDayCounts =>
+  parent.listing_type === "daily" && parent.customisable_days
+    ? availableDayCounts(parent)
+    : [fixedParentDays(parent)];
+
+/** The child's own bookable start dates, computed once per child: the
+ *  per-date gate reads them for every date the parent offers. */
+export const childStartDates = (
+  child: TicketListing,
+  holidays: readonly Holiday[],
+): string[] => getBookableStartDates(child.listing, [...holidays]);
 
 /** Whether the parent offers any date a child can fold on, before any date
  *  is chosen. The parent's own calendar answers for a daily parent. A
@@ -34,18 +51,18 @@ export const childOfferedWithoutDate = (
 
 /** Whether the child can fold on one exact date. A non-daily child needs
  *  only stock. A daily child must start that date and hold it for the span
- *  one of the parent's offered day counts books. */
+ *  one of the parent's offered day counts books. `starts` is the child's
+ *  own bookable start dates, computed once by the caller. */
 export const childOfferedOnDate = (
   child: TicketListing,
   holidays: readonly Holiday[],
   dayCounts: ParentDayCounts,
+  starts: readonly string[],
   date: string,
 ): boolean => {
   if (child.listing.listing_type !== "daily") return childInStock(child);
-  const starts = getBookableStartDates(child.listing, [...holidays]);
-  return dayCounts.some(
-    (days) =>
-      starts.includes(date) &&
-      isBookingRangeValid(child.listing, date, days ?? 1, [...holidays]),
+  if (!starts.includes(date)) return false;
+  return dayCounts.some((days) =>
+    isBookingRangeValid(child.listing, date, days ?? 1, [...holidays]),
   );
 };

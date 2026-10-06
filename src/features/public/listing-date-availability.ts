@@ -6,7 +6,7 @@
  * adding packages adds no database round trips.
  */
 
-import { buildTicketListing } from "#booking/model.ts";
+import { buildTicketListing, childActive, childOpen } from "#booking/model.ts";
 import {
   groupRemainingForSpan,
   loadCapacitySnapshot,
@@ -23,6 +23,11 @@ import {
 } from "#shared/capacity-fit.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
+import {
+  childOfferedOnDate,
+  childStartDates,
+  parentOfferedDayCounts,
+} from "./discovery/child-offered.ts";
 
 /** The booked span a daily listing's card availability is judged over. A
  *  customisable listing offers per-day starts, so the span is chosen later.
@@ -65,20 +70,33 @@ export const loadDailyDateAvailability = async (
       soldOut.add(listing.id);
       continue;
     }
-    // The child's own ceiling folds its stored minimum the same way the
-    // public cards do: a child with a minimum of 3 and 10 places left can
-    // serve 1 unit, not 10. Raw remaining lets the date filter advertise a
-    // parent the discovery cards read as sold out.
+    // The child's own ceiling folds its stored minimum and its gates the
+    // same way the public cards do: a child with a minimum of 3 and 10
+    // places left can serve 1 unit, not 10. An inactive child, a closed
+    // child, or a daily child that cannot start on this date serves none.
+    // Raw remaining lets the date filter advertise a parent the discovery
+    // cards read as sold out.
+    const dayCounts = parentOfferedDayCounts(listing);
     const parts = childCapacityPartsFor(
       memberships,
       links.childrenByParent.get(listing.id) ?? [],
       (child) => child.id,
-      (child) =>
-        buildTicketListing(
+      (child) => {
+        const info = buildTicketListing(
           child,
           isRegistrationClosed(child),
           remaining.get(child.id) ?? 0,
-        ).maxPurchasable,
+        );
+        if (!childActive(info) || !childOpen(info)) return 0;
+        const offered = childOfferedOnDate(
+          info,
+          holidays,
+          dayCounts,
+          childStartDates(info, holidays),
+          date,
+        );
+        return offered ? info.maxPurchasable : 0;
+      },
     );
     if (
       minimumUnservable(

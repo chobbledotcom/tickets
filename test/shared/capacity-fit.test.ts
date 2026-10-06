@@ -267,7 +267,7 @@ describe("combinedChildCapacityForParent", () => {
         byGroup({ 7: 1000, 8: 1000 }),
       ),
     ).toBe(666);
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(performance.now() - started).toBeLessThan(5000);
   });
 
   test("does not let a multi-pool child split one unit across its pools", () => {

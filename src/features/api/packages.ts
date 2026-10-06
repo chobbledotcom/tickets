@@ -54,7 +54,7 @@ import type { Group } from "#types";
 const PACKAGE_NOT_FOUND = "Package not found";
 
 /** The ctx, group, limit, and tree a package endpoint needs once its slug
- * resolves to a bookable bundle — the loaded shape {@link withPackageContext}
+ * resolves to a bookable bundle. The loaded shape {@link withPackageContext}
  * hands to both the GET (detail) and POST (book) handlers. */
 type PackageContext = {
   ctx: TicketCtx;
@@ -93,9 +93,9 @@ const loadPackageContext = async (
 
 /** Load a bookable package context by slug, or respond with the
  * package-not-found 404. Used by the GET detail handler via
- * {@link withPackageContext}; the POST book handler loads directly so it can
- * rate-limit BEFORE the expensive package load (the unauthenticated flood
- * guard must reject a limited IP without building a package tree). */
+ * {@link withPackageContext}. The POST book handler loads directly so it can
+ * rate-limit BEFORE the expensive package load. The unauthenticated flood
+ * guard must reject a limited IP without building a package tree. */
 const loadPackageContextOr404 = async (
   slug: string,
 ): Promise<PackageContext | Response> => {
@@ -103,9 +103,9 @@ const loadPackageContextOr404 = async (
   return loaded === null ? apiError(PACKAGE_NOT_FOUND, 404) : loaded;
 };
 
-/** Load a bookable package by slug, or respond with the package-not-found 404 —
- * shared by the GET and POST package endpoints via {@link withSlugLoaded} so the
- * load-or-404 block never drifts between them. */
+/** Load a bookable package by slug, or respond with the package-not-found
+ * 404. Shared by the GET and POST package endpoints via
+ * {@link withSlugLoaded} so the load-or-404 block never drifts between them. */
 const withPackageContext = withSlugLoaded<PackageContext>(
   loadPackageContextOr404,
 );
@@ -128,9 +128,9 @@ const packageMergedFields = (ctx: TicketCtx): string =>
   );
 
 /** GET /api/packages/:slug — package bundle detail. A fixed-price bundle
- * reports one `priceMinor`; a customisable one reports each offered day count
- * with its whole-bundle total (only counts every member's required-child mix
- * can serve — an empty list means no span is currently bookable). A HIDDEN
+ * reports one `priceMinor`. A customisable one reports each offered day count
+ * with its whole-bundle total, counting only every member's required-child
+ * mix can serve. An empty list means no span is currently bookable. A HIDDEN
  * package omits its members entirely. */
 export const handleGetPackage = withPackageContext(
   async (_request, { ctx, group, limit, tree }) => {
@@ -141,7 +141,7 @@ export const handleGetPackage = withPackageContext(
     // A hidden package never names its members (or their children) — buyers see
     // only the bundle. `packageQuantities` covers every member by construction.
     // Members and their children are already availability-resolved on the ctx
-    // (ONE hydration pass), so the response is built without re-querying edges,
+    // (ONE hydration pass). The response builds without re-querying edges,
     // holidays, or group remaining per member.
     const holidays = await getActiveHolidays();
     const memberQuantities = fixedQuantitiesByListingId(tree);
@@ -192,7 +192,8 @@ export const handleGetPackage = withPackageContext(
 
 /** Apply a package booking's child selections (each tagged with its member's
  * `parent` slug) onto the fold form, member by member. Returns a 400 response
- * for an unknown member slug or a bad selection; null when applied cleanly. */
+ * for an unknown member slug or a bad selection, and null when applied
+ * cleanly. */
 const applyPackageChildSelections = (
   form: FormParams,
   ctx: TicketCtx,
@@ -216,9 +217,10 @@ const applyPackageChildSelections = (
 };
 
 /** Every failed client refusal on a CONCEALED package reads this one generic
- * message: a wrong member slug, a wrong child slug, a bad total, or missing
- * contact fields must be indistinguishable, or the errors confirm what is
- * inside the package. Named packages keep their specific responses. */
+ * message. A wrong member slug, a wrong child slug, a bad total, or missing
+ * contact fields must be indistinguishable. The errors can otherwise confirm
+ * what is inside the package. Named packages keep their specific
+ * responses. */
 const PACKAGE_BOOKING_REFUSED =
   "This package cannot be booked with those choices.";
 
@@ -280,20 +282,20 @@ const resolvePackageOrder = async (
 };
 
 /** POST /api/packages/:slug/book — book whole bundles. The body carries the
- * contact fields plus `quantity` (the package count — required), `date` for a dated
- * package, `dayCount` for a customisable one, and `children` — entries of
- * `{ parent, slug, quantity }` choosing each parent member's add-ons — all
- * driving the SAME context, clamp, fold, and pricing walk the web package page
- * submits through. */
+ * contact fields plus `quantity` (the package count — required). `date` for a
+ * dated package, `dayCount` for a customisable one, and `children` — entries
+ * of `{ parent, slug, quantity }` choosing each parent member's add-ons. All
+ * of it drives the same walk the web package page submits through. */
 export const handleBookPackage: SlugRouteHandler = async (
   request,
   { slug },
 ) => {
   // Rate-limit BEFORE the package load: the booking endpoints are
   // unauthenticated, so the flood guard must reject a limited IP without
-  // building a package tree. The standalone listing book path loads the listing
-  // first (its load is a single slug lookup), but a package load builds a full
-  // ctx/tree/limit graph, so guarding it behind the limiter matters more here.
+  // building a package tree. The standalone listing book path loads the
+  // listing first (its load is a single slug lookup). A package load builds
+  // a full ctx/tree/limit graph, so guarding it behind the limiter matters
+  // more here.
   const limited = await checkBookingRateLimit();
   if (limited) return limited;
   const pkg = await loadPackageContextOr404(slug);
@@ -341,9 +343,9 @@ export const handleBookPackage: SlugRouteHandler = async (
     const { fold } = built;
 
     // Per-path lines from the tree: each member line carries its group id and
-    // its override price; a HIDDEN package's member names are concealed before
+    // its override price. A HIDDEN package's member names are concealed before
     // the lines reach the provider. Paid-ness must come from these lines, not
-    // `isPaidListing`: a package override can make a free member paid (and a
+    // `isPaidListing`. A package override can make a free member paid (and a
     // paid member free).
     const items = concealLineNames(built.items, standIns, new Set());
     return finishFoldedBooking(
