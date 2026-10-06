@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
+import { getGroupPackagePrices } from "#shared/db/groups.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -69,7 +70,10 @@ describeWithEnv("Group parity pins", { db: true }, () => {
       }),
       201,
     );
-    const listed = await createTestListing({ name: "Pinned Package Member" });
+    const listed = await createTestListing({
+      groupId: created.group.id,
+      name: "Pinned Package Member",
+    });
     await assertJson(
       ownerApiPut(`/api/admin/groups/${created.group.id}`, {
         package_members: [{ listing_id: listed.id, price: 5000 }],
@@ -79,6 +83,13 @@ describeWithEnv("Group parity pins", { db: true }, () => {
         expect(body.group.is_package).toBe(true);
       },
     );
+    // The update must have stored the member: the row carries the listing,
+    // the minor-unit price, and the default quantity of one.
+    const member = await getGroupPackagePrices(created.group.id);
+    expect(member).toHaveLength(1);
+    expect(member[0]?.listing_id).toBe(listed.id);
+    expect(member[0]?.package_price).toBe(5000);
+    expect(member[0]?.quantity).toBe(1);
   });
 
   test("api create refuses package members outright", async () => {
