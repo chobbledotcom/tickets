@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { execute } from "#db/client.ts";
+import { execute, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   getAllGroupNames,
@@ -189,6 +189,31 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
       [first.id, 2],
       [second.id, 3],
     ]);
+  });
+
+  test("a membership created in the same transaction receives its quantity", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Fresh Member",
+    });
+    // No groupId: the link row must not exist before the transaction runs.
+    const member = await createTestListing({ name: "Fresh" });
+
+    await withTransaction(async (tx) => {
+      // The link row does not exist yet: the same transaction creates it.
+      await tx.execute({
+        args: [group.id, member.id],
+        sql: "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+      });
+      await setGroupPackageMembers(
+        group.id,
+        [{ listingId: member.id, price: null, quantity: 2 }],
+        tx,
+      );
+    });
+
+    const rows = await getGroupPackagePrices(group.id);
+    expect(rows.find((r) => r.listing_id === member.id)?.quantity).toBe(2);
   });
 
   test("bulk deactivation updates every member", async () => {

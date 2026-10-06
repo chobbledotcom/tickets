@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -67,6 +68,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("What size?");
       expect(id).toBeGreaterThan(0);
       expect(await storedFeatureEnabled("questions")).toBe(true);
+      // The creation lands in the activity log with the row's kind and name.
+      expect(await activityMessages()).toContain(
+        "Question 'What size?' created",
+      );
     });
 
     test("does not enable Questions for an invalid create", async () => {

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
+  DAY_MS,
   expiresIn,
   isoAfter,
   isoBefore,
@@ -9,6 +10,12 @@ import {
   nowSeconds,
   parseDateMs,
 } from "#shared/now.ts";
+
+describe("DAY_MS", () => {
+  test("is the exact length of one day in milliseconds", () => {
+    expect(DAY_MS).toBe(86_400_000);
+  });
+});
 
 describe("expiresIn", () => {
   test("adds the max age to the current epoch seconds", () => {
