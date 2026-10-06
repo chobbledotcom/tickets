@@ -367,6 +367,37 @@ describe("frontmatter import runner", () => {
     );
   });
 
+  test("refuses a category file that is a symlink out of the catalog", async () => {
+    // A slug passes its name check while the file under it is a link. The
+    // import must never read through one: the plain-file check runs before
+    // any site call, so no API request is made at all.
+    const dir = await Deno.makeTempDir();
+    try {
+      await Deno.mkdir(`${dir}/src/products`, { recursive: true });
+      await Deno.mkdir(`${dir}/src/categories`, { recursive: true });
+      await Deno.mkdir(`${dir}/outside`, { recursive: true });
+      await Deno.writeTextFile(
+        `${dir}/src/products/tower.md`,
+        PRODUCT_FRONTMATTER,
+      );
+      await Deno.writeTextFile(
+        `${dir}/outside/secret.md`,
+        CATEGORY_FRONTMATTER,
+      );
+      await Deno.symlinkSync(
+        `${dir}/outside/secret.md`,
+        `${dir}/src/categories/tarps.md`,
+      );
+      const { api, calls } = scriptedApi({});
+      await expect(
+        runImport({ dir, plan: false, update: false }, api),
+      ).rejects.toThrow(/plain file in src\/categories/);
+      expect(calls).toEqual([]);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+
   test("refuses two products under one title", async () => {
     const dir = await seedCatalogFiles({
       "categories/tarps.md": CATEGORY_FRONTMATTER,

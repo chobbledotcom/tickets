@@ -6,6 +6,7 @@ import type { CatalogProduct } from "./product-catalog/parse.ts";
 import {
   attributeVocabulary,
   type CategoryEntry,
+  checkCategoryFiles,
   ensureConsistentAttributeSpellings,
   ensureUniqueTitles,
   type PlannedAttribute,
@@ -285,6 +286,12 @@ export const runImport = async (
   const productsDir = `${flags.dir}/src/products`;
   const catalog = await readProducts(productsDir);
   ensureUniqueTitles(catalog.map(({ product }) => product));
+  // The category titles must be the catalog's own before the import reads
+  // anything from the site, so the plain-file check runs before the reads.
+  await checkCategoryFiles(
+    `${flags.dir}/src/categories`,
+    catalog.flatMap(({ product }) => product.categories),
+  );
   const existing = (
     await api<{ listings: ApiNamed[] }>({
       path: "/api/admin/listings",

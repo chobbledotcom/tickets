@@ -63,14 +63,49 @@ export const attributeVocabulary = (
   }));
 };
 
-/** The site's own title of one category file, or the slug when the file has
- * no usable title. A file that is missing, unreadable, or unparseable stops
- * the import: a stale path must not quietly create a wrongly named group. */
-export const categoryTitle = async (
+/** The verified plain file for one category slug: a real file inside the real
+ *  categories directory, never a link out of the catalog. */
+const verifiedCategoryFile = async (
   categoriesDir: string,
   slug: string,
 ): Promise<string> => {
   const file = `${categoriesDir}/${slug}.md`;
+  const [realFile, realDir, entry] = await Promise.all([
+    Deno.realPath(file),
+    Deno.realPath(categoriesDir),
+    Deno.lstat(file),
+  ]);
+  const inside =
+    realFile.startsWith(`${realDir}/`) || realFile.startsWith(`${realDir}\\`);
+  if (!entry.isFile || !inside) {
+    throw new Error(
+      `category file '${slug}.md' must be a plain file in src/categories`,
+    );
+  }
+  return file;
+};
+
+/** Refuse every category file that is a link out of the catalog before the
+ *  first site call: the titles must be the catalog's own before the import
+ *  reads anything from the site. */
+export const checkCategoryFiles = async (
+  categoriesDir: string,
+  slugs: readonly string[],
+): Promise<void> => {
+  for (const slug of [...new Set(slugs)]) {
+    await verifiedCategoryFile(categoriesDir, slug);
+  }
+};
+
+/** The site's own title of one category file, or the slug when the file has
+ * no usable title. A file that is missing, unreadable, unparseable, or a
+ * link out of the catalog stops the import: a stale path must not quietly
+ * create a wrongly named group. */
+export const categoryTitle = async (
+  categoriesDir: string,
+  slug: string,
+): Promise<string> => {
+  const file = await verifiedCategoryFile(categoriesDir, slug);
   return parseCategoryTitle(file, await Deno.readTextFile(file));
 };
 

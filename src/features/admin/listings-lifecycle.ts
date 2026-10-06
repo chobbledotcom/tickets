@@ -123,12 +123,13 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
 const unverifiedListingDelete = createIdEntityHandler<ListingWithCount>(
   getListingWithCount,
 )(formGuard(AUTH_FORM))(async (listing, _session, _form, _request, { id }) => {
-  // Same orphaned-add-on guard as the confirmed path. It blocks a delete
-  // that leaves a child-scoped add-on unreachable.
-  const error = await deleteOrphanedAddOnError(listing.id);
-  if (error) return redirect(`/admin/listing/${id}`, error, false);
-  await performListingDelete(listing);
-  return redirect("/admin", t("success.listing_deleted"), true);
+  // performListingDelete runs the orphaned-add-on guard inside the write
+  // transaction and returns its refusal. A change since the load cannot
+  // orphan an add-on, and a refusal cannot be reported as success.
+  const refusal = await performListingDelete(listing);
+  return refusal === null
+    ? redirect("/admin", t("success.listing_deleted"), true)
+    : redirect(`/admin/listing/${id}`, refusal, false);
 });
 
 export const handleAdminListingDelete: TypedRouteHandler<

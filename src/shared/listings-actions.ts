@@ -9,7 +9,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
-import { type TxScope, withTransaction } from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
 import { getGroupsById, getListingsByGroupIds } from "#db/groups.ts";
 import {
@@ -79,7 +79,7 @@ const validateMaxPrice = (input: ListingInput): string | null => {
     : null;
 };
 
-/** An async listing check that may depend on the update target's id (undefined
+/** An async listing check that can depend on the update target's id (undefined
  * on create), returning a user-facing error or null. */
 type ListingUpdateCheck = (
   input: ListingInput,
@@ -92,13 +92,13 @@ type ListingUpdateCheck = (
  * pay-what-you-want. The package check mirrors the group-side invariant so the
  * listing form/API can't smuggle an incompatible listing into a package. */
 /** The package-membership error for a listing joining `group`, or null when the
- * group isn't a package or the listing is a valid member. A package member may
- * not be priced by the buyer or be another listing's add-on. It may gate children
- * only on a VISIBLE package — a hidden package collapses members to the package
- * name, so a member's child selector would leak them. Shares the rules with the
- * group-side save via {@link packageMemberError}. (Brand-new child edges
- * submitted on the same write are caught before the row commits in the API's
- * prepareChildEdges.) */
+ * group isn't a package or the listing is a valid member. A package member
+ * must not be priced by the buyer or be another listing's add-on. It can gate
+ * children only on a VISIBLE package. A hidden package collapses members to
+ * the package name. A member's child selector would leak them. Shares the
+ * rules with the group-side save via {@link packageMemberError}. (Brand-new
+ * child edges submitted on the same write are caught before the row commits
+ * in the API's prepareChildEdges.) */
 const packageMembershipError = async (
   group: Group,
   name: string,
@@ -366,20 +366,38 @@ export const toggleListingActive = async (
   listing: ListingWithCount,
   active: boolean,
 ): Promise<ToggleActiveResult> => {
-  if (listing.active === active) return { noChange: true };
-  const refusal = await guardedListingWrite(
-    active
-      ? null
-      : (tx) => deactivationOrphanedAddOnError(new Set([listingId]), tx),
-    async (tx) => {
+  const outcome = await withTransaction(
+    async (tx): Promise<ToggleActiveResult | null> => {
+      // The stored state decides, not the loaded row: a replica lag can leave
+      // the row stale, and deciding noChange from it would skip the very
+      // write the operator asked for.
+      const [row] = resultRows<{ active: number }>(
+        await tx.execute({
+          args: [listingId],
+          sql: "SELECT active FROM listings WHERE id = ?",
+        }),
+      );
+      // The listing vanished under a concurrent delete. There is nothing to
+      // toggle.
+      if (row === undefined || row.active === (active ? 1 : 0)) {
+        return { noChange: true };
+      }
+      if (!active) {
+        const refusal = await deactivationOrphanedAddOnError(
+          new Set([listingId]),
+          tx,
+        );
+        if (refusal !== null) return { error: refusal };
+      }
       // Every table on the transactional write path carries updateStatement
       // (see crud-api.ts), so the toggle's row write joins the guard's tx.
       await tx.execute(
         await listingsTable.updateStatement!(listingId, { active }),
       );
+      return null;
     },
   );
-  if (refusal !== null) return { error: refusal };
+  if (outcome !== null) return outcome;
   await syncListingPrices(listingId);
   const verb = active ? "reactivated" : "deactivated";
   await logActivity(`Listing '${listing.name}' ${verb}`, listingId);
