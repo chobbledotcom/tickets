@@ -35,7 +35,7 @@
     "check:alias-exports": "deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-env --allow-sys --allow-ffi scripts/check-alias-exports.ts",
     "check:empty-catch": "deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-env --allow-sys --allow-ffi scripts/check-empty-catch.ts",
     "check:file-lengths": "deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-write=scripts/check-file-lengths/over-limit.json scripts/check-file-lengths.ts",
-    "check:coverage-exclusions": "deno run --allow-read=. --allow-sys --allow-run=git scripts/check-coverage-exclusions.ts",
+    "check:coverage-exclusions": "env -u LD_LIBRARY_PATH deno run --allow-read=. --allow-sys --allow-run=git scripts/check-coverage-exclusions.ts",
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "check:comment-ste": "deno run --allow-read=src,scripts/check-comments/ste-baseline.json --allow-write=scripts/check-comments/ste-baseline.json scripts/check-comments-ste.ts",
     "check:e2e-labels": "deno run --allow-read=src,e2e-payments scripts/check-e2e-labels.ts",
