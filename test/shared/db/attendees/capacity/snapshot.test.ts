@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import {
+  groupRemainingForSpan,
   groupRemainingFromSnapshot,
   loadCapacitySnapshot,
   remainingFromSnapshot,
@@ -248,6 +249,29 @@ describeWithEnv(
       );
 
       expect(withKnown).toBe(withLookup - 1);
+    });
+
+    test("reads each capped group's lowest remaining over one span", async () => {
+      const group = await createTestGroup({
+        maxAttendees: 4,
+        name: "Span pool",
+      });
+      const listing = await createDailyTestListing({
+        groupIds: [group.id],
+        maxAttendees: 4,
+        maxQuantity: 4,
+        name: "Span member",
+      });
+      const date = startDate();
+      await bookUnits(listing.id, 1, date);
+      await bookUnits(listing.id, 2, addDays(date, 1));
+
+      // The one-day span reads the date's own group figure; the two-day
+      // span folds both days and reads the lower one.
+      const oneDay = await loadCapacitySnapshot([listing], date, 1);
+      expect(groupRemainingForSpan(oneDay, 1).get(group.id)).toBe(3);
+      const twoDays = await loadCapacitySnapshot([listing], date, 2);
+      expect(groupRemainingForSpan(twoDays, 2).get(group.id)).toBe(2);
     });
   },
 );

@@ -8,6 +8,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { handleRequest } from "#routes";
+import { loadDailyDateAvailability } from "#routes/public/listing-date-availability.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -76,9 +78,6 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     test("a page with no daily listings needs no date read", async () => {
-      const { loadDailyDateAvailability } = await import(
-        "#routes/public/listing-date-availability.ts"
-      );
       // A daily listing the buyer cannot start on the request date is
       // unavailable; with none there is nothing to judge.
       const listing = await createDailyTestListing();
@@ -98,9 +97,6 @@ describeWithEnv(
     });
 
     test("a customisable card is judged per chosen day, a fixed one per whole booking", async () => {
-      const { loadDailyDateAvailability } = await import(
-        "#routes/public/listing-date-availability.ts"
-      );
       // Both listings store a 3-day duration. The customisable one is judged
       // over the chosen start day alone, so a booking on its SECOND bookable
       // day leaves the first day bookable; the fixed one is judged over its
@@ -143,9 +139,6 @@ describeWithEnv(
     });
 
     test("a date with places left below the listing's minimum is unavailable", async () => {
-      const { loadDailyDateAvailability } = await import(
-        "#routes/public/listing-date-availability.ts"
-      );
       // Two places remain on the date, but the listing sells at least three
       // per purchase — no valid purchase can use the date.
       const listing = await createDailyTestListing({
@@ -167,9 +160,6 @@ describeWithEnv(
     });
 
     test("a daily parent is unavailable when its children cannot serve the minimum", async () => {
-      const { loadDailyDateAvailability } = await import(
-        "#routes/public/listing-date-availability.ts"
-      );
       // The parent sells at least 3 per purchase and has places of its own,
       // but its required child holds only 2 on the date: no fold of three
       // child tickets can serve the minimum, so the parent's date is as
@@ -199,6 +189,10 @@ describeWithEnv(
         [],
       );
 
+      // The date is bookable for both rows: only the parent's combined
+      // minimum puts it in the sold-out set.
+      expect(getBookableStartDates(parent, []).includes(date)).toBe(true);
+      expect(getBookableStartDates(child, []).includes(date)).toBe(true);
       expect(soldOut).toEqual(new Set([parent.id]));
     });
 
