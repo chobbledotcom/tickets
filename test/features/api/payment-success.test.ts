@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   paidSession,
   stubSessionRetrieval,
 } from "#test-utils/payment-session.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -25,7 +25,7 @@ describeWithEnv("the payment success redirect route", { db: true }, () => {
     await setupStripe();
     using _provider = await unpaidAnswers();
 
-    const response = await runWithPendingWork(async () =>
+    const response = await withRequestContext(async () =>
       handlePaymentSuccess(
         await requestAsSession(
           "/payment/success?session_id=cs_route_unpaid",
@@ -47,7 +47,7 @@ describeWithEnv("the payment success redirect route", { db: true }, () => {
   test("names the callback's facts to an owner when nothing readable arrived", async () => {
     await setupStripe();
 
-    const response = await runWithPendingWork(async () =>
+    const response = await withRequestContext(async () =>
       handlePaymentSuccess(
         await requestAsSession("/payment/success", await getTestSession()),
       ),

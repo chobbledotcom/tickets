@@ -1,42 +1,54 @@
 /**
  * Request-scoped background work queue
  *
- * Collects promises (webhooks, ntfy, etc.) that fire during a request
- * and must complete before the edge runtime tears down the request context.
- * Bunny Edge Scripting rejects fetch calls after the response is sent
- * with "api limit reached: fetch", so we flush all pending work in
- * handleRequest's finally block.
+ * Collects promises (webhooks, ntfy, etc.) that fire during a request and
+ * must complete before the edge runtime tears down the request context. Bunny
+ * Edge Scripting rejects fetch calls sent after the response, with
+ * "api limit reached: fetch". The pipeline therefore flushes all pending
+ * work in handleRequest's finally block. The queue is a slot on the one
+ * request store (#2280). Its lifetime is the request's: the entry composes
+ * the exit drain, and the store dies only after that drain has run.
  */
 
 import { range } from "#fp";
-import { createScope, type ScopeRunner } from "#shared/request-scoped.ts";
+import {
+  currentRequestStore,
+  type RequestSlot,
+  requestSlot,
+} from "#shared/request-context.ts";
+import type { ScopeRunner } from "#shared/request-scoped.ts";
 
-const pendingWork = createScope<Promise<unknown>[]>();
+const PENDING_SLOT: RequestSlot<Promise<unknown>[]> = {
+  fresh: () => [],
+  read: (store) => store.pending,
+  write: (store, state) => {
+    store.pending = state;
+  },
+};
 
 /**
- * Run a function within a pending-work scope. Whatever `fn` resolves to, the
- * queue is drained once more on the way out: an error logged *after* the
- * request's own flush (e.g. while the response is finalised) still queues
- * work, and work that outlived its request would complete during whatever
- * runs next — on Bunny that's a killed fetch, in tests a sanitizer failure
- * in an unrelated test.
+ * Run `fn`, then drain the queue once more on the way out: an error logged
+ * *after* the request's own flush (e.g. while the response is finalised) still
+ * queues work, and work that outlived its request would complete during
+ * whatever runs next — on Bunny that's a killed fetch, in tests a sanitizer
+ * failure in an unrelated test. The request entry composes this runner around
+ * the handler, so the drain runs inside the live request context.
  */
-export const runWithPendingWork: ScopeRunner = (fn) =>
-  pendingWork.run([], async () => {
-    try {
-      return await fn();
-    } finally {
-      await flushPendingWork();
-    }
-  });
+export const runWithPendingWork: ScopeRunner = async (fn) => {
+  try {
+    return await fn();
+  } finally {
+    await flushPendingWork();
+  }
+};
 
-/** True when running inside a `runWithPendingWork` scope (i.e. a request). */
+/** True when running inside a request context (i.e. a request). */
 export const hasPendingWorkScope = (): boolean =>
-  pendingWork.current() !== undefined;
+  currentRequestStore() !== undefined;
 
 /** Queue a promise that must complete before the response is sent */
 export const addPendingWork = (p: Promise<unknown>): void => {
-  pendingWork.current()?.push(p);
+  requestSlot(PENDING_SLOT)?.push(p);
 };
 
 /** Each flush round settles everything queued so far, so needing this many
@@ -48,7 +60,7 @@ const MAX_FLUSH_ROUNDS = 1_000;
  * that fails queues its error's activity-log write), and a single pass would
  * discard those late arrivals unawaited. */
 export const flushPendingWork = async (): Promise<void> => {
-  const pending = pendingWork.current();
+  const pending = currentRequestStore()?.pending;
   if (!pending) return;
   for (const _round of range(0, MAX_FLUSH_ROUNDS)) {
     if (pending.length === 0) return;

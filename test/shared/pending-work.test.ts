@@ -6,6 +6,7 @@ import {
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 // Waits for a fresh task, not just a microtask, so a piece of work always
 // settles after the flush's own bookkeeping and each round advances exactly
@@ -23,17 +24,17 @@ const nextTask = (): Promise<void> =>
   });
 
 describe("pending-work", () => {
-  test("has a scope inside runWithPendingWork and none outside", async () => {
+  test("has a queue inside a request context and none outside", async () => {
     expect(hasPendingWorkScope()).toBe(false);
-    await runWithPendingWork(async () => {
+    await withRequestContext(() => {
       expect(hasPendingWorkScope()).toBe(true);
     });
     expect(hasPendingWorkScope()).toBe(false);
   });
 
-  test("flushPendingWork settles queued work inside the scope", async () => {
+  test("flushPendingWork settles queued work inside the request", async () => {
     let settled = false;
-    await runWithPendingWork(async () => {
+    await withRequestContext(async () => {
       addPendingWork(
         (async () => {
           await Promise.resolve();
@@ -45,23 +46,26 @@ describe("pending-work", () => {
     });
   });
 
-  test("work queued after the request's own flush still settles before the scope ends", async () => {
+  test("work queued after the request's own flush still settles before the context ends", async () => {
     // An error logged while the response is finalised queues work *after*
-    // handleRequest's flush already ran. The scope must drain again on the way
-    // out — work outliving its request is a killed fetch on Bunny and a
+    // handleRequest's flush already ran. The context must drain again on the
+    // way out — work outliving its request is a killed fetch on Bunny and a
     // sanitizer failure in an unrelated test here.
     let lateWorkSettled = false;
-    await runWithPendingWork(async () => {
-      await flushPendingWork(); // the request's own flush
-      addPendingWork(
-        (async () => {
-          // Far more microtask hops than the scope-exit path itself takes, so
-          // this only settles in time when the exit actually drains the queue.
-          for (let hop = 0; hop < 50; hop++) await Promise.resolve();
-          lateWorkSettled = true;
-        })(),
-      );
-    });
+    await withRequestContext(() =>
+      runWithPendingWork(async () => {
+        await flushPendingWork(); // the request's own flush
+        addPendingWork(
+          (async () => {
+            // Far more microtask hops than the exit path itself takes, so
+            // this only settles in time when the exit actually drains the
+            // queue.
+            for (let hop = 0; hop < 50; hop++) await Promise.resolve();
+            lateWorkSettled = true;
+          })(),
+        );
+      }),
+    );
     expect(lateWorkSettled).toBe(true);
   });
 
@@ -70,21 +74,23 @@ describe("pending-work", () => {
     // failed job queues its error's activity-log write. A single-pass flush
     // captured the queue once and discarded the late arrival unawaited.
     let chainedSettled = false;
-    await runWithPendingWork(async () => {
-      addPendingWork(
-        (async () => {
-          await Promise.resolve();
-          addPendingWork(
-            (async () => {
-              await Promise.resolve();
-              chainedSettled = true;
-            })(),
-          );
-        })(),
-      );
-      await flushPendingWork();
-      expect(chainedSettled).toBe(true);
-    });
+    await withRequestContext(() =>
+      runWithPendingWork(async () => {
+        addPendingWork(
+          (async () => {
+            await Promise.resolve();
+            addPendingWork(
+              (async () => {
+                await Promise.resolve();
+                chainedSettled = true;
+              })(),
+            );
+          })(),
+        );
+        await flushPendingWork();
+        expect(chainedSettled).toBe(true);
+      }),
+    );
   });
 
   test("work that finishes on the last allowed round still succeeds", async () => {
@@ -104,11 +110,13 @@ describe("pending-work", () => {
         })(),
       );
     };
-    await runWithPendingWork(async () => {
-      queueAgain();
-      await flushPendingWork();
-      expect(made).toBe(TOTAL_WORK);
-    });
+    await withRequestContext(() =>
+      runWithPendingWork(async () => {
+        queueAgain();
+        await flushPendingWork();
+        expect(made).toBe(TOTAL_WORK);
+      }),
+    );
   });
 
   test("work that queues fresh work forever fails loudly instead of spinning", async () => {
@@ -130,33 +138,66 @@ describe("pending-work", () => {
         })(),
       );
     };
-    await runWithPendingWork(async () => {
-      queueAgain();
-      try {
-        await expect(flushPendingWork()).rejects.toThrow(
-          "Pending work kept queueing more work instead of finishing",
-        );
-      } finally {
-        // Stop the chain and drain its tail so the scope can end cleanly.
-        keepQueueing = false;
-        await flushPendingWork();
-      }
-    });
+    await withRequestContext(() =>
+      runWithPendingWork(async () => {
+        queueAgain();
+        try {
+          await expect(flushPendingWork()).rejects.toThrow(
+            "Pending work kept queueing more work instead of finishing",
+          );
+        } finally {
+          // Stop the chain and drain its tail so the context can end cleanly.
+          keepQueueing = false;
+          await flushPendingWork();
+        }
+      }),
+    );
     expect(queued).toBeLessThan(QUEUE_CEILING);
   });
 
-  test("flushPendingWork outside a scope is a no-op", async () => {
-    await flushPendingWork(); // nothing to flush and no scope: must not throw
+  test("flushPendingWork outside a request is a no-op", async () => {
+    await flushPendingWork(); // nothing to flush and no queue: must not throw
     expect(hasPendingWorkScope()).toBe(false);
   });
 
-  test("addPendingWork outside a scope drops the promise instead of queueing", async () => {
+  test("addPendingWork outside a request drops the promise instead of queueing", async () => {
     // Documented behaviour: outside a request there is nothing to flush.
     addPendingWork(Promise.resolve());
-    await runWithPendingWork(async () => {
-      // The out-of-scope promise did not land in this scope's queue, so the
-      // scope resolves without waiting on anything.
+    await withRequestContext(() => {
+      // The orphaned promise did not land in this request's queue, so the
+      // context resolves without waiting on anything.
       expect(hasPendingWorkScope()).toBe(true);
     });
+  });
+
+  test("concurrent requests drain their own queues", async () => {
+    // The second request's flush must not wait on the first request's still
+    // pending work: a shared queue would splice it in and deadlock on the
+    // gate, so the timeout itself pins the isolation.
+    const drained: string[] = [];
+    const gate = Promise.withResolvers<void>();
+    const first = withRequestContext(() =>
+      runWithPendingWork(async () => {
+        addPendingWork(
+          (async () => {
+            await gate.promise;
+            drained.push("first");
+          })(),
+        );
+        await flushPendingWork();
+      }),
+    );
+    const second = withRequestContext(async () => {
+      addPendingWork(
+        (async () => {
+          drained.push("second");
+        })(),
+      );
+      await flushPendingWork();
+      expect(drained).toEqual(["second"]);
+      gate.resolve();
+    });
+    await Promise.all([first, second]);
+    expect(drained).toEqual(["second", "first"]);
   });
 });

@@ -28,7 +28,6 @@ import {
   answerRejectedSession,
   settleRejectedCharge,
 } from "#routes/api/payment-processing/rejected-target.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -43,6 +42,7 @@ import {
   withRefundAnswering,
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 
@@ -67,7 +67,7 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
   });
 
   it("hands an owner the diagnostics beside the refusal", async () => {
-    const response = await runWithPendingWork(async () =>
+    const response = await withRequestContext(async () =>
       answerRejectedSession(
         blankReference(),
         () => {},

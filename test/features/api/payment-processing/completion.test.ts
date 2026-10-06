@@ -8,12 +8,12 @@ import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { bookedLine, bookingIntent } from "./index/helpers.ts";
 
@@ -203,7 +203,7 @@ describeWithEnv(
       };
 
       const calls = await countDatabaseCalls(2, () =>
-        runWithPendingWork(() =>
+        withRequestContext(() =>
           completePaidBooking(
             [packagedEntry],
             bareIntent(),
