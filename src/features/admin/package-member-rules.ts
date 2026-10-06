@@ -60,18 +60,17 @@ const parseMemberDayPrices = (
 // The package-member form fields are dynamic: one price and quantity pair
 // per member listing, keyed by listing id. The static form schema cannot
 // declare them. The save's form-level validation walks them and refuses the
-// first malformed one in plain words. Before this check the parse silently
-// defaulted a malformed value. A junk price became "no override". A junk
-// quantity became 1. A junk day price was dropped.
+// first malformed one in plain words. No malformed field can then default
+// quietly or drop an override.
 const PACKAGE_PRICE_KEY = /^package_price_(\d+)$/;
 const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
 const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
 
 /** The rule one package day-price field must satisfy. The day count the key
  *  names is a positive safe integer inside the supported booking range, and
- *  the price parses. Above the range, the day-price write drops the entry.
- *  An accepted key saves without effect. The API day-price map applies the
- *  same rule to its keys. */
+ *  the price parses. A day outside the range can never be booked, so its
+ *  override is dead data. The API day-price map applies the same rule to its
+ *  keys. */
 const validMemberDayPrice = (raw: string, key: string): boolean => {
   const day = wholeNumberValue(key.slice(key.lastIndexOf("_") + 1));
   return (
