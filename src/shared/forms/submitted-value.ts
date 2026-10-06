@@ -8,12 +8,10 @@ export const DATETIME_PARTIAL_ERROR =
 const getDatetimeValue = (form: FormParams, name: string): string | null => {
   const date = form.getString(`${name}_date`);
   const time = form.getString(`${name}_time`);
+  if (date && time) return `${parseDateString(date) ?? date}T${time}`;
+  if (date && !time) return `${parseDateString(date) ?? date}T00:00`;
   if (!date && !time) return "";
-  if (!date || !time) return null;
-  // An unusable date half answers null like the partial form does: the field
-  // reports its error instead of composing a value a comparison cannot order.
-  const cleaned = parseDateString(date);
-  return cleaned === null ? null : `${cleaned}T${time}`;
+  return null;
 };
 
 /** Read one field from submitted form data using the field's input shape.
@@ -30,7 +28,9 @@ export const readSubmittedFieldValue = (
   if (field.type === "date") {
     const raw = form.getString(field.name);
     if (raw.trim() === "") return "";
-    return parseDateString(raw);
+    // A usable value is cleaned at this boundary. An unusable one passes
+    // through raw, so the field's own validate hook reports its message.
+    return parseDateString(raw) ?? raw;
   }
   return form.getString(field.name);
 };

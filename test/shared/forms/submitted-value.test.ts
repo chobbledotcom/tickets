@@ -26,10 +26,12 @@ describe("readSubmittedFieldValue date cleanup", () => {
     expect(readSubmittedFieldValue(form, dateField)).toBe("2027-06-01");
   });
 
-  test("a date field returns null for the four refused shapes", () => {
+  test("a date field passes an unusable value through for the field message", () => {
+    // The field's own validate hook reports the old copy; the boundary only
+    // guarantees that a usable value is cleaned.
     for (const raw of ["2027-6-1", "2027-02-30", "2027-06-01T00:00", "soon"]) {
       const form = new FormParams([["start_date", raw]]);
-      expect(readSubmittedFieldValue(form, dateField)).toBeNull();
+      expect(readSubmittedFieldValue(form, dateField)).toBe(raw);
     }
   });
 
@@ -48,11 +50,13 @@ describe("readSubmittedFieldValue date cleanup", () => {
     );
   });
 
-  test("a datetime field with an unusable date half answers null", () => {
+  test("a datetime field composes an unusable date half raw", () => {
     const form = new FormParams([
       ["closes_at_date", "2027-02-30"],
       ["closes_at_time", "18:30"],
     ]);
-    expect(readSubmittedFieldValue(form, datetimeField)).toBeNull();
+    expect(readSubmittedFieldValue(form, datetimeField)).toBe(
+      "2027-02-30T18:30",
+    );
   });
 });
