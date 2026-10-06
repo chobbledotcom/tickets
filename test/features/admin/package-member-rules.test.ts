@@ -118,6 +118,17 @@ describe("validatePackageMemberForm", () => {
     ).toBe(t("error.package_member_day_price"));
   });
 
+  test("refuses a day count above the supported maximum", () => {
+    expect(
+      validatePackageMemberForm(
+        formOf([
+          ["is_package", "1"],
+          ["package_day_price_3_91", "5.00"],
+        ]),
+      ),
+    ).toBe(t("error.package_member_day_price"));
+  });
+
   test("accepts a well-formed member field set", () => {
     expect(
       validatePackageMemberForm(

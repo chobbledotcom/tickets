@@ -318,4 +318,18 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     // The member keeps its own per-day prices.
     expect(await getGroupDayPrices(group.id)).toEqual(new Map());
   });
+
+  test("refuses a day count above the supported maximum", async () => {
+    const { group, member } = await dayPricedPackage("Day count 91");
+    await refuseMemberInput(
+      group,
+      {
+        [`package_price_${member.id}`]: "9.00",
+        [`package_day_price_${member.id}_91`]: "5.00",
+      },
+      t("error.package_member_day_price"),
+    );
+    // The member keeps its own per-day prices.
+    expect(await getGroupDayPrices(group.id)).toEqual(new Map());
+  });
 });

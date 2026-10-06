@@ -11,7 +11,7 @@ import {
   wholeNumberValue,
 } from "#shared/groups/package-member-values.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
-import type { DayPrices } from "#types";
+import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 
 /** Parse one package-price input to minor units. The form-level validation
  *  ({@link validatePackageMemberForm}) has already refused a non-numeric or
@@ -67,10 +67,10 @@ const PACKAGE_PRICE_KEY = /^package_price_(\d+)$/;
 const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
 const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
 
-/** The rule one package day-price field must satisfy: the day count the key
- *  names is a positive safe integer, and the price parses. The key arrives
- *  from a find() that already matched the family's shape, so the text after
- *  its last underscore is the day count. The API day-price map applies the
+/** The rule one package day-price field must satisfy. The day count the key
+ *  names is a positive safe integer inside the supported booking range, and
+ *  the price parses. Above the range, the day-price write drops the entry.
+ *  An accepted key saves without effect. The API day-price map applies the
  *  same rule to its keys. */
 const validMemberDayPrice = (raw: string, key: string): boolean => {
   const day = wholeNumberValue(key.slice(key.lastIndexOf("_") + 1));
@@ -78,6 +78,7 @@ const validMemberDayPrice = (raw: string, key: string): boolean => {
     day !== null &&
     Number.isSafeInteger(day) &&
     day >= 1 &&
+    day <= MAX_DURATION_DAYS &&
     parsePackagePrice(raw) !== null
   );
 };
