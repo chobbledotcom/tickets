@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  bindFirst,
   byId,
   compact,
   emptyListsFor,
@@ -511,5 +512,20 @@ describe("isOneOf", () => {
 
   test("refuses an absent value", () => {
     expect(isHttpMethod(undefined)).toBe(false);
+  });
+});
+
+describe("bindFirst", () => {
+  const join = (first: string, second: string, third: string): string =>
+    `${first}-${second}-${third}`;
+
+  test("supplies the first argument now and the rest later", () => {
+    expect(bindFirst(join)("a")("b", "c")).toBe("a-b-c");
+  });
+
+  test("reuses one bound first argument for several calls", () => {
+    const bound = bindFirst(join)("a");
+    expect(bound("b", "c")).toBe("a-b-c");
+    expect(bound("d", "e")).toBe("a-d-e");
   });
 });

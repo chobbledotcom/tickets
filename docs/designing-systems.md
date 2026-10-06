@@ -235,6 +235,39 @@ function takes the data.
   `defineTable`, `defineCrudApi`, `defineForm`, and `cachedClientFactory`
   (`src/shared/payment-helpers.ts`).
 
+## Readable by the coverage merge
+
+Deno's coverage merge can mis-read a function that `--parallel` workers execute:
+the merged lcov records the function's body lines as unhit (`DA:0`) while the
+run demonstrably executed them, sometimes alongside a non-zero `FNDA` for the
+same function — internally impossible, so the 100% gate fails on a phantom gap.
+The recorded sightings share a shape: the function's body sits in a nested arrow
+(a hand-written curried closure), a multi-line expression body, or a ternary
+head, in a file that many test isolates load. The sightings are
+`crud-parsers.ts` on #2504, the note in `src/shared/db/attendees/update.ts`, and
+the exclusions in `scripts/coverage-check.ts` with a "mis-attributes" comment.
+
+Write the logic so the merge can attribute it:
+
+- The logic lives in a module-level, named, flat function: a block body with
+  `if`/`return`, no ternary head, no multi-line expression body.
+- Currying comes from a shared combinator, never from a hand-written returned
+  closure in a domain file. `bindFirst` (`#fp`) gives a plain multi-argument
+  function partial application: write `requiredDate(key, value)` flat, then
+  `export const requireDateString = bindFirst(requiredDate)`.
+- The combinator's own closure lives in `src/fp.ts`, which every isolate loads
+  and exercises. The domain logic stays a plain function whose lines the merge
+  can sum across workers.
+
+The rewrite is proven on the real case: `crud-parsers.ts` read `DA:0` on the
+inner arrow of a curried ternary helper and failed the gate. The same logic as a
+plain two-argument function with an `if`/`return` body passed the gate with no
+exclusion (#2504). A load-only isolate contributes a zero-count range for a
+compiled-but-uncalled function, so give the merge nothing to mis-sum in the body
+lines: keep them flat, named, and block-bodied. When the gate reports `DA:0` on
+lines the tests demonstrably run, check the shape against this section before
+reaching for an exclusion.
+
 ## Built for cold starts
 
 Most production requests land on a freshly booted edge isolate with a ~500ms
