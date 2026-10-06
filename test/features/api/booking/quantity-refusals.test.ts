@@ -33,8 +33,8 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
-import { scanWithStripe } from "../public/qr-book/helpers.ts";
-import { apiBookPackage } from "./packages/helpers.ts";
+import { scanWithStripe } from "../../public/qr-book/helpers.ts";
+import { apiBookPackage } from "../packages/helpers.ts";
 
 describePublicApi(() => {
   test("the booking API refuses min-1, max+1, and fewer places than the minimum", async () => {
