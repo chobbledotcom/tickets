@@ -5,7 +5,9 @@ import { writeOut } from "./io.ts";
 import type { CatalogProduct } from "./product-catalog/parse.ts";
 import {
   attributeVocabulary,
+  type CatalogFiles,
   type CategoryEntry,
+  catalogFiles,
   checkCategoryFiles,
   ensureConsistentAttributeSpellings,
   ensureUniqueTitles,
@@ -208,13 +210,14 @@ const importProduct = async (
   product: CatalogProduct,
   text: string,
   plan: ImportPlan,
-  productsDir: string,
+  files: CatalogFiles,
   optionIds: ReadonlyMap<string, number>,
   groupIdsBySlug: ReadonlyMap<string, number>,
   flags: ImportFlags,
   report: Report,
 ): Promise<void> => {
-  const file = `${productsDir}/${product.filename}.md`;
+  const relative = `src/products/${product.filename}.md`;
+  const file = await files.verify(`${files.root}/${relative}`);
   if (flags.plan) {
     await writeOut(planLine(plan, product));
     if (plan.action === "skip-imported") report.skipped += 1;
@@ -263,7 +266,7 @@ const importProduct = async (
   refuseChangedFile(
     file,
     text,
-    await Deno.readTextFile(file),
+    await files.read(`${files.root}/${relative}`),
     saved.listing.id,
   );
   await Deno.writeTextFile(
@@ -283,12 +286,13 @@ export const runImport = async (
   flags: ImportFlags & { dir: string },
   api: ApiClient,
 ): Promise<Report> => {
-  const productsDir = `${flags.dir}/src/products`;
-  const catalog = await readProducts(productsDir);
+  const files = await catalogFiles(flags.dir);
+  const catalog = await readProducts(files, `${flags.dir}/src/products`);
   ensureUniqueTitles(catalog.map(({ product }) => product));
   // The category titles must be the catalog's own before the import reads
   // anything from the site, so the plain-file check runs before the reads.
   await checkCategoryFiles(
+    files,
     `${flags.dir}/src/categories`,
     catalog.flatMap(({ product }) => product.categories),
   );
@@ -340,6 +344,7 @@ export const runImport = async (
   // Preflighted before syncAttributes: the names must exist before the
   // import changes anything on the site.
   const categoryEntries = await readCategoryEntries(
+    files,
     `${flags.dir}/src/categories`,
     [...new Set(active.flatMap(({ product }) => product.categories))],
   );
@@ -371,7 +376,7 @@ export const runImport = async (
       product,
       text,
       plans.get(product.filename)!,
-      productsDir,
+      files,
       optionIds,
       groupIdsBySlug,
       flags,

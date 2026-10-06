@@ -71,6 +71,28 @@ const scriptedApi = (
   return { api, calls };
 };
 
+/** Run one import against a catalog with a symlink out of it: `link` writes
+ *  what the outside folder needs and places the symlink inside the catalog.
+ *  Fails the test unless the import refuses as a plain-file error, and
+ *  returns the calls that refusal made. */
+const symlinkedCatalogRun = async (
+  link: (dir: string, outside: string) => Promise<void>,
+): Promise<ApiCall[]> => {
+  const [dir, outside] = [await Deno.makeTempDir(), await Deno.makeTempDir()];
+  try {
+    await Deno.mkdir(`${dir}/src/products`, { recursive: true });
+    await link(dir, outside);
+    const { api, calls } = scriptedApi({});
+    await expect(
+      runImport({ dir, plan: false, update: false }, api),
+    ).rejects.toThrow(/plain file inside the catalog/);
+    return calls;
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+    await Deno.remove(outside, { recursive: true });
+  }
+};
+
 const LISTINGS_EMPTY: unknown[] = [];
 const GROUPS_EMPTY: unknown[] = [];
 
@@ -371,31 +393,51 @@ describe("frontmatter import runner", () => {
     // A slug passes its name check while the file under it is a link. The
     // import must never read through one: the plain-file check runs before
     // any site call, so no API request is made at all.
-    const dir = await Deno.makeTempDir();
-    try {
-      await Deno.mkdir(`${dir}/src/products`, { recursive: true });
+    const calls = await symlinkedCatalogRun(async (dir, outside) => {
       await Deno.mkdir(`${dir}/src/categories`, { recursive: true });
-      await Deno.mkdir(`${dir}/outside`, { recursive: true });
       await Deno.writeTextFile(
         `${dir}/src/products/tower.md`,
         PRODUCT_FRONTMATTER,
       );
-      await Deno.writeTextFile(
-        `${dir}/outside/secret.md`,
-        CATEGORY_FRONTMATTER,
-      );
+      await Deno.writeTextFile(`${outside}/secret.md`, CATEGORY_FRONTMATTER);
       await Deno.symlinkSync(
-        `${dir}/outside/secret.md`,
+        `${outside}/secret.md`,
         `${dir}/src/categories/tarps.md`,
       );
-      const { api, calls } = scriptedApi({});
-      await expect(
-        runImport({ dir, plan: false, update: false }, api),
-      ).rejects.toThrow(/plain file in src\/categories/);
-      expect(calls).toEqual([]);
-    } finally {
-      await Deno.remove(dir, { recursive: true });
-    }
+    });
+    expect(calls).toEqual([]);
+  });
+
+  test("refuses a categories directory that is a symlink out of the catalog", async () => {
+    // Resolving a linked categories directory would promote its target to
+    // the trusted root, so the read must answer to the catalog root's real
+    // path, taken once, and refuse before any site call.
+    const calls = await symlinkedCatalogRun(async (dir, outside) => {
+      await Deno.writeTextFile(
+        `${dir}/src/products/tower.md`,
+        PRODUCT_FRONTMATTER,
+      );
+      await Deno.mkdir(`${outside}/cats`, { recursive: true });
+      await Deno.writeTextFile(
+        `${outside}/cats/tarps.md`,
+        CATEGORY_FRONTMATTER,
+      );
+      await Deno.symlinkSync(`${outside}/cats`, `${dir}/src/categories`);
+    });
+    expect(calls).toEqual([]);
+  });
+
+  test("refuses a product file that is a symlink out of the catalog", async () => {
+    // A linked product file must refuse, not be skipped: the silent skip
+    // would import nothing while the operator believes the product went up.
+    const calls = await symlinkedCatalogRun(async (dir, outside) => {
+      await Deno.writeTextFile(`${outside}/secret.md`, PRODUCT_FRONTMATTER);
+      await Deno.symlinkSync(
+        `${outside}/secret.md`,
+        `${dir}/src/products/tower.md`,
+      );
+    });
+    expect(calls).toEqual([]);
   });
 
   test("refuses two products under one title", async () => {
