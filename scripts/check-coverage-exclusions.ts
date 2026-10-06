@@ -2,16 +2,16 @@
 
 /**
  * The coverage exclusion ratchet: fail when the branch adds an entry to
- * `scripts/coverage-check/exclusions.ts` compared with the merge base on
- * `origin/main`. Removing an entry is always allowed. Run as part of
+ * `scripts/check-coverage-exclusions/exclusions.ts` compared with the merge
+ * base on `origin/main`. Removing an entry is always allowed. Run as part of
  * `deno task precommit`, or on its own with
  * `deno task check:coverage-exclusions`. See "Never add a coverage
  * exclusion" in AGENTS.md.
  */
 
 import { consoleOutput } from "#scripts/check-report.ts";
-import { EXCLUSIONS_PATH } from "./coverage-check/exclusion-ratchet.ts";
-import { ratchetExit } from "./coverage-check/ratchet-run.ts";
+import { EXCLUSIONS_PATH } from "./check-coverage-exclusions/exclusion-ratchet.ts";
+import { ratchetExit } from "./check-coverage-exclusions/ratchet-run.ts";
 import { runCommand } from "./precommit/git.ts";
 
 Deno.exit(
