@@ -1,5 +1,6 @@
 import type * as v from "valibot";
 import type { ColumnDef } from "#db/table.ts";
+import { isNotNullish } from "#fp";
 
 const TRANSFER_KINDS = {
   bookableDays: "array",
@@ -24,7 +25,7 @@ const TRANSFER_KINDS = {
 
 type TransferName = keyof typeof TRANSFER_KINDS;
 
-type CatalogField = readonly [
+export type CatalogField = readonly [
   string,
   object | undefined,
   TransferName?,
@@ -32,7 +33,7 @@ type CatalogField = readonly [
   unknown?,
 ];
 
-type CatalogFieldSet = Record<string, CatalogField>;
+export type CatalogFieldSet = Record<string, CatalogField>;
 
 type FieldValue<Field extends CatalogField> =
   Field[1] extends ColumnDef<infer Value>
@@ -115,6 +116,25 @@ export const isValidCatalogApiValue = (
   matchesTransfer(value, field[2] as TransferName) &&
   (field[2] !== "nonNegativeInt" ||
     (Number.isSafeInteger(value as number) && (value as number) >= 0));
+
+/** The first API-visible field whose supplied body value fails its field
+ *  check, named for the error message, or null when every supplied value
+ *  passes. Absent keys pass: the API input mappers apply their own
+ *  requiredness (requireStrings on create, the stored fallback on update). */
+export const invalidApiValueField = (
+  fields: CatalogFieldSet,
+  body: Record<string, unknown>,
+): string | null => {
+  const invalid = Object.values(fields).find((field) => {
+    const value = body[field[0]];
+    return (
+      (Number(field[3]) & 1) !== 0 &&
+      isNotNullish(value) &&
+      !isValidCatalogApiValue(field, value)
+    );
+  });
+  return invalid ? String(invalid[0]) : null;
+};
 
 const schemaValue: ProjectionValue = (field, values) => {
   const schema = values[field[2] as string];
