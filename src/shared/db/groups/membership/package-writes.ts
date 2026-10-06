@@ -215,10 +215,18 @@ export const assignListingsToGroup: MembershipWrite = membershipWrite(
     if (batchError) return batchError;
     // A package join grants the default pick count of one. A listing whose
     // minimum sits above one can never be booked inside the bundle, so the
-    // join refuses it like any other pick-count refusal.
+    // join refuses it like any other pick-count refusal. A listing that is
+    // already a member keeps its stored pick count, which the original write
+    // already judged.
     if (state.isPackage) {
+      const storedQuantity = new Map(
+        state.members.map((member) => [member.id, member.quantity]),
+      );
       for (const listing of listings) {
-        const joinError = await memberCapErrorTx(listing, 1);
+        const joinError = await memberCapErrorTx(
+          listing,
+          storedQuantity.get(listing.id) ?? 1,
+        );
         if (joinError) return joinError;
       }
     }
