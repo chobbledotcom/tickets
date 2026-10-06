@@ -9,6 +9,7 @@ import {
   parseOptionalResult,
   type Result,
 } from "#shared/result.ts";
+import { parseDateString } from "#shared/validation/date.ts";
 import type { AdminSession } from "#types";
 
 /** JSON body for confirmed delete endpoints */
@@ -56,6 +57,73 @@ export const requireStrings = <K extends string>(
   return parsed.ok
     ? okResult(Object.fromEntries(parsed.value) as Record<K, string>)
     : parsed;
+};
+
+/** Parse one cleaned-or-refused date value, naming the field. */
+const dateStringResult = (key: string, raw: string): Result<string> => {
+  const parsed = parseDateString(raw);
+  return parsed === null
+    ? errorResult(`${key} has an invalid value`)
+    : okResult(parsed);
+};
+
+/**
+ * Read one required real-calendar-date field from a JSON body. The value is
+ * trimmed and validated at this boundary, so the mapped input carries a
+ * `DateString` no comparison can mis-order. Absent or empty answers the
+ * same rejection shape as {@link requireStrings}.
+ */
+export const requireDateString = (
+  body: Record<string, unknown>,
+  key: string,
+): Result<string> => {
+  const raw = requireString(body, key);
+  if (raw === null) return errorResult(`${key} is required`);
+  return dateStringResult(key, raw);
+};
+
+/** Read the required name for one entity write. A supplied name must be a
+ *  string: anything else is refused with the field-named message instead of
+ *  coerced into stored text. An update without a supplied name keeps the
+ *  stored one, and the resolved name must be non-empty. */
+export const requireEntityName = (
+  body: Record<string, unknown>,
+  existing: string | null,
+): Result<string> => {
+  if (body.name !== undefined && typeof body.name !== "string") {
+    return errorResult("name must be a string");
+  }
+  if (existing !== null) return parseUpdateName(body, existing);
+  const name = requireStrings(body, ["name"]);
+  return name.ok ? okResult(name.value.name) : name;
+};
+
+/** Combine the two date results of one range in field order: the start date
+ *  reports first, then the end date. */
+export const dateRange = (
+  startDate: Result<string>,
+  endDate: Result<string>,
+): Result<{ endDate: string; startDate: string }> => {
+  if (!startDate.ok) return startDate;
+  if (!endDate.ok) return endDate;
+  return okResult({ endDate: endDate.value, startDate: startDate.value });
+};
+
+/**
+ * Read one optional real-calendar-date field from a JSON body. An absent key
+ * keeps the fallback. A present-but-unusable value is refused with the
+ * field-named message.
+ */
+export const optionalDateString = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): Result<string> => {
+  const raw = body[key];
+  if (raw === undefined) return okResult(fallback);
+  if (typeof raw !== "string")
+    return errorResult(`${key} has an invalid value`);
+  return dateStringResult(key, raw);
 };
 
 /**

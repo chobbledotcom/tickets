@@ -23,6 +23,7 @@ import {
   parseUpdateName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /** JSON body accepted by POST /api/admin/listings. */
@@ -80,6 +81,24 @@ const withoutEditorLockedFields = (
   );
 };
 
+/** A listing datetime the JSON body carries: a UTC instant whose date half is
+ *  a real calendar day. The date half answers to the shared real-day rule, so
+ *  a padded, unpadded, or impossible day cannot reach a date comparison. A
+ *  value with no zone designator is refused rather than read as local time. */
+const isListingInstant = (value: string): boolean => {
+  const [datePart, timePart] = value.split("T");
+  return (
+    datePart !== undefined &&
+    isIsoDate(datePart) &&
+    /^\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?Z$/.test(timePart ?? "")
+  );
+};
+
+const LISTING_INSTANT = v.union([
+  v.null(),
+  v.pipe(v.string(), v.check(isListingInstant)),
+]);
+
 const API_BODY_FIELD_RULES = [
   [
     "bookable_days",
@@ -90,6 +109,16 @@ const API_BODY_FIELD_RULES = [
     "duration_days",
     v.pipe(v.number(), v.safeInteger()),
     "duration_days must be a safe integer",
+  ],
+  [
+    "closes_at",
+    LISTING_INSTANT,
+    "closes_at must be a UTC instant of a real calendar day",
+  ],
+  [
+    "date",
+    LISTING_INSTANT,
+    "date must be a UTC instant of a real calendar day",
   ],
   [
     "day_prices",

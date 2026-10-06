@@ -96,6 +96,46 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       }
     });
 
+    // The listing datetimes are UTC instants whose date half must be a real
+    // calendar day: the shared real-day rule runs at the JSON boundary.
+    test("refuses unusable datetime shapes with the field message", async () => {
+      const cases: Record<string, unknown>[] = [
+        {
+          closes_at: "2026-06-14T23:59:00Z",
+          date: "2026-6-15T10:00:00Z",
+          max_attendees: 10,
+          name: "Unpadded",
+        },
+        {
+          closes_at: "2026-06-14T23:59:00Z",
+          date: "2026-02-30T10:00:00Z",
+          max_attendees: 10,
+          name: "Rollover",
+        },
+        {
+          closes_at: "2026-06-14T23:59:00Z",
+          date: "soon",
+          max_attendees: 10,
+          name: "Wording",
+        },
+        {
+          closes_at: "2026-06-14T23:59:00Z",
+          date: "2026-06-15T10:00:00",
+          max_attendees: 10,
+          name: "No zone",
+        },
+      ];
+      for (const body of cases) {
+        const result = await bodyToCreateInput(body);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBe(
+            "date must be a UTC instant of a real calendar day",
+          );
+        }
+      }
+    });
+
     test("maps every supported scalar without changing neutral values", async () => {
       const result = await bodyToCreateInput({
         active: false,
@@ -296,7 +336,6 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         unit_price: 100,
         webhook_url: "https://old.com/hook",
       });
-
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);
       if (result.ok) {

@@ -33,6 +33,21 @@ export const IsoDateSchema = v.pipe(
 /** Whether a string is a real calendar date in strict `YYYY-MM-DD` form. */
 export const isIsoDate = (value: string): boolean => v.is(IsoDateSchema, value);
 
+/** A `YYYY-MM-DD` string that passed the real-calendar-day check. The brand
+ *  is the compile-level half of the cleanup. Every helper that consumes a
+ *  date — comparisons, storage, normalisation — takes a `DateString`, so a
+ *  caller that skips the parser cannot type-check. */
+export type DateString = string & { readonly __brand: "DateString" };
+
+/** Clean one raw date value at a boundary: trim the whitespace around it,
+ *  then demand the strict real-calendar-day shape. Null means the value is
+ *  unusable and the surface reports its own field-named message. */
+export const parseDateString = (raw: string): DateString | null => {
+  const value = raw.trim();
+  if (!v.is(IsoDateSchema, value)) return null;
+  return value as DateString;
+};
+
 /**
  * A calendar month in strict `YYYY-MM` form, month `01`–`12` — the shape the
  * date pickers round-trip as their paged-month query param. valibot has no

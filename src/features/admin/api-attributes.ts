@@ -30,7 +30,7 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   apiEntityGate,
-  parseUpdateName,
+  requireEntityName,
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
 import { okResult, type Result } from "#shared/result.ts";
@@ -48,25 +48,14 @@ export type AttributeOptionBody = { text: string };
 // DELETE /api/admin/attributes/:attributeId/options/:optionId take the shared
 // DeleteBody the crud-parsers module exports.
 
-/** The attribute's name for a create (required) or an update (falls back to
- *  the stored name), read from one JSON body. The shared update parser refuses
- *  a supplied non-string name (issue #2476). */
-const attributeName = (
-  body: Record<string, unknown>,
-  existing: string | null,
-): Result<string> => {
-  if (existing === null) {
-    const required = requireStrings(body, ["name"]);
-    return required.ok ? okResult(required.value.name) : required;
-  }
-  return parseUpdateName(body, existing);
-};
-
+/** The attribute's input for a create or an update. The name goes through
+ *  the shared entity-name rule, which refuses a supplied non-string with
+ *  the field-named message. */
 const toAttributeInput = (
   body: Record<string, unknown>,
   existing: Attribute | null,
 ): Result<{ name: string }> => {
-  const name = attributeName(body, existing?.name ?? null);
+  const name = requireEntityName(body, existing?.name ?? null);
   return name.ok ? okResult({ name: name.value }) : name;
 };
 

@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type DateString,
   isIsoDate,
   isIsoMonth,
   isRealCalendarDay,
+  parseDateString,
 } from "#shared/validation/date.ts";
 
 describe("isRealCalendarDay", () => {
@@ -74,5 +76,48 @@ describe("isIsoMonth", () => {
     expect(isIsoMonth("2026-00")).toBe(false);
     expect(isIsoMonth("2026-13")).toBe(false);
     expect(isIsoMonth("2026-99")).toBe(false);
+  });
+});
+
+describe("parseDateString", () => {
+  test("trims surrounding whitespace and returns the clean date", () => {
+    expect(parseDateString("  2027-06-01  ")).toBe("2027-06-01");
+    expect(parseDateString("2027-06-01")).toBe("2027-06-01");
+  });
+
+  test("refuses an unpadded date the format check rejects", () => {
+    // Was stored by the holiday JSON API before the shared parser existed.
+    expect(parseDateString("2027-6-1")).toBeNull();
+  });
+
+  test("refuses a rollover impossibility the real-day check rejects", () => {
+    // Was stored by the holiday JSON API before the shared parser existed.
+    expect(parseDateString("2027-02-30")).toBeNull();
+  });
+
+  test("refuses a datetime string offered to a date field", () => {
+    // Was stored by the holiday JSON API before the shared parser existed.
+    expect(parseDateString("2027-06-01T00:00")).toBeNull();
+  });
+
+  test("refuses wording no comparison could order", () => {
+    // Was stored by the holiday JSON API before the shared parser existed.
+    expect(parseDateString("soon")).toBeNull();
+  });
+
+  test("refuses blank input", () => {
+    expect(parseDateString("")).toBeNull();
+    expect(parseDateString("   ")).toBeNull();
+  });
+
+  test("the branded type flows into date helpers, a raw string does not", () => {
+    const cleaned = parseDateString("2027-06-01");
+    if (!cleaned) throw new Error("the clean date must parse");
+    // The compile-level proof: a helper that takes the brand refuses a raw
+    // string, so a caller that skips the cleanup cannot type-check.
+    const takesBrand = (value: DateString): string => value;
+    // @ts-expect-error - a raw string is not a cleaned DateString
+    takesBrand("2027-06-01");
+    expect(takesBrand(cleaned)).toBe("2027-06-01");
   });
 });
