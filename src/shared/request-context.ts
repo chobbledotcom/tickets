@@ -2,20 +2,17 @@
  * The one request context. One AsyncLocalStorage frame carries the facts a
  * request sets once at the boundary and reads anywhere below it (#2280).
  *
- * Pending work (src/shared/pending-work.ts) and message groups
- * (src/shared/i18n.ts) keep their own scopes. The queue must outlive the
- * response. Concurrent route re-scopes cannot share one store field
- * (test/shared/i18n/loading.test.ts).
- *
- * Accessors fall back to the ambient default outside a request. Mutators
- * write only a live store.
+ * The pending-work queue is a store slot. The entry composes its exit drain.
+ * The subrequest budget and the message groups keep their own scopes. Both
+ * nest extra scopes inside one request, so a store field cannot hold them
+ * (src/shared/subrequest-budget.ts, src/shared/i18n.ts). Outside a request,
+ * accessors fall back to the ambient default and mutators write nothing.
  */
 
 import type { QueryLogState } from "#db/query-log.ts";
 import type { AuditState } from "#db/settings-audit.ts";
 import type { FlashStore } from "#shared/flash-context.ts";
 import type { SavedFormState } from "#shared/forms/saved-data.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { redactPath } from "#shared/redact-path.ts";
 import { createScope, type PromiseTask } from "#shared/request-scoped.ts";
 import type { SessionState } from "#shared/session-context.ts";
@@ -61,6 +58,9 @@ export type RequestStore = {
   /** Set while an admin page renders, consumed by the Layout footer
    * (src/ui/templates/admin/footer.tsx). */
   adminFooter?: AdminFooterState;
+  /** Promises that must settle before the response is sent, allocated by the
+   * first queue call (src/shared/pending-work.ts). */
+  pending?: Promise<unknown>[];
 };
 
 const requestScope = createScope<RequestStore>();
@@ -74,6 +74,10 @@ export type RequestFacts = { clientIp: string; locale: string };
  * always reads as outside any request. `locale` is parsed at the composition
  * site, so this module stays free of the i18n import (i18n reads this module,
  * not the other way round).
+ *
+ * The caller composes {@link runWithPendingWork} around `fn` — the request
+ * pipeline and the test fixture do — so the pending-work queue drains while
+ * the store is still alive.
  */
 export const runWithRequestContext = <T>(
   request: Request,
@@ -94,7 +98,7 @@ export const runWithRequestContext = <T>(
         route: redactPath(url.pathname),
       },
     },
-    () => runWithPendingWork(fn),
+    fn,
   );
 };
 

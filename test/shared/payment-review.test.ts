@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { WithheldRefund } from "#payment/admit-refund.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 
 const PRIVATE_REFERENCE = "pi_private_refund_reference";
@@ -41,7 +41,7 @@ describe("reporting a withheld refund", () => {
     const fetchStub = stubFetch(() => new Response("{}", { status: 200 }));
     try {
       await initSentry();
-      await runWithPendingWork(() => {
+      await withRequestContext(() => {
         reportWithheldRefund(
           { issue: { kind: "partial_refund" }, kind: "refused" },
           where,

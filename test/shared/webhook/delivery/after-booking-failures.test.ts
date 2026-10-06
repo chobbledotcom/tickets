@@ -14,12 +14,12 @@ import {
 } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { ErrorCode } from "#shared/logger.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const loggedIncident = (
   errorSpy: { calls: { args: unknown[] }[] },
@@ -48,7 +48,7 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
       Promise.reject(new Error("provider rejected the initial push")),
     );
     try {
-      await runWithPendingWork(() =>
+      await withRequestContext(() =>
         logAndNotifyRegistration([
           makeEntry({
             assign_built_site: true,
@@ -83,7 +83,7 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
     );
 
     try {
-      await runWithPendingWork(() =>
+      await withRequestContext(() =>
         logAndNotifyRegistration(
           [
             makeEntry({

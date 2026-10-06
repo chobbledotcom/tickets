@@ -4,6 +4,7 @@
  * id, trace, iframe mode.
  */
 
+import { runWithPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestContext } from "#shared/request-context.ts";
 import type { PromiseTask } from "#shared/request-scoped.ts";
 
@@ -23,6 +24,6 @@ export const withRequestContext = <T>(
       clientIp: options.clientIp ?? "203.0.113.7",
       locale: options.locale ?? "en",
     },
-    task,
+    () => runWithPendingWork(task),
   );
 };

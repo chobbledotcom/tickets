@@ -5,7 +5,6 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
@@ -29,6 +28,7 @@ import {
   makeTestEntry as makeEntry,
   makeTestListing as makeListing,
 } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
@@ -135,7 +135,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     ];
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
 
-    await runWithPendingWork(() => logAndNotifyRegistration(entries));
+    await withRequestContext(() => logAndNotifyRegistration(entries));
 
     const messages = await activityMessages();
     expect(
@@ -158,7 +158,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
         }),
       );
 
-      await runWithPendingWork(() => logAndNotifyRegistration(entries));
+      await withRequestContext(() => logAndNotifyRegistration(entries));
 
       expect(
         (await activityMessages()).filter(
@@ -269,7 +269,7 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
       }),
     );
 
-    await runWithPendingWork(() => logAndNotifyRegistration(entries));
+    await withRequestContext(() => logAndNotifyRegistration(entries));
 
     expect(fetchSpy.calls.length).toBe(1);
     const [url] = fetchSpy.calls[0]!.args as [string, RequestInit];

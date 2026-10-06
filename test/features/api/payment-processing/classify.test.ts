@@ -10,11 +10,11 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubSessionRetrieval } from "#test-utils/payment-session.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -134,7 +134,7 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
 
     // Raising it writes to the log the way a request does, so the test runs
     // in the same kind of scope a request gives it.
-    const classified = await runWithPendingWork(() =>
+    const classified = await withRequestContext(() =>
       classifySessionIntent(
         paidSession(
           signedMeta(
@@ -185,7 +185,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       await getTestSession(),
     );
 
-    const result = await runWithPendingWork(() =>
+    const result = await withRequestContext(() =>
       validatePaidSession("cs_no_provider", ownerRequest),
     );
 
@@ -206,7 +206,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers(null);
 
-    const result = await runWithPendingWork(() =>
+    const result = await withRequestContext(() =>
       validatePaidSession("cs_missing"),
     );
 
@@ -234,7 +234,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       ),
     );
 
-    const result = await runWithPendingWork(() =>
+    const result = await withRequestContext(() =>
       validatePaidSession("cs_unreadable_booking"),
     );
 
@@ -270,7 +270,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       Promise.resolve(foundStripeIntent(reference, 500)),
     );
 
-    const result = await runWithPendingWork(() =>
+    const result = await withRequestContext(() =>
       validatePaidSession("cs_refunded"),
     );
 
@@ -326,7 +326,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers(paidSession({ price_proof: "" }));
 
-    const result = await runWithPendingWork(() =>
+    const result = await withRequestContext(() =>
       validatePaidSession("cs_foreign"),
     );
 
