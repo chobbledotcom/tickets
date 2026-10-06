@@ -1,3 +1,4 @@
+// test-groups: run-alone
 /** The datetime composition at the form boundary. */
 
 import { expect } from "@std/expect";
