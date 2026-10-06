@@ -14,7 +14,10 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { filter, flatMap, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import { combinedChildCapacityForParent } from "#shared/group-capacity.ts";
+import {
+  childCapacityPartsFor,
+  combinedChildCapacityForParent,
+} from "#shared/group-capacity.ts";
 import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 import { answerableQuestion } from "./questions.tsx";
 import type { ChildRenderCtx } from "./types.ts";
@@ -156,10 +159,11 @@ export const foldReserveByChildId = (
     const children = childrenByParentId.get(parent.listing.id) ?? [];
     const combined = combinedChildCapacityForParent(
       groupIdsByListingId.get(parent.listing.id) ?? [],
-      children.map((child) => ({
-        groupIds: groupIdsByListingId.get(child.listing.id) ?? [],
-        ownMax: child.maxPurchasable,
-      })),
+      childCapacityPartsFor(groupIdsByListingId)(
+        children,
+        (child) => child.listing.id,
+        (child) => child.maxPurchasable,
+      ),
       groupRemainingByGroupId,
     );
     const foldable =

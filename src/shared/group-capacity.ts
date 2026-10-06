@@ -61,6 +61,21 @@ export type ChildCapacityPart = {
   ownMax: number;
 };
 
+/** The capacity parts of one parent's required children: each child's groups
+ *  read from one listing-to-groups lookup, each child's units from its own
+ *  source. */
+export const childCapacityPartsFor =
+  (groupIdsByListingId: ReadonlyMap<number, readonly number[]>) =>
+  <Child>(
+    children: readonly Child[],
+    idOf: (child: Child) => number,
+    ownMaxOf: (child: Child) => number,
+  ): ChildCapacityPart[] =>
+    children.map((child) => ({
+      groupIds: groupIdsByListingId.get(idOf(child)) ?? [],
+      ownMax: ownMaxOf(child),
+    }));
+
 /** The parent tickets a parent's children can serve together. Two bounds hold
  *  for any split of the children across their shared pools. The children's own
  *  ceilings sum to the whole. And every capped group a child shares with the
