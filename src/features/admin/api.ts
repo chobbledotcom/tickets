@@ -57,7 +57,10 @@ import {
 // Custom routes (delete with cleanup, activate/deactivate)
 // =============================================================================
 
-const listingGate = apiEntityGate(getListingWithCount, "Listing");
+// The listing delete, deactivate, and reactivate routes are staff-only, the
+// same audience the dashboard's lifecycle controls declare
+// (areas-a-l.ts "listings": listingDelete, deactivate, reactivate).
+const listingGate = apiEntityGate(getListingWithCount, "Listing", ADMIN_API);
 
 /** Custom DELETE handler: performListingDelete handles storage cleanup + logging with counts */
 const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
@@ -150,7 +153,9 @@ const toApiAttendee = ({
 
 /** Handle GET /api/admin/listings/:listingId/attendees — the listing's roster
  * as JSON. One row per booking line, newest first; every line shows, including
- * a quantity-0 placeholder, and a booking on another listing never appears. */
+ * a quantity-0 placeholder, and a booking on another listing never appears.
+ * Staff-only: the dashboard's roster tab is a staff-only surface
+ * (listing-page.ts), and the answers carry decrypted attendee PII. */
 const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
   withApiEntity(
     request,
@@ -166,6 +171,7 @@ const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
           )
         ).map(toApiAttendee),
       }),
+    ADMIN_API,
   );
 
 const listingApiRoutes = defineCrudApi<
