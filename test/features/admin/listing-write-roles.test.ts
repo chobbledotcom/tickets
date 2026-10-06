@@ -160,8 +160,6 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       listing: {
         active: boolean;
         id: number;
-        use_defaults: boolean;
-        webhook_url: string;
       };
     }>(
       handleRequest(
@@ -181,11 +179,18 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       201,
       (body) => {
         expect(body.listing.active).toBe(true);
-        expect(body.listing.use_defaults).toBe(false);
-        expect(body.listing.webhook_url).toBe("");
+        // The editor's answer hides the locked fields (they are not settable
+        // and not readable for the role), so the ignored submission is pinned
+        // on the stored row instead.
+        for (const field of ["use_defaults", "webhook_url"]) {
+          expect(field in body.listing).toBe(false);
+        }
       },
     );
     expect(created.listing.id).toBeGreaterThan(0);
+    const row = await getListingWithCount(created.listing.id);
+    expect(row?.webhook_url).toBe("");
+    expect(row?.use_defaults).toBe(false);
   });
 
   test("deactivates a normal listing through the update body for staff", async () => {
@@ -211,31 +216,53 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     expect(row?.active).toBe(false);
   });
 
+  /** The row one editor/staff read answers with, after checking the status. */
+  const readOne = async (
+    id: number,
+    session: { cookie: string; csrfToken: string },
+  ): Promise<Record<string, unknown>> => {
+    const one = await handleRequest(
+      requestAsSession(`/api/admin/listings/${id}`, session, {}),
+    );
+    const oneBody = await one.json();
+    expect(one.status).toBe(200);
+    expect(oneBody.listing).toBeDefined();
+    return oneBody.listing as Record<string, unknown>;
+  };
+
+  /** The rows one list read answers with, after checking the status. */
+  const readList = async (session: {
+    cookie: string;
+    csrfToken: string;
+  }): Promise<Record<string, unknown>[]> => {
+    const list = await handleRequest(
+      requestAsSession("/api/admin/listings", session, {}),
+    );
+    const listBody = await list.json();
+    expect(list.status).toBe(200);
+    return listBody.listings as Record<string, unknown>[];
+  };
+
+  /** Every named field sits outside the row. */
+  const expectFieldsAbsent = (
+    row: Record<string, unknown>,
+    fields: readonly string[],
+  ): void => {
+    for (const field of fields) {
+      expect(field in row).toBe(false);
+    }
+  };
+
   // The dashboard's editor table is money-free (listing-table.tsx), so the
   // editor's API answers hide the staff-only money totals too.
   test("hides staff money totals from editor reads", async () => {
     const listing = await createTestListing({ name: "Editor Money Read" });
     const editor = await editorSession();
+    const moneyFields = ["cost", "income", "profit"] as const;
 
-    const one = await handleRequest(
-      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {}),
-    );
-    const oneBody = await one.json();
-    expect(one.status).toBe(200);
-    expect(oneBody.listing).toBeDefined();
-    for (const field of ["cost", "income", "profit"]) {
-      expect(field in oneBody.listing).toBe(false);
-    }
-
-    const list = await handleRequest(
-      requestAsSession("/api/admin/listings", editor, {}),
-    );
-    const listBody = await list.json();
-    expect(list.status).toBe(200);
-    for (const row of listBody.listings) {
-      for (const field of ["cost", "income", "profit"]) {
-        expect(field in row).toBe(false);
-      }
+    expectFieldsAbsent(await readOne(listing.id, editor), moneyFields);
+    for (const row of await readList(editor)) {
+      expectFieldsAbsent(row, moneyFields);
     }
   });
 
@@ -258,5 +285,60 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     expect(typeof oneBody.listing.income).toBe("number");
     expect(typeof oneBody.listing.cost).toBe("number");
     expect(typeof oneBody.listing.profit).toBe("number");
+  });
+
+  // The editor form hides webhook_url and use_defaults, and the write parser
+  // freezes both: the stored webhook receives attendee PII and its URL can
+  // carry credentials. The read answers hide the stored values too.
+  test("hides locked webhook fields from editor answers", async () => {
+    const listing = await createTestListing({
+      name: "Editor Webhook Read",
+      useDefaults: false,
+      webhookUrl: "https://hooks.example.com/secret?token=t0k3n",
+    });
+    const editor = await editorSession();
+    const lockedFields = ["webhook_url", "use_defaults"] as const;
+
+    expectFieldsAbsent(await readOne(listing.id, editor), lockedFields);
+    for (const row of await readList(editor)) {
+      expectFieldsAbsent(row, lockedFields);
+    }
+
+    const created = await handleRequest(
+      requestAsSession("/api/admin/listings", editor, {
+        body: JSON.stringify({
+          listing_type: "standard",
+          max_attendees: 10,
+          name: "Editor Webhook Made",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    const createdBody = await created.json();
+    expect(created.status).toBe(201);
+    expectFieldsAbsent(createdBody.listing, lockedFields);
+
+    const updated = await handleRequest(
+      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
+        body: JSON.stringify({ name: "Editor Webhook Read Renamed" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    const updatedBody = await updated.json();
+    expect(updated.status).toBe(200);
+    expectFieldsAbsent(updatedBody.listing, lockedFields);
+
+    // Staff keep the fields: the staff form edits the webhook.
+    const managerCookie = await createTestManagerSession();
+    const staffRow = await readOne(listing.id, {
+      cookie: managerCookie,
+      csrfToken: await signCsrfToken(),
+    });
+    expect(staffRow.webhook_url).toBe(
+      "https://hooks.example.com/secret?token=t0k3n",
+    );
+    expect(staffRow.use_defaults).toBe(false);
   });
 });

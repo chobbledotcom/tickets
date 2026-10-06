@@ -199,10 +199,20 @@ const listingApiRoutes = defineCrudApi<
   nameField: "name",
   policy: CONTENT_API,
   /** The dashboard's editor table is money-free (listing-table.tsx), so the
-   *  editor's API answers hide the staff-only money totals too. */
+   *  editor's API answers hide the staff-only money totals too. The editor
+   *  form also hides webhook_url and use_defaults. The write parser freezes
+   *  both: the stored webhook receives attendee PII, and its URL can carry
+   *  credentials or query tokens. */
   projectResponse: (row, session) => {
     if (session.adminLevel !== "editor") return row;
-    const { cost: _cost, income: _income, profit: _profit, ...rest } = row;
+    const {
+      cost: _cost,
+      income: _income,
+      profit: _profit,
+      use_defaults: _useDefaults,
+      webhook_url: _webhookUrl,
+      ...rest
+    } = row;
     return rest;
   },
   sideEffect: {
