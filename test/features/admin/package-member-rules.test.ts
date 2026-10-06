@@ -4,12 +4,12 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   parsePackageMembers,
   validatePackageMemberForm,
 } from "#routes/admin/package-member-rules.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { t } from "#i18n";
 
 const formOf = (entries: [string, string][]): FormParams =>
   new FormParams(entries);
