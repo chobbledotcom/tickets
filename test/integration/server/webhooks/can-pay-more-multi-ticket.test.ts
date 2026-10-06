@@ -28,11 +28,13 @@ describeWithEnv(
       const listing1 = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Multi Pay More 1",
         unitPrice: 500,
       });
       const listing2 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Multi Pay More 2",
         unitPrice: 1000,
       });
@@ -79,11 +81,13 @@ describeWithEnv(
 
       const listing1 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "No Pay More",
         unitPrice: 500,
       });
       const listing2 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Normal Price",
         unitPrice: 1000,
       });
@@ -129,6 +133,7 @@ describeWithEnv(
       const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
+        maxQuantity: 5,
         unitPrice: 1000,
       });
 
@@ -165,6 +170,7 @@ describeWithEnv(
       const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
+        maxQuantity: 5,
         unitPrice: 1000,
       });
 

@@ -39,11 +39,13 @@ const createTwoListings = async (
 > => {
   const listing1 = await createTestListing({
     maxAttendees: 50,
+    maxQuantity: 5,
     unitPrice: 1000,
     ...extra1,
   });
   const listing2 = await createTestListing({
     maxAttendees: 50,
+    maxQuantity: 5,
     unitPrice: 2500,
   });
   return [listing1, listing2];

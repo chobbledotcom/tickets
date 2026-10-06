@@ -213,6 +213,7 @@ describeWithEnv(
       await createTestListing({
         hidden: true,
         maxAttendees: 50,
+        maxQuantity: 5,
         monthsPerUnit: 1,
         name: "Monthly multi-tier renewal",
         purchaseOnly: true,
@@ -221,6 +222,7 @@ describeWithEnv(
       await createTestListing({
         hidden: true,
         maxAttendees: 50,
+        maxQuantity: 5,
         monthsPerUnit: 12,
         name: "Annual multi-tier renewal",
         purchaseOnly: true,

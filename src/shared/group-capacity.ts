@@ -76,46 +76,91 @@ export const childCapacityPartsFor =
       ownMax: ownMaxOf(child),
     }));
 
-/** The parent tickets a parent's children can serve together. Two bounds hold
- *  for any split of the children across their shared pools. The children's own
- *  ceilings sum to the whole. And every capped group a child shares with the
- *  parent holds whole parent+child pairs. The tickets its users draw from it,
- *  plus the ceilings of the children that do not use it, bound the whole.
- *  The tightest cut answers exactly for children that share one pool, overlap
- *  partially, or draw separate pools. */
+/** Whether `t` parent tickets are servable: the parent's own `t` places come
+ *  out of every shared pool first, then a depth-first split of the remaining
+ *  child lines over `capped` must keep every pool within its residual.
+ *  Largest ceilings try first, so the tight pools prune early. */
+const splitFits = (
+  pools: readonly number[],
+  capped: readonly { ownMax: number; pools: number[] }[],
+  free: number,
+  remainingOf: (groupId: number) => number,
+  t: number,
+): boolean => {
+  const residual = new Map(
+    pools.map((groupId) => [groupId, remainingOf(groupId) - t]),
+  );
+  if (pools.some((groupId) => (residual.get(groupId) ?? 0) < 0)) return false;
+  const need = t - free;
+  if (need <= 0) return true;
+  if (capped.reduce((sum, child) => sum + child.ownMax, 0) < need) {
+    return false;
+  }
+  const order = [...capped].sort((a, b) => b.ownMax - a.ownMax);
+  const adjust = (child: { pools: number[] }, units: number): void => {
+    for (const groupId of child.pools) {
+      residual.set(groupId, (residual.get(groupId) ?? 0) + units);
+    }
+  };
+  const assign = (index: number, left: number): boolean => {
+    if (index === order.length) return left === 0;
+    const child = order[index]!;
+    const room = Math.min(
+      child.ownMax,
+      left,
+      ...child.pools.map((groupId) => residual.get(groupId)!),
+    );
+    for (let units = room; units >= 0; units--) {
+      adjust(child, -units);
+      const placed = assign(index + 1, left - units);
+      adjust(child, units);
+      if (placed) return true;
+    }
+    return false;
+  };
+  return assign(0, need);
+};
+
+/** The parent tickets a parent's children can serve together — the exact
+ *  optimum, not a bound. Every parent ticket takes one place in each capped
+ *  group the parent belongs to. Its one required child line takes one place
+ *  in each capped group that child belongs to. T tickets are servable exactly
+ *  when some split of the T child lines over the children keeps every shared
+ *  pool within its places. The search walks T down from the tightest upper
+ *  bound; the inputs are tiny by domain (a parent's few children and pools),
+ *  so the search is cheap and the answer needs no bound. */
 export const combinedChildCapacityForParent = (
   parentGroupIds: readonly number[],
   children: readonly ChildCapacityPart[],
   remainingByGroupId: ReadonlyMap<number, number>,
 ): number => {
-  const ownTotal = children.reduce((sum, child) => sum + child.ownMax, 0);
-  const userCeilings = new Map<number, number>();
-  for (const child of children) {
-    for (const groupId of sharedCappedGroupIds(
-      parentGroupIds,
-      child.groupIds,
-      remainingByGroupId,
-    )) {
-      userCeilings.set(
-        groupId,
-        (userCeilings.get(groupId) ?? 0) + child.ownMax,
-      );
-    }
-  }
-  let bound = ownTotal;
-  for (const [groupId, userCeiling] of userCeilings) {
-    // A shared pool is by construction present in the remaining map.
-    const remaining = requireValue(
+  const sharedPoolsOf = (child: ChildCapacityPart): number[] =>
+    sharedCappedGroupIds(parentGroupIds, child.groupIds, remainingByGroupId);
+  // A child that shares no capped pool binds nothing here: the caller's own
+  // ceiling already folded the pools only it sits in.
+  const free = children.reduce(
+    (sum, child) =>
+      sharedPoolsOf(child).length === 0 ? sum + child.ownMax : sum,
+    0,
+  );
+  const capped = children
+    .map((child) => ({ ownMax: child.ownMax, pools: sharedPoolsOf(child) }))
+    .filter((child) => child.pools.length > 0 && child.ownMax > 0);
+  const pools = [...new Set(capped.flatMap((child) => child.pools))];
+  if (pools.length === 0) return free;
+  const remainingOf = (groupId: number): number =>
+    requireValue(
       remainingByGroupId.get(groupId),
       `Group ${groupId} missing from the remaining map`,
     );
-    const outside = ownTotal - userCeiling;
-    bound = Math.min(
-      bound,
-      Math.floor(remaining / PARENT_CHILD_GROUP_UNITS) + outside,
-    );
+  const ownTotal = free + capped.reduce((sum, child) => sum + child.ownMax, 0);
+  const tightestParentPool = Math.min(
+    ...pools.map((groupId) => remainingOf(groupId)),
+  );
+  for (let t = Math.min(ownTotal, tightestParentPool); t > 0; t--) {
+    if (splitFits(pools, capped, free, remainingOf, t)) return t;
   }
-  return bound;
+  return 0;
 };
 
 /**

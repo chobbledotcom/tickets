@@ -120,6 +120,116 @@ describe("sharedGroupCapacity", () => {
   });
 });
 
+/** One child's part in the brute-force check, mirroring the caller-side part:
+ *  the group ids and the units ceiling. */
+type BruteChild = { groupIds: number[]; ownMax: number };
+
+/** Whether placing `units` lines of one child keeps every shared pool within
+ *  its places, with the parent's own `t` places already spent. */
+const bruteUnitsFit = (
+  pools: readonly number[],
+  spent: ReadonlyMap<number, number>,
+  remaining: ReadonlyMap<number, number>,
+  parentGroupIds: readonly number[],
+  t: number,
+  units: number,
+): boolean =>
+  pools.every(
+    (groupId) =>
+      (spent.get(groupId) ?? 0) + units <=
+      (remaining.get(groupId) ?? 0) -
+        (parentGroupIds.includes(groupId) ? t : 0),
+  );
+
+/** Whether a split of `left` child lines over the children from `index` on
+ *  keeps every shared pool within its places, with the parent's own `t`
+ *  places spent. Zero units always fit: a child can sit a ticket out. */
+const bruteSplitWorks = (
+  children: readonly BruteChild[],
+  poolsOf: (child: BruteChild) => number[],
+  remaining: ReadonlyMap<number, number>,
+  parentGroupIds: readonly number[],
+  index: number,
+  left: number,
+  spent: ReadonlyMap<number, number>,
+  t: number,
+): boolean => {
+  if (index === children.length) return left === 0;
+  const child = children[index]!;
+  const pools = poolsOf(child);
+  for (let units = 0; units <= Math.min(child.ownMax, left); units++) {
+    if (
+      units > 0 &&
+      !bruteUnitsFit(pools, spent, remaining, parentGroupIds, t, units)
+    ) {
+      continue;
+    }
+    const nextSpent = new Map(spent);
+    for (const groupId of pools) {
+      nextSpent.set(groupId, (nextSpent.get(groupId) ?? 0) + units);
+    }
+    if (
+      bruteSplitWorks(
+        children,
+        poolsOf,
+        remaining,
+        parentGroupIds,
+        index + 1,
+        left - units,
+        nextSpent,
+        t,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** The definition, brute force: the largest quantity whose child lines have a
+ *  split that keeps every shared pool within its places. The parent's own
+ *  spend binds only the pools it shares with a child that can still serve a
+ *  line; pools only the parent sits in belong to the caller's parent
+ *  ceiling, and a child's own pools are baked into its ownMax. */
+const bruteForceCombinedCapacity = (
+  parentGroupIds: readonly number[],
+  children: readonly BruteChild[],
+  remaining: ReadonlyMap<number, number>,
+): number => {
+  const poolsOf = (child: BruteChild): number[] =>
+    parentGroupIds.filter(
+      (groupId) => child.groupIds.includes(groupId) && remaining.has(groupId),
+    );
+  const sharedPools = [
+    ...new Set(
+      children
+        .filter((child) => child.ownMax > 0)
+        .flatMap((child) => poolsOf(child)),
+    ),
+  ];
+  for (let t = 12; t > 0; t--) {
+    const parentFits = sharedPools.every(
+      (groupId) => (remaining.get(groupId) ?? 0) >= t,
+    );
+    if (
+      parentFits &&
+      bruteSplitWorks(
+        children,
+        poolsOf,
+        remaining,
+        parentGroupIds,
+        0,
+        t,
+        new Map(),
+        t,
+      )
+    ) {
+      return t;
+    }
+  }
+  return 0;
+};
+
 describe("combinedChildCapacityForParent", () => {
   test("sums the children's own ceilings when they share no capped group", () => {
     expect(
@@ -182,9 +292,11 @@ describe("combinedChildCapacityForParent", () => {
     ).toBe(4);
   });
 
-  test("adds the ceilings of children that draw separate pools", () => {
-    // Two pools of four spots each, one child per pool: four parent tickets
-    // can be served, two through each pool.
+  test("serves two, not four, when each child draws a different pool", () => {
+    // The parent takes one place in both pools per ticket: at three tickets
+    // only one child place is left in each pool, so the three child lines the
+    // tickets need cannot all be placed. Two tickets fit: two child lines
+    // through each pool.
     expect(
       combinedChildCapacityForParent(
         [7, 8],
@@ -194,12 +306,14 @@ describe("combinedChildCapacityForParent", () => {
         ],
         byGroup({ 7: 4, 8: 4 }),
       ),
-    ).toBe(4);
+    ).toBe(2);
   });
 
   test("spares children that do not use a tight pool", () => {
-    // Pool A is tight but only one child draws from it: that child is held to
-    // one pair while the child outside the pool keeps its full ceiling.
+    // The parent's two pool places go to two tickets whose child lines both
+    // ride the child outside the tight pool; that child's ceiling (three)
+    // covers both lines. The tight pool's own ceiling holds the parent to
+    // two tickets, and the child inside it can sit them out.
     expect(
       combinedChildCapacityForParent(
         [7],
@@ -209,6 +323,49 @@ describe("combinedChildCapacityForParent", () => {
         ],
         byGroup({ 7: 2, 8: 100 }),
       ),
-    ).toBe(4);
+    ).toBe(2);
+  });
+
+  test("matches a brute-force allocator on random small graphs", () => {
+    // The generator is a fixed-seed LCG so a failure names the same graphs on
+    // every run.
+    const seed = 0x2f6e2b1;
+    let state = seed;
+    const next = (bound: number): number => {
+      state = (Math.imul(state, 1_103_515_245) + 12_345) & 0x7fffffff;
+      return state % bound;
+    };
+    for (let round = 0; round < 300; round++) {
+      const poolCount = 1 + next(3);
+      const remaining = new Map<number, number>(
+        Array.from({ length: poolCount }, (_, index) => [index + 1, next(7)]),
+      );
+      const parentGroupIds = Array.from({ length: poolCount }, (_, index) =>
+        next(2) === 0 ? index + 1 : 0,
+      ).filter((groupId) => groupId > 0);
+      if (parentGroupIds.length === 0) parentGroupIds.push(1);
+      const childCount = next(4);
+      const children = Array.from({ length: childCount }, () => {
+        const groupIds = Array.from({ length: poolCount + 1 }, (_, index) =>
+          next(2) === 0 ? index + 1 : 0,
+        ).filter((groupId) => groupId > 0);
+        return { groupIds, ownMax: next(4) };
+      });
+      const exact = combinedChildCapacityForParent(
+        parentGroupIds,
+        children,
+        remaining,
+      );
+      const brute = bruteForceCombinedCapacity(
+        parentGroupIds,
+        children,
+        remaining,
+      );
+      expect(
+        `round ${round}: pools ${JSON.stringify([...remaining])} parent ${JSON.stringify(parentGroupIds)} children ${JSON.stringify(children)}: exact ${exact} brute ${brute}`,
+      ).toBe(
+        `round ${round}: pools ${JSON.stringify([...remaining])} parent ${JSON.stringify(parentGroupIds)} children ${JSON.stringify(children)}: exact ${brute} brute ${brute}`,
+      );
+    }
   });
 });
