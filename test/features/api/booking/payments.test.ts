@@ -11,6 +11,7 @@ import {
 } from "#test-utils/api/helpers.ts";
 import { PublicListingDetailSchema } from "#test-utils/api-schemas.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createAndBook } from "./helpers.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -229,12 +230,10 @@ describePublicApi(() => {
     });
 
     test("rejects an unparseable quantity instead of booking one ticket", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: "abc",
-      });
+      const { listing, response, body } = await createAndBook(
+        { maxAttendees: 10 },
+        { quantity: "abc" },
+      );
       expect(response.status).toBe(400);
       expect(body.error).toBe("Quantity must be a whole number of 1 or more");
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
@@ -242,12 +241,10 @@ describePublicApi(() => {
     });
 
     test("rejects a malformed booking quantity prefix", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: "2x",
-      });
+      const { listing, response, body } = await createAndBook(
+        { maxAttendees: 10 },
+        { quantity: "2x" },
+      );
       expect(response.status).toBe(400);
       expect(body.error).toBe("Quantity must be a whole number of 1 or more");
 
