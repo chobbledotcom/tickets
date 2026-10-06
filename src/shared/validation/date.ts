@@ -50,15 +50,32 @@ export const parseDateString = (raw: string): DateString | null => {
   return value as DateString;
 };
 
+/** Parse a date that a checked boundary has already cleaned — a stored value
+ *  or a validated form value. A stored date the rule refuses is an
+ *  impossible state. Name where it came from and stop loudly. */
+export const parseDateStringOrThrow = (
+  raw: string,
+  what: string,
+): DateString => {
+  const parsed = parseDateString(raw);
+  if (parsed === null) {
+    throw new Error(`${what} does not hold a usable date: ${raw}`);
+  }
+  return parsed;
+};
+
 /** Whether a value is a UTC instant of a real calendar day — the shape the
- *  listing datetime columns store. The date half answers to the shared
- *  real-day rule, and a value with no zone designator is refused rather than
- *  silently read as local time. */
+ *  listing datetime columns store. The whole value must match. The date half
+ *  answers to the shared real-day rule. The clock half allows hours 00–23
+ *  and minutes 00–59, with optional seconds and a fractional part, before
+ *  the zone designator. A value with no zone designator is refused rather
+ *  than silently read as local time. */
 export const isUtcInstantOfRealDay = (value: string): boolean => {
-  const [datePart = "", timePart] = value.split("T");
+  const [datePart = "", timePart = "", surplus] = value.split("T");
+  if (surplus !== undefined) return false;
   return (
     isIsoDate(datePart) &&
-    /^\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?Z$/.test(timePart ?? "")
+    /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?(\.\d{1,3})?Z$/.test(timePart)
   );
 };
 

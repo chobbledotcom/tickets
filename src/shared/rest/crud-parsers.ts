@@ -9,7 +9,11 @@ import {
   parseOptionalResult,
   type Result,
 } from "#shared/result.ts";
-import { parseDateString } from "#shared/validation/date.ts";
+import {
+  type DateString,
+  parseDateString,
+  parseDateStringOrThrow,
+} from "#shared/validation/date.ts";
 import type { AdminSession } from "#types";
 
 /** JSON body for confirmed delete endpoints */
@@ -60,7 +64,7 @@ export const requireStrings = <K extends string>(
 };
 
 /** Parse one cleaned-or-refused date value, naming the field. */
-const dateStringResult = (key: string, raw: string): Result<string> => {
+const dateStringResult = (key: string, raw: string): Result<DateString> => {
   const parsed = parseDateString(raw);
   return parsed === null
     ? errorResult(`${key} has an invalid value`)
@@ -76,7 +80,7 @@ const dateStringResult = (key: string, raw: string): Result<string> => {
 export const requireDateString = (
   body: Record<string, unknown>,
   key: string,
-): Result<string> => {
+): Result<DateString> => {
   const raw = requireString(body, key);
   if (raw === null) return errorResult(`${key} is required`);
   return dateStringResult(key, raw);
@@ -101,9 +105,9 @@ export const requireEntityName = (
 /** Combine the two date results of one range in field order: the start date
  *  reports first, then the end date. */
 export const dateRange = (
-  startDate: Result<string>,
-  endDate: Result<string>,
-): Result<{ endDate: string; startDate: string }> => {
+  startDate: Result<DateString>,
+  endDate: Result<DateString>,
+): Result<{ endDate: DateString; startDate: DateString }> => {
   if (!startDate.ok) return startDate;
   if (!endDate.ok) return endDate;
   return okResult({ endDate: endDate.value, startDate: startDate.value });
@@ -112,15 +116,19 @@ export const dateRange = (
 /**
  * Read one optional real-calendar-date field from a JSON body. An absent key
  * keeps the fallback. A present-but-unusable value is refused with the
- * field-named message.
+ * field-named message. The fallback is a stored date, so it parses through
+ * the same rule before it travels as branded. A stored value the rule
+ * refuses is an impossible state and stops the request loudly.
  */
 export const optionalDateString = (
   body: Record<string, unknown>,
   key: string,
   fallback: string,
-): Result<string> => {
+): Result<DateString> => {
   const raw = body[key];
-  if (raw === undefined) return okResult(fallback);
+  if (raw === undefined) {
+    return okResult(parseDateStringOrThrow(fallback, `${key} fallback`));
+  }
   if (typeof raw !== "string")
     return errorResult(`${key} has an invalid value`);
   return dateStringResult(key, raw);

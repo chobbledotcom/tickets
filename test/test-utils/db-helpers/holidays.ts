@@ -1,4 +1,5 @@
 import type { Holiday, HolidayInput } from "#db/holidays.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** A hand-built holiday row, for tests that sort or fold without a database. */
@@ -14,9 +15,16 @@ export const createTestHoliday = (
   overrides: Partial<HolidayInput> = {},
 ): Promise<Holiday> => {
   const input: HolidayInput = {
-    endDate: overrides.endDate ?? "2026-12-25",
+    endDate:
+      overrides.endDate ??
+      parseDateStringOrThrow("2026-12-25", "the test holiday default end date"),
     name: overrides.name ?? "Test Holiday",
-    startDate: overrides.startDate ?? "2026-12-25",
+    startDate:
+      overrides.startDate ??
+      parseDateStringOrThrow(
+        "2026-12-25",
+        "the test holiday default start date",
+      ),
   };
 
   return doAuthenticatedFormRequest(

@@ -8,6 +8,7 @@ import { settings } from "#db/settings.ts";
 import { col, defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date.ts";
 
 export interface Holiday {
   end_date: string;
@@ -16,11 +17,12 @@ export interface Holiday {
   start_date: string;
 }
 
-/** Holiday input fields for create/update (camelCase) */
+/** Holiday input fields for create/update (camelCase). The dates carry the
+ *  `DateString` the JSON boundary brands before a write can carry them. */
 export type HolidayInput = {
   name: string;
-  startDate: string;
-  endDate: string;
+  startDate: DateString;
+  endDate: DateString;
 };
 
 /** Cached holidays table — name is encrypted, dates are plaintext; writes

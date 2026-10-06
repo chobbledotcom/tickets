@@ -61,6 +61,19 @@ test("optionalDateString keeps the fallback when the key is absent", () => {
   ).toEqual({ ok: true, value: "2027-06-01" });
 });
 
+test("optionalDateString cleans a stored fallback date", () => {
+  expect(optionalDateString({}, "start_date", " 2027-06-01 ")).toEqual({
+    ok: true,
+    value: "2027-06-01",
+  });
+});
+
+test("optionalDateString stops loudly on an unusable stored fallback", () => {
+  expect(() => optionalDateString({}, "start_date", "2026-02-30")).toThrow(
+    "start_date fallback does not hold a usable date: 2026-02-30",
+  );
+});
+
 test("parseOptionalArray maps each entry through the parser", () => {
   expect(
     parseOptionalArray([1, 2], "items", (item) => okResult(Number(item))),

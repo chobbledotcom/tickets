@@ -139,4 +139,14 @@ describe("isUtcInstantOfRealDay", () => {
     expect(isUtcInstantOfRealDay("2026-06-15T10:00:00")).toBe(false);
     expect(isUtcInstantOfRealDay("2026-06-15")).toBe(false);
   });
+
+  test("refuses clock values outside their ranges", () => {
+    expect(isUtcInstantOfRealDay("2026-06-15T99:99:99Z")).toBe(false);
+    expect(isUtcInstantOfRealDay("2026-06-15T24:00:00Z")).toBe(false);
+    expect(isUtcInstantOfRealDay("2026-06-15T10:60:00Z")).toBe(false);
+  });
+
+  test("refuses a surplus segment after the zone designator", () => {
+    expect(isUtcInstantOfRealDay("2026-06-15T10:00:00ZTextra")).toBe(false);
+  });
 });

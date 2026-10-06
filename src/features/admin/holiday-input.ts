@@ -8,11 +8,12 @@ import {
   requireDateString,
 } from "#shared/rest/crud-parsers.ts";
 import type { Result } from "#shared/result.ts";
+import type { DateString } from "#shared/validation/date.ts";
 
 /** Assemble one holiday input from its name and the cleaned date range. */
 export const holidayInput = (
   name: string,
-  dates: { endDate: string; startDate: string },
+  dates: { endDate: DateString; startDate: DateString },
 ): HolidayInput => ({
   endDate: dates.endDate,
   name,
@@ -24,7 +25,7 @@ export const holidayInput = (
 export const readDates = (
   body: Record<string, unknown>,
   existing: { end_date: string; start_date: string } | null,
-): Result<{ endDate: string; startDate: string }> =>
+): Result<{ endDate: DateString; startDate: DateString }> =>
   dateRange(
     existing
       ? optionalDateString(body, "start_date", existing.start_date)

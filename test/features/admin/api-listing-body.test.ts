@@ -120,9 +120,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         },
         {
           closes_at: "2026-06-14T23:59:00Z",
-          date: "2026-06-15T10:00:00",
+          date: "2026-06-15T99:99:99Z",
           max_attendees: 10,
-          name: "No zone",
+          name: "Outside clock",
         },
       ];
       for (const body of cases) {
@@ -133,6 +133,18 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
             "date must be a UTC instant of a real calendar day",
           );
         }
+      }
+      const surplus = await bodyToCreateInput({
+        closes_at: "2026-06-15T10:00:00ZTextra",
+        date: "2026-06-15T10:00:00Z",
+        max_attendees: 10,
+        name: "Surplus segment",
+      });
+      expect(surplus.ok).toBe(false);
+      if (!surplus.ok) {
+        expect(surplus.error).toBe(
+          "closes_at must be a UTC instant of a real calendar day",
+        );
       }
     });
 
