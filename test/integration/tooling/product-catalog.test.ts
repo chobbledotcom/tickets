@@ -125,9 +125,11 @@ describe("product catalog", () => {
       await Deno.writeTextFile(`${dir}/src/categories/tarps.md`, "text");
       const files = await catalogFiles(dir);
       // The resolved path is what the import reads and writes, so a link
-      // swapped in after the check cannot redirect the later call.
+      // swapped in after the check cannot redirect the later call. The
+      // expected value is resolved too: the temp path itself may hold a
+      // link on some systems.
       expect(await files.verify(`${dir}/src/../src/categories/tarps.md`)).toBe(
-        `${dir}/src/categories/tarps.md`,
+        await Deno.realPath(`${dir}/src/categories/tarps.md`),
       );
     });
   });
