@@ -427,6 +427,25 @@ describe("frontmatter import runner", () => {
     expect(calls).toEqual([]);
   });
 
+  test("refuses a categories link into a backslash-named sibling of the root", async () => {
+    // On POSIX a backslash is a plain filename character, so a sibling named
+    // "<root>\evil" passed the old prefix containment check and its file
+    // titles went to the site.
+    const calls = await symlinkedCatalogRun(async (dir) => {
+      await Deno.writeTextFile(
+        `${dir}/src/products/tower.md`,
+        PRODUCT_FRONTMATTER,
+      );
+      await Deno.mkdir(`${dir}\\evil/cats`, { recursive: true });
+      await Deno.writeTextFile(
+        `${dir}\\evil/cats/tarps.md`,
+        CATEGORY_FRONTMATTER,
+      );
+      await Deno.symlinkSync(`${dir}\\evil/cats`, `${dir}/src/categories`);
+    });
+    expect(calls).toEqual([]);
+  });
+
   test("refuses a product file that is a symlink out of the catalog", async () => {
     // A linked product file must refuse, not be skipped: the silent skip
     // would import nothing while the operator believes the product went up.

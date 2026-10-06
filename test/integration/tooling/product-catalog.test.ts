@@ -119,6 +119,19 @@ describe("product catalog", () => {
     ).not.toThrow();
   });
 
+  test("verifies and returns the resolved path of a plain file", async () => {
+    await withTempDir(async (dir) => {
+      await Deno.mkdir(`${dir}/src/categories`, { recursive: true });
+      await Deno.writeTextFile(`${dir}/src/categories/tarps.md`, "text");
+      const files = await catalogFiles(dir);
+      // The resolved path is what the import reads and writes, so a link
+      // swapped in after the check cannot redirect the later call.
+      expect(await files.verify(`${dir}/src/../src/categories/tarps.md`)).toBe(
+        `${dir}/src/categories/tarps.md`,
+      );
+    });
+  });
+
   test("reads a category title, or the slug when the file has none", async () => {
     await withTempDir(async (dir) => {
       await Deno.writeTextFile(

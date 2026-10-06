@@ -6,6 +6,7 @@
  *  frontmatter rules themselves live in the pure module beside this one,
  *  product-catalog/parse.ts. */
 
+import { isAbsolute, relative } from "@std/path";
 import { normalizeEntityName } from "#db/name-registry.ts";
 import {
   type CatalogProduct,
@@ -70,7 +71,9 @@ export const attributeVocabulary = (
 /** One catalog's verified file access. The catalog root's real path is taken
  *  once; every path the import reads must be a plain file whose real path
  *  stays inside that root. A linked file or folder must never widen what the
- *  import reads or move the trusted root. */
+ *  import reads or move the trusted root. The resolved path is what the
+ *  import reads and writes, so a link swapped in after the check cannot
+ *  redirect a later call. */
 export type CatalogFiles = {
   readonly root: string;
   read: (file: string) => Promise<string>;
@@ -84,15 +87,20 @@ export const catalogFiles = async (root: string): Promise<CatalogFiles> => {
       Deno.realPath(file),
       Deno.lstat(file),
     ]);
-    const inside =
-      realFile.startsWith(`${realRoot}/`) ||
-      realFile.startsWith(`${realRoot}\\`);
-    if (!entry.isFile || !inside) {
+    // Containment by relative path: a prefix check would accept a POSIX
+    // sibling named after the root plus a backslash.
+    const rel = relative(realRoot, realFile);
+    if (
+      !entry.isFile ||
+      rel === "" ||
+      rel.startsWith("..") ||
+      isAbsolute(rel)
+    ) {
       throw new Error(
         `catalog file '${file}' must be a plain file inside the catalog`,
       );
     }
-    return file;
+    return realFile;
   };
   return {
     read: async (file) => await Deno.readTextFile(await verify(file)),
