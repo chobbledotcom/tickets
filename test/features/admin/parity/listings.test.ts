@@ -1,7 +1,5 @@
-// Behaviour pins for the listing resource, taken before the API/page
-// unification layers. Each test fixes what one surface answers today, so the
-// layer that moves the listing input mapping into a shared core can prove both
-// surfaces unchanged. The page posts to /admin/listing (multipart, owner
+// Behaviour pins for the listing resource: what each surface answers today,
+// one test per fact. The page posts to /admin/listing (multipart, owner
 // cookie); the JSON API posts to /api/admin/listings (CONTENT_API). The role
 // parity, editor field locks, and money redaction are pinned in
 // listing-write-roles.test.ts and the api-*.test.ts suites.

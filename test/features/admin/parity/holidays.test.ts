@@ -1,8 +1,6 @@
-// Behaviour pins for the holiday resource, taken before the API/page unification
-// layers. Each test fixes what one surface answers today, so the layer that
-// moves the input mapping into a shared core can prove both surfaces unchanged.
-// The page posts to /admin/holidays (owner-only form routes); the JSON API
-// posts to /api/admin/holidays (OWNER_API).
+// Behaviour pins for the holiday resource: what each surface answers today,
+// one test per fact. The page posts to /admin/holidays (owner-only form
+// routes); the JSON API posts to /api/admin/holidays (OWNER_API).
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -11,7 +9,7 @@ import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 import {
-  managerApiPost,
+  apiPostAs,
   ownerApiPost,
   ownerApiPut,
   ownerPagePost,
@@ -108,9 +106,8 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     );
   });
 
-  // Current behaviour, recorded for #2476: parseUpdateName coerces a non-string
-  // name into stored text. L3 replaces the coercion with a 400; that layer
-  // updates this pin.
+  // Recorded for #2476: parseUpdateName coerces a non-string name into
+  // stored text.
   test("api update coerces a non-string name into text", async () => {
     const created = await assertJson<{ holiday: { id: number } }>(
       ownerApiPost("/api/admin/holidays", {
@@ -131,7 +128,7 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
 
   test("a manager is refused on both surfaces", async () => {
     const managerCookie = await createTestManagerSession();
-    const api = await managerApiPost(
+    const api = await apiPostAs(
       "/api/admin/holidays",
       {
         end_date: "2027-05-02",

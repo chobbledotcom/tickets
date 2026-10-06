@@ -1,17 +1,14 @@
-// Behaviour pins for the attribute resource, taken before the API/page
-// unification layers. Each test fixes what one surface answers today, so the
-// layer that moves the attribute input mapping into a shared core (and fixes
-// #2476 in the shared update parser) can prove both surfaces unchanged. Both
-// surfaces are owner-only. The page posts to /admin/attributes; the JSON API
-// posts to /api/admin/attributes (OWNER_API).
+// Behaviour pins for the attribute resource: what each surface answers
+// today, one test per fact. The page posts to /admin/attributes; the JSON API
+// posts to /api/admin/attributes (OWNER_API). Both surfaces are owner-only.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllAttributesWithOptions } from "#db/attributes.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 import {
-  managerApiPost,
+  apiPostAs,
   ownerApiPost,
   ownerApiPut,
   ownerPagePost,
@@ -30,8 +27,11 @@ describeWithEnv("Attribute parity pins", { db: true }, () => {
     const response = await ownerPagePost("/admin/attributes", {
       name: "Pinned Page Attribute",
     });
-    expect([200, 302]).toContain(response.status);
     const row = await storedAttribute("Pinned Page Attribute");
+    expectRedirectWithFlash(
+      `/admin/attributes/${row.id}`,
+      "Attribute created",
+    )(response);
     expect(row.name).toBe("Pinned Page Attribute");
   });
 
@@ -47,9 +47,8 @@ describeWithEnv("Attribute parity pins", { db: true }, () => {
     );
   });
 
-  // The attributes surface already rejects a non-string name before the shared
-  // parser runs (issue #2476 records the shared defect). L3 moves that guard
-  // into the core; this pin is the behaviour the move must preserve.
+  // The attributes API answers a non-string name with the field-named 400
+  // before the shared parser runs (issue #2476 records the shared defect).
   test("api update rejects a non-string name with 400", async () => {
     const created = await assertJson<{ attribute: { id: number } }>(
       ownerApiPost("/api/admin/attributes", {
@@ -70,7 +69,7 @@ describeWithEnv("Attribute parity pins", { db: true }, () => {
 
   test("a manager is refused on both surfaces", async () => {
     const managerCookie = await createTestManagerSession();
-    const api = await managerApiPost(
+    const api = await apiPostAs(
       "/api/admin/attributes",
       { name: "Manager Api Attribute" },
       managerCookie,

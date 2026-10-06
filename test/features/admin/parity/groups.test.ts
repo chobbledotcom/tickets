@@ -1,12 +1,10 @@
-// Behaviour pins for the group resource, taken before the API/page unification
-// layers. Each test fixes what one surface answers today, so the layer that
-// moves package-member parsing into the shared core can prove both surfaces
-// unchanged. The page posts to /admin/groups; the JSON API posts to
+// Behaviour pins for the group resource: what each surface answers today,
+// one test per fact. The page posts to /admin/groups; the JSON API posts to
 // /api/admin/groups (CONTENT_API: owner, manager, editor).
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -37,8 +35,7 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     expect(row.is_package).toBe(false);
     expect(row.max_attendees).toBe(0);
     // An absent checkbox stores false, while the API's column default for
-    // show_hidden_listings is true. Current behaviour, recorded for the
-    // unification layers to reconcile.
+    // show_hidden_listings is true.
     expect(row.show_hidden_listings).toBe(false);
   });
 
@@ -60,8 +57,7 @@ describeWithEnv("Group parity pins", { db: true }, () => {
 
   // Current package-member body parsing on the API side: members are
   // update-only (create refuses them), a well-formed entry is accepted, and a
-  // malformed one fails closed with a field-named message. L4 reworks this
-  // parsing and restates these pins.
+  // malformed one fails closed with a field-named message.
   test("api update parses a well-formed package member", async () => {
     const created = await assertJson<{ group: { id: number } }>(
       ownerApiPost("/api/admin/groups", {
@@ -115,12 +111,17 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     });
     const row = await storedGroup("Pinned Delete Group");
 
-    // The page redirects back with the mismatch in the flash; the API answers
-    // 400 in JSON. Both keep the row.
+    // The page redirects back to the confirmation page with the mismatch in
+    // the flash; the API answers 400 in JSON with the same refusal. Both keep
+    // the row.
     const page = await ownerPagePost(`/admin/groups/${row.id}/delete`, {
       confirm_identifier: "Wrong Name",
     });
-    expect(page.status).toBe(302);
+    expectRedirectWithFlash(
+      `/admin/groups/${row.id}/delete`,
+      "Group name does not match. Please type the exact group name to confirm deletion.",
+      false,
+    )(page);
     expect(
       (await groups.cache.getAll()).find((g) => g.id === row.id),
     ).toBeDefined();
@@ -129,6 +130,9 @@ describeWithEnv("Group parity pins", { db: true }, () => {
       confirm_identifier: "Wrong Name",
     });
     expect(api.status).toBe(400);
+    expect((await api.json()).error).toBe(
+      "Group name does not match. Please provide the exact group name in confirm_identifier.",
+    );
     expect(
       (await groups.cache.getAll()).find((g) => g.id === row.id),
     ).toBeDefined();

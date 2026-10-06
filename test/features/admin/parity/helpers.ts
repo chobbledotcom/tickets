@@ -30,16 +30,17 @@ export const pagePostAs = async (
     ),
   );
 
-const ownerApiRequest = async (
+const apiRequestAs = async (
   path: string,
   method: string,
   body: Record<string, unknown>,
+  cookie: string,
 ): Promise<Response> =>
   handleRequest(
     requestAsSession(
       path,
       {
-        cookie: await testCookie(),
+        cookie,
         csrfToken: await testCsrfToken(),
       },
       {
@@ -49,6 +50,12 @@ const ownerApiRequest = async (
       },
     ),
   );
+
+const ownerApiRequest = async (
+  path: string,
+  method: string,
+  body: Record<string, unknown>,
+): Promise<Response> => apiRequestAs(path, method, body, await testCookie());
 
 /** POST the JSON route with the owner's session. */
 export const ownerApiPost = (
@@ -68,23 +75,10 @@ export const ownerApiDelete = (
   body: Record<string, unknown>,
 ): Promise<Response> => ownerApiRequest(path, "DELETE", body);
 
-/** POST the JSON route with a manager's session (a role below the owner). */
-export const managerApiPost = async (
+/** POST the JSON route with an explicit session cookie (a role below the
+ *  owner). */
+export const apiPostAs = (
   path: string,
   body: Record<string, unknown>,
   cookie: string,
-): Promise<Response> =>
-  handleRequest(
-    requestAsSession(
-      path,
-      {
-        cookie,
-        csrfToken: await testCsrfToken(),
-      },
-      {
-        body: JSON.stringify(body),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      },
-    ),
-  );
+): Promise<Response> => apiRequestAs(path, "POST", body, cookie);
