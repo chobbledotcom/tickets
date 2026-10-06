@@ -228,15 +228,6 @@ export const quantityBelowMinimum = (
   minimum: number,
 ): boolean => quantity > 0 && quantity < minimum;
 
-/** The below-minimum error for one submitted quantity: the caller's message
- *  when the quantity refuses the stored minimum, else null. Each surface
- *  names its own copy and shapes its own failure object around it. */
-export const belowMinimumError = (
-  quantity: number,
-  minimum: number,
-  error: string,
-): string | null => (quantityBelowMinimum(quantity, minimum) ? error : null);
-
 /** Each customisable listing on the page with the day counts it supports on
  * its own — the booking-length facts the cart conflict rules read. */
 export const customisableLengthItems = (
