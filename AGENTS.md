@@ -114,6 +114,11 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Zero code duplication**: See [Code Duplication](#code-duplication).
 - **100% test coverage**: Coverage must be complete and deterministic. A branch
   that only a spawned subprocess reaches gets a direct in-process unit test.
+- **Never add a coverage exclusion**: The list in
+  `scripts/check-coverage-exclusions/exclusions.ts` only ever shrinks, and
+  the ratchet (`deno task check:coverage-exclusions`) fails on an entry a
+  branch adds. Answer a coverage gap by restructuring the code. See
+  docs/designing-systems.md.
 - **Hardest first, no need to ask**: When the only open question is the order to
   build several things in, build the more difficult one first.
 - **Always the complete version**: Choose the complete, correct version, even

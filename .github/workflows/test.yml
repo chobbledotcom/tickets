@@ -45,6 +45,9 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          # The coverage exclusion ratchet diffs its list against the merge
+          # base on origin/main, which needs the branch's history.
+          fetch-depth: 0
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
@@ -85,6 +88,14 @@ jobs:
 
       - name: Check file line counts
         run: deno task check:file-lengths
+
+      # The exclusion ratchet diffs the list against origin/main, so the
+      # shallow checkout needs that one ref.
+      - name: Fetch main for the coverage exclusion ratchet
+        run: git fetch origin main
+
+      - name: Check the coverage exclusion list only shrinks
+        run: deno task check:coverage-exclusions
 
       - name: Check technical English in Markdown
         run: deno task check:ste
