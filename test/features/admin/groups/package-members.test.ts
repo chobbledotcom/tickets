@@ -290,4 +290,19 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     // The member keeps its own per-day prices.
     expect(await getGroupDayPrices(group.id)).toEqual(new Map());
   });
+
+  test("refuses a zero or unsafe day count with a plain-words message", async () => {
+    const { group, member } = await dayPricedPackage("Zero day count");
+    await refuseMemberInput(
+      group,
+      {
+        [`package_price_${member.id}`]: "9.00",
+        [`package_day_price_${member.id}_0`]: "5.00",
+        [`package_day_price_${member.id}_99999999999999999999`]: "5.00",
+      },
+      t("error.package_member_day_price"),
+    );
+    // The member keeps its own per-day prices.
+    expect(await getGroupDayPrices(group.id)).toEqual(new Map());
+  });
 });

@@ -202,11 +202,13 @@ const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
 const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
 
 /** One member override field family: how to recognise its keys, the rule a
- *  typed value must satisfy, and the message a broken value reports. */
+ *  typed value must satisfy, and the message a broken value reports. The
+ *  rule sees the whole key. The day-price family checks the day count it
+ *  names, the same rule the API day-price map applies to its keys. */
 const MEMBER_FORM_FIELDS: readonly {
   key: RegExp;
   message: string;
-  valid: (raw: string) => boolean;
+  valid: (raw: string, key: string) => boolean;
 }[] = [
   {
     key: PACKAGE_QTY_KEY,
@@ -224,7 +226,10 @@ const MEMBER_FORM_FIELDS: readonly {
   {
     key: PACKAGE_DAY_PRICE_KEY,
     message: "error.package_member_day_price",
-    valid: (raw) => parsePackagePrice(raw) !== null,
+    valid: (raw, key) => {
+      const day = wholeNumberValue(PACKAGE_DAY_PRICE_KEY.exec(key)?.[2] ?? "");
+      return day !== null && day >= 1 && parsePackagePrice(raw) !== null;
+    },
   },
 ];
 
@@ -240,7 +245,7 @@ export const validatePackageMemberForm = (form: FormParams): string | null => {
     const field = MEMBER_FORM_FIELDS.find((entry) => entry.key.test(key));
     if (field === undefined) continue;
     if (raw.trim() === "") continue;
-    if (!field.valid(raw)) return t(field.message);
+    if (!field.valid(raw, key)) return t(field.message);
   }
   return null;
 };
