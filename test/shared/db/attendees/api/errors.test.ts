@@ -86,7 +86,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("Quantity must be at most 2");
+        expect(html).toContain("Quantity must be at most 2.");
         expect(html).toContain("Valid Name");
       });
 
