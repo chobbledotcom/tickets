@@ -18,11 +18,13 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { withMessageGroups } from "#i18n";
+import { apiBookPackage } from "#test/features/api/packages/helpers.ts";
 import {
   bookingIntent,
   paymentSession,
 } from "#test/features/api/payment-processing/index/helpers.ts";
 import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
+import { scanWithStripe } from "#test/features/public/qr-book/helpers.ts";
 import {
   bookListing,
   createAndBook,
@@ -33,8 +35,6 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
-import { apiBookPackage } from "#test/features/api/packages/helpers.ts";
-import { scanWithStripe } from "#test/features/public/qr-book/helpers.ts";
 
 describePublicApi(() => {
   test("the booking API refuses min-1, max+1, and fewer places than the minimum", async () => {
