@@ -7,9 +7,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   parsePackageMembers,
   validatePackageMemberForm,
-} from "#src/features/admin/package-member-rules.ts";
-import { FormParams } from "#src/shared/form-data.ts";
-import { t } from "#src/shared/i18n.ts";
+} from "#routes/admin/package-member-rules.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { t } from "#i18n";
 
 const formOf = (entries: [string, string][]): FormParams =>
   new FormParams(entries);
