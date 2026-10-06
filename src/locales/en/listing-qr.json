@@ -15,5 +15,7 @@
   "listing_qr.price_hint_fixed": "Overrides the listed per-unit price of {price} for this booking",
   "listing_qr.date_select_placeholder": "— Select a date —",
   "listing_qr.quantity_at_least_one": "Quantity must be at least 1.",
+  "listing_qr.quantity_below_minimum": "Quantity must be at least {minimum}.",
+  "listing_qr.quantity_above_maximum": "Quantity must be at most {maximum}.",
   "listing_qr.generate_button": "Generate QR code"
 }
