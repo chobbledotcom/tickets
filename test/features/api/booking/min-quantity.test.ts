@@ -45,5 +45,20 @@ describePublicApi(() => {
       );
       expect(response.status).toBe(200);
     });
+
+    test("caps a quantity above the listing's maximum", async () => {
+      // The form's select never offers a quantity above the maximum, so a
+      // crafted POST is the only client that can send one. The booking takes
+      // the whole number the listing can serve, not the posted count.
+      const { listing, response } = await createAndBook(
+        { maxAttendees: 10, maxQuantity: 4 },
+        { quantity: 5 },
+      );
+      expect(response.status).toBe(200);
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.quantity).toBe(4);
+    });
   });
 });

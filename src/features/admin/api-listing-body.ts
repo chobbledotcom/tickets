@@ -258,8 +258,8 @@ export const bodyToUpdateInput = async (
       "max_attendees",
       existing.max_attendees,
     );
-    if (maxAttendees < 1) {
-      return errorResult("max_attendees must be >= 1");
+    if (!Number.isInteger(maxAttendees) || maxAttendees < 1) {
+      return errorResult("max_attendees must be a whole number of at least 1");
     }
 
     const { slug, slugIndex } = await parseUpdatedListingSlug(

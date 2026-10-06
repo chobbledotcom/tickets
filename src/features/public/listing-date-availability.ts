@@ -6,60 +6,29 @@
  * adding packages adds no database round trips.
  */
 
+import { buildTicketListing } from "#booking/model.ts";
 import {
-  type CapacitySnapshot,
   groupRemainingForSpan,
   loadCapacitySnapshot,
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
-import {
-  loadParentAndChildLinks,
-  type ParentAndChildLinkMaps,
-} from "#db/listing-parents.ts";
+import { loadParentAndChildLinks } from "#db/listing-parents.ts";
 import { uniqueBy } from "#fp";
-import { getBookableStartDates } from "#shared/dates.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
 import {
   childCapacityPartsFor,
-  combinedChildCapacityForParent,
-} from "#shared/group-capacity.ts";
+  minimumUnservable,
+} from "#shared/capacity-fit.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
 
-/** The booked span a daily listing's card availability is judged over: a
- * customisable listing offers per-day starts (the span is chosen later), a
- * fixed daily listing books its whole duration. */
+/** The booked span a daily listing's card availability is judged over. A
+ *  customisable listing offers per-day starts, so the span is chosen later.
+ *  A fixed daily listing books its whole duration. */
 const cardSpanDays = (listing: ListingWithCount): number =>
   listing.customisable_days ? 1 : clampDurationDays(listing.duration_days);
-
-/** Whether one daily row's stored minimum already refuses this date: fewer
- *  places left than the minimum, or children that together cannot serve it.
- *  An owner can raise the minimum after a booking, so this re-reads the
- *  stored facts the same way the submit fold does. */
-const belowMinimumOnDate = (
-  listing: ListingWithCount,
-  remaining: ReadonlyMap<number, number>,
-  links: ParentAndChildLinkMaps,
-  memberships: ReadonlyMap<number, number[]>,
-  snapshot: CapacitySnapshot,
-): boolean => {
-  if (remaining.get(listing.id)! < listing.min_quantity) {
-    return true;
-  }
-  const children = links.childrenByParent.get(listing.id);
-  if (!children || children.length === 0) return false;
-  const parts = childCapacityPartsFor(memberships)(
-    children,
-    (child) => child.id,
-    (child) => remaining.get(child.id) ?? 0,
-  );
-  const combined = combinedChildCapacityForParent(
-    memberships.get(listing.id) ?? [],
-    parts,
-    groupRemainingForSpan(snapshot, cardSpanDays(listing)),
-  );
-  return combined < listing.min_quantity;
-};
 
 /** The daily listings NOT bookable on `date`: outside their bookable calendar,
  * or without capacity for their span starting that day. One snapshot per
@@ -96,7 +65,30 @@ export const loadDailyDateAvailability = async (
       soldOut.add(listing.id);
       continue;
     }
-    if (belowMinimumOnDate(listing, remaining, links, memberships, snapshot)) {
+    // The child's own ceiling folds its stored minimum the same way the
+    // public cards do: a child with a minimum of 3 and 10 places left can
+    // serve 1 unit, not 10. Raw remaining lets the date filter advertise a
+    // parent the discovery cards read as sold out.
+    const parts = childCapacityPartsFor(
+      memberships,
+      links.childrenByParent.get(listing.id) ?? [],
+      (child) => child.id,
+      (child) =>
+        buildTicketListing(
+          child,
+          isRegistrationClosed(child),
+          remaining.get(child.id) ?? 0,
+        ).maxPurchasable,
+    );
+    if (
+      minimumUnservable(
+        remaining.get(listing.id) ?? 0,
+        listing.min_quantity,
+        memberships.get(listing.id) ?? [],
+        parts,
+        groupRemainingForSpan(snapshot, cardSpanDays(listing)),
+      )
+    ) {
       soldOut.add(listing.id);
     }
   }

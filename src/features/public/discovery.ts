@@ -9,8 +9,6 @@
 import {
   buildTicketListing,
   childActive,
-  childHasDateOrStockForDays,
-  childInStock,
   childOpen,
   fixedParentDays,
   parentAndChildFitGroup,
@@ -29,13 +27,15 @@ import {
 } from "#db/listing-parents.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { combinedChildCapacityForParent } from "#shared/capacity-fit.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
-import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
-import {
-  combinedChildCapacityForParent,
-  sharedGroupCapacity,
-} from "#shared/group-capacity.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
+import { sharedGroupCapacity } from "#shared/group-capacity.ts";
 import { availableDayCounts, type ListingWithCount } from "#types";
+import {
+  childOfferedOnDate,
+  childOfferedWithoutDate,
+} from "./discovery/child-offered.ts";
 
 /**
  * Four sets, because a child is treated differently by structure, by whether it
@@ -61,43 +61,6 @@ export type DiscoveryClassification = {
  *  child must fold on some date the parent offers, because the page carries
  *  no date selector. Children that fold on different dates must not sum: no
  *  single date can carry child units from calendars that never share one. */
-const childOwnCeilingOnDate = (
-  parent: ListingWithCount,
-  child: ListingWithCount,
-  caps: ChildCapacityInfo,
-  holidays: Holiday[],
-  date: string | null,
-): number => {
-  const childInfo = childInfoFor(child, caps);
-  if (!childActive(childInfo) || !childOpen(childInfo)) return 0;
-  const dayCounts = parentOfferedDayCounts(parent);
-  const offered =
-    date === null
-      ? dayCounts.some((days) =>
-          childHasDateOrStockForDays(
-            holidays,
-            days,
-            parentDatesOf(parent, holidays),
-          )(childInfo),
-        )
-      : child.listing_type !== "daily"
-        ? childInStock(childInfo)
-        : dayCounts.some(
-            (days) =>
-              getBookableStartDates(child, holidays).includes(date) &&
-              isBookingRangeValid(child, date, days ?? 1, holidays),
-          );
-  if (!offered) return 0;
-  const shared = sharedGroupCapacity(
-    listingGroups.idsFor(caps.membership, parent.id),
-    listingGroups.idsFor(caps.membership, child.id),
-    caps.staticCapByGroupId,
-    caps.remainingByGroupId,
-  );
-  if (!parentAndChildFitGroup(shared)) return 0;
-  return childInfo.maxPurchasable;
-};
-
 /** Day counts the parent can pass to a daily child. */
 const parentOfferedDayCounts = (parent: ListingWithCount): (number | null)[] =>
   parent.listing_type === "daily" && parent.customisable_days
@@ -123,11 +86,11 @@ const parentBookable = (
   return !info.isSoldOut && !info.isClosed;
 };
 
-/** A daily parent's own bookable start dates (its booking page's candidate dates),
- * against which a daily child's calendar must overlap. It is `null` for a
- * non-daily parent, which has NO date selector — a daily child under it inherits no
- * parent date, so no overlap applies (the child is judged by its own calendar /
- * fixed day count). */
+/** A daily parent's own bookable start dates (its booking page's candidate
+ * dates), against which a daily child's calendar must overlap. It is `null`
+ * for a non-daily parent, which has NO date selector. Such a daily child
+ * inherits no parent date, so no overlap applies: the child is judged by its
+ * own calendar or fixed day count. */
 const parentDatesOf = (
   parent: ListingWithCount,
   holidays: Holiday[],
@@ -180,6 +143,69 @@ const childInfoFor = (
     caps.childOwnRemaining.get(child.id),
   );
 
+/** Each child's date-invariant fold facts, computed once per parent: the
+ *  child as the ticket page sees it, the pools it draws from, whether the
+ *  pair fits its shared group's static cap, and the child's own ceiling.
+ *  The per-date loop reads only what the date changes. */
+type ChildFoldFacts = {
+  childInfo: TicketListing;
+  groupIds: number[];
+  fitsGroup: boolean;
+  ownMax: number;
+};
+
+const childFoldFactsFor = (
+  parent: ListingWithCount,
+  child: ListingWithCount,
+  caps: ChildCapacityInfo,
+): ChildFoldFacts => {
+  const childInfo = childInfoFor(child, caps);
+  const shared = sharedGroupCapacity(
+    listingGroups.idsFor(caps.membership, parent.id),
+    listingGroups.idsFor(caps.membership, child.id),
+    caps.staticCapByGroupId,
+    caps.remainingByGroupId,
+  );
+  return {
+    childInfo,
+    fitsGroup: parentAndChildFitGroup(shared),
+    groupIds: listingGroups.idsFor(caps.membership, child.id),
+    ownMax: childInfo.maxPurchasable,
+  };
+};
+
+/** The child's own ceiling when the order starts on `date`, or zero when the
+ *  child cannot fold on that date. A `null` date is the date-less gate: the
+ *  child must fold on some date the parent offers, because the page carries
+ *  no date selector. Children that fold on different dates must not sum: no
+ *  single date can carry child units from calendars that never share one. */
+const childOwnCeilingOnDate = (
+  parent: ListingWithCount,
+  facts: ChildFoldFacts,
+  holidays: Holiday[],
+  dayCounts: (number | null)[],
+  date: string | null,
+): number => {
+  if (!childActive(facts.childInfo) || !childOpen(facts.childInfo)) return 0;
+  if (!facts.fitsGroup) return 0;
+  if (date === null) {
+    const offered = childOfferedWithoutDate(
+      facts.childInfo,
+      holidays,
+      dayCounts,
+      parentDatesOf(parent, holidays),
+    );
+    return offered ? facts.ownMax : 0;
+  }
+  const offered = childOfferedOnDate(
+    facts.childInfo,
+    holidays,
+    dayCounts,
+    date,
+  );
+  return offered ? facts.ownMax : 0;
+};
+
 /** The parent tickets a parent's children can serve together: the best
  *  feasible date wins. Children that fold on different dates must not sum —
  *  a minimum of three cannot take two units from a Monday-only child and two
@@ -192,17 +218,25 @@ const combinedChildCapacity = (
   caps: ChildCapacityInfo,
   holidays: Holiday[],
 ): number => {
+  const dayCounts = parentOfferedDayCounts(parent);
   const parentDates = parentDatesOf(parent, holidays);
   const dates: (string | null)[] =
     parentDates === null ? [null] : [...parentDates];
+  const facts = children.map((child) => childFoldFactsFor(parent, child, caps));
   return Math.max(
     0,
     ...dates.map((date) =>
       combinedChildCapacityForParent(
         listingGroups.idsFor(caps.membership, parent.id),
-        children.map((child) => ({
-          groupIds: listingGroups.idsFor(caps.membership, child.id),
-          ownMax: childOwnCeilingOnDate(parent, child, caps, holidays, date),
+        facts.map((fact) => ({
+          groupIds: fact.groupIds,
+          ownMax: childOwnCeilingOnDate(
+            parent,
+            fact,
+            holidays,
+            dayCounts,
+            date,
+          ),
         })),
         caps.remainingByGroupId,
       ),
@@ -282,7 +316,13 @@ export const classifyForDiscovery = async (
           caps,
           holidays,
         ) >= p.min_quantity &&
-        childOwnCeilingOnDate(p, child, caps, holidays, null) >= 1,
+        childOwnCeilingOnDate(
+          p,
+          childFoldFactsFor(p, child, caps),
+          holidays,
+          parentOfferedDayCounts(p),
+          null,
+        ) >= 1,
     );
   });
   const soldOutParentIds = new Set<number>();
