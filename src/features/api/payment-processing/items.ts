@@ -7,7 +7,7 @@
  */
 
 import { bookingError } from "#booking/form.ts";
-import { quantityBelowMinimum } from "#booking/model.ts";
+import { belowMinimumError } from "#booking/minimum-refusal.ts";
 import {
   bookedOutsideParent,
   lineGroupId,
@@ -63,12 +63,13 @@ const validateListingForPayment = (
   }
   // The buyer can open a paid checkout before the owner raises the
   // minimum. The webhook is the last stop, so it re-reads the stored fact.
-  if (quantityBelowMinimum(quantity, listing.minimum_quantity)) {
-    return {
-      error: bookingError.minimum(name, listing.minimum_quantity),
-      ok: false,
-      status: 410,
-    };
+  const belowMinimum = belowMinimumError(
+    quantity,
+    listing.minimum_quantity,
+    bookingError.minimum(name, listing.minimum_quantity),
+  );
+  if (belowMinimum) {
+    return { error: belowMinimum, ok: false, status: 410 };
   }
   return { listing, ok: true };
 };
