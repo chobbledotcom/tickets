@@ -82,9 +82,8 @@ export const parseStoredDateString = (
   raw: string,
   what: string,
 ): DateString => {
-  const parsed = parseDateString(padLegacyDateParts(raw) ?? raw);
-  if (parsed !== null) return parsed;
-  return parseDateStringOrThrow(raw, what);
+  const repaired = padLegacyDateParts(raw);
+  return parseDateString(repaired ?? raw) ?? parseDateStringOrThrow(raw, what);
 };
 
 /** Whether a value is a UTC instant of a real calendar day — the shape the
