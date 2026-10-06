@@ -28,13 +28,13 @@ export const judgeListingMembership = async (
  *  member keeps its default pick count of one. */
 export const arrangeOrdinaryGroupPackaging = async (
   name: string,
-  minQuantity: number,
+  minimumQuantity: number,
 ) => {
   const group = await createTestGroup({ name: `${name} group` });
   const member = await createTestListing({
     groupId: group.id,
     maxQuantity: 10,
-    minQuantity,
+    minimumQuantity,
     name,
   });
   return {
@@ -48,6 +48,39 @@ export const arrangeOrdinaryGroupPackaging = async (
           { hide_package_listings: false, is_package: false },
           { isPackage: true },
           undefined,
+        ),
+      ),
+  };
+};
+
+/** A hidden package with one member, with the group write asked to save the
+ *  member at `submitted` pick counts against a `maxQuantity` per-order cap.
+ *  `minimumQuantity` stores the listing's per-purchase floor beside the cap,
+ *  so one suite can judge either bound alone. */
+export const arrangeGroupWrite = async (
+  name: string,
+  submitted: number,
+  maxQuantity: number,
+  minimumQuantity?: number,
+) => {
+  const group = await createHiddenPackageGroup(`${name} group`);
+  const member = await createTestListing({
+    groupId: group.id,
+    maxQuantity,
+    ...(minimumQuantity === undefined ? {} : { minimumQuantity }),
+    name,
+  });
+  return {
+    group,
+    member,
+    run: () =>
+      withTransaction((tx) =>
+        writePackageMembersTx(
+          tx,
+          group.id,
+          { hide_package_listings: false, is_package: true },
+          { isPackage: true },
+          [{ listingId: member.id, price: 0, quantity: submitted }],
         ),
       ),
   };

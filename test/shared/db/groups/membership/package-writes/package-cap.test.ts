@@ -23,8 +23,8 @@ describeWithEnv("db > groups > package member caps", { db: true }, () => {
     const { run } = await arrangeOrdinaryGroupPackaging("Packaging Member", 2);
 
     await expect(run()).rejects.toThrow(
-      t("error.package_member_min", {
-        min_quantity: 2,
+      t("error.package_member_minimum", {
+        minimum_quantity: 2,
         name: "Packaging Member",
         quantity: 1,
       }),
