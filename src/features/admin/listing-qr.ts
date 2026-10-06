@@ -1,4 +1,4 @@
-import { quantityBelowMinimum } from "#booking/model.ts";
+import { belowMinimumError } from "#booking/minimum-refusal.ts";
 import { t } from "#i18n";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
@@ -191,14 +191,14 @@ const createQrFormValidator = (
     }
     // The token pre-selects the buyer's quantity control, which offers none
     // or the minimum upward. A below-minimum prefill lands on 0.
-    if (quantityBelowMinimum(quantity, listing.minimum_quantity)) {
-      return {
-        error: t("listing_qr.quantity_below_minimum", {
-          minimum: listing.minimum_quantity,
-        }),
-        valid: false,
-      };
-    }
+    const belowMinimum = belowMinimumError(
+      quantity,
+      listing.minimum_quantity,
+      t("listing_qr.quantity_below_minimum", {
+        minimum: listing.minimum_quantity,
+      }),
+    );
+    if (belowMinimum) return { error: belowMinimum, valid: false };
     if (quantity > listing.max_quantity) {
       return {
         error: t("listing_qr.quantity_above_maximum", {
