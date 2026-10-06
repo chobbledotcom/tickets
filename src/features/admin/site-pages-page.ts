@@ -1,8 +1,9 @@
 /**
- * The site-page entity page: the shared Site-content tabbed page with an extra
- * Items tab slotted in — Edit / Items / Images / Actions. Pages are Site-gated;
- * the delete confirmation, the update POST, and every item-manager POST keep
- * their own routes in site-pages.ts, so this file owns only the GET surface.
+ * The site-page entity page: the shared Site-content tabbed page with an
+ * extra Items tab slotted in — Edit / Items / Images / Actions. Pages are
+ * Site-gated. The delete confirmation, the update POST, and every
+ * item-manager POST keep their own routes in site-pages.ts, so this file
+ * owns only the GET surface.
  */
 
 import { getSitePageById } from "#db/site-pages.ts";

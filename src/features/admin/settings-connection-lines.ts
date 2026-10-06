@@ -1,7 +1,7 @@
 /**
  * The answer lines a payment provider's "Test connection" button shows,
  * rendered from the message catalog. The nightly payment e2e derives its
- * expected lines from the same keys, so a wording change cannot pass review
+ * expected lines from the same keys. A wording change cannot pass review
  * on one side and break the schedule-only run on the other.
  */
 import { t } from "#i18n";
@@ -130,8 +130,8 @@ export const sumupConnectionAnswer = (
     t("settings.connection.label_api_key"),
     result.apiKey,
   );
-  // A rejected key means the merchant lookup never ran, so a "Merchant: Not
-  // configured" line would mislead; the key line already carries the fix.
+  // A rejected key means the merchant lookup never ran. A "Merchant: Not
+  // configured" line misleads. The key line already carries the fix.
   if (!result.apiKey.valid) return { lines: [keyLine], ok: result.ok };
   return {
     lines: [

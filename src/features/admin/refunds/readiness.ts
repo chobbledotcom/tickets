@@ -226,7 +226,7 @@ const readyCandidates = (
     }),
   }));
 
-/** Read every current charge at its stored provider before any refund may send. */
+/** Read every current charge at its stored provider before any refund sends. */
 export const prepareRefundReadiness = async (
   candidates: readonly RefundCandidate[],
   _claim: HeldRefundClaim,

@@ -91,7 +91,7 @@ const sharedRowSessionIds = (held: HeldRefundWork): Set<string> =>
     ),
   );
 
-/** Record why a claimed run could not establish complete provider evidence. */
+/** Record why a claimed run cannot establish complete provider evidence. */
 const reportReadinessFailure = async (
   run: RefundReadinessRun<unknown>,
   candidates: readonly RefundCandidate[],
@@ -162,7 +162,7 @@ const refundAdmissionProblem = (
     : null;
 };
 
-/** Every operation declares whether unresolved safety work may enter it. */
+/** Every operation declares whether unresolved safety work can enter it. */
 const ADMISSION_BY_ACTION = {
   refresh: (_held: HeldRefundWork) => null,
   refund: refundAdmissionProblem,

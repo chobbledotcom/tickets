@@ -21,9 +21,9 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     const keyChanged = previousSecretKey !== value;
     // Always pass the recorded endpoint id. If the new key is on the same
     // Stripe account, setup's limit-retry path keeps it live until the new
-    // endpoint has been created and saved; the cleanup calls below remove it
-    // once the replacement is in place. Passing undefined on a key rotation
-    // would let the retry delete the live webhook before a replacement exists.
+    // endpoint is created and saved. The cleanup calls below remove it once
+    // the replacement is in place. Passing undefined on a key rotation lets
+    // the retry delete the live webhook before a replacement exists.
     const result = await stripeApi.setupWebhookEndpoint(
       value,
       webhookUrl,
@@ -37,7 +37,7 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
       webhookEndpointId: result.endpointId,
       webhookSecret: result.secret,
     });
-    // Cleanup can fail after the replacement is safely stored; surface it so
+    // Cleanup can fail after the replacement is safely stored. Surface it so
     // stale provider state remains visible.
     if (keyChanged && previousSecretKey && previousEndpointId) {
       await stripeApi.cleanupOldWebhookEndpoints(

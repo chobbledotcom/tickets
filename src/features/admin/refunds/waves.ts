@@ -10,7 +10,7 @@ type CandidateWithReferences = {
 /** Pack candidates into waves whose combined charge references stay within
  * `budget`, so each concurrently-processed wave issues at most ~`budget`
  * provider subrequests. A single candidate carrying more references than the
- * budget forms its own wave; its references are chunked inside the attempt. */
+ * budget forms its own wave. Its references are chunked inside the attempt. */
 export const packByReferenceCount =
   (budget: number) =>
   <TCandidate extends CandidateWithReferences>(

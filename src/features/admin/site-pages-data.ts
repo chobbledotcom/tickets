@@ -32,11 +32,11 @@ import type {
 // jscpd:ignore-end
 import type { SitePage, SitePageItemType } from "#types";
 
-/** May this listing be placed on a page? Active (its public page must not
- * 404), not a renewal tier ({@link isQualifyingTierListing} — the renewal
- * flow requires a site token the normal ticket flow never supplies), and not
- * a child listing (`childIds` — a booking can never start from a child,
- * so its `/ticket` page 404s too). */
+/** Can this listing be placed on a page? Active (its public page must not
+ * 404), not a renewal tier, and not a child listing. A renewal tier needs a
+ * site token the normal ticket flow never supplies
+ * ({@link isQualifyingTierListing}). A booking can never start from a child
+ * (`childIds`), so its `/ticket` page 404s too. */
 export const offerableListing = (
   id: number,
   row: ListingOfferFlags,
@@ -90,8 +90,8 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
     label: name,
     value: String(id),
   });
-  // A leaf may sit on a page only once (unique (page_id, item_type, item_id)),
-  // so drop targets already present from the pickers.
+  // A leaf can sit on a page only once (unique (page_id, item_type, item_id)),
+  // so the pickers drop targets already present.
   const present = new Set(
     pageItems.map((i) => sitePageItemTargets.key(targetOfPageItem(i))),
   );
@@ -107,12 +107,12 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
           ),
       )
       .map(([id, name]) => opt(id, name));
-  // The listing picker offers only OFFERABLE listings — active (an inactive
-  // listing's public page 404s), not a renewal tier (a tier bought through a
-  // normal public link would take payment without extending the site), and
-  // not a non-standalone child (its public page 404s by construction;
-  // a `bookable_alone` child keeps its page, so it stays
-  // offerable). Labels above still read the full map.
+  // The listing picker offers only OFFERABLE listings. Active, because an
+  // inactive listing's public page 404s. Not a renewal tier: a tier bought
+  // through a normal public link takes payment without extending the site.
+  // Not a non-standalone child: its public page 404s by construction. A
+  // `bookable_alone` child keeps its page, so it stays offerable. Labels
+  // above still read the full map.
   const childIds = await getNonStandaloneChildIds([...listingNames.keys()]);
   const activeListingNames = new Map(
     [...listingNames]

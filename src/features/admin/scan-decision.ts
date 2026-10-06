@@ -1,5 +1,5 @@
 /** The heart of every scan: given one ticket's rows, decide what a door's
- * scan admits. Pure data-in/data-out — the routes in scanner.ts turn the
+ * scan admits. Pure data-in/data-out. The routes in scanner.ts turn the
  * decision into responses and writes, so every door (one listing or a whole
  * group) decides through this one rule. */
 
@@ -8,7 +8,8 @@ import { groupToMap, sumOf } from "#fp";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 
 /** One listing's share of one admission: the rows the scan admits there, and
- * how many tickets it admits on them — never more than those rows owe. */
+ * how many tickets it admits on them. The count is never more than those
+ * rows owe. */
 export type ScanUnit = { rows: TokenEntry[]; tickets: number };
 
 /** What one scan decided. An admit's `remaining` is every ticket the
@@ -25,7 +26,7 @@ export type ScanDecision =
 /** All of one ticket's rows on one listing, in booking order — one
  * admission unit. A booking's rows on one listing are one person's places
  * there. A parent row and its folded child row sit on different listings, so
- * admitting one unit at a time never counts them as one person twice. */
+ * one admission at a time never counts them as one person twice. */
 export const rowsByListing = (rows: readonly TokenEntry[]): TokenEntry[][] => [
   ...groupToMap(
     (row: TokenEntry) => row.listing.id,
@@ -46,7 +47,7 @@ type DoorAsk = {
 /** Where a scan looks for rows: the door's own listings, or every listing
  * when the ask forces a ticket that matched nowhere in scope. A "No
  * check-in" listing sells with no door, so its rows never admit on any
- * door — the ticket-QR path refuses them too, and force never widens onto
+ * door. The ticket-QR path refuses them too, and force never widens onto
  * them. */
 const scanPool = ({
   entries,
@@ -66,9 +67,9 @@ const scanPool = ({
   return { failure: entries.length === 0 ? "not_found" : "wrong_listing" };
 };
 
-/** The listings a scan admits from those that still owe tickets: every one
- * for a group door that checks in all its listings, otherwise the first, so
- * every later door of a several-listing ticket still has something to admit. */
+/** The listings a scan admits from those that still owe tickets. Every one
+ * for a group door that checks in all its listings, and otherwise the first.
+ * Every later door of a several-listing ticket still has something to admit. */
 const scanAdmits = (
   widened: boolean,
   checkInEveryListing: boolean,
@@ -85,7 +86,7 @@ const owedTickets = sumOf((row: TokenEntry) => remainingTickets(row.attendee));
  * says the door staff checked the person's ID. `count` is the door's answer
  * to a `select_quantity` ask: that many tickets admit on every listing the
  * scan covers, capped by what each listing still owes. Without it, a scan
- * that covers a line owing more than one ticket asks first; a line owing
+ * that covers a line owing more than one ticket asks first. A line owing
  * exactly one admits straight in. */
 export const decideScan = (
   { entries, scope, force }: DoorAsk,

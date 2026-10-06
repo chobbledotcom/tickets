@@ -144,7 +144,7 @@ const CLAIM_DATABASE_CALLS_AFTER_ADMISSION = 2;
 const SETTLEMENT_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 2;
 /**
  * Each checkpoint prices work through its next safe refusal. Readiness prices
- * provider judgment and durable authority; the later dispatch gate prices send
+ * provider judgment and durable authority. The later dispatch gate prices send
  * and recovery transport before authority work starts. Settlement has its own
  * structural reserve.
  */
@@ -200,9 +200,9 @@ const databaseCallsAt = (
   plan: DatabaseCallPlan,
   authorityCalls: number,
 ): number =>
-  // A non-empty refund plan may discover returned money, so every safe gate
+  // A non-empty refund plan can discover returned money, so every safe gate
   // reserves the full recording tail. One shared retry ladder covers the odd
-  // contended statement; sustained contention stops at the subrequest guard
+  // contended statement. Sustained contention stops at the subrequest guard
   // and finishes through the durable recovery states.
   plan.fixed +
   authorityCalls +

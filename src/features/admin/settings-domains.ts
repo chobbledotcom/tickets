@@ -61,7 +61,7 @@ const runGuardedTask = async (
   return orErrorPage(result, errorPage, formId, (ok) => ok.value);
 };
 
-/** Run one Bunny API call as a domain task: hold the task lock, wait for any
+/** Run one Bunny API call as a domain task. Hold the task lock, wait for any
  * payment-provider recovery, then report the call's failure on this form. */
 const runBunnyDomainTask = <T extends { ok: true }>(
   taskName: string,

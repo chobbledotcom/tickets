@@ -79,7 +79,7 @@ export const handlePaymentProviderPost = settingsHandler({
     if (existingPaymentProviderState().recoveryChoices.length > 0) {
       return t("error.payment_provider_activation_requires_recovery");
     }
-    // The page switches this off already; refuse it here too.
+    // The page switches this off already. Refuse it here too.
     return providerCurrencyBlock(v, settings.currency);
   },
 });
@@ -164,9 +164,9 @@ export const handleBusinessEmailPost = settingsClearable({
   validate: (v) => (!isValidEmail(v) ? t("error.email_format") : null),
 });
 
-/** Handle POST /admin/settings/theme - owner only. The Site Theme form also
- * carries the "Underline links" checkbox, so this saves both the theme and the
- * underline-links toggle (off when the checkbox is absent) in one submission. */
+/** The Site Theme form also carries the "Underline links" checkbox, so this
+ * saves both the theme and the underline-links toggle in one submission. It
+ * saves the toggle as off when the checkbox is absent. */
 export const handleThemePost = settingsHandler({
   extract: (form) => ({
     theme: form.getString("theme"),
@@ -275,7 +275,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseResult.error, "settings-reset-database");
     }
 
-    // No activity-log line: the reset drops the table it would be written to.
+    // No activity-log line: the reset drops the table the line writes to.
     await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty
