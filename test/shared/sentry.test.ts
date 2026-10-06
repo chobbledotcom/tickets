@@ -6,10 +6,10 @@ import { FakeTime } from "@std/testing/time";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   ErrorCode,
+  type ErrorContext,
   formatErrorMessage,
-  runWithRequestId,
 } from "#shared/logger.ts";
-import { runWithRequestTrace } from "#shared/request-trace.ts";
+import { runWithRequestContext } from "#shared/request-context.ts";
 import {
   captureServerError,
   initSentry,
@@ -45,6 +45,13 @@ describe("sentry", () => {
     const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
     return bodyText(options.body);
   };
+
+  const captureListingsError = (context: ErrorContext): Promise<void> =>
+    runWithRequestContext(
+      new Request("https://venue.example.com/admin/listings/42"),
+      { clientIp: "203.0.113.7", locale: "en" },
+      () => captureServerError(context),
+    );
 
   const useHungTransport = async (): Promise<EnvScope> => {
     const env = withEnv({ SENTRY_URL: DSN });
@@ -278,10 +285,7 @@ describe("sentry", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
-      await runWithRequestTrace(
-        new Request("https://venue.example.com/admin/listings/42"),
-        () => captureServerError({ code: ErrorCode.DB_QUERY }),
-      );
+      await captureListingsError({ code: ErrorCode.DB_QUERY });
 
       const body = firstFetchBody();
       expect(body).toContain('"transaction":"GET /admin/listings/[id]"');
@@ -297,8 +301,9 @@ describe("sentry", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
-      await runWithRequestTrace(
+      await runWithRequestContext(
         new Request("https://venue.example.com/t/9D5F57B232?email=a@b.test"),
+        { clientIp: "203.0.113.7", locale: "en" },
         () => captureServerError({ code: ErrorCode.NOT_FOUND_ATTENDEE }),
       );
 
@@ -341,9 +346,7 @@ describe("sentry", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
-      await runWithRequestId(() =>
-        captureServerError({ code: ErrorCode.DB_QUERY }),
-      );
+      await captureListingsError({ code: ErrorCode.DB_QUERY });
 
       const requestIds =
         firstFetchBody().match(/"requestId":"([0-9a-f]{4})"/) ?? [];
@@ -356,14 +359,10 @@ describe("sentry", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
-      await runWithRequestTrace(
-        new Request("https://venue.example.com/admin/listings/42"),
-        () =>
-          captureServerError({
-            code: ErrorCode.IMAGE_BROKEN,
-            detail: "image 4821 missing",
-          }),
-      );
+      await captureListingsError({
+        code: ErrorCode.IMAGE_BROKEN,
+        detail: "image 4821 missing",
+      });
 
       expect(firstFetchBody()).toContain(
         '"fingerprint":["E_IMAGE_BROKEN","GET","/admin/listings/[id]"]',

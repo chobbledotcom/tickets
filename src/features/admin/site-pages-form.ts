@@ -2,7 +2,7 @@
  * The site-page create and edit forms (name, slug, SEO meta, markdown
  * content), built by the shared content-forms factory and rendered by the
  * admin templates. The create form asks for the slug too (unlike news, it is
- * typed by hand); the edit form's slug shows the saved page's public link.
+ * typed by hand). The edit form's slug shows the saved page's public link.
  */
 
 import { t } from "#i18n";

@@ -40,8 +40,8 @@ type SettingsFormHandler = ResponseHandler<
 type ValidateFn<T> = (value: T) => string | null | Promise<string | null>;
 
 /** Redirect target: advanced page, custom path, or default settings page.
- * `auth` overrides the form policy (default owner-only) so non-settings pages —
- * e.g. the public-site editor editors share — can widen who may save. */
+ * `auth` overrides the form policy (default owner-only), so non-settings
+ * pages such as the shared public-site editor can widen who can save. */
 type RedirectOpts = {
   advanced?: boolean;
   redirectTo?: string;
@@ -59,7 +59,8 @@ const pathFor = (opts: RedirectOpts): string => {
 };
 
 /** Build a route wrapper that provides auth + errorPage for the given path.
- * Defaults to owner-only; pass a wider policy for pages other roles may save. */
+ * It defaults to owner-only. Pass a wider policy for pages other roles can
+ * save. */
 const wrapRoute = (path: string, auth: AuthPolicy<"form"> = OWNER_FORM) => {
   const mkErrorPage =
     (_session: AuthSession) =>
@@ -128,9 +129,9 @@ type SettingsMessage<T> =
   | { label: string; log?: undefined }
   | { label?: never; log: (value: T) => string };
 
-/** Where the handler's value comes from: a custom `extract` function (with the
- * form field name as optional metadata), or — for a plain string setting —
- * just the field name, which doubles as the extract. */
+/** Where the handler's value comes from: a custom `extract` function (with
+ * the form field name as optional metadata), or just the field name. A plain
+ * string setting's field name doubles as the extract. */
 type SettingsValueSource<T> =
   | {
       /** Extract the value from form data */
@@ -169,7 +170,7 @@ const settingsValueHandler =
     const value =
       cfg.extract !== undefined
         ? cfg.extract(form)
-        : // `extract` may only be omitted for a plain string setting that
+        : // `extract` can be omitted only for a plain string setting that
           // names its `field` (see SettingsValueSource), so the named
           // field's string is the value.
           (form.getString(cfg.field) as T);
@@ -210,8 +211,8 @@ const settingsHandler: <T = string>(
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 
-/** The base every settings field-save config shares: where to redirect, the
- * flash form id, the form field name, its label, and how to persist the value. */
+/** The base every field-save config shares: where to redirect, the flash
+ * form id, the form field name, its label, and how to persist the value. */
 type SavableFieldConfig<T> = RedirectOpts & {
   formId?: string | undefined;
   field: string;
@@ -294,10 +295,11 @@ const processSecretField = (
  * Apply a masked-secret field to its updater.
  * - provided → set the new value
  * - unchanged → leave the stored value as-is
- * - cleared → no-op by default, so blanking a field can't silently wipe a
+ * - cleared → no-op by default, so blanking a field cannot silently wipe a
  *   credential a handler still treats as required (and whose provider stays
  *   selected). Pass `clearable: true` for genuinely optional secrets whose
- *   empty submission should store `""` (e.g. the SMS gateway credentials).
+ *   empty submission will store `""` (for example the SMS gateway
+ *   credentials).
  */
 const saveSecret = async (
   field: SecretFieldResult,

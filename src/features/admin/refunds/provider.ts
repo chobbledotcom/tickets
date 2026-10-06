@@ -41,7 +41,7 @@ export type RefundCounts = {
   /** The provider accepted the refund but has not proved it completed. */
   pendingCount: number;
   failedCount: number;
-  /** The money went back and the ledger could not record it. */
+  /** The money went back and the ledger cannot record it. */
   notRecordedCount: number;
 };
 

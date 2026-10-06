@@ -1,10 +1,4 @@
 /* jscpd:ignore-start */
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
-/**
- * Admin attendee management routes
- */
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -16,7 +10,10 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
 import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { t } from "#i18n";
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -73,15 +70,14 @@ import {
 /* jscpd:ignore-end */
 
 /**
- * Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete
- * Deletes an attendee with an incomplete payment without requiring name confirmation.
- * Verifies the attendee is actually incomplete before deleting.
+ * Deletes an attendee with an incomplete payment. The name confirmation does
+ * not apply here.
  */
 const handleDeleteIncomplete = attendeeFormAction(
   async (data, _session, _form, listingId, attendeeId) => {
     // The failed-payments delete form lives on the Attendees tab, so both
-    // outcomes return there — keeping the operator on the table they are
-    // clearing rather than bouncing them to Overview.
+    // outcomes return there. The operator stays on the table they are
+    // clearing instead of bouncing to Overview.
     if (
       !isIncompletePayment(
         data.attendee,
@@ -106,7 +102,6 @@ const handleDeleteIncomplete = attendeeFormAction(
   },
 );
 
-/** Build create-attendee input from validated form values */
 const buildCreateAttendeeInput = (
   values: AddAttendeeFormValues,
   listing: {
@@ -143,7 +138,6 @@ const buildCreateAttendeeInput = (
   };
 };
 
-/** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
 const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/attendee"> =
   createAuthedFormRoute<
     AddAttendeeFormValues,
@@ -185,7 +179,8 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         createResult.attendees[0]!.id,
       );
       // Land on the roster (Attendees tab), where the new attendee and the
-      // quick-add form live, so the flash and the added row are both in view.
+      // quick-add form live. The flash and the added row are then both in
+      // view.
       return redirect(
         `/admin/listing/${params.listingId}/attendees`,
         `Added ${values.name}`,
@@ -195,18 +190,18 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
   });
 
-/** Handle GET /admin/attendees/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
 ].page(attendeeActionPage(adminResendNotificationPage));
 
 /** One scope of the attendee's booking lines, rebuilt as notification
- * entries. Each entry comes from its own row and listing, so a confirmation
- * never treats one member row as the whole purchase — collapsing a hidden
- * package to one row's quantity/price, heading a visible one with a lone
- * member, or hiding the plan line that bought a site. Refunded rows stay in:
- * the email filters them out below, while the assignment's served check
- * needs them to see a claim recorded before the refund. */
+ * entries. Each entry comes from its own row and listing. A confirmation
+ * never treats one member row as the whole purchase. One member row alone
+ * reads wrong in three ways. It collapses a hidden package to one row's
+ * quantity and price. It heads a visible one with a lone member. It hides
+ * the plan line that bought a site. Refunded rows stay in. The email
+ * filters them out below. The assignment's served check needs them to see
+ * a claim recorded before the refund. */
 const scopeEntries = async (
   attendeeId: number,
   scope: BookingScope,
@@ -218,9 +213,9 @@ const scopeEntries = async (
   return attendeeListingEntries(rows, pk);
 };
 
-/** The purchase the SELECTED booking belongs to: a package line covers its
- * own package alone (never another package the attendee holds), and a
- * standalone line covers every standalone line the attendee booked. */
+/** The purchase the SELECTED booking belongs to. A package line covers its
+ * own package alone, never another package the attendee holds. A standalone
+ * line covers every standalone line the attendee booked. */
 const purchaseScope = (data: AttendeeWithBooking): BookingScope =>
   data.selectedPackageGroupId > 0
     ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
@@ -259,8 +254,9 @@ const resendNotification = async (
     );
   }
 
-  // An admin session can spend the owner key, so the resend is the one path
-  // that reads the buyer's free-text answers straight from the strings table.
+  // An admin session can spend the owner key. The resend is therefore the
+  // one path that reads the buyer's free-text answers straight from the
+  // strings table.
   const freeTexts = (
     await getAttendeeTextAnswersBatch(
       [attendeeId],
@@ -272,8 +268,9 @@ const resendNotification = async (
     logAndNotifyRegistration(notify, {
       freeTexts,
       // One site serves the whole buyer, so the assignment reads every line
-      // they hold, refunded ones too: a claim recorded on another purchase's
-      // plan, or on a line refunded later, keeps the buyer served.
+      // they hold, refunded ones too. A claim recorded on another purchase's
+      // plan keeps the buyer served. So does a claim on a line refunded
+      // later.
       siteAssignmentEntries: await scopeEntries(attendeeId, { kind: "whole" }),
     }),
     logActivity(
@@ -287,7 +284,6 @@ const resendNotification = async (
   });
 };
 
-/** Handle POST /admin/attendees/:attendeeId/resend-notification */
 const handleResendNotification = attendeeActions[
   "resend-notification"
 ].verified(undefined, resendNotification);

@@ -1,3 +1,4 @@
+import { sortByName } from "#shared/name-order.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
 export type LedgerScopeOption = { id: number; name: string };
@@ -67,6 +68,12 @@ export const listingIdsForLedgerScope = (
       return groupListingIds;
   }
 };
+
+/** A group id→name map as the options a group picker offers, by name. */
+export const groupScopeOptions = (
+  names: Map<number, string>,
+): LedgerScopeOption[] =>
+  sortByName([...names].map(([id, name]) => ({ id, name })));
 
 export const ledgerScopeSelected = (
   current: LedgerScope,

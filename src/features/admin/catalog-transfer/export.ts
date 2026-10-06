@@ -1,12 +1,10 @@
 /**
- * Build the id-free JSON export for one listing or group (see schema.ts).
- *
- * The exporter reads the decrypted stored row and its related facets — group
- * memberships (with package overrides), parent listings, and per-day package
- * overrides — and renders every cross-reference by name. Prices come straight
- * off the listing columns (`unit_price`/`day_prices`); the derived
- * `listing_prices` mirror rows are re-synced from those on import, so they are
- * not exported separately.
+ * The exporter reads the decrypted stored row and its related facets: group
+ * memberships with package overrides, parent listings, and per-day package
+ * overrides. It renders every cross-reference by name. Prices come straight
+ * off the listing columns (`unit_price` and `day_prices`). The derived
+ * `listing_prices` mirror rows are re-synced from those on import, so they
+ * are not exported separately.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -44,13 +42,14 @@ import {
 /* jscpd:ignore-end */
 
 /** Returned (not thrown) when a stored row holds a value the transfer format
- * can't represent — e.g. a bookable-day name or contact field the admin JSON API
- * accepted but the transfer schema rejects. The export route surfaces it as an
- * operator-facing 4xx rather than letting a raw parse error become a 500. */
+ * cannot represent. An example is a bookable-day name or contact field the
+ * admin JSON API accepted but the transfer schema rejects. The export route
+ * surfaces it as an operator-facing 4xx rather than letting a raw parse error
+ * become a 500. */
 export class CatalogExportError extends namedError("CatalogExportError") {}
 
 /** Project a stored row onto its transfer shape, or a {@link CatalogExportError}
- * (with an intelligible per-field message) when the row can't be represented. */
+ * (with an intelligible per-field message) when the row cannot be represented. */
 const parseExport = <TSchema extends v.GenericSchema>(
   schema: TSchema,
   value: unknown,
@@ -64,7 +63,7 @@ const parseExport = <TSchema extends v.GenericSchema>(
 };
 
 /** Convert a per-day override map to the JSON record shape, or undefined when
- * there are no overrides (so an empty map is omitted from the blob). */
+ * there are no overrides. An empty map is then omitted from the blob. */
 const dayPricesToRecord = (
   dayPrices: ReadonlyMap<number, number> | undefined,
 ): Record<string, number> | undefined => {
@@ -72,9 +71,9 @@ const dayPricesToRecord = (
   return Object.fromEntries(dayPrices);
 };
 
-/** The package-override fields shared by both membership views, each omitted at
- * its neutral default (no price override, quantity 1, no per-day overrides) so a
- * plain membership serialises to just its name reference. */
+/** The package-override fields shared by both membership views. Each field is
+ * omitted at its neutral default: no price override, quantity 1, no per-day
+ * overrides. A plain membership then serialises to just its name reference. */
 const overrideFields = (
   packagePrice: number | null,
   quantity: number,

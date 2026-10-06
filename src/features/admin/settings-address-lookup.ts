@@ -4,8 +4,8 @@
  * Saves the lookup provider choice and its API key. The key is a masked
  * secret: a submitted sentinel leaves the stored value unchanged, an empty
  * value clears it. Selecting a real provider requires a key (stored or
- * provided in the same submission), so the search boxes can never appear
- * with a provider that has no credentials.
+ * provided in the same submission). The search boxes can never appear with a
+ * provider that has no credentials.
  */
 
 import { settings } from "#db/settings.ts";
@@ -32,7 +32,7 @@ const extractAddressLookupForm = (form: FormParams): AddressLookupFormData => ({
   provider: form.getString("address_lookup_provider"),
 });
 
-/** Would this submission leave no API key stored? */
+/** Does this submission leave no API key stored? */
 const clearsStoredKey = (apiKey: SecretFieldResult): boolean =>
   apiKey.action === "cleared" ||
   (apiKey.action === "unchanged" && !settings.addressLookup.hasKey);

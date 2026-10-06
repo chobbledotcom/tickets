@@ -1,4 +1,4 @@
-import { afterEach, beforeAll } from "@std/testing/bdd";
+import { beforeAll } from "@std/testing/bdd";
 import type { PairBookings } from "#booking/ticket-moves.ts";
 import { fieldById } from "#fp";
 import { rosterListSetup } from "#routes/admin/listings-view.ts";
@@ -7,7 +7,6 @@ import type {
   AttendeeSort,
   DateOption,
 } from "#shared/attendee-list-controls.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
@@ -55,6 +54,7 @@ const rosterListViewOf = (opts: DetailOptions): RosterListView => ({
   state: {
     checkin: opts.activeFilter ?? "all",
     date: opts.dateFilter ?? null,
+    groupId: null,
     listingId: null,
     page: 0,
     sort: opts.sort ?? null,
@@ -136,14 +136,11 @@ export const editPanelHtml = (
     ListingEditPanel({ groups: [], listing, session: OWNER_SESSION, ...extra }),
   );
 
-/** Register the beforeAll/afterEach hooks every listing-template test shares.
+/** Register the beforeAll hook every listing-template test shares.
  * Call it as the first statement INSIDE each top-level describe — at module
  * level it would register *global* hooks, which cannot be added once any
  * other module's tests exist (files share an isolate under the grouped
  * runner). */
 export const registerListingTemplateHooks = (): void => {
   beforeAll(setupAdminPageTest);
-  afterEach(() => {
-    detectIframeMode(new URL("https://example.com/"));
-  });
 };

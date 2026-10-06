@@ -1,7 +1,3 @@
-/** The modifier links save path: scoped listing/group links and answer links,
- * written for a loaded modifier and redirected back with a flash. The scope
- * save carries the child-add-on reachability guard. */
-
 import {
   getModifier,
   modifierGroups,
@@ -25,8 +21,8 @@ const selectedIds = (form: FormParams, field: string): number[] =>
 /** Run a modifier-link save (scope or answer) for the loaded modifier, then
  * redirect back to its edit page with a flash. Shared by the scope and answer
  * link forms so the auth/load/redirect boilerplate lives once. An optional
- * `guard` runs before the write and, when it returns a message, blocks the save
- * with that error instead (e.g. the child-only add-on reachability check). */
+ * `guard` runs before the write. A returned message blocks the save with that
+ * error instead, for example the child-only add-on reachability check. */
 const saveModifierLinks = (
   request: Request,
   id: number,
@@ -61,7 +57,7 @@ const writeScopeLinks = (
   return Promise.resolve();
 };
 
-/** Block a scope-links save that would leave an opt-in add-on reachable only
+/** Block a scope-links save that leaves an opt-in add-on reachable only
  * through a suppressed child (parents feature on), from the submitted links. */
 const scopeLinksChildGuard = (
   modifier: Modifier,
@@ -76,9 +72,6 @@ const scopeLinksChildGuard = (
     trigger: modifier.trigger,
   });
 
-/** POST handler that saves a scoped modifier's listing/group links — blocked
- * when the new scope would leave an opt-in add-on reachable only through a
- * suppressed child (parents feature on). */
 export const handleScopeLinks: TypedRouteHandler<
   "POST /admin/modifiers/:id/links"
 > = (request, { id }) =>
@@ -90,7 +83,6 @@ export const handleScopeLinks: TypedRouteHandler<
     scopeLinksChildGuard,
   );
 
-/** POST handler that saves an answer-triggered modifier's answer links. */
 export const handleAnswerLinks: TypedRouteHandler<
   "POST /admin/modifiers/:id/answers"
 > = (request, { id }) =>

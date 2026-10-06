@@ -2,36 +2,13 @@
  * Which request an error report belongs to.
  *
  * An error is reported from deep inside a request, long after the route and the
- * log-correlation id are out of reach. Recording them once at the request
- * boundary lets the report name the route it happened on, and lets a reader
- * find the console lines that were printed beside it.
+ * log-correlation id are out of reach. The request context records the trace
+ * once at the boundary (see src/shared/request-context.ts). These helpers read
+ * it for the report, and let a reader find the console lines that were printed
+ * beside it.
  */
 
-import { redactPath } from "#shared/redact-path.ts";
-import { createScopedValue } from "#shared/request-scoped.ts";
-
-/** The safe-to-report identity of one request. */
-export type RequestTrace = {
-  /** The public host the visitor asked for. */
-  host: string;
-  method: string;
-  /** The path with its secrets removed. Names the route, never the person. */
-  route: string;
-};
-
-const requestTrace = createScopedValue<RequestTrace | null>(() => null);
-
-/** Record the request being served, for as long as it is being served. */
-export const runWithRequestTrace = <T>(request: Request, fn: () => T): T => {
-  const url = new URL(request.url);
-  return requestTrace.run(
-    { host: url.host, method: request.method, route: redactPath(url.pathname) },
-    fn,
-  );
-};
-
-/** The request being served, or null when nothing is being served. */
-export const getRequestTrace = (): RequestTrace | null => requestTrace.read();
+import { getRequestTrace, type RequestTrace } from "#shared/request-context.ts";
 
 /**
  * Read one fact off the request being served. Undefined when none is, which is

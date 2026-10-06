@@ -4,6 +4,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
  * Admin dashboard route
  */
 
+/* jscpd:ignore-start -- imports */
 import {
   type ActivityLogEntry,
   getAllActivityLog,
@@ -14,6 +15,7 @@ import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#db/attendees/servicing.ts";
 import { getActiveListingStats } from "#db/attendees/stats.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import { getAllGroupNames } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings, listingNames } from "#db/listings/records.ts";
@@ -32,6 +34,7 @@ import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#shared/flash-context.ts";
+import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
   attributeFilterGroupsForListings,
   filterListingsByAttributes,
@@ -39,10 +42,15 @@ import {
 } from "#shared/listing-attribute-filter.ts";
 import {
   filterListingsByType,
+  groupIdFromRequest,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
+import {
+  groupMemberIds,
+  loadSortedListings,
+  sortListings,
+} from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 /* jscpd:ignore-end */
 import {
@@ -56,18 +64,18 @@ import {
 import type { ListingAttributeFilterView } from "#templates/admin/listing-attribute-filters.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import type { ListingWithCount } from "#types";
+/* jscpd:ignore-end */
 
-/** Login page response helper */
 export const loginResponse = async (
   request: Request,
   status = 200,
 ): Promise<Response> => {
-  // success (e.g. "Logged out") is rendered by the Layout backstop from context.
+  // success (for example, "Logged out") is rendered by the Layout backstop
+  // from context.
   const flash = await flashForPage(request);
   return htmlResponse(adminLoginPage(flash.error), status);
 };
 
-/** Maximum number of newest attendees to show on dashboard */
 const NEWEST_ATTENDEES_LIMIT = 10;
 
 const loadListingAttributeFilterContext = async (
@@ -91,16 +99,14 @@ const loadListingAttributeFilterContext = async (
   };
 };
 
-/**
- * Handle GET /admin/
- */
 const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      // Restricted roles have no dashboard: their landing path is their only
-      // page (agents), a page without the dashboard's financials (editors), or
-      // the doors list (scanner users). The landing map decides who redirects.
+      // Restricted roles have no dashboard. Their landing path is their only
+      // page (agents), a page without the dashboard's financials (editors),
+      // or the doors list (scanner users). The landing map decides who
+      // redirects.
       if (adminLandingPath(session.adminLevel) !== "/admin") {
         return redirectResponse(adminLandingPath(session.adminLevel));
       }
@@ -141,12 +147,31 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     () => loginResponse(request),
   );
 
-/** Handle GET /admin/listings — the listings index. Editors land here, so it is
- * gated to content roles (staff + editor); the template renders role-aware
- * columns/links so editors see no financials or forbidden detail links. */
+/** The loaded listings that belong to the chosen group, in the loaded order. */
+const keepListingsInGroup = (
+  listings: ListingWithCount[],
+  memberIds: ReadonlySet<number>,
+): ListingWithCount[] =>
+  listings.filter((listing) => memberIds.has(listing.id));
+
+/** Editors land on this page, so it is gated to content roles (staff +
+ * editor). The template renders role-aware columns and links, so editors see
+ * no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
   contentPage(async (session, request) => {
-    const { listings } = await loadSortedListings();
+    const groups = groupScopeOptions(await getAllGroupNames());
+    const groupId = groupIdFromRequest(request, groups);
+    const [memberIds, { listings }] = await Promise.all([
+      groupId === null ? null : groupMemberIds(groupId),
+      loadSortedListings(),
+    ]);
+    // One membership read narrows the whole page: the tables, the deactivated
+    // section, and the multi-booking builder all start from this list.
+    const shownListings =
+      memberIds === null ? listings : keepListingsInGroup(listings, memberIds);
+    // The attribute filter context stays on the full set, so a bar recognises
+    // an attribute that only exists outside the chosen group. The type filter
+    // makes the same choice today.
     // The multi-booking builder offers only listings with a standalone
     // booking page. A `bookable_alone` child keeps its own page, so it stays.
     const [attributeContext, unbookableIds] = await Promise.all([
@@ -154,53 +179,62 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
       getNonStandaloneChildIds(listings.map((listing) => listing.id)),
     ]);
     return adminListingsPage(
-      listings,
+      shownListings,
       session,
       session.adminLevel === "editor"
         ? undefined
         : settings.listingColumnLayout,
       attributeContext,
       unbookableIds,
+      { activeGroupId: groupId, groups },
     );
   });
 
-/** Handle GET /admin/listings/csv — export every listing (filtered by the same
- * ?type= category and attribute filters the listings views use) as a CSV
- * download. The attribute filter context is loaded from the full listing set
- * (before the type filter narrows it) so an attribute that only exists on a
- * different listing type is still recognised by selectedAttributeFiltersFromRequest
- * rather than silently dropped. */
+/** Exports every listing, filtered by the same ?type= category and attribute
+ * filters the listings views use. The attribute filter context loads from the
+ * full listing set, before the type filter narrows it. An attribute that only
+ * exists on a different listing type is then still recognised by
+ * selectedAttributeFiltersFromRequest rather than silently dropped. */
 const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
   requireSessionOr(request, async () => {
+    const groupNames = await getAllGroupNames();
+    const groups = groupScopeOptions(groupNames);
+    const groupId = groupIdFromRequest(request, groups);
+    const memberIds = groupId === null ? null : await groupMemberIds(groupId);
     const { listings: allListings } = await loadSortedListings();
+    const inGroupListings =
+      memberIds === null
+        ? allListings
+        : keepListingsInGroup(allListings, memberIds);
     const type = listingTypeFromRequest(request);
     const { activeAttributeFilters, attributesByListing } =
       await loadListingAttributeFilterContext(request, allListings);
     const filteredListings = filterListingsByAttributes(
       activeAttributeFilters,
       attributesByListing,
-    )(filterListingsByType(type)(allListings));
+    )(filterListingsByType(type)(inGroupListings));
     const csv = generateListingsCsv(filteredListings, settings.timezone);
     const suffix = type === "all" ? "" : `_${type}`;
     await logActivity(
-      `Listings CSV exported${type === "all" ? "" : ` (type: ${type})`}`,
+      `Listings CSV exported${type === "all" ? "" : ` (type: ${type})`}${
+        groupId === null ? "" : ` (group: ${groupNames.get(groupId)})`
+      }`,
     );
     return csvResponse(csv, `listings${suffix}.csv`);
   });
 
-/** Maximum number of log entries to display */
 const LOG_DISPLAY_LIMIT = 200;
 
 /**
  * Resolve the attendee and listing display names referenced by a batch of log
- * entries, so the global log can show each entry's attendee/listing as a link.
- * Both are bounded id → name lookups over only the ids the entries reference —
- * attendee names decrypted with the current request's private key, listing names
- * from the listings table — so the page never scans whole tables to label a few
- * rows. An attendee that has since been deleted simply has no entry here; its
- * log rows keep the id but render without a link.
+ * entries. The global log then shows each entry's attendee and listing as a
+ * link. Both are bounded id → name lookups over only the ids the entries
+ * reference. Attendee names are decrypted with the current request's private
+ * key. Listing names come from the listings table. The page never scans whole
+ * tables to label a few rows. An attendee deleted since then has no entry
+ * here. Its log rows keep the id but render without a link.
  */
 const loadActivityLogRefs = async (
   entries: ActivityLogEntry[],
@@ -214,9 +248,6 @@ const loadActivityLogRefs = async (
   return { attendees, listings };
 };
 
-/**
- * Handle GET /admin/log
- */
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
@@ -227,7 +258,6 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   },
 );
 
-/** Dashboard routes */
 export const adminHandlers = defineRoutes({
   "GET /admin": handleAdminGet,
   "GET /admin/listings": handleAdminListingsGet,

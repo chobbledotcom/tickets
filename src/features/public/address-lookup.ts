@@ -20,11 +20,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { activeAddressLookupProvider } from "#shared/address-lookup/providers.ts";
 import { lookupAddresses } from "#shared/address-lookup/service.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
 import {
   ADDRESS_LOOKUP_LOCKOUT_MS,
   MAX_ADDRESS_LOOKUPS,
 } from "#shared/limits.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 import { isStaffRole } from "#types";
 
 /** "address:" namespaces the counters away from login/booking limiters. */

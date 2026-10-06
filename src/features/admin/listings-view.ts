@@ -1,9 +1,9 @@
 /**
  * Listing detail page (attendee list with optional date / check-in filters).
  *
- * Also owns the attendee helpers shared with the CSV export route — the
- * date-filtered attendee handler and the question-answer loader — since the
- * export mirrors the on-screen attendee table.
+ * Also owns the attendee helpers shared with the CSV export route: the
+ * date-filtered attendee handler and the question-answer loader. The export
+ * mirrors the on-screen attendee table.
  */
 
 import { getGroupRemainingByGroupId } from "#db/attendees/capacity/groups.ts";
@@ -60,7 +60,7 @@ const getUniqueDates: (attendees: Attendee[]) => DateOption[] = pipe(
   map((d: string) => ({ label: formatDateLabel(d), value: d })),
 );
 
-/** The roster's date-picker options; empty for a listing not booked by the day. */
+/** The roster's date-picker options. Empty for a listing not booked by the day. */
 export const dateOptionsFor = (
   listing: ListingWithCount,
   attendees: Attendee[],
@@ -68,8 +68,9 @@ export const dateOptionsFor = (
   listing.listing_type === "daily" ? getUniqueDates(attendees) : [];
 
 /** The roster's controls: the day filter for a daily listing, the check-in
- *  filter, sort (the table's own date-and-name order unless the address says
- *  otherwise), and its CSV download — no listing dropdown, types, or paging. */
+ *  filter, sort, and its CSV download. The sort is the table's own
+ *  date-and-name order unless the address says otherwise. No listing
+ *  dropdown, types, or paging. */
 export const rosterListSetup = (
   listing: { id: number; listing_type: string },
   dates: DateOption[],
@@ -78,6 +79,7 @@ export const rosterListSetup = (
   csvPath: `/admin/listing/${listing.id}/export`,
   dates,
   defaultSort: null,
+  groups: [],
   listings: [],
   withCheckin: true,
   withDates: listing.listing_type === "daily",
@@ -103,8 +105,8 @@ type FilteredAttendees = {
  * session) into a handler that receives the listing pre-filtered by the
  * request's date filter, plus its check-in filter. Reads the request the same
  * way the roster page does, so the CSV export mirrors the on-screen table. The
- * full attendee list is still passed through for actions (e.g. emailing) that
- * target every date, not just the filtered view.
+ * full attendee list is still passed through for actions (for example, emailing)
+ * that target every date, not just the filtered view.
  */
 export const filteredAttendeesHandler =
   (
@@ -159,9 +161,10 @@ export const loadListingQuestionData = async (
 
 /** Fetch group + current usage when the listing sits in a capped group, so the
  *  detail page can render a row for the shared cap. Returns undefined for
- *  ungrouped or uncapped groups. A listing can belong to several capped groups;
- *  the one with the FEWEST remaining spots is the binding constraint (a booking
- *  is blocked by the tightest group — see capacity.ts), so surface that one. */
+ *  ungrouped or uncapped groups. A listing can belong to several capped
+ *  groups. The one with the FEWEST remaining spots is the binding constraint
+ *  (a booking is blocked by the tightest group — see capacity.ts), so surface
+ *  that one. */
 export const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
@@ -180,8 +183,9 @@ export const loadGroupContext = async (
   );
   let tightest: { ctx: GroupContext; remaining: number } | undefined;
   for (const group of capped) {
-    // A capped group read earlier must still be capped now; a missing entry
-    // means the two reads disagreed, and requiredMapValue surfaces that loudly.
+    // A capped group read earlier must still be capped now. A missing entry
+    // means the two reads disagreed, and requiredMapValue surfaces that
+    // loudly.
     const remaining = requiredMapValue(
       remainingMap,
       group.id,

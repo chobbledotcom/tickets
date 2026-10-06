@@ -2,8 +2,8 @@
  * Shared "fetch a listing by id, then build something from it" loader.
  *
  * The entity page loader and the QR context loader both fetch a listing and
- * return null when it is gone, then assemble their own shape from the row. This
- * keeps that fetch-then-null-guard in one place.
+ * return null when it is gone. Each then assembles its own shape from the
+ * row. This keeps that fetch-then-null-guard in one place.
  */
 
 import { getListingWithCount } from "#db/listings/records.ts";

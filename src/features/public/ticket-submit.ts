@@ -34,10 +34,10 @@ import {
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { getIframeMode } from "#shared/iframe.ts";
 /* jscpd:ignore-end */
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
+import { getIframeMode } from "#shared/request-context.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   orderSummary,

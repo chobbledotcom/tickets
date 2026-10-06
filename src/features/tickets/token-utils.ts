@@ -20,10 +20,10 @@ import { compact, unique } from "#fp";
 import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import type { WalletPassData } from "#shared/apple-wallet.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { listingDetails } from "#shared/listing-details.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {

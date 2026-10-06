@@ -73,9 +73,9 @@ const previousBookingRow = (
 /**
  * Load the other bookings this contact has made.
  *
- * The table is deliberately a shown-history preview, not an unbounded audit:
- * each contact channel contributes only its newest token window, empty/no-real
- * bookings are dropped before the display cap, and the rows are resolved
+ * The table is deliberately a shown-history preview, not an unbounded audit.
+ * Each contact channel contributes only its newest token window. Empty and
+ * no-real bookings are dropped before the display cap. The rows are resolved
  * without selecting attendee PII.
  */
 export const loadPreviousBookings = async (

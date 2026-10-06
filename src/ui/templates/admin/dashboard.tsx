@@ -19,8 +19,13 @@ import {
   filterListingsByType,
   type ListingFilter,
   listingCategory,
+  renderGroupFilter,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
+import {
+  emptyGroupFilterView,
+  type ListingGroupFilterView,
+} from "#shared/listing-group-view.ts";
 import type { ListingColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
@@ -30,6 +35,7 @@ import {
   attributeFilterHref,
   csvExportHref,
   emptyAttributeFilterView,
+  groupFilterHref,
   type ListingAttributeFilterView,
   renderAttributeFilterBars,
   typeFilterHref,
@@ -235,13 +241,20 @@ export const adminDashboardPage = (
   const typeFilterHtml =
     categories.length > 1
       ? renderTypeFilter(activeType, categories, (f) =>
-          typeFilterHref("/admin/", activeAttributeFilters)(f),
+          typeFilterHref("/admin/", {
+            activeAttributes: activeAttributeFilters,
+            groupId: null,
+          })(f),
         )
       : "";
   const attributeFilterHtml = renderAttributeFilterBars(
     attributeFilters,
     activeAttributeFilters,
-    attributeFilterHref("/admin/", activeType, activeAttributeFilters),
+    attributeFilterHref("/admin/", {
+      activeAttributes: activeAttributeFilters,
+      groupId: null,
+      type: activeType,
+    }),
   );
   const filterHtml = `${typeFilterHtml}${attributeFilterHtml}`;
 
@@ -288,6 +301,7 @@ export const adminListingsPage = (
   listingColumnLayout?: TableLayout<ListingColumnKey>,
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
   unbookableIds: ReadonlySet<number> = new Set(),
+  groupFilter: ListingGroupFilterView = emptyGroupFilterView(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved
   // column template is irrelevant and never references the omitted columns), and
@@ -312,14 +326,27 @@ export const adminListingsPage = (
   )(activeListings);
   const { activeAttributeFilters, attributeFilters, attributesByListing } =
     attributeFilterView;
+  const activeGroupId = groupFilter.activeGroupId;
   const filterByAttribute = filterListingsByAttributes(
     activeAttributeFilters,
     attributesByListing,
   );
+  const groupFilterHtml = renderGroupFilter(
+    activeGroupId,
+    groupFilter.groups,
+    groupFilterHref("/admin/listings", {
+      activeAttributes: activeAttributeFilters,
+      type: "all",
+    }),
+  );
   const attributeFilterHtml = renderAttributeFilterBars(
     attributeFilters,
     activeAttributeFilters,
-    attributeFilterHref("/admin/listings", "all", activeAttributeFilters),
+    attributeFilterHref("/admin/listings", {
+      activeAttributes: activeAttributeFilters,
+      groupId: activeGroupId,
+      type: "all",
+    }),
   );
 
   return String(
@@ -331,8 +358,12 @@ export const adminListingsPage = (
       <ListingsTableBlock
         {...tableOptions}
         csvExport={!isEditor}
-        csvHref={csvExportHref("all", activeAttributeFilters)}
-        headerHtml={attributeFilterHtml}
+        csvHref={csvExportHref({
+          activeAttributes: activeAttributeFilters,
+          groupId: activeGroupId,
+          type: "all",
+        })}
+        headerHtml={`${groupFilterHtml}${attributeFilterHtml}`}
         listings={filterByAttribute(activeListings)}
       />
 

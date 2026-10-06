@@ -8,7 +8,7 @@ const REFERENCE_PROBLEM_MESSAGE = {
   too_many_references: "error.payment_history_too_large",
 } as const satisfies Record<RefundReferenceProblem["kind"], string>;
 
-/** Explain why provider-tagged payment history could not be loaded safely. */
+/** Explain why provider-tagged payment history cannot be loaded safely. */
 export const refundReferenceProblemMessage = (
   problem: RefundReferenceProblem,
 ): string => t(REFERENCE_PROBLEM_MESSAGE[problem.kind]);
@@ -26,7 +26,7 @@ const evidenceFailureReason = ({ evidence }: RefundReadinessRead): string => {
   }${detail}.`;
 };
 
-/** Explain why complete provider evidence could not be established. */
+/** Explain why complete provider evidence cannot be established. */
 export const refundReadinessMessage = (readiness: {
   readonly reads: readonly RefundReadinessRead[];
 }): string => readiness.reads.map(evidenceFailureReason).join(" ");

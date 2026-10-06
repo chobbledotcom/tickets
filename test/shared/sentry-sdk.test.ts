@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
-import { runWithRequestTrace } from "#shared/request-trace.ts";
+import { runWithRequestContext } from "#shared/request-context.ts";
 import "#shared/sentry-sdk.ts";
 import { captureServerError, initSentry } from "#shared/sentry.ts";
 import {
@@ -161,8 +161,9 @@ describe("Sentry SDK transport", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
 
       const body = await captureAndRead(() =>
-        runWithRequestTrace(
+        runWithRequestContext(
           new Request("https://venue.example.com/admin/listings/42"),
+          { clientIp: "203.0.113.7", locale: "en" },
           () =>
             captureServerError({
               code: ErrorCode.DB_QUERY,

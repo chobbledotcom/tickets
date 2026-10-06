@@ -32,15 +32,14 @@ const handleAdminGuideGet = sessionPage((session) => {
 });
 
 /**
- * Handle GET /admin/formatting — the markdown formatting help linked from
- * markdown field hints. Content roles (incl. editors) may open it; it shows only
- * the editor-safe Text Formatting section, never the full staff guide.
+ * The markdown formatting help linked from markdown field hints. Content
+ * roles, editors included, can open it. It shows only the editor-safe Text
+ * Formatting section, never the full staff guide.
  */
 const handleAdminFormattingGet = contentPage((session) =>
   adminFormattingHelpPage(session),
 );
 
-/** Guide routes */
 export const adminHandlers = defineRoutes({
   "GET /admin/formatting": handleAdminFormattingGet,
   "GET /admin/guide": handleAdminGuideGet,

@@ -1,12 +1,3 @@
-/**
- * QR scanner routes for admin check-in
- * GET /admin/scanner - The doors list a scanner login lands on
- * GET /admin/listing/:id/scanner - Scanner page with camera UI
- * POST /admin/listing/:id/scan - JSON API for processing scanned tokens
- * GET /admin/groups/:id/scanner - One scanner for every member of a group
- * POST /admin/groups/:id/scan - The same JSON API over the group's members
- */
-
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -37,9 +28,9 @@ import {
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import { groupScope, listingScope, processScan } from "./scan-answer.ts";
 
-/** The door-safe facts that tell two people with the same name apart: which
- * listing (on a door that spans several) and which day each of their places
- * is for — the same facts the ticket's own page shows a door-only login. */
+/** The door-safe facts that tell two people with the same name apart. They
+ * name the listing when a door spans several, and the day each place is
+ * for. The ticket's own page shows the same facts to a door-only login. */
 const optionDetails = (
   rows: readonly Attendee[],
   listingNames: ReadonlyMap<number, string> | null,
@@ -112,8 +103,8 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
     await getAttendeesByListingIds([...scope.listingIds]),
     privateKey,
   );
-  // A door that spans several listings names the listing each place is for;
-  // a one-listing door's own page title already says it.
+  // A door that spans several listings names the listing each place is for.
+  // A one-listing door's own page title already says it.
   const listingNames =
     scope.listingIds.size > 1
       ? new Map(
@@ -136,7 +127,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
 });
 
 /** Every door a scanner login can work: each listing that has a door (the
- * "No check-in" listings sell things with no door) and every group, both
+ * "No check-in" listings sell things with no door) and every group. Both are
  * ordered by name so tonight's door is easy to find. */
 const loadDoors = async (): Promise<{
   groupDoors: ScannerDoor[];

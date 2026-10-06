@@ -24,9 +24,9 @@ const priceRange = (minMinor: number, maxMinor: number): string =>
 /** The export's Price cell. For a customisable-days listing it shows the range
  * of configured day prices — what checkout actually charges via `dayPriceFor`,
  * regardless of any legacy base `unit_price`. For a pay-what-you-want listing
- * it shows the span from the base price up to `max_price`, so it isn't reported
- * as Free when the base is zero. Otherwise it shows the unit price, or "Free"
- * when genuinely free. */
+ * it shows the span from the base price up to `max_price`. The base-zero case
+ * is then not reported as Free. Otherwise it shows the unit price, or
+ * "Free" when genuinely free. */
 const listingPriceLabel = (l: ListingWithCount): string => {
   const dayPrices = availableDayCounts(l).map((n) => dayPriceFor(l, n)!);
   if (dayPrices.length > 0) {
@@ -56,7 +56,7 @@ const listingColumns = (tz: string): Column<ListingWithCount>[] => [
   { header: t("csv.col.price"), value: listingPriceLabel },
   {
     header: t("common.date"),
-    // listing.date is a UTC ISO timestamp; show the date and time in the
+    // listing.date is a UTC ISO timestamp. Show the date and time in the
     // configured timezone (the raw UTC string can be the wrong day).
     value: (l) => (l.date ? formatDatetimeShortInTz(l.date, tz) : ""),
   },

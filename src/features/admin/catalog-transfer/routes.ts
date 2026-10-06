@@ -42,14 +42,13 @@ const jsonDownload = (data: unknown, filename: string): Response =>
     "application/json; charset=utf-8",
   );
 
-/** A safe, human-readable download filename from an entity name. */
 const catalogFilename = (kind: string, name: string): string =>
   `${kind}-${slugify(name) || kind}.json`;
 
 /** Content-gated export download: load the blob by id (404 when absent) and
  * stream it as a named JSON attachment. `load` receives the session so an
- * export can apply role policy (e.g. hide editor-forbidden columns). Shared by
- * both entity kinds. */
+ * export can apply role policy (for example, hide editor-forbidden columns).
+ * Shared by both entity kinds. */
 const downloadExport = <T>(
   request: Request,
   id: number,
@@ -59,8 +58,8 @@ const downloadExport = <T>(
 ): Promise<Response> =>
   contentRecordPage<T | CatalogExportError>(request, id, load, async (blob) =>
     // A row created through the JSON API can hold a value the transfer
-    // format rejects (e.g. an unrecognised bookable day); surface that as
-    // an operator-facing 422 rather than a raw 500.
+    // format rejects, for example an unrecognised bookable day. Surface
+    // that as an operator-facing 422 rather than a raw 500.
     blob instanceof CatalogExportError
       ? new Response(blob.message, {
           headers: { "content-type": "text/plain; charset=utf-8" },
@@ -69,7 +68,6 @@ const downloadExport = <T>(
       : jsonDownload(blob, catalogFilename(kind, nameOf(blob))),
   );
 
-/** GET /admin/listing/:id/export.json — download a listing's export blob. */
 const handleListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export.json"
 > = (request, { id }) =>
@@ -81,7 +79,6 @@ const handleListingExport: TypedRouteHandler<
     (b) => b.listing.name,
   );
 
-/** GET /admin/groups/:id/export.json — download a group's export blob. */
 const handleGroupExport: TypedRouteHandler<
   "GET /admin/groups/:id/export.json"
 > = (request, { id }) =>
@@ -93,19 +90,18 @@ const handleGroupExport: TypedRouteHandler<
     (b) => b.group.name,
   );
 
-/** GET /admin/catalog/import — the import upload form. */
 const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> =
   contentPage((session, _request, flash) =>
     adminCatalogImportPage(session, flash.error, flash.success),
   );
 
-/** POST /admin/catalog/import — validate and apply an uploaded blob. */
 const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
   contentMultipartRoute(async (session, formData) => {
-    // The interactive create paths scrub demo-mapped fields (and clear webhook
-    // URLs) as they parse the form; a raw import blob bypasses all of that, so
-    // disable catalog import entirely in demo mode rather than persist arbitrary
-    // names/descriptions/locations or an external webhook into a public demo.
+    // The interactive create paths scrub demo-mapped fields, and clear
+    // webhook URLs, as they parse the form. A raw import blob bypasses all
+    // of that. Disable catalog import entirely in demo mode rather than
+    // persist arbitrary names, descriptions, locations, or an external
+    // webhook into a public demo.
     if (isDemoMode()) {
       return errorRedirect(IMPORT_PATH, t("catalog_transfer.demo_disabled"));
     }

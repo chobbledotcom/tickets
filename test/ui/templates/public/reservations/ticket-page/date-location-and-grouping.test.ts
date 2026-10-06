@@ -3,116 +3,118 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import type { ListingWithCount } from "#types";
 
 describe("ticketPage listing date and location", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
-  const renderTicket = (ev: ListingWithCount, opts?: { iframe?: boolean }) => {
-    if (opts?.iframe) {
-      detectIframeMode(new URL("https://example.com/?iframe=true"));
-    } else detectIframeMode(new URL("https://example.com/"));
-    return ticketPage({
-      dates: [],
-      listings: [buildTicketListing(ev, false, undefined)],
-      slugs: [ev.slug],
-    });
-  };
-
-  test("shows date on public ticket page when listing has date", () => {
+  const renderTicket = async (
+    ev: ListingWithCount,
+    opts?: { iframe?: boolean },
+  ) =>
+    withRequestContext(
+      () =>
+        ticketPage({
+          dates: [],
+          listings: [buildTicketListing(ev, false, undefined)],
+          slugs: [ev.slug],
+        }),
+      { iframe: opts?.iframe ?? false },
+    );
+  test("shows date on public ticket page when listing has date", async () => {
     const listing = testListingWithCount({
       attendee_count: 0,
       date: "2026-06-15T14:00:00.000Z",
     });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).toContain("<strong>Date:</strong>");
     expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
   });
 
-  test("does not show date on public ticket page when date is empty", () => {
+  test("does not show date on public ticket page when date is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).not.toContain("<strong>Date:</strong>");
   });
 
-  test("shows location on public ticket page when listing has location", () => {
+  test("shows location on public ticket page when listing has location", async () => {
     const listing = testListingWithCount({
       attendee_count: 0,
       location: "Village Hall",
     });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).toContain("<strong>Location:</strong>");
     expect(html).toContain("Village Hall");
   });
 
-  test("does not show location on public ticket page when location is empty", () => {
+  test("does not show location on public ticket page when location is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, location: "" });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).not.toContain("<strong>Location:</strong>");
   });
 
-  test("hides date and location in iframe mode", () => {
+  test("hides date and location in iframe mode", async () => {
     const listing = testListingWithCount({
       attendee_count: 0,
       date: "2026-06-15T14:00:00.000Z",
       location: "Village Hall",
     });
-    const html = renderTicket(listing, { iframe: true });
+    const html = await renderTicket(listing, { iframe: true });
     expect(html).not.toContain("<strong>Date:</strong>");
     expect(html).not.toContain("<strong>Location:</strong>");
   });
 
-  test("shows past listing badge for listing with date in the past", () => {
+  test("shows past listing badge for listing with date in the past", async () => {
     const listing = testListingWithCount({
       attendee_count: 0,
       date: "2020-01-15T14:00:00.000Z",
     });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).toContain("badge-alert");
     expect(html).toContain("ago");
   });
 
-  test("does not show past listing badge for future listing", () => {
+  test("does not show past listing badge for future listing", async () => {
     const listing = testListingWithCount({
       attendee_count: 0,
       date: "2099-06-15T14:00:00.000Z",
     });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).not.toContain("badge-alert");
   });
 
-  test("does not show past listing badge when date is empty", () => {
+  test("does not show past listing badge when date is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).not.toContain("badge-alert");
   });
 
-  test("past listing badge shows singular day for 1 day ago", () => {
+  test("past listing badge shows singular day for 1 day ago", async () => {
     const yesterday = addDays(todayInTz(settings.timezone), -1);
     const listing = testListingWithCount({
       attendee_count: 0,
       date: `${yesterday}T12:00:00.000Z`,
     });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).toContain("1 day ago");
     expect(html).not.toContain("(1 day ago)");
   });
 
-  test("past listing badge shows plural days for multiple days ago", () => {
+  test("past listing badge shows plural days for multiple days ago", async () => {
     const threeDaysAgo = addDays(todayInTz(settings.timezone), -3);
     const listing = testListingWithCount({
       attendee_count: 0,
       date: `${threeDaysAgo}T12:00:00.000Z`,
     });
-    const html = renderTicket(listing);
+    const html = await renderTicket(listing);
     expect(html).toContain("3 days ago");
     expect(html).not.toContain("(3 days ago)");
   });

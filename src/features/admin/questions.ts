@@ -74,9 +74,9 @@ const handleQuestionsGet = ownerPage(async (session) => {
   const questionListingIds = await questionListings.getIdsByKeys(
     questions.map((question) => question.id),
   );
-  // Resolve listing ids to their decrypted names for the Listings column,
-  // dropping any ids whose listing has since been deleted (listing_questions
-  // rows are not pruned on listing deletion, so orphans can linger).
+  // Resolve listing ids to their decrypted names for the Listings column.
+  // Ids whose listing has since been deleted are dropped: listing_questions
+  // rows are not pruned on listing deletion, so orphans can linger.
   const nameById = fieldById("name")(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
@@ -145,10 +145,10 @@ const handleQuestionEdit = createAuthedFormRoute<
   onValid: async ({ params, values: { display_type, text } }) => {
     const existing = await getQuestionWithAnswers(params.id);
     if (!existing) return notFoundResponse();
-    // Converting between free-text and choice types would orphan existing
-    // answers, so it is not allowed: a free-text question stays free-text (the
-    // edit form hides the selector and we ignore any submitted type), and a
-    // choice question may only switch between radio and select.
+    // A type conversion orphans existing answers, so it is not allowed. A
+    // free-text question stays free-text: the edit form hides the selector,
+    // and the code ignores any submitted type. A choice question can switch
+    // only between radio and select.
     const requested = requireQuestionDisplayType(display_type);
     const displayType =
       existing.display_type === "free_text" || requested === "free_text"
@@ -181,11 +181,10 @@ const handleQuestionListings = ownerFormById(async (id, _session, form) => {
   return redirect(`/admin/questions/${id}`, "Listings updated", true);
 });
 
-/** Confirmed-delete handlers for questions */
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
-  // The confirmation page shows the flattened text (newlines → " / "), and a
-  // single-line input can't carry the raw newlines, so verify against the same
-  // flattened form the operator can actually type.
+  // The confirmation page shows the flattened text (newlines become " / ").
+  // A single-line input cannot carry the raw newlines. Verify against the
+  // same flattened form the operator can actually type.
   identifier: (q) => questionTextFlat(q.text),
   identifierLabel: "Question text",
   load: (id) => getQuestionWithAnswers(id),

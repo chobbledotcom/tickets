@@ -59,377 +59,6 @@
     "long-sentence": 4,
     "banned-modal": 1
   },
-  "src/features/admin/attendees-csv.ts": {
-    "semicolon": 4,
-    "contraction": 2,
-    "banned-modal": 1,
-    "long-sentence": 2
-  },
-  "src/features/admin/attendees-edit.ts": {
-    "long-sentence": 1,
-    "present-perfect": 1
-  },
-  "src/features/admin/attendees-list.ts": {
-    "semicolon": 3,
-    "long-sentence": 2,
-    "contraction": 1
-  },
-  "src/features/admin/attendees-route-helpers.ts": {
-    "banned-modal": 1,
-    "long-sentence": 4,
-    "semicolon": 1
-  },
-  "src/features/admin/attendees.ts": {
-    "long-sentence": 6
-  },
-  "src/features/admin/attributes.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/auth.ts": {
-    "long-sentence": 2,
-    "semicolon": 2,
-    "banned-modal": 1,
-    "contraction": 2
-  },
-  "src/features/admin/backup.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/builder.ts": {
-    "contraction": 1
-  },
-  "src/features/admin/built-site-renewal-actions.ts": {
-    "banned-modal": 3,
-    "long-sentence": 1,
-    "contraction": 1
-  },
-  "src/features/admin/built-sites.ts": {
-    "long-sentence": 5,
-    "contraction": 1,
-    "banned-modal": 3,
-    "present-perfect": 1
-  },
-  "src/features/admin/bulk-email.ts": {
-    "banned-modal": 2,
-    "contraction": 2,
-    "long-sentence": 2
-  },
-  "src/features/admin/calendar-csv.ts": {
-    "long-sentence": 5,
-    "semicolon": 3
-  },
-  "src/features/admin/calendar.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/catalog-transfer/export.ts": {
-    "long-sentence": 4,
-    "semicolon": 1,
-    "contraction": 2,
-    "wordy": 1
-  },
-  "src/features/admin/catalog-transfer/import-listing.ts": {
-    "long-sentence": 2,
-    "banned-modal": 1
-  },
-  "src/features/admin/catalog-transfer/import.ts": {
-    "banned-modal": 1,
-    "long-sentence": 1
-  },
-  "src/features/admin/catalog-transfer/membership.ts": {
-    "semicolon": 2
-  },
-  "src/features/admin/catalog-transfer/routes.ts": {
-    "wordy": 2,
-    "long-sentence": 2,
-    "semicolon": 2
-  },
-  "src/features/admin/confirmation.ts": {
-    "wordy": 6,
-    "long-sentence": 1,
-    "contraction": 1
-  },
-  "src/features/admin/contact-history.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/content-form-fields.ts": {
-    "long-sentence": 5,
-    "banned-modal": 1,
-    "wordy": 2,
-    "semicolon": 1
-  },
-  "src/features/admin/crud-handlers.ts": {
-    "semicolon": 1,
-    "long-sentence": 2,
-    "wordy": 3,
-    "contraction": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/dashboard.ts": {
-    "wordy": 2,
-    "long-sentence": 5,
-    "semicolon": 2
-  },
-  "src/features/admin/debug.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/group-form-post.ts": {
-    "semicolon": 2
-  },
-  "src/features/admin/group-page.ts": {
-    "long-sentence": 5,
-    "banned-modal": 2,
-    "contraction": 1
-  },
-  "src/features/admin/guide.ts": {
-    "banned-modal": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/images.ts": {
-    "banned-modal": 7,
-    "long-sentence": 2
-  },
-  "src/features/admin/index.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/item-images.ts": {
-    "banned-modal": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/listing-page-data.ts": {
-    "long-sentence": 5,
-    "banned-modal": 2,
-    "semicolon": 3,
-    "present-perfect": 1
-  },
-  "src/features/admin/listing-page-management-panels.ts": {
-    "long-sentence": 2,
-    "semicolon": 1,
-    "contraction": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/listings-csv.ts": {
-    "contraction": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/listings-edit-save.ts": {
-    "long-sentence": 4,
-    "contraction": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/listings-export.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/listings-lifecycle.ts": {
-    "contraction": 1,
-    "banned-modal": 3,
-    "long-sentence": 3
-  },
-  "src/features/admin/listings-uploads.ts": {
-    "long-sentence": 1,
-    "wordy": 1,
-    "contraction": 1
-  },
-  "src/features/admin/listings-view.ts": {
-    "long-sentence": 3,
-    "semicolon": 3,
-    "wordy": 1
-  },
-  "src/features/admin/listings.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/load-listing.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/logistics-agent-page.tsx": {
-    "banned-modal": 1
-  },
-  "src/features/admin/markdown-preview.ts": {
-    "long-sentence": 1,
-    "semicolon": 1,
-    "contraction": 1
-  },
-  "src/features/admin/migrate.ts": {
-    "long-sentence": 3,
-    "banned-modal": 1
-  },
-  "src/features/admin/modifier-add-on-reachability.ts": {
-    "long-sentence": 3,
-    "banned-modal": 2
-  },
-  "src/features/admin/modifier-links.ts": {
-    "wordy": 1,
-    "banned-modal": 2,
-    "long-sentence": 1
-  },
-  "src/features/admin/modifiers.ts": {
-    "contraction": 1,
-    "semicolon": 3,
-    "banned-modal": 1
-  },
-  "src/features/admin/news-page.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/news.ts": {
-    "long-sentence": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/previous-bookings.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/privacy.ts": {
-    "long-sentence": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/questions.ts": {
-    "long-sentence": 3,
-    "banned-modal": 2,
-    "contraction": 1
-  },
-  "src/features/admin/questions/answers.ts": {
-    "banned-modal": 1
-  },
-  "src/features/admin/refunds/attempt.ts": {
-    "long-sentence": 2
-  },
-  "src/features/admin/refunds/budget.ts": {
-    "semicolon": 2,
-    "banned-modal": 1
-  },
-  "src/features/admin/refunds/candidates.ts": {
-    "long-sentence": 2
-  },
-  "src/features/admin/refunds/claim.ts": {
-    "banned-modal": 2,
-    "present-perfect": 1
-  },
-  "src/features/admin/refunds/provider.ts": {
-    "banned-modal": 1
-  },
-  "src/features/admin/refunds/readiness-findings.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/refunds/readiness-problem.ts": {
-    "banned-modal": 2
-  },
-  "src/features/admin/refunds/readiness-run.ts": {
-    "banned-modal": 2
-  },
-  "src/features/admin/refunds/readiness.ts": {
-    "banned-modal": 1
-  },
-  "src/features/admin/refunds/waves.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/route-tables.ts": {
-    "long-sentence": 1,
-    "semicolon": 1,
-    "wordy": 1
-  },
-  "src/features/admin/scan-decision.ts": {
-    "long-sentence": 5,
-    "semicolon": 1
-  },
-  "src/features/admin/scanner.ts": {
-    "long-sentence": 3,
-    "semicolon": 1
-  },
-  "src/features/admin/servicing/page.tsx": {
-    "present-perfect": 1
-  },
-  "src/features/admin/settings-address-lookup.ts": {
-    "long-sentence": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/settings-connection-lines.ts": {
-    "long-sentence": 1,
-    "banned-modal": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/settings-domains.ts": {
-    "long-sentence": 1
-  },
-  "src/features/admin/settings-general.ts": {
-    "semicolon": 1,
-    "long-sentence": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/settings-header-image.ts": {
-    "contraction": 1
-  },
-  "src/features/admin/settings-helpers.ts": {
-    "wordy": 2,
-    "banned-modal": 4,
-    "semicolon": 1,
-    "long-sentence": 2,
-    "contraction": 1
-  },
-  "src/features/admin/settings-listing-defaults.ts": {
-    "semicolon": 5,
-    "contraction": 1,
-    "long-sentence": 3,
-    "banned-modal": 2
-  },
-  "src/features/admin/settings-logistics.ts": {
-    "contraction": 1
-  },
-  "src/features/admin/settings-provider-credentials.ts": {
-    "semicolon": 2,
-    "banned-modal": 1
-  },
-  "src/features/admin/settings-statuses.ts": {
-    "long-sentence": 2,
-    "contraction": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/settings-stripe.ts": {
-    "long-sentence": 1,
-    "present-perfect": 1,
-    "semicolon": 2,
-    "banned-modal": 1
-  },
-  "src/features/admin/settings-wallets.ts": {
-    "long-sentence": 2
-  },
-  "src/features/admin/site-content-page.ts": {
-    "long-sentence": 3,
-    "semicolon": 2,
-    "wordy": 1
-  },
-  "src/features/admin/site-content.ts": {
-    "banned-modal": 1,
-    "semicolon": 1
-  },
-  "src/features/admin/site-pages-data.ts": {
-    "long-sentence": 2,
-    "banned-modal": 2,
-    "semicolon": 1
-  },
-  "src/features/admin/site-pages-form.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/site-pages-page.ts": {
-    "semicolon": 1,
-    "long-sentence": 1
-  },
-  "src/features/admin/site-pages.ts": {
-    "long-sentence": 2,
-    "contraction": 2,
-    "semicolon": 4,
-    "banned-modal": 2
-  },
-  "src/features/admin/sms.ts": {
-    "long-sentence": 1,
-    "wordy": 1,
-    "banned-modal": 1
-  },
-  "src/features/admin/support.ts": {
-    "contraction": 1
-  },
-  "src/features/admin/users.ts": {
-    "participle": 1,
-    "long-sentence": 2,
-    "contraction": 2,
-    "semicolon": 1
-  },
   "src/features/api/booking.ts": {
     "semicolon": 1,
     "long-sentence": 3,
@@ -1171,10 +800,6 @@
   },
   "src/shared/child-parents.ts": {
     "long-sentence": 1
-  },
-  "src/shared/client-context.ts": {
-    "wordy": 1,
-    "contraction": 1
   },
   "src/shared/config.ts": {
     "long-sentence": 4,
@@ -2112,10 +1737,10 @@
     "long-sentence": 1
   },
   "src/shared/i18n.ts": {
-    "semicolon": 3,
-    "long-sentence": 4,
     "banned-modal": 1,
+    "long-sentence": 3,
     "contraction": 1,
+    "semicolon": 2,
     "wordy": 2
   },
   "src/shared/images/broken.ts": {
@@ -2222,7 +1847,6 @@
     "long-sentence": 1
   },
   "src/shared/listing-filter.ts": {
-    "long-sentence": 1,
     "wordy": 1,
     "semicolon": 1
   },
@@ -2583,7 +2207,6 @@
     "long-sentence": 3
   },
   "src/shared/request-trace.ts": {
-    "long-sentence": 1,
     "banned-modal": 1
   },
   "src/shared/reservation-amount.ts": {
@@ -3446,8 +3069,8 @@
   "src/ui/templates/components/actions.tsx": {
     "wordy": 3,
     "semicolon": 1,
-    "banned-modal": 2,
-    "long-sentence": 2
+    "long-sentence": 2,
+    "banned-modal": 2
   },
   "src/ui/templates/components/address-field.tsx": {
     "semicolon": 1

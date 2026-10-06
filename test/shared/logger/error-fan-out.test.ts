@@ -5,11 +5,11 @@ import {
   ErrorCode,
   logError,
   logErrorLocal,
-  runWithRequestId,
   withDeferredErrorReports,
 } from "#shared/logger.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const NTFY_URL = "https://ntfy.example.test/errors";
 
@@ -72,7 +72,7 @@ describe("error fan-out", () => {
   });
 
   test("marks operator detail when its activity-log copy is queued", async () => {
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       logError(operatorError);
 
       const line = firstErrorLine();
@@ -82,7 +82,7 @@ describe("error fan-out", () => {
   });
 
   test("does not mark operator detail for local-only errors", async () => {
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       logErrorLocal(operatorError);
       expect(firstErrorLine()).not.toContain("operatorDetail");
     });
@@ -97,7 +97,7 @@ describe("error fan-out", () => {
   test("sends the report out from inside a request", async () => {
     using _env = withEnv({ NTFY_URL });
 
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       logError({ code: ErrorCode.DB_QUERY });
     });
 
@@ -118,7 +118,7 @@ describe("error fan-out", () => {
   test("holds a deferred report until the critical work has finished", async () => {
     using _env = withEnv({ NTFY_URL });
 
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       await withDeferredErrorReports(async () => {
         logError({ code: ErrorCode.DB_QUERY });
         expect(ntfyCalls()).toBe(0);
@@ -131,7 +131,7 @@ describe("error fan-out", () => {
   test("sends every deferred report, not just the last", async () => {
     using _env = withEnv({ NTFY_URL });
 
-    await runWithRequestId(async () => {
+    await withRequestContext(async () => {
       await withDeferredErrorReports(async () => {
         logError({ code: ErrorCode.DB_QUERY });
         logError({ code: ErrorCode.EMAIL_SEND });

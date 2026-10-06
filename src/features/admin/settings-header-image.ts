@@ -53,7 +53,8 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
       );
     }
 
-    // Delete old header image if one exists (best-effort, don't block new upload)
+    // Delete the old header image when one exists (best-effort: a failure
+    // here does not block the new upload)
     const existingUrl = settings.headerImageUrl;
     if (existingUrl) {
       await tryDeleteFile(

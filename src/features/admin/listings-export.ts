@@ -24,9 +24,6 @@ import {
 
 /* jscpd:ignore-end */
 
-/**
- * Handle GET /admin/listing/:id/export (CSV export)
- */
 export const handleAdminListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export"
 > = (request, { id }) =>
@@ -40,8 +37,8 @@ export const handleAdminListingExport: TypedRouteHandler<
         const isDaily = listing.listing_type === "daily";
         const paymentReferenceAttendeeIds =
           await getAttendeeIdsWithPaymentReference(filteredByDate);
-        // Mirror the on-screen attendee table: drop the failed-payment rows
-        // that are split into the Failed Payments section, then apply the
+        // Mirror the on-screen attendee table. Drop the failed-payment rows
+        // that are split into the Failed Payments section. Then apply the
         // /in /out check-in filter and the roster's row order.
         const exported = attendeeListOrder(sort)(
           filterAttendees(

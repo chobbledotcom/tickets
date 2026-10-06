@@ -3,6 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createGroupWithListings,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 
@@ -42,6 +46,43 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
       expect(csv).not.toContain("Standard One");
       expect(
         await wasActivityLogged("Listings CSV exported (type: daily)"),
+      ).toBe(true);
+    });
+
+    test("filters the export to one group's listings", async () => {
+      const { group } = await createGroupWithListings("Autumn fair", [
+        "Fair Listing",
+      ]);
+      await createTestListing({ name: "Outside Listing" });
+      const response = await adminGet(`/admin/listings/csv?group=${group.id}`);
+      const csv = await response.text();
+      expect(csv).toContain("Fair Listing");
+      expect(csv).not.toContain("Outside Listing");
+      expect(
+        await wasActivityLogged("Listings CSV exported (group: Autumn fair)"),
+      ).toBe(true);
+    });
+
+    test("an unknown group exports every listing", async () => {
+      await createTestListing({ name: "Standard One" });
+      const csv = await (
+        await adminGet("/admin/listings/csv?group=999999")
+      ).text();
+      expect(csv).toContain("Standard One");
+      expect(await wasActivityLogged("Listings CSV exported")).toBe(true);
+    });
+
+    test("an empty group exports just the header", async () => {
+      const group = await createTestGroup({ name: "Empty group" });
+      await createTestListing({ name: "Outside Listing" });
+      const csv = await (
+        await adminGet(`/admin/listings/csv?group=${group.id}`)
+      ).text();
+      // Only the header line: the group exists but holds no listings.
+      expect(csv).toContain("Name,Status,Type");
+      expect(csv).not.toContain("Outside Listing");
+      expect(
+        await wasActivityLogged("Listings CSV exported (group: Empty group)"),
       ).toBe(true);
     });
   });

@@ -34,8 +34,8 @@ type ProviderCredentialsConfig<T> = {
   successMessage: string;
   logMessage: string;
   /** Flash for a secret-only provider (no extra fields) when the submission
-   * carries no new secret — a genuine no-op. Set only by such providers;
-   * providers with extra fields always persist and never go "unchanged". */
+   * carries no new secret — a genuine no-op. Set only by such providers.
+   * Providers with extra fields always persist and never go "unchanged". */
   unchangedMessage?: string;
   /** Extract the non-secret fields (location, merchant code, …). */
   extraFields?: (form: FormParams) => T;
@@ -47,8 +47,8 @@ type ProviderCredentialsConfig<T> = {
     secret: SecretFieldResult,
   ) => string | null | Promise<string | null>;
   /** Persist a newly provided secret and run any provider setup it needs.
-   * Return an error string when an expected setup failure should be shown on
-   * the form. Thrown failures propagate. */
+   * Return an error string when the form must show an expected setup failure.
+   * Thrown failures propagate. */
   saveSecret: (
     value: string,
     activateFromMissing: boolean,
@@ -80,7 +80,7 @@ const persistProviderCredentials = async <T>(
 
 /**
  * Build the `{ save, test }` route pair for a payment provider's credentials.
- * Stripe includes webhook provisioning in its secret save; the rest differ
+ * Stripe includes webhook provisioning in its secret save. The rest differ
  * only in their fields, validation, and persistence.
  */
 export const defineProviderCredentialsRoute = <T>(

@@ -1,7 +1,5 @@
-import { afterEach } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
-import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { pagePackage as sharedPagePackage } from "#test-utils/package-cap-fixtures.ts";
@@ -90,8 +88,4 @@ export const pagePackage = (
  * level it would register *global* hooks, which cannot be added once any
  * other module's tests exist (files share an isolate under the grouped
  * runner). */
-export const registerPublicTemplateHooks = (): void => {
-  afterEach(() => {
-    detectIframeMode(new URL("https://example.com/"));
-  });
-};
+export const registerPublicTemplateHooks = (): void => {};

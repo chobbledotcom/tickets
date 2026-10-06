@@ -12,8 +12,8 @@ import {
 import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
-import { getIframeMode } from "#shared/iframe.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { getIframeMode } from "#shared/request-context.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
 import type { Theme } from "#types";

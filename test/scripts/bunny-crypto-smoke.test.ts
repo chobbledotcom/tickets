@@ -29,7 +29,9 @@ const loadSmokeScript = async (): Promise<SmokeScript> => {
       `data:text/javascript;charset=utf-8,${encodeURIComponent(code)}#${crypto.randomUUID()}`
     );
   } finally {
-    stop();
+    // stop() answers a promise: without the await the service process can
+    // outlive the test, which the leak detector reports as a failure.
+    await stop();
   }
 };
 

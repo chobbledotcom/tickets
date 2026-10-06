@@ -67,17 +67,15 @@ export const verifyIdentifierOrJsonError = (
   return null;
 };
 
-// ── createVerifiedFormRoute: auth + load + verify identifier + action ─
-
 type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
   TParams,
   TContext
 > & {
-  /** The identifier the user must type (e.g. entity name) */
+  /** The identifier the user must type (for example, the entity name) */
   identifier: (context: TContext, params: TParams) => string | Promise<string>;
-  /** Label for the identifier field (e.g. "Listing name") */
+  /** Label for the identifier field (for example, "Listing name") */
   identifierLabel: string;
-  /** Action suffix for the mismatch error (e.g. "deletion") */
+  /** Action suffix for the mismatch error (for example, "deletion") */
   actionLabel?: string;
   /** Where to redirect on identifier mismatch */
   mismatchRedirect: (context: TContext, params: TParams) => string;
@@ -85,11 +83,6 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
   onConfirm: AuthedHandleStep<TParams, TContext>;
 };
 
-/**
- * Auth + CSRF + optional entity load + confirm_identifier verification,
- * then dispatch to `onConfirm`. Mismatch → errorRedirect with a consistent
- * "X does not match" message.
- */
 export const createVerifiedFormRoute = <TParams, TContext>(
   config: VerifiedFormRouteConfig<TParams, TContext>,
 ): ParamsRoute<TParams> =>
@@ -119,11 +112,10 @@ type AuthOption<TSession> =
 export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
   /** Auth guards: "owner" | "any" shorthand, or explicit { requireSession, withForm } */
   auth?: AuthOption<TSession>;
-  /** Route path pattern, e.g. "/admin/users/:id/delete" */
+  /** Route path pattern, for example "/admin/users/:id/delete" */
   path: string;
   /** Load the entity by ID (return null if not found) */
   load: (id: number, session: TSession) => Promise<T | null>;
-  /** Render the confirmation page HTML */
   render: (
     model: T,
     session: TSession,
@@ -141,28 +133,25 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
     session: TSession,
     form: FormParams,
   ) => Promise<void> | Promise<Response | undefined>;
-  /** Where to redirect after success (string or function of model + id) */
   successRedirect: string | ((model: T, id: number) => string);
-  /** Flash message shown after success */
   successMessage: string;
-  /** Human-readable label for the identifier field (e.g. "Username") */
+  /** Human-readable label for the identifier field (for example, "Username") */
   identifierLabel: string;
   /** Action label for the verification prompt (default "deletion") */
   actionLabel?: string;
-  /** Optional pre-validation before loading (e.g. self-delete check) */
+  /** Optional pre-validation before loading (for example, a self-delete check) */
   preValidate?: (
     id: number,
     session: TSession,
   ) => Response | null | Promise<Response | null>;
   /**
    * Optional guard producing a user-facing error message (or null when the
-   * action is allowed). Unlike {@link preValidate} — which returns a full
-   * Response and runs identically on the GET and the POST — this distinguishes
-   * the two requests so the confirmation GET never redirects to itself:
-   * the GET **renders** the confirmation page *with* the
-   * error (still 200), while the POST **blocks** the action with an error
-   * redirect back to the confirmation page. Runs after the entity loads, so it
-   * can reason about the loaded model's id.
+   * action is allowed). Unlike {@link preValidate}, which returns a full
+   * Response and runs identically on the GET and the POST, this distinguishes
+   * the two requests. The confirmation GET never redirects to itself: it
+   * renders the confirmation page with the error, still 200. The POST blocks
+   * the action with an error redirect back to the confirmation page. Runs
+   * after the entity loads, so it can reason about the loaded model's id.
    */
   guardError?: (
     model: T,
@@ -173,13 +162,11 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
   onNotFound?: ResponseHandler<[id: number, session: TSession]>;
 };
 
-/** Return type of createConfirmedHandlers */
 export type ConfirmedHandlers = {
   get: (request: Request, id: number) => Promise<Response>;
   post: (request: Request, id: number) => Promise<Response>;
 };
 
-/** Resolve auth option to concrete guard functions */
 const resolveAuth = <TSession>(auth: AuthOption<TSession> | undefined) => {
   if (typeof auth === "object") return auth;
   const isOwner = auth !== "any";
@@ -216,8 +203,6 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
   const guardError = (model: T, id: number, session: TSession) =>
     config.guardError ? config.guardError(model, id, session) : null;
 
-  /** The shared opening step of the GET and the POST: run `preValidate`, load
-   * the model (not-found response when missing), then hand it to `proceed`. */
   const withModel = async (
     id: number,
     session: TSession,
@@ -235,7 +220,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
     requireSession(request, (session) =>
       withModel(id, session, async (result) => {
         // A guard error is rendered into the confirmation page (200), never a
-        // redirect — so the GET can't loop back to itself. A flash error
+        // redirect — so the GET cannot loop back to itself. A flash error
         // from a prior POST block takes precedence when present.
         const flash = getFlash();
         const error = flash.error ?? (await guardError(result, id, session));

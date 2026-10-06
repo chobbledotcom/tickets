@@ -28,7 +28,7 @@ import { contactHistoryPage } from "#templates/admin/contact-history.tsx";
 
 /* jscpd:ignore-end */
 
-/** Load the record for the editor, tolerating a corrupt stats blob — this
+/** Load the record for the editor, tolerating a corrupt stats blob. This
  * editor is the repair path, so a decryption failure must not lock the
  * operator out. */
 const loadForRepair = getContactRecordOrRepair("contact history editor");

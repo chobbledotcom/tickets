@@ -139,9 +139,10 @@ const sendSms = (
       await recordSmsMessage({ attendeeId, listingId, providerId });
       // Count the text against this phone contact so the history panel's
       // "Total phone messages" reflects SMS, not just bulk email. Best-effort:
-      // the message is already sent, so a contact-history write failure (e.g. an
-      // undecryptable stats_blob) must not report the send as failed and prompt
-      // the operator to retry — that would deliver a duplicate text.
+      // the message is already sent, so a contact-history write failure (for
+      // example an undecryptable stats_blob) must not report the send as
+      // failed. A failure prompt sends the operator to retry, and the retry
+      // delivers a duplicate text.
       await bestEffort("SMS contact-history update", async () =>
         recordContacts(
           [await hashPhone(phone)],

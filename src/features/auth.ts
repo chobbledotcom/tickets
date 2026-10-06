@@ -26,7 +26,6 @@ import {
   ownerOnlyAudience,
 } from "#shared/admin-surface/definitions.ts";
 import { adminPageAudience } from "#shared/admin-surface.ts";
-import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
@@ -36,6 +35,7 @@ import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { getRequestClientIp } from "#shared/request-context.ts";
 import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";

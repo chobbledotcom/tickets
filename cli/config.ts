@@ -40,10 +40,16 @@ const requiredPrompt = (label: string): string => {
   return value;
 };
 
+const ENV_BASE_URL = "BASE_URL";
+
 export const loadConfig = async (envDir: string): Promise<CliConfig> => {
   const envFile = await readDotEnv(envDir);
+  // The deployment .env names the site BASE_URL; accept it as the host.
   const apiHostname = cleanHost(
-    Deno.env.get(ENV_HOST) ?? envFile[ENV_HOST] ?? requiredPrompt("API host"),
+    Deno.env.get(ENV_HOST) ??
+      envFile[ENV_HOST] ??
+      envFile[ENV_BASE_URL] ??
+      requiredPrompt("API host"),
   );
   const apiKey =
     Deno.env.get(ENV_KEY) ?? envFile[ENV_KEY] ?? requiredPrompt("API key");

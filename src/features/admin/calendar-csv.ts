@@ -1,9 +1,7 @@
 /**
- * Calendar CSV export: attendees across multiple listings (one row per
- * booking), prefixed with the listing name and, when present, listing
- * date/location, and — for logistics listings — start/end agent + time columns
- * and map links. Built from the shared attendee columns plus calendar-specific
- * ones and handed to the pure {@link CSV.generate}.
+ * The calendar CSV export: one row per booking, attendees across multiple
+ * listings. Logistics listings gain start/end agent and time columns plus map
+ * links.
  */
 
 import { isServicing } from "#db/attendees/kind.ts";
@@ -36,9 +34,9 @@ export type CalendarAttendee = Attendee & {
 };
 
 /**
- * Logistics run-sheet context. When provided and at least one exported booking
- * belongs to a logistics listing, the CSV gains start/end agent + time columns
- * and Google/Apple map links for the attendee's address.
+ * Logistics run-sheet context. When at least one exported booking belongs to a
+ * logistics listing, the CSV gains start/end agent and time columns. It also
+ * gains Google and Apple map links for the attendee's address.
  */
 export type CalendarLogisticsCsv = {
   /** Listing ids that use logistics (only these rows get the extra columns). */
@@ -67,7 +65,7 @@ export const toCalendarAttendees = <
   });
 };
 
-/** The six logistics columns; each is blank for non-logistics bookings. */
+/** The six logistics columns. Each is blank for non-logistics bookings. */
 const logisticsColumns = (
   logistics: CalendarLogisticsCsv,
 ): Column<CalendarAttendee>[] => {
@@ -75,7 +73,7 @@ const logisticsColumns = (
     logistics.assignments.get(bookingAssignmentKey(a.id, a.listing_id));
   const agentName = (id: number | null | undefined): string =>
     isNullish(id) ? "" : (logistics.agentNames.get(id) ?? "");
-  // Only logistics-listing rows get values; the rest stay blank.
+  // Only logistics-listing rows get values. The rest stay blank.
   const onLogistics =
     (cell: (a: CalendarAttendee) => string) =>
     (a: CalendarAttendee): string =>
@@ -108,16 +106,16 @@ const logisticsColumns = (
 
 /** The row's type label for the calendar CSV: "Service event" for a servicing
  *  hold, "Attendee" for a real customer. Servicing rows carry blank contact
- *  fields (and no followable ticket URL), so the Type column is what makes a
- *  hold readable in the run sheet instead of looking like a customer with
- *  missing data. */
+ *  fields, and no followable ticket URL. The Type column is what makes a hold
+ *  readable in the run sheet instead of looking like a customer with missing
+ *  data. */
 const typeLabel = (a: CalendarAttendee): string =>
   isServicing(a.kind) ? "Service event" : "Attendee";
 
-/** The ordered calendar columns: Type, Listing name, optional listing date/location,
- * the booking Date, the standard attendee columns, then — when a run-sheet
- * context applies to any row — the logistics columns. Pure; built per call so
- * the active locale applies. */
+/** The ordered calendar columns. Type and Listing name come first, then
+ * optional listing date/location, the booking Date, and the standard attendee
+ * columns. The logistics columns join when a run-sheet context applies to any
+ * row. Pure — built per call so the active locale applies. */
 const calendarColumns = ({
   attendees,
   domain,
@@ -156,10 +154,9 @@ const calendarColumns = ({
 };
 
 /**
- * Generate CSV content for the calendar view. Conditionally includes Listing
- * Date / Listing Location columns based on the data, and the logistics columns
- * when a run-sheet context is supplied and any row is a logistics booking. The
- * Listing Date is rendered in `tz`.
+ * CSV content for the calendar view. The logistics columns appear when a
+ * run-sheet context is supplied and any row is a logistics booking. The
+ * Listing Date renders in `tz`.
  */
 export const generateCalendarCsv = (
   attendees: CalendarAttendee[],

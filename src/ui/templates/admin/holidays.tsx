@@ -19,6 +19,7 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import {
+  confirmByName,
   defineAdminResourcePages,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
@@ -105,12 +106,10 @@ export const getHolidayPages = (): ReturnType<
       }),
       danger: false,
       heading: t("holidays.delete.heading"),
-      label: t("holidays.delete.confirm_label"),
-      name: (holiday) => holiday.name,
-      prompt: (holiday) => ({
-        args: { name: holiday.name },
-        key: "holidays.delete.confirm_prompt",
-      }),
+      ...confirmByName(
+        "holidays.delete.confirm_label",
+        "holidays.delete.confirm_prompt",
+      ),
     },
     labels: {
       addHeading: t("holidays.add.heading"),

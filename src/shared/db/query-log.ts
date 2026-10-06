@@ -13,7 +13,7 @@
 import { lazyRef, map, pipe, reduce, sort } from "#fp";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
-import { createScope } from "#shared/request-scoped.ts";
+import { createScope, type PromiseTask } from "#shared/request-scoped.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   countSubrequest,
@@ -285,7 +285,7 @@ export const enforceTransactionRoundTripGuard = (
  */
 export const trackSql = async <T>(
   sql: string | string[],
-  fn: () => Promise<T>,
+  fn: PromiseTask<T>,
 ): Promise<T> => {
   const store = queryLogScope.current();
   if (store && typeof sql === "string") enforceN1Guard(store, sql);

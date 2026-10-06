@@ -1,7 +1,3 @@
-/**
- * Shared utilities for admin attendee route handlers
- */
-
 import { pairKey } from "#booking/ticket-moves.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
@@ -40,7 +36,6 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminSession, Attendee, ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
-/** Attendee with listing data */
 export type AttendeeWithListing = {
   attendee: Attendee;
   listing: ListingWithCount;
@@ -73,7 +68,7 @@ export const loadAttendeeForListing: ListingAttendeeLoader = async (
   const result = await getListingWithAttendeeRaw(listingId, attendeeId);
   if (result === null || result.attendeeRows.length === 0) return null;
   // The row exists, so its decrypt always answers — the null-tolerant helper
-  // is for the batch reads that may hold no row.
+  // is for the batch reads that can hold no row.
   const attendee = await decryptAttendeeFields(
     result.attendeeRows[0]!,
     await requireRequestPrivateKey(),
@@ -82,8 +77,8 @@ export const loadAttendeeForListing: ListingAttendeeLoader = async (
 };
 
 /** Load the person's whole booking on one listing. Several lines can share
- * the pair — two parents, two dates — and a check-in moves the whole
- * booking, so the page and the POST read the counts the write moves. */
+ * the pair: two parents, two dates. A check-in moves the whole booking, so
+ * the page and the POST read the counts the write moves. */
 export const loadAttendeeBooking: ListingAttendeeLoader = async (
   listingId,
   attendeeId,
@@ -99,13 +94,10 @@ export const loadAttendeeBooking: ListingAttendeeLoader = async (
   return { ...loaded, attendee: { ...loaded.attendee, ...booking } };
 };
 
-/** Load attendee with auth, returning 404 if not found */
 export const withAttendee = withEntityLoader(loadAttendeeForListing);
 
-/** Load the person's whole booking with auth, answering 404 when absent. */
 export const withAttendeeBooking = withEntityLoader(loadAttendeeBooking);
 
-/** Load and decrypt one attendee by id with the request's session key. */
 const getDecryptedAttendee = async (
   attendeeId: number,
 ): Promise<Attendee | null> =>
@@ -169,10 +161,8 @@ const loadAttendeeWithBooking: (
   },
 );
 
-/** Route params for listing-scoped routes */
 export type ListingRouteParams = { id: number };
 
-/** Route params for listing-scoped attendee routes */
 type AttendeeRouteParams = { listingId: number; attendeeId: number };
 
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
@@ -181,9 +171,9 @@ export const attendeeActionUrl = <Action extends string>(
   action: Action,
 ): string => `/admin/attendees/${attendeeId}/${action}`;
 
-/** The action URL with the caller's return_url threaded on, so bouncing back
- *  to the confirm page keeps its "return here when done" link (and hidden
- *  field) for a corrected retry. Empty return_url yields the plain action URL. */
+/** The action URL with the caller's return_url threaded on. Bouncing back to
+ *  the confirm page then keeps its "return here when done" link and hidden
+ *  field for a corrected retry. Empty return_url yields the plain action URL. */
 export const attendeeActionUrlWithReturn = (
   attendeeId: number,
   action: string,
@@ -193,7 +183,6 @@ export const attendeeActionUrlWithReturn = (
     returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : ""
   }`;
 
-/** An attendee-action confirm page renderer's shape. */
 type AttendeeActionRenderer<Data> = (
   data: Data,
   session: AdminSession,
@@ -236,9 +225,7 @@ type AttendeeActionDefinition<
     handler: ResponseHandler<[data: Data, form: FormParams]>,
     auth?: AuthPolicy<"form">,
   ) => AttendeeActionRoute;
-  /** The real route owned by this action. */
   url: (attendeeId: number) => string;
-  /** The action segment this definition owns. */
   readonly action: Action;
 };
 
@@ -314,8 +301,8 @@ const defineAttendeeActions = <
   },
 ): Actions => actions;
 
-/** The complete action schema. Adding an action means choosing its scope once;
- * its route loader and page visibility then share that decision. */
+/** The complete action schema. Adding an action means choosing its scope
+ * once. Its route loader and page visibility then share that decision. */
 export const attendeeActions = defineAttendeeActions({
   delete: attendeeAction("delete"),
   "payment-review": scopedAction(
@@ -328,17 +315,14 @@ export const attendeeActions = defineAttendeeActions({
   "send-text": bookingAction("send-text"),
 });
 
-/** Select a lifecycle action from the complete attendee-action schema. */
 export const paymentRecoveryAction = (
   action: PaymentRecoveryAction,
 ): (typeof attendeeActions)[PaymentRecoveryAction] => attendeeActions[action];
 
-/** Route params for a POST scoped to one attendee by its id alone. */
 type AttendeeIdRouteParams = { attendeeId: number };
 
-/** A POST route scoped to one attendee (no listing load): authenticate under
- * the admin form gate, then run `handle` with the attendee id, the session, and
- * the parsed form. Shared by the note and logistics POSTs. */
+/** A POST route scoped to one attendee, with no listing load. Shared by the
+ * note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
 ): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
@@ -347,11 +331,9 @@ export const attendeeFormPost = (
       handle(params.attendeeId, session, form),
   });
 
-/** Read return_url from request query params */
 export const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
-/** Attendee form handler that receives typed IDs */
 type AttendeeFormAction = ResponseHandler<
   [
     data: AttendeeWithListing,
@@ -362,9 +344,9 @@ type AttendeeFormAction = ResponseHandler<
   ]
 >;
 
-/** Create an attendee form handler with typed IDs, loading its context with
- * `load` — the line loader for row-scoped actions, the booking loader for
- * check-in actions that move the whole (person, listing) booking. */
+/** Create an attendee form handler with typed IDs. The `load` argument picks
+ * the context: the line loader for row-scoped actions. The booking loader
+ * serves the check-in actions that move the whole (person, listing) booking. */
 const attendeeFormActionLoading =
   (
     load: (
@@ -381,7 +363,6 @@ const attendeeFormActionLoading =
       loadContext: ({ listingId, attendeeId }) => load(listingId, attendeeId),
     });
 
-/** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = attendeeFormActionLoading(
   loadAttendeeForListing,
 );

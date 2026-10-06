@@ -1,7 +1,7 @@
 /**
  * POST handler factory for a group's own form routes: CSRF, auth, and the
  * group row loaded from the table, handed to the handler together. The
- * default gate admits back-office staff only; callers that also serve
+ * default gate admits back-office staff only. Callers that also serve
  * content editors pass their own policy.
  */
 
@@ -15,11 +15,6 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { Group } from "#types";
 /* jscpd:ignore-end */
 
-/**
- * POST handler factory: CSRF-validated form + loaded group.
- * Callers receive the group and the parsed form; a missing session or
- * missing group short-circuits with the appropriate response.
- */
 export const groupFormPost = (
   handler: ResponseHandler<[group: Group, form: FormParams]>,
   auth: AuthPolicy<"form"> = AUTH_FORM,

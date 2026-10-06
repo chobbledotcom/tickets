@@ -48,9 +48,9 @@ const handleSupportGet = ownerResponsePage((session, _request, flash) => {
 });
 
 /** Validate the message, deliver to the host (from the site's business email),
- * then record the submission for the nag. 404s when the form is not active so
- * the endpoint only exists when configured. The submitter's address isn't read:
- * support always comes from the site's own business email. */
+ * then record the submission for the nag. The endpoint 404s when the form is
+ * not active, so it only exists when configured. Support always comes from
+ * the site's own business email. The submitter's address is not read. */
 const submitSupportMessage = async (form: FormParams): Promise<Response> => {
   if (!isSupportFormActive()) return notFoundResponse();
   const message = requireMessageField(form, SUPPORT_PATH);

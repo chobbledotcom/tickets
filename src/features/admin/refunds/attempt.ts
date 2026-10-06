@@ -99,7 +99,7 @@ const standDownResult = (
 
 /** What each engine answer comes to for the reference the operator asked
  * about. `returned` is absent from both sides: it is the one answer that
- * carries a receipt, so it can never be a bare outcome, and `refunded` can
+ * carries a receipt, so it can never be a bare outcome. `refunded` can
  * never be reported without one. Every other answer is a key here, and a new
  * one stops this compiling until somebody says what it means for the money. */
 const ENGINE_OUTCOME: Record<
@@ -124,7 +124,7 @@ const engineResult = (
     return { authority: result.authority, outcome: "refunded" };
   }
   // A provider that turned the request down is a failure the owner sees now,
-  // not a wait — every other reason they must answer is still in flight.
+  // not a wait. Every other reason the owner must answer is still in flight.
   if (
     result.kind === "needs_owner_choice" &&
     result.reason === "provider_rejected"

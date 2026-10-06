@@ -106,9 +106,9 @@ const sendOutcome = (
     provider: EMAIL_PROVIDER_LABELS[config.provider],
     summary,
   };
-  // Only a provider that refused every message sent none. One that left
-  // them unconfirmed may still have sent them, and telling the operator
-  // otherwise is how the same mailshot goes out twice.
+  // Only a provider that refused every message sent none. A provider that
+  // leaves messages unconfirmed gives no answer about delivery. Telling the
+  // operator otherwise is how the same mailshot goes out twice.
   if (refused === attempted) {
     return fail(COMPOSE_PATH, t("bulk_email.sent_none_flash", values));
   }
@@ -168,7 +168,6 @@ const parseSavedDraft = async (
   return parseDraft(await decryptWithOwnerKey(raw, privateKey));
 };
 
-/** Serialize and encrypt a draft using the owner's public key. */
 const saveDraft = async (
   draft: Parameters<typeof serializeDraft>[0],
 ): Promise<void> => {
@@ -179,7 +178,6 @@ const saveDraft = async (
   await settings.update.bulkEmailDraft(encrypted);
 };
 
-/** Split recipients into those who'll be sent to and a skipped (unsubscribed) count. */
 const partitionRecipients = async (
   recipients: string[],
   marketing: boolean,
@@ -208,18 +206,19 @@ const decryptTemplateSubjects = async (
   );
 };
 
-/** GET /admin/emails — compose form. The flash itself is rendered by the
- * targeted form or the Layout backstop — not threaded here. */
+/** The flash itself is rendered by the targeted form or the Layout backstop,
+ * not threaded here. */
 const handleComposeGet = ownerResponsePage(async (session, request) => {
   const params = new URL(request.url).searchParams;
   const target = await targetFromQuery(params);
   if (!target) return notFoundResponse();
   const { recipients, privateKey, canBulkSend, disabledReason } =
     await loadSendContext(target);
-  // A listing or attendee target with no emailable recipient (an unknown
-  // attendee token, or nobody with an email on file) has nothing to send to —
-  // treat it as not found rather than rendering an empty compose page. Named
-  // audiences are allowed to be empty (they may fill up later).
+  // A listing or attendee target with no emailable recipient has nothing to
+  // send to. An unknown attendee token, or nobody with an email on file, is
+  // the usual cause. Treat it as not found rather than rendering an empty
+  // compose page. Named audiences are allowed to be empty, because they can
+  // fill up later.
   if (!targetAllowsEmpty(target) && recipients.length === 0) {
     return notFoundResponse();
   }
@@ -447,10 +446,10 @@ const handleTemplateSavePost = validatedEmailPost(
 );
 
 /**
- * GET/POST /admin/emails/templates/:id/delete — typed-confirmation delete,
- * matching the round-trip flow used for other named resources. The subject is
- * encrypted, so it's decrypted with the owner's private key both to display the
- * confirmation page and to be the identifier the owner must re-type.
+ * Typed-confirmation delete for a template, matching the round-trip flow used
+ * for other named resources. The subject is encrypted. The owner's private
+ * key decrypts it twice: once to display the confirmation page, once as the
+ * identifier the owner must re-type.
  */
 const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
   {
