@@ -3022,7 +3022,7 @@
   },
   "src/ui/templates/public/reservations/child-pricing.ts": {
     "long-sentence": 8,
-    "semicolon": 6,
+    "semicolon": 5,
     "contraction": 3,
     "banned-modal": 2
   },
