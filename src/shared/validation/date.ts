@@ -50,9 +50,9 @@ export const parseDateString = (raw: string): DateString | null => {
   return value as DateString;
 };
 
-/** Parse a date that a checked boundary has already cleaned — a stored value
- *  or a validated form value. A stored date the rule refuses is an
- *  impossible state. Name where it came from and stop loudly. */
+/** Parse a date that a checked boundary has already cleaned — a validated
+ *  form value. A value the rule refuses stops loudly: name where it came
+ *  from. */
 export const parseDateStringOrThrow = (
   raw: string,
   what: string,
@@ -62,6 +62,29 @@ export const parseDateStringOrThrow = (
     throw new Error(`${what} does not hold a usable date: ${raw}`);
   }
   return parsed;
+};
+
+/** The unpadded-ISO repair of the pre-2476 mapper's stored dates, or null
+ *  when the value is not that shape. */
+const padLegacyDateParts = (raw: string): string | null => {
+  const parts = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw.trim());
+  return parts === null
+    ? null
+    : `${parts[1]}-${parts[2]!.padStart(2, "0")}-${parts[3]!.padStart(2, "0")}`;
+};
+
+/** Parse a stored date as a read fallback. The pre-2476 mapper stored
+ *  supplied strings without validation, so legacy rows can hold unpadded
+ *  dates whose parts are unambiguous: "2027-6-1" names June the first. One
+ *  bounded repair pads those parts and re-runs the strict rule. A value the
+ *  rule still refuses stops loudly: the repair must not guess. */
+export const parseStoredDateString = (
+  raw: string,
+  what: string,
+): DateString => {
+  const parsed = parseDateString(padLegacyDateParts(raw) ?? raw);
+  if (parsed !== null) return parsed;
+  return parseDateStringOrThrow(raw, what);
 };
 
 /** Whether a value is a UTC instant of a real calendar day — the shape the

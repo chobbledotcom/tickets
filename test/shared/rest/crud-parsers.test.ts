@@ -78,6 +78,13 @@ test("optionalDateString stops loudly on an unusable stored fallback", () => {
   );
 });
 
+test("optionalDateString repairs a legacy unpadded stored fallback", () => {
+  expect(optionalDateString({}, "start_date", "2027-6-1")).toEqual({
+    ok: true,
+    value: "2027-06-01",
+  });
+});
+
 test("parseOptionalArray maps each entry through the parser", () => {
   expect(
     parseOptionalArray([1, 2], "items", (item) => okResult(Number(item))),

@@ -12,7 +12,7 @@ import {
 import {
   type DateString,
   parseDateString,
-  parseDateStringOrThrow,
+  parseStoredDateString,
 } from "#shared/validation/date.ts";
 import type { AdminSession } from "#types";
 
@@ -154,7 +154,7 @@ export const optionalDateString = (
     body,
     key,
     (value) => dateStringResult(key, value),
-    () => okResult(parseDateStringOrThrow(fallback, `${key} fallback`)),
+    () => okResult(parseStoredDateString(fallback, `${key} fallback`)),
   );
 
 /**
