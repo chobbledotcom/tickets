@@ -64,10 +64,10 @@
     "semicolon": 1
   },
   "src/features/auth.ts": {
-    "long-sentence": 11,
     "wordy": 5,
     "banned-modal": 9,
-    "semicolon": 6,
+    "semicolon": 4,
+    "long-sentence": 9,
     "contraction": 2
   },
   "src/features/checkin.ts": {
@@ -2035,7 +2035,7 @@
     "semicolon": 1
   },
   "src/shared/request-scoped.ts": {
-    "long-sentence": 3
+    "long-sentence": 2
   },
   "src/shared/request-trace.ts": {
     "banned-modal": 1
@@ -2052,11 +2052,11 @@
     "semicolon": 1
   },
   "src/shared/rest/crud-api-types.ts": {
-    "wordy": 8,
     "banned-modal": 2,
     "present-perfect": 1,
-    "long-sentence": 5,
-    "semicolon": 3
+    "wordy": 8,
+    "semicolon": 3,
+    "long-sentence": 5
   },
   "src/shared/rest/crud-api.ts": {
     "long-sentence": 3,

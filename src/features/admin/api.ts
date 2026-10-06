@@ -185,8 +185,8 @@ const listingApiRoutes = defineCrudApi<
   // transaction, so two concurrent page-removing saves cannot both commit.
   checkTx: listingSaveOrphanedAddOnTx,
   // Role parity with the listing pages: create/edit/duplicate admit content
-  // admins (owner, manager, editor — areas-a-l.ts "listings"), while the
-  // delete, deactivate, and reactivate routes are staff-only, so an editor
+  // admins (owner, manager, editor — areas-a-l.ts "listings"). The delete,
+  // deactivate, and reactivate routes are staff-only. An editor therefore
   // writes through the API exactly as far as the dashboard allows.
   deletePolicy: ADMIN_API,
   extraRoutes: {
