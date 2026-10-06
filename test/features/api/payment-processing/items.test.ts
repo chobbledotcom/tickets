@@ -128,7 +128,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       unitPrice: 500,
     });
     const { execute } = await import("#db/client.ts");
-    await execute("UPDATE listings SET minimum_quantity = 3 WHERE id = ?", [
+    await execute("UPDATE listings SET min_quantity = 3 WHERE id = ?", [
       listing.id,
     ]);
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);

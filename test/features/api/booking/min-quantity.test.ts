@@ -29,7 +29,7 @@ describePublicApi(() => {
 
     test("rejects a quantity below the listing's minimum", async () => {
       const { listing, response, body } = await createAndBook(
-        { maxAttendees: 10, maxQuantity: 10, minimumQuantity: 3 },
+        { maxAttendees: 10, maxQuantity: 10, minQuantity: 3 },
         { quantity: 2 },
       );
       expect(response.status).toBe(400);
@@ -40,7 +40,7 @@ describePublicApi(() => {
 
     test("books the listing's minimum quantity", async () => {
       const { response } = await createAndBook(
-        { maxAttendees: 10, maxQuantity: 10, minimumQuantity: 3 },
+        { maxAttendees: 10, maxQuantity: 10, minQuantity: 3 },
         { quantity: 3 },
       );
       expect(response.status).toBe(200);
