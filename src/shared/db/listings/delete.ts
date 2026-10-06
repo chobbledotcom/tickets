@@ -1,13 +1,18 @@
 /** Listing deletion and owned-row cleanup. */
 
-import { executeBatch } from "#db/client.ts";
+import { executeBatch, type SqlStatement, type TxScope } from "#db/client.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 
-/** Delete one listing and its listing-owned relationships in one batch. */
-export const deleteListing = async (listingId: number): Promise<void> => {
-  await executeBatch([
+/** Delete one listing and its listing-owned relationships in one batch. The
+ *  batch runs on the caller's transaction when it runs inside one, and as its
+ *  own batch otherwise. */
+export const deleteListing = async (
+  listingId: number,
+  tx?: TxScope,
+): Promise<void> => {
+  const statements: SqlStatement[] = [
     {
       args: [listingId],
       sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
@@ -36,5 +41,6 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       sql: "DELETE FROM listing_prices WHERE listing_id = ?",
     },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
-  ]);
+  ];
+  await (tx === undefined ? executeBatch(statements) : tx.batch(statements));
 };

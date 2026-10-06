@@ -6,20 +6,20 @@
  * confirmation flow, so they are built from a common base config.
  */
 
-import { logActivity } from "#db/activity-log.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
-import { redirect } from "#routes/response.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import {
   deleteOrphanedAddOnError,
   performListingDelete,
+  toggleListingActive,
 } from "#shared/listings-actions.ts";
 import {
   adminDeactivateListingPage,
@@ -55,9 +55,17 @@ const listingToggleHandlers = (opts: {
       guardError: (_listing: ListingWithCount, id: number) =>
         opts.guardError!(id),
     }),
+    // The authoritative guard runs inside the write's transaction (see
+    // onConfirm), so the framework skips its own POST-time check.
+    guardInTx: true,
     onConfirm: async (listing, id) => {
-      await listingsTable.update(id, { active: opts.active });
-      await logActivity(`Listing '${listing.name}' ${opts.action}d`, id);
+      // The authoritative guard re-runs inside the write transaction, so a
+      // concurrent change between the confirmation page and this POST cannot
+      // orphan a child-scoped add-on.
+      const result = await toggleListingActive(id, listing, opts.active);
+      return "error" in result
+        ? errorRedirect(`/admin/listing/${id}/${opts.action}`, result.error)
+        : undefined;
     },
     path: `/admin/listing/:id/${opts.action}`,
     render: opts.renderPage,
@@ -94,8 +102,16 @@ export const listingReactivate = listingToggleHandlers({
 export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   ...listingConfirmBase,
   guardError: (_listing, id) => deleteOrphanedAddOnError(id),
-  onConfirm: async (listing) => {
-    await performListingDelete(listing);
+  // performListingDelete re-runs the guard inside the write transaction, so
+  // the framework skips its own POST-time check.
+  guardInTx: true,
+  onConfirm: async (listing, id) => {
+    // performListingDelete re-runs the guard inside the write transaction, so
+    // a concurrent change since the confirmation page cannot orphan an add-on.
+    const refusal = await performListingDelete(listing);
+    return refusal === null
+      ? undefined
+      : errorRedirect(`/admin/listing/${id}/delete`, refusal);
   },
   path: "/admin/listing/:id/delete",
   render: (listing, session, error) =>

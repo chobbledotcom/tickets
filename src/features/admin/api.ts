@@ -31,7 +31,6 @@ import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
-  deleteOrphanedAddOnError,
   performListingDelete,
   toggleListingActive,
   validateListingInput,
@@ -62,7 +61,8 @@ import {
 // (areas-a-l.ts "listings": listingDelete, deactivate, reactivate).
 const listingGate = apiEntityGate(getListingWithCount, "Listing", ADMIN_API);
 
-/** Custom DELETE handler: performListingDelete handles storage cleanup + logging with counts */
+/** Custom DELETE handler: performListingDelete runs the orphaned-add-on guard
+ * and the DB deletes in one transaction, then cleans up storage and logs */
 const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
   listingGate(request, listingId as number, async (listing, body) => {
     const error = verifyIdentifierOrJsonError(
@@ -71,9 +71,8 @@ const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
       "Listing name",
     );
     if (error) return apiErrorResponse(error);
-    const orphanError = await deleteOrphanedAddOnError(listing.id);
+    const orphanError = await performListingDelete(listing);
     if (orphanError) return apiErrorResponse(orphanError);
-    await performListingDelete(listing);
     return jsonResponse({ status: "ok" });
   });
 

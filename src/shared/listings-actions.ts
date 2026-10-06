@@ -5,9 +5,11 @@
  * so that the route handlers remain thin response formatters.
  */
 
+/* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
+import { type TxScope, withTransaction } from "#db/client.ts";
 import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
 import { getGroupsById, getListingsByGroupIds } from "#db/groups.ts";
 import {
@@ -15,6 +17,7 @@ import {
   listingChildren,
   listingParents,
 } from "#db/listing-parents.ts";
+import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
@@ -49,6 +52,7 @@ import {
   type Listing,
   type ListingWithCount,
 } from "#types";
+/* jscpd:ignore-end */
 
 /** Generate a unique listing slug, retrying on collision */
 export const generateUniqueListingSlug = (excludeListingId?: number) =>
@@ -82,10 +86,10 @@ type ListingUpdateCheck = (
   existingId: number | undefined,
 ) => Promise<string | null>;
 
-/** Validate each selected group exists, the listing type is compatible with that
- * group's other members, and — for package groups — the listing is a plain
- * standard listing with a single fixed price (not daily, customisable-days, or
- * pay-what-you-want). The package check mirrors the group-side invariant so the
+/** Validate each selected group exists. The listing type must be compatible
+ * with that group's other members. A package member is a plain standard
+ * listing with one fixed price: not daily, not customisable-days, not
+ * pay-what-you-want. The package check mirrors the group-side invariant so the
  * listing form/API can't smuggle an incompatible listing into a package. */
 /** The package-membership error for a listing joining `group`, or null when the
  * group isn't a package or the listing is a valid member. A package member may
@@ -261,32 +265,54 @@ export const validateListingInput = async (
 };
 
 /**
- * The delete path prunes the listing's edges but otherwise bypasses the guard
- * the deactivate paths run, so deleting the only active non-child page in a
- * child-scoped add-on's scope would orphan it.
- *
- * A deleted listing no longer serves a page, exactly like a deactivated one, so
- * this reuses {@link deactivationOrphanedAddOnError} with the deleted id in the
- * would-be-removed set.
+ * A deleted listing no longer serves a page, exactly like a deactivated one,
+ * so this reuses {@link deactivationOrphanedAddOnError} with the deleted id in
+ * the would-be-removed set.
  */
 export const deleteOrphanedAddOnError = (
   listingId: number,
+  tx?: TxScope,
 ): Promise<string | null> =>
-  deactivationOrphanedAddOnError(new Set([listingId]));
+  deactivationOrphanedAddOnError(new Set([listingId]), tx);
 
 /**
- * Delete a listing: remove its DB rows, then its attachment file, then log.
- * The row goes first so a failed database delete cannot leave a live listing
- * pointing at an already-removed attachment file.
+ * Run one guarded lifecycle write: the orphaned-add-on guard and the write
+ * share one write transaction, so no concurrent write can land between the
+ * check and the write. Pass a null guard for a write that only adds reachable
+ * pages, such as a reactivation. Returns the guard's refusal, or null when the
+ * write committed.
+ */
+export const guardedListingWrite = async (
+  guard: ((tx: TxScope) => Promise<string | null>) | null,
+  write: (tx: TxScope) => Promise<void>,
+): Promise<string | null> =>
+  withTransaction(async (tx) => {
+    const refusal = guard === null ? null : await guard(tx);
+    if (refusal !== null) return refusal;
+    await write(tx);
+    return null;
+  });
+
+/**
+ * Delete a listing under the orphaned-add-on guard: the guard and the DB
+ * deletes share one write transaction, then the attachment file goes and the
+ * deletion is logged. The file follows the commit, so a failed database delete
+ * cannot leave a live listing pointing at an already-removed file. Returns the
+ * guard's refusal, or null when the delete committed.
  */
 export const performListingDelete = async (
   listing: ListingWithCount,
-): Promise<void> => {
-  await deleteListing(listing.id);
+): Promise<string | null> => {
+  const refusal = await guardedListingWrite(
+    (tx) => deleteOrphanedAddOnError(listing.id, tx),
+    (tx) => deleteListing(listing.id, tx),
+  );
+  if (refusal !== null) return refusal;
   await deleteListingAttachmentFile(listing, "listing deletion");
   await logActivity(
     `Listing '${listing.name}' deleted (${listing.attendee_count} attendee(s) removed)`,
   );
+  return null;
 };
 
 /**
@@ -330,9 +356,10 @@ export type ToggleActiveResult =
  *
  * A DEACTIVATION runs the same orphaned-add-on guard the HTML deactivate route
  * uses ({@link deactivationOrphanedAddOnError}), so the JSON API toggle can't
- * orphan a child-scoped add-on the HTML route would block. Reactivation is
- * unguarded (it only ADDS a reachable page). Returns `{ noChange }` when the
- * listing is already in the target state.
+ * orphan a child-scoped add-on the HTML route would block. The guard and the
+ * write share one transaction, so a concurrent write cannot land between them.
+ * Reactivation is unguarded (it only ADDS a reachable page). Returns
+ * `{ noChange }` when the listing is already in the target state.
  */
 export const toggleListingActive = async (
   listingId: number,
@@ -340,11 +367,20 @@ export const toggleListingActive = async (
   active: boolean,
 ): Promise<ToggleActiveResult> => {
   if (listing.active === active) return { noChange: true };
-  if (!active) {
-    const error = await deactivationOrphanedAddOnError(new Set([listingId]));
-    if (error) return { error };
-  }
-  await listingsTable.update(listingId, { active });
+  const refusal = await guardedListingWrite(
+    active
+      ? null
+      : (tx) => deactivationOrphanedAddOnError(new Set([listingId]), tx),
+    async (tx) => {
+      // Every table on the transactional write path carries updateStatement
+      // (see crud-api.ts), so the toggle's row write joins the guard's tx.
+      await tx.execute(
+        await listingsTable.updateStatement!(listingId, { active }),
+      );
+    },
+  );
+  if (refusal !== null) return { error: refusal };
+  await syncListingPrices(listingId);
   const verb = active ? "reactivated" : "deactivated";
   await logActivity(`Listing '${listing.name}' ${verb}`, listingId);
   return { updated: (await getListingWithCount(listingId))! };

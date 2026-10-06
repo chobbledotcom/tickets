@@ -61,6 +61,10 @@ export type RequestStore = {
   /** Promises that must settle before the response is sent, allocated by the
    * first queue call (src/shared/pending-work.ts). */
   pending?: Promise<unknown>[];
+  /** This request's effective domain, written by the pipeline's domain
+   * seeding (src/shared/config.ts). Unset until the request seeds it, so
+   * reads fall back instead of carrying another request's domain. */
+  effectiveDomain?: string;
 };
 
 const requestScope = createScope<RequestStore>();
@@ -162,6 +166,21 @@ export const getRequestTrace = (): RequestTrace | null =>
 /** Get the current request's iframe mode */
 export const getIframeMode = (): boolean =>
   currentRequestStore()?.iframe ?? false;
+
+/** The live request's effective domain, or undefined when no request is being
+ *  served or the request has not seeded its domain yet. */
+export const getRequestEffectiveDomain = (): string | undefined => {
+  const domain = currentRequestStore()?.effectiveDomain;
+  return domain === undefined || domain === "" ? undefined : domain;
+};
+
+/** Write the live request's effective domain. A no-op outside a request, so
+ *  out-of-request work cannot seed a domain into the ambient fallback for
+ *  renderers to pick up. */
+export const setRequestEffectiveDomain = (domain: string): void => {
+  const store = currentRequestStore();
+  if (store) store.effectiveDomain = domain;
+};
 
 /** Detect iframe mode from a request URL and store it for the current request.
  * A no-op outside a request, so a direct render cannot set the ambient mode. */
