@@ -8,9 +8,11 @@ import { it as test } from "@std/testing/bdd";
 import { ADMIN_API } from "#routes/auth.ts";
 import {
   bodyNumber,
+  optionalDateString,
   parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
+  requireDateString,
   requireStrings,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
@@ -23,6 +25,40 @@ test("requireStrings trims and extracts the named keys", () => {
     ok: true,
     value: { name: "mutated" },
   });
+});
+
+test("requireStrings names the first missing key", () => {
+  expect(requireStrings({}, ["name", "start_date"])).toEqual({
+    error: "name is required",
+    ok: false,
+  });
+});
+
+test("requireDateString trims and validates a real calendar day", () => {
+  expect(
+    requireDateString({ start_date: " 2027-06-01 " }, "start_date"),
+  ).toEqual({ ok: true, value: "2027-06-01" });
+  expect(requireDateString({ start_date: "2027-6-1" }, "start_date")).toEqual({
+    error: "start_date has an invalid value",
+    ok: false,
+  });
+  expect(requireDateString({}, "start_date")).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+});
+
+test("optionalDateString keeps the fallback when the key is absent", () => {
+  expect(optionalDateString({}, "start_date", "2026-01-01")).toEqual({
+    ok: true,
+    value: "2026-01-01",
+  });
+  expect(
+    optionalDateString({ start_date: 42 }, "start_date", "2026-01-01"),
+  ).toEqual({ error: "start_date has an invalid value", ok: false });
+  expect(
+    optionalDateString({ start_date: " 2027-06-01 " }, "start_date", "x"),
+  ).toEqual({ ok: true, value: "2027-06-01" });
 });
 
 test("parseOptionalArray maps each entry through the parser", () => {

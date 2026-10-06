@@ -268,6 +268,25 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
+    test("refuses a non-string date on update", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Typed Update",
+        startDate: "2026-01-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { start_date: 42 },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("start_date has an invalid value");
+        },
+      );
+    });
+
     test("trims a padded date on update", async () => {
       const holiday = await createTestHoliday({
         endDate: "2027-06-30",

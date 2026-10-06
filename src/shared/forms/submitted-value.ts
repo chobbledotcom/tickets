@@ -1,18 +1,10 @@
 import type { FormParams } from "#shared/form-data.ts";
+import { getDatetimeValue } from "#shared/forms/datetime-value.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { parseDateString } from "#shared/validation/date.ts";
 
 export const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";
-
-const getDatetimeValue = (form: FormParams, name: string): string | null => {
-  const date = form.getString(`${name}_date`);
-  const time = form.getString(`${name}_time`);
-  if (date && time) return `${parseDateString(date) ?? date}T${time}`;
-  if (date && !time) return `${parseDateString(date) ?? date}T00:00`;
-  if (!date && !time) return "";
-  return null;
-};
 
 /** Read one field from submitted form data using the field's input shape.
  *  A date-typed field is cleaned at this boundary: trimmed and validated as

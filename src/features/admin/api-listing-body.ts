@@ -81,6 +81,11 @@ const withoutEditorLockedFields = (
   );
 };
 
+const INSTANT_OR_NULL = v.union([
+  v.null(),
+  v.pipe(v.string(), v.check(isUtcInstantOfRealDay)),
+]);
+
 const API_BODY_FIELD_RULES = [
   [
     "bookable_days",
@@ -94,12 +99,12 @@ const API_BODY_FIELD_RULES = [
   ],
   [
     "closes_at",
-    v.union([v.null(), v.pipe(v.string(), v.check(isUtcInstantOfRealDay))]),
+    INSTANT_OR_NULL,
     "closes_at must be a UTC instant of a real calendar day",
   ],
   [
     "date",
-    v.union([v.null(), v.pipe(v.string(), v.check(isUtcInstantOfRealDay))]),
+    INSTANT_OR_NULL,
     "date must be a UTC instant of a real calendar day",
   ],
   [
