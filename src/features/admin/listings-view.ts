@@ -79,6 +79,7 @@ export const rosterListSetup = (
   csvPath: `/admin/listing/${listing.id}/export`,
   dates,
   defaultSort: null,
+  groups: [],
   listings: [],
   withCheckin: true,
   withDates: listing.listing_type === "daily",

@@ -26,6 +26,10 @@ export const testBrowserListSetup = (
   csvPath: "/admin/attendees/csv",
   dates: [],
   defaultSort: "newest",
+  groups: [
+    { id: 3, name: "Weekend" },
+    { id: 5, name: "Term two" },
+  ],
   listings: [
     testListingWithCount({ id: 7, name: "Festival" }),
     testListingWithCount({ id: 9, name: "Quiz Night" }),
@@ -44,6 +48,7 @@ export const testRosterListSetup = (
   csvPath: "/admin/listing/5/export",
   dates: [{ label: "3 August", value: "2026-08-03" }],
   defaultSort: null,
+  groups: [],
   listings: [],
   withCheckin: true,
   withDates: true,

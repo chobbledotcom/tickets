@@ -14,9 +14,14 @@ import {
   createMultiBookingAttendee,
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
-import { makeListing, seedListingFilterPair } from "./helpers.ts";
+import {
+  makeListing,
+  seedGroupRoster,
+  seedListingFilterPair,
+} from "./helpers.ts";
 
 const csvBody = async (query = ""): Promise<string> =>
   await (await adminGet(`/admin/attendees/csv${query}`)).text();
@@ -76,6 +81,43 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const csv = await csvBody("?type=daily");
       expect(csv).not.toContain("Lonely");
       // No matching listings → no rows, so only the header line is emitted.
+      expect(csv.split("\n")).toHaveLength(1);
+      expect(csv).toContain("Listing");
+    });
+
+    test("exports only the chosen group's member listings", async () => {
+      const { group } = await seedGroupRoster();
+
+      const csv = await csvBody(`?group=${group.id}`);
+      expect(csv).toContain("FairOne");
+      expect(csv).toContain("FairTwo");
+      expect(csv).not.toContain("OutsidePerson");
+    });
+
+    test("a group export omits a matched attendee's non-member bookings", async () => {
+      const { group, listings } = await seedGroupRoster();
+      const door = listings[0]!;
+      const other = await makeListing("Other Show");
+      await createMultiBookingAttendee("DoubleBooker", "db@example.com", [
+        { listingId: door.id },
+        { listingId: other.id },
+      ]);
+
+      const csv = await csvBody(`?group=${group.id}`);
+      // Every member booking exports; the DoubleBooker's row is their booking
+      // inside the group only — the export keeps every row within the
+      // selected scope.
+      expect(csv).toContain("DoubleBooker");
+      expect(csv).toContain("Fair Door");
+      expect(csv).not.toContain("Other Show");
+      expect(csv).not.toContain("OutsidePerson");
+      expect(csv.split("\n")).toHaveLength(4);
+    });
+
+    test("a group export for an empty group returns just the header", async () => {
+      await seedListingFilterPair();
+      const group = await createTestGroup({ name: "Empty group" });
+      const csv = await csvBody(`?group=${group.id}`);
       expect(csv.split("\n")).toHaveLength(1);
       expect(csv).toContain("Listing");
     });

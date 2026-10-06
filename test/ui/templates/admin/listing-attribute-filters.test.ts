@@ -17,14 +17,21 @@ describe("listing attribute filter template helpers", () => {
   });
 
   test("keeps active attribute filters in type filter links", () => {
-    const href = typeFilterHref("/admin/", new Map([[1, 11]]));
+    const href = typeFilterHref("/admin/", {
+      activeAttributes: new Map([[1, 11]]),
+      groupId: null,
+    });
 
     expect(href("daily")).toBe("/admin/?type=daily&attribute_1=11");
     expect(href("all")).toBe("/admin/?attribute_1=11");
   });
 
   test("adds and removes one attribute filter while keeping the type filter", () => {
-    const href = attributeFilterHref("/admin/", "daily", new Map([[1, 11]]));
+    const href = attributeFilterHref("/admin/", {
+      activeAttributes: new Map([[1, 11]]),
+      groupId: null,
+      type: "daily",
+    });
 
     expect(href(2, 21)).toBe(
       "/admin/?type=daily&attribute_1=11&attribute_2=21",

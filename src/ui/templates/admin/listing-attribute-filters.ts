@@ -21,12 +21,24 @@ export const emptyAttributeFilterView = (): ListingAttributeFilterView => ({
   attributesByListing: new Map(),
 });
 
-const filterParams = (
-  activeType: ListingFilter,
-  activeAttributes: SelectedAttributeFilters,
-): URLSearchParams => {
+/**
+ * The filters one listings-page link keeps: the listing kind, the chosen
+ * attribute options, and the chosen group. A null group keeps every group.
+ */
+export type ListingLinkFilters = {
+  activeAttributes: SelectedAttributeFilters;
+  groupId: number | null;
+  type: ListingFilter;
+};
+
+const filterParams = ({
+  activeAttributes,
+  groupId,
+  type,
+}: ListingLinkFilters): URLSearchParams => {
   const params = new URLSearchParams();
-  if (activeType !== "all") params.set("type", activeType);
+  if (type !== "all") params.set("type", type);
+  if (groupId !== null) params.set("group", String(groupId));
   for (const [attributeId, optionId] of activeAttributes) {
     params.set(attributeFilterParam(attributeId), String(optionId));
   }
@@ -39,34 +51,32 @@ const hrefWithParams = (path: string, params: URLSearchParams): string => {
 };
 
 export const typeFilterHref =
-  (path: string, activeAttributes: SelectedAttributeFilters) =>
+  (path: string, fixed: Omit<ListingLinkFilters, "type">) =>
   (type: ListingFilter): string =>
-    hrefWithParams(path, filterParams(type, activeAttributes));
+    hrefWithParams(path, filterParams({ ...fixed, type }));
 
 export const attributeFilterHref =
-  (
-    path: string,
-    activeType: ListingFilter,
-    activeAttributes: SelectedAttributeFilters,
-  ) =>
+  (path: string, filters: ListingLinkFilters) =>
   (attributeId: number, optionId: number | null): string => {
-    const params = filterParams(activeType, activeAttributes);
+    const params = filterParams(filters);
     const name = attributeFilterParam(attributeId);
     if (optionId === null) params.delete(name);
     else params.set(name, String(optionId));
     return hrefWithParams(path, params);
   };
 
-/** Build the CSV-export URL so it carries the current type and attribute
- *  filters through, keeping the download aligned with the filtered table. */
-export const csvExportHref = (
-  activeType: ListingFilter,
-  activeAttributes: SelectedAttributeFilters,
-): string =>
-  hrefWithParams(
-    "/admin/listings/csv",
-    filterParams(activeType, activeAttributes),
-  );
+/** Link targets for the group filter bar: each keeps the current type and
+ *  attribute filters and changes only the group. */
+export const groupFilterHref =
+  (path: string, fixed: Omit<ListingLinkFilters, "groupId">) =>
+  (groupId: number | null): string =>
+    hrefWithParams(path, filterParams({ ...fixed, groupId }));
+
+/** Build the CSV-export URL so it carries the current type, group, and
+ *  attribute filters through, keeping the download aligned with the filtered
+ *  table. */
+export const csvExportHref = (filters: ListingLinkFilters): string =>
+  hrefWithParams("/admin/listings/csv", filterParams(filters));
 
 export const renderAttributeFilterBars = (
   filters: AttributeFilterGroup[],

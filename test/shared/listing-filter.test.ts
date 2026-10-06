@@ -4,12 +4,16 @@ import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import {
   filterListingsByType,
+  groupIdFromRequest,
+  intersectListingIds,
   isListingFilter,
   LISTING_FILTERS,
   type ListingFilter,
   listingCategory,
   listingFilterLabel,
   listingTypeFromRequest,
+  readChosenId,
+  renderGroupFilter,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
 import type { ListingType } from "#types";
@@ -211,5 +215,119 @@ describe("renderTypeFilter", () => {
         " / <strong><u>No check-in</u></strong>" +
         "</div>",
     );
+  });
+});
+
+const GROUPS = [
+  { id: 1, name: "Autumn fair" },
+  { id: 2, name: "Weekend" },
+];
+
+const requestForGroup = (group: string | null): Request =>
+  new Request(
+    group === null
+      ? "http://localhost/admin/listings"
+      : `http://localhost/admin/listings?group=${encodeURIComponent(group)}`,
+  );
+
+describe("readChosenId", () => {
+  test("keeps an id the page offers", () => {
+    expect(readChosenId(GROUPS, "2")).toBe(2);
+  });
+
+  test("falls back to all groups for an unknown id", () => {
+    expect(readChosenId(GROUPS, "999999")).toBe(null);
+  });
+
+  test("falls back to all groups for a malformed id", () => {
+    expect(readChosenId(GROUPS, "2x")).toBe(null);
+    expect(readChosenId(GROUPS, "-1")).toBe(null);
+  });
+
+  test("falls back to all groups when no address value is present", () => {
+    expect(readChosenId(GROUPS, null)).toBe(null);
+  });
+
+  test("offers nothing when the site stores no groups", () => {
+    expect(readChosenId([], "2")).toBe(null);
+  });
+});
+
+describe("groupIdFromRequest", () => {
+  test("reads the ?group= filter the pages share", () => {
+    expect(groupIdFromRequest(requestForGroup("1"), GROUPS)).toBe(1);
+  });
+
+  test("answers all groups when the address names none", () => {
+    expect(groupIdFromRequest(requestForGroup(null), GROUPS)).toBe(null);
+  });
+
+  test("answers all groups for a deleted group id", () => {
+    expect(groupIdFromRequest(requestForGroup("7"), GROUPS)).toBe(null);
+  });
+});
+
+describe("intersectListingIds", () => {
+  const members = new Set([1, 2]);
+
+  test("stays open when neither side restricts", () => {
+    expect(intersectListingIds(null, null)).toBe(null);
+  });
+
+  test("keeps the member ids when only the group restricts", () => {
+    expect(intersectListingIds(null, members)).toEqual([1, 2]);
+  });
+
+  test("keeps the chosen listings when only they restrict", () => {
+    expect(intersectListingIds([3], null)).toEqual([3]);
+  });
+
+  test("keeps only the chosen listings inside the group", () => {
+    expect(intersectListingIds([2, 3], members)).toEqual([2]);
+  });
+
+  test("keeps nothing when the chosen listings sit outside the group", () => {
+    expect(intersectListingIds([3], new Set())).toEqual([]);
+  });
+});
+
+describe("renderGroupFilter", () => {
+  const href = (groupId: number | null): string =>
+    groupId === null ? "/admin/listings" : `/admin/listings?group=${groupId}`;
+
+  test("renders All groups plus one entry per stored group, by name", () => {
+    const html = renderGroupFilter(null, GROUPS, href);
+    expect(html).toBe(
+      '<div class="table-actions">Group: ' +
+        "<strong><u>All groups</u></strong>" +
+        ' / <a href="/admin/listings?group=1">Autumn fair</a>' +
+        ' / <a href="/admin/listings?group=2">Weekend</a>' +
+        "</div>",
+    );
+  });
+
+  test("bolds the active group and links the rest", () => {
+    const html = renderGroupFilter(2, GROUPS, href);
+    expect(html).toBe(
+      '<div class="table-actions">Group: ' +
+        '<a href="/admin/listings">All groups</a>' +
+        ' / <a href="/admin/listings?group=1">Autumn fair</a>' +
+        " / <strong><u>Weekend</u></strong>" +
+        "</div>",
+    );
+  });
+
+  test("escapes a group name that carries HTML", () => {
+    const html = renderGroupFilter(
+      null,
+      [{ id: 4, name: "<img src=x onerror=alert(1)>" }],
+      href,
+    );
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img");
+  });
+
+  test("renders nothing when the site stores no groups", () => {
+    expect(renderGroupFilter(null, [], href)).toBe("");
   });
 });

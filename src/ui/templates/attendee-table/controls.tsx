@@ -106,26 +106,72 @@ const dateSelect = (view: AttendeeListView): string => {
   )}">${options}</select>`;
 };
 
-/** The listing dropdown as a GET form, so results stay bookmarkable. Hidden
- * inputs carry the other active choices, so applying it keeps them. */
-const ListingForm = (view: AttendeeListView): JSX.Element => {
-  const hidden = attendeeListParams(view.setup, {
-    ...view.state,
-    listingId: null,
-    page: 0,
-  });
+/** The other active choices as hidden inputs: the form's own control starts
+ *  fresh and paging restarts. */
+const hiddenChoices = (
+  view: AttendeeListView,
+  clear: "groupId" | "listingId",
+): [name: string, value: string][] => {
+  const choices = { ...view.state, page: 0 };
+  return attendeeListParams(
+    view.setup,
+    clear === "groupId"
+      ? { ...choices, groupId: null }
+      : { ...choices, listingId: null },
+  );
+};
+
+/** What one choice dropdown shows: its param name, its label, its options,
+ *  and the chosen value, plus the control it clears in the hidden inputs. */
+type ChoiceField = {
+  clear: "groupId" | "listingId";
+  labelKey: string;
+  name: string;
+  options: SelectOption[];
+  value: string;
+};
+
+/** The two entity pickers an attendee list offers, keyed by kind so a new
+ *  kind is a compile error here, never a silent default. */
+const CHOICE_FIELDS: Record<
+  "group" | "listing",
+  (view: AttendeeListView) => ChoiceField
+> = {
+  group: (view) => ({
+    clear: "groupId",
+    labelKey: "terms.group",
+    name: "group",
+    options: [
+      { label: t("attendees_list.all_groups"), value: "" },
+      ...view.setup.groups.map((group) => ({
+        label: group.name,
+        value: String(group.id),
+      })),
+    ],
+    value: view.state.groupId === null ? "" : String(view.state.groupId),
+  }),
+  listing: (view) => ({
+    clear: "listingId",
+    labelKey: "terms.listing",
+    name: "listing",
+    options: listingOptions(view.setup.listings),
+    value: view.state.listingId === null ? "" : String(view.state.listingId),
+  }),
+};
+
+/** One choice dropdown as a GET form, so results stay bookmarkable. Hidden
+ *  inputs carry the other active choices, so applying it keeps them. */
+const ChoiceForm = (
+  view: AttendeeListView,
+  kind: "group" | "listing",
+): JSX.Element => {
+  const { clear, labelKey, name, options, value } = CHOICE_FIELDS[kind](view);
   return (
     <form action={view.setup.basePath} class="filter-row" method="get">
-      {hiddenInputs(hidden)}
+      {hiddenInputs(hiddenChoices(view, clear))}
       <label>
-        {t("terms.listing")}
-        <SelectField
-          name="listing"
-          options={listingOptions(view.setup.listings)}
-          value={
-            view.state.listingId === null ? "" : String(view.state.listingId)
-          }
-        />
+        {t(labelKey)}
+        <SelectField name={name} options={options} value={value} />
       </label>
       <button type="submit">{t("attendees_list.apply")}</button>
     </form>
@@ -163,7 +209,11 @@ const CONTROL_ROWS: {
   },
   {
     offered: (view) => view.setup.listings.length > 1,
-    render: (view) => String(ListingForm(view)),
+    render: (view) => String(ChoiceForm(view, "listing")),
+  },
+  {
+    offered: (view) => view.setup.groups.length > 0,
+    render: (view) => String(ChoiceForm(view, "group")),
   },
 ];
 

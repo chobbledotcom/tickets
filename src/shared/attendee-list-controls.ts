@@ -15,7 +15,12 @@ import {
   filterParams,
   type ParamWriter,
 } from "#shared/filter-href.ts";
-import { isListingFilter, type ListingFilter } from "#shared/listing-filter.ts";
+import type { LedgerScopeOption } from "#shared/ledger-scope.ts";
+import {
+  isListingFilter,
+  type ListingFilter,
+  readChosenId,
+} from "#shared/listing-filter.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -49,6 +54,8 @@ export type AttendeeListSetup<
   csvPath: string | null;
   /** Listings offered by the listing dropdown; fewer than two hides it. */
   listings: ListingWithCount[];
+  /** Groups offered by the group dropdown. An empty list hides it. */
+  groups: LedgerScopeOption[];
   /** Whether the list understands the ?type= listing-kind filter. */
   withTypes: boolean;
   /** Whether the list understands the ?date= day filter. */
@@ -69,22 +76,12 @@ export type AttendeeListState<
   Sort extends AttendeeSort | null = AttendeeSort | null,
 > = {
   listingId: number | null;
+  groupId: number | null;
   type: ListingFilter;
   sort: AttendeeSort | Sort;
   checkin: AttendeeFilter;
   date: string | null;
   page: number;
-};
-
-/** The chosen listing id, only when it names one of the offered listings —
- *  an unknown or malformed value falls back to "all listings". */
-const readChosenListing = (
-  listings: ListingWithCount[],
-  raw: string | null,
-): number | null => {
-  const id = raw === null ? null : parsePositiveInt(raw);
-  if (id === null) return null;
-  return listings.some((listing) => listing.id === id) ? id : null;
 };
 
 const readCheckin = (raw: string | null): AttendeeFilter =>
@@ -115,7 +112,8 @@ export const readAttendeeListState = <Sort extends AttendeeSort | null>(
       setup.withDates && rawDate !== null && isIsoDate(rawDate)
         ? rawDate
         : null,
-    listingId: readChosenListing(setup.listings, query.get("listing")),
+    groupId: readChosenId(setup.groups, query.get("group")),
+    listingId: readChosenId(setup.listings, query.get("listing")),
     page: setup.withPaging && page !== null ? page : 0,
     sort:
       rawSort !== null && isAttendeeSort(rawSort) ? rawSort : setup.defaultSort,
@@ -130,12 +128,19 @@ type AttendeeListView = {
   readonly state: AttendeeListState;
 };
 
+/** One writer for an id choice: the param names the control and carries the
+ *  chosen id, or nothing when the control is at its "everything" choice. */
+const idChoiceWriter = (
+  name: "group" | "listing",
+  choice: "groupId" | "listingId",
+): ParamWriter<AttendeeListView> => ({
+  name,
+  value: ({ state }) => (state[choice] === null ? null : String(state[choice])),
+});
+
 const PARAM_WRITERS: ParamWriter<AttendeeListView>[] = [
-  {
-    name: "listing",
-    value: ({ state }) =>
-      state.listingId === null ? null : String(state.listingId),
-  },
+  idChoiceWriter("listing", "listingId"),
+  idChoiceWriter("group", "groupId"),
   {
     name: "type",
     value: ({ state }) => (state.type === "all" ? null : state.type),

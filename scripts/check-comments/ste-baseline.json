@@ -1847,7 +1847,6 @@
     "long-sentence": 1
   },
   "src/shared/listing-filter.ts": {
-    "long-sentence": 1,
     "wordy": 1,
     "semicolon": 1
   },

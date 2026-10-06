@@ -53,6 +53,7 @@ describe("AttendeesSection", () => {
     state: {
       checkin: "all",
       date: null,
+      groupId: null,
       listingId: null,
       page: 0,
       sort: null,

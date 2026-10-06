@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   ALL_LEDGER_SCOPE,
+  groupScopeOptions,
   type LedgerScope,
   ledgerScopeSelected,
   listingIdsForLedgerScope,
@@ -57,5 +58,22 @@ describe("ledger scope", () => {
     expect(ledgerScopeSelected(group, listing)).toBe(false);
     expect(ledgerScopeSelected(listing, group)).toBe(false);
     expect(ledgerScopeSelected(listing, ALL_LEDGER_SCOPE)).toBe(false);
+  });
+});
+
+describe("groupScopeOptions", () => {
+  test("maps the names to options, by name", () => {
+    const names = new Map([
+      [9, "Weekend"],
+      [3, "Autumn fair"],
+    ]);
+    expect(groupScopeOptions(names)).toEqual([
+      { id: 3, name: "Autumn fair" },
+      { id: 9, name: "Weekend" },
+    ]);
+  });
+
+  test("answers no options for an empty map", () => {
+    expect(groupScopeOptions(new Map())).toEqual([]);
   });
 });

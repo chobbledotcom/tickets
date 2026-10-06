@@ -54,6 +54,7 @@ const rosterListViewOf = (opts: DetailOptions): RosterListView => ({
   state: {
     checkin: opts.activeFilter ?? "all",
     date: opts.dateFilter ?? null,
+    groupId: null,
     listingId: null,
     page: 0,
     sort: opts.sort ?? null,
