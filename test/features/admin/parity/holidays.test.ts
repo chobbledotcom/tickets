@@ -162,6 +162,17 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
         expect(body.error).toBe("start_date has an invalid value");
       },
     );
+    // The end date carries its own field metadata, so it is pinned on its
+    // own: a numeric end_date is refused by name too.
+    await assertJson(
+      ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, {
+        end_date: 20270602,
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("end_date has an invalid value");
+      },
+    );
     // The refused update stored nothing: the stored dates stand.
     const all = await holidays.getAll();
     const row = all.find((h) => h.name === "Pinned Date Type Holiday");
