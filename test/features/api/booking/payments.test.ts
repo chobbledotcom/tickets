@@ -28,7 +28,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
@@ -45,7 +44,6 @@ describePublicApi(() => {
       const { response } = await bookListing(listing.slug, {
         email: "s@test.com",
         name: "Second",
-        quantity: 1,
       });
       expect(response.status).toBe(409);
     });
@@ -107,7 +105,6 @@ describePublicApi(() => {
         date: dates[0],
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -118,7 +115,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
@@ -130,7 +126,6 @@ describePublicApi(() => {
         date: "1999-01-01",
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
@@ -145,7 +140,6 @@ describePublicApi(() => {
         customPrice: 5.0,
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       // Price is 0 base and no payment provider, so goes free path
       expect(response.status).toBe(200);
@@ -160,7 +154,6 @@ describePublicApi(() => {
         customPrice: "abc",
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/price/i);
@@ -175,7 +168,6 @@ describePublicApi(() => {
         customPrice: 1.0,
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/minimum/i);
@@ -190,7 +182,6 @@ describePublicApi(() => {
         customPrice: 999.0,
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/maximum/i);
@@ -206,7 +197,6 @@ describePublicApi(() => {
         customPrice: 10.0,
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
@@ -220,7 +210,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -234,7 +223,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/price/i);
@@ -275,7 +263,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         name: "Alice",
         phone: "1234567890",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -291,7 +278,6 @@ describePublicApi(() => {
         const { response, body } = await bookListing(listing.slug, {
           email: "alice@test.com",
           name: "Alice",
-          quantity: 1,
         });
         expect(response.status).toBe(500);
         expect(body.error).toMatch(/payment session/i);
@@ -308,7 +294,6 @@ describePublicApi(() => {
         const { response, body } = await bookListing(listing.slug, {
           email: "alice@test.com",
           name: "Alice",
-          quantity: 1,
         });
         expect(response.status).toBe(400);
         expect(body.error).toBe("Invalid amount");

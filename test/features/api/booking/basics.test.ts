@@ -19,7 +19,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -36,14 +35,12 @@ describePublicApi(() => {
         const { response } = await bookListing(listing.slug, {
           email: `booker${i}@test.com`,
           name: `Booker ${i}`,
-          quantity: 1,
         });
         expect(response.status).toBe(200);
       }
       const { response, body } = await bookListing(listing.slug, {
         email: "blocked@test.com",
         name: "Blocked",
-        quantity: 1,
       });
       expect(response.status).toBe(429);
       expect(body.error).toMatch(/too many/i);
@@ -137,7 +134,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toContain("website");
@@ -147,7 +143,6 @@ describePublicApi(() => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toBeDefined();
@@ -160,7 +155,6 @@ describePublicApi(() => {
       });
       const { response, body } = await bookListing(listing.slug, {
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body.error).toBeDefined();
@@ -172,7 +166,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(listing.slug, {
         email: "second@test.com",
         name: "Second",
-        quantity: 1,
       });
       expect(response.status).toBe(409);
       expect(body.error).toMatch(/not enough spots/);
