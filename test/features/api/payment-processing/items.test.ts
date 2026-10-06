@@ -270,10 +270,13 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { unitPrice: 600 },
       { unitPrice: 200 },
     );
+    // One folded line plus one standalone line, each at the child's own
+    // per-order maximum: the refusal must come from the mixed flag, not
+    // from a quantity the fold could never produce.
     const intent = bookingIntent(
       [
         { e: parent.id, p: 600, q: 1 },
-        { e: child.id, p: 400, q: 2 },
+        { e: child.id, p: 400, q: 1 },
       ],
       { allocations: [{ childId: child.id, parentId: parent.id, qty: 1 }] },
     );
