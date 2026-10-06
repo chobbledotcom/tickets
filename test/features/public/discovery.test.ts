@@ -65,6 +65,17 @@ describeWithEnv(
         await assertSoldOut(parent.slug);
       });
 
+      test("a daily child under a daily parent folds on a date both offer", async () => {
+        // The per-date fold check: the child must start on the very date the
+        // parent's calendar offers, and hold it for the span that date books.
+        // This is the gate the date-less evaluation cannot answer.
+        const { parent } = await makeParent({
+          children: [{ daily: true, name: "Daily add-on" }],
+          parent: { daily: true, name: "Daily base" },
+        });
+        await assertBookable(parent.slug);
+      });
+
       test("a parent whose only child has closed registration is sold out", async () => {
         const pastDate = new Date(Date.now() - 60000)
           .toISOString()
