@@ -80,7 +80,7 @@ describeWithEnv("QR booking parent gate", { db: true }, () => {
       fields: "",
       maxAttendees: 10,
       maxQuantity: 10,
-      minimumQuantity: 3,
+      minQuantity: 3,
       unitPrice: 500,
     });
     const staleToken = await signQrBookToken(

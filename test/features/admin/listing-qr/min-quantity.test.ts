@@ -16,7 +16,7 @@ const batchedListing = () =>
   createTestListing({
     maxAttendees: 10,
     maxQuantity: 5,
-    minimumQuantity: 3,
+    minQuantity: 3,
     unitPrice: 500,
   });
 
