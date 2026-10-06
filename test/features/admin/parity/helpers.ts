@@ -33,7 +33,7 @@ export const pagePostAs = async (
 const ownerApiRequest = async (
   path: string,
   method: string,
-  body?: Record<string, unknown>,
+  body: Record<string, unknown>,
 ): Promise<Response> =>
   handleRequest(
     requestAsSession(
@@ -43,7 +43,7 @@ const ownerApiRequest = async (
         csrfToken: await testCsrfToken(),
       },
       {
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        body: JSON.stringify(body),
         headers: { "content-type": "application/json" },
         method,
       },
