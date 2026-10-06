@@ -134,7 +134,11 @@ export const packageMemberQuantityBroken = (
   if (quantity > member.max_quantity) {
     return { quantity, reason: "cap" };
   }
-  return quantity < member.min_quantity ? { quantity, reason: "min" } : null;
+  // Zero is the none choice, not a below-minimum purchase — the same
+  // exemption the shared quantity rule reads.
+  return quantity !== 0 && quantity < member.min_quantity
+    ? { quantity, reason: "min" }
+    : null;
 };
 
 /**

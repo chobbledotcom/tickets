@@ -181,6 +181,15 @@ describe("packageMemberQuantityBroken", () => {
     ).toBeNull();
   });
 
+  test("allows a zero pick count beside any minimum", () => {
+    // Zero is the none choice, not a below-minimum purchase — the same
+    // exemption the shared quantity rule reads.
+    expect(packageMemberQuantityBroken(member({ quantity: 0 }))).toBeNull();
+    expect(
+      packageMemberQuantityBroken(member({ min_quantity: 2, quantity: 0 })),
+    ).toBeNull();
+  });
+
   test("refuses an omitted pick count below the minimum", () => {
     expect(packageMemberQuantityBroken(member({ min_quantity: 2 }))).toEqual({
       quantity: 1,
