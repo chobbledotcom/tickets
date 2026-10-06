@@ -45,6 +45,7 @@ describeWithEnv(
       const child = await createTestListing({
         bookableAlone: true,
         maxAttendees: 50,
+        maxQuantity: 2,
         name: "Solo Widget",
         unitPrice: 0,
       });

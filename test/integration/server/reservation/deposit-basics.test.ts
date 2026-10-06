@@ -108,6 +108,7 @@ describeWithEnv(
       await setPublicReservation("10");
       const listing = await createTestListing({
         maxAttendees: 10,
+        maxQuantity: 5,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });

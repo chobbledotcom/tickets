@@ -45,11 +45,13 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       const listing1 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Success Multi 1",
         unitPrice: 500,
       });
       const listing2 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Success Multi 2",
         unitPrice: 1000,
       });
