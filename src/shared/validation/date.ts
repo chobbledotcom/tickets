@@ -69,13 +69,14 @@ export const parseDateStringOrThrow = (
  *  answers to the shared real-day rule. The clock half allows hours 00–23
  *  and minutes 00–59, with optional seconds and a fractional part, before
  *  the zone designator. A value with no zone designator is refused rather
- *  than silently read as local time. */
+ *  than silently read as local time. A fractional second needs the seconds:
+ *  `10:00.1Z` names no instant `Date` can read. */
 export const isUtcInstantOfRealDay = (value: string): boolean => {
   const [datePart = "", timePart = "", surplus] = value.split("T");
   if (surplus !== undefined) return false;
   return (
     isIsoDate(datePart) &&
-    /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?(\.\d{1,3})?Z$/.test(timePart)
+    /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{1,3})?)?Z$/.test(timePart)
   );
 };
 

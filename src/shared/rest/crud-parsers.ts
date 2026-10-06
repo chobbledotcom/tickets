@@ -77,14 +77,39 @@ const dateStringResult = (key: string, raw: string): Result<DateString> => {
  * `DateString` no comparison can mis-order. Absent or empty answers the
  * same rejection shape as {@link requireStrings}.
  */
+/** Read one supplied date value from the body and hand it to the reader's
+ *  outcomes. The value is text, the key is absent, or the value is not text.
+ *  A non-text value is malformed, not absent. */
+const withSuppliedDateValue = (
+  body: Record<string, unknown>,
+  key: string,
+  onValue: (value: string) => Result<DateString>,
+  onAbsent: () => Result<DateString>,
+): Result<DateString> => {
+  const raw = body[key];
+  if (raw === undefined) return onAbsent();
+  if (typeof raw !== "string") {
+    return errorResult(`${key} has an invalid value`);
+  }
+  return onValue(raw);
+};
+
+/** The required date's outcomes: a blank or absent key answers required, a
+ *  present text value parses. */
+const requiredDate =
+  (key: string) =>
+  (value: string): Result<DateString> =>
+    value.trim() === ""
+      ? errorResult(`${key} is required`)
+      : dateStringResult(key, value);
+
 export const requireDateString = (
   body: Record<string, unknown>,
   key: string,
-): Result<DateString> => {
-  const raw = requireString(body, key);
-  if (raw === null) return errorResult(`${key} is required`);
-  return dateStringResult(key, raw);
-};
+): Result<DateString> =>
+  withSuppliedDateValue(body, key, requiredDate(key), () =>
+    errorResult(`${key} is required`),
+  );
 
 /** Read the required name for one entity write. A supplied name must be a
  *  string: anything else is refused with the field-named message instead of
@@ -124,15 +149,13 @@ export const optionalDateString = (
   body: Record<string, unknown>,
   key: string,
   fallback: string,
-): Result<DateString> => {
-  const raw = body[key];
-  if (raw === undefined) {
-    return okResult(parseDateStringOrThrow(fallback, `${key} fallback`));
-  }
-  if (typeof raw !== "string")
-    return errorResult(`${key} has an invalid value`);
-  return dateStringResult(key, raw);
-};
+): Result<DateString> =>
+  withSuppliedDateValue(
+    body,
+    key,
+    (value) => dateStringResult(key, value),
+    () => okResult(parseDateStringOrThrow(fallback, `${key} fallback`)),
+  );
 
 /**
  * Read an optional number from a JSON body, falling back to `fallback` when the

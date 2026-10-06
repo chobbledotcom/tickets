@@ -87,22 +87,18 @@ describe("parseDateString", () => {
   });
 
   test("refuses an unpadded date the format check rejects", () => {
-    // Was stored by the holiday JSON API before the shared parser existed.
     expect(parseDateString("2027-6-1")).toBeNull();
   });
 
   test("refuses a rollover impossibility the real-day check rejects", () => {
-    // Was stored by the holiday JSON API before the shared parser existed.
     expect(parseDateString("2027-02-30")).toBeNull();
   });
 
   test("refuses a datetime string offered to a date field", () => {
-    // Was stored by the holiday JSON API before the shared parser existed.
     expect(parseDateString("2027-06-01T00:00")).toBeNull();
   });
 
   test("refuses wording no comparison could order", () => {
-    // Was stored by the holiday JSON API before the shared parser existed.
     expect(parseDateString("soon")).toBeNull();
   });
 
@@ -144,6 +140,10 @@ describe("isUtcInstantOfRealDay", () => {
     expect(isUtcInstantOfRealDay("2026-06-15T99:99:99Z")).toBe(false);
     expect(isUtcInstantOfRealDay("2026-06-15T24:00:00Z")).toBe(false);
     expect(isUtcInstantOfRealDay("2026-06-15T10:60:00Z")).toBe(false);
+  });
+
+  test("refuses a fractional second without the seconds", () => {
+    expect(isUtcInstantOfRealDay("2026-06-15T10:00.1Z")).toBe(false);
   });
 
   test("refuses a surplus segment after the zone designator", () => {

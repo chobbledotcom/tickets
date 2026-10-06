@@ -42,6 +42,10 @@ test("requireDateString trims and validates a real calendar day", () => {
     error: "start_date has an invalid value",
     ok: false,
   });
+  expect(requireDateString({ start_date: 42 }, "start_date")).toEqual({
+    error: "start_date has an invalid value",
+    ok: false,
+  });
   expect(requireDateString({}, "start_date")).toEqual({
     error: "start_date is required",
     ok: false,
