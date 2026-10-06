@@ -145,15 +145,15 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
     session: TSession,
   ) => Response | null | Promise<Response | null>;
   /**
-   * Optional guard producing a user-facing error message (or null when the
-   * action is allowed). Unlike {@link preValidate}, which returns a full
-   * Response and runs identically on the GET and the POST, this distinguishes
-   * the two requests: the GET renders the error into the confirmation page
-   * (200, never a redirect to itself), and the POST blocks with an error
-   * redirect back to it. Runs after the entity loads, so it can reason about
-   * the loaded model's id. Set {@link guardInTx} when the POST re-runs this
-   * guard inside the write's transaction: the framework then skips its own
-   * POST-time check, so the guarded state is read once.
+   * Optional guard producing a user-facing error message, or null when the
+   * action is allowed. Unlike {@link preValidate}, this distinguishes the GET
+   * from the POST. The GET renders the error into the confirmation page with
+   * status 200, so it never redirects to itself. The POST blocks with an
+   * error redirect back to the confirmation page. The guard runs after the
+   * entity loads, so it can reason about the loaded model's id. Set
+   * {@link guardInTx} when the POST re-runs this guard inside the write's
+   * transaction. The framework then skips its own POST-time check, so the
+   * guarded state is read once.
    */
   guardError?: (
     model: T,
