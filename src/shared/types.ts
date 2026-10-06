@@ -200,29 +200,6 @@ export const DayPricesSchema = v.pipe(
 );
 
 /**
- * Build a {@link DayPrices} map from raw entries. `checkEntry` reads one raw
- * key/value pair and returns the day count and price to keep, `null` to skip
- * that entry, or a problem message — which stops the walk and is returned in
- * place of the map. Shared by the lenient stored-value reader
- * ({@link parseDayPrices}) and the fail-closed admin API body parser.
- */
-export const buildDayPrices = <Problem extends string = never>(
-  raw: object,
-  checkEntry: (
-    key: string,
-    value: unknown,
-  ) => { days: number; price: number } | Problem | null,
-): DayPrices | Problem => {
-  const result: DayPrices = {};
-  for (const [key, value] of Object.entries(raw)) {
-    const entry = checkEntry(key, value);
-    if (typeof entry === "string") return entry;
-    if (entry !== null) result[entry.days] = entry.price;
-  }
-  return result;
-};
-
-/**
  * Coerce an arbitrary stored/parsed value into a clean {@link DayPrices} map.
  * Keeps only whole-number day counts in [1, MAX_DURATION_DAYS] mapped to
  * finite, non-negative whole-number minor-unit prices; everything else is
@@ -231,18 +208,21 @@ export const buildDayPrices = <Problem extends string = never>(
  */
 export const parseDayPrices = (raw: unknown): DayPrices => {
   if (typeof raw !== "object" || raw === null) return {};
-  // No problem messages here: bad entries are skipped, never reported.
-  return buildDayPrices<never>(raw, (key, value) => {
+  const result: DayPrices = {};
+  for (const [key, value] of Object.entries(raw)) {
     const days = Number(key);
     const price = Number(value);
-    return Number.isInteger(days) &&
+    if (
+      Number.isInteger(days) &&
       days >= 1 &&
       days <= MAX_DURATION_DAYS &&
       Number.isSafeInteger(price) &&
       price >= 0
-      ? { days, price }
-      : null;
-  });
+    ) {
+      result[days] = price;
+    }
+  }
+  return result;
 };
 
 /** The subset of listing fields needed to reason about day-count pricing. */
