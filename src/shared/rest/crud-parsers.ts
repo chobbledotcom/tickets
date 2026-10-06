@@ -129,9 +129,9 @@ export const parseUpdateSlug = async <Index extends string>(
 
 /**
  * Parse a name field from a JSON body for update operations. A supplied name
- * must be a string: anything else is refused with the field-named message
- * instead of coerced into stored text (issue #2476). An absent name keeps the
- * stored one, and the resolved name — stored or supplied — must be non-empty.
+ * must be a string: anything else is refused with the field-named message.
+ * An absent name keeps the stored one, and the resolved name — stored or
+ * supplied — must be non-empty.
  */
 export const parseUpdateName = (
   body: Record<string, unknown>,
