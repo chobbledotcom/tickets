@@ -37,7 +37,7 @@ export type CreateListingBody = Omit<
   max_attendees: number;
   max_price?: number;
   group_ids?: number[];
-  /** Day count → price (minor units), e.g. { "1": 1000, "2": 1800 }. */
+  /** Day count to price (minor units), for example { "1": 1000, "2": 1800 }. */
   day_prices?: Record<number, number>;
   /** Listing ids the buyer must choose one of when this listing is booked (the
    * required-child gate). Only honoured when the parents feature is enabled.
@@ -102,7 +102,7 @@ const API_BODY_FIELD_RULES = [
 ] as const;
 
 /** Parse a day_prices object from a JSON body into DayPrices. Keeps only
- * positive-integer day counts mapped to numeric prices; everything else is
+ * positive-integer day counts mapped to numeric prices. Everything else is
  * dropped so validateCustomisableDays sees a clean structure. */
 const parseDayPrices = (raw: unknown): Record<number, number> => {
   if (typeof raw !== "object" || raw === null) return {};
@@ -119,11 +119,11 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
 };
 
 /** Parse an optional array of positive integer ids (group membership or
- * selected attribute options). An absent field yields `undefined` (leave the
- * stored links unchanged); an explicit array (including `[]`) replaces them.
- * Fails closed: any non-positive-integer entry rejects the whole request rather
- * than being silently dropped, so a typo like `["5"]` can't quietly clear a
- * listing's links. */
+ * selected attribute options). An absent field yields `undefined` and leaves
+ * the stored links unchanged. An explicit array (including `[]`) replaces
+ * them. Fails closed: any non-positive-integer entry rejects the whole
+ * request rather than a silent drop, so a typo like `["5"]` cannot quietly
+ * clear a listing's links. */
 const parseOptionalIdArray = (
   raw: unknown,
   label: string,
@@ -249,12 +249,12 @@ export const bodyToUpdateInput = async (
         withoutEditorLockedFields(body, session),
       ),
       // The JSON API cannot set these four fields, so fold the stored ones in
-      // as the update's final facts — an update that adds groups or children
+      // as the update's final facts. An update that adds groups or children
       // must read them the way the validators do, not as absent-and-false.
       assignBuiltSite: existing.assign_built_site,
-      // An omitted attribute_option_ids leaves the stored links untouched:
-      // persistListingJoins skips the link write for an undefined selection,
-      // so an unrelated update never restores a stale one.
+      // An omitted attribute_option_ids leaves the stored links untouched.
+      // persistListingJoins skips the link write for an undefined selection.
+      // So an unrelated update never restores a stale one.
       attributeOptionIds: joinIds.attributeOptionIds,
       dayPrices:
         body.day_prices !== undefined

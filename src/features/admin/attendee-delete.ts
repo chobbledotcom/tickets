@@ -42,7 +42,7 @@ export const deleteAttendeeAndRedirect = (
     (message) => redirect(redirectTo, message, false, opts),
   );
 
-/** Delete the attendee after confirmation; the writer rechecks payment work. */
+/** Delete the attendee after confirmation. The writer rechecks payment work. */
 export const handleAttendeeDelete = attendeeActions.delete.verified(
   "deletion",
   async ({ attendee }, form) => {

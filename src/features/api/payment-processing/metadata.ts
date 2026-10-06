@@ -2,9 +2,9 @@
  * Read a paid session's signed metadata into the domain {@link BookingIntent}.
  *
  * The metadata JSON was serialized by our own checkout (buildMetadata), but it
- * is never trusted on the way back in: the assembled booking is parsed against
+ * is never trusted on the way back in. The assembled booking is parsed against
  * {@link BookingIntentSchema}, so a drifted, tampered, or foreign blob fails
- * closed here instead of feeding wrong values into fulfilment after the buyer
+ * closed here. Wrong values therefore never reach fulfilment after the buyer
  * has already paid.
  */
 
@@ -21,17 +21,18 @@ import type {
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the
- * customer's business time — so a late webhook (or an old redirect, or a stale
- * retry) still books on the day they paid. Falls back to the processing clock
- * only when the provider gave no timestamp.
+ * customer's business time. A late webhook, an old redirect, or a stale retry
+ * still books on the day they paid. Falls back to the processing clock only
+ * when the provider gave no timestamp.
  */
 export const businessTime = (session: ValidatedPaymentSession): string =>
   session.createdAt ?? nowIso();
 
-/** Read one JSON metadata field: the value it holds when it has one, the
- * field's own fallback when it is empty, and `null` when the text is not
- * readable JSON at all. Nothing in a booking may be null, so unreadable text
- * fails the whole booking below rather than one field going quietly missing. */
+/** Read one JSON metadata field. The value is what the field holds when it
+ * has one, and the field's own fallback when it is empty. A `null` return
+ * means the text is not readable JSON at all. Nothing in a booking can be
+ * null, so unreadable text fails the whole booking below rather than one
+ * field going quietly missing. */
 const jsonMetaField =
   (fallback: unknown) =>
   (json: string): unknown => {
@@ -44,7 +45,7 @@ const jsonMetaField =
   };
 
 /** Answers, free-text answers, and child tickets are all absent when the
- * checkout sent none; modifiers are an empty list. */
+ * checkout sent none. Modifiers are an empty list. */
 const parseAnswerRefs = jsonMetaField(undefined);
 const parseModifierRefs = jsonMetaField([]);
 
@@ -63,7 +64,7 @@ const wholeNumberField = (raw: string): number | undefined =>
  * came back is not a booking we can act on.
  *
  * Everything here arrives as text a provider handed back, so the assembled
- * booking is parsed against the schema before anyone sees it: a drifted,
+ * booking is parsed against the schema before anyone sees it. A drifted,
  * tampered, or foreign blob fails here rather than after the buyer has paid.
  * The empty date the metadata uses for "no date" becomes null on the way in.
  */
@@ -72,7 +73,7 @@ export const extractIntent = (
 ): BookingIntent | null => extractIntentFromMetadata(session.metadata);
 
 /** Read the booking a metadata blob describes, or null when it cannot be
- * read as one — a rejected session's blob may predate the current shape. */
+ * read as one — a rejected session's blob can predate the current shape. */
 export const extractIntentFromMetadata = (
   metadata: SessionMetadata,
 ): BookingIntent | null => {

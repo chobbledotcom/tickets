@@ -4,7 +4,7 @@
  * Exposes listing listing, details, availability, and booking
  * with the same data and validation as the web UI.
  * The route handlers and helpers live in single-purpose modules beside this
- * one; this file only wires them into the route map.
+ * one. This file only wires them into the route map.
  */
 
 import { handleBook } from "#routes/api/booking.ts";

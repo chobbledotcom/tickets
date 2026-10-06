@@ -79,11 +79,11 @@ const handleReservationConflict = async (
     });
   }
   // A recorded terminal failure replays the same handled outcome (refund
-  // already issued, sold out, price changed) without re-validating or
-  // re-refunding. failure_data is encrypted, so this read is async.
+  // already issued, sold out, price changed). It re-validates nothing and
+  // re-refunds nothing. failure_data is encrypted, so this read is async.
   const failure = await parseSessionFailure(existing.failure_data);
   if (failure) {
-    // A completion marker says the placeholder may still owe money records:
+    // A completion marker says the placeholder can still owe money records:
     // finish them before answering, so a crashed first delivery cannot park
     // the books. Unmarked failures replay with no extra reads.
     const resumed = await resumePlaceholderSession(data, failure);
@@ -100,12 +100,12 @@ const handleReservationConflict = async (
 
 /**
  * Replay a payment session the ledger already records as resolved to
- * `attendeeId`: heal the fresh reservation at that attendee — token-safely, so a
- * racing delivery's finalized tokens survive (see {@link
- * finalizeSessionIfUnresolved}) — and return success. NEVER refunds: the money is
- * already in the ledger against this attendee. Tokens come back empty, so the
- * redirect renders directly from the attendee. Shared by the booking-replay and
- * balance-replay preflights.
+ * `attendeeId`. Heal the fresh reservation at that attendee — token-safely, so
+ * a racing delivery's finalized tokens survive (see {@link
+ * finalizeSessionIfUnresolved}) — and return success. NEVER refunds: the money
+ * is already in the ledger against this attendee. Tokens come back empty, so
+ * the redirect renders directly from the attendee. Shared by the
+ * booking-replay and balance-replay preflights.
  */
 const replaySuccess = async (
   sessionId: string,
@@ -120,11 +120,11 @@ const replaySuccess = async (
 
 /**
  * Acknowledge a session the ledger already accounts for but whose booking is
- * gone — an operator deleted the attendee (its sale/payment legs remain) or it
+ * gone. An operator deleted the attendee (its sale/payment legs remain), or it
  * was a refunded quantity-0 placeholder. The money is already recorded, so we
- * neither refund again nor recreate the booking: return a terminal handled
- * outcome (200 — the webhook acks it, the redirect shows it as processed) and
- * leave the orphaned ledger rows for the operator to reconcile.
+ * neither refund again nor recreate the booking. The outcome is terminal and
+ * handled: 200, so the webhook acks it and the redirect shows it as
+ * processed. The orphaned ledger rows stay for the operator to reconcile.
  */
 const alreadyHandledSession = (
   sessionId: string,
@@ -138,14 +138,15 @@ const alreadyHandledSession = (
 
 /**
  * The booking-session ledger preflight: the durable ledger — not the prunable
- * processed_payments row — is the source of truth for "already honoured", so
- * before validating, pricing, or refunding, resolve what it already records.
- * Returns the replay outcome for a session it has seen (a live booking replays as
- * success; an orphaned one is acknowledged), or null for a session it has never
- * recorded (process it fresh). The single guard that stops a late replay — after
- * the idempotency row is pruned or lost to a stale-reservation cleanup — from
- * refunding a live ticket via the deleted-listing, price-change, inactive-listing,
- * or capacity refund paths below.
+ * processed_payments row — is the source of truth for "already honoured".
+ * Before validating, pricing, or refunding, resolve what it already records.
+ * Returns the replay outcome for a session it has seen: a live booking replays
+ * as success, and an orphaned one is acknowledged. Null means the session was
+ * never recorded, so process it fresh. The single guard that stops a late
+ * replay from refunding a live ticket through the deleted-listing,
+ * price-change, inactive-listing, or capacity refund paths below. A late
+ * replay follows the pruning of the idempotency row or its loss to a
+ * stale-reservation cleanup.
  */
 const replaySessionFromLedger = async (
   sessionId: string,
@@ -178,9 +179,10 @@ const processNewBookingSession = async (
 
   // Preflight: the durable ledger is the source of truth for "already honoured".
   // Replay a session the ledger already records BEFORE any validation, pricing,
-  // or refund path runs below — so a late delivery (after the prunable idempotency
-  // row is gone) never refunds a live ticket via the deleted-listing, price-change,
-  // inactive-listing, or capacity paths, nor double-books it.
+  // or refund path runs below. A late delivery (after the prunable idempotency
+  // row is gone) then never refunds a live ticket through the deleted-listing,
+  // price-change, inactive-listing, or capacity paths. It never double-books
+  // the ticket either.
   const replay = await replaySessionFromLedger(
     sessionId,
     signedListingId,
@@ -193,13 +195,13 @@ const processNewBookingSession = async (
   const validated = await validateAllItems(session, intent, snapshot);
   if ("success" in validated) {
     // A trusted session (we signed it) whose listing was deleted between checkout
-    // and payment. listing_attendees has no FK to listings, so we still keep a
-    // quantity-0 ghost per SIGNED LINE — the deleted listing may sit anywhere in
-    // a multi-item cart, and the operator record must name every line (with its
-    // package path) rather than collapse onto the first item's listing. Ghosts
-    // are dateless: the deleted line's listing row is gone, so there is nothing
-    // to derive date fields from. A foreign instance's 404 (signed by someone
-    // else) never reaches here.
+    // and payment. The listing_attendees table has no FK to listings, so we still
+    // keep a quantity-0 ghost per SIGNED LINE. The deleted listing can sit
+    // anywhere in a multi-item cart. The operator record must name every line,
+    // with its package path, rather than collapse onto the first item's listing.
+    // Ghosts are dateless: the deleted line's listing row is gone, so there is
+    // nothing to derive date fields from. A foreign instance's 404 (signed by
+    // someone else) never reaches here.
     if (validated.status === 404) {
       return storeRefundedBooking(
         session,
@@ -213,11 +215,12 @@ const processNewBookingSession = async (
   }
   const validatedItems = validated.items;
 
-  // Resolve the applied modifiers once (re-fetched by id from the database);
-  // both the price re-derivation and the stock consumption use the same specs.
-  // Every trigger — automatic, code, opt-in add-on, and answer — rides the same
-  // metadata refs and is re-fetched by id here, re-checking the visit gate and
-  // re-deriving the amount so a tampered checkout can't dodge a surcharge.
+  // Resolve the applied modifiers once (re-fetched by id from the database).
+  // Both the price re-derivation and the stock consumption use the same specs.
+  // Every trigger — automatic, code, opt-in add-on, and answer — rides the
+  // same metadata refs and is re-fetched by id here. The visit gate is
+  // re-checked and the amount re-derived, so a tampered checkout cannot dodge
+  // a surcharge.
   const modifierSpecs = snapshot.modifierSpecs;
   const pricingIntent = checkoutIntentForSession(
     intent,
@@ -227,10 +230,10 @@ const processNewBookingSession = async (
   const pricedOrder: PricedOrder = priceCheckout(pricingIntent);
   const placeholders = placeholderBookings(validatedItems, intent);
 
-  // A signed-by-us payment we already know we can't honour at the charged amount
-  // — the provider charged a different total, or a listing/modifier/answer price
-  // was edited between checkout and now: keep it as a quantity-0 placeholder and
-  // refund, never drop it.
+  // A signed-by-us payment we already know we cannot honour at the charged
+  // amount. The provider charged a different total, or a
+  // listing/modifier/answer price was edited between checkout and now. Keep it
+  // as a quantity-0 placeholder and refund, never drop it.
   const knownRefund =
     verdict.verdict === "mismatch"
       ? chargeMismatchSpec(session, verdict.agreed)
@@ -303,21 +306,23 @@ const processNewBookingSession = async (
 
 /**
  * Process a session we have just reserved (holding the lock). A signed session
- * either becomes a real ticket or — for ANY reason we can't honour it (charge
- * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
- * since-deleted listing, or an unexpected error after the charge) — is kept as a
- * quantity-0 placeholder and refunded, so a paid customer is never dropped. Every
- * failure returned here is a handled terminal outcome; processPaymentSession
- * records it so a later redirect/webhook replays the same result instead of
- * re-running refunds or stalling behind the idempotency lock.
+ * either becomes a real ticket or is kept as a quantity-0 placeholder and
+ * refunded, so a paid customer is never dropped. The refund covers ANY reason
+ * we cannot honour the charge. Examples: a mismatch, a mid-checkout price
+ * edit, a sold-out extra, a full event, a since-deleted listing, or an
+ * unexpected error. A failure that has not yet sent its refund carries
+ * `refunded: false` and stays retryable. Every other failure is a handled
+ * terminal outcome. The caller records those through processPaymentSession,
+ * so a later redirect/webhook replays the same result instead of re-running
+ * refunds or stalling behind the idempotency lock.
  */
 const processReservedSession: SessionProcessor = async (sessionId, data) => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
   if (intent.balanceAttendeeId) {
     // A balance session whose payment leg is already in the ledger is a replay
-    // even if its idempotency row was pruned or lost. Settling it again would
-    // find nothing owed and refund a balance that is already paid.
+    // even if its idempotency row was pruned or lost. Settling it again finds
+    // nothing owed and refunds a balance that is already paid.
     if (await eventGroupHasLegs(await balanceEventGroup(sessionId))) {
       return replaySuccess(
         sessionId,
@@ -344,27 +349,28 @@ export const processPaymentSession: SessionProcessor = async (
     return handleReservationConflict(data, reservation.existing);
   }
 
-  // A Square link dies with its first payment, so its end row goes now —
-  // conditionally on `pending`, so a row the expiry task already claimed
-  // stays with the task and its own delete refusal names the paid order.
+  // A Square link dies with its first payment, so its end row goes now. The
+  // write is conditional on `pending`, so a row the expiry task already claimed
+  // stays with the task. Its own delete refusal names the paid order.
   if (data.session.provider === "square") {
     await forgetSquareLinkEnd(sessionId);
   }
   const result = await processReservedSession(sessionId, data);
 
   // Keep a failed refund callback retryable. The durable refund authority, not
-  // this short booking reservation, decides whether a later delivery may send,
-  // observe, or wait for the owner, so releasing cannot create a second send.
+  // this short booking reservation, decides whether a later delivery can send,
+  // observe, or wait for the owner. Releasing the reservation therefore cannot
+  // create a second send.
   if (!result.success && result.refunded === false) {
     await releaseReservation(sessionId);
     return result;
   }
 
-  // Otherwise record a handled failure as the session's terminal outcome so a
-  // later redirect/webhook for the same paid session replays it (same message
-  // and refund status) instead of re-refunding or stalling behind the lock. The
-  // transient "another request is processing" conflict returns above and never
-  // reaches here, so it stays retryable too.
+  // Otherwise record a handled failure as the session's terminal outcome. A
+  // later redirect/webhook for the same paid session then replays it (same
+  // message and refund status) instead of re-refunding or stalling behind the
+  // lock. The transient "another request is processing" conflict returns above
+  // and never reaches here, so it stays retryable too.
   if (!result.success) {
     await markSessionFailed(sessionId, {
       error: result.error,

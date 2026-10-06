@@ -2,10 +2,10 @@
  * Health check route.
  *
  * Returns a plain "Up :)" liveness reply by default. A request carrying the
- * matching `X-Debug-Key` header (when `DEBUG_KEY` is configured) instead gets a
- * small JSON diagnostics payload — the running build's commit and timestamp —
- * which is handy for operators (and lets a backup/ops tool read which commit a
- * site is on) without exposing anything private.
+ * matching `X-Debug-Key` header (when `DEBUG_KEY` is configured) instead gets
+ * a small JSON diagnostics payload: the running build's commit and timestamp.
+ * The payload is handy for operators, and it lets a backup/ops tool read
+ * which commit a site is on. It exposes nothing private.
  */
 
 import { constantTimeEqual } from "#crypto/utils.ts";

@@ -16,7 +16,7 @@ export const apiResponse = (data: unknown, status = 200): Response => {
   return response;
 };
 
-/** Turn a JSON responder into an error responder: the returned function wraps
+/** Turn a JSON responder into an error responder. The returned function wraps
  * a message in the shared `{ error: message }` envelope (400 unless told
  * otherwise), so every API error body is spelled in one place. */
 const jsonError =
@@ -28,8 +28,8 @@ const jsonError =
 export const apiError = jsonError(apiResponse);
 
 /** JSON `{ error: message }` response for API endpoints (no CORS headers).
- * Lives here rather than in the CRUD API module so lightweight edge routes
- * (e.g. the SMS webhook) can build error envelopes without evaluating the
+ * Lives here rather than in the CRUD API module. Lightweight edge routes (for
+ * example the SMS webhook) then build error envelopes without evaluating the
  * admin CRUD/auth import graph. */
 export const apiErrorResponse = jsonError(jsonResponse);
 

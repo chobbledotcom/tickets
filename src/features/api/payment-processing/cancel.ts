@@ -1,9 +1,9 @@
 /**
  * The payment-cancelled / declined page and its "try again" link.
  *
- * SumUp's hosted checkout has a single redirect URL for every outcome, so a card
- * decline lands on the same redirect as a cancel; both render this friendly page
- * rather than a "contact support" error.
+ * SumUp's hosted checkout has a single redirect URL for every outcome, so a
+ * card decline lands on the same redirect as a cancel. Both render this
+ * friendly page rather than a "contact support" error.
  */
 
 import { bookedPathGroupIds, lineGroupIds } from "#booking/signed-metadata.ts";
@@ -41,9 +41,9 @@ const retryHrefFor = async (
   const groupIds = lineGroupIds(intent.items);
   for (const groupId of groupIds) {
     const group = await getGroupById(groupId);
-    // Only a group that is STILL a package serves as the bundle's retry: a
+    // Only a group that is STILL a package serves as the bundle's retry. A
     // package converted to a regular group no longer sells the bundle, so its
-    // page would offer the wrong thing.
+    // page offers the wrong thing.
     const bundleServes =
       group?.is_package === true &&
       (await groupBookable(group, await getVisibleGroupMembers(group)));
@@ -79,7 +79,7 @@ export const cancelPageResponse = async (
     return paymentErrorResponse(t("payment.error.listing_not_found"), 404);
   }
   // A package checkout retries against the bundle's own page, not a member's
-  // standalone page (which may hide members or use override prices/quantities).
+  // standalone page (which can hide members or use override prices/quantities).
   // A null intent reads listing id 0, which never resolves — so reaching here
   // proves the intent parsed.
   const retryHref = await retryHrefFor(intent!, listing);
