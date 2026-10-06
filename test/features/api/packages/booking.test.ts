@@ -44,7 +44,7 @@ describeWithEnv("API package booking", { db: true }, () => {
     // (5 minus the 2 bundles just booked), not fewer bundles.
     const refused = await apiBookPackage(group.slug, { quantity: 99 });
     expect(refused.response.status).toBe(400);
-    expect(refused.body.error).toBe("Quantity cannot exceed 3");
+    expect(refused.body.error).toBe("Quantity must be at most 3.");
     expect((await bookingRows(a.id)).length).toBe(1);
   });
 

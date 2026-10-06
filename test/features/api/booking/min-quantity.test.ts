@@ -33,7 +33,7 @@ describePublicApi(() => {
         { quantity: 2 },
       );
       expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity must be at least 3");
+      expect(body.error).toBe("Quantity must be at least 3.");
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
@@ -47,7 +47,7 @@ describePublicApi(() => {
         { quantity: 5 },
       );
       expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity cannot exceed 4");
+      expect(body.error).toBe("Quantity must be at most 4.");
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
