@@ -19,8 +19,7 @@ export const getDatetimeValue = (
 ): string | null => {
   const date = form.getString(`${name}_date`);
   const time = form.getString(`${name}_time`);
-  if (date && time) return `${parseDateString(date) ?? date}T${time}`;
-  if (date && !time) return `${parseDateString(date) ?? date}T00:00`;
-  if (!date && !time) return "";
-  return null;
+  if (!date) return time ? null : "";
+  const cleaned = parseDateString(date) ?? date;
+  return time ? `${cleaned}T${time}` : `${cleaned}T00:00`;
 };
