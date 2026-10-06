@@ -7,7 +7,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  assertJson,
+  expectFlashRedirect,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
@@ -81,7 +85,10 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
         confirm_identifier: "Pinned Page Toggle",
       },
     );
-    expect([200, 302]).toContain(page.status);
+    expectRedirectWithFlash(
+      `/admin/listing/${pageListing.id}`,
+      "Listing deactivated",
+    )(page);
     expect((await getListingWithCount(pageListing.id))?.active).toBe(false);
 
     // The page toggle has no existing-state check: a repeat runs the confirm
