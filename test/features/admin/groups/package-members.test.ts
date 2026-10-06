@@ -14,11 +14,12 @@ import { adminFormPost } from "#test-utils/session.ts";
 import type { GroupListing, ListingWithCount } from "#types";
 
 describeWithEnv("admin package member overrides", { db: true }, () => {
-  /** Save the group as a package with the given raw member inputs. */
-  const savePackage = async (
+  /** Post the group edit form as a package save. The success and the refusal
+   *  path both answer with a redirect. */
+  const postPackage = async (
     group: { id: number; name: string; slug: string },
     memberInputs: TestFormValues,
-  ): Promise<void> => {
+  ): Promise<Response> => {
     const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
       description: "",
       is_package: "1",
@@ -28,6 +29,15 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       terms_and_conditions: "",
       ...memberInputs,
     });
+    return response;
+  };
+
+  /** Save the group as a package with the given raw member inputs. */
+  const savePackage = async (
+    group: { id: number; name: string; slug: string },
+    memberInputs: TestFormValues,
+  ): Promise<void> => {
+    const response = await postPackage(group, memberInputs);
     expect(response.status).toBe(302);
   };
 
@@ -171,15 +181,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     memberInputs: TestFormValues,
     message: string,
   ): Promise<void> => {
-    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
-      description: "",
-      is_package: "1",
-      max_attendees: "0",
-      name: group.name,
-      slug: group.slug,
-      terms_and_conditions: "",
-      ...memberInputs,
-    });
+    const response = await postPackage(group, memberInputs);
     await expectFlashRedirect(
       `/admin/groups/${group.id}/edit`,
       message,
