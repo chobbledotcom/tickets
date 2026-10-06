@@ -4,6 +4,7 @@ import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type NamedOperations } from "#shared/rest/resource.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -15,9 +16,15 @@ import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 type HolidayFormValues = FormValues<ReturnType<typeof getHolidayForm>>;
 
 const toHolidayInput = (values: HolidayFormValues): HolidayInput => ({
-  endDate: values.end_date,
+  endDate: parseDateStringOrThrow(
+    values.end_date,
+    "the crud-handler holiday end date",
+  ),
   name: values.name,
-  startDate: values.start_date,
+  startDate: parseDateStringOrThrow(
+    values.start_date,
+    "the crud-handler holiday start date",
+  ),
 });
 
 const holidayResource = defineResource({

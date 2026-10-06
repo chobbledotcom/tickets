@@ -3,13 +3,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidayInput, readDates } from "#routes/admin/holiday-input.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date.ts";
 
 describe("holiday input", () => {
   test("assembles the stored name and cleaned date range", () => {
     expect(
       holidayInput("Summer Break", {
-        endDate: "2026-08-31",
-        startDate: "2026-07-01",
+        endDate: parseDateStringOrThrow(
+          "2026-08-31",
+          "the assembled holiday end date",
+        ),
+        startDate: parseDateStringOrThrow(
+          "2026-07-01",
+          "the assembled holiday start date",
+        ),
       }),
     ).toEqual({
       endDate: "2026-08-31",

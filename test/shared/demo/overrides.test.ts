@@ -16,6 +16,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { defineResource } from "#shared/rest/resource.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -99,9 +100,15 @@ describeWithEnv("demo overrides", { db: true }, () => {
         form: getHolidayForm(),
         table: holidays.table,
         toInput: (values) => ({
-          endDate: values.end_date,
+          endDate: parseDateStringOrThrow(
+            values.end_date,
+            "the demo override's end date",
+          ),
           name: values.name,
-          startDate: values.start_date,
+          startDate: parseDateStringOrThrow(
+            values.start_date,
+            "the demo override's start date",
+          ),
         }),
         validate: validateDateRange,
       }),
