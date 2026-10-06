@@ -143,7 +143,7 @@ const CHOICE_FIELDS: Record<
     name: "group",
     options: [
       { label: t("attendees_list.all_groups"), value: "" },
-      ...sortByName(view.setup.groups).map((group) => ({
+      ...view.setup.groups.map((group) => ({
         label: group.name,
         value: String(group.id),
       })),

@@ -219,8 +219,8 @@ describe("renderTypeFilter", () => {
 });
 
 const GROUPS = [
-  { id: 2, name: "Weekend" },
   { id: 1, name: "Autumn fair" },
+  { id: 2, name: "Weekend" },
 ];
 
 const requestForGroup = (group: string | null): Request =>

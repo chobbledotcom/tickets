@@ -8,7 +8,6 @@
 import { logActivity } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesPage } from "#db/attendees/queries.ts";
-import { getListingsByGroupId } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { loadNotesForAttendees } from "#db/notes/queries.ts";
 import { settings } from "#db/settings.ts";
@@ -44,6 +43,7 @@ import {
 import { readAllPages } from "#shared/paged-read.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
+  groupMemberIds,
   loadListingsAndGroupNames,
   sortListings,
 } from "#shared/sort-listings.ts";
@@ -115,9 +115,7 @@ const withBrowserList = (
       new URL(request.url).searchParams,
     );
     const memberIds =
-      state.groupId === null
-        ? null
-        : new Set((await getListingsByGroupId(state.groupId)).map((l) => l.id));
+      state.groupId === null ? null : await groupMemberIds(state.groupId);
     return handler(session, {
       listingIds: resolveListingIds(
         state.listingId,
@@ -130,12 +128,7 @@ const withBrowserList = (
     });
   });
 
-/**
- * Handle GET /admin/attendees
- *
- * Renders one page of attendee bookings — newest first by default — with a
- * listing filter and sort order. The fixed page size lives in the query.
- */
+/** The fixed page size lives in the query. */
 export const handleAttendeesListGet: TypedRouteHandler<
   "GET /admin/attendees"
 > = (request) =>

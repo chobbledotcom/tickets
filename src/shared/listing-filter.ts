@@ -10,7 +10,6 @@ import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderFilterBar } from "#shared/filter-bar.ts";
 import type { LedgerScopeOption } from "#shared/ledger-scope.ts";
-import { sortByName } from "#shared/name-order.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { ListingType } from "#types";
 /* jscpd:ignore-end */
@@ -155,7 +154,7 @@ export const renderGroupFilter = (
           href: hrefFor(null),
           label: t("listings_table.filter.all_groups"),
         },
-        ...sortByName([...groups]).map((group) => ({
+        ...groups.map((group) => ({
           active: group.id === activeGroupId,
           href: hrefFor(group.id),
           label: escapeHtml(group.name),

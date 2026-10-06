@@ -15,7 +15,7 @@ import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#db/attendees/servicing.ts";
 import { getActiveListingStats } from "#db/attendees/stats.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { getAllGroupNames, getListingsByGroupId } from "#db/groups.ts";
+import { getAllGroupNames } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings, listingNames } from "#db/listings/records.ts";
@@ -46,7 +46,11 @@ import {
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
+import {
+  groupMemberIds,
+  loadSortedListings,
+  sortListings,
+} from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 /* jscpd:ignore-end */
 import {
@@ -62,7 +66,6 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
-/** Login page response helper */
 export const loginResponse = async (
   request: Request,
   status = 200,
@@ -73,7 +76,6 @@ export const loginResponse = async (
   return htmlResponse(adminLoginPage(flash.error), status);
 };
 
-/** Maximum number of newest attendees to show on dashboard */
 const NEWEST_ATTENDEES_LIMIT = 10;
 
 const loadListingAttributeFilterContext = async (
@@ -97,9 +99,6 @@ const loadListingAttributeFilterContext = async (
   };
 };
 
-/**
- * Handle GET /admin/
- */
 const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
@@ -148,35 +147,33 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     () => loginResponse(request),
   );
 
-/** Editors land on this page, so it is gated to content roles (staff +
- * editor). The template renders role-aware columns and links, so editors see
- * no financials or forbidden detail links. */
 /** The loaded listings that belong to the chosen group, in the loaded order. */
 const keepListingsInGroup = (
   listings: ListingWithCount[],
-  members: ListingWithCount[],
-): ListingWithCount[] => {
-  const memberIds = new Set(members.map((listing) => listing.id));
-  return listings.filter((listing) => memberIds.has(listing.id));
-};
+  memberIds: ReadonlySet<number>,
+): ListingWithCount[] =>
+  listings.filter((listing) => memberIds.has(listing.id));
 
+/** Editors land on this page, so it is gated to content roles (staff +
+ * editor). The template renders role-aware columns and links, so editors see
+ * no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
   contentPage(async (session, request) => {
     const groups = groupScopeOptions(await getAllGroupNames());
     const groupId = groupIdFromRequest(request, groups);
-    const [memberListings, { listings }] = await Promise.all([
-      groupId === null ? null : getListingsByGroupId(groupId),
+    const [memberIds, { listings }] = await Promise.all([
+      groupId === null ? null : groupMemberIds(groupId),
       loadSortedListings(),
     ]);
     // One membership read narrows the whole page: the tables, the deactivated
     // section, and the multi-booking builder all start from this list.
     const shownListings =
-      memberListings === null
-        ? listings
-        : keepListingsInGroup(listings, memberListings);
+      memberIds === null ? listings : keepListingsInGroup(listings, memberIds);
     // The attribute filter context stays on the full set, so a bar recognises
     // an attribute that only exists outside the chosen group. The type filter
     // makes the same choice today.
+    // The multi-booking builder offers only listings with a standalone
+    // booking page. A `bookable_alone` child keeps its own page, so it stays.
     const [attributeContext, unbookableIds] = await Promise.all([
       loadListingAttributeFilterContext(request, listings),
       getNonStandaloneChildIds(listings.map((listing) => listing.id)),
@@ -205,13 +202,12 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
     const groupNames = await getAllGroupNames();
     const groups = groupScopeOptions(groupNames);
     const groupId = groupIdFromRequest(request, groups);
-    const memberListings =
-      groupId === null ? null : await getListingsByGroupId(groupId);
+    const memberIds = groupId === null ? null : await groupMemberIds(groupId);
     const { listings: allListings } = await loadSortedListings();
     const inGroupListings =
-      memberListings === null
+      memberIds === null
         ? allListings
-        : keepListingsInGroup(allListings, memberListings);
+        : keepListingsInGroup(allListings, memberIds);
     const type = listingTypeFromRequest(request);
     const { activeAttributeFilters, attributesByListing } =
       await loadListingAttributeFilterContext(request, allListings);
@@ -229,7 +225,6 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
     return csvResponse(csv, `listings${suffix}.csv`);
   });
 
-/** Maximum number of log entries to display */
 const LOG_DISPLAY_LIMIT = 200;
 
 /**
@@ -253,9 +248,6 @@ const loadActivityLogRefs = async (
   return { attendees, listings };
 };
 
-/**
- * Handle GET /admin/log
- */
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
@@ -266,7 +258,6 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   },
 );
 
-/** Dashboard routes */
 export const adminHandlers = defineRoutes({
   "GET /admin": handleAdminGet,
   "GET /admin/listings": handleAdminListingsGet,

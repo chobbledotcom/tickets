@@ -6,7 +6,7 @@
  * Tier 2: Daily listings                → sorted by next bookable date ASC, then name
  */
 
-import { getAllGroupNames } from "#db/groups.ts";
+import { getAllGroupNames, getListingsByGroupId } from "#db/groups.ts";
 import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
@@ -99,3 +99,10 @@ export const loadSortedListings = async (
 export const loadListingsAndGroupNames = (): Promise<
   [ListingWithCount[], Map<number, string>]
 > => Promise.all([getAllListings(), getAllGroupNames()]);
+
+/** One group's member listing ids, inactive members included, as a set — the
+ * shape the pages filter their loaded listings with. */
+export const groupMemberIds = async (
+  groupId: number,
+): Promise<ReadonlySet<number>> =>
+  new Set((await getListingsByGroupId(groupId)).map((listing) => listing.id));
