@@ -76,7 +76,8 @@ export const combinedChildCapacityForParent = (
       child.groupIds,
       remainingByGroupId,
     );
-    const key = shared.toSorted((a, b) => a - b).join(",");
+    // A partition key: any order-independent form will do.
+    const key = shared.sort().join(",");
     const ownMaxList = partsByPoolSet.get(key) ?? [];
     ownMaxList.push(child.ownMax);
     partsByPoolSet.set(key, ownMaxList);
