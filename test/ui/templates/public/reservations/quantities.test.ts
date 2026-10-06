@@ -125,22 +125,22 @@ describe("restoredPackageQuantity", () => {
 
 describe("restoredQuantity", () => {
   test("restores the pre-filled quantity, clamped to the available range", async () => {
-    expect(restoredQuantity(1, { quantity: 3 }, 10)).toBe(3);
-    expect(restoredQuantity(1, { quantity: 30 }, 10)).toBe(10);
+    expect(restoredQuantity(1, { quantity: 3 }, 10, 1)).toBe(3);
+    expect(restoredQuantity(1, { quantity: 30 }, 10, 1)).toBe(10);
   });
 
   test("stays at zero without a pre-fill", () => {
-    expect(restoredQuantity(1, undefined, 10)).toBe(0);
+    expect(restoredQuantity(1, undefined, 10, 1)).toBe(0);
   });
 
   test("stays at zero for a negative pre-fill", () => {
-    expect(restoredQuantity(1, { quantity: -3 }, 10)).toBe(0);
+    expect(restoredQuantity(1, { quantity: -3 }, 10, 1)).toBe(0);
   });
 
   test("restores the just-submitted count", async () => {
     expect(
       await withSubmittedValues({ quantity_1: "5" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(5);
   });
@@ -148,7 +148,7 @@ describe("restoredQuantity", () => {
   test("clamps a too-large submitted count", async () => {
     expect(
       await withSubmittedValues({ quantity_1: "30" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(10);
   });
@@ -156,7 +156,7 @@ describe("restoredQuantity", () => {
   test("keeps zero for a non-numeric submitted count", async () => {
     expect(
       await withSubmittedValues({ quantity_1: "abc" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
   });
@@ -164,7 +164,7 @@ describe("restoredQuantity", () => {
   test("keeps zero for a hex-looking submitted count", async () => {
     expect(
       await withSubmittedValues({ quantity_1: "0x10" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
   });
@@ -172,7 +172,7 @@ describe("restoredQuantity", () => {
   test("clamps a negative submitted count to zero", async () => {
     expect(
       await withSubmittedValues({ quantity_1: "-3" }, () =>
-        restoredQuantity(1, undefined, 10),
+        restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
   });
