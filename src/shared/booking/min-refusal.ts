@@ -10,6 +10,20 @@ export const belowMinError = (
   error: string,
 ): string | null => (quantityBelowMin(quantity, minimum) ? error : null);
 
+/** The member facts one bundle count serves: each member's fixed per-package
+ *  units beside its stored minimum and name. An id with no loaded listing
+ *  row drops out. */
+export const packageBundleMembers = (
+  fixedByListingId: ReadonlyMap<number, number>,
+  listingById: ReadonlyMap<number, { min_quantity: number; name: string }>,
+): { fixed: number; minQuantity: number; name: string }[] =>
+  [...fixedByListingId].flatMap(([listingId, fixed]) => {
+    const listing = listingById.get(listingId);
+    return listing === undefined
+      ? []
+      : [{ fixed, minQuantity: listing.min_quantity, name: listing.name }];
+  });
+
 /** The below-minimum refusal for one package bundle count: the first member
  *  whose units the bundles serve below its per-purchase minimum. An owner
  *  can raise a member's minimum after the package was saved, so the fold

@@ -7,7 +7,10 @@
 
 import type { buildBookingTree } from "#booking/build-tree.ts";
 import { bookingError, parseCustomPrice } from "#booking/form.ts";
-import { packageBundleMinError } from "#booking/min-refusal.ts";
+import {
+  packageBundleMembers,
+  packageBundleMinError,
+} from "#booking/min-refusal.ts";
 import { quantityBelowMin } from "#booking/model.ts";
 import {
   aggregateNodeQuantities,
@@ -25,6 +28,7 @@ import {
   standaloneListingIds,
 } from "#booking/tree.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { byId } from "#fp";
 import {
   type AnswerInfo,
   listingAnswerMaps,
@@ -82,21 +86,15 @@ const packageQuantityRefusal = (
   form: FormParams,
   ctx: TicketCtx,
 ): string | null => {
+  const listingById = byId(ctx.listings.map((info) => info.listing));
   for (const pkg of ctx.packages) {
-    const count = parsePackageCount(form, pkg.groupId);
-    const members = pkg.memberListingIds.flatMap((id) => {
-      const info = ctx.listings.find((e) => e.listing.id === id);
-      return info === undefined
-        ? []
-        : [
-            {
-              fixed: pkg.quantities.get(id) ?? 1,
-              minQuantity: info.listing.min_quantity,
-              name: info.listing.name,
-            },
-          ];
-    });
-    const error = packageBundleMinError(members, count);
+    const fixedByListingId = new Map(
+      pkg.memberListingIds.map((id) => [id, pkg.quantities.get(id) ?? 1]),
+    );
+    const error = packageBundleMinError(
+      packageBundleMembers(fixedByListingId, listingById),
+      parsePackageCount(form, pkg.groupId),
+    );
     if (error) return error;
   }
   return null;

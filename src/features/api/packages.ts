@@ -2,13 +2,17 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { bookingError } from "#booking/form.ts";
-import { packageBundleMinError } from "#booking/min-refusal.ts";
+import {
+  packageBundleMembers,
+  packageBundleMinError,
+} from "#booking/min-refusal.ts";
 import { bookableChildIds, pageDayCounts } from "#booking/model.ts";
 import { nodeQuantitiesFor } from "#booking/order-lines.ts";
 import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
 import { packageBundleTotal } from "#booking/price-tree.ts";
 import { type BookingTree, fixedQuantitiesByListingId } from "#booking/tree.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
+import { byId } from "#fp";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
@@ -258,18 +262,10 @@ const resolvePackageOrder = async (
   // the fold re-reads the stored fact the same way the webhook does.
   const fixedByListingId = fixedQuantitiesByListingId(tree);
   const memberMinError = packageBundleMinError(
-    ctx.listings.flatMap((info) => {
-      const fixed = fixedByListingId.get(info.listing.id);
-      return fixed === undefined
-        ? []
-        : [
-            {
-              fixed,
-              minQuantity: info.listing.min_quantity,
-              name: info.listing.name,
-            },
-          ];
-    }),
+    packageBundleMembers(
+      fixedByListingId,
+      byId(ctx.listings.map((info) => info.listing)),
+    ),
     requestedQty,
   );
   if (memberMinError) return apiError(memberMinError);

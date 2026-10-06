@@ -60,7 +60,9 @@ export const packageParentOrder = async (
   });
   const { child, parent } = await nonStandalonePair(
     { groupId: group.id, unitPrice: 600 },
-    { unitPrice: 200 },
+    // The surplus cases carry a two-unit child line: one folded unit plus
+    // one standalone unit, inside the child's per-order maximum.
+    { maxQuantity: 2, unitPrice: 200 },
   );
   await setGroupPackageMembers(group.id, [
     { listingId: parent.id, price: 600 },

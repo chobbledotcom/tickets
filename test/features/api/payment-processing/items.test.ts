@@ -268,15 +268,15 @@ describeWithEnv("paid item validation", { db: true }, () => {
   test("fails a mixed folded and standalone child after its flag is cleared", async () => {
     const { child, parent } = await nonStandalonePair(
       { unitPrice: 600 },
-      { unitPrice: 200 },
+      { maxQuantity: 2, unitPrice: 200 },
     );
-    // One folded line plus one standalone line, each at the child's own
-    // per-order maximum: the refusal must come from the mixed flag, not
-    // from a quantity the fold could never produce.
+    // One folded allocation plus a two-unit standalone line, inside the
+    // child's per-order maximum: the refusal must come from the mixed flag,
+    // not from a quantity a line cannot carry.
     const intent = bookingIntent(
       [
         { e: parent.id, p: 600, q: 1 },
-        { e: child.id, p: 400, q: 1 },
+        { e: child.id, p: 400, q: 2 },
       ],
       { allocations: [{ childId: child.id, parentId: parent.id, qty: 1 }] },
     );
