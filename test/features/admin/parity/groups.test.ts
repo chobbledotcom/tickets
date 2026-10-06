@@ -25,11 +25,12 @@ describeWithEnv("Group parity pins", { db: true }, () => {
   };
 
   test("page create stores the posted fields, absent checkboxes off", async () => {
-    await ownerPagePost("/admin/groups", {
+    const response = await ownerPagePost("/admin/groups", {
       description: "Pinned page group",
       max_attendees: "0",
       name: "Pinned Page Group",
     });
+    expect(response.status).toBe(302);
     const row = await storedGroup("Pinned Page Group");
     expect(row.description).toBe("Pinned page group");
     expect(row.hidden).toBe(false);
