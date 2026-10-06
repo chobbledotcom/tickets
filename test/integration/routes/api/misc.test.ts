@@ -115,7 +115,6 @@ describePublicApi(() => {
         name: "Mallory",
         quantity: 1,
         slug: other.slug,
-        quantity: 1,
       });
       expect(response.status).toBe(200);
 
