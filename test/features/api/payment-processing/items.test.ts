@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { withMessageGroups } from "#i18n";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
@@ -134,14 +135,10 @@ describeWithEnv("paid item validation", { db: true }, () => {
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
     using refund = stubRefundPayment("re_items_minimum", 500);
 
-    expect(
-      failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_minimum", 500, intent),
-          intent,
-        ),
-      ),
-    ).toEqual({
+    const result = await withMessageGroups(["payment"], () =>
+      validateAllItems(paymentSession("cs_items_minimum", 500, intent), intent),
+    );
+    expect(failureResult(result)).toEqual({
       detail: undefined,
       error: "Sorry, Raised floor sells at least 3 tickets per booking.",
       refunded: true,

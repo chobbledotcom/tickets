@@ -12,6 +12,7 @@ import {
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start -- import block */
 import {
   anyPackageBundleMismatch,
@@ -62,14 +63,18 @@ const validateListingForPayment = (
   }
   // The buyer can open a paid checkout before the owner raises the
   // minimum. The webhook is the last stop, so it re-reads the stored fact.
-  // The message is a literal: the webhook runs outside any message-group
-  // scope, like the other refusals here.
+  // The payment route loads this group for every request.
   const belowMinimum = belowMinError(
     quantity,
     listing.min_quantity,
     name
-      ? `Sorry, ${name} sells at least ${listing.min_quantity} tickets per booking.`
-      : `Sorry, this listing sells at least ${listing.min_quantity} tickets per booking.`,
+      ? t("payment.failure.below_minimum_named", {
+          min_quantity: listing.min_quantity,
+          name,
+        })
+      : t("payment.failure.below_minimum", {
+          min_quantity: listing.min_quantity,
+        }),
   );
   if (belowMinimum) {
     return { error: belowMinimum, ok: false, status: 410 };
