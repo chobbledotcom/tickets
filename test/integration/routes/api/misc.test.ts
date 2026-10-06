@@ -83,6 +83,7 @@ describePublicApi(() => {
         email: "mallory@example.com",
         listing_id: other.id,
         name: "Mallory",
+        quantity: 1,
       });
       expect(response.status).toBe(200);
 
@@ -113,6 +114,7 @@ describePublicApi(() => {
         email: "mallory@example.com",
         name: "Mallory",
         slug: other.slug,
+        quantity: 1,
       });
       expect(response.status).toBe(200);
 

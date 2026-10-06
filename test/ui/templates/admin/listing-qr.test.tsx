@@ -22,6 +22,7 @@ describe("the listing booking-QR page", () => {
       listing_type: "daily",
       max_price: 2500,
       max_quantity: 4,
+      minimum_quantity: 1,
       name: "QR Listing",
       unit_price: 1200,
       ...overrides,
