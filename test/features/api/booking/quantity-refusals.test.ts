@@ -44,7 +44,7 @@ describePublicApi(() => {
       { quantity: 2 },
     );
     expect(response.status).toBe(400);
-    expect(body.error).toBe("Quantity must be at least 3");
+    expect(body.error).toBe("Quantity must be at least 3.");
     expect((await getAttendeesRaw(listing.id)).length).toBe(0);
 
     const above = await createAndBook(
@@ -52,7 +52,7 @@ describePublicApi(() => {
       { quantity: 6 },
     );
     expect(above.response.status).toBe(400);
-    expect(above.body.error).toBe("Quantity cannot exceed 5");
+    expect(above.body.error).toBe("Quantity must be at most 5.");
     expect((await getAttendeesRaw(above.listing.id)).length).toBe(0);
 
     // Fewer places left than the minimum: the capacity check refuses.
@@ -110,7 +110,7 @@ describePublicApi(() => {
     // reads a refusal naming the smaller cap.
     const above = await apiBookPackage(group.slug, { quantity: 6 });
     expect(above.response.status).toBe(400);
-    expect(above.body.error).toBe("Quantity cannot exceed 5");
+    expect(above.body.error).toBe("Quantity must be at most 5.");
     expect((await getAttendeesRaw(member.id)).length).toBe(1);
   });
 });
