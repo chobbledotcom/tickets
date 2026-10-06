@@ -129,10 +129,10 @@ const packageMergedFields = (ctx: TicketCtx): string =>
   );
 
 /** Package bundle detail. A fixed-price bundle reports one `priceMinor`.
- * A customisable one reports each offered day count with its whole-bundle
- * total. The total counts only the day counts every member's required-child
- * mix can serve. An empty list means no span is currently bookable. A HIDDEN
- * package omits its members entirely. */
+ * A customisable one reports one total per offered day count. The list keeps
+ * only the day counts every member and required child can serve. An empty
+ * list means no span is currently bookable. A HIDDEN package omits its
+ * members entirely. */
 export const handleGetPackage = withPackageContext(
   async (_request, { ctx, group, limit, tree }) => {
     const customisable = ctx.listings.some((e) => e.listing.customisable_days);
