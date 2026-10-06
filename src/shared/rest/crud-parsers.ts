@@ -2,7 +2,7 @@
 
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
+import { type AuthPolicy, withAuth } from "#routes/auth.ts";
 import {
   errorResult,
   okResult,
@@ -150,7 +150,9 @@ export type EntityHandler<Row> = (
 /**
  * Auth + entity lookup helper.
  * Calls withAuth, fetches the entity by ID, and passes it to the callback.
- * Returns 404 automatically if the entity doesn't exist.
+ * Returns 404 automatically if the entity doesn't exist. The policy is
+ * required: every route declares the audience its matching admin page grants,
+ * so no extra route can fall back to an undeclared one.
  */
 export const withApiEntity = <Row>(
   request: Request,
@@ -158,7 +160,7 @@ export const withApiEntity = <Row>(
   id: number,
   notFoundLabel: string,
   handler: EntityHandler<Row>,
-  policy: AuthPolicy<"json"> = ADMIN_API,
+  policy: AuthPolicy<"json">,
 ): Promise<Response> =>
   withAuth(request, policy, async (session, body) => {
     const row = await lookup(id);
@@ -181,13 +183,14 @@ const withSession =
 /**
  * One entity's JSON API gate: the loader, its not-found label, and the auth
  * policy, bound once. Every route for the entity then loads and guards the
- * same way.
+ * same way. The policy is required: each caller declares the audience its
+ * matching admin page grants.
  */
 export const apiEntityGate =
   <Row>(
     lookup: (id: number) => Promise<Row | null>,
     notFoundLabel: string,
-    policy?: AuthPolicy<"json">,
+    policy: AuthPolicy<"json">,
   ) =>
   (
     request: Request,

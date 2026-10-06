@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { ADMIN_API } from "#routes/auth.ts";
 import {
   bodyNumber,
   parseOptionalArray,
@@ -91,6 +92,7 @@ describeWithEnv("withApiEntity", { db: true }, () => {
       999,
       "Widget",
       () => Promise.resolve(new Response("should not be called")),
+      ADMIN_API,
     );
 
     expect(response.status).toBe(404);
@@ -106,6 +108,7 @@ describeWithEnv("withApiEntity", { db: true }, () => {
       7,
       "Widget",
       (found) => Promise.resolve(Response.json({ widget: found })),
+      ADMIN_API,
     );
 
     expect(response.status).toBe(200);
