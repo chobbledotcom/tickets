@@ -310,12 +310,11 @@ const processNewBookingSession = async (
  * refunded, so a paid customer is never dropped. The refund covers ANY reason
  * we cannot honour the charge. Examples: a mismatch, a mid-checkout price
  * edit, a sold-out extra, a full event, a since-deleted listing, or an
- * unexpected error after the charge. A failure that has not yet sent its
- * refund carries `refunded: false`, and the caller leaves it retryable. Every
- * other failure is a handled terminal outcome. The caller records those
- * through processPaymentSession, so a later redirect/webhook replays the same
- * result instead of re-running refunds or stalling behind the idempotency
- * lock.
+ * unexpected error. A failure that has not yet sent its refund carries
+ * `refunded: false` and stays retryable. Every other failure is a handled
+ * terminal outcome. The caller records those through processPaymentSession,
+ * so a later redirect/webhook replays the same result instead of re-running
+ * refunds or stalling behind the idempotency lock.
  */
 const processReservedSession: SessionProcessor = async (sessionId, data) => {
   const { session, intent, verdict } = data;
