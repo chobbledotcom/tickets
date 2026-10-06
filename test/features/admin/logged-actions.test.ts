@@ -44,4 +44,26 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
       (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
     ).toContain("Question 'Postcode' created");
   });
+
+  test("a rolled-back creation leaves no log line", async () => {
+    const order = {
+      append: async () => {},
+    } as unknown as OrderedCollection<"id", undefined>;
+    // The deliberate throw rolls the transaction back: if the log write ran
+    // outside the transaction, its row would survive and this test would fail.
+    const rollback = new Error("rollback");
+    let rolledBack = false;
+
+    await withTransaction(async (tx) => {
+      await appendWithCreationLog(order, "Question", "Ghost")(tx, 5);
+      throw rollback;
+    }).catch((error: unknown) => {
+      rolledBack = error === rollback;
+    });
+
+    expect(rolledBack).toBe(true);
+    expect(
+      (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
+    ).not.toContain("Question 'Ghost' created");
+  });
 });
