@@ -1,7 +1,7 @@
 /**
  * The validate step of the payment machine: confirm with the provider that a
- * session is paid, then prove — via its signed price proof — that the session is
- * ours before anything downstream processes or refunds it.
+ * session is paid. Then prove — via its signed price proof — that the session
+ * is ours before anything downstream processes or refunds it.
  */
 
 import { settings } from "#db/settings.ts";
@@ -34,7 +34,7 @@ import {
 /* jscpd:ignore-end */
 
 /** Makes a logger that records a payment-session error, prefixed with the
- * payment step it happened on (e.g. "redirect", "cancel"). */
+ * payment step it happened on (for example "redirect", "cancel"). */
 export const paymentSessionErrorLogger =
   (step: string): ((detail: string) => void) =>
   (detail: string): void =>
@@ -62,7 +62,7 @@ const refusalPage = async (
   ),
 });
 
-/** A session that could not be read: log why and return the shared refusal. */
+/** A session that cannot be read: log why and return the shared refusal. */
 const sessionUnavailable = async (
   sessionId: string,
   why: string,
@@ -82,8 +82,8 @@ const logUnreadableBooking = paymentSessionErrorLogger("booking");
 const returnAgainHref = (sessionId: string): string =>
   `/payment/success?session_id=${encodeURIComponent(sessionId)}`;
 
-/** The reload count the return URL carries, held to a whole number between
- * 0 and the limit, so a forged `wait` value changes no other page fact. */
+/** The reload count the return URL carries, held to a whole number within
+ * the limit, so a forged `wait` value changes no other page fact. */
 const reloadsSoFarOn = (request: Request | undefined): number => {
   if (request === undefined) return 0;
   const count = Number(getSearchParam(request, "wait"));
@@ -94,12 +94,12 @@ const reloadsSoFarOn = (request: Request | undefined): number => {
 /**
  * Evaluate a session's price proof against its metadata:
  *  - `null`: no proof at all.
- *  - `{ valid: false }`: a proof is present but doesn't verify (tampered
+ *  - `{ valid: false }`: a proof is present but does not verify (tampered
  *    metadata, or a foreign instance that signed with its own key).
  *  - `{ valid: true, total }`: a genuine proof binding `total`.
  *
- * Only the third case proves the session is ours; the first two both classify as
- * `ignore` (see {@link classifySession}).
+ * Only the third case proves the session is ours. The first two both classify
+ * as `ignore` (see {@link classifySession}).
  */
 const evaluatePriceProof = async (
   session: ValidatedPaymentSession,
@@ -131,7 +131,7 @@ const evaluatePriceProof = async (
 type SessionClass = SignedVerdict | { verdict: "ignore" };
 
 /** The complete answer after checking both ownership and the signed booking.
- * A session we cannot prove is ours may be acknowledged. A session we can
+ * A session we cannot prove is ours can be acknowledged. A session we can
  * prove is ours but cannot read must remain retryable. */
 export type SessionIntentResult =
   | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
@@ -144,7 +144,7 @@ export const classifySession = async (
   const evaluation = await evaluatePriceProof(session);
   if (evaluation === null || !evaluation.valid) return { verdict: "ignore" };
   // A charge in a currency other than the site's cannot be honored at the
-  // signed total — the amount is in the wrong unit — so it is refused like any
+  // signed total — the amount is in the wrong unit. It is refused like any
   // other mismatch and refunded rather than dropped.
   if (session.currency !== settings.currency.toUpperCase()) {
     return { agreed: evaluation.total, verdict: "mismatch" };
@@ -172,7 +172,7 @@ export const validatePaidSession = async (
   sessionId: string,
   request?: Request,
 ): Promise<SessionValidation> => {
-  // An in-flight checkout may complete after the operator switched new sales
+  // An in-flight checkout can complete after the operator switched new sales
   // off, so resolve the provider that captured the payment rather than the
   // new-sales gate.
   const provider = await getPaymentProviderForExistingPayments();
@@ -206,7 +206,7 @@ export const validatePaidSession = async (
 
   if (session.paymentStatus !== "paid") {
     // A hosted checkout redirects on flow completion, and its transaction
-    // status can settle later, so this is a normal state: tell the buyer,
+    // status can settle later, so this is a normal state. Tell the buyer,
     // not the owner's error channel.
     const reloads = reloadsSoFarOn(request);
     logDebug(
@@ -231,10 +231,10 @@ export const validatePaidSession = async (
     };
   }
 
-  // Only a session carrying a valid price proof is provably ours. Without one we
-  // cannot prove ownership (foreign instance sharing the provider, replayed or
-  // corrupt data), so we neither process nor refund it — refunding an
-  // unverifiable session could refund another instance's payment.
+  // Only a session carrying a valid price proof is provably ours. Without one
+  // we cannot prove ownership (foreign instance sharing the provider, replayed
+  // or corrupt data), so we neither process nor refund it. Refunding an
+  // unverifiable session can refund another instance's payment.
   const classified = await classifySessionIntent(session);
   const knownFacts = {
     provider: session.provider,

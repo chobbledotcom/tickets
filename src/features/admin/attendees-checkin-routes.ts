@@ -1,7 +1,7 @@
-/** The roster's check-in routes: the quantity page a multi-ticket line's
- * Check In / Check Out link opens, and the POST both that page and the
- * quantity 1 toggle submit. One module so the listing-scoped attendee routes
- * file stays under its line budget. */
+/** The roster's check-in routes. One page for a multi-ticket line's
+ * Check In / Check Out link, and the POST both that page and the quantity 1
+ * toggle submit. One module so the listing-scoped attendee routes file stays
+ * under its line budget. */
 
 import { ticketCount } from "#booking/ticket-moves.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
@@ -68,16 +68,14 @@ const rosterLanding = (form: FormParams, listingId: number): string => {
   return `/admin/listing/${listingId}/attendees${filterQs}`;
 };
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin — both
- * the quantity page's forms and the quantity 1 toggle. The context is the
- * person's whole booking on the listing, so a stale page's count cannot
- * overshoot either direction: admit caps at what the pair owes and release
- * stops at zero. */
+/** The context is the person's whole booking on the listing, so a stale
+ * page's count cannot overshoot either direction. Admit caps at what the
+ * pair owes, and release stops at zero. */
 export const handleAttendeeCheckin = attendeeBookingFormAction(
   async (data, _session, form, listingId, attendeeId) => {
     // Refuse on a no-quantity ghost row (checked against the exact (attendee,
-    // listing) pair) — moveTickets would no-op anyway, but this keeps the
-    // message honest.
+    // listing) pair). moveTickets no-ops anyway, but this keeps the message
+    // honest.
     const noLineRedirect = await redirectIfNoActiveBookingLine(
       attendeeId,
       listingId,
@@ -88,14 +86,14 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
 
     const target = rosterLanding(form, listingId);
     // The direction is the form's one choice between opposite writes, so
-    // only the exact true/false the forms post counts — anything else is a
+    // only the exact true/false the forms post counts. Anything else is a
     // damaged form, not a silent admission.
     const direction = form.getString("check_in");
     if (direction !== "true" && direction !== "false") {
       return redirect(target, "Invalid check-in direction", false, { form });
     }
-    // Every form names its count, so a roster line that shows only part of
-    // the booking (one date, one filter) cannot move the rest of it.
+    // Every form names its count. A roster line that shows only part of the
+    // booking (one date, one filter) cannot move the rest.
     const count = parsePositiveInt(form.getString("quantity"));
     if (count === null) {
       return redirect(target, "Invalid ticket count", false, { form });

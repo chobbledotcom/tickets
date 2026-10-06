@@ -1,8 +1,9 @@
 /**
  * Re-validate a signed order's package structure and per-line pricing against
- * the CURRENT database, so a member added/removed, a price/quantity edited, or a
- * required child-edge changed mid-checkout is caught and fails the order closed
- * to a price_changed refund rather than booking a partial or stale bundle.
+ * the CURRENT database. A member added/removed, a price/quantity edited, or a
+ * required child-edge changed mid-checkout is caught here. The order then
+ * fails closed to a price_changed refund rather than booking a partial or
+ * stale bundle.
  *
  * Everything here is pure re-derivation over the order's signed lines and the
  * current facts loaded by the paid-order snapshot.

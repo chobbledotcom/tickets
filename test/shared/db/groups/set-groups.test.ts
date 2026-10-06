@@ -153,6 +153,38 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     expect(await listingGroupIdsOf(listing.id)).toEqual([]);
   });
 
+  test("a package join refuses a listing whose minimum exceeds the pick count", async () => {
+    // A join grants the default pick count of one; a listing that sells at
+    // least two per purchase could never be booked inside the bundle.
+    const group = await createHiddenPackageGroup("Batched join package");
+    const member = await createTestListing({
+      maxQuantity: 10,
+      minQuantity: 2,
+      name: "Batched Join Member",
+    });
+
+    await expect(assignListingsToGroup([member.id], group.id)).resolves.toBe(
+      t("error.package_member_min", {
+        min_quantity: 2,
+        name: "Batched Join Member",
+        quantity: 1,
+      }),
+    );
+  });
+
+  test("a plain group join takes no pick count, so no minimum applies", async () => {
+    const group = await createTestGroup({ name: "Plain join group" });
+    const member = await createTestListing({
+      maxQuantity: 10,
+      minQuantity: 2,
+      name: "Plain Join Member",
+    });
+
+    await expect(
+      assignListingsToGroup([member.id], group.id),
+    ).resolves.toBeNull();
+  });
+
   test("a package member left out of the list loses its override", async () => {
     const group = await createTestGroup({
       isPackage: true,

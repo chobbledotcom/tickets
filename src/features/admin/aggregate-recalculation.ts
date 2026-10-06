@@ -46,8 +46,8 @@ export const selectedRecalculationFields = <T extends string>(
 
 /**
  * The shared aggregate-recalculation POST flow, identical for listings,
- * modifiers, and answers: read the selected fields, re-render the page with a
- * "choose a field" message when none are ticked, otherwise reset those
+ * modifiers, and answers. Read the selected fields. Re-render the page with a
+ * "choose a field" message when none are ticked. Otherwise reset those
  * aggregates, log the action, and redirect to the entity's edit page. Each
  * caller supplies the parts that differ as closures over its loaded entity, so
  * the divergent auth/load wrappers stay at the call site.
@@ -95,11 +95,11 @@ export const createRecalculatePageRenderer =
 
 /**
  * Build the GET + POST route handlers for one entity's aggregate-recalculation
- * page — identical for listings and modifiers: GET loads the entity and renders
- * the page with the current flash; POST runs {@link runRecalculatePost} against
- * it. Each caller supplies its own id-keyed loader (404 when the id is missing
- * or unknown), field set, reset step, and the bits that vary by entity kind
- * (the logged line, the success redirect).
+ * page, identical for listings and modifiers. GET loads the entity and renders
+ * the page with the current flash. POST runs {@link runRecalculatePost}
+ * against it. Each caller supplies its own id-keyed loader (404 when the id
+ * is missing or unknown), field set, and reset step. The remaining bits vary
+ * by entity kind: the logged line and the success redirect.
  */
 export const createRecalculateHandlers = <T, F extends string, ID>(config: {
   withEntity: (

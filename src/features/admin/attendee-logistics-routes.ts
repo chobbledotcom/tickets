@@ -1,10 +1,8 @@
 /**
- * POST /admin/attendees/:attendeeId/logistics — save the Logistics tab.
- *
  * The address and pinned lat/lng go into the encrypted PII blob (everything
- * else in the blob is preserved); the start/end times/agents go onto the
+ * else in the blob is preserved). The start/end times and agents go onto the
  * booking rows. A validation failure re-renders the submitted form in place
- * at 400, like the Edit tab; a success PRG-redirects back to this tab.
+ * at 400, like the Edit tab. A success PRG-redirects back to this tab.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -72,8 +70,9 @@ const renderSubmittedLogistics = (
   });
 
 /** Persist the submitted start/end selectors, mirroring exactly what the
- * panel rendered: when the selectors weren't shown (logistics off, no agents,
- * nothing delivered) nothing is parsed, so stored assignments survive. */
+ * panel rendered. When the selectors were not shown (logistics off, no
+ * agents, nothing delivered), nothing is parsed, so stored assignments
+ * survive. */
 const saveLogisticsSelectors = async (
   entity: LoadedAttendee,
   form: FormParams,

@@ -35,7 +35,7 @@ import type { Attendee, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
-/** Read one query parameter, keeping it only when it reads as a real date.
+/** Read one query parameter. Keep it only when it reads as a real date.
  *  Anything else is treated as absent, so a typed URL cannot filter by junk. */
 const dateQuery =
   (
@@ -58,10 +58,10 @@ export const csvResponse = (csv: string, filename: string): Response =>
   downloadResponse(encodeBody(csv), filename, "text/csv; charset=utf-8");
 
 /**
- * Bounded attendee id → name lookup for link labels (activity log, ledger). The
+ * Bounded attendee id-to-name lookup for link labels (activity log, ledger). The
  * current request's private key is unwrapped only when at least one attendee is
  * actually referenced, so a system-only page never forces a key derivation. A
- * deleted attendee's id simply has no entry — it renders as plain text, no link.
+ * deleted attendee's id has no entry — it renders as plain text, no link.
  */
 export const loadAttendeeNames = async (
   attendeeIds: number[],
@@ -133,8 +133,8 @@ export type ErrorMapper = (error: Error) => Response;
  * (and allowed to be async). Used for the flash/log message. */
 /** A value that is either a ready `string`, or a `(session, form)` function
  * that computes one. `Result` is what the function returns — a bare/awaitable
- * string for a required value, or `string | undefined` when it may supply
- * nothing. The ready form is always a plain `string`. */
+ * string for a required value, or `string | undefined` when the value is
+ * optional. The ready form is always a plain `string`. */
 type SessionFormValue<TSession, Result> =
   | string
   | ((session: TSession, form: FormParams) => Result);
@@ -167,7 +167,8 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   onError?: ErrorMapper;
   /** Set-Cookie for the success redirect, built fresh on every request. */
   cookie?: () => string;
-  /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
+  /** Secret to redact from the activity log (for example, an API key shown in
+   * the flash but not logged) */
   redactedSecret?: SessionFormOptionalString<TSession>;
 };
 
@@ -214,7 +215,7 @@ export const createActionHandler = <TSession = AuthSession>(
   };
 
   // A field on the config is either a ready value or a function of the session
-  // and form (possibly async). Resolving one means: call it when it's a
+  // and form (possibly async). Resolving one means: call it when it is a
   // function, otherwise use it as-is.
   type Resolvable<T> =
     | T
@@ -248,13 +249,14 @@ export const createActionHandler = <TSession = AuthSession>(
       : Promise.resolve(undefined);
 
   return (request: Request) => {
-    // Evaluate the cookie thunk per request so domain-dependent state (e.g.
-    // __Host- prefix) is resolved at request time, not module load time.
+    // Evaluate the cookie thunk per request so domain-dependent state (for
+    // example the __Host- prefix) is resolved at request time, not module
+    // load time.
     const successOpts = config.cookie ? { cookie: config.cookie() } : undefined;
     return withAuth(request, policy, async (session, body) => {
       const form = body as FormParams;
-      // The success redirect depends only on the session and form (never on
-      // what execute did), so resolve it once and reuse it on both the error
+      // The success redirect depends only on the session and form, never on
+      // what execute did. Resolve it once and reuse it on both the error
       // and success paths.
       const redirectUrl = await resolveString(
         config.successRedirect,

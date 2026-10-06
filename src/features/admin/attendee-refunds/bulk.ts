@@ -164,7 +164,7 @@ const buildRefundProblemResponse = async (
       ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
       : null,
     // Admission permits one unresolved payment outcome. Incomplete local work
-    // on an older return would have blocked before this response.
+    // on an older return blocks before this response.
     remainingRefundMessage(remaining, 0),
   ]).join(" ");
   await logActivity(

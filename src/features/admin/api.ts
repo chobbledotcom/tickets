@@ -150,11 +150,11 @@ const toApiAttendee = ({
   ...attendee
 }: Attendee): AdminApiAttendee => attendee;
 
-/** Handle GET /api/admin/listings/:listingId/attendees — the listing's roster
- * as JSON. One row per booking line, newest first; every line shows, including
- * a quantity-0 placeholder, and a booking on another listing never appears.
- * Staff-only: the dashboard's roster tab is a staff-only surface
- * (listing-page.ts), and the answers carry decrypted attendee PII. */
+/** The listing's roster as JSON. One row per booking line, newest first.
+ * Every line shows, including a quantity-0 placeholder, and a booking on
+ * another listing never appears. Staff-only: the dashboard's roster tab is a
+ * staff-only surface (listing-page.ts), and the answers carry decrypted
+ * attendee PII. */
 const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
   withApiEntity(
     request,
@@ -184,8 +184,8 @@ const listingApiRoutes = defineCrudApi<
   // transaction, so two concurrent page-removing saves cannot both commit.
   checkTx: listingSaveOrphanedAddOnTx,
   // Role parity with the listing pages: create/edit/duplicate admit content
-  // admins (owner, manager, editor — areas-a-l.ts "listings"), while the
-  // delete, deactivate, and reactivate routes are staff-only, so an editor
+  // admins (owner, manager, editor — areas-a-l.ts "listings"). The delete,
+  // deactivate, and reactivate routes are staff-only. An editor therefore
   // writes through the API exactly as far as the dashboard allows.
   deletePolicy: ADMIN_API,
   extraRoutes: {

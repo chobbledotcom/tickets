@@ -35,6 +35,7 @@ describe("listingInputToEdge", () => {
       duration_days: 1,
       id: 7,
       listing_type: "standard",
+      min_quantity: 1,
       months_per_unit: 0,
       name: "Bare",
     });
@@ -57,6 +58,7 @@ describe("listingInputToEdge", () => {
       duration_days: 2,
       id: 3,
       listing_type: "daily",
+      min_quantity: 1,
       months_per_unit: 12,
       name: "Full",
     });

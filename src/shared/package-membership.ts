@@ -111,40 +111,35 @@ export const packageMemberError = (
   return key ? packageMemberMessage(key, listing.name) : null;
 };
 
-/** Whether a member's pick count exceeds what the listing sells in one order;
- *  an omitted pick count grants one unit. The one home of that lift. */
-export const packageMemberCapExceeded = (member: {
-  max_quantity: number;
-  quantity?: number | undefined;
-}): boolean => (member.quantity ?? 1) > member.max_quantity;
-
 /**
- * A package member's stored facts for the pick-count rule: how many units the
- * package grants (the pick count) against how many the listing sells per
- * order (the cap).
+ * A package member's pick-count facts: how many units the package grants (the
+ * pick count) against the bounds the listing sells within per order.
  */
-export type PackageMemberCap = {
+export type PackageMemberQuantity = {
   max_quantity: number;
-  name: string;
+  min_quantity: number;
   quantity?: number | undefined;
 };
 
-/**
- * Why a member's pick count cannot be served: the package demands more units
- * of it than the listing sells in one order, so the bundle's cap floors to
- * zero and no buyer can book it. Pure: the caller supplies the stored facts,
- * decrypting the name only for the member that fails.
- */
-export const packageMemberCapError = (
-  member: PackageMemberCap,
-): string | null =>
-  packageMemberCapExceeded(member)
-    ? t("error.package_member_cap", {
-        max_quantity: member.max_quantity,
-        name: member.name,
-        quantity: member.quantity ?? 1,
-      })
+/** Which bound a member's pick count breaks, cap checked first: the package
+ * must never grant more units of the member than the listing sells in one
+ * order, nor fewer than the listing sells at least per purchase. An omitted
+ * pick count grants one unit — the resolved count travels with the verdict,
+ * so every message names the units the package actually grants. The one home
+ * of that comparison. */
+export const packageMemberQuantityBroken = (
+  member: PackageMemberQuantity,
+): { quantity: number; reason: "cap" | "min" } | null => {
+  const quantity = member.quantity ?? 1;
+  if (quantity > member.max_quantity) {
+    return { quantity, reason: "cap" };
+  }
+  // Zero is the none choice, not a below-minimum purchase — the same
+  // exemption the shared quantity rule reads.
+  return quantity !== 0 && quantity < member.min_quantity
+    ? { quantity, reason: "min" }
     : null;
+};
 
 /**
  * Why a would-be parent/child edge conflicts with package membership — distinct

@@ -4,12 +4,14 @@ import type { Holiday } from "#db/holidays.ts";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
+  PARENT_CHILD_GROUP_UNITS,
+  type SharedGroupCapacity,
+} from "#shared/group-capacity.ts";
+import {
   ascending,
   availableDayCounts,
   clampDurationDays,
   type ListingWithCount,
-  PARENT_CHILD_GROUP_UNITS,
-  type SharedGroupCapacity,
 } from "#types";
 
 /** Listing info with availability ready for ticket display. */

@@ -40,8 +40,9 @@ import type { AdminSession, Attendee } from "#types";
 const returnTarget = (attendeeId: number, returnUrl: string): string =>
   returnUrl || `/admin/attendees/${attendeeId}`;
 
-/** The decrypted attendee, or a 404 Response to return when it doesn't exist —
- * both add pages need the attendee to exist (and the form needs its name). */
+/** The decrypted attendee, or a 404 Response to return when it does not
+ * exist. Both add pages need the attendee to exist, and the form needs its
+ * name. */
 const loadAttendeeOr404 = async (
   attendeeId: number,
 ): Promise<Attendee | Response> => {
@@ -53,7 +54,7 @@ const loadAttendeeOr404 = async (
 };
 
 /** Load the attendee, then run `then` with it — or short-circuit to the 404
- * Response when it doesn't exist. */
+ * Response when it does not exist. */
 const withLoadedAttendee = async (
   attendeeId: number,
   then: ResponseHandler<[attendee: Attendee]>,

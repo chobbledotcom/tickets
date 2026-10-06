@@ -14,9 +14,8 @@ import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
   memberBlockKey,
-  packageMemberCapError,
-  packageMemberCapExceeded,
   packageMemberMessage,
+  packageMemberQuantityBroken,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -102,6 +101,7 @@ type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   has_children: number;
   has_parents: number;
   max_quantity: number;
+  min_quantity: number;
 };
 
 export type ListingState = GroupListingSettings & {
@@ -111,6 +111,7 @@ export type ListingState = GroupListingSettings & {
   hasChildren: boolean;
   hasParents: boolean;
   maxQuantity: number;
+  minQuantity: number;
 };
 
 /** Reads the package rules' listing fields, both edge directions, and the
@@ -125,7 +126,8 @@ export const listingStatesTx = async (
       args: ids,
       sql: `SELECT listing.id, listing.name, listing.listing_type,
                     listing.customisable_days, listing.can_pay_more,
-                    listing.max_quantity, listing.assign_built_site,
+                    listing.max_quantity, listing.min_quantity,
+                    listing.assign_built_site,
                     EXISTS(SELECT 1 FROM listing_parents AS listingParent
                              WHERE listingParent.parent_listing_id = listing.id) AS has_children,
                     EXISTS(SELECT 1 FROM listing_parents AS listingParent
@@ -143,6 +145,7 @@ export const listingStatesTx = async (
     id: row.id,
     listing_type: row.listing_type,
     maxQuantity: row.max_quantity,
+    minQuantity: row.min_quantity,
     name: row.name,
   }));
   const stateById = byId(states);
@@ -197,20 +200,32 @@ export const storedPlanMemberErrorTx = async (
   return sitePlanMemberErrorTx(await listingStatesTx(tx, memberIds));
 };
 
-/** The pick-count refusal for one listing against one membership quantity —
- *  the package must never demand more units of a member than the member
- *  sells in one order. Decrypts the name only for a member that fails. */
-const memberCapErrorTx = async (
+/** The pick-count refusals for one listing against one membership quantity:
+ *  cap first, then the minimum. Decrypts the name only for a member that
+ *  fails. */
+export const memberCapErrorTx = async (
   listing: ListingState,
   quantity?: number,
-): Promise<string | null> =>
-  packageMemberCapExceeded({ max_quantity: listing.maxQuantity, quantity })
-    ? packageMemberCapError({
+): Promise<string | null> => {
+  const broken = packageMemberQuantityBroken({
+    max_quantity: listing.maxQuantity,
+    min_quantity: listing.minQuantity,
+    quantity,
+  });
+  if (broken === null) return null;
+  const name = await decrypt(listing.name);
+  return broken.reason === "cap"
+    ? t("error.package_member_cap", {
         max_quantity: listing.maxQuantity,
-        name: await decrypt(listing.name),
-        quantity,
+        name,
+        quantity: broken.quantity,
       })
-    : null;
+    : t("error.package_member_min", {
+        min_quantity: listing.minQuantity,
+        name,
+        quantity: broken.quantity,
+      });
+};
 
 /** The pick-count refusals for a save's submitted member quantities, judged
  *  against each member's stored cap. Only members the write will keep are

@@ -15,7 +15,7 @@ import {
   PARENT_CHILD_GROUP_UNITS,
   sharedGroupCapacity,
   sharedGroupRemaining,
-} from "#types";
+} from "#shared/group-capacity.ts";
 
 /** A per-group map, written the way the callers build one: only capped groups
  * appear, so absence means "this group has no cap". */

@@ -1,5 +1,5 @@
 /**
- * Turn a validated, correctly-priced session into a real attendee: create the
+ * Turn a validated, correctly-priced session into a real attendee. Create the
  * attendee plus its per-listing bookings atomically, finalize the payment
  * session in the same batch, and persist the answers the buyer gave. Every
  * failure here is *structured* (never a refund) so the caller can keep a
@@ -55,21 +55,22 @@ import type {
 } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
 
-/** The listing id + package path shared by every booking row we build from a
- * signed line — a fresh booking, a quantity-0 placeholder, or a dateless ghost.
- * A line's package path keeps a listing booked through two paths in two distinct
- * slots. */
+/** The listing id + package path every booking row we build from a signed
+ * line shares. The row is a fresh booking, a quantity-0 placeholder, or a
+ * dateless ghost. A line's package path keeps a listing booked through two
+ * paths in two distinct slots. */
 export const bookingSlot = (item: BookingItem) => ({
   listingId: item.e,
   packageGroupId: lineGroupId(item) ?? 0,
 });
 
-/** The one success shape every resolved payment session returns: the created or
- *  already-existing attendee (only its id is carried — see PaymentSuccess), the
- *  listing id the redirect resolves lazily, and any ticket tokens (a fresh
- *  booking carries its token; a replay/settle carries none). Centralised so the
- *  resolve paths — fresh booking, balance settle, processed-payments replay, and
- *  ledger replay — can't drift apart. */
+/** The one success shape every resolved payment session returns. It carries
+ *  the created or already-existing attendee (only its id — see
+ *  PaymentSuccess), the listing id the redirect resolves lazily, and any
+ *  ticket tokens. A fresh booking carries its token. A replay or settle
+ *  carries none. Centralised so the resolve paths — fresh booking, balance
+ *  settle, processed-payments replay, and ledger replay — cannot drift
+ *  apart. */
 export const sessionSuccess = (
   attendeeId: number,
   listingId: number,
@@ -84,7 +85,7 @@ export const sessionSuccess = (
 /** Return success result for an already-processed session.
  * Accepts a finalized payment record where attendee_id is guaranteed non-null.
  * Carries the listing id (not the loaded listing): the redirect resolves it
- * lazily only when it needs a thank-you URL, and a since-deleted listing is
+ * lazily only when it needs a thank-you URL. A since-deleted listing is
  * still a success replay because the attendee already exists. */
 export const alreadyProcessedResult = async (
   listingId: number,
@@ -101,12 +102,12 @@ export const alreadyProcessedResult = async (
 /**
  * Pair each created booking row with its listing **by listing id**, not by
  * position. `expandChildAllocations` can emit more rows than there are signed
- * items — a child chosen under two parents is one signed item but two per-parent
- * rows, plus any parent-less remainder — so a positional `validatedItems[i]`
- * pairing would mis-align or read past the end (and throw). Every created row's
- * listing is a signed item by construction, so the by-id lookup is total.
- * Mirrors the free path (`ticket-payment.ts`). Exported for direct unit testing
- * of the multi-parent count mismatch.
+ * items. A child chosen under two parents is one signed item but two
+ * per-parent rows, plus any parent-less remainder. A positional
+ * `validatedItems[i]` pairing therefore mis-aligns or reads past the end (and
+ * throws). Every created row's listing is a signed item by construction, so
+ * the by-id lookup is total. Mirrors the free path (`ticket-payment.ts`).
+ * Exported for direct unit testing of the multi-parent count mismatch.
  */
 export const pairEntriesByListing = <A extends { listing_id: number }>(
   attendees: readonly A[],
@@ -143,8 +144,8 @@ export type CreatedEntry = {
 
 /**
  * The outcome of trying to honour a signed booking at the charged price: the
- * created entries, or a structured reason it couldn't be created. The caller
- * decides what to do — a success finalizes a real ticket; any failure keeps a
+ * created entries, or a structured reason it cannot be created. The caller
+ * decides what to do: a success finalizes a real ticket. Any failure keeps a
  * quantity-0 placeholder and refunds. createAttendeeForSession never refunds
  * itself.
  */
@@ -160,13 +161,13 @@ export type HonourResult =
 /**
  * Keep only the text-answer refs that still carry a resolved string id (`s`).
  * A ref without one is corrupt metadata, and the text is not recoverable from
- * it. Drop that one answer loudly rather than bind an undefined id: the payment
- * is already captured, so the booking must still finalize instead of
+ * it. Drop that one answer loudly rather than bind an undefined id. The
+ * payment is already captured, so the booking must still finalize instead of
  * crash-loop the webhook.
  *
  * The check is the schema, not a presence test, because these refs were parsed
- * but never validated. A null, a word, or half a number would otherwise be
- * written as a real answer.
+ * but never validated. Without it, a null, a word, or half a number lands in
+ * the stored answers.
  */
 const textRefsWithStringId = (
   refs: TextAnswerRef[],
@@ -212,7 +213,7 @@ export const saveSessionAnswers = async (
 };
 
 /** The identity fields every stored attendee starts from: who the buyer said
- * they are, the payment that proves it, and the status the row begins in. */
+ * they are, the payment that proves it, and the starting status. */
 export type AttendeeBaseFields = Pick<
   BookingIntent,
   "address" | "email" | "name" | "phone" | "special_instructions"
@@ -260,12 +261,13 @@ export const promoCodeActivities = (
 
 /**
  * Create the attendee plus per-listing bookings atomically, finalizing the
- * payment session in the SAME batch (see batchFinalizeStatements) so attendee_id
- * is set iff the attendee row exists — closing the crash window between a
- * separate post-transaction finalize and the attendee INSERT. durationDays is
- * listing-scoped and re-read here so the stored range always matches the
- * listing's current duration policy. Returns a structured failure (never
- * refunds) so the caller can keep the booking as a placeholder instead.
+ * payment session in the SAME batch (see batchFinalizeStatements). The batch
+ * sets attendee_id only when the attendee row exists. That closes the crash
+ * window between a separate post-transaction finalize and the attendee
+ * INSERT. The durationDays value is listing-scoped and re-read here so the
+ * stored range always matches the listing's current duration policy. Returns
+ * a structured failure (never refunds) so the caller can keep the booking as
+ * a placeholder instead.
  */
 export const createAttendeeForSession = async (
   session: ValidatedPaymentSession,

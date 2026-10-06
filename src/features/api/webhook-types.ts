@@ -36,10 +36,10 @@ export type ListingValidation =
   | { ok: false; error: string; status?: number };
 
 /** Successful payment result with created attendee details.
- * Carries the listing id rather than the loaded listing — the redirect resolves
- * it lazily only when it needs a thank-you URL, and the listing may since have
- * been deleted (e.g. a settled balance line for a removed listing) without
- * changing the fact that the attendee exists and the payment succeeded. */
+ * Carries the listing id rather than the loaded listing: the redirect resolves
+ * it lazily only when it needs a thank-you URL. The listing can be deleted
+ * since the payment, for example a settled balance line for a removed listing.
+ * The attendee and the successful payment remain. */
 type PaymentSuccess = {
   success: true;
   attendee: Pick<Attendee, "id">;
