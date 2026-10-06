@@ -8,6 +8,7 @@ import {
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import type { AdminSession } from "#types";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
@@ -59,16 +60,18 @@ describe("agentDeliveriesPage", () => {
   const renderDeliveries = (groups: DeliveryDayGroup[]): string =>
     agentDeliveriesPage(groups, "44", { noAgents: false }, agentSession, null);
 
-  test("shows a prompt when no agents are assigned", () => {
-    const html = agentDeliveriesPage(
-      [],
-      "44",
-      { noAgents: true },
-      agentSession,
-      null,
-    );
-    expect(html).toContain("no logistics agents assigned");
-    expect(html).toContain("/admin/logout");
+  test("shows a prompt when no agents are assigned", async () => {
+    await withRequestContext(() => {
+      const html = agentDeliveriesPage(
+        [],
+        "44",
+        { noAgents: true },
+        agentSession,
+        null,
+      );
+      expect(html).toContain("no logistics agents assigned");
+      expect(html).toContain("/admin/logout");
+    });
   });
 
   test("shows an empty message when every day is empty", () => {

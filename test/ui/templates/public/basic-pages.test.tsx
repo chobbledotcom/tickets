@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { runWithSavedFormContext } from "#shared/forms/saved-data.ts";
+
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { contactPage, publicSitePage } from "#templates/public/basic-pages.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** The nav a public page test needs: fixed links on, no operator pages. */
 const nav = (): PublicNavProps => ({
@@ -25,10 +26,11 @@ describe("the public contact page", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
-  test("renders the shared contact email field and message box", () => {
-    // A fresh saved-form scope: another suite's contact POST can leave the
-    // ambient store holding an "email" value, and the echo would appear here.
-    const html = runWithSavedFormContext(() =>
+  test("renders the shared contact email field and message box", async () => {
+    // A per-request saved-form slot: another suite's contact POST cannot
+    // leave an "email" value behind, so the echo would appear here if the
+    // slot leaked across requests.
+    const html = await withRequestContext(() =>
       contactPage({
         botpoisonPublicKey: "",
         formActive: true,

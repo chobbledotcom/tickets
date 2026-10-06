@@ -7,6 +7,7 @@ import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const render = (
   form: (s: SettingsPageState) => JSX.Element | null,
@@ -46,18 +47,20 @@ describe("settings payment provider forms", () => {
       );
     });
 
-    test("keeps the submitted provider selected after an error", () => {
-      setSavedFormData(new FormParams("existing_payment_provider=square"));
-      const html = render(ExistingPaymentProviderForm, {
-        paymentProviderRecoveryChoices: ["stripe", "square"],
-      });
+    test("keeps the submitted provider selected after an error", async () => {
+      await withRequestContext(() => {
+        setSavedFormData(new FormParams("existing_payment_provider=square"));
+        const html = render(ExistingPaymentProviderForm, {
+          paymentProviderRecoveryChoices: ["stripe", "square"],
+        });
 
-      expect(hasCheckedInput(html, "existing_payment_provider", "square")).toBe(
-        true,
-      );
-      expect(hasCheckedInput(html, "existing_payment_provider", "stripe")).toBe(
-        false,
-      );
+        expect(
+          hasCheckedInput(html, "existing_payment_provider", "square"),
+        ).toBe(true);
+        expect(
+          hasCheckedInput(html, "existing_payment_provider", "stripe"),
+        ).toBe(false);
+      });
     });
 
     test("stays hidden when no recovery choice is needed", () => {

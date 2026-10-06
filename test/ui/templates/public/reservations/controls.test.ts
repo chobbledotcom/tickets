@@ -55,8 +55,8 @@ describe("renderDateSelector", () => {
 });
 
 describe("renderDayCountSelector", () => {
-  test("restores the submitted day count on a re-render", () => {
-    const html = withSubmittedValues({ day_count: "2" }, () =>
+  test("restores the submitted day count on a re-render", async () => {
+    const html = await withSubmittedValues({ day_count: "2" }, () =>
       renderDayCountSelector([1, 2, 3]),
     );
     expect(html).toContain('<option value="2" selected>');
@@ -89,8 +89,8 @@ describe("renderPayMoreInput", () => {
     unit_price: 500,
   };
 
-  test("restores the submitted price on a re-render", () => {
-    const html = withSubmittedValues({ custom_price: "25.00" }, () =>
+  test("restores the submitted price on a re-render", async () => {
+    const html = await withSubmittedValues({ custom_price: "25.00" }, () =>
       renderPayMoreInput(listing),
     );
     expect(html).toContain('value="25.00"');
@@ -170,8 +170,8 @@ describe("renderPayMoreInput", () => {
 });
 
 describe("renderTermsAndCheckbox", () => {
-  test("keeps the box ticked when the buyer had agreed", () => {
-    const html = withSubmittedValues({ agree_terms: "1" }, () =>
+  test("keeps the box ticked when the buyer had agreed", async () => {
+    const html = await withSubmittedValues({ agree_terms: "1" }, () =>
       renderTermsAndCheckbox("Be kind."),
     );
     expect(html).toContain('name="agree_terms" value="1" checked required');

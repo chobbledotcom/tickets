@@ -101,7 +101,11 @@ src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → ||   # bufB[i]: nu
 
 # savedFormValue: form?.getString(name) is string|undefined; the only falsy
 # non-null string is "" which equals the "" fallback, so ?? and || agree.
-src/shared/forms/saved-data.ts::savedFormValue~1w1m8os  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
+src/shared/forms/saved-data.ts::savedFormValue~14nzz2a  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
+
+# getSavedFormData: the store slot is undefined outside a request and the
+# fallback is null, so only undefined reaches the fallback either way.
+src/shared/forms/saved-data.ts::getSavedFormData~1k30wtr  ?? → ||
 
 # getSavedFieldValue: readSubmittedFieldValue answers string|null; the only
 # nullish value is null, and "" already equals the "" fallback, so ?? and || agree.

@@ -172,7 +172,7 @@ describe("ticketPage — fields & form", () => {
     expect(html).toContain('data-listing-ids="1"');
   });
 
-  test("renders an opt-in add-on selector with its price label", () => {
+  test("renders an opt-in add-on selector with its price label", async () => {
     const listings = [
       ticketListing({
         attendee_count: 0,
@@ -181,8 +181,8 @@ describe("ticketPage — fields & form", () => {
         slug: "ab12c",
       }),
     ];
-    setSavedFormData(new FormParams({ addon_7: "2" }));
-    try {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams({ addon_7: "2" }));
       const html = ticketPage({
         addOns: [
           {
@@ -204,9 +204,7 @@ describe("ticketPage — fields & form", () => {
       expect(html).toContain(
         'max="5" min="0" name="addon_7" placeholder="0" type="number" value="2"',
       );
-    } finally {
-      clearSavedFormData();
-    }
+    });
   });
 
   test("prefills the name and signed token", () => {
@@ -224,9 +222,9 @@ describe("ticketPage — fields & form", () => {
     );
   });
 
-  test("restores the submitted date before the prefilled date", () => {
-    setSavedFormData(new FormParams({ date: "2026-08-02" }));
-    try {
+  test("restores the submitted date before the prefilled date", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams({ date: "2026-08-02" }));
       const html = renderForm({
         dates: ["2026-08-01", "2026-08-02"],
         dayCounts: [1, 2],
@@ -237,15 +235,14 @@ describe("ticketPage — fields & form", () => {
       expect(html).toContain('<option value="2026-08-02" selected>');
       expect(html).not.toContain('<option value="2026-08-01" selected>');
       expect(html).toContain('name="day_count"');
-    } finally {
       clearSavedFormData();
-    }
-    const prefilledHtml = renderForm({
-      dates: ["2026-08-01"],
-      hasDaily: true,
-      prefill: { date: "2026-08-01", listings: new Map() },
+      const prefilledHtml = renderForm({
+        dates: ["2026-08-01"],
+        hasDaily: true,
+        prefill: { date: "2026-08-01", listings: new Map() },
+      });
+      expect(prefilledHtml).toContain('<option value="2026-08-01" selected>');
     });
-    expect(prefilledHtml).toContain('<option value="2026-08-01" selected>');
   });
 
   test("appends ?iframe=true to form action in iframe mode", async () => {

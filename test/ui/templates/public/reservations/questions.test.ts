@@ -2,16 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  runWithSavedFormContext,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { renderQuestions } from "#templates/public/reservations/questions.tsx";
 import {
   testAnswer,
   testQuestion,
   testRadioQuestion,
 } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** Two single-answer radio questions — the shared fixture for the
  *  "multiple questions" and "data-listing-ids" tests. */
@@ -132,8 +130,8 @@ describe("renderQuestions", () => {
     expect(html).not.toContain('type="radio"');
   });
 
-  test("restores a saved free-text answer from saved form data", () => {
-    const html = runWithSavedFormContext(() => {
+  test("restores a saved free-text answer from saved form data", async () => {
+    const html = await withRequestContext(() => {
       setSavedFormData(new FormParams({ question_1: "Ada Lovelace" }));
       return renderQuestions([
         {
@@ -148,8 +146,8 @@ describe("renderQuestions", () => {
     expect(html).toContain('value="Ada Lovelace"');
   });
 
-  test("restores selected select answers from saved form data", () => {
-    const html = runWithSavedFormContext(() => {
+  test("restores selected select answers from saved form data", async () => {
+    const html = await withRequestContext(() => {
       setSavedFormData(new FormParams({ question_1: "11" }));
       return renderQuestions(colourQuestion("select")).toString();
     });

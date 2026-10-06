@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  clearSavedFormData,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
@@ -216,9 +213,9 @@ describe("ticketPage — packages", () => {
     expect(html).not.toContain('<option value="2">2 days');
   });
 
-  test("restores the submitted package quantity after a validation error", () => {
-    setSavedFormData(new FormParams({ package_quantity_5: "3" }));
-    try {
+  test("restores the submitted package quantity after a validation error", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams({ package_quantity_5: "3" }));
       const listings = [
         ticketListing({
           id: 1,
@@ -234,9 +231,7 @@ describe("ticketPage — packages", () => {
         slugs: [PKG_SLUG],
       });
       expect(html).toContain('value="3" selected');
-    } finally {
-      clearSavedFormData();
-    }
+    });
   });
 
   test("caps the package selector by the shared pool, defaulting a missing member quantity to 1", () => {

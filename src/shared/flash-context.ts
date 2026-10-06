@@ -4,7 +4,11 @@
  * Consumed by templates via getFlash() — no manual reading needed in handlers.
  */
 
-import { createScope } from "#shared/request-scoped.ts";
+import {
+  currentRequestStore,
+  type RequestSlot,
+  requestSlot,
+} from "#shared/request-context.ts";
 
 /** Flash message shape — fields are only present when a message exists */
 export type Flash = {
@@ -26,49 +30,56 @@ export type Flash = {
  * renders the flash inline; `consumed` is set once any component has rendered
  * it, so the Layout backstop doesn't render it a second time.
  */
-type FlashStore = Flash & { formId?: string; consumed?: boolean };
+export type FlashStore = Flash & { formId?: string; consumed?: boolean };
 
-const flashScope = createScope<FlashStore>();
+const FLASH_SLOT: RequestSlot<FlashStore> = {
+  fresh: () => ({}),
+  read: (store) => store.flash,
+  write: (store, state) => {
+    store.flash = state;
+  },
+};
 
-/** Run a function within a flash context scope */
-export const runWithFlashContext = <T>(fn: () => T): T =>
-  flashScope.run({}, fn);
+const flashStore = (): FlashStore | undefined => requestSlot(FLASH_SLOT);
 
 /** Record which form a redirect targeted, so the matching CsrfForm renders the
  *  flash inline rather than the Layout rendering it at the top of the page. */
 export const setFlashFormId = (formId: string | null): void => {
-  const store = flashScope.current();
-  if (store && formId) store.formId = formId;
+  const slot = flashStore();
+  if (slot && formId) slot.formId = formId;
 };
 
 /** The form a redirect targeted, or undefined when the flash isn't form-scoped. */
 export const getFlashFormId = (): string | undefined =>
-  flashScope.current()?.formId;
+  currentRequestStore()?.flash?.formId;
 
 /** Mark the flash as rendered, so the Layout backstop won't render it again. */
 export const consumeFlash = (): void => {
-  const store = flashScope.current();
-  if (store) store.consumed = true;
+  const slot = flashStore();
+  if (slot) slot.consumed = true;
 };
 
 /** Whether the flash has already been rendered this request. */
 export const flashConsumed = (): boolean =>
-  flashScope.current()?.consumed === true;
+  currentRequestStore()?.flash?.consumed === true;
 
-/** Set the flash context for the current request (called by middleware) */
+/** Set the flash context for the current request (called by middleware).
+ *  Throws outside a request scope: a silent drop hides the buyer's
+ *  message. */
 export const setFlashContext = (flash: Flash): void => {
-  const store = flashScope.current();
-  if (store) {
-    store.success = flash.success;
-    store.error = flash.error;
-    store.info = flash.info;
-    store.result = flash.result;
+  const slot = flashStore();
+  if (slot === undefined) {
+    throw new Error("setFlashContext ran outside a request scope");
   }
+  slot.success = flash.success;
+  slot.error = flash.error;
+  slot.info = flash.info;
+  slot.result = flash.result;
 };
 
 /** Get the current flash message (for use in templates/handlers) */
 export const getFlash = (): Flash => {
-  const store = flashScope.current();
+  const store = currentRequestStore()?.flash;
   return {
     error: store?.error,
     info: store?.info,
@@ -79,7 +90,7 @@ export const getFlash = (): Flash => {
 
 /** Whether the current request has a flash message */
 export const hasFlash = (): boolean => {
-  const store = flashScope.current();
+  const store = currentRequestStore()?.flash;
   return (
     store?.success !== undefined ||
     store?.error !== undefined ||
