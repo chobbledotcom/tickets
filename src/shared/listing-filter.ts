@@ -5,12 +5,15 @@
  * drive the same controls with their own link targets.
  */
 
+/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderFilterBar } from "#shared/filter-bar.ts";
 import type { LedgerScopeOption } from "#shared/ledger-scope.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { ListingType } from "#types";
+/* jscpd:ignore-end */
 
 /** Filter values: "all" plus the three listing categories. */
 export const LISTING_FILTERS = [
@@ -135,7 +138,9 @@ export const intersectListingIds = (
 /**
  * Render the "Group: All groups / <name> …" filter as the same plain
  * paragraph of links the type and attribute filters use. Only the groups the
- * site stores are offered, so an option never names a missing group.
+ * site stores are offered, so an option never names a missing group. Group
+ * names carry user input, so they are escaped like the attribute filter's
+ * wording.
  */
 export const renderGroupFilter = (
   activeGroupId: number | null,
@@ -153,6 +158,6 @@ export const renderGroupFilter = (
         ...sortByName([...groups]).map((group) => ({
           active: group.id === activeGroupId,
           href: hrefFor(group.id),
-          label: group.name,
+          label: escapeHtml(group.name),
         })),
       ]);

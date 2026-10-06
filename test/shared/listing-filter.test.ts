@@ -317,6 +317,16 @@ describe("renderGroupFilter", () => {
     );
   });
 
+  test("escapes a group name that carries HTML", () => {
+    const html = renderGroupFilter(
+      null,
+      [{ id: 4, name: "<img src=x onerror=alert(1)>" }],
+      href,
+    );
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img");
+  });
+
   test("renders nothing when the site stores no groups", () => {
     expect(renderGroupFilter(null, [], href)).toBe("");
   });
