@@ -141,7 +141,8 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
   });
 
   // L1's named behaviour change: a non-text date is refused instead of
-  // coerced into stored text.
+  // coerced into stored text. The create and update mappers answer the same
+  // body with the same field-named message, whichever name rule runs.
   test("api update refuses a non-text date with the field message", async () => {
     const created = await assertJson<{ holiday: { id: number } }>(
       ownerApiPost("/api/admin/holidays", {
@@ -153,6 +154,7 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     );
     await assertJson(
       ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, {
+        name: 123,
         start_date: 20270603,
       }),
       400,
