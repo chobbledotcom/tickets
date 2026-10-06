@@ -147,3 +147,71 @@ describeWithEnv("validateListingInput package edges", { db: true }, () => {
     );
   });
 });
+
+describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
+  test("refuses a minimum below one with the exact catalog text", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 10, minQuantity: 0, name: "Min Zero" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_whole"));
+  });
+
+  test("refuses a fractional minimum from the number-typed API body", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 10, minQuantity: 1.5, name: "Min Half" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_whole"));
+  });
+
+  test("refuses a minimum above the maximum with the exact catalog text", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 5, minQuantity: 6, name: "Min High" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+  });
+
+  test("accepts a minimum equal to the maximum", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 8, minQuantity: 8, name: "Min Equal" }),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  test("accepts an absent minimum on create", async () => {
+    const input = inputFor({ maxQuantity: 5, name: "No Minimum" });
+    delete input.minQuantity;
+
+    await expect(validateListingInput(input)).resolves.toBeNull();
+  });
+
+  test("pairs an absent maximum with its stored default of one", async () => {
+    // A create body that omits max_quantity stores 1, so a minimum above 1
+    // pairs against that default and refuses.
+    const input = inputFor({ minQuantity: 2, name: "Default Max" });
+    delete input.maxQuantity;
+
+    await expect(validateListingInput(input)).resolves.toBe(
+      t("error.listing_min_quantity_above_max"),
+    );
+  });
+
+  test("re-checks a merged update input against its maximum", async () => {
+    // The admin JSON API merges the body over the stored row before calling
+    // this rule, so the stored maximum arrives beside the body's minimum.
+    const listing = await createTestListing({ maxQuantity: 3 });
+    await expect(
+      validateListingInput(
+        await storedInputFor(listing.id, {
+          // The factory's generated names collide on a second read; the rule
+          // under test is the quantity pair, not name uniqueness.
+          minQuantity: 4,
+          name: "Merged Update Min High",
+        }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+  });
+});

@@ -112,7 +112,7 @@ const relationshipErrorTx = async (
       sql: `SELECT listing.id, listing.name, listing.listing_type,
                    listing.months_per_unit, listing.customisable_days,
                    listing.duration_days, listing.bookable_alone,
-                   listing.assign_built_site
+                   listing.assign_built_site, listing.min_quantity
               FROM listings AS listing
              WHERE listing.id IN (${placeholders})`,
     },

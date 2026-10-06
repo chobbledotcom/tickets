@@ -222,6 +222,22 @@ const listingNameError = async (
   return catalogNameLengthError(name);
 };
 
+/** Validate a listing's minimum quantity. It must hold with the per-order
+ *  maximum: a whole number of at least 1, and at most that maximum. An absent
+ *  maximum on a create stores 1, so an absent minimum pairs with it. */
+const validateMinQuantity = (input: ListingInput): string | null => {
+  const minimum = input.minQuantity;
+  if (minimum === undefined) return null;
+  // The API projection type-checks the value as a number only, so a fractional
+  // body value arrives here and refuses like any other non-quantity.
+  if (!Number.isInteger(minimum) || minimum < 1) {
+    return t("error.listing_min_quantity_whole");
+  }
+  return minimum > (input.maxQuantity ?? 1)
+    ? t("error.listing_min_quantity_above_max")
+    : null;
+};
+
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (
   input: ListingInput,
@@ -233,6 +249,8 @@ export const validateListingInput = async (
     const taken = await isSlugTaken(input.slug, existingId);
     if (taken) return t("error.slug_in_use");
   }
+  const minError = validateMinQuantity(input);
+  if (minError) return minError;
   if (input.canPayMore) {
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;

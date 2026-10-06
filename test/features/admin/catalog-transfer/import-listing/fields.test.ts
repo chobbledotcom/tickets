@@ -24,6 +24,52 @@ const expectListingImportError = async (
 // the main catalog-transfer suite's cumulative per-request read count over the
 // N+1 guard.
 describeWithEnv("catalog-transfer field validation", { db: true }, () => {
+  test("imports a minimum quantity and stores it", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        maxAttendees: 1,
+        maxQuantity: 5,
+        minQuantity: 2,
+        name: "Batched",
+      },
+      version: 1,
+    });
+    const imported = await requireListingWithCount(requireSuccess(result).id);
+    expect(imported.min_quantity).toBe(2);
+  });
+
+  test("defaults an absent minimum quantity to the stored 1", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "No Floor" },
+      version: 1,
+    });
+    const imported = await requireListingWithCount(requireSuccess(result).id);
+    expect(imported.min_quantity).toBe(1);
+  });
+
+  test("rejects a minimum quantity below one", async () => {
+    await expectListingImportError(
+      { maxAttendees: 1, minQuantity: 0, name: "Zero Floor" },
+      "minQuantity",
+    );
+  });
+
+  test("rejects a minimum quantity above the maximum", async () => {
+    // The shared listing-input rule runs inside the import transaction, so
+    // the pairing refusal lands before any insert.
+    await expectListingImportError(
+      {
+        maxAttendees: 1,
+        maxQuantity: 2,
+        minQuantity: 3,
+        name: "High Floor",
+      },
+      "Min tickets per purchase must not be more than Max tickets per purchase",
+    );
+  });
+
   test("rejects a non-date closesAt", async () => {
     await expectListingImportError(
       { closesAt: "not-a-date", maxAttendees: 1, name: "Bad Close" },

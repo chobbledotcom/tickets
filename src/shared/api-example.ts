@@ -47,6 +47,7 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   max_price: EXAMPLE_LISTING.unit_price,
   max_quantity: 5,
   maximum_days_after: 30,
+  min_quantity: 1,
   minimum_days_before: 1,
   months_per_unit: 0,
   name: EXAMPLE_LISTING.name,

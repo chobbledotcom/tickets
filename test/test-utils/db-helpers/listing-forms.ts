@@ -78,6 +78,7 @@ export const buildCreateListingForm = (
     max_price: toMajorUnits(input.maxPrice),
     max_quantity: String(input.maxQuantity ?? 1),
     maximum_days_after: optionalNumber(input.maximumDaysAfter),
+    min_quantity: String(input.minQuantity ?? 1),
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
     months_per_unit: String(input.monthsPerUnit ?? 0),
     name: input.name,
@@ -148,6 +149,7 @@ const buildUpdateNumericFields = (
     maximum_days_after: String(
       pickField(updates.maximumDaysAfter, existing.maximum_days_after),
     ),
+    min_quantity: String(pickField(updates.minQuantity, existing.min_quantity)),
     minimum_days_before: String(
       pickField(updates.minimumDaysBefore, existing.minimum_days_before),
     ),

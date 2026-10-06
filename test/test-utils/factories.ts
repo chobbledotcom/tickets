@@ -58,6 +58,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   max_price: 0,
   max_quantity: 1,
   maximum_days_after: 0,
+  min_quantity: 1,
   minimum_days_before: 0,
   months_per_unit: 0,
   name: "Test Listing",

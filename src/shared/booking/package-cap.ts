@@ -15,7 +15,10 @@ import {
 } from "#booking/tree.ts";
 import { sumByKey, sumOf } from "#fp";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
-import { PARENT_CHILD_GROUP_UNITS, sharedGroupRemaining } from "#types";
+import {
+  PARENT_CHILD_GROUP_UNITS,
+  sharedGroupRemaining,
+} from "#shared/group-capacity.ts";
 
 /** Spots still free in each capacity group, keyed by group id. */
 type GroupRemaining = ReadonlyMap<number, number>;

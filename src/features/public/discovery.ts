@@ -30,11 +30,8 @@ import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import {
-  availableDayCounts,
-  type ListingWithCount,
-  sharedGroupCapacity,
-} from "#types";
+import { sharedGroupCapacity } from "#shared/group-capacity.ts";
+import { availableDayCounts, type ListingWithCount } from "#types";
 
 /**
  * Four sets, because a child is treated differently by structure, by whether it
