@@ -110,7 +110,12 @@ export const splitChildQuestions = (
       attributesByListing,
       childDatesById,
       children: childrenByParentId,
-      foldReserveByChildId: foldReserveByChildId(listings, childrenByParentId),
+      foldReserveByChildId: foldReserveByChildId(
+        listings,
+        childrenByParentId,
+        groupIdsByListingId,
+        groupRemainingByGroupId,
+      ),
       groupIdsByListingId,
       groupRemainingByGroupId,
       questionListingMap,
