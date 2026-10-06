@@ -51,7 +51,10 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { isValidMemberQuantity } from "#shared/groups/package-member-values.ts";
+import {
+  isValidMemberQuantity,
+  wholeNumberValue,
+} from "#shared/groups/package-member-values.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
@@ -159,8 +162,8 @@ const parsePackagePrice = (raw: string): number | null =>
  *  sub-1 value. A blank input is the one legal "no override" form, and a
  *  package always includes at least one of each member. */
 const parsePackageQuantity = (raw: string): number => {
-  const trimmed = raw.trim();
-  return trimmed === "" ? 1 : Number(trimmed);
+  const quantity = wholeNumberValue(raw.trim());
+  return quantity ?? 1;
 };
 
 /** The per-listing `package_day_price_<listingId>_<n>` inputs folded into
@@ -208,7 +211,10 @@ const MEMBER_FORM_FIELDS: readonly {
   {
     key: PACKAGE_QTY_KEY,
     message: "error.package_member_quantity",
-    valid: (raw) => isValidMemberQuantity(Number(raw)),
+    valid: (raw) => {
+      const quantity = wholeNumberValue(raw);
+      return quantity !== null && isValidMemberQuantity(quantity);
+    },
   },
   {
     key: PACKAGE_PRICE_KEY,
@@ -227,6 +233,9 @@ const MEMBER_FORM_FIELDS: readonly {
  *  value the member rules accept. Blank stays legal and means "no
  *  override". Returns the first error message, or null. */
 export const validatePackageMemberForm = (form: FormParams): string | null => {
+  // Turning the package off must always succeed: a malformed leftover member
+  // input is about to be discarded, so it cannot block the save.
+  if (form.getString("is_package") !== "1") return null;
   for (const [key, raw] of form.entries()) {
     const field = MEMBER_FORM_FIELDS.find((entry) => entry.key.test(key));
     if (field === undefined) continue;

@@ -237,6 +237,46 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     );
   });
 
+  // A whole number is plain digits: 1e1 is a string the rules refuse, not a
+  // number the parse converts to 10.
+  test("refuses a scientific-notation quantity", async () => {
+    const { group, member } = await refusablePackage("Exponent qty");
+    await refuseMemberInput(
+      group,
+      {
+        [`package_price_${member.id}`]: "9.00",
+        [`package_qty_${member.id}`]: "1e1",
+      },
+      t("error.package_member_quantity"),
+    );
+    const [row] = await getGroupPackagePrices(group.id);
+    expect(row?.quantity).toBe(1);
+  });
+
+  // Turning the package off must always succeed: a malformed leftover member
+  // input is about to be discarded, so it cannot block the save.
+  test("unpackages a group with a malformed leftover member input", async () => {
+    const { group, member } = await refusablePackage("Leftover");
+    await savePackage(group, {
+      [`package_price_${member.id}`]: "9.00",
+      [`package_qty_${member.id}`]: "1",
+    });
+
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      description: "",
+      max_attendees: "0",
+      name: group.name,
+      slug: group.slug,
+      terms_and_conditions: "",
+      [`package_price_${member.id}`]: "12abc",
+    });
+
+    expect([200, 302]).toContain(response.status);
+    const rows = await getGroupPackagePrices(group.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.package_price).toBeNull();
+  });
+
   test("refuses a junk day price with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Junk day price");
     await refuseMemberInput(

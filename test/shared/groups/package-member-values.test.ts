@@ -6,6 +6,7 @@ import {
   isValidMemberPrice,
   isValidMemberQuantity,
   memberDayPricesFault,
+  wholeNumberValue,
 } from "#shared/groups/package-member-values.ts";
 
 describe("package member value rules", () => {
@@ -54,5 +55,18 @@ describe("package member value rules", () => {
     expect(memberDayPricesFault({ 1: -500 })).toBe("prices");
     expect(memberDayPricesFault({ 1: 5.5 })).toBe("prices");
     expect(memberDayPricesFault({ 1: "500" })).toBe("prices");
+    expect(memberDayPricesFault({ 1: null })).toBe("prices");
+  });
+
+  test("parses plain digits and refuses every other spelling", () => {
+    expect(wholeNumberValue("10")).toBe(10);
+    expect(wholeNumberValue("007")).toBe(7);
+    expect(wholeNumberValue("1e1")).toBeNull();
+    expect(wholeNumberValue("0x10")).toBeNull();
+    expect(wholeNumberValue("1.5e1")).toBeNull();
+    expect(wholeNumberValue("")).toBeNull();
+    expect(wholeNumberValue("-2")).toBeNull();
+    expect(wholeNumberValue("1,50")).toBeNull();
+    expect(wholeNumberValue(" 2")).toBeNull();
   });
 });
