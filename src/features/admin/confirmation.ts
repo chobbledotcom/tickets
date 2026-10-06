@@ -237,17 +237,25 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       }),
     );
 
+  /** The POST-time pre-check for handlers whose refusal lives in the
+   *  framework: an error redirect when the guard refuses, or null. A handler
+   *  that re-runs the guard inside its write transaction (guardInTx) blocks
+   *  there instead, so the guarded state is read once. */
+  const preGuardRedirect = async (
+    result: T,
+    id: number,
+    session: TSession,
+  ): Promise<Response | null> => {
+    if (config.guardInTx) return null;
+    const guard = await guardError(result, id, session);
+    return guard === null ? null : errorRedirect(confirmPath(id), guard);
+  };
+
   const post = (request: Request, id: number): Promise<Response> =>
     withForm(request, (session, form) =>
       withModel(id, session, async (result) => {
-        // The POST blocks a guarded action with an error redirect back to the
-        // confirmation page (where the GET will then render the error). A
-        // handler that re-runs the guard inside its write transaction
-        // (guardInTx) blocks there instead, so the guarded state is read once.
-        if (!config.guardInTx) {
-          const guard = await guardError(result, id, session);
-          if (guard) return errorRedirect(confirmPath(id), guard);
-        }
+        const refusal = await preGuardRedirect(result, id, session);
+        if (refusal) return refusal;
 
         const expected = await config.identifier(result);
         const error = verifyOrRedirect(
