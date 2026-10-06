@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { belowMinError, packageBundleMinError } from "#booking/min-refusal.ts";
+import {
+  belowMinError,
+  packageBundleMembers,
+  packageBundleMinError,
+} from "#booking/min-refusal.ts";
 
 describe("belowMinError", () => {
   test("answers the caller's message for a count below the minimum", () => {
@@ -12,6 +16,40 @@ describe("belowMinError", () => {
     expect(belowMinError(0, 3, "refused")).toBeNull();
     expect(belowMinError(3, 3, "refused")).toBeNull();
     expect(belowMinError(5, 3, "refused")).toBeNull();
+  });
+});
+
+describe("packageBundleMembers", () => {
+  test("carries each loaded member's fixed units, minimum, and name", () => {
+    expect(
+      packageBundleMembers(
+        new Map([
+          [11, 2],
+          [12, 1],
+        ]),
+        new Map([
+          [11, { min_quantity: 3, name: "Suite" }],
+          [12, { min_quantity: 1, name: "Addon" }],
+        ]),
+      ),
+    ).toEqual([
+      { fixed: 2, minQuantity: 3, name: "Suite" },
+      { fixed: 1, minQuantity: 1, name: "Addon" },
+    ]);
+  });
+
+  test("drops an id whose listing row is not loaded", () => {
+    // A member deactivated after the package was saved leaves the stored
+    // member list, so the row is absent from the page's listings.
+    expect(
+      packageBundleMembers(
+        new Map([
+          [11, 2],
+          [99, 4],
+        ]),
+        new Map([[11, { min_quantity: 3, name: "Suite" }]]),
+      ),
+    ).toEqual([{ fixed: 2, minQuantity: 3, name: "Suite" }]);
   });
 });
 
