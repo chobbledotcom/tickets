@@ -2204,7 +2204,7 @@
     "semicolon": 1
   },
   "src/shared/request-scoped.ts": {
-    "long-sentence": 3
+    "long-sentence": 2
   },
   "src/shared/request-trace.ts": {
     "banned-modal": 1

@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { isFooterDebugEnabled, runWithQueryLogContext } from "#db/query-log.ts";
+import { isFooterDebugEnabled } from "#db/query-log.ts";
 import { handleRequest } from "#routes";
 import { routeAdmin } from "#routes/admin/index.ts";
 import { assertAdminHtml } from "#test-utils/assertions.ts";
@@ -17,6 +17,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -48,8 +49,8 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
     expect(html).not.toContain(FOOTER_MARKER);
   });
 
-  test("stays disabled during an unauthenticated admin GET", () =>
-    runWithQueryLogContext(async () => {
+  test("stays disabled during an unauthenticated admin GET", async () =>
+    await withRequestContext(async () => {
       await routeAdmin(mockRequest("/admin/login"), "/admin/login", "GET");
       expect(isFooterDebugEnabled()).toBe(false);
     }));

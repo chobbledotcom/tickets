@@ -8,7 +8,6 @@ import {
 } from "@std/testing/bdd";
 import {
   N_PLUS_ONE_THRESHOLD,
-  runWithQueryLogContext,
   setN1GuardNotifyOnly,
   trackSql,
 } from "#db/query-log.ts";
@@ -22,7 +21,7 @@ import {
   logErrorLocal,
   withDeferredErrorReports,
 } from "#shared/logger.ts";
-import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
+import { flushPendingWork } from "#shared/pending-work.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
@@ -31,6 +30,7 @@ import { minimalEmailMessage, testEmailConfig } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.
@@ -110,7 +110,7 @@ describe("log-error", () => {
       using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       using fetchStub = stubFetch(new Response());
 
-      await runWithPendingWork(async () => {
+      await withRequestContext(async () => {
         logError({ code: ErrorCode.DB_QUERY });
         await flushPendingWork();
       });
@@ -136,7 +136,7 @@ describe("log-error", () => {
       using fetchStub = stubFetch(new Response());
       const steps: string[] = [];
 
-      await runWithPendingWork(async () => {
+      await withRequestContext(async () => {
         await withDeferredErrorReports(async () => {
           logError({ code: ErrorCode.PAYMENT_REFUND });
           steps.push(`work:${fetchStub.calls.length}`);
@@ -152,7 +152,7 @@ describe("log-error", () => {
       using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       using fetchStub = stubFetch(new Response());
 
-      await runWithPendingWork(async () => {
+      await withRequestContext(async () => {
         await withDeferredErrorReports(async () => {
           await withDeferredErrorReports(async () => {
             logError({ code: ErrorCode.PAYMENT_REFUND });
@@ -174,7 +174,7 @@ describe("log-error", () => {
       });
 
       test("persists error to activity log", async () => {
-        await runWithPendingWork(async () => {
+        await withRequestContext(async () => {
           logError({
             code: ErrorCode.STRIPE_CHECKOUT,
             detail: "session creation failed",
@@ -194,7 +194,7 @@ describe("log-error", () => {
 
       test("persists error with listing ID to activity log", async () => {
         const listing = await createTestListing();
-        await runWithPendingWork(async () => {
+        await withRequestContext(async () => {
           logError({
             code: ErrorCode.PAYMENT_REFUND,
             detail: "refund declined",
@@ -212,7 +212,7 @@ describe("log-error", () => {
       });
 
       test("persists error without detail to activity log", async () => {
-        await runWithPendingWork(async () => {
+        await withRequestContext(async () => {
           logError({ code: ErrorCode.DB_CONNECTION });
           await flushPendingWork();
         });
@@ -231,7 +231,7 @@ describe("log-error", () => {
           }),
         );
 
-        await runWithPendingWork(() =>
+        await withRequestContext(() =>
           sendEmail(testEmailConfig, minimalEmailMessage),
         );
 
@@ -244,7 +244,7 @@ describe("log-error", () => {
       });
 
       test("persists every independent error in one request", async () => {
-        await runWithPendingWork(async () => {
+        await withRequestContext(async () => {
           logError({ code: ErrorCode.DB_CONNECTION });
           logError({ code: ErrorCode.DB_QUERY });
           await flushPendingWork();
@@ -265,8 +265,8 @@ describe("log-error", () => {
         const settingsRead = "SELECT key, value FROM settings WHERE key IN (?)";
         setN1GuardNotifyOnly(true);
         try {
-          await runWithPendingWork(() =>
-            runWithQueryLogContext(async () => {
+          await withRequestContext(() =>
+            withRequestContext(async () => {
               for (let count = 0; count < N_PLUS_ONE_THRESHOLD; count++) {
                 await trackSql(settingsRead, () => Promise.resolve());
               }
@@ -293,7 +293,7 @@ describe("log-error", () => {
         const failure = new Error("critical refund work failed");
         let caught: unknown;
         try {
-          await runWithPendingWork(() =>
+          await withRequestContext(() =>
             withDeferredErrorReports(async () => {
               logError({ code: ErrorCode.DB_CONNECTION });
               logError({ code: ErrorCode.DB_QUERY });

@@ -22,6 +22,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   adminFormPost,
   adminGet,
@@ -218,11 +219,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const { withAuth } = await import("#routes/auth.ts");
       const { jsonResponse } = await import("#routes/response.ts");
-      const { runWithSessionContext } = await import(
-        "#shared/session-context.ts"
-      );
 
-      const response = await runWithSessionContext(async () => {
+      const response = await withRequestContext(async () => {
         const { signCsrfToken } = await import("#shared/csrf.ts");
         const signedCsrf = await signCsrfToken();
         return withAuth(

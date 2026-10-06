@@ -2,8 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { col, defineCachedListTable } from "#db/table.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 type CachedRow = { id: number; name: string };
 type CachedInput = { name: string };
@@ -23,7 +24,7 @@ describeWithEnv("db > cached tables", { db: true }, () => {
       },
     });
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect(await rows.getAll()).toEqual([]);
       await rows.table.insert({ name: "Alpha" });
       await rows.table.insert({ name: "Beta" });

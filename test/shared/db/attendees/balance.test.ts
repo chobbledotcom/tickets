@@ -19,11 +19,7 @@ import {
 import { getDb } from "#db/client.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -41,6 +37,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
@@ -380,7 +377,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("order summary loads booking listings with one joined read", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
-    const one = await runWithQueryLogContext(async () => {
+    const one = await withRequestContext(async () => {
       enableQueryLog();
       const summary = await getAttendeeOrderSummary(attendeeId);
       return { queryCount: getQueryLog().length, summary };
@@ -395,7 +392,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
     });
 
-    const multiple = await runWithQueryLogContext(async () => {
+    const multiple = await withRequestContext(async () => {
       enableQueryLog();
       const summary = await getAttendeeOrderSummary(attendeeId);
       return { queryCount: getQueryLog().length, summary };

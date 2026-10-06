@@ -10,13 +10,10 @@ import {
   getApiKeysForUser,
   touchApiKeyLastUsed,
 } from "#db/api-keys.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { setTouchOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { createTestApiKeyFull } from "#test-utils/session.ts";
 
 describeWithEnv("API key records", { db: true }, () => {
@@ -119,7 +116,7 @@ describeWithEnv("API key records", { db: true }, () => {
     test("display reads select only the API key fields they return", async () => {
       const { id } = await createTestApiKeyFull("Narrow read");
 
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         await getApiKeysForUser(1);
         await getApiKeyForUser(id, 1);

@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { logRefundLedgerError } from "#shared/refund-ledger/log.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 
 describe("refund ledger diagnostics", () => {
@@ -22,7 +22,7 @@ describe("refund ledger diagnostics", () => {
     const failure = new Error("ledger backend failed");
 
     await initSentry();
-    await runWithPendingWork(() => {
+    await withRequestContext(() => {
       logRefundLedgerError({
         attendeeId: 17,
         error: failure,

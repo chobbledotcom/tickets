@@ -5,15 +5,13 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  clearSavedFormData,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import {
   registerPublicTemplateHooks,
   singleListingPageHtml,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("the promo-code field", () => {
   beforeAll(setupAdminPageTest);
@@ -24,17 +22,15 @@ describe("the promo-code field", () => {
     expect(html).not.toContain('name="promo_code"');
   });
 
-  test("restores the submitted promo code", () => {
-    setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
-    try {
+  test("restores the submitted promo code", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
       const html = singleListingPageHtml({ promoCodesEnabled: true });
       expect(html).toContain('<div class="promo-code"><label>Promo code');
       expect(html).toContain(
         'name="promo_code" placeholder="Optional" type="text" value="SAVE20"',
       );
-    } finally {
-      clearSavedFormData();
-    }
+    });
   });
 
   test("fills the box from the ?promo= prefill", () => {
@@ -47,9 +43,9 @@ describe("the promo-code field", () => {
     );
   });
 
-  test("restores the submitted promo code before the ?promo= prefill", () => {
-    setSavedFormData(new FormParams({ promo_code: "TYPED99" }));
-    try {
+  test("restores the submitted promo code before the ?promo= prefill", async () => {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams({ promo_code: "TYPED99" }));
       const html = singleListingPageHtml({
         prefill: { listings: new Map(), promo: "summer25" },
         promoCodesEnabled: true,
@@ -58,16 +54,14 @@ describe("the promo-code field", () => {
         'name="promo_code" placeholder="Optional" type="text" value="TYPED99"',
       );
       expect(html).not.toContain('value="summer25"');
-    } finally {
-      clearSavedFormData();
-    }
+    });
   });
 
-  test("keeps an explicitly cleared promo code empty", () => {
+  test("keeps an explicitly cleared promo code empty", async () => {
     // A buyer who deleted the code and failed validation submitted an empty
     // field: that choice wins, so the URL code must not come back.
-    setSavedFormData(new FormParams({ promo_code: "" }));
-    try {
+    await withRequestContext(() => {
+      setSavedFormData(new FormParams({ promo_code: "" }));
       const html = singleListingPageHtml({
         prefill: { listings: new Map(), promo: "summer25" },
         promoCodesEnabled: true,
@@ -76,9 +70,7 @@ describe("the promo-code field", () => {
         'name="promo_code" placeholder="Optional" type="text" value=""',
       );
       expect(html).not.toContain('value="summer25"');
-    } finally {
-      clearSavedFormData();
-    }
+    });
   });
 
   test("leaves the box empty with no ?promo= prefill", () => {

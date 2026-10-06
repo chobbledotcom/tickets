@@ -12,7 +12,7 @@ import {
   resetDatabase,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
-import { runWithQueryLogContext } from "#db/query-log.ts";
+
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { setBuildCommitForTest } from "#shared/update.ts";
 import {
@@ -26,6 +26,7 @@ import {
   settingsValueOrNull,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 describeWithEnv(
@@ -175,7 +176,7 @@ describeWithEnv(
         // more than one request's budget, so a bounded batch runs and the boot
         // asks to continue on the next request.
         await runWithSubrequestBudget(() =>
-          runWithQueryLogContext(async () => {
+          withRequestContext(async () => {
             await expect(initDb()).rejects.toThrow(
               "Database update is continuing on the next request.",
             );

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { validatePaidSession } from "#routes/api/payment-processing/classify.ts";
 import type { SessionValidation } from "#routes/api/webhook-types.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { expectBuyerRefusalWithoutStaffPanel } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -12,6 +11,7 @@ import {
   paidSession,
   stubSessionRetrieval,
 } from "#test-utils/payment-session.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   createTestEditorSession,
   getTestSession,
@@ -62,7 +62,7 @@ describeWithEnv(
       await setupStripe();
       using _provider = await unpaidProvider();
 
-      const result = await runWithPendingWork(() =>
+      const result = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn()),
       );
 
@@ -85,16 +85,16 @@ describeWithEnv(
 
       // No request at all — the webhook-free call the page renders, at its
       // first visit, so the reload window opens at zero.
-      const bare = await runWithPendingWork(() =>
+      const bare = await withRequestContext(() =>
         validatePaidSession("cs_unpaid"),
       );
-      const eighth = await runWithPendingWork(() =>
+      const eighth = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn("8")),
       );
-      const ninth = await runWithPendingWork(() =>
+      const ninth = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn("9")),
       );
-      const atTheLimit = await runWithPendingWork(() =>
+      const atTheLimit = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn("10")),
       );
 
@@ -115,13 +115,13 @@ describeWithEnv(
       await setupStripe();
       using _provider = await unpaidProvider();
 
-      const forged = await runWithPendingWork(() =>
+      const forged = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn("banana")),
       );
-      const negative = await runWithPendingWork(() =>
+      const negative = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn("-3")),
       );
-      const huge = await runWithPendingWork(() =>
+      const huge = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn("9999")),
       );
 
@@ -140,7 +140,7 @@ describeWithEnv(
         await getTestSession(),
       );
 
-      const result = await runWithPendingWork(() =>
+      const result = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", request),
       );
 
@@ -157,7 +157,7 @@ describeWithEnv(
       await setupStripe();
       using _provider = await unpaidProvider();
 
-      const result = await runWithPendingWork(() =>
+      const result = await withRequestContext(() =>
         validatePaidSession("cs_unpaid", visitReturn()),
       );
 
@@ -172,7 +172,7 @@ describeWithEnv(
       using _provider = await unpaidProvider();
       const editorCookie = (await createTestEditorSession()).cookie;
 
-      const result = await runWithPendingWork(() =>
+      const result = await withRequestContext(() =>
         validatePaidSession(
           "cs_unpaid",
           new Request("http://localhost/payment/success", {

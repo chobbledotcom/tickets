@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -10,6 +9,7 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { providerRefundHttpCases } from "#test-utils/provider-failure-cases.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 import {
   configureSquare,
@@ -101,7 +101,7 @@ describeSquare(() => {
       try {
         await configureSquare({ sandbox: true });
         await initSentry();
-        const result = await runWithPendingWork(() =>
+        const result = await withRequestContext(() =>
           squareApi.refundCharge(request),
         );
         expect(result).toEqual({

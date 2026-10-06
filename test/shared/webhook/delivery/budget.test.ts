@@ -9,7 +9,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import type { EmailEntry } from "#shared/email.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import {
   logAndNotifyRegistration,
@@ -21,6 +20,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 /** Enough for the fixed reads, far below one read per line or per package. */
@@ -96,7 +96,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const eight = await orderEntries("Many", 8);
     const calls = (entries: EmailEntry[]): Promise<number> =>
       countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() => logAndNotifyRegistration(entries)),
       );
 
     expect(await calls(eight)).toBe(await calls(one));
@@ -120,7 +120,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     // throws without being counted, and pending work swallows the throw.
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() => logAndNotifyRegistration(entries)),
       ),
     ).toBe(1);
   });
@@ -130,7 +130,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
 
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() => logAndNotifyRegistration(entries)),
       ),
     ).toBe(4);
   });
@@ -143,7 +143,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     // flow's calls plus the email send's own two, not two fact loads.
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() => logAndNotifyRegistration(entries)),
       ),
     ).toBe(6);
   });
@@ -166,7 +166,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
 
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        runWithPendingWork(() => logAndNotifyRegistration(groups.flat())),
+        withRequestContext(() => logAndNotifyRegistration(groups.flat())),
       ),
     ).toBe(5);
   });

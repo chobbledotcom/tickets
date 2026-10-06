@@ -16,11 +16,7 @@ import { postTransfers } from "#accounting/store.ts";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import {
   seedPreDropLedgerColumns,
@@ -28,6 +24,7 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
@@ -280,7 +277,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 5 });
     await historicalBooking([{ listingId: listing.id, pricePaid: 5000 }]);
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       await backfillTransfers();
       const ran = getQueryLog()
@@ -327,7 +324,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       );
     }
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       await backfillTransfers();
       // Every statement in one batch shares its round-trip's start timestamp, so

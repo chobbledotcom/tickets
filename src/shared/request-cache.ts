@@ -13,12 +13,14 @@ import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
 /* jscpd:ignore-start -- imports */
 import { type CollectionCache, requiredMapValue, unique } from "#fp";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
-import { createScope } from "#shared/request-scoped.ts";
+import { currentRequestStore } from "#shared/request-context.ts";
 
 /* jscpd:ignore-end */
 
-/** Per-request store: maps each cache's unique key to its cached data */
-type RequestStore = Map<symbol, unknown>;
+/** The per-request store: maps each cache's unique key to its cached data. */
+type CacheMap = Map<symbol, unknown>;
+
+const cacheMap = (): CacheMap | undefined => currentRequestStore()?.cache;
 
 interface RequestCollectionCache<T> extends CollectionCache<T> {
   invalidate: (cause?: CacheInvalidation) => void;
@@ -29,12 +31,6 @@ interface RequestCollectionCache<T> extends CollectionCache<T> {
   prime: (items: T[]) => void;
 }
 
-const cacheScope = createScope<RequestStore>();
-
-/** Run a function within a per-request cache scope */
-export const runWithRequestCache = <T>(fn: () => T): T =>
-  cacheScope.run(new Map(), fn);
-
 /** The slot one cache keeps its data in for the current request, plus the
  * refill and invalidate every cache shares. Outside a request (or in a leaked
  * context that already ended — see createScope) `read` and `write` do nothing,
@@ -43,18 +39,18 @@ const cacheSlot = <S>() => {
   const key = Symbol();
   const primaryRefill = createPrimaryCacheRefill();
   return {
-    inScope: (): boolean => cacheScope.current() !== undefined,
+    inScope: (): boolean => cacheMap() !== undefined,
     invalidate: (cause: CacheInvalidation = "manual"): void => {
       primaryRefill.afterInvalidation(cause === "write");
-      cacheScope.current()?.delete(key);
+      cacheMap()?.delete(key);
     },
     primaryRefill,
-    read: (): S | undefined => cacheScope.current()?.get(key) as S | undefined,
+    read: (): S | undefined => cacheMap()?.get(key) as S | undefined,
     remove: (): void => {
-      cacheScope.current()?.delete(key);
+      cacheMap()?.delete(key);
     },
     write: (value: S): void => {
-      cacheScope.current()?.set(key, value);
+      cacheMap()?.set(key, value);
     },
   };
 };

@@ -14,11 +14,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
-import {
-  N_PLUS_ONE_THRESHOLD,
-  runWithQueryLogContext,
-  trackSql,
-} from "#db/query-log.ts";
+import { N_PLUS_ONE_THRESHOLD, trackSql } from "#db/query-log.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
@@ -32,6 +28,7 @@ import { serveFromBunny } from "#test-utils/entry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockAdminLoginRequest, withExpectedError } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   expectScheduledResponse,
   scheduledAuthorization,
@@ -183,7 +180,7 @@ describeWithEnv("serve-app", { db: true }, () => {
       // is to throw, so a false here fails loudly).
       const errorSpy = stub(console, "error");
       try {
-        await runWithQueryLogContext(async () => {
+        await withRequestContext(async () => {
           for (let i = 0; i < N_PLUS_ONE_THRESHOLD + 1; i++) {
             await trackSql("SELECT 1", () => Promise.resolve("ok"));
           }

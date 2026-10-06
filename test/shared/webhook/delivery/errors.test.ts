@@ -5,7 +5,6 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { PRICE_TYPE_GROUP } from "#db/price-types.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { t, withMessageGroups } from "#i18n";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   RegistrationDeliveryError,
   type RegistrationPackageFacts,
@@ -31,6 +30,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 
 const registrationLogs = (
@@ -38,7 +38,7 @@ const registrationLogs = (
   packageFacts?: RegistrationPackageFacts,
 ) =>
   withErrorSpy(async (errorSpy) => {
-    await runWithPendingWork(() =>
+    await withRequestContext(() =>
       logAndNotifyRegistration(entries, { packageFacts }),
     );
     return errorSpy.calls.map(({ args }) => String(args[0]));
@@ -58,7 +58,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
   test("records failure activity with catalog copy", async () => {
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
 
-    await runWithPendingWork(() =>
+    await withRequestContext(() =>
       logAndNotifyRegistration([
         makeEntry({ webhook_url: "https://failed-hook.com" }),
       ]),
@@ -175,7 +175,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
 
     await withErrorSpy(() =>
-      runWithPendingWork(() =>
+      withRequestContext(() =>
         logAndNotifyRegistration([
           makeEntry({ webhook_url: "https://failed-hook.com" }),
         ]),
@@ -195,7 +195,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
 
     await withErrorSpy(() =>
-      runWithPendingWork(() =>
+      withRequestContext(() =>
         logAndNotifyRegistration([
           makeEntry({ id: 1, webhook_url: "https://refused-hook.com" }),
           makeEntry({ id: 2, webhook_url: "https://failed-hook.com" }),
@@ -303,7 +303,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const entries = [makeEntry({ webhook_url: "https://failed-hook.com" })];
 
     const logs = await withErrorSpy(async (errorSpy) => {
-      await runWithPendingWork(() => logAndNotifyRegistration(entries));
+      await withRequestContext(() => logAndNotifyRegistration(entries));
       return errorSpy.calls;
     });
 
@@ -324,7 +324,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const logs = await withErrorSpy(async (errorSpy) => {
       await runWithSubrequestBudget(() =>
         withSubrequestAllowance({ database: 1, external: 0, total: 1 }, () =>
-          runWithPendingWork(() => logAndNotifyRegistration(entries)),
+          withRequestContext(() => logAndNotifyRegistration(entries)),
         ),
       );
       return errorSpy.calls.map(({ args }) => String(args[0]));
@@ -354,7 +354,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
 
     await withErrorSpy(() =>
-      runWithPendingWork(() => logAndNotifyRegistration([entry])),
+      withRequestContext(() => logAndNotifyRegistration([entry])),
     );
 
     expect(fetchSpy.firstBody().tickets[0]!.unit_price).toBe(2500);

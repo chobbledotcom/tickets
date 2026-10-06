@@ -5,10 +5,7 @@ import { handleRequest } from "#routes";
 import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  runWithSessionContext,
-  setCachedSession,
-} from "#shared/session-context.ts";
+import { setCachedSession } from "#shared/session-context.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
@@ -24,6 +21,7 @@ import {
   mockMultipartRequest,
   testPageHtml,
 } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   createKeyedRoleSession,
   createUserWithSession,
@@ -109,7 +107,7 @@ export const getTestAuthSession = async (): Promise<AuthSession> => {
  */
 export const withTestSession = async <T>(fn: () => Promise<T>): Promise<T> => {
   const session = await getTestAuthSession();
-  return runWithSessionContext(() => {
+  return withRequestContext(async () => {
     setCachedSession(session);
     return fn();
   });

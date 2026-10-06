@@ -15,13 +15,14 @@ import {
   LATEST_UPDATE,
   type Migration,
 } from "#db/migrations.ts";
-import { runWithQueryLogContext } from "#db/query-log.ts";
+
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { restoreSchemaBeforeMigrations } from "#test/integration/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const LISTINGS_TAG_MIGRATION_ID = "2026-07-03_attendee_listings_tag";
 const LISTINGS_TAG_REVISION =
@@ -78,7 +79,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       { key: LATEST_DB_UPDATE_KEY, value: "stale" },
     ]);
 
-    await runWithQueryLogContext(() => initDb());
+    await withRequestContext(() => initDb());
 
     const marker = await getDb().execute({
       args: [migration.id],
@@ -96,7 +97,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     const tinyBudget = { database: 15, external: 15, total: 15 };
     await expect(
       runWithSubrequestBudget(() =>
-        runWithQueryLogContext(() =>
+        withRequestContext(() =>
           withSubrequestAllowance(tinyBudget, () => initDb()),
         ),
       ),
@@ -166,9 +167,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     let progress = 0;
     for (let attempt = 0; attempt < pendingIds.length; attempt += 1) {
       try {
-        await runWithSubrequestBudget(() =>
-          runWithQueryLogContext(() => initDb()),
-        );
+        await runWithSubrequestBudget(() => withRequestContext(() => initDb()));
         finished = true;
         break;
       } catch (error) {

@@ -15,15 +15,12 @@ import {
   getAgentRunSheetDates,
   setLegDone,
 } from "#db/logistics-run-sheet.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const D1 = "2026-06-16";
 const D2 = "2026-06-17";
@@ -248,7 +245,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
     test("issues no query at all when the agent set is empty", async () => {
       // The empty-input early return is a subrequest-budget contract: an empty
       // agent set must answer [] without ever hitting the database.
-      const { entries, legs } = await runWithQueryLogContext(async () => {
+      const { entries, legs } = await withRequestContext(async () => {
         enableQueryLog();
         const legs = await getAgentRunSheet([], [D1]);
         return { entries: getQueryLog(), legs };
@@ -490,7 +487,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
 
   describe("getAgentRunSheetDates", () => {
     test("returns [] for no agent ids without hitting the database", async () => {
-      const { entries, dates } = await runWithQueryLogContext(async () => {
+      const { entries, dates } = await withRequestContext(async () => {
         enableQueryLog();
         const dates = await getAgentRunSheetDates([]);
         return { dates, entries: getQueryLog() };

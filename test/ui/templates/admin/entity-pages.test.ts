@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import {
-  runWithFlashContext,
-  setFlashContext,
-  setFlashFormId,
-} from "#shared/flash-context.ts";
+import { setFlashContext, setFlashFormId } from "#shared/flash-context.ts";
 import {
   entityPageView,
   renderSection,
@@ -15,6 +11,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("summary section", () => {
   const rows: SummaryRow[] = [
@@ -304,8 +301,8 @@ describe("entityPageView", () => {
     expect((html.match(/class="page-block"/g) ?? []).length).toBe(1);
   });
 
-  test("a form-scoped flash waits outside the page, not inside its regions", () => {
-    const scoped = runWithFlashContext(() => {
+  test("a form-scoped flash waits outside the page, not inside its regions", async () => {
+    const scoped = await withRequestContext(() => {
       // A redirect targeted a form, so the flash belongs to that form — the
       // page must leave it for the layout's backstop above the page regions.
       setFlashContext({ success: "Saved." });

@@ -6,11 +6,11 @@ import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
   getCurrentCsrfToken,
   isSignedCsrfToken,
-  runWithCsrfContext,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("signCsrfToken", () => {
   beforeEach(() => {
@@ -158,7 +158,7 @@ describe("getCurrentCsrfToken (request-scoped)", () => {
   });
 
   test("returns the token signed in the current scope", async () => {
-    const { signed, current } = await runWithCsrfContext(async () => {
+    const { signed, current } = await withRequestContext(async () => {
       const signed = await signCsrfToken();
       return { current: getCurrentCsrfToken(), signed };
     });
@@ -167,7 +167,7 @@ describe("getCurrentCsrfToken (request-scoped)", () => {
   });
 
   test("re-signing within a scope replaces the rendered token", async () => {
-    const { first, second, rendered } = await runWithCsrfContext(async () => {
+    const { first, second, rendered } = await withRequestContext(async () => {
       const first = await signCsrfToken();
       const second = await signCsrfToken();
       return { first, rendered: getCurrentCsrfToken(), second };
@@ -178,7 +178,7 @@ describe("getCurrentCsrfToken (request-scoped)", () => {
 
   test("concurrent request scopes each render their own token", async () => {
     const request = () =>
-      runWithCsrfContext(async () => {
+      withRequestContext(async () => {
         const signed = await signCsrfToken();
         await new Promise((r) => setTimeout(r, 20)); // render happens later
         return { rendered: getCurrentCsrfToken(), signed };

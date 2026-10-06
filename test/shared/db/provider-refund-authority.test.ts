@@ -15,11 +15,7 @@ import {
   markRefundAuthorityRecorded,
   transitionRefundAuthority,
 } from "#db/provider-refund-authority-change.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
@@ -29,6 +25,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { gbp } from "#test-utils/payment-state.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const reference = (
   raw: string,
@@ -67,7 +64,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     const prepared = await prepareRefundAuthority(input);
     expect(prepared.statement.args).toHaveLength(14);
 
-    const { authority, queries } = await runWithQueryLogContext(async () => {
+    const { authority, queries } = await withRequestContext(async () => {
       enableQueryLog();
       const authority = await createOrLoadRefundAuthority(input);
       return { authority, queries: getQueryLog().map(({ sql }) => sql) };
@@ -266,7 +263,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
 
   test("transitions exactly the expected revision", async () => {
     const row = await createOrLoadRefundAuthority(createInput());
-    const queries = await runWithQueryLogContext(async () => {
+    const queries = await withRequestContext(async () => {
       enableQueryLog();
       const changed = await transitionRefundAuthority(
         row,

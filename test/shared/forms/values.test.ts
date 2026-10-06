@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { Field } from "#shared/forms/field.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
-
-const field = (
-  overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides }) as Field;
+import { field } from "#test-utils/field.ts";
 
 describe("entityToFieldValues", () => {
   const fields = [

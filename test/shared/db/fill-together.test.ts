@@ -5,15 +5,16 @@ import { fillTogether } from "#db/fill-together.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
 import { allPageItemsRead, getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages, sitePagesNavRead } from "#db/site-pages.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const navReads = [newsExistenceRead, sitePagesNavRead, allPageItemsRead];
 
 describeWithEnv("db > fill-together", { db: true }, () => {
   test("answers the nav's three reads in a single round trip", async () => {
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       const calls = await countDatabaseCalls(1, () => fillTogether(navReads));
 
       expect(calls).toBe(1);
@@ -21,7 +22,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
   });
 
   test("leaves every read's own cache holding the answer", async () => {
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await fillTogether(navReads);
 
       // Nothing reads again: the batch's answers are what these serve.
@@ -43,7 +44,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
       sortOrder: 3,
     });
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await fillTogether(navReads);
 
       expect(await sitePages.getAll()).toEqual([

@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  requestBatchCache,
-  runWithRequestCache,
-} from "#shared/request-cache.ts";
+import { requestBatchCache } from "#shared/request-cache.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** A batch lookup that answers `id -> id * 10` and records what it was asked
  * for, so a test can prove which ids actually reached the database. */
@@ -19,7 +17,7 @@ const countingLookup = () => {
 describe("requestBatchCache", () => {
   test("answers every id it is asked for", async () => {
     const { cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect([...(await cache.getMany([2, 1]))]).toEqual([
         [2, 20],
         [1, 10],
@@ -29,7 +27,7 @@ describe("requestBatchCache", () => {
 
   test("looks up each id once per request", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await cache.getMany([1, 2]);
       await cache.getMany([1, 2]);
       expect(asked).toEqual([[1, 2]]);
@@ -38,7 +36,7 @@ describe("requestBatchCache", () => {
 
   test("only looks up the ids it has not seen yet", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await cache.getMany([1, 2]);
       expect([...(await cache.getMany([1, 2, 3, 4]))]).toEqual([
         [1, 10],
@@ -55,7 +53,7 @@ describe("requestBatchCache", () => {
 
   test("asks for a repeated id only once", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect([...(await cache.getMany([5, 5]))]).toEqual([[5, 50]]);
       expect(asked).toEqual([[5]]);
     });
@@ -63,7 +61,7 @@ describe("requestBatchCache", () => {
 
   test("skips the lookup when asked for nothing", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect([...(await cache.getMany([]))]).toEqual([]);
       expect(asked).toEqual([]);
     });
@@ -71,7 +69,7 @@ describe("requestBatchCache", () => {
 
   test("shares one lookup between overlapping concurrent callers", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       const [first, second] = await Promise.all([
         cache.getMany([1, 2]),
         cache.getMany([2, 3]),
@@ -84,14 +82,14 @@ describe("requestBatchCache", () => {
 
   test("each request starts with nothing remembered", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(() => cache.getMany([1]));
-    await runWithRequestCache(() => cache.getMany([1]));
+    await withRequestContext(() => cache.getMany([1]));
+    await withRequestContext(() => cache.getMany([1]));
     expect(asked).toEqual([[1], [1]]);
   });
 
   test("invalidate drops what this request remembered", async () => {
     const { asked, cache } = countingLookup();
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await cache.getMany([1]);
       cache.invalidate("write");
       await cache.getMany([1]);
@@ -115,7 +113,7 @@ describe("requestBatchCache", () => {
         : Promise.resolve(new Map(ids.map((id) => [id, id])));
     });
 
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await expect(cache.getMany([1])).rejects.toThrow("lookup failed");
       expect([...(await cache.getMany([1]))]).toEqual([[1, 1]]);
       expect(attempts).toBe(2);
@@ -126,7 +124,7 @@ describe("requestBatchCache", () => {
     const cache = requestBatchCache<number>(() =>
       Promise.resolve(new Map([[1, 10]])),
     );
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       await expect(cache.getMany([1, 2])).rejects.toThrow(
         "Missing batch result for id 2",
       );

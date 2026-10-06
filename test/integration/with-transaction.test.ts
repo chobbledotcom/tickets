@@ -10,11 +10,11 @@ import {
 import {
   enableQueryLog,
   getQueryLog,
-  runWithQueryLogContext,
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
@@ -63,7 +63,7 @@ describe("withTransaction", () => {
 
   test("tracks transactional statements for the query log / N+1 guard", async () => {
     await withFileDb(async () => {
-      const log = await runWithQueryLogContext(async () => {
+      const log = await withRequestContext(async () => {
         enableQueryLog();
         await withTransaction(async (tx) => {
           await tx.execute("INSERT INTO t VALUES (1)");
@@ -81,7 +81,7 @@ describe("withTransaction", () => {
     // Boundary of the round-trip guard: exactly THRESHOLD statements is fine —
     // the counter must start at zero, or the guard would trip one early.
     await withFileDb(async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         await withTransaction(async (tx) => {
           for (let i = 0; i < TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
             await tx.execute("INSERT INTO t VALUES (1)");
@@ -100,7 +100,7 @@ describe("withTransaction", () => {
     try {
       await withFileDb(async () => {
         await expect(
-          runWithQueryLogContext(async () => {
+          withRequestContext(async () => {
             await withTransaction(async (tx) => {
               for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
                 await tx.execute("INSERT INTO t VALUES (1)");

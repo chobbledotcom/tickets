@@ -5,11 +5,7 @@ import {
   checkListingAvailability as hasAvailableSpots,
   unfitListingIds,
 } from "#db/attendees/capacity/checks.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -18,6 +14,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /* jscpd:ignore-end */
 
@@ -157,7 +154,7 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       maxAttendees: 5,
     });
     await bookAttendee(listing, { date: "2026-05-01", quantity: 1 });
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       expect(await hasAvailableSpots(listing.id, 1, "2026-05-01")).toBe(true);
       // One listing lookup plus one capacity query covers listing and group

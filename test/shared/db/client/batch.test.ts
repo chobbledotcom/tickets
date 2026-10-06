@@ -16,13 +16,13 @@ import {
   enableQueryLog,
   getQueryLog,
   N_PLUS_ONE_THRESHOLD,
-  runWithQueryLogContext,
 } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /**
  * Batch execution: the transaction mode routes a batch to a replica ("read")
@@ -58,7 +58,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
   });
 
   test("queryBatch does not count repeated statements as separate N+1 reads", async () => {
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       const statements = Array.from(
         { length: N_PLUS_ONE_THRESHOLD + 1 },
         () => ({ args: [], sql: "SELECT 1" }),
@@ -82,7 +82,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
   });
 
   test("transaction batches track every statement in one shared window", async () => {
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       await withTransaction(async (tx) => {
         await tx.batch([
@@ -125,7 +125,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
   });
 
   test("batch query-log entries record the shared window's start and elapsed", async () => {
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       const batchStub = stub(getDb(), "batch", () =>
         Promise.resolve([emptyResultSet()]),

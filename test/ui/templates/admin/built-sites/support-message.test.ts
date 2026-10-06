@@ -2,13 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  runWithSavedFormContext,
-  setSavedFormData,
-} from "#shared/forms/saved-data.ts";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import type { SupportMessageResult } from "#shared/site-support-message.ts";
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
 import { withEnv } from "#test-utils/env.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const site: BuiltSite = {
   assignable: false,
@@ -85,8 +83,8 @@ describe("SupportMessagePanel", () => {
     expect(html).toContain("The support message could not be read");
     expect(html).not.toContain('name="support_message"');
   });
-  test("keeps a refused save's draft beside the read failure", () => {
-    const html = runWithSavedFormContext(() => {
+  test("keeps a refused save's draft beside the read failure", async () => {
+    const html = await withRequestContext(() => {
       setSavedFormData(
         new FormParams("support_message=%23+Draft+kept+through+the+outage"),
       );
@@ -100,8 +98,8 @@ describe("SupportMessagePanel", () => {
     expect(editorContent(html)).toBe("# Draft kept through the outage");
   });
 
-  test("keeps a cleared draft, not the stored message, after a refused save", () => {
-    const html = runWithSavedFormContext(() => {
+  test("keeps a cleared draft, not the stored message, after a refused save", async () => {
+    const html = await withRequestContext(() => {
       // The operator cleared the field and the save failed: the empty
       // choice is theirs, so the stored value must not resurface.
       setSavedFormData(new FormParams("support_message="));

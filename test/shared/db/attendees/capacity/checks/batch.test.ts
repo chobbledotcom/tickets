@@ -15,11 +15,7 @@ import {
 } from "#db/capacity-batch.ts";
 import { getDb, queryOne } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -30,6 +26,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   test("returns true for empty items", async () => {
@@ -332,7 +329,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       const listing = await createDailyTestListing({ maxAttendees: 5 });
       items.push({ listingId: listing.id, quantity: 1 });
     }
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       expect(await checkBatchAvailability(items, "2026-05-01")).toBe(true);
       // Listing rows + batched occupancy + group caps — a small constant.

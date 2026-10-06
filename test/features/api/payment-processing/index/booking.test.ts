@@ -17,7 +17,6 @@ import { completePaidBooking } from "#routes/api/payment-processing/completion.t
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { runWithPendingWork } from "#shared/pending-work.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -28,6 +27,7 @@ import {
   expectSessionFailed,
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -157,7 +157,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const { data } = await checkoutWithTypedAnswer(id);
     await configureTestEmail();
 
-    await runWithPendingWork(async () => {
+    await withRequestContext(async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
 
@@ -220,7 +220,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const { data } = await checkoutWithTypedAnswer(id, { staged: false });
     await configureTestEmail();
 
-    await runWithPendingWork(async () => {
+    await withRequestContext(async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
 

@@ -9,7 +9,7 @@ import {
   verifyMigrationWithRetry,
 } from "#db/migrations/runner.ts";
 import type { Migration } from "#db/migrations/types.ts";
-import { runWithQueryLogContext } from "#db/query-log.ts";
+
 import {
   getSubrequestRemaining,
   runWithSubrequestBudget,
@@ -17,6 +17,7 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { takeMigrationLock } from "#test-utils/migrations.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /** The error countSubrequest raises once the request's budget is spent. */
@@ -98,8 +99,8 @@ describeWithEnv(
       work: (lockToken: string) => Promise<T>,
     ): Promise<T> =>
       withMigrationLock((lockToken) =>
-        runWithSubrequestBudget(() =>
-          runWithQueryLogContext(() => work(lockToken)),
+        runWithSubrequestBudget(async () =>
+          withRequestContext(() => work(lockToken)),
         ),
       );
 

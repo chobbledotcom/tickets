@@ -13,7 +13,13 @@
 import { lazyRef, map, pipe, reduce, sort } from "#fp";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
-import { createScope, type PromiseTask } from "#shared/request-scoped.ts";
+import {
+  currentRequestStore,
+  type RequestSlot,
+  requestSlot,
+  withRequestSlot,
+} from "#shared/request-context.ts";
+import type { PromiseTask } from "#shared/request-scoped.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   countSubrequest,
@@ -33,7 +39,7 @@ export type QueryLogEntry = {
   startedAtMs: number;
 };
 
-type QueryLogState = {
+export type QueryLogState = {
   databaseRoundTrips: number;
   enabled: boolean;
   entries: QueryLogEntry[];
@@ -58,29 +64,45 @@ const freshState = (): QueryLogState => ({
   startTime: 0,
 });
 
-const queryLogScope = createScope<QueryLogState>();
 const fallbackState: QueryLogState = freshState();
 
 // A request context the runtime leaked past its own end reads as "outside a
 // request" (see createScope) — its counters and entries must not absorb
 // later, unrelated work.
-const getState = (): QueryLogState => queryLogScope.current() ?? fallbackState;
+const getState = (): QueryLogState =>
+  currentRequestStore()?.queryLog ?? fallbackState;
 
-export const runWithQueryLogContext = <T>(fn: () => T): T =>
-  queryLogScope.run(freshState(), fn);
+/** The query-log slot on the request store, allocated on the request's first
+ * database call. Outside a request the guards stay silent and nothing is
+ * recorded. */
+const QUERY_LOG_SLOT: RequestSlot<QueryLogState> = {
+  fresh: freshState,
+  read: (store) => store.queryLog,
+  write: (store, state) => {
+    store.queryLog = state;
+  },
+};
+
+const queryLogState = (): QueryLogState | undefined =>
+  requestSlot(QUERY_LOG_SLOT);
+
+/** Mutate this request's state, allocated on first use. */
+const withQueryLogState = (use: (state: QueryLogState) => void): void =>
+  withRequestSlot(QUERY_LOG_SLOT, use);
 
 /** Enable query logging and clear previous entries */
-export const enableQueryLog = (): void => {
-  const state = getState();
-  state.enabled = true;
-  state.entries = [];
-  state.startTime = performance.now();
-};
+export const enableQueryLog = (): void =>
+  withQueryLogState((state) => {
+    state.enabled = true;
+    state.entries = [];
+    state.startTime = performance.now();
+  });
 
 /** Allow the admin debug footer to render the captured queries (staff-only). */
-export const enableFooterDebug = (): void => {
-  getState().footerVisible = true;
-};
+export const enableFooterDebug = (): void =>
+  withQueryLogState((state) => {
+    state.footerVisible = true;
+  });
 
 /** Whether the admin debug footer may render the captured queries. */
 export const isFooterDebugEnabled = (): boolean => getState().footerVisible;
@@ -176,7 +198,7 @@ export const countDatabaseRoundTrip = (
   enforceBudget = true,
 ): void => {
   countSubrequest("database", operation, enforceBudget);
-  const state = queryLogScope.current();
+  const state = queryLogState();
   if (!state) return;
   state.databaseRoundTrips += 1;
   if (state.databaseRoundTrips <= BUNNY_SUBREQUEST_LIMIT) return;
@@ -269,7 +291,7 @@ export const enforceTransactionRoundTripGuard = (
   count: number,
   sql: string,
 ): void => {
-  if (!queryLogScope.current()) return;
+  if (!queryLogState()) return;
   if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
   reportGuardViolation(
     `Interactive transaction too chatty: ${count} statements ` +
@@ -287,14 +309,13 @@ export const trackSql = async <T>(
   sql: string | string[],
   fn: PromiseTask<T>,
 ): Promise<T> => {
-  const store = queryLogScope.current();
-  if (store && typeof sql === "string") enforceN1Guard(store, sql);
+  const state = queryLogState();
+  if (state && typeof sql === "string") enforceN1Guard(state, sql);
   const sqls = typeof sql === "string" ? [sql] : sql;
-  const state = store ?? fallbackState;
   const start = performance.now();
   const result = await fn();
   const durationMs = performance.now() - start;
-  if (state.enabled) {
+  if (state?.enabled) {
     state.entries.push(
       ...sqls.map((sql) => ({ durationMs, sql, startedAtMs: start })),
     );

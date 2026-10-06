@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { contentWriteOrError } from "#routes/admin/site-content.ts";
-import { runWithFlashContext } from "#shared/flash-context.ts";
+
 import { errorResult, okResult } from "#shared/result.ts";
 import {
   expectErrorFlash,
@@ -11,6 +11,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describe("admin site content write outcomes", () => {
@@ -31,8 +32,8 @@ describe("admin site content write outcomes", () => {
     expect(response.status).toBe(404);
   });
 
-  test("redirects a slug conflict to the form", () => {
-    const response = runWithFlashContext(() =>
+  test("redirects a slug conflict to the form", async () => {
+    const response = await withRequestContext(() =>
       contentWriteOrError(errorResult("slugTaken"), "/edit", "Already used"),
     );
     expect(response).toBeInstanceOf(Response);

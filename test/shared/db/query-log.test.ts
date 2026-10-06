@@ -10,7 +10,6 @@ import {
   getQueryLogStartTime,
   isFooterDebugEnabled,
   N_PLUS_ONE_THRESHOLD,
-  runWithQueryLogContext,
   setN1GuardNotifyOnly,
   sqlWallClockMs,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
@@ -28,18 +27,19 @@ import {
   SubrequestBudgetError,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog resets previous entries", () => {
     test("does not record before logging is enabled", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         await trackSql("SELECT hidden", () => Promise.resolve());
         expect(getQueryLog()).toEqual([]);
       });
     });
 
     test("clears log on enable", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         await trackSql("SELECT old", () => Promise.resolve());
         expect(getQueryLog()).toHaveLength(1);
@@ -52,7 +52,7 @@ describe("query-log", () => {
 
   describe("getQueryLog returns a snapshot", () => {
     test("returned array is independent of internal state", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         await trackSql("SELECT 1", () => Promise.resolve());
         const snapshot = getQueryLog();
@@ -115,13 +115,13 @@ describe("query-log", () => {
 
   describe("getQueryLogStartTime", () => {
     test("returns 0 before logging is enabled", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(getQueryLogStartTime()).toBe(0);
       });
     });
 
     test("records start time when enableQueryLog is called", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         const before = performance.now();
         enableQueryLog();
         const after = performance.now();
@@ -132,7 +132,7 @@ describe("query-log", () => {
     });
 
     test("resets start time on subsequent enableQueryLog calls", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         const first = getQueryLogStartTime();
         enableQueryLog();
@@ -145,7 +145,7 @@ describe("query-log", () => {
       // Stubbing the clock pins the exact value the second enable must store:
       // a re-assignment yields 2000, whereas an accumulating `+=` would carry
       // the first reading forward to 3000.
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         const nowStub = stub(performance, "now", returnsNext([1000, 2000]));
         try {
           enableQueryLog();
@@ -163,7 +163,7 @@ describe("query-log", () => {
     test("is hidden by default and shown only after enableFooterDebug", async () => {
       // A fresh request context must not expose the staff-only debug footer
       // (default `false`); enabling it flips the flag to exactly `true`.
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(isFooterDebugEnabled()).toBe(false);
         enableFooterDebug();
         expect(isFooterDebugEnabled()).toBe(true);
@@ -173,7 +173,7 @@ describe("query-log", () => {
 
   describe("trackSql recording", () => {
     test("records duration and start time when logging is enabled", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         const before = performance.now();
         await trackSql("SELECT 1", () => Promise.resolve("ok"));
@@ -190,7 +190,7 @@ describe("query-log", () => {
       // Pin the start/end clock readings so the recorded duration is the exact
       // subtraction (1005 - 1000 = 5). A `now() / start` regression would log
       // ~1.005 instead, so the precise value guards the arithmetic.
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         enableQueryLog();
         const nowStub = stub(performance, "now", returnsNext([1000, 1005]));
         try {
@@ -262,13 +262,13 @@ describe("query-log", () => {
     };
 
     test("allows a read to repeat up to the threshold", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(await readSelectOne(N_PLUS_ONE_THRESHOLD)).toBe("ok");
       });
     });
 
     test("throws when the same read crosses the threshold", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         for (let i = 0; i < N_PLUS_ONE_THRESHOLD; i++) {
           await trackSql("SELECT 1", () => Promise.resolve("ok"));
         }
@@ -279,7 +279,7 @@ describe("query-log", () => {
     });
 
     test("does not count writes toward the guard", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         let last: unknown;
         for (let i = 0; i < N_PLUS_ONE_THRESHOLD * 2; i++) {
           last = await trackSql("INSERT INTO t (id) VALUES (?)", () =>
@@ -291,7 +291,7 @@ describe("query-log", () => {
     });
 
     test("counts each distinct read separately", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         let last: unknown;
         for (let i = 0; i < N_PLUS_ONE_THRESHOLD; i++) {
           await trackSql("SELECT a", () => Promise.resolve("a"));
@@ -316,7 +316,7 @@ describe("query-log", () => {
         release = resolve;
       });
       let afterRequest!: Promise<unknown>;
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         afterRequest = (async () => {
           await gate;
           return readSelectOne(N_PLUS_ONE_THRESHOLD + 1);
@@ -330,7 +330,7 @@ describe("query-log", () => {
       const errorSpy = stub(console, "error");
       setN1GuardNotifyOnly(true);
       try {
-        await runWithQueryLogContext(async () => {
+        await withRequestContext(async () => {
           expect(await readSelectOne(N_PLUS_ONE_THRESHOLD + 1)).toBe("ok");
         });
         // Let the fire-and-forget dynamic import + logError settle.
@@ -353,13 +353,13 @@ describe("query-log", () => {
     };
 
     test("allows exactly the Bunny subrequest limit", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(() => countRoundTrips(BUNNY_SUBREQUEST_LIMIT)).not.toThrow();
       });
     });
 
     test("blocks every call beyond the Bunny subrequest limit", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         countRoundTrips(BUNNY_SUBREQUEST_LIMIT);
         expect(() => countDatabaseRoundTrip("call 51")).toThrow(
           /51 calls.*limit 50.*call 51/,
@@ -372,8 +372,8 @@ describe("query-log", () => {
 
     test("starts a fresh count for each request", async () => {
       const fillBudget = (): void => countRoundTrips(BUNNY_SUBREQUEST_LIMIT);
-      await runWithQueryLogContext(fillBudget);
-      expect(() => runWithQueryLogContext(fillBudget)).not.toThrow();
+      await withRequestContext(fillBudget);
+      await expect(withRequestContext(fillBudget)).resolves.toBeUndefined();
     });
 
     test("does not restrict database work outside a request", () => {
@@ -414,7 +414,7 @@ describe("query-log", () => {
     afterEach(() => setN1GuardNotifyOnly(null));
 
     test("allows up to the threshold of statements in a transaction", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         for (let i = 1; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
           enforceTransactionRoundTripGuard(i, "INSERT INTO t VALUES (1)");
         }
@@ -422,7 +422,7 @@ describe("query-log", () => {
     });
 
     test("throws when a transaction crosses the threshold", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(() =>
           enforceTransactionRoundTripGuard(
             TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
@@ -435,7 +435,7 @@ describe("query-log", () => {
     });
 
     test("fires once: counts past the crossing point are a no-op", async () => {
-      await runWithQueryLogContext(async () => {
+      await withRequestContext(async () => {
         expect(() =>
           enforceTransactionRoundTripGuard(
             TRANSACTION_ROUNDTRIP_THRESHOLD + 2,
@@ -458,7 +458,7 @@ describe("query-log", () => {
       const errorSpy = stub(console, "error");
       setN1GuardNotifyOnly(true);
       try {
-        await runWithQueryLogContext(async () => {
+        await withRequestContext(async () => {
           enforceTransactionRoundTripGuard(
             TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
             "INSERT INTO t VALUES (1)",

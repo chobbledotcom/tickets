@@ -16,11 +16,7 @@ import {
 import { legReference } from "#accounting/refs.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
@@ -38,6 +34,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
@@ -111,7 +108,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     }));
     await postBooking({ amountPaid: listingCount * 200, lines });
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       const result = await recordAttendeeRefund(ATTENDEE, [
         sessionReference("sess-1"),

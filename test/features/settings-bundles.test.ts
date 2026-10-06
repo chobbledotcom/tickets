@@ -4,12 +4,12 @@ import { CONFIG_KEYS } from "#db/settings.ts";
 import {
   assertSettingsReadsDeclared,
   recordSettingsLoaded,
-  runWithSettingsAudit,
   setSettingsAuditEnabled,
 } from "#db/settings-audit.ts";
 import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
 import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("settings bundles", () => {
   test("extracts the first path segment without its leading slash", () => {
@@ -51,7 +51,7 @@ describe("settings bundles", () => {
     for (const provider of PAYMENT_PROVIDER_IDS) {
       test(`asks whether ${provider} is in a sandbox without an undeclared read`, () => {
         setSettingsAuditEnabled(true);
-        runWithSettingsAudit(() => {
+        withRequestContext(() => {
           recordSettingsLoaded(settingsForPath("/listings"));
           paymentProviderUsesSandbox(provider);
           assertSettingsReadsDeclared("GET /listings");

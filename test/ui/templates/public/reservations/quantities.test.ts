@@ -45,7 +45,7 @@ describe("monthLabelsForListing", () => {
     ).toBe("6 months");
   });
 
-  test("keeps the plain count on a renewal page for a non-tier listing", () => {
+  test("keeps the plain count on a renewal page for a non-tier listing", async () => {
     // A renewal page only offers qualifying tiers, so a listing that prices
     // no months per unit never reaches one; outside a renewal its units stay
     // plain tickets.
@@ -124,7 +124,7 @@ describe("restoredPackageQuantity", () => {
 });
 
 describe("restoredQuantity", () => {
-  test("restores the pre-filled quantity, clamped to the available range", () => {
+  test("restores the pre-filled quantity, clamped to the available range", async () => {
     expect(restoredQuantity(1, { quantity: 3 }, 10)).toBe(3);
     expect(restoredQuantity(1, { quantity: 30 }, 10)).toBe(10);
   });
@@ -137,41 +137,41 @@ describe("restoredQuantity", () => {
     expect(restoredQuantity(1, { quantity: -3 }, 10)).toBe(0);
   });
 
-  test("restores the just-submitted count", () => {
+  test("restores the just-submitted count", async () => {
     expect(
-      withSubmittedValues({ quantity_1: "5" }, () =>
+      await withSubmittedValues({ quantity_1: "5" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(5);
   });
 
-  test("clamps a too-large submitted count", () => {
+  test("clamps a too-large submitted count", async () => {
     expect(
-      withSubmittedValues({ quantity_1: "30" }, () =>
+      await withSubmittedValues({ quantity_1: "30" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(10);
   });
 
-  test("keeps zero for a non-numeric submitted count", () => {
+  test("keeps zero for a non-numeric submitted count", async () => {
     expect(
-      withSubmittedValues({ quantity_1: "abc" }, () =>
+      await withSubmittedValues({ quantity_1: "abc" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(0);
   });
 
-  test("keeps zero for a hex-looking submitted count", () => {
+  test("keeps zero for a hex-looking submitted count", async () => {
     expect(
-      withSubmittedValues({ quantity_1: "0x10" }, () =>
+      await withSubmittedValues({ quantity_1: "0x10" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(0);
   });
 
-  test("clamps a negative submitted count to zero", () => {
+  test("clamps a negative submitted count to zero", async () => {
     expect(
-      withSubmittedValues({ quantity_1: "-3" }, () =>
+      await withSubmittedValues({ quantity_1: "-3" }, () =>
         restoredQuantity(1, undefined, 10),
       ),
     ).toBe(0);
@@ -183,9 +183,9 @@ describe("restoredChildQty", () => {
     expect(restoredChildQty(7, 10, 5)).toBe(0);
   });
 
-  test("restores a submitted child count, clamped high", () => {
+  test("restores a submitted child count, clamped high", async () => {
     expect(
-      withSubmittedValues({ child_qty_7_10: "3" }, () =>
+      await withSubmittedValues({ child_qty_7_10: "3" }, () =>
         restoredChildQty(7, 10, 2),
       ),
     ).toBe(2);

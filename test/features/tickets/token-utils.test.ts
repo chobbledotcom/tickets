@@ -13,12 +13,13 @@ import {
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
-import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
+import { flushPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const setBookingDates = (attendeeId: number, startAt: string, endAt: string) =>
   getDb().execute({
@@ -304,15 +305,19 @@ describeWithEnv("ticket token utils", { db: true }, () => {
 
   // Run the rate limiter under a pending-work scope and flush the queued
   // failure/clear write so its effect is observable, returning the response.
+  // The tests seed and read failures for the in-process "direct" IP.
   const runRateLimited = (
     tokens: string[],
     response: Response,
   ): Promise<Response> =>
-    runWithPendingWork(async () => {
-      const out = await withTokenRateLimit(tokens, () => response);
-      await flushPendingWork();
-      return out;
-    });
+    withRequestContext(
+      async () => {
+        const out = await withTokenRateLimit(tokens, () => response);
+        await flushPendingWork();
+        return out;
+      },
+      { clientIp: "direct" },
+    );
 
   test("withTokenRateLimit returns the handler response and clears failures on success", async () => {
     // One short of the lockout threshold.

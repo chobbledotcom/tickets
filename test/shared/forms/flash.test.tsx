@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { flashConsumed, runWithFlashContext } from "#shared/flash-context.ts";
+import { flashConsumed } from "#shared/flash-context.ts";
 import { Flash, renderError, renderSuccess } from "#shared/forms/flash.tsx";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("Flash", () => {
   test("renders a success message inside a success alert", () => {
@@ -14,7 +15,7 @@ describe("Flash", () => {
     // Rendering one message must consume the flash, whatever kind it is, so
     // the Layout backstop does not show it a second time on the same request.
     for (const field of ["error", "success", "info"] as const) {
-      runWithFlashContext(() => {
+      withRequestContext(() => {
         const html = String(Flash({ [field]: "Message" }));
         expect(html).toContain("Message");
         expect(flashConsumed()).toBe(true);
@@ -23,7 +24,7 @@ describe("Flash", () => {
   });
 
   test("leaves the request flash alone when there is no message", () => {
-    runWithFlashContext(() => {
+    withRequestContext(() => {
       String(Flash({}));
       expect(flashConsumed()).toBe(false);
     });

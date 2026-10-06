@@ -5,11 +5,7 @@ import { KIND } from "#accounting/kinds.ts";
 import { backfillReversesGroup } from "#accounting/reverses-group.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
   expectStampedToBooking,
@@ -21,6 +17,7 @@ import {
 } from "#test/shared/accounting/reverses-group/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
 
 /** A refund leg no derivation can attribute — an event group nothing derived
@@ -133,7 +130,7 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
 
     expect(await storedCursor()).toBe("complete");
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       await backfillReversesGroup();
       const ran = getQueryLog().map((entry) => entry.sql);

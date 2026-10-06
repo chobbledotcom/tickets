@@ -1,8 +1,5 @@
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** Run `fn` inside a fresh query-log context and report both its result and the
  *  number of DB round-trips it took (distinct query start timestamps). Tests use
@@ -11,7 +8,7 @@ import {
 export const runAndCountRoundTrips = async <T>(
   fn: () => Promise<T>,
 ): Promise<{ value: T; roundTrips: number }> =>
-  runWithQueryLogContext(async () => {
+  withRequestContext(async () => {
     enableQueryLog();
     const value = await fn();
     return {

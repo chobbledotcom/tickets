@@ -10,9 +10,8 @@ src/shared/db/table.ts::defineCachedListTable.dependsOn~1o37jut  ?? → ||   # t
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/users.ts::getUserAuthFieldsById~0q9twz3  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
-src/shared/db/query-log.ts::getState~0iubkry  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
+src/shared/db/query-log.ts::getState~0gxq35p  ?? → ||   # the live store is a truthy object or undefined, so only undefined reaches the fallback state
 src/shared/db/query-log.ts::enforceN1Guard.count~1xuztjh  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
-src/shared/db/query-log.ts::trackSql.state~0ab0ecr  ?? → ||   # store is a truthy QueryLogState object or undefined
 src/shared/update.ts::recordScriptVersion.changes~148v29c  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
 src/shared/update.ts::readRecordedScriptCommit~0csc5ea  ?? → ||   # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 

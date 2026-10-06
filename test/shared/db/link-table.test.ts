@@ -2,8 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { linkTableSide, selfLinkTableSides } from "#db/link-table.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 // Exercised through a real link table so the SQL runs against the schema's
@@ -25,7 +26,7 @@ const callsInOneRequest = (
   limit: number,
   work: () => Promise<unknown>,
 ): Promise<number> =>
-  runWithRequestCache(() => countDatabaseCalls(limit, work));
+  withRequestContext(async () => countDatabaseCalls(limit, work));
 
 describeWithEnv("db link-table", { db: true }, () => {
   test("getIds returns [] when the key has no links", async () => {
@@ -224,7 +225,7 @@ describeWithEnv("db link-table", { db: true }, () => {
 
     test("a write makes the next read fetch again", async () => {
       await edges.pointsAt.setIds(1, [3]);
-      await runWithRequestCache(async () => {
+      await withRequestContext(async () => {
         expect(await edges.pointedAtBy.getIds(3)).toEqual([1]);
         await edges.pointsAt.setIds(2, [3]);
         expect(await edges.pointedAtBy.getIds(3)).toEqual([1, 2]);
@@ -234,7 +235,7 @@ describeWithEnv("db link-table", { db: true }, () => {
 
   test("a write makes a plain side's next read fetch again", async () => {
     await byUser.setIds(1, [3]);
-    await runWithRequestCache(async () => {
+    await withRequestContext(async () => {
       expect(await byAgent.getIds(3)).toEqual([1]);
       await byUser.setIds(2, [3]);
       expect(await byAgent.getIds(3)).toEqual([1, 2]);

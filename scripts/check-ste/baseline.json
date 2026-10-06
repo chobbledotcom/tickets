@@ -106,6 +106,7 @@
   },
   "REPO_STRUCTURE.md": {},
   "cli/README.md": {},
+  "docs/checkin-count-plan.md": {},
   "docs/cold-start.md": {
     "semicolon \";\" in import the shared session-key error without evaluating the authentication feature;": 1,
     "semicolon \";\" in load admin API authentication only after its path matches;": 1,
@@ -159,7 +160,6 @@
     "semicolon \";\" in Before writing an algorithm, formatter, or parser, check % — the answer is usually already a dependency. When the project's calling convention differs from a library's, write a thin adapter; do not re-implement:": 1,
     "semicolon \";\" in % — all DST/offset math is %; % gets currency symbols and decimal places from % instead of a hand-maintained table; % validates with %.": 2,
     "semicolon \";\" in Nothing heavy at module load. Entry points only register the handler (%); app boot runs % on the first request (%). Module-load work is fine only when pure and cheap (for example % building its schemas once).": 1,
-    "semicolon \";\" in Request-scoped memoization, not global state. % (%) shares one fetch among all callers within a request. Any new per-request state is built on one of the three factories in % (%, %, %) — the only module allowed to touch % — so two concurrent requests on one isolate cannot clobber each other and a leaked post-request context always reads as %. Isolate-lived caches are best-effort and bounded (%; the settings version-stamp cache in %) — never authoritative for security decisions, and invalidated automatically by the write-sniffing db client (%).": 1,
     "semicolon \";\" in Respect the subrequest budget. Fixed-cost designs like % (one SELECT plus one batch regardless of batch size), % instead of update-then-select (%), and % for multi-read round-trips. Bunny has a hard limit of 50 subrequests per request. One libsql %, batch, transaction begin/statement/commit/rollback, or external fetch counts as one; statements inside one batch still count as one. The client guard blocks database call 51, but routes that also call providers or storage must target at most 40 database calls so those other fetches still fit.": 1,
     "semicolon \";\" in Model realistic database latency. The request benchmark uses 0, 5, 10, and 20 ms per libsql round trip. Treat 20 ms as the expected worst case for a replicated database; do not publish 50 or 100 ms projections as realistic production measurements without evidence from production.": 1,
     "semicolon \";\" in One-round-trip patterns. % in %; %/% in %; keyset pagination for unbounded reads (% with %).": 2,

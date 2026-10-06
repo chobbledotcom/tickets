@@ -12,6 +12,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("adminDashboardPage", () => {
   beforeAll(setupAdminPageTest);
@@ -55,9 +56,11 @@ describe("adminDashboardPage", () => {
     expect(html).not.toContain("data-multi-booking-slug");
   });
 
-  test("includes logout link", () => {
-    const html = adminDashboardPage([], OWNER_SESSION);
-    expect(html).toContain("/admin/logout");
+  test("includes logout link", async () => {
+    await withRequestContext(() => {
+      const html = adminDashboardPage([], OWNER_SESSION);
+      expect(html).toContain("/admin/logout");
+    });
   });
 
   test("renders newest attendees in an open details element", () => {

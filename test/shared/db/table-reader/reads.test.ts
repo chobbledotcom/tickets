@@ -8,13 +8,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import { listingOptionColumns, rawListingsTable } from "#db/listings/table.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
@@ -70,7 +67,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
     const listing = await createTestListing({ name: "Keyed" });
     const nameOnly = rawListingsTable.read.pick(["name"]);
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       const rows = await nameOnly.many(
         { id: listing.id },
@@ -87,7 +84,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("asks the database nothing when the filter can match no row", async () => {
     await createTestListing({ name: "Present" });
 
-    await runWithQueryLogContext(async () => {
+    await withRequestContext(async () => {
       enableQueryLog();
       expect(
         await listingOptionColumns.many({ id: [] }, { alias: "listing" }),

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as bddTest, describe } from "@std/testing/bdd";
-import { runWithCsrfContext, signCsrfToken } from "#shared/csrf.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
   type ActivityLogRefs,
@@ -13,12 +13,13 @@ import {
   setupTestEncryptionKey,
 } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const test = (name: string, body: () => void | Promise<void>): void => {
   bddTest(name, async () => {
     setupTestEncryptionKey();
     try {
-      await runWithCsrfContext(async () => {
+      await withRequestContext(async () => {
         await signCsrfToken();
         await body();
       });

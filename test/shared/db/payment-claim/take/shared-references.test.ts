@@ -6,11 +6,7 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#db/payment-reference-store.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import {
@@ -23,6 +19,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 const repointPaymentRow = async (
   sessionId: string,
@@ -165,7 +162,7 @@ describeWithEnv(
         references.flatMap(({ matchingIndexes }) => matchingIndexes),
       ).size;
 
-      const { queries, result } = await runWithQueryLogContext(async () => {
+      const { queries, result } = await withRequestContext(async () => {
         enableQueryLog();
         const result = await claimAttendeeRows([
           {
@@ -202,7 +199,7 @@ describeWithEnv(
         ["sess-no-reference"],
       );
 
-      const { queries, result } = await runWithQueryLogContext(async () => {
+      const { queries, result } = await withRequestContext(async () => {
         enableQueryLog();
         const result = await claimCurrentAttendeeRows([attendeeId]);
         return { queries: getQueryLog().map(({ sql }) => sql), result };
@@ -226,7 +223,7 @@ describeWithEnv(
       );
       await addUnreadableSharingRows(sourceSessionId, sharing);
 
-      const { queries, result } = await runWithQueryLogContext(async () => {
+      const { queries, result } = await withRequestContext(async () => {
         enableQueryLog();
         const result = await claimCurrentAttendeeRows([source]);
         return { queries: getQueryLog().map(({ sql }) => sql), result };
