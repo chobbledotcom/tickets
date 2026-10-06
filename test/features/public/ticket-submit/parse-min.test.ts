@@ -14,6 +14,7 @@ import {
   type TicketCtx,
 } from "#routes/public/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { quantityForm, ticketContext } from "#test-utils/ticket-ctx.ts";
 
@@ -100,6 +101,27 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       expect(
         validateFormState(quantityForm({ [listing.id]: 2 }), closedRow),
       ).toBe(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+    });
+
+    test("refuses a package whose member minimum rose above what the bundles serve", async () => {
+      // One bundle books one unit of a member that now sells at least three
+      // per purchase, so the page re-reads the stored fact at submit time.
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 3,
+        name: "Secret Contents",
+      });
+      const ctx = await ticketContext([member.id], group);
+
+      expect(validateFormState(quantityForm({}, { [group.id]: 1 }), ctx)).toBe(
+        "Sorry, Secret Contents sells at least 3 tickets per booking.",
+      );
+      expect(validateFormState(quantityForm({}, { [group.id]: 3 }), ctx)).toBe(
+        null,
+      );
     });
   });
 });
