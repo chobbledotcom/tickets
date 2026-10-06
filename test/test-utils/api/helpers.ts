@@ -72,18 +72,20 @@ export const fetchPublicListing = async (slug: string) => {
 
 /** Book an listing by slug with given body fields. The default body carries
  * quantity 1 — the smallest purchase any listing with the column default
- * sells — so a caller booking more passes its own quantity. */
+ * sells — so a caller booking more passes its own quantity, and a caller
+ * testing the requirement passes `quantity: undefined` to drop the key. */
 export const bookListing = async (
   slug: string,
-  bookingBody: Record<string, unknown> = {
-    email: "alice@test.com",
-    name: "Alice",
-    quantity: 1,
-  },
+  bookingBody: Record<string, unknown> = {},
 ): Promise<{ response: Response; body: BookResponseBody }> => {
   const response = await handleRequest(
     jsonRequest(`/api/listings/${slug}/book`, {
-      body: bookingBody,
+      body: {
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 1,
+        ...bookingBody,
+      },
       method: "POST",
     }),
   );
@@ -166,4 +168,15 @@ export const withCheckoutStub = async (
   } finally {
     mockCreate.restore();
   }
+};
+
+/** Create a listing from `spec` and book it as Alice with `body`, returning
+ *  the listing and the booking response together. */
+export const createAndBook = async (
+  spec: Parameters<typeof createTestListing>[0],
+  body: Record<string, unknown> = {},
+) => {
+  const listing = await createTestListing(spec);
+  const booked = await bookListing(listing.slug, body);
+  return { listing, ...booked };
 };

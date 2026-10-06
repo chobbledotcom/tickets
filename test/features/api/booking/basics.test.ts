@@ -16,10 +16,7 @@ describePublicApi(() => {
   describe("POST /api/listings/:slug/book", () => {
     test("creates booking for free listing", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-      });
+      const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
       expect(body.booking?.ticketUrl).toBeDefined();
@@ -47,7 +44,7 @@ describePublicApi(() => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await bookListing("nonexistent", { quantity: 1 });
+      const { response } = await bookListing("nonexistent");
       expect(response.status).toBe(404);
     });
 
@@ -64,47 +61,6 @@ describePublicApi(() => {
       expect(body.error).toMatch(/quantity/i);
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    });
-
-    test("requires the quantity field instead of booking one ticket", async () => {
-      // The API no longer defaults an absent quantity to 1: every booking
-      // must state how many places it books.
-      const { listing, response, body } = await createAndBook(
-        { maxAttendees: 10 },
-        { email: "alice@test.com", name: "Alice" },
-      );
-      expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity is required");
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    });
-
-    test("rejects a malformed quantity", async () => {
-      const { response, body } = await createAndBook(
-        { maxAttendees: 10 },
-        { quantity: "abc" },
-      );
-      expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity must be a whole number of 1 or more");
-    });
-
-    test("rejects a quantity below the listing's minimum", async () => {
-      const { listing, response, body } = await createAndBook(
-        { maxAttendees: 10, maxQuantity: 10, minimumQuantity: 3 },
-        { quantity: 2 },
-      );
-      expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity must be at least 3");
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    });
-
-    test("books the listing's minimum quantity", async () => {
-      const { response } = await createAndBook(
-        { maxAttendees: 10, maxQuantity: 10, minimumQuantity: 3 },
-        { quantity: 3 },
-      );
-      expect(response.status).toBe(200);
     });
 
     test("rejects customisable-days listings (must book via the website)", async () => {
@@ -126,6 +82,7 @@ describePublicApi(() => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
+        name: undefined,
       });
       expect(response.status).toBe(400);
       expect(body.error).toBeDefined();
@@ -137,6 +94,7 @@ describePublicApi(() => {
         maxAttendees: 10,
       });
       const { response, body } = await bookListing(listing.slug, {
+        email: undefined,
         name: "Alice",
       });
       expect(response.status).toBe(400);
@@ -213,9 +171,7 @@ describePublicApi(() => {
         closesAt: pastDate,
         maxAttendees: 10,
       });
-      const { response, body } = await bookListing(listing.slug, {
-        quantity: 1,
-      });
+      const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/closed/i);
     });
