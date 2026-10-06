@@ -144,11 +144,14 @@ describeWithEnv("Quantity refusal table", { db: true }, () => {
       );
     }
 
-    // Fewer places than the minimum: the skip's own guards pass (the token
-    // quantity sits between the stored minimum and maximum), so the checkout
-    // starts and the webhook is the last stop that refuses it.
+    // Fewer places left than the minimum: the drain booking leaves two, and
+    // the skip's own guards pass (the token quantity sits between the stored
+    // minimum and maximum), so the checkout starts. What the webhook then
+    // does with a quantity the remaining cannot serve is the next test's
+    // subject; this one pins only that the skip hands the buyer to checkout.
     const tight = await makeListing("Code Door Tight", 4);
     await bookListing(tight.slug, { quantity: 2 });
+    expect((await getAttendeesRaw(tight.id)).length).toBe(2);
     await scanWithStripe(
       tight,
       async ({ response, stripe }) => {
