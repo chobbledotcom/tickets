@@ -172,6 +172,24 @@ const childServedParentMax = (
   return Math.min(childInfo.maxPurchasable, groupMax);
 };
 
+/** The parent tickets a parent's children can serve together: each child's own
+ *  capacity for parent-and-child pairs, summed across the parent's children.
+ *  The booking page splits a parent's quantity across its children: the child
+ *  quantities must sum to it. No single child has to serve the whole minimum.
+ *  One home of that sum, shared by the add-on gate and the sold-out
+ *  projection, so both read the parent's reachability the same way. */
+const combinedChildCapacityForParent = (
+  parent: ListingWithCount,
+  children: readonly ListingWithCount[],
+  caps: ChildCapacityInfo,
+  holidays: Holiday[],
+): number =>
+  children.reduce(
+    (total, child) =>
+      total + childServedParentMax(parent, child, caps, holidays),
+    0,
+  );
+
 /**
  * Classify the given listings for a discovery surface (see
  * {@link DiscoveryClassification}).
@@ -238,21 +256,24 @@ export const classifyForDiscovery = async (
     return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
+        combinedChildCapacityForParent(
+          p,
+          childrenByParent.get(p.id) ?? [],
+          caps,
+          holidays,
+        ) >= p.min_quantity &&
         childServedParentMax(p, child, caps, holidays) >= 1,
     );
   });
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = listingById.get(parentId);
-    // The parent must also reach its own minimum: a child that serves fewer
-    // parent tickets than that minimum sells the parent nothing.
+    // The parent must also reach its own minimum: children that together serve
+    // fewer parent tickets than that minimum sell the parent nothing.
     const anyBookable =
       parent !== undefined &&
-      children.some(
-        (child) =>
-          childServedParentMax(parent, child, caps, holidays) >=
-          parent.min_quantity,
-      );
+      combinedChildCapacityForParent(parent, children, caps, holidays) >=
+        parent.min_quantity;
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
   return { addOnChildIds, childIds, nonStandaloneChildIds, soldOutParentIds };

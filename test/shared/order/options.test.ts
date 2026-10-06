@@ -27,13 +27,20 @@ describe("order > options", () => {
   });
 
   describe("listingOption", () => {
-    const standard = { id: 5, listing_type: "standard", name: "Workshop" };
+    const standard = {
+      id: 5,
+      listing_type: "standard",
+      min_quantity: 3,
+      name: "Workshop",
+    };
 
-    test("books one unit of its own listing under the listing key", () => {
+    test("books the listing's minimum as its units under the listing key", () => {
+      // The Continue prefill opens the booking page at the listing's minimum,
+      // so the cart is judged at the quantity the visitor actually gets.
       const option = listingOption(standard, true);
       expect(option.key).toBe("listing:5");
       expect(option.name).toBe("Workshop");
-      expect([...option.unitsByListingId]).toEqual([[5, 1]]);
+      expect([...option.unitsByListingId]).toEqual([[5, 3]]);
     });
 
     test("a standard listing does not need a date", () => {
@@ -41,7 +48,12 @@ describe("order > options", () => {
     });
 
     test("a daily listing needs a date", () => {
-      const daily = { id: 7, listing_type: "daily", name: "Day Pass" };
+      const daily = {
+        id: 7,
+        listing_type: "daily",
+        min_quantity: 1,
+        name: "Day Pass",
+      };
       expect(listingOption(daily, true).needsDate).toBe(true);
     });
 

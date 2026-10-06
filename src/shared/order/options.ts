@@ -58,16 +58,24 @@ export const listingOptionKey = (listingId: number): string =>
 export const packageOptionKey = (groupId: number): string =>
   `package:${groupId}`;
 
-/** Build a listing's order option from its availability-resolved card facts. */
+/** Build a listing's order option from its availability-resolved card facts.
+ *  The option's demand is the listing's minimum. The Continue prefill opens
+ *  the booking page at that quantity, so the cart is judged at what the
+ *  visitor actually gets. */
 export const listingOption = (
-  listing: { id: number; name: string; listing_type: string },
+  listing: {
+    id: number;
+    name: string;
+    listing_type: string;
+    min_quantity: number;
+  },
   bookableAlone: boolean,
 ): OrderOption => ({
   bookableAlone,
   key: listingOptionKey(listing.id),
   name: listing.name,
   needsDate: listing.listing_type === "daily",
-  unitsByListingId: new Map([[listing.id, 1]]),
+  unitsByListingId: new Map([[listing.id, listing.min_quantity]]),
 });
 
 /** Build a package's order option: one selection books every member at its
