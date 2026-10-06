@@ -97,11 +97,12 @@ describePublicApi(() => {
     });
 
     test("a daily listing full on one date is not sold out date-lessly", async () => {
-      // #51: cumulative bookings span every date, so without a date the API
-      // makes no capacity claim for a daily listing — the date-aware
+      // #51: cumulative bookings span every date, so attendee_count is never
+      // subtracted date-lessly — but max_attendees still bounds every date,
+      // so the date-less ceiling is max_attendees/max_quantity; the date-aware
       // availability endpoint answers for a specific date.
       const listing = await createDailyTestListing({
-        maxAttendees: 1,
+        maxAttendees: 4,
         maxQuantity: 4,
       });
       await bookAttendee(listing, {
