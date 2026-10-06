@@ -201,6 +201,15 @@ const PACKAGE_PRICE_KEY = /^package_price_(\d+)$/;
 const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
 const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
 
+/** The rule one package day-price field must satisfy: the day count the key
+ *  names is a positive safe integer, and the price parses. The API day-price
+ *  map applies the same rule to its keys. Kept as a named function so the
+ *  coverage run attributes it beside the other member rules. */
+const validMemberDayPrice = (raw: string, key: string): boolean => {
+  const day = wholeNumberValue(PACKAGE_DAY_PRICE_KEY.exec(key)?.[2] ?? "");
+  return day !== null && day >= 1 && parsePackagePrice(raw) !== null;
+};
+
 /** One member override field family: how to recognise its keys, the rule a
  *  typed value must satisfy, and the message a broken value reports. The
  *  rule sees the whole key. The day-price family checks the day count it
@@ -226,10 +235,7 @@ const MEMBER_FORM_FIELDS: readonly {
   {
     key: PACKAGE_DAY_PRICE_KEY,
     message: "error.package_member_day_price",
-    valid: (raw, key) => {
-      const day = wholeNumberValue(PACKAGE_DAY_PRICE_KEY.exec(key)?.[2] ?? "");
-      return day !== null && day >= 1 && parsePackagePrice(raw) !== null;
-    },
+    valid: validMemberDayPrice,
   },
 ];
 
