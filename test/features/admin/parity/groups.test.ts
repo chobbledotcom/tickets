@@ -5,8 +5,7 @@
 // /api/admin/groups (CONTENT_API: owner, manager, editor).
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
-import { getGroupPackagePrices } from "#shared/db/groups.ts";
+import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
