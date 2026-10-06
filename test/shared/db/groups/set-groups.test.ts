@@ -209,7 +209,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     const member = await createTestListing({
       groupId: group.id,
       maxQuantity: 10,
-      minQuantity: 2,
+      minimumQuantity: 2,
       name: "Stored Quantity Member",
     });
     // The package-member write stores the existing member's pick count of
