@@ -49,29 +49,28 @@ export type CreateListingBody = Omit<
 /** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
 export type UpdateListingBody = Partial<CreateListingBody> & { slug?: string };
 
-/** Fields the JSON body cannot set, mirroring the dashboard's listing form.
- *  `active` has no form input at all: create defaults it to active. Only the
- *  staff lifecycle routes (deactivate/reactivate) change it. The webhook
- *  fields are locked for editors (parseListingForm): the registration webhook
- *  posts full attendee PII to that URL. A crafted URL exfiltrates exactly the
- *  data the keyless editor role cannot otherwise read. Stripping the fields
- *  from the body leaves the stored values in place on update and the column
- *  defaults on create. The form applies the same ignore-the-submission
- *  behaviour. */
-const withoutRoleLockedFields = (
+/** Fields the JSON body cannot set for an editor. The dashboard's listing
+ *  form sets the same rule. The registration webhook posts full attendee PII
+ *  to webhook_url. A crafted value exfiltrates the data that the keyless
+ *  editor role cannot otherwise read. use_defaults changes the same effective
+ *  webhook. active drives the bookable state. The editor form offers no
+ *  control for it, and only staff deactivate or reactivate. Stripping the
+ *  fields from the body leaves the stored values in place on update and the
+ *  column defaults on create. The form applies the same ignore-the-submission
+ *  behaviour. Staff sessions keep setting all three through the API. The
+ *  add-on orphan guard's rejection tests pin that path. */
+const withoutEditorLockedFields = (
   body: Record<string, unknown>,
   session: AdminSession | undefined,
 ): Record<string, unknown> => {
-  const { active: _active, ...unlocked } = body;
-  if (session?.adminLevel === "editor") {
-    const {
-      use_defaults: _useDefaults,
-      webhook_url: _webhookUrl,
-      ...frozen
-    } = unlocked;
-    return frozen;
-  }
-  return unlocked;
+  if (session?.adminLevel !== "editor") return body;
+  const {
+    active: _active,
+    use_defaults: _useDefaults,
+    webhook_url: _webhookUrl,
+    ...frozen
+  } = body;
+  return frozen;
 };
 
 const API_BODY_FIELD_RULES = [
@@ -202,7 +201,7 @@ export const bodyToCreateInput = (
       ...projectCatalogFields(
         listingCatalogFields,
         "api",
-        withoutRoleLockedFields(body, session),
+        withoutEditorLockedFields(body, session),
       ),
       attributeOptionIds: joinIds.attributeOptionIds,
       dayPrices: parseDayPrices(body.day_prices),
@@ -247,7 +246,7 @@ export const bodyToUpdateInput = async (
       ...projectCatalogFields(
         listingCatalogFields,
         "api",
-        withoutRoleLockedFields(body, session),
+        withoutEditorLockedFields(body, session),
       ),
       // The JSON API cannot set these four fields, so fold the stored ones in
       // as the update's final facts — an update that adds groups or children

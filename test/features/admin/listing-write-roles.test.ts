@@ -116,8 +116,8 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
 
   // The dashboard's editor form locks the webhook fields (parseListingForm:
   // the registration webhook posts full attendee PII to the URL) and offers no
-  // active control (lifecycle routes are staff-only). The JSON body must obey
-  // the same locks, not silently accept the fields.
+  // active control (only staff deactivate or reactivate). The JSON body must
+  // obey the same locks for editors, not silently accept the fields.
   test("freezes the webhook fields to stored values for an editor update", async () => {
     const listing = await createTestListing({
       name: "Editor Lock",
@@ -180,8 +180,8 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     expect(created.listing.id).toBeGreaterThan(0);
   });
 
-  test("keeps active staff-only on the update body for every role", async () => {
-    const listing = await createTestListing({ name: "Owner Active Lock" });
+  test("deactivates a normal listing through the update body for staff", async () => {
+    const listing = await createTestListing({ name: "Manager Active Set" });
     const managerCookie = await createTestManagerSession();
 
     const response = await handleRequest(
@@ -200,7 +200,7 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const row = await getListingWithCount(listing.id);
-    expect(row?.active).toBe(true);
+    expect(row?.active).toBe(false);
   });
 
   // The dashboard's editor table is money-free (listing-table.tsx), so the
