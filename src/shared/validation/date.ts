@@ -33,11 +33,13 @@ export const IsoDateSchema = v.pipe(
 /** Whether a string is a real calendar date in strict `YYYY-MM-DD` form. */
 export const isIsoDate = (value: string): boolean => v.is(IsoDateSchema, value);
 
+declare const dateBrand: unique symbol;
+
 /** A `YYYY-MM-DD` string that passed the real-calendar-day check. The brand
  *  is the compile-level half of the cleanup. Every helper that consumes a
  *  date — comparisons, storage, normalisation — takes a `DateString`, so a
  *  caller that skips the parser cannot type-check. */
-export type DateString = string & { readonly __brand: "DateString" };
+export type DateString = string & { readonly [dateBrand]: "DateString" };
 
 /** Clean one raw date value at a boundary: trim the whitespace around it,
  *  then demand the strict real-calendar-day shape. Null means the value is
