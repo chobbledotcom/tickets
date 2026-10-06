@@ -4,6 +4,7 @@
  * page, a multi-package page, or standalone rows beside packages. */
 
 import type { TicketListing } from "#booking/model.ts";
+import { packageBundleMinimum } from "#booking/package-cap.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
 import {
   type BookingNode,
@@ -224,6 +225,12 @@ const renderPackageControls = ({
   const memberIds = members
     .map((e) => `${e.listing.id}:${pkg.quantities.get(e.listing.id) ?? 1}`)
     .join(" ");
+  // An owner can raise a member's minimum after the package was saved, so
+  // the select offers none or the members' joint minimum upward.
+  const bundleMinimum = packageBundleMinimum(
+    pkg.quantities,
+    new Map(members.map((e) => [e.listing.id, e.listing.min_quantity])),
+  );
   const selector = `<label>${t(
     "public.package.quantity",
   )}<select name="${packageQuantityFieldName(
@@ -231,6 +238,8 @@ const renderPackageControls = ({
   )}" data-package-members="${memberIds}">${quantityOptions(
     limit,
     restoredPackageQuantity(pkg.groupId, limit),
+    undefined,
+    bundleMinimum,
   )}</select></label>`;
   const memberRows = pkg.hideListings
     ? ""

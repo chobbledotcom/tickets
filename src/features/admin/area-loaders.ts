@@ -209,7 +209,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   ),
   listingQr: area(
     () => import("#routes/admin/listing-qr.ts"),
-    ["listing-qr", "listings-table"],
+    ["listing-qr", "listings-table", "tickets"],
   ),
   listings: area(
     () => import("#routes/admin/listings.ts"),

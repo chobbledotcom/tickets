@@ -10,6 +10,8 @@
   "payment.failure.refunded": "Your payment has been automatically refunded.",
   "payment.failure.below_minimum": "Sorry, this listing sells at least {min_quantity} tickets per booking.",
   "payment.failure.below_minimum_named": "Sorry, {name} sells at least {min_quantity} tickets per booking.",
+  "payment.failure.above_maximum": "Sorry, this listing sells at most {max_quantity} tickets per booking.",
+  "payment.failure.above_maximum_named": "Sorry, {name} sells at most {max_quantity} tickets per booking.",
   "payment.failure.contact_support": "Please contact support for a refund.",
   "payment.success.title_free": "Ticket Reserved",
   "payment.success.heading_paid": "Payment Successful!",

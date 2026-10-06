@@ -180,10 +180,9 @@
     "long-sentence": 2
   },
   "src/features/public/qr-book.ts": {
-    "semicolon": 1,
-    "long-sentence": 4,
     "banned-modal": 3,
     "present-perfect": 1,
+    "long-sentence": 4,
     "contraction": 1
   },
   "src/features/public/renewal.ts": {

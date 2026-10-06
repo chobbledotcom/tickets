@@ -7,6 +7,7 @@
 
 import type { buildBookingTree } from "#booking/build-tree.ts";
 import { bookingError, parseCustomPrice } from "#booking/form.ts";
+import { packageBundleMinError } from "#booking/min-refusal.ts";
 import { quantityBelowMin } from "#booking/model.ts";
 import {
   aggregateNodeQuantities,
@@ -74,6 +75,33 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
   return null;
 };
 
+/** The package refusal for one posted bundle count, or null. An owner can
+ *  raise a member's minimum after the package was saved, so the fold
+ *  re-reads the stored fact the same way the webhook does. */
+const packageQuantityRefusal = (
+  form: FormParams,
+  ctx: TicketCtx,
+): string | null => {
+  for (const pkg of ctx.packages) {
+    const count = parsePackageCount(form, pkg.groupId);
+    const members = pkg.memberListingIds.flatMap((id) => {
+      const info = ctx.listings.find((e) => e.listing.id === id);
+      return info === undefined
+        ? []
+        : [
+            {
+              fixed: pkg.quantities.get(id) ?? 1,
+              minQuantity: info.listing.min_quantity,
+              name: info.listing.name,
+            },
+          ];
+    });
+    const error = packageBundleMinError(members, count);
+    if (error) return error;
+  }
+  return null;
+};
+
 /** Validate page-level form state before deeper parsing. Returns an error
  * message, or null when the form state is acceptable. */
 export const validateFormState = (
@@ -83,7 +111,11 @@ export const validateFormState = (
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
   }
-  return pageWideRefusal(ctx) ?? quantityRefusal(form, ctx);
+  return (
+    pageWideRefusal(ctx) ??
+    quantityRefusal(form, ctx) ??
+    packageQuantityRefusal(form, ctx)
+  );
 };
 
 /** Validate contact fields once the final priced checkout says whether it is paid. */

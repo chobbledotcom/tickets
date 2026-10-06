@@ -1,3 +1,4 @@
+import { bookingError } from "#booking/form.ts";
 import { belowMinError } from "#booking/min-refusal.ts";
 import { t } from "#i18n";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
@@ -194,16 +195,12 @@ const createQrFormValidator = (
     const belowMinimum = belowMinError(
       quantity,
       listing.min_quantity,
-      t("listing_qr.quantity_below_minimum", {
-        minimum: listing.min_quantity,
-      }),
+      bookingError.belowMinimumQuantity(listing.min_quantity),
     );
     if (belowMinimum) return { error: belowMinimum, valid: false };
     if (quantity > listing.max_quantity) {
       return {
-        error: t("listing_qr.quantity_above_maximum", {
-          maximum: listing.max_quantity,
-        }),
+        error: bookingError.aboveMaximumQuantity(listing.max_quantity),
         valid: false,
       };
     }
