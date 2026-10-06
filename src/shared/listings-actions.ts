@@ -225,8 +225,8 @@ const listingNameError = async (
 /** Validate a listing's minimum quantity. It must hold with the per-order
  *  maximum: a whole number of at least 1, and at most that maximum. An absent
  *  maximum on a create stores 1, so an absent minimum pairs with it. */
-const validateMinimumQuantity = (input: ListingInput): string | null => {
-  const minimum = input.minimumQuantity;
+const validateMinQuantity = (input: ListingInput): string | null => {
+  const minimum = input.minQuantity;
   if (minimum === undefined) return null;
   // The API projection type-checks the value as a number only, so a fractional
   // body value arrives here and refuses like any other non-quantity.
@@ -249,8 +249,8 @@ export const validateListingInput = async (
     const taken = await isSlugTaken(input.slug, existingId);
     if (taken) return t("error.slug_in_use");
   }
-  const minimumError = validateMinimumQuantity(input);
-  if (minimumError) return minimumError;
+  const minError = validateMinQuantity(input);
+  if (minError) return minError;
   if (input.canPayMore) {
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;

@@ -30,13 +30,13 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       listing: {
         maxAttendees: 1,
         maxQuantity: 5,
-        minimumQuantity: 2,
+        minQuantity: 2,
         name: "Batched",
       },
       version: 1,
     });
     const imported = await requireListingWithCount(requireSuccess(result).id);
-    expect(imported.minimum_quantity).toBe(2);
+    expect(imported.min_quantity).toBe(2);
   });
 
   test("defaults an absent minimum quantity to the stored 1", async () => {
@@ -46,13 +46,13 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     const imported = await requireListingWithCount(requireSuccess(result).id);
-    expect(imported.minimum_quantity).toBe(1);
+    expect(imported.min_quantity).toBe(1);
   });
 
   test("rejects a minimum quantity below one", async () => {
     await expectListingImportError(
-      { maxAttendees: 1, minimumQuantity: 0, name: "Zero Floor" },
-      "minimumQuantity",
+      { maxAttendees: 1, minQuantity: 0, name: "Zero Floor" },
+      "minQuantity",
     );
   });
 
@@ -63,7 +63,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       {
         maxAttendees: 1,
         maxQuantity: 2,
-        minimumQuantity: 3,
+        minQuantity: 3,
         name: "High Floor",
       },
       "Min tickets per purchase must not be more than Max tickets per purchase",

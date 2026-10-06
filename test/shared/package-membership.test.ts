@@ -137,12 +137,12 @@ describe("packageMemberQuantityBroken", () => {
   const member = (
     over: {
       max_quantity?: number;
-      minimum_quantity?: number;
+      min_quantity?: number;
       quantity?: number;
     } = {},
   ) => ({
     max_quantity: over.max_quantity ?? 5,
-    minimum_quantity: over.minimum_quantity ?? 1,
+    min_quantity: over.min_quantity ?? 1,
     quantity: over.quantity,
   });
 
@@ -171,20 +171,21 @@ describe("packageMemberQuantityBroken", () => {
 
   test("refuses a pick count below the listing's minimum", () => {
     expect(
-      packageMemberQuantityBroken(member({ minimum_quantity: 2, quantity: 1 })),
-    ).toEqual({ quantity: 1, reason: "minimum" });
+      packageMemberQuantityBroken(member({ min_quantity: 2, quantity: 1 })),
+    ).toEqual({ quantity: 1, reason: "min" });
   });
 
   test("allows a pick count at the minimum", () => {
     expect(
-      packageMemberQuantityBroken(member({ minimum_quantity: 2, quantity: 2 })),
+      packageMemberQuantityBroken(member({ min_quantity: 2, quantity: 2 })),
     ).toBeNull();
   });
 
   test("refuses an omitted pick count below the minimum", () => {
-    expect(
-      packageMemberQuantityBroken(member({ minimum_quantity: 2 })),
-    ).toEqual({ quantity: 1, reason: "minimum" });
+    expect(packageMemberQuantityBroken(member({ min_quantity: 2 }))).toEqual({
+      quantity: 1,
+      reason: "min",
+    });
   });
 
   test("checks the cap before the minimum", () => {
@@ -193,7 +194,7 @@ describe("packageMemberQuantityBroken", () => {
     // order a crafted row meets.
     expect(
       packageMemberQuantityBroken(
-        member({ max_quantity: 1, minimum_quantity: 4, quantity: 9 }),
+        member({ max_quantity: 1, min_quantity: 4, quantity: 9 }),
       ),
     ).toEqual({ quantity: 9, reason: "cap" });
   });

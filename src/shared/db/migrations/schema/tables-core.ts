@@ -61,7 +61,7 @@ export const coreTables: [name: string, table: Table][] = [
         ["thank_you_url", "TEXT"],
         ["unit_price", "INTEGER"],
         ["max_quantity", "INTEGER NOT NULL DEFAULT 1"],
-        ["minimum_quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["min_quantity", "INTEGER NOT NULL DEFAULT 1"],
         ["webhook_url", "TEXT"],
         ["slug", "TEXT"],
         ["slug_index", "TEXT"],

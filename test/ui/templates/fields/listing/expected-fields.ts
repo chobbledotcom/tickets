@@ -76,10 +76,10 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
-    hint: "The smallest quantity a customer can buy in one transaction",
+    hint: "Minimum tickets a customer can buy in one transaction",
     label: "Min tickets per purchase",
     min: 1,
-    name: "minimum_quantity",
+    name: "min_quantity",
     section: "tickets",
     type: "number",
   },

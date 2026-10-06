@@ -152,7 +152,7 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
   test("refuses a minimum below one with the exact catalog text", async () => {
     await expect(
       validateListingInput(
-        inputFor({ maxQuantity: 10, minimumQuantity: 0, name: "Min Zero" }),
+        inputFor({ maxQuantity: 10, minQuantity: 0, name: "Min Zero" }),
       ),
     ).resolves.toBe(t("error.listing_min_quantity_whole"));
   });
@@ -160,7 +160,7 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
   test("refuses a fractional minimum from the number-typed API body", async () => {
     await expect(
       validateListingInput(
-        inputFor({ maxQuantity: 10, minimumQuantity: 1.5, name: "Min Half" }),
+        inputFor({ maxQuantity: 10, minQuantity: 1.5, name: "Min Half" }),
       ),
     ).resolves.toBe(t("error.listing_min_quantity_whole"));
   });
@@ -168,7 +168,7 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
   test("refuses a minimum above the maximum with the exact catalog text", async () => {
     await expect(
       validateListingInput(
-        inputFor({ maxQuantity: 5, minimumQuantity: 6, name: "Min High" }),
+        inputFor({ maxQuantity: 5, minQuantity: 6, name: "Min High" }),
       ),
     ).resolves.toBe(t("error.listing_min_quantity_above_max"));
   });
@@ -176,14 +176,14 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
   test("accepts a minimum equal to the maximum", async () => {
     await expect(
       validateListingInput(
-        inputFor({ maxQuantity: 8, minimumQuantity: 8, name: "Min Equal" }),
+        inputFor({ maxQuantity: 8, minQuantity: 8, name: "Min Equal" }),
       ),
     ).resolves.toBeNull();
   });
 
   test("accepts an absent minimum on create", async () => {
     const input = inputFor({ maxQuantity: 5, name: "No Minimum" });
-    delete input.minimumQuantity;
+    delete input.minQuantity;
 
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
@@ -191,7 +191,7 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
   test("pairs an absent maximum with its stored default of one", async () => {
     // A create body that omits max_quantity stores 1, so a minimum above 1
     // pairs against that default and refuses.
-    const input = inputFor({ minimumQuantity: 2, name: "Default Max" });
+    const input = inputFor({ minQuantity: 2, name: "Default Max" });
     delete input.maxQuantity;
 
     await expect(validateListingInput(input)).resolves.toBe(
@@ -208,7 +208,7 @@ describeWithEnv("validateListingInput minimum quantity", { db: true }, () => {
         await storedInputFor(listing.id, {
           // The factory's generated names collide on a second read; the rule
           // under test is the quantity pair, not name uniqueness.
-          minimumQuantity: 4,
+          minQuantity: 4,
           name: "Merged Update Min High",
         }),
       ),

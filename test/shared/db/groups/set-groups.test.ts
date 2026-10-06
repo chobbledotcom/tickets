@@ -159,13 +159,13 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     const group = await createHiddenPackageGroup("Batched join package");
     const member = await createTestListing({
       maxQuantity: 10,
-      minimumQuantity: 2,
+      minQuantity: 2,
       name: "Batched Join Member",
     });
 
     await expect(assignListingsToGroup([member.id], group.id)).resolves.toBe(
-      t("error.package_member_minimum", {
-        minimum_quantity: 2,
+      t("error.package_member_min", {
+        min_quantity: 2,
         name: "Batched Join Member",
         quantity: 1,
       }),
@@ -176,7 +176,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     const group = await createTestGroup({ name: "Plain join group" });
     const member = await createTestListing({
       maxQuantity: 10,
-      minimumQuantity: 2,
+      minQuantity: 2,
       name: "Plain Join Member",
     });
 

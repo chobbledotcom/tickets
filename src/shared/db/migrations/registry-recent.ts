@@ -59,8 +59,8 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   ),
   // The per-purchase quantity floor, defaulting every existing listing to 1.
   entry(
-    "2026-10-05_listing_minimum_quantity",
-    () => import("./2026-10-05_listing_minimum_quantity.ts"),
+    "2026-10-05_listing_min_quantity",
+    () => import("./2026-10-05_listing_min_quantity.ts"),
   ),
 ];
 /* jscpd:ignore-end */

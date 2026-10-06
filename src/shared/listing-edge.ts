@@ -28,7 +28,7 @@ export const listingInputToEdge = (
   assign_built_site: input.assignBuiltSite ?? false,
   id,
   listing_type: input.listingType ?? "standard",
-  minimum_quantity: input.minimumQuantity ?? 1,
+  min_quantity: input.minQuantity ?? 1,
   months_per_unit: input.monthsPerUnit ?? 0,
   name: input.name,
 });

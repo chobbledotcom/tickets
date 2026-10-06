@@ -101,7 +101,7 @@ type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   has_children: number;
   has_parents: number;
   max_quantity: number;
-  minimum_quantity: number;
+  min_quantity: number;
 };
 
 export type ListingState = GroupListingSettings & {
@@ -111,7 +111,7 @@ export type ListingState = GroupListingSettings & {
   hasChildren: boolean;
   hasParents: boolean;
   maxQuantity: number;
-  minimumQuantity: number;
+  minQuantity: number;
 };
 
 /** Reads the package rules' listing fields, both edge directions, and the
@@ -126,7 +126,7 @@ export const listingStatesTx = async (
       args: ids,
       sql: `SELECT listing.id, listing.name, listing.listing_type,
                     listing.customisable_days, listing.can_pay_more,
-                    listing.max_quantity, listing.minimum_quantity,
+                    listing.max_quantity, listing.min_quantity,
                     listing.assign_built_site,
                     EXISTS(SELECT 1 FROM listing_parents AS listingParent
                              WHERE listingParent.parent_listing_id = listing.id) AS has_children,
@@ -145,7 +145,7 @@ export const listingStatesTx = async (
     id: row.id,
     listing_type: row.listing_type,
     maxQuantity: row.max_quantity,
-    minimumQuantity: row.minimum_quantity,
+    minQuantity: row.min_quantity,
     name: row.name,
   }));
   const stateById = byId(states);
@@ -209,7 +209,7 @@ export const memberCapErrorTx = async (
 ): Promise<string | null> => {
   const broken = packageMemberQuantityBroken({
     max_quantity: listing.maxQuantity,
-    minimum_quantity: listing.minimumQuantity,
+    min_quantity: listing.minQuantity,
     quantity,
   });
   if (broken === null) return null;
@@ -220,8 +220,8 @@ export const memberCapErrorTx = async (
         name,
         quantity: broken.quantity,
       })
-    : t("error.package_member_minimum", {
-        minimum_quantity: listing.minimumQuantity,
+    : t("error.package_member_min", {
+        min_quantity: listing.minQuantity,
         name,
         quantity: broken.quantity,
       });

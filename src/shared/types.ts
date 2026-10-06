@@ -321,10 +321,10 @@ export interface Listing extends ItemImageColumns {
   max_price: number;
   max_quantity: number;
   maximum_days_after: number;
-  minimum_days_before: number;
   /** The smallest quantity above none that one purchase can book. 1 is the
    *  identity: the choice set is then exactly today's 0..max_quantity. */
-  minimum_quantity: number;
+  min_quantity: number;
+  minimum_days_before: number;
   months_per_unit: number;
   name: string;
   non_transferable: boolean;

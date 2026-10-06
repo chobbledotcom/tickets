@@ -60,8 +60,8 @@ const LISTING_NUMBER_COPY = {
   max_attendees: "max_attendees",
   max_quantity: "max_quantity",
   maximum_days_after: "max_days_ahead",
+  min_quantity: "min_quantity",
   minimum_days_before: "min_days_notice",
-  minimum_quantity: "minimum_quantity",
   months_per_unit: "months_per_unit",
 } as const;
 
@@ -147,7 +147,7 @@ const listingFields = (view: ListingFormView = {}) =>
       min: 1,
       required: true,
     }),
-    listingNumberField("minimum_quantity", "tickets", { min: 1 }),
+    listingNumberField("min_quantity", "tickets", { min: 1 }),
     {
       hint: t("fields.listing.bookable_days_hint"),
       label: t("fields.listing.bookable_days"),

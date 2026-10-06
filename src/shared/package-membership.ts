@@ -117,7 +117,7 @@ export const packageMemberError = (
  */
 export type PackageMemberQuantity = {
   max_quantity: number;
-  minimum_quantity: number;
+  min_quantity: number;
   quantity?: number | undefined;
 };
 
@@ -129,14 +129,12 @@ export type PackageMemberQuantity = {
  * of that comparison. */
 export const packageMemberQuantityBroken = (
   member: PackageMemberQuantity,
-): { quantity: number; reason: "cap" | "minimum" } | null => {
+): { quantity: number; reason: "cap" | "min" } | null => {
   const quantity = member.quantity ?? 1;
   if (quantity > member.max_quantity) {
     return { quantity, reason: "cap" };
   }
-  return quantity < member.minimum_quantity
-    ? { quantity, reason: "minimum" }
-    : null;
+  return quantity < member.min_quantity ? { quantity, reason: "min" } : null;
 };
 
 /**

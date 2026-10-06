@@ -1,5 +1,5 @@
-/** The admin JSON API's `minimum_quantity` body mapping (registry entry
- *  `minimumQuantity`): mapped on create when sent, omitted when absent (the
+/** The admin JSON API's `min_quantity` body mapping (registry entry
+ *  `minQuantity`): mapped on create when sent, omitted when absent (the
  *  column default of 1 applies at insert), and merged over the stored row on
  *  update so an absent field keeps the stored value. Split from the main
  *  api-listing-body suite to keep both under the ~400-line target. */
@@ -13,7 +13,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-describeWithEnv("Admin API - listing minimum_quantity", { db: true }, () => {
+describeWithEnv("Admin API - listing min_quantity", { db: true }, () => {
   describe("bodyToCreateInput", () => {
     test("omits the field when the body is absent", async () => {
       // Absent means the stored default of 1 applies at insert; mapping a
@@ -24,7 +24,7 @@ describeWithEnv("Admin API - listing minimum_quantity", { db: true }, () => {
       });
 
       expect(result.ok).toBe(true);
-      if (result.ok) expect("minimumQuantity" in result.value).toBe(false);
+      if (result.ok) expect("minQuantity" in result.value).toBe(false);
     });
   });
 
@@ -32,28 +32,28 @@ describeWithEnv("Admin API - listing minimum_quantity", { db: true }, () => {
     test("keeps the stored value when the body omits it", async () => {
       const existing = testListingWithCount({
         max_attendees: 10,
-        minimum_quantity: 3,
+        min_quantity: 3,
         name: "Kept Minimum",
         slug: "kept-minimum",
       });
 
       const result = await bodyToUpdateInput({ name: "Renamed" }, existing);
       expect(result.ok).toBe(true);
-      if (result.ok) expect(result.value.minimumQuantity).toBe(3);
+      if (result.ok) expect(result.value.minQuantity).toBe(3);
     });
 
     test("maps a submitted value over the stored one", async () => {
       const existing = testListingWithCount({
         max_attendees: 10,
         max_quantity: 5,
-        minimum_quantity: 3,
+        min_quantity: 3,
         name: "New Minimum",
         slug: "new-minimum",
       });
 
-      const result = await bodyToUpdateInput({ minimum_quantity: 2 }, existing);
+      const result = await bodyToUpdateInput({ min_quantity: 2 }, existing);
       expect(result.ok).toBe(true);
-      if (result.ok) expect(result.value.minimumQuantity).toBe(2);
+      if (result.ok) expect(result.value.minQuantity).toBe(2);
     });
   });
 });

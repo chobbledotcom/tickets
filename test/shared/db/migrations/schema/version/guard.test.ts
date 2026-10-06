@@ -112,9 +112,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-29_checkout_pending_answers",
         "2026-09-30_checked_in_count",
         "2026-10-01_square_link_ends",
-        "2026-10-05_listing_minimum_quantity",
+        "2026-10-05_listing_min_quantity",
       ],
-      schemaHash: "iux4ip",
+      schemaHash: "1h8mi7d",
     });
   });
 

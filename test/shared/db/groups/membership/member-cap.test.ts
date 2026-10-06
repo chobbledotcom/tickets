@@ -34,8 +34,8 @@ describeWithEnv("db > groups > submitted member minimums", { db: true }, () => {
     const { run } = await arrangeGroupWrite("Batch Only", 1, 10, 2);
 
     await expect(run()).rejects.toThrow(
-      t("error.package_member_minimum", {
-        minimum_quantity: 2,
+      t("error.package_member_min", {
+        min_quantity: 2,
         name: "Batch Only",
         quantity: 1,
       }),
@@ -55,7 +55,7 @@ describeWithEnv("db > groups > submitted member minimums", { db: true }, () => {
     const member = await createTestListing({
       groupId: group.id,
       maxQuantity: 10,
-      minimumQuantity: 2,
+      minQuantity: 2,
       name: "Plain Member",
     });
 

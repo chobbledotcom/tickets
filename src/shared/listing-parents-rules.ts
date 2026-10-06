@@ -35,7 +35,7 @@ export type EdgeListing = {
   assign_built_site: boolean;
   /** The smallest purchasable quantity. A child's quantity is a share of its
    *  parent's, so only 1 can hold on a child. */
-  minimum_quantity: number;
+  min_quantity: number;
 };
 
 /** One directed parent-to-child listing relationship. */
@@ -155,7 +155,7 @@ const EDGE_ERROR_RULES: readonly EdgeReason[] = [
   ),
   childReason(
     "children_err_child_min_quantity",
-    (_parent, child) => child.minimum_quantity > 1,
+    (_parent, child) => child.min_quantity > 1,
   ),
 ];
 
