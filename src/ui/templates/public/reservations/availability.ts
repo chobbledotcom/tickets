@@ -33,6 +33,26 @@ export const unavailableMessage = (
     : t("public.multi.all_sold_out");
 };
 
+/** Whether one standalone row sells nothing: sold out, closed, held below its
+ *  minimum by its bookable children, or short on its own remaining. A parent
+ *  whose bookable children serve fewer parent tickets than its minimum sells
+ *  nothing, so the whole page reads sold out. */
+const standaloneRowUnavailable = (
+  info: TicketListing,
+  childCeilings: ReadonlyMap<number, number>,
+  childrenByParentId: PackageLimitInfo["childrenByParentId"],
+): boolean => {
+  if (info.isSoldOut || info.isClosed) return true;
+  const children = childrenByParentId?.get(info.listing.id);
+  const hasChildren = (children?.length ?? 0) > 0;
+  let childCeiling: number | undefined;
+  if (hasChildren) {
+    childCeiling = childCeilings.get(info.listing.id);
+  }
+  const ceiling = childCeiling ?? info.maxPurchasable;
+  return ceiling < info.listing.minimum_quantity;
+};
+
 /** Each page package's bundle limit, plus whether the whole page should show as
  * sold out (nothing standalone left AND no package bookable). */
 export const packagePageAvailability = (
@@ -44,20 +64,11 @@ export const packagePageAvailability = (
 ): { packageLimits: Map<number, number>; soldOut: boolean } => {
   const packageLimits = pageBundleLimits(tree, packages, page);
   const childCeilings = packageChildTicketLimits(page);
-  const childrenByParentId = page.childrenByParentId;
   const standaloneUnavailable = listings
     .filter((info) => standaloneRowIds.has(info.listing.id))
-    .every((e) => {
-      if (e.isSoldOut || e.isClosed) return true;
-      // A parent whose bookable children serve fewer parent tickets than its
-      // own minimum sells nothing, so the whole page reads sold out.
-      const hasChildren =
-        (childrenByParentId?.get(e.listing.id)?.length ?? 0) > 0;
-      const ceiling = hasChildren
-        ? (childCeilings.get(e.listing.id) ?? 0)
-        : e.maxPurchasable;
-      return ceiling < e.listing.minimum_quantity;
-    });
+    .every((e) =>
+      standaloneRowUnavailable(e, childCeilings, page.childrenByParentId),
+    );
   const packagesUnavailable = [...packageLimits.values()].every(
     (limit) => limit === 0,
   );
