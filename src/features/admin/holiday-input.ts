@@ -8,7 +8,7 @@ import {
   requireDateString,
 } from "#shared/rest/crud-parsers.ts";
 import type { Result } from "#shared/result.ts";
-import type { DateString } from "#shared/validation/date.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 
 /** Assemble one holiday input from its name and the cleaned date range. */
 export const holidayInput = (

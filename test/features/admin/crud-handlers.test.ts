@@ -4,7 +4,7 @@ import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type NamedOperations } from "#shared/rest/resource.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";

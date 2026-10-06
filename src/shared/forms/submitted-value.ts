@@ -1,7 +1,7 @@
 import type { FormParams } from "#shared/form-data.ts";
 import { getDatetimeValue } from "#shared/forms/datetime-value.ts";
 import type { Field } from "#shared/forms/field.ts";
-import { parseDateString } from "#shared/validation/date.ts";
+import { parseDateString } from "#shared/validation/date-string.ts";
 
 export const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";

@@ -30,7 +30,8 @@ import {
 import { sortByName } from "#shared/name-order.ts";
 import { loadListingsAndGroupNames } from "#shared/sort-listings.ts";
 import { dayStartEpochMs, todayInTz } from "#shared/timezone.ts";
-import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
+import { isIsoMonth } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   type LedgerFilterState,

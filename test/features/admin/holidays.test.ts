@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
 import { validateDateRange } from "#routes/admin/holidays.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";

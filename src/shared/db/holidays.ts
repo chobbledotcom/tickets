@@ -8,7 +8,7 @@ import { settings } from "#db/settings.ts";
 import { col, defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
 import { todayInTz } from "#shared/timezone.ts";
-import type { DateString } from "#shared/validation/date.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 
 export interface Holiday {
   end_date: string;

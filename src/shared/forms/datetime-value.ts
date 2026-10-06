@@ -2,7 +2,7 @@
  *  merger sees it exercised from one isolate. */
 
 import type { FormParams } from "#shared/form-data.ts";
-import { parseDateString } from "#shared/validation/date.ts";
+import { parseDateString } from "#shared/validation/date-string.ts";
 
 /** Read one datetime field's submitted date and time parts.
  *

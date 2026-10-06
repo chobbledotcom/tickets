@@ -1,5 +1,5 @@
 import type { Holiday, HolidayInput } from "#db/holidays.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** A hand-built holiday row, for tests that sort or fold without a database. */

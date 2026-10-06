@@ -16,7 +16,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { defineResource } from "#shared/rest/resource.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

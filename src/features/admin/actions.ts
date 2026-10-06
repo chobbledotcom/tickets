@@ -30,7 +30,8 @@ import { errorMessage } from "#shared/error-message.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
+import { isIsoMonth } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import type { Attendee, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */

@@ -3,7 +3,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidayInput, readDates } from "#routes/admin/holiday-input.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 
 describe("holiday input", () => {
   test("assembles the stored name and cleaned date range", () => {

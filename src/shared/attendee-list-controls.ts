@@ -21,7 +21,7 @@ import {
   type ListingFilter,
   readChosenId,
 } from "#shared/listing-filter.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { ListingWithCount } from "#types";

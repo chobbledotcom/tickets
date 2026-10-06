@@ -13,7 +13,7 @@ import {
   type DateString,
   parseDateString,
   parseStoredDateString,
-} from "#shared/validation/date.ts";
+} from "#shared/validation/date-string.ts";
 import type { AdminSession } from "#types";
 
 /** JSON body for confirmed delete endpoints */

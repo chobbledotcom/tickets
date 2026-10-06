@@ -121,18 +121,6 @@ const COVERAGE_EXCLUSIONS = [
   // locations it extracts from JSON and YAML diagnostic blocks), and the
   // mutation gate still mutates the file against its direct tests.
   "scripts/tap-diagnostics.ts",
-  // Deno's coverage merger mis-attributes these two files once many test
-  // isolates load them: the merged lcov reads DA:0 for the head lines of
-  // parseAndValidate, of parseDateStringOrThrow, and of
-  // parseStoredDateString while the same run's tests pass on every arm those
-  // lines own — internally impossible, and it moves with line layout: the
-  // flagged lines followed three restructures (a named function, a module
-  // extraction, a continuation rewrite) instead of the mis-read staying put.
-  // Every arm is pinned by direct tests (test/shared/rest/crud-parsers.test.ts,
-  // test/shared/validation/date.test.ts) and by the holiday and listing API
-  // suites that drive the same readers end to end.
-  "src/shared/rest/crud-parsers.ts",
-  "src/shared/validation/date.ts",
   // Deno's coverage merger mis-attributes this file once many test isolates
   // load it: the merged lcov records FNDA:2,resumeRejectedTarget while the
   // function's own body lines read as unhit — internally impossible. The

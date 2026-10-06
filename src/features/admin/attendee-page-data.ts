@@ -47,7 +47,7 @@ import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts"
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import type {
   ContactChannelData,

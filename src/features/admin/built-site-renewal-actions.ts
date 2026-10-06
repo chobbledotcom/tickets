@@ -12,7 +12,7 @@ import {
   renewalUrlFor,
   syncReadOnlyFrom,
 } from "#shared/site-renewal.ts";
-import { parseDateString } from "#shared/validation/date.ts";
+import { parseDateString } from "#shared/validation/date-string.ts";
 import {
   type BuiltSitePost,
   builtSiteAction,

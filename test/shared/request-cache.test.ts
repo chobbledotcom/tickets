@@ -4,7 +4,7 @@ import { holidays } from "#db/holidays.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 

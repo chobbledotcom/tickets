@@ -23,7 +23,7 @@ import {
   parseUpdateName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { isUtcInstantOfRealDay } from "#shared/validation/date.ts";
+import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /** JSON body accepted by POST /api/admin/listings. */

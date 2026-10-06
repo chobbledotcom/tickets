@@ -14,7 +14,7 @@ import {
   todayInTz,
   utcToZoned,
 } from "#shared/timezone.ts";
-import { isRealCalendarDay } from "#shared/validation/date.ts";
+import { isRealCalendarDay } from "#shared/validation/date-string.ts";
 import { clampDurationDays, type Listing, type SortableListing } from "#types";
 
 /** Month names for display */
