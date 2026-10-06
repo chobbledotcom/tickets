@@ -46,7 +46,7 @@ const bookingResultToResponse = (
 };
 
 /** Resolve a booking's quantity and its date. Listings booked per date must
- * submit an available date; date-less listings (whose capacity is one running
+ * submit an available date. Date-less listings (whose capacity is one running
  * total) resolve to a null date. Returns a 400 response for an invalid
  * quantity or a missing/unavailable date. Shared by the standalone and parent
  * booking paths. */
@@ -78,9 +78,9 @@ const resolveQuantityAndDate = async (
 
 /** POST /api/listings/:slug/book — create a booking */
 export const handleBook = withActiveListing(async (request, listing) => {
-  // A booking can never start from a non-standalone child: such a
-  // child is only bookable through one of its parents, so reject it as a direct
-  // API entry. A `bookable_alone` child has its own page/API eligibility, so it
+  // A booking can never start from a non-standalone child: such a child is
+  // only bookable through one of its parents. Reject it as a direct API
+  // entry. A `bookable_alone` child has its own page/API eligibility, so it
   // books directly here.
   if (await anyNonStandaloneChild([listing.id])) {
     return apiError("This listing must be booked through its parent listing.");
@@ -101,15 +101,15 @@ export const handleBook = withActiveListing(async (request, listing) => {
     const { quantity, date } = qtyAndDate;
 
     // A parent requires the buyer to choose its children: fold the
-    // submitted `children` into a multi-item order rather than booking the parent
-    // alone, which would bypass the gate.
+    // submitted `children` into a multi-item order. Booking the parent
+    // alone bypasses the gate.
     if (await parentRequiresChild(listing.id)) {
       return processParentApiBooking(request, listing, body, quantity, date);
     }
 
     // Customisable-days listings are priced by a chosen day count, which this
-    // endpoint doesn't accept — booking them here would charge the wrong amount,
-    // so they must be booked through the website form.
+    // endpoint does not accept. Booking them here can charge the wrong
+    // amount, so they must be booked through the website form.
     if (listing.customisable_days) {
       return apiError("This listing must be booked through the website.");
     }

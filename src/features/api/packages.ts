@@ -60,7 +60,7 @@ import type { Group } from "#types";
 const PACKAGE_NOT_FOUND = "Package not found";
 
 /** The ctx, group, limit, and tree a package endpoint needs once its slug
- * resolves to a bookable bundle — the loaded shape {@link withPackageContext}
+ * resolves to a bookable bundle. The loaded shape {@link withPackageContext}
  * hands to both the GET (detail) and POST (book) handlers. */
 type PackageContext = {
   ctx: TicketCtx;
@@ -99,9 +99,9 @@ const loadPackageContext = async (
 
 /** Load a bookable package context by slug, or respond with the
  * package-not-found 404. Used by the GET detail handler via
- * {@link withPackageContext}; the POST book handler loads directly so it can
- * rate-limit BEFORE the expensive package load (the unauthenticated flood
- * guard must reject a limited IP without building a package tree). */
+ * {@link withPackageContext}. The POST book handler loads directly so it can
+ * rate-limit BEFORE the expensive package load. The unauthenticated flood
+ * guard must reject a limited IP without building a package tree. */
 const loadPackageContextOr404 = async (
   slug: string,
 ): Promise<PackageContext | Response> => {
