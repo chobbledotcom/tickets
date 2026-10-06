@@ -6,7 +6,6 @@
  * mid-checkout.
  */
 
-import { bookingError } from "#booking/form.ts";
 import { belowMinimumError } from "#booking/minimum-refusal.ts";
 import {
   bookedOutsideParent,
@@ -63,10 +62,14 @@ const validateListingForPayment = (
   }
   // The buyer can open a paid checkout before the owner raises the
   // minimum. The webhook is the last stop, so it re-reads the stored fact.
+  // The message is a literal: the webhook runs outside any message-group
+  // scope, like the other refusals here.
   const belowMinimum = belowMinimumError(
     quantity,
     listing.minimum_quantity,
-    bookingError.minimum(name, listing.minimum_quantity),
+    name
+      ? `Sorry, ${name} sells at least ${listing.minimum_quantity} tickets per booking.`
+      : `Sorry, this listing sells at least ${listing.minimum_quantity} tickets per booking.`,
   );
   if (belowMinimum) {
     return { error: belowMinimum, ok: false, status: 410 };

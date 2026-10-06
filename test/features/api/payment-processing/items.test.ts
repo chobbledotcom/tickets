@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { bookingError } from "#booking/form.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
@@ -144,7 +143,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       ),
     ).toEqual({
       detail: undefined,
-      error: bookingError.minimum("Raised floor", 3),
+      error: "Sorry, Raised floor sells at least 3 tickets per booking.",
       refunded: true,
       status: 410,
       success: false,
