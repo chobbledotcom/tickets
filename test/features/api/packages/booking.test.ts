@@ -93,7 +93,10 @@ describeWithEnv("API package booking", { db: true }, () => {
 
   test("POST requires the quantity field", async () => {
     const { group } = await fixedPackage("Required Kit", "required-kit");
-    const { response, body } = await apiBookPackage(group.slug, {});
+    // `quantity: undefined` drops the key from the helper's merged body.
+    const { response, body } = await apiBookPackage(group.slug, {
+      quantity: undefined,
+    });
     // Package bundles state their count too: no default to one bundle.
     expect(response.status).toBe(400);
     expect(body.error).toBe("Quantity is required");
