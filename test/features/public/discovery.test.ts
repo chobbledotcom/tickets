@@ -274,6 +274,37 @@ describeWithEnv(
         await assertBookable(parent.slug);
       });
 
+      test("a parent whose children combine to its minimum is bookable", async () => {
+        // The booking page splits a parent's quantity across its children (the
+        // child quantities must sum to it), so no single child has to serve the
+        // whole minimum: two seats on one child plus one on another reach a
+        // minimum of three.
+        const { parent } = await makeParent({
+          children: [
+            { maxAttendees: 2, maxQuantity: 2, name: "Two-seat add-on" },
+            { maxAttendees: 1, maxQuantity: 1, name: "One-seat add-on" },
+          ],
+          parent: { maxQuantity: 3, minQuantity: 3, name: "Base unit" },
+        });
+        await assertBookable(parent.slug);
+      });
+
+      test("a child is not an add-on of a parent its children cannot serve", async () => {
+        // The parent's minimum is three but its only child can serve two: no
+        // split of this one child reaches the minimum, so the add-on note would
+        // point at a parent no one can book.
+        const { child, parent } = await makeParent({
+          children: [
+            { maxAttendees: 2, maxQuantity: 2, name: "Two-seat add-on" },
+          ],
+          parent: { maxQuantity: 3, minQuantity: 3, name: "Base unit" },
+        });
+        const body = await publicBody("/listings");
+        expect(body).not.toContain("Available as an add-on to another booking");
+        expect(body).toContain(parent.name);
+        expect(body).toContain(child.name);
+      });
+
       test("a child in a roomy SHARED group is bookable despite a tighter NON-shared group", async () => {
         // The child belongs to the parent's capped group A (10 spots) AND its own
         // tighter capped group B (1 spot). The combined-demand check must use the

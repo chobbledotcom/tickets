@@ -51,21 +51,31 @@ const judgeTwoListings = (
   );
 
 describe("listingOption", () => {
-  test("books one unit of the listing under its own key", () => {
+  test("books the listing's minimum as its units under its own key", () => {
     const built = listingOption(
-      { id: 5, listing_type: "standard", name: "Face Painting" },
+      {
+        id: 5,
+        listing_type: "standard",
+        min_quantity: 3,
+        name: "Face Painting",
+      },
       true,
     );
     expect(built.key).toBe("listing:5");
     expect(built.name).toBe("Face Painting");
     expect(built.bookableAlone).toBe(true);
     expect(built.needsDate).toBe(false);
-    expect([...built.unitsByListingId]).toEqual([[5, 1]]);
+    expect([...built.unitsByListingId]).toEqual([[5, 3]]);
   });
 
   test("a daily listing needs a date; bookability passes through", () => {
     const built = listingOption(
-      { id: 5, listing_type: "daily", name: "Bouncy Castle" },
+      {
+        id: 5,
+        listing_type: "daily",
+        min_quantity: 1,
+        name: "Bouncy Castle",
+      },
       false,
     );
     expect(built.needsDate).toBe(true);
@@ -144,6 +154,44 @@ describe("evaluateOrder — plain availability", () => {
       false,
     );
     expect(states.get("listing:1")).toEqual({ kind: "unavailable" });
+  });
+
+  test("a selected listing commits its minimum, not one unit", () => {
+    // The Continue prefill opens the booking page at each selected listing's
+    // minimum, so the gallery must judge the cart the visitor actually gets:
+    // a 3-minimum listing leaves none of the shared pool for the next
+    // listing, which reads blocked rather than available.
+    const states = evaluateOrder(
+      [
+        listingOption(
+          {
+            id: 1,
+            listing_type: "standard",
+            min_quantity: 3,
+            name: "Base unit",
+          },
+          true,
+        ),
+        listingOption(
+          { id: 2, listing_type: "standard", min_quantity: 1, name: "Extra" },
+          true,
+        ),
+      ],
+      pools({
+        groupIdsByListingId: new Map([
+          [1, [7]],
+          [2, [7]],
+        ]),
+        remainingByGroupId: new Map([[7, 3]]),
+      }),
+      ["listing:1"],
+      false,
+    );
+    expect(states.get("listing:2")).toEqual({
+      byKey: "listing:1",
+      byName: "Base unit",
+      kind: "blocked",
+    });
   });
 });
 
