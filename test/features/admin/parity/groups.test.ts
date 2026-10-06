@@ -119,6 +119,10 @@ describeWithEnv("Group parity pins", { db: true }, () => {
       },
     );
     expect(
+      (await groups.cache.getAll()).find((g) => g.id === created.group.id)
+        ?.name,
+    ).toBe("Pinned Name Type Group");
+    expect(
       (await groups.cache.getAll()).find((g) => g.name === "123"),
     ).toBeUndefined();
   });
