@@ -47,8 +47,36 @@ const createFromRequiredStrings = (
   return okResult({ endDate, name, startDate });
 };
 
-const toHolidayCreateInput = (body: Record<string, unknown>) =>
-  refuseInvalidFieldValue(body) ?? createFromRequiredStrings(body);
+/** The one date normalisation both mappers share. Supplied date strings lose
+ *  their stray whitespace before the field check reads them. A padded update
+ *  then stores the clean date and cannot break the date comparison the
+ *  availability check runs. */
+const withTrimmedDates = (
+  body: Record<string, unknown>,
+): Record<string, unknown> => ({
+  ...body,
+  ...(typeof body.end_date === "string"
+    ? { end_date: body.end_date.trim() }
+    : {}),
+  ...(typeof body.start_date === "string"
+    ? { start_date: body.start_date.trim() }
+    : {}),
+});
+
+const toHolidayCreateInput = (body: Record<string, unknown>) => {
+  const cleaned = withTrimmedDates(body);
+  return refuseInvalidFieldValue(cleaned) ?? createFromRequiredStrings(cleaned);
+};
+
+const toHolidayUpdateInput = (
+  body: Record<string, unknown>,
+  existing: Holiday,
+) => {
+  const cleaned = withTrimmedDates(body);
+  return (
+    refuseInvalidFieldValue(cleaned) ?? updateOntoStored(cleaned, existing)
+  );
+};
 
 /** Map an update body onto the stored holiday: supplied fields win, absent
  *  ones keep the stored value, so a partial update never blanks a date. */
@@ -68,11 +96,6 @@ const updateOntoStored = (
         : existing.start_date,
   });
 };
-
-const toHolidayUpdateInput = (
-  body: Record<string, unknown>,
-  existing: Holiday,
-) => refuseInvalidFieldValue(body) ?? updateOntoStored(body, existing);
 
 export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   getAll: holidays.getAll,

@@ -202,6 +202,31 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
+    // The stored dates carry no stray whitespace: a leading space breaks the
+    // string comparison the date-range check runs (a space sorts before any
+    // digit). Both mappers share the trim, so update cannot drift from create.
+    test("trims a padded date on update", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2027-06-30",
+        name: "Padded Date",
+        startDate: "2026-06-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { start_date: "  2027-06-01" },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.holiday.start_date).toBe("2027-06-01");
+        },
+      );
+      expect(
+        (await holidays.getAll()).find((h) => h.id === holiday.id)?.start_date,
+      ).toBe("2027-06-01");
+    });
+
     test("returns 404 for non-existent holiday", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays/99999", {
