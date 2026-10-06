@@ -89,7 +89,7 @@ const invalidateSession = async (token?: string): Promise<null> => {
 /**
  * Get authenticated session if valid
  * Returns null if not authenticated
- * Includes wrapped_data_key for deriving the private key when needed
+ * Includes wrapped_data_key. Callers derive the private key from it when needed.
  * Loads user info and decrypts admin_level for role checking
  *
  * Validates that wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY.
@@ -135,10 +135,10 @@ export const getAuthenticatedSession = async (
 };
 
 /** Where a user should land after authenticating, based on their role.
- * Delivery agents go straight to their run sheet (the only page they may see);
- * editors go to the listings index (the dashboard shows financials they may not
- * see); scanner users go to the doors list, where they pick a door; staff go to
- * the dashboard. */
+ * Delivery agents go straight to their run sheet (the only page they may see).
+ * Editors go to the listings index; the dashboard shows financials they may
+ * not see. Scanner users pick a door from the doors list. Staff go to the
+ * dashboard. */
 export const adminLandingPath = (adminLevel: AdminLevel): string => {
   if (adminLevel === "agent") return "/admin/deliveries";
   if (adminLevel === "editor") return "/admin/listings";
@@ -322,6 +322,15 @@ export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
 export const ADMIN_API: AuthPolicy<"json"> = {
   allowApiKey: true,
   body: "json",
+};
+/**
+ * Content-admin JSON API: the audience the groups and listings pages declare,
+ * so an editor does through the API what the dashboard allows, and no more.
+ */
+export const CONTENT_API: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  roles: CONTENT_ADMIN_LEVELS,
 };
 /**
  * Owner-only JSON API: like ADMIN_API but restricted to the owner role, for
@@ -673,7 +682,7 @@ const parseCsrfBody = async (
 const channelFor = (mode: BodyMode): AuthChannel =>
   mode === "json" ? "json" : "html";
 
-const authenticateFor = async <T extends BodyMode>(
+export const authenticateFor = async <T extends BodyMode>(
   request: Request,
   policy: AuthPolicy<T>,
 ): Promise<{ session: AuthSession; authKind: AuthKind } | Response> => {
@@ -701,15 +710,6 @@ const authenticateFor = async <T extends BodyMode>(
           ? "owner-only"
           : undefined,
       );
-};
-
-/** Authenticate an admin API request before importing its resource handlers. */
-export const requireAdminApiOr = async (
-  request: Request,
-  handler: (session: AuthSession) => Response | null | Promise<Response | null>,
-): Promise<Response | null> => {
-  const auth = await authenticateFor(request, ADMIN_API);
-  return isResponse(auth) ? auth : handler(auth.session);
 };
 
 /** Unified auth pipeline: authenticate, enforce role, validate CSRF, parse body. */

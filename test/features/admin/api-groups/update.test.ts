@@ -5,10 +5,17 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { assertJson, expectRejectsEmptyName } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { apiRequest } from "#test-utils/session.ts";
+import {
+  apiRequest,
+  createTestAgentSession,
+  createTestEditorSession,
+  requestAsSession,
+} from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("PUT /api/admin/groups/:groupId", () => {
@@ -26,6 +33,58 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.slug).toBe(group.slug);
         },
       );
+    });
+
+    // Role parity with the group edit page: it admits content admins (owner,
+    // manager, editor — areas-a-l.ts "groups"), so an editor updates through
+    // the API too, and a role below content is refused.
+    test("admits an editor cookie session", async () => {
+      const group = await createTestGroup({ name: "Editor Edit" });
+      const editor = await createTestEditorSession();
+
+      await assertJson(
+        handleRequest(
+          requestAsSession(
+            `/api/admin/groups/${group.id}`,
+            {
+              cookie: editor.cookie,
+              csrfToken: await signCsrfToken(),
+            },
+            {
+              body: JSON.stringify({ name: "Editor Renamed" }),
+              headers: { "content-type": "application/json" },
+              method: "PUT",
+            },
+          ),
+        ),
+        200,
+        (body) => {
+          expect(body.group.name).toBe("Editor Renamed");
+        },
+      );
+    });
+
+    test("refuses an agent with 403 and changes nothing", async () => {
+      const group = await createTestGroup({ name: "Agent Edit" });
+      const agent = await createTestAgentSession();
+
+      const response = await handleRequest(
+        requestAsSession(
+          `/api/admin/groups/${group.id}`,
+          {
+            cookie: agent.cookie,
+            csrfToken: await signCsrfToken(),
+          },
+          {
+            body: JSON.stringify({ name: "Agent Renamed" }),
+            headers: { "content-type": "application/json" },
+            method: "PUT",
+          },
+        ),
+      );
+      expect(response.status).toBe(403);
+      const row = await groups.table.read.one({ id: group.id });
+      expect(row?.name).toBe("Agent Edit");
     });
 
     test("refuses a malformed catalog field, naming the field", async () => {

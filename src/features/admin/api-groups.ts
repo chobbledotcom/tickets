@@ -19,6 +19,7 @@ import {
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
+import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import {
   type CatalogApiBody,
   isValidCatalogApiValue,
@@ -237,6 +238,11 @@ export const groupApiRoutes = defineCrudApi<
       input,
       input.isPackage === false ? [] : input.packageMembers,
     ),
+  // Role parity with the group pages: the list and edit pages admit content
+  // admins (owner, manager, editor — areas-a-l.ts "groups"). The delete page
+  // is staff-only ("groupDelete"), so an editor edits through the API
+  // exactly as far as the dashboard allows.
+  deletePolicy: ADMIN_API,
   getAll: () => groups.cache.getAll(),
   // Only package groups appear in the map. Non-package groups hydrate to no
   // extra fields. Single-row responses use this same batch path with one row.
@@ -266,6 +272,7 @@ export const groupApiRoutes = defineCrudApi<
   name: "groups",
   nameField: "name",
   onDelete: deleteGroup,
+  policy: CONTENT_API,
   readState: readPackageFlagsTxOrNull,
   singular: "Group",
   stripKeys: ["slug_index"],

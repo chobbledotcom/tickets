@@ -9,8 +9,8 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
-/** An atomic body-only side effect (e.g. relationship edges) for a create or
- *  update. Two-phase, so the whole write is all-or-nothing:
+/** An atomic body-only side effect (for example relationship edges) for a
+ *  create or update. Two-phase, so the whole write is all-or-nothing:
  *  `validate` runs BEFORE the write and either rejects (400, nothing written)
  *  or yields a prepared `value`. `persist` then runs in the SAME transaction
  *  as the row write, so a failure rolls the row write back too. There is
@@ -71,8 +71,8 @@ export type CheckTxHook<Input> = (
 
 /** Convert a resource's JSON body to its typed input. `existing` is null on
  *  create and the stored row on update. The session rides along so a
- *  field-level gate (an owner-only field) can refuse per actor: production
- *  routes always pass it, and a direct call without one counts as non-owner
+ *  field-level gate (an owner-only field) can refuse per actor. Production
+ *  routes always pass it; a direct call without one counts as non-owner
  *  for any gated field. */
 export type InputParser<Input, Existing> = (
   body: Record<string, unknown>,
@@ -97,6 +97,10 @@ export interface CrudApiConfig<
   /** A guard run inside the row write's transaction, before the row statement;
    * a returned message refuses the write (400) and rolls it back. */
   checkTx?: CheckTxHook<Input>;
+  /** Auth policy for the delete route alone, when the entity page's delete is
+   *  more restricted than its edit (e.g. groups: editors edit, only staff
+   *  delete). Defaults to `policy`. */
+  deletePolicy?: AuthPolicy<"json">;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Every row, from cache. May carry more than the table, such as counts. */
@@ -126,9 +130,20 @@ export interface CrudApiConfig<
   nameField: keyof FullRow & string;
   /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
   onDelete?: (id: InValue) => Promise<void>;
-  /** Auth policy for all generated routes. Defaults to ADMIN_API (any admin);
-   *  pass OWNER_API for resources whose web management is owner-only. */
-  policy?: AuthPolicy<"json">;
+  /** Auth policy for the read, create, and update routes. Declared per
+   *  resource so the JSON side can never fall back to a different audience
+   *  than the entity pages declare: CONTENT_API where the pages admit
+   *  editors, OWNER_API where they are owner-only, ADMIN_API where they are
+   *  staff-only. */
+  policy: AuthPolicy<"json">;
+  /** Role-aware projection applied to every response row (single, list, and
+   *  post-write). Declared per resource where some stored fields are
+   *  staff-only. The matching page hides them from the roles the policy
+   *  admits, so the API answers must hide them too. */
+  projectResponse?: (
+    row: Record<string, unknown>,
+    session: AdminSession,
+  ) => Record<string, unknown>;
   /** Read only the pre-update fields needed by transactional hooks. */
   readState?: TransactionStateReader<State> | undefined;
   /** An atomic body-only side effect run around the row write. `Prepared` is

@@ -49,6 +49,30 @@ export type CreateListingBody = Omit<
 /** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
 export type UpdateListingBody = Partial<CreateListingBody> & { slug?: string };
 
+/** Fields the JSON body cannot set for an editor. The dashboard's listing
+ *  form sets the same rule. The registration webhook posts full attendee PII
+ *  to webhook_url. A crafted value exfiltrates the data that the keyless
+ *  editor role cannot otherwise read. use_defaults changes the same effective
+ *  webhook. active drives the bookable state. The editor form offers no
+ *  control for it, and only staff deactivate or reactivate. Stripping the
+ *  fields from the body leaves the stored values in place on update and the
+ *  column defaults on create. The form applies the same ignore-the-submission
+ *  behaviour. Staff sessions keep setting all three through the API. The
+ *  add-on orphan guard's rejection tests pin that path. */
+const withoutEditorLockedFields = (
+  body: Record<string, unknown>,
+  session: AdminSession | undefined,
+): Record<string, unknown> => {
+  if (session?.adminLevel !== "editor") return body;
+  const {
+    active: _active,
+    use_defaults: _useDefaults,
+    webhook_url: _webhookUrl,
+    ...frozen
+  } = body;
+  return frozen;
+};
+
 const API_BODY_FIELD_RULES = [
   [
     "bookable_days",
@@ -174,7 +198,11 @@ export const bodyToCreateInput = (
   return withParsedJoinIds(session, body, async (joinIds) => {
     const { slug, slugIndex } = await generateUniqueListingSlug();
     return okResult({
-      ...projectCatalogFields(listingCatalogFields, "api", body),
+      ...projectCatalogFields(
+        listingCatalogFields,
+        "api",
+        withoutEditorLockedFields(body, session),
+      ),
       attributeOptionIds: joinIds.attributeOptionIds,
       dayPrices: parseDayPrices(body.day_prices),
       groupIds: joinIds.groupIds,
@@ -215,7 +243,11 @@ export const bodyToUpdateInput = async (
 
     return okResult({
       ...projectCatalogFields(listingCatalogFields, "storedApi", existing),
-      ...projectCatalogFields(listingCatalogFields, "api", body),
+      ...projectCatalogFields(
+        listingCatalogFields,
+        "api",
+        withoutEditorLockedFields(body, session),
+      ),
       // The JSON API cannot set these four fields, so fold the stored ones in
       // as the update's final facts — an update that adds groups or children
       // must read them the way the validators do, not as absent-and-false.

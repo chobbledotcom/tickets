@@ -45,6 +45,7 @@
   "api_keys.public_api": "Public API",
   "api_keys.public_api_note": "No API key required. All endpoints support CORS.",
   "api_keys.admin_api": "Admin API",
+  "api_keys.role_parity_note": "Each endpoint allows the same roles as the matching page in this dashboard.",
   "users.agents.legend": "Assigned logistics agents",
   "users.agents.hint": "Delivery agents see the run sheet only for the logistics agents ticked here. Ignored for owners and managers.",
   "users.agents.none_assigned": "No agents assigned",

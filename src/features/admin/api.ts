@@ -25,6 +25,7 @@ import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
+import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
@@ -56,7 +57,10 @@ import {
 // Custom routes (delete with cleanup, activate/deactivate)
 // =============================================================================
 
-const listingGate = apiEntityGate(getListingWithCount, "Listing");
+// The listing delete, deactivate, and reactivate routes are staff-only, the
+// same audience the dashboard's lifecycle controls declare
+// (areas-a-l.ts "listings": listingDelete, deactivate, reactivate).
+const listingGate = apiEntityGate(getListingWithCount, "Listing", ADMIN_API);
 
 /** Custom DELETE handler: performListingDelete handles storage cleanup + logging with counts */
 const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
@@ -117,8 +121,8 @@ const hydrateListingJoins = async (
   }))(rows);
 };
 
-/** One listing as every admin endpoint answers with it: the stored fields plus
- * the ids of the groups it is in and the attribute options it selects. */
+/** One listing as every admin endpoint answers with it: the stored fields,
+ * plus the ids of its groups, plus its selected attribute options. */
 const toApiListing = async (
   row: ListingWithCount,
 ): Promise<Record<string, unknown>> => ({
@@ -134,8 +138,8 @@ const toggleActiveRoute =
     handleToggleActive(request, params.listingId as number, active);
 
 /** One attendee booking row as the admin API answers with it: the decrypted
- * roster row minus the sealed PII blob and its blind index — storage details,
- * the same way slug_index is stripped from listing responses. */
+ * roster row minus the sealed PII blob and its blind index. Storage details go
+ * the same way slug_index goes from listing responses. */
 export type AdminApiAttendee = Omit<
   Attendee,
   "pii_blob" | "ticket_token_index"
@@ -149,7 +153,9 @@ const toApiAttendee = ({
 
 /** Handle GET /api/admin/listings/:listingId/attendees — the listing's roster
  * as JSON. One row per booking line, newest first; every line shows, including
- * a quantity-0 placeholder, and a booking on another listing never appears. */
+ * a quantity-0 placeholder, and a booking on another listing never appears.
+ * Staff-only: the dashboard's roster tab is a staff-only surface
+ * (listing-page.ts), and the answers carry decrypted attendee PII. */
 const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
   withApiEntity(
     request,
@@ -165,6 +171,7 @@ const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
           )
         ).map(toApiAttendee),
       }),
+    ADMIN_API,
   );
 
 const listingApiRoutes = defineCrudApi<
@@ -177,6 +184,11 @@ const listingApiRoutes = defineCrudApi<
   // The add-on reachability half of the save refuses inside the row write's
   // transaction, so two concurrent page-removing saves cannot both commit.
   checkTx: listingSaveOrphanedAddOnTx,
+  // Role parity with the listing pages: create/edit/duplicate admit content
+  // admins (owner, manager, editor — areas-a-l.ts "listings"), while the
+  // delete, deactivate, and reactivate routes are staff-only, so an editor
+  // writes through the API exactly as far as the dashboard allows.
+  deletePolicy: ADMIN_API,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "GET /api/admin/listings/:listingId/attendees": handleListingAttendees,
@@ -191,6 +203,24 @@ const listingApiRoutes = defineCrudApi<
   lookupAfterWrite: getListingWithCountPrimary,
   name: "listings",
   nameField: "name",
+  policy: CONTENT_API,
+  /** The dashboard's editor table is money-free (listing-table.tsx), so the
+   *  editor's API answers hide the staff-only money totals too. The editor
+   *  form also hides webhook_url and use_defaults. The write parser freezes
+   *  both: the stored webhook receives attendee PII, and its URL can carry
+   *  credentials or query tokens. */
+  projectResponse: (row, session) => {
+    if (session.adminLevel !== "editor") return row;
+    const {
+      cost: _cost,
+      income: _income,
+      profit: _profit,
+      use_defaults: _useDefaults,
+      webhook_url: _webhookUrl,
+      ...rest
+    } = row;
+    return rest;
+  },
   sideEffect: {
     persist: persistListingJoins,
     validate: prepareListingJoins,

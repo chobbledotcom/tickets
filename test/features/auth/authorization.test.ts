@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { requireAdminApiOr } from "#routes/admin/api-mount.ts";
 import {
   type AuthPolicy,
   type AuthSession,
   anyUserPage,
-  requireAdminApiOr,
   requireContentOr,
   requireDeliveryOr,
   requireOwnerOr,
@@ -144,23 +144,19 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
     }
   });
 
-  // The JSON API has its own role gate, separate from the page guards above.
-  // Without these, swapping that gate's two outcomes — letting the refused
-  // role in and turning the admitted one away — passed every test.
-  test("the admin API admits a staff role and runs the handler", async () => {
-    const response = await runAdminApi(await createTestManagerSession());
-
-    expect(response?.status).toBe(200);
-    expect(await response?.text()).toBe("manager");
+  // The /api/admin mount gate authenticates only: each route's own policy
+  // decides the role (pinned per verb by the api-*.test.ts suites), so the
+  // mount can never veto what a route's declared policy admits.
+  test("the admin API mount admits every admin level and hands the session through", async () => {
+    const cookies = await roleCookies();
+    for (const [role, cookie] of Object.entries(cookies)) {
+      const response = await runAdminApi(cookie);
+      expect(response?.status).toBe(200);
+      expect(await response?.text()).toBe(role);
+    }
   });
 
-  test("the admin API refuses a delivery agent, who is not staff", async () => {
-    const response = await runAdminApi((await createTestAgentSession()).cookie);
-
-    expect(response?.status).toBe(403);
-  });
-
-  test("the admin API refuses a request with no session at all", async () => {
+  test("the admin API mount refuses a request with no session at all", async () => {
     const response = await runAdminApi();
 
     expect(response?.status).toBe(401);
