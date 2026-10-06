@@ -32,19 +32,25 @@ import {
   refusingTheWriteOn,
   TransactionValidationError,
 } from "#db/transaction.ts";
-import { compact, requiredMapValue } from "#fp";
+import { byId, compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
 
 /** Rechecks every member after a group becomes a package or hides its members.
  *  A built-site plan can be no group's final member — ordinary or package —
- *  so that check runs before the package-only rules. */
+ *  so that check runs before the package-only rules. With the stored pick
+ *  counts kept (no members submitted), each stored member faces the pick-count
+ *  judge at its stored count. A group that becomes a package keeps its
+ *  members, and one whose minimum rose above its stored count must not
+ *  become an unbookable package member. */
 const packageGroupMembersErrorTx = async (
   tx: TxScope,
   groupId: number,
+  judgeStoredQuantities: boolean,
 ): Promise<string | null> => {
   const state = (await groupStatesTx(tx, [groupId])).get(groupId);
   // The row write can lose a race to a delete; its normal read-back reports 404.
@@ -53,6 +59,19 @@ const packageGroupMembersErrorTx = async (
     tx,
     state.members.map((listing) => listing.id),
   );
+  if (judgeStoredQuantities) {
+    const listingById = byId(listings);
+    for (const member of state.members) {
+      const quantityError = await memberCapErrorTx(
+        requireValue(
+          listingById.get(member.id),
+          `Listing ${member.id} missing`,
+        ),
+        member.quantity,
+      );
+      if (quantityError) return quantityError;
+    }
+  }
   return (
     (await sitePlanMemberErrorTx(listings)) ??
     packageMembersErrorTx(listings, state)
@@ -113,14 +132,16 @@ export const readPackageFlagsTxOrNull = async (
 
 /** Runs both package guards in one call so every group write path applies the
  *  same transaction-local checks: package members stay valid, and a hidden
- *  package with sold tickets cannot be un-packaging. */
+ *  package with sold tickets cannot be un-packaging. With the stored pick
+ *  counts kept, the stored members also face the pick-count judge. */
 const requirePackageGuardsTx = async (
   tx: TxScope,
   groupId: number,
   flags: PackageFlags | null,
   isPackaging: boolean,
+  judgeStoredQuantities: boolean,
 ): Promise<void> => {
-  await requirePackageGroupMembersTx(tx, groupId);
+  await requirePackageGroupMembersTx(tx, groupId, judgeStoredQuantities);
   const wasHiddenPackage =
     flags?.is_package === true && flags.hide_package_listings === true;
   await requireNotSoldHiddenPackageTx(
@@ -149,7 +170,13 @@ export const writePackageMembersTx = async (
     const capError = await submittedMembersCapErrorTx(tx, id, members);
     if (capError) throw new TransactionValidationError(capError);
   }
-  await requirePackageGuardsTx(tx, id, flags, isPackaging);
+  await requirePackageGuardsTx(
+    tx,
+    id,
+    flags,
+    isPackaging,
+    members === undefined,
+  );
   if (members !== undefined) {
     await setGroupPackageMembers(id, isPackaging ? members : [], tx);
   }

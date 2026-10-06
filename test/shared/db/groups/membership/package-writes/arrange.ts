@@ -7,7 +7,10 @@ import { execute, withTransaction } from "#db/client.ts";
 import { writePackageMembersTx } from "#db/groups/membership/package-writes.ts";
 import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Judge one listing against one group through the listing-save membership
@@ -19,6 +22,36 @@ export const judgeListingMembership = async (
   withTransaction((tx) =>
     validateListingGroupMembershipsTx(tx)([listingId], [groupId]),
   );
+
+/** An ordinary group with one stored member, with the group write asked to
+ *  turn the group into a package without submitting members — the stored
+ *  member keeps its default pick count of one. */
+export const arrangeOrdinaryGroupPackaging = async (
+  name: string,
+  minQuantity: number,
+) => {
+  const group = await createTestGroup({ name: `${name} group` });
+  const member = await createTestListing({
+    groupId: group.id,
+    maxQuantity: 10,
+    minQuantity,
+    name,
+  });
+  return {
+    group,
+    member,
+    run: () =>
+      withTransaction((tx) =>
+        writePackageMembersTx(
+          tx,
+          group.id,
+          { hide_package_listings: false, is_package: false },
+          { isPackage: true },
+          undefined,
+        ),
+      ),
+  };
+};
 
 /** A hidden package with one member, with the group write asked to save the
  *  member at `submitted` pick counts against a `maxQuantity` per-order cap.
