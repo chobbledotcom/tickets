@@ -14,9 +14,12 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { loadParentAndChildLinks } from "#db/listing-parents.ts";
-import { uniqueBy } from "#fp";
+import { filter, map, pipe, uniqueBy } from "#fp";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { combinedChildCapacityForParent } from "#shared/group-capacity.ts";
+import {
+  childCapacityPartsFor,
+  combinedChildCapacityForParent,
+} from "#shared/group-capacity.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
 
 /** The booked span a daily listing's card availability is judged over: a
@@ -53,21 +56,23 @@ export const loadDailyDateAvailability = async (
     if (!children || children.length === 0) return false;
     const combined = combinedChildCapacityForParent(
       memberships.get(listing.id) ?? [],
-      children.map((child) => ({
-        groupIds: memberships.get(child.id) ?? [],
-        ownMax: remaining.get(child.id) ?? 0,
-      })),
+      childCapacityPartsFor(memberships)(
+        children,
+        (child) => child.id,
+        (child) => remaining.get(child.id) ?? 0,
+      ),
       groupRemainingForSpan(snapshot, cardSpanDays(listing)),
     );
     return combined < listing.min_quantity;
   };
   return new Set(
-    rows
-      .filter(
-        (listing) =>
+    pipe(
+      filter(
+        (listing: ListingWithCount) =>
           !getBookableStartDates(listing, [...holidays]).includes(date) ||
           belowMinimumFor(listing),
-      )
-      .map((listing) => listing.id),
+      ),
+      map((listing: ListingWithCount) => listing.id),
+    )(rows),
   );
 };
