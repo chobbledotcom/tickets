@@ -104,6 +104,25 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     );
   });
 
+  test("api update refuses a non-string name with the field message", async () => {
+    // Issue #2476: the shared update parser refused to coerce a non-string
+    // name into stored text.
+    const created = await assertJson<{ group: { id: number } }>(
+      ownerApiPost("/api/admin/groups", { name: "Pinned Name Type Group" }),
+      201,
+    );
+    await assertJson(
+      ownerApiPut(`/api/admin/groups/${created.group.id}`, { name: 123 }),
+      400,
+      (body) => {
+        expect(body.error).toBe("name must be a string");
+      },
+    );
+    expect(
+      (await groups.cache.getAll()).find((g) => g.name === "123"),
+    ).toBeUndefined();
+  });
+
   test("both surfaces refuse a delete whose confirmation does not match", async () => {
     await ownerPagePost("/admin/groups", {
       max_attendees: "0",

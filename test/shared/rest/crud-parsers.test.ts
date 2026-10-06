@@ -74,6 +74,17 @@ test("parseUpdateName rejects an empty name", () => {
   });
 });
 
+test("parseUpdateName rejects a non-string name", () => {
+  expect(parseUpdateName({ name: 123 }, "Original")).toEqual({
+    error: "name must be a string",
+    ok: false,
+  });
+  expect(parseUpdateName({ name: null }, "Original")).toEqual({
+    error: "name must be a string",
+    ok: false,
+  });
+});
+
 test("bodyNumber returns the number when present", () => {
   expect(bodyNumber({ count: 42 }, "count", 0)).toBe(42);
 });

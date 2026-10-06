@@ -8,6 +8,7 @@ import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
+import { handleRequest } from "#routes";
 import {
   assertJson,
   expectFlashRedirect,
@@ -19,6 +20,11 @@ import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts"
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { doAuthenticatedMultipartFormRequest } from "#test-utils/db-helpers/request.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import {
+  requestAsSession,
+  testCookie,
+  testCsrfToken,
+} from "#test-utils/session.ts";
 import type { ListingWithCount } from "#types";
 import { ownerApiPost, ownerPagePost } from "./helpers.ts";
 
@@ -72,6 +78,31 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
       "create listing",
     );
     expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
+  });
+
+  test("api update refuses a non-string name with the field message", async () => {
+    // Issue #2476: the shared update parser refused to coerce a non-string
+    // name into stored text.
+    const listing = await createTestListing({ name: "Pinned Name Type" });
+    const response = await handleRequest(
+      requestAsSession(
+        `/api/admin/listings/${listing.id}`,
+        {
+          cookie: await testCookie(),
+          csrfToken: await testCsrfToken(),
+        },
+        {
+          body: JSON.stringify({ name: 123 }),
+          headers: { "content-type": "application/json" },
+          method: "PUT",
+        },
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("name must be a string");
+    expect((await getListingWithCount(listing.id))?.name).toBe(
+      "Pinned Name Type",
+    );
   });
 
   test("both deactivate routes flip active and refuse a repeat", async () => {
