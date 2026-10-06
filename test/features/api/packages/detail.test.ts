@@ -194,7 +194,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(pkg.dayCounts).toEqual([{ days: 2, priceMinor: 2600 }]);
   });
 
-  test("a member's required-child capacity bounds the package cap and the booking clamp", async () => {
+  test("a member's required-child capacity bounds the package cap and the booking refusal", async () => {
     // The member has 10 spots, but its add-ons can only serve 2 units — a
     // 3-bundle order could never fold, so neither GET nor POST may offer it.
     const group = await createTestGroup({
@@ -220,7 +220,7 @@ describeWithEnv("API package detail", { db: true }, () => {
 
     const { body, response } = await apiBookPackage(group.slug, {
       children: [{ parent: member.slug, quantity: 2, slug: child.slug }],
-      quantity: 99,
+      quantity: 2,
     });
     expect(response.status).toBe(200);
     // 2 bundles × (500 member + 100 add-on).
