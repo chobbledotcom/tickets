@@ -105,8 +105,8 @@ const loadPackageContextOr404 = async (
 };
 
 /** Load a bookable package by slug, or respond with the package-not-found 404.
- * Shared by the GET and POST package endpoints via {@link withSlugLoaded}, so
- * the load-or-404 block never drifts between them. */
+ * Shared by the GET and POST package endpoints. The GET endpoint reaches it
+ * through {@link withSlugLoaded}. */
 const withPackageContext = withSlugLoaded<PackageContext>(
   loadPackageContextOr404,
 );

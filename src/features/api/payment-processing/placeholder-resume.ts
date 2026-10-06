@@ -63,8 +63,8 @@ import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 /**
  * User-facing message when a signed-by-us payment cannot be honoured (price
  * changed, charge mismatch, sold out, or an unexpected error). The booking
- * is kept and refunded. The refund clause is appended by formatPaymentError
- * (or the refund-pending suffix below), so this covers "we saved your
+ * is kept. The refund clause is appended by formatPaymentError (or the
+ * refund-pending suffix below), so this covers "we saved your
  * details".
  */
 const BOOKING_SAVED_MESSAGE =
