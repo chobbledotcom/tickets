@@ -158,16 +158,10 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   test("prepareListingJoins passes groupIds through from the input", async () => {
     const group = await createTestGroup({ name: "Join group" });
 
-    const result = await prepareListingJoins(
-      baseInput({ groupIds: [group.id] }),
-    );
-
-    expect(result).toEqual({
-      value: {
-        childEdges: null,
-        dayPrices: undefined,
-        groupIds: [group.id],
-      },
+    expect(prepareListingJoins(baseInput({ groupIds: [group.id] }))).toEqual({
+      childEdges: null,
+      dayPrices: undefined,
+      groupIds: [group.id],
     });
   });
 
