@@ -7,10 +7,7 @@
 import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
-import {
-  invalidApiValueField,
-  projectCatalogFields,
-} from "#shared/catalog-fields/definition.ts";
+import { invalidApiValueField } from "#shared/catalog-fields/definition.ts";
 import { holidayFields } from "#shared/catalog-fields/fields.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { parseUpdateName, requireStrings } from "#shared/rest/crud-parsers.ts";
@@ -29,38 +26,48 @@ export type UpdateHolidayBody = Partial<CreateHolidayBody>;
 // DELETE /api/admin/holidays/:holidayId takes the shared DeleteBody the
 // crud-parsers module exports.
 
-/** Map one JSON body to the holiday input. Create requires all three fields
- *  and names the first missing one. Update merges the supplied fields onto the
- *  stored ones. A supplied date that is not text is refused. The stored values
- *  are date strings, and a coerced number or object stores a range that nobody
- *  typed. */
-const toHolidayInput = (
+/** The update-side field guard, shared by both mappers: a supplied value that
+ *  fails its field check names the field in the refusal. */
+const refuseInvalidFieldValue = (
   body: Record<string, unknown>,
-  existing: Holiday | null,
-): Result<HolidayInput> => {
+): Result<never> | null => {
   const invalid = invalidApiValueField(holidayFields, body);
-  if (invalid) return errorResult(`${invalid} has an invalid value`);
+  return invalid ? errorResult(`${invalid} has an invalid value`) : null;
+};
 
-  if (existing === null) {
-    const required = requireStrings(body, ["name", "start_date", "end_date"]);
-    if (!required.ok) return required;
-    const { end_date: endDate, name, start_date: startDate } = required.value;
-    return okResult({ endDate, name, startDate });
-  }
+/** Map a create body to the holiday input: all three fields are required, and
+ *  the first missing one names the error. A supplied date that is not text is
+ *  refused. The stored values are date strings, and a coerced number or object
+ *  stores a range that nobody typed. */
+const toHolidayCreateInput = (
+  body: Record<string, unknown>,
+): Result<HolidayInput> => {
+  const invalid = refuseInvalidFieldValue(body);
+  if (invalid) return invalid;
+  const required = requireStrings(body, ["name", "start_date", "end_date"]);
+  if (!required.ok) return required;
+  const { end_date: endDate, name, start_date: startDate } = required.value;
+  return okResult({ endDate, name, startDate });
+};
 
+/** Map an update body onto the stored holiday: supplied fields win, absent
+ *  ones keep the stored value, so a partial update never blanks a date. */
+const toHolidayUpdateInput = (
+  body: Record<string, unknown>,
+  existing: Holiday,
+): Result<HolidayInput> => {
   const name = parseUpdateName(body, existing.name);
   if (!name.ok) return name;
-  // The stored row always carries both dates, so the storedApi projection has
-  // already supplied them. The fallbacks only satisfy the optional projection
-  // type.
-  const merged = {
-    ...projectCatalogFields(holidayFields, "storedApi", existing),
-    ...projectCatalogFields(holidayFields, "api", body),
-  };
+  const invalid = refuseInvalidFieldValue(body);
+  if (invalid) return invalid;
   return okResult({
-    endDate: merged.endDate ?? existing.end_date,
+    endDate:
+      typeof body.end_date === "string" ? body.end_date : existing.end_date,
     name: name.value,
-    startDate: merged.startDate ?? existing.start_date,
+    startDate:
+      typeof body.start_date === "string"
+        ? body.start_date
+        : existing.start_date,
   });
 };
 
@@ -74,7 +81,7 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   policy: OWNER_API,
   singular: "Holiday",
   table: holidays.table,
-  toCreateInput: (body) => toHolidayInput(body, null),
-  toUpdateInput: (body, existing) => toHolidayInput(body, existing),
+  toCreateInput: toHolidayCreateInput,
+  toUpdateInput: toHolidayUpdateInput,
   validate: validateDateRange,
 });
