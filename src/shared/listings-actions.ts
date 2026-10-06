@@ -373,7 +373,7 @@ export const toggleListingActive = async (
       const [row] = resultRows<{ active: number }>(
         await tx.execute({
           args: [listingId],
-          sql: "SELECT active FROM listings WHERE id = ?",
+          sql: "SELECT listing.active FROM listings AS listing WHERE listing.id = ?",
         }),
       );
       // The listing vanished under a concurrent delete. There is nothing to

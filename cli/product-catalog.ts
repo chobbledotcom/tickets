@@ -109,17 +109,6 @@ export const catalogFiles = async (root: string): Promise<CatalogFiles> => {
   };
 };
 
-/** Refuse every category file that is a link out of the catalog before the
- *  first site call: the titles must be the catalog's own before the import
- *  reads anything from the site. */
-export const checkCategoryFiles = async (
-  files: CatalogFiles,
-  categoriesDir: string,
-  slugs: readonly string[],
-): Promise<void> => {
-  await readCategoryEntries(files, categoriesDir, slugs);
-};
-
 /** The site's own title of one category file, or the slug when the file has
  * no usable title. A file that is missing, unreadable, unparseable, or a
  * link out of the catalog stops the import: a stale path must not quietly

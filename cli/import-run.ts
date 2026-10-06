@@ -8,7 +8,6 @@ import {
   type CatalogFiles,
   type CategoryEntry,
   catalogFiles,
-  checkCategoryFiles,
   ensureConsistentAttributeSpellings,
   ensureUniqueTitles,
   type PlannedAttribute,
@@ -290,8 +289,9 @@ export const runImport = async (
   const catalog = await readProducts(files, `${flags.dir}/src/products`);
   ensureUniqueTitles(catalog.map(({ product }) => product));
   // The category titles must be the catalog's own before the import reads
-  // anything from the site, so the plain-file check runs before the reads.
-  await checkCategoryFiles(
+  // anything from the site, so they resolve here; only the active products'
+  // titles sync after the reads.
+  await readCategoryEntries(
     files,
     `${flags.dir}/src/categories`,
     catalog.flatMap(({ product }) => product.categories),
