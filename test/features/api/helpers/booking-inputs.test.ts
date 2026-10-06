@@ -44,6 +44,18 @@ describe("resolvePositiveQuantity", () => {
     }
   });
 
+  test("rejects a null or non-scalar quantity", async () => {
+    // A JSON null stringifies to "null" and an array to its first element,
+    // so neither may reach the numeric parse.
+    for (const quantity of [null, [3], { quantity: 3 }, true]) {
+      await expectError(
+        resolvePositiveQuantity({ quantity }),
+        400,
+        "Quantity must be a whole number of 1 or more",
+      );
+    }
+  });
+
   test("returns a positive quantity", () => {
     expect(resolvePositiveQuantity({ quantity: 3 })).toBe(3);
   });

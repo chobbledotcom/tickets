@@ -128,7 +128,7 @@ const breadthFirstPath = (
   for (let head = 0; head < queue.length && where[sink] === -1; head++) {
     const from = queue[head]!;
     for (let to = 1; to <= sink; to++) {
-      if (where[to] !== -1 || (capacity[from]![to] ?? 0) <= 0) continue;
+      if (where[to] !== -1 || capacity[from]![to]! <= 0) continue;
       where[to] = from;
       queue.push(to);
     }
@@ -170,7 +170,7 @@ const roomForChild = (
 ): number => {
   let room = Math.min(child.ownMax, left);
   for (const groupId of child.pools) {
-    room = Math.min(room, remaining.get(groupId) ?? 0);
+    room = Math.min(room, remaining.get(groupId)!);
   }
   return room;
 };
@@ -186,8 +186,10 @@ const placeFrom = (
   left: number,
   remaining: Map<number, number>,
 ): boolean => {
+  // The caller's floor bound keeps `left` within the tail's total ceiling.
+  // The walk therefore lands on an exact zero and never runs past the last
+  // child with lines still owed.
   if (left <= 0) return true;
-  if (index === order.length) return false;
   if (left > suffix[index]!) return false;
   const child = order[index]!;
   const room = roomForChild(child, left, remaining);
@@ -195,10 +197,6 @@ const placeFrom = (
   // so this child never sits out more than that.
   const floor = Math.max(0, left - suffix[index + 1]!);
   for (let units = room; units >= floor; units--) {
-    if (units === 0) {
-      if (placeFrom(order, suffix, index + 1, left, remaining)) return true;
-      continue;
-    }
     spendAcrossPools(remaining, child.pools, -units);
     const placed = placeFrom(order, suffix, index + 1, left - units, remaining);
     spendAcrossPools(remaining, child.pools, units);
@@ -269,18 +267,12 @@ export const minimumUnservable = (
 /** The parent tickets a parent's children can serve together — the exact
  *  optimum, not a bound.
  *
- *  The search is bounded twice over. The candidate quantity never exceeds
- *  the parent's own maximum (the tightest shared pool) nor the children's
- *  total ceiling. Feasibility is monotone in the quantity, so a binary
- *  search answers in a handful of checks. Each check prices the pools
- *  first. The flow bound rejects the quantities no split can serve before
- *  the exact search runs.
- *
- *  One child unit consumes one place in every pool the child belongs to.
- *  A plain flow lets one unit split across pools, which under-counts a
- *  multi-pool child — hence the flow only rejects, and the exact search
- *  decides. The inputs stay tiny by domain (a parent's few children and
- *  pools), so the whole answer is cheap even on the largest pages. */
+ *  The candidate quantity never exceeds the parent's own maximum nor the
+ *  children's total ceiling. Feasibility is monotone in the quantity, so a
+ *  binary search answers in a handful of checks. One child unit takes one
+ *  place in EVERY pool the child belongs to. The flow bound therefore only
+ *  rejects, and the exact search decides. The two helpers below document
+ *  both halves. */
 export const combinedChildCapacityForParent = (
   parentGroupIds: readonly number[],
   children: readonly ChildCapacityPart[],
