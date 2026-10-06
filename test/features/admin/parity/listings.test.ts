@@ -73,7 +73,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
     expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
   });
 
-  test("the api refuses a repeat deactivation, and the page re-runs it", async () => {
+  test("both deactivate routes flip active and refuse a repeat", async () => {
     const pageListing = await createTestListing({ name: "Pinned Page Toggle" });
     const apiListing = await createTestListing({ name: "Pinned Api Toggle" });
 
@@ -91,10 +91,8 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
     )(page);
     expect((await getListingWithCount(pageListing.id))?.active).toBe(false);
 
-    // The page toggle has no existing-state check: a repeat runs the confirm
-    // handler again and answers with the same success flash. The API refuses
-    // an already deactivated listing. This pin holds today's disagreement
-    // until the page adopts the stricter behaviour.
+    // The page guard refuses an already deactivated listing with the same
+    // plain-words rule the JSON API applies, so the surfaces agree.
     const pageRepeat = await ownerPagePost(
       `/admin/listing/${pageListing.id}/deactivate`,
       {
@@ -102,8 +100,9 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
       },
     );
     await expectFlashRedirect(
-      `/admin/listing/${pageListing.id}`,
-      "Listing deactivated",
+      `/admin/listing/${pageListing.id}/deactivate`,
+      t("error.listing_already_deactivated"),
+      false,
     )(pageRepeat);
     expect((await getListingWithCount(pageListing.id))?.active).toBe(false);
 

@@ -47,13 +47,25 @@ const listingToggleHandlers = (opts: {
     session: AdminSession,
     error?: string,
   ) => string;
-}) =>
-  createConfirmedHandlers<ListingWithCount>({
+}) => {
+  // The stored state must still allow the action: a repeat toggle refuses
+  // with the same plain-words message the JSON API gives. Without the guard
+  // the action re-ran and reported success again.
+  const stateError = (listing: ListingWithCount): string | null =>
+    listing.active === opts.active
+      ? t(
+          opts.active
+            ? "error.listing_already_active"
+            : "error.listing_already_deactivated",
+        )
+      : null;
+
+  return createConfirmedHandlers<ListingWithCount>({
     ...listingConfirmBase,
     actionLabel: `${opts.action}ion`,
     ...(opts.guardError && {
-      guardError: (_listing: ListingWithCount, id: number) =>
-        opts.guardError!(id),
+      guardError: async (listing: ListingWithCount, id: number) =>
+        stateError(listing) ?? (await opts.guardError!(id)),
     }),
     // The authoritative guard runs inside the write's transaction (see
     // onConfirm), so the framework skips its own POST-time check.
@@ -72,6 +84,7 @@ const listingToggleHandlers = (opts: {
     successMessage: `Listing ${opts.action}d`,
     successRedirect: (_, id) => `/admin/listing/${id}`,
   });
+};
 
 /** The error for a deactivation that orphans a child-scoped opt-in add-on.
  * The add-on then stays reachable only through its suppressed child. Null
