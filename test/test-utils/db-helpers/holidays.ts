@@ -11,20 +11,21 @@ export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
   ...overrides,
 });
 
+/** The fixture takes the dates as the plain strings a caller writes. They
+ *  parse through the shared rule before the input can carry them. */
 export const createTestHoliday = (
-  overrides: Partial<HolidayInput> = {},
+  overrides: { endDate?: string; name?: string; startDate?: string } = {},
 ): Promise<Holiday> => {
   const input: HolidayInput = {
-    endDate:
-      overrides.endDate ??
-      parseDateStringOrThrow("2026-12-25", "the test holiday default end date"),
+    endDate: parseDateStringOrThrow(
+      overrides.endDate ?? "2026-12-25",
+      "the test holiday end date",
+    ),
     name: overrides.name ?? "Test Holiday",
-    startDate:
-      overrides.startDate ??
-      parseDateStringOrThrow(
-        "2026-12-25",
-        "the test holiday default start date",
-      ),
+    startDate: parseDateStringOrThrow(
+      overrides.startDate ?? "2026-12-25",
+      "the test holiday start date",
+    ),
   };
 
   return doAuthenticatedFormRequest(
@@ -53,7 +54,7 @@ const storedHoliday = async (holidayId: number): Promise<Holiday> => {
 
 export const updateTestHoliday = async (
   holidayId: number,
-  updates: Partial<HolidayInput>,
+  updates: { endDate?: string; name?: string; startDate?: string },
 ): Promise<Holiday> => {
   const existing = await storedHoliday(holidayId);
 
