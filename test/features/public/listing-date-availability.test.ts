@@ -196,6 +196,31 @@ describeWithEnv(
       expect(soldOut).toEqual(new Set([parent.id]));
     });
 
+    test("a hidden required child's own capacity counts on the date", async () => {
+      // The parent sells at least 3 per purchase and its required child is a
+      // hidden listing: no public card, so only the snapshot can know the
+      // child holds four places. The parent must read available, not sold out
+      // through a zero capacity the missing row implied.
+      const parent = await createDailyTestListing({
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 3,
+        name: "Hidden child base",
+      });
+      const child = await createDailyTestListing({
+        hidden: true,
+        maxAttendees: 4,
+        maxQuantity: 4,
+        name: "Secret add-on",
+      });
+      await listingChildren.setIds(parent.id, [child.id]);
+      const date = (await bookableStartDates(parent.id))[0]!;
+
+      const soldOut = await loadDailyDateAvailability([parent], date, []);
+
+      expect(soldOut).toEqual(new Set());
+    });
+
     test("a fully booked daily member makes only its package sold out", async () => {
       await enablePublicSite();
       const { member } = await makePackage(0);

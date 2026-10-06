@@ -71,15 +71,24 @@ export const loadDailyDateAvailability = async (
 ): Promise<ReadonlySet<number>> => {
   const rows = uniqueBy((listing: ListingWithCount) => listing.id)([...daily]);
   if (rows.length === 0) return new Set();
-  const widestSpan = Math.max(...rows.map(cardSpanDays));
-  const snapshot = await loadCapacitySnapshot([...rows], date, widestSpan);
-  const remaining = remainingFromSnapshot(snapshot, rows, cardSpanDays);
   // A parent with required children needs the children's combined capacity on
   // the date, not merely its own places: a minimum its children cannot serve
-  // makes the date as unavailable as an empty row.
+  // makes the date as unavailable as an empty row. A hidden or standard child
+  // is no public card, so the links load it here and the snapshot reads its
+  // capacity beside the cards.
   const links = await loadParentAndChildLinks(rows.map((row) => row.id));
+  const linkedChildren = uniqueBy((listing: ListingWithCount) => listing.id)(
+    [...links.childrenByParent.values()].flat(),
+  );
+  const judged = uniqueBy((listing: ListingWithCount) => listing.id)([
+    ...rows,
+    ...linkedChildren,
+  ]);
+  const widestSpan = Math.max(...judged.map(cardSpanDays));
+  const snapshot = await loadCapacitySnapshot([...judged], date, widestSpan);
+  const remaining = remainingFromSnapshot(snapshot, judged, cardSpanDays);
   const memberships = await listingGroups.getIdsByKeys(
-    rows.map((row) => row.id),
+    judged.map((row) => row.id),
   );
   const soldOut = new Set<number>();
   for (const listing of rows) {
