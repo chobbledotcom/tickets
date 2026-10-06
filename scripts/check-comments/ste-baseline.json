@@ -635,8 +635,7 @@
   "src/shared/config.ts": {
     "long-sentence": 4,
     "banned-modal": 1,
-    "wordy": 2,
-    "semicolon": 1
+    "wordy": 2
   },
   "src/shared/contact-form.ts": {
     "banned-modal": 1,
@@ -1694,10 +1693,10 @@
     "banned-modal": 1
   },
   "src/shared/listings-actions.ts": {
-    "banned-modal": 12,
-    "long-sentence": 10,
     "contraction": 8,
-    "wordy": 3
+    "banned-modal": 9,
+    "wordy": 3,
+    "long-sentence": 10
   },
   "src/shared/local-host.ts": {
     "long-sentence": 1

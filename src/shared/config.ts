@@ -1,12 +1,18 @@
 /**
- * Configuration module for ticket reservation system
- * Reads configuration from database (set during setup phase)
- * Payment provider and keys are configured via admin settings (stored encrypted in DB)
+ * Configuration module for the ticket reservation system.
+ * Reads configuration from the database. Values are set during the setup
+ * phase. Payment providers and keys are configured via admin settings, and
+ * the sensitive ones are stored encrypted in the database.
  */
 
 import { settings } from "#db/settings.ts";
 import { getEnv, requireEnv } from "#shared/env.ts";
 import { paymentProviderHasCredentials } from "#shared/payment-provider-status.ts";
+import {
+  currentRequestStore,
+  getRequestEffectiveDomain,
+  setRequestEffectiveDomain,
+} from "#shared/request-context.ts";
 import { slugify } from "#shared/slug.ts";
 import type { PaymentProviderType } from "#types";
 
@@ -42,12 +48,13 @@ export const getBookingFee = (): number =>
 const DEFAULT_DOMAIN = "localhost";
 
 /**
- * Effective domain: custom_domain (from DB) if set, otherwise the request's
- * own hostname. Loaded once per request via loadEffectiveDomain(), then read
- * synchronously via getEffectiveDomain(). Never null — it starts at
- * DEFAULT_DOMAIN and is refined as each request resolves its real host.
+ * The domain work outside a request reads: an error report sent from a failed
+ * migration or a background job must still name the site. Requests never read
+ * this. Each request carries its own domain on the request store. Two
+ * concurrent requests with different hostnames therefore cannot seed each
+ * other's domain into rendered links, QR codes, or cookies.
  */
-const effectiveDomainState = { domain: DEFAULT_DOMAIN };
+const fallbackDomain = { domain: DEFAULT_DOMAIN };
 
 const isIpv4Loopback = (domain: string): boolean => {
   const parts = domain.split(".");
@@ -72,14 +79,15 @@ const isLocalDevelopmentHost = (domain: string): boolean =>
 export const loadEffectiveDomain = (requestUrl: URL): string => {
   const custom = settings.customDomain;
   const validated = custom ? settings.customDomainLastValidated : null;
-  if (custom && validated) {
-    effectiveDomainState.domain = custom;
-  } else if (settings.bunnySubdomain) {
-    effectiveDomainState.domain = settings.bunnySubdomain;
-  } else {
-    seedEffectiveDomainHost(requestUrl);
-  }
-  return effectiveDomainState.domain;
+  const domain =
+    custom && validated
+      ? custom
+      : settings.bunnySubdomain
+        ? settings.bunnySubdomain
+        : requestUrl.hostname;
+  setRequestEffectiveDomain(domain);
+  fallbackDomain.domain = domain;
+  return domain;
 };
 
 /**
@@ -93,11 +101,18 @@ export const loadEffectiveDomain = (requestUrl: URL): string => {
  * refined later by loadEffectiveDomain() once the custom domain is known.
  */
 export const seedEffectiveDomainHost = (requestUrl: URL): void => {
-  effectiveDomainState.domain = requestUrl.hostname;
+  setRequestEffectiveDomain(requestUrl.hostname);
+  fallbackDomain.domain = requestUrl.hostname;
 };
 
-/** Get the effective domain synchronously; DEFAULT_DOMAIN until a request resolves a real one. */
-export const getEffectiveDomain = (): string => effectiveDomainState.domain;
+/** Get the effective domain synchronously: the live request's own domain, or
+ * DEFAULT_DOMAIN otherwise. A live request that has not seeded its domain yet
+ * reads DEFAULT_DOMAIN, never the fallback — the fallback names the site for
+ * out-of-request reporting, and one request's host must not answer another's
+ * security-header decision. */
+export const getEffectiveDomain = (): string =>
+  getRequestEffectiveDomain() ??
+  (currentRequestStore() ? DEFAULT_DOMAIN : fallbackDomain.domain);
 
 /**
  * Whether we are serving a real, resolved host rather than the default. Gates
@@ -105,16 +120,19 @@ export const getEffectiveDomain = (): string => effectiveDomainState.domain;
  * must stay off for local development on DEFAULT_DOMAIN.
  */
 export const isSecureMode = (): boolean =>
-  !isLocalDevelopmentHost(effectiveDomainState.domain);
+  !isLocalDevelopmentHost(getEffectiveDomain());
 
 /** Reset effective domain cache back to the default (for testing). */
 export const resetEffectiveDomain = (): void => {
-  effectiveDomainState.domain = DEFAULT_DOMAIN;
+  setRequestEffectiveDomain(DEFAULT_DOMAIN);
+  fallbackDomain.domain = DEFAULT_DOMAIN;
 };
 
-/** Set effective domain directly (for testing). */
+/** Set effective domain directly (for testing): the live request's store when
+ * one is being served, the out-of-request fallback otherwise. */
 export const setEffectiveDomainForTest = (domain: string): void => {
-  effectiveDomainState.domain = domain;
+  setRequestEffectiveDomain(domain);
+  fallbackDomain.domain = domain;
 };
 
 /**

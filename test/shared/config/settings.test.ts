@@ -6,11 +6,13 @@ import {
   getEffectiveDomain,
   getEmbedHosts,
   isPaymentsEnabled,
+  isSecureMode,
   loadEffectiveDomain,
   resetEffectiveDomain,
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
+import { runWithRequestContext } from "#shared/request-context.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -92,6 +94,60 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
 
   test("returns 'localhost' before loadEffectiveDomain has been called", () => {
     expect(getEffectiveDomain()).toBe("localhost");
+  });
+
+  test("two interleaved requests each read their own domain", async () => {
+    // The domain used to live in one module-level slot, so request B's
+    // loadEffectiveDomain overwrote request A's while A was still rendering.
+    // Each request's store must carry its own domain and secure-mode answer.
+    let releaseA: () => void = () => {};
+    const holdA = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    const requestA = new Request("https://site-a.example/ticket/x");
+    const requestB = new Request("http://localhost/ticket/x");
+    const facts = { clientIp: "direct", locale: "en" };
+
+    const requestATask = runWithRequestContext(requestA, facts, async () => {
+      loadEffectiveDomain(new URL(requestA.url));
+      await holdA;
+      return { domain: getEffectiveDomain(), secure: isSecureMode() };
+    });
+    const resultB = await runWithRequestContext(requestB, facts, async () => {
+      loadEffectiveDomain(new URL(requestB.url));
+      return { domain: getEffectiveDomain(), secure: isSecureMode() };
+    });
+    releaseA();
+    const resultA = await requestATask;
+
+    expect(resultB.domain).toBe("localhost");
+    expect(resultB.secure).toBe(false);
+    expect(resultA.domain).toBe("site-a.example");
+    expect(resultA.secure).toBe(true);
+  });
+
+  test("an unseeded request reads the default, not another request's domain", async () => {
+    // Request A seeds its host (and with it the out-of-request fallback).
+    // Request B is live but has not seeded yet: it must read the default, so
+    // a pre-seed security-header decision can never take A's host.
+    const requestA = new Request("https://site-a.example/ticket/x");
+    const requestB = new Request("https://site-b.example/ticket/x");
+    const facts = { clientIp: "direct", locale: "en" };
+
+    await runWithRequestContext(requestA, facts, () => {
+      loadEffectiveDomain(new URL(requestA.url));
+      expect(getEffectiveDomain()).toBe("site-a.example");
+      return Promise.resolve();
+    });
+
+    await runWithRequestContext(requestB, facts, () => {
+      expect(getEffectiveDomain()).toBe("localhost");
+      expect(isSecureMode()).toBe(false);
+      loadEffectiveDomain(new URL(requestB.url));
+      expect(getEffectiveDomain()).toBe("site-b.example");
+      expect(isSecureMode()).toBe(true);
+      return Promise.resolve();
+    });
   });
 
   test("seedEffectiveDomainHost sets the request hostname before settings load", () => {

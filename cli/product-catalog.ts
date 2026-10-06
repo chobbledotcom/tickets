@@ -6,6 +6,7 @@
  *  frontmatter rules themselves live in the pure module beside this one,
  *  product-catalog/parse.ts. */
 
+import { isAbsolute, relative } from "@std/path";
 import { normalizeEntityName } from "#db/name-registry.ts";
 import {
   type CatalogProduct,
@@ -20,16 +21,20 @@ import {
 export type CatalogFile = { product: CatalogProduct; text: string };
 
 /** Read every product file of the directory, in the order the site shows
- * them. */
-export const readProducts = async (dir: string): Promise<CatalogFile[]> => {
-  const files: CatalogFile[] = [];
+ * them. A linked entry refuses instead of being skipped, so a file the
+ * operator believes went up never quietly stays home. */
+export const readProducts = async (
+  files: CatalogFiles,
+  dir: string,
+): Promise<CatalogFile[]> => {
+  const products: CatalogFile[] = [];
   for (const entry of Deno.readDirSync(dir)) {
-    if (!entry.isFile) continue;
-    const text = await Deno.readTextFile(`${dir}/${entry.name}`);
+    if (entry.isDirectory) continue;
+    const text = await files.read(`${dir}/${entry.name}`);
     const product = parseProductFile(entry.name, text);
-    if (product) files.push({ product, text });
+    if (product) products.push({ product, text });
   }
-  return files.sort(
+  return products.sort(
     (a, b) =>
       a.product.order - b.product.order ||
       a.product.filename.localeCompare(b.product.filename),
@@ -63,15 +68,58 @@ export const attributeVocabulary = (
   }));
 };
 
+/** One catalog's verified file access. The catalog root's real path is taken
+ *  once; every path the import reads must be a plain file whose real path
+ *  stays inside that root. A linked file or folder must never widen what the
+ *  import reads or move the trusted root. The resolved path is what the
+ *  import reads and writes, so a link swapped in after the check cannot
+ *  redirect a later call. */
+export type CatalogFiles = {
+  readonly root: string;
+  read: (file: string) => Promise<string>;
+  verify: (file: string) => Promise<string>;
+};
+
+export const catalogFiles = async (root: string): Promise<CatalogFiles> => {
+  const realRoot = await Deno.realPath(root);
+  const verify = async (file: string): Promise<string> => {
+    const [realFile, entry] = await Promise.all([
+      Deno.realPath(file),
+      Deno.lstat(file),
+    ]);
+    // Containment by relative path: a prefix check would accept a POSIX
+    // sibling named after the root plus a backslash.
+    const rel = relative(realRoot, realFile);
+    if (
+      !entry.isFile ||
+      rel === "" ||
+      rel.startsWith("..") ||
+      isAbsolute(rel)
+    ) {
+      throw new Error(
+        `catalog file '${file}' must be a plain file inside the catalog`,
+      );
+    }
+    return realFile;
+  };
+  return {
+    read: async (file) => await Deno.readTextFile(await verify(file)),
+    root,
+    verify,
+  };
+};
+
 /** The site's own title of one category file, or the slug when the file has
- * no usable title. A file that is missing, unreadable, or unparseable stops
- * the import: a stale path must not quietly create a wrongly named group. */
+ * no usable title. A file that is missing, unreadable, unparseable, or a
+ * link out of the catalog stops the import: a stale path must not quietly
+ * create a wrongly named group. */
 export const categoryTitle = async (
+  files: CatalogFiles,
   categoriesDir: string,
   slug: string,
 ): Promise<string> => {
   const file = `${categoriesDir}/${slug}.md`;
-  return parseCategoryTitle(file, await Deno.readTextFile(file));
+  return parseCategoryTitle(file, await files.read(file));
 };
 
 /** One catalog category: its path slug and the site name its file carries. */
@@ -81,12 +129,16 @@ export type CategoryEntry = { name: string; slug: string };
  * before the first API call: a missing or unparseable category file stops the
  * import before it changes the site. */
 export const readCategoryEntries = async (
+  files: CatalogFiles,
   categoriesDir: string,
   slugs: readonly string[],
 ): Promise<CategoryEntry[]> => {
   const entries: CategoryEntry[] = [];
   for (const slug of slugs) {
-    entries.push({ name: await categoryTitle(categoriesDir, slug), slug });
+    entries.push({
+      name: await categoryTitle(files, categoriesDir, slug),
+      slug,
+    });
   }
   return entries;
 };

@@ -145,19 +145,24 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
     session: TSession,
   ) => Response | null | Promise<Response | null>;
   /**
-   * Optional guard producing a user-facing error message (or null when the
-   * action is allowed). Unlike {@link preValidate}, which returns a full
-   * Response and runs identically on the GET and the POST, this distinguishes
-   * the two requests. The confirmation GET never redirects to itself: it
-   * renders the confirmation page with the error, still 200. The POST blocks
-   * the action with an error redirect back to the confirmation page. Runs
-   * after the entity loads, so it can reason about the loaded model's id.
+   * Optional guard producing a user-facing error message, or null when the
+   * action is allowed. Unlike {@link preValidate}, this distinguishes the GET
+   * from the POST. The GET renders the error into the confirmation page with
+   * status 200, so it never redirects to itself. The POST blocks with an
+   * error redirect back to the confirmation page. The guard runs after the
+   * entity loads, so it can reason about the loaded model's id. Set
+   * {@link guardInTx} when the POST re-runs this guard inside the write's
+   * transaction. The framework then skips its own POST-time check, so the
+   * guarded state is read once.
    */
   guardError?: (
     model: T,
     id: number,
     session: TSession,
   ) => Promise<string | null>;
+  /** True when the handler's `onConfirm` re-runs this guard inside the write
+   *  transaction and maps a refusal to its own redirect. */
+  guardInTx?: boolean;
   /** Optional custom not-found handler (defaults to 404 page) */
   onNotFound?: ResponseHandler<[id: number, session: TSession]>;
 };
@@ -230,13 +235,25 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       }),
     );
 
+  /** The POST-time pre-check for handlers whose refusal lives in the
+   *  framework: an error redirect when the guard refuses, or null. A handler
+   *  that re-runs the guard inside its write transaction (guardInTx) blocks
+   *  there instead, so the guarded state is read once. */
+  const preGuardRedirect = async (
+    result: T,
+    id: number,
+    session: TSession,
+  ): Promise<Response | null> => {
+    if (config.guardInTx) return null;
+    const guard = await guardError(result, id, session);
+    return guard === null ? null : errorRedirect(confirmPath(id), guard);
+  };
+
   const post = (request: Request, id: number): Promise<Response> =>
     withForm(request, (session, form) =>
       withModel(id, session, async (result) => {
-        // The POST blocks a guarded action with an error redirect back to the
-        // confirmation page (where the GET will then render the error).
-        const guard = await guardError(result, id, session);
-        if (guard) return errorRedirect(confirmPath(id), guard);
+        const refusal = await preGuardRedirect(result, id, session);
+        if (refusal) return refusal;
 
         const expected = await config.identifier(result);
         const error = verifyOrRedirect(

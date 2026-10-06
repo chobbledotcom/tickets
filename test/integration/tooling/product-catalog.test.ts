@@ -6,6 +6,7 @@ import {
 } from "#cli/product-catalog/parse.ts";
 import {
   attributeVocabulary,
+  catalogFiles,
   categoryTitle,
   ensureConsistentAttributeSpellings,
   ensureUniqueTitles,
@@ -118,6 +119,21 @@ describe("product catalog", () => {
     ).not.toThrow();
   });
 
+  test("verifies and returns the resolved path of a plain file", async () => {
+    await withTempDir(async (dir) => {
+      await Deno.mkdir(`${dir}/src/categories`, { recursive: true });
+      await Deno.writeTextFile(`${dir}/src/categories/tarps.md`, "text");
+      const files = await catalogFiles(dir);
+      // The resolved path is what the import reads and writes, so a link
+      // swapped in after the check cannot redirect the later call. The
+      // expected value is resolved too: the temp path itself may hold a
+      // link on some systems.
+      expect(await files.verify(`${dir}/src/../src/categories/tarps.md`)).toBe(
+        await Deno.realPath(`${dir}/src/categories/tarps.md`),
+      );
+    });
+  });
+
   test("reads a category title, or the slug when the file has none", async () => {
     await withTempDir(async (dir) => {
       await Deno.writeTextFile(
@@ -125,14 +141,22 @@ describe("product catalog", () => {
         "---\ntitle: Christmas Game Hire\n---\n",
       );
       await Deno.writeTextFile(`${dir}/untitled.md`, "no frontmatter");
-      expect(await categoryTitle(dir, "christmas")).toBe("Christmas Game Hire");
-      expect(await categoryTitle(dir, "untitled")).toBe("untitled");
+      expect(
+        await categoryTitle(await catalogFiles(dir), dir, "christmas"),
+      ).toBe("Christmas Game Hire");
+      expect(
+        await categoryTitle(await catalogFiles(dir), dir, "untitled"),
+      ).toBe("untitled");
       // A file whose frontmatter holds no mapping (empty, or a scalar) has
       // no title either.
       await Deno.writeTextFile(`${dir}/bare.md`, "---\n---\n");
       await Deno.writeTextFile(`${dir}/scalar.md`, "---\n5\n---\n");
-      expect(await categoryTitle(dir, "bare")).toBe("bare");
-      expect(await categoryTitle(dir, "scalar")).toBe("scalar");
+      expect(await categoryTitle(await catalogFiles(dir), dir, "bare")).toBe(
+        "bare",
+      );
+      expect(await categoryTitle(await catalogFiles(dir), dir, "scalar")).toBe(
+        "scalar",
+      );
     });
   });
 
@@ -140,17 +164,21 @@ describe("product catalog", () => {
     await withTempDir(async (dir) => {
       // A stale or misspelled category path must not quietly create a
       // wrongly named group.
-      await expect(categoryTitle(dir, "missing")).rejects.toThrow();
+      await expect(
+        categoryTitle(await catalogFiles(dir), dir, "missing"),
+      ).rejects.toThrow();
       await Deno.writeTextFile(
         `${dir}/broken.md`,
         "---\ntitle: [unclosed\n---\n",
       );
-      await expect(categoryTitle(dir, "broken")).rejects.toThrow(
-        `${dir}/broken.md: unparseable frontmatter:`,
-      );
+      await expect(
+        categoryTitle(await catalogFiles(dir), dir, "broken"),
+      ).rejects.toThrow(`${dir}/broken.md: unparseable frontmatter:`);
       // A slug that names a directory is a read error, not a missing file.
       await Deno.mkdir(`${dir}/subdir.md`);
-      await expect(categoryTitle(dir, "subdir")).rejects.toThrow();
+      await expect(
+        categoryTitle(await catalogFiles(dir), dir, "subdir"),
+      ).rejects.toThrow();
     });
   });
 
@@ -165,14 +193,19 @@ describe("product catalog", () => {
         "---\ntitle: Fun Days\n---\n",
       );
       expect(
-        await readCategoryEntries(dir, ["christmas-game-hire", "fun-days"]),
+        await readCategoryEntries(await catalogFiles(dir), dir, [
+          "christmas-game-hire",
+          "fun-days",
+        ]),
       ).toEqual([
         { name: "Christmas Game Hire", slug: "christmas-game-hire" },
         { name: "Fun Days", slug: "fun-days" },
       ]);
       // The preflight runs before the first API call, so a stale category
       // path cannot leave half the catalog imported.
-      await expect(readCategoryEntries(dir, ["missing"])).rejects.toThrow();
+      await expect(
+        readCategoryEntries(await catalogFiles(dir), dir, ["missing"]),
+      ).rejects.toThrow();
     });
   });
 
@@ -216,14 +249,14 @@ describe("product catalog", () => {
       );
       await Deno.writeTextFile(`${dir}/notes.json`, "{}");
       await Deno.writeTextFile(`${dir}/empty.md`, "no frontmatter");
-      const files = await readProducts(dir);
-      expect(files.map(({ product }) => product.filename)).toEqual([
+      const catalog = await readProducts(await catalogFiles(dir), dir);
+      expect(catalog.map(({ product }) => product.filename)).toEqual([
         "m",
         "a",
         "z",
       ]);
       // Each file carries the exact text it was parsed from.
-      expect(files[0]!.text).toContain("options:");
+      expect(catalog[0]!.text).toContain("options:");
     } finally {
       await Deno.remove(dir, { recursive: true });
     }

@@ -3,7 +3,10 @@
 import { initDb } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
 import { requestScopedHandler } from "#routes/request-scopes.ts";
-import { loadEffectiveDomain } from "#shared/config.ts";
+import {
+  loadEffectiveDomain,
+  seedEffectiveDomainHost,
+} from "#shared/config.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
 import { scheduledResponse } from "#shared/scheduled-access.ts";
@@ -11,6 +14,11 @@ import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 /* jscpd:ignore-end */
 
 export const handleScheduledRequest = requestScopedHandler(async (request) => {
+  const url = new URL(request.url);
+  // Seed the request's own host before anything reads a domain, the way the
+  // fetch path does. The failure report's ntfy title reads it, and no seed
+  // made outside this context reaches it.
+  seedEffectiveDomainHost(url);
   try {
     await initDb();
     await settings.loadKeys([
@@ -19,7 +27,7 @@ export const handleScheduledRequest = requestScopedHandler(async (request) => {
       CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
       CONFIG_KEYS.SETUP_COMPLETE,
     ]);
-    loadEffectiveDomain(new URL(request.url));
+    loadEffectiveDomain(url);
     if (!(await settings.setup.isComplete())) {
       throw new Error("Scheduled maintenance requires completed setup");
     }

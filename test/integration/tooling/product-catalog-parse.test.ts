@@ -315,6 +315,34 @@ describe("product catalog parse", () => {
     ]);
   });
 
+  test("rejects a category that climbs out of the catalog", () => {
+    // A path slug would read files the catalog never named and post their
+    // titles to the site as groups.
+    for (const entry of [
+      "../secret",
+      "a/../b",
+      "a\\..\\secret",
+      "/etc/tickets",
+      ".hidden",
+    ]) {
+      expect(() =>
+        parseProductFile(
+          "a.md",
+          [
+            "---",
+            "title: Tumble Tower Hire",
+            "categories:",
+            `  - ${entry}`,
+            "options:",
+            "  - name: 1 Day",
+            "    unit_price: 100",
+            "---",
+          ].join("\n"),
+        ),
+      ).toThrow(`a.md: category "${entry}" must be a bare category file name`);
+    }
+  });
+
   test("drops blank text entries and reads no entries from an empty field", () => {
     const product = parseProductFile(
       "a.md",

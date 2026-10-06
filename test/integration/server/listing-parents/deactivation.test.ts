@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { stub } from "@std/testing/mock";
+import { executeWithoutCacheInvalidation, update } from "#db/client.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { toggleListingActive } from "#shared/listings-actions.ts";
 import { assertJson, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -8,9 +11,28 @@ import {
   rescuingPageSetup,
   soloChildAddOn,
 } from "#test-utils/listing-parents/helpers.ts";
+import { optInAddOnForListings } from "#test-utils/modifiers.ts";
+import { postChildren } from "#test-utils/parents.ts";
 import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
+import type { Listing } from "#types";
 
 const ADDON_ERROR = "opt-in add-on reachable only through";
+
+/** Two live pages rescuing one child-scoped opt-in add-on through their own
+ *  children: the smallest state where one page going dark orphans it. */
+const twoRescuerSetup = async () => {
+  const pageOne = await createTestListing({ name: "Rescuer one" });
+  const pageTwo = await createTestListing({ name: "Rescuer two" });
+  const child = await createTestListing({ name: "Add-on child" });
+  await postChildren(pageOne.id, [child.id]);
+  await postChildren(pageTwo.id, [child.id]);
+  await optInAddOnForListings("Child-scoped extra", [
+    child.id,
+    pageOne.id,
+    pageTwo.id,
+  ]);
+  return { child, pageOne, pageTwo };
+};
 
 /** The flash text a rejected orphaning deactivate/delete surfaces. */
 const childOnlyAddOnFlash = async (): Promise<string> => {
@@ -187,6 +209,23 @@ describeWithEnv(
       expect(await getListingWithCount(thatPage.id)).not.toBe(null);
     });
 
+    test("the unverified direct delete reports a refusal raised inside the write transaction", async () => {
+      // Another isolate can commit a deactivation after this isolate's outer
+      // guard read its stale cache. The transactional guard then refuses, and
+      // the direct delete must report that refusal instead of success.
+      const { pageOne, pageTwo } = await twoRescuerSetup();
+      // The cross-isolate write: the row goes dark on the database while this
+      // isolate's cache still shows it active.
+      const stmt = update("listings", { active: 0 }, { id: pageTwo.id });
+      await executeWithoutCacheInvalidation(stmt.sql, stmt.args);
+      const { response } = await adminFormPost(
+        `/admin/listing/${pageOne.id}/delete?verify_identifier=false`,
+      );
+      response.body?.cancel();
+      expectFlash(response, await childOnlyAddOnFlash(), false);
+      expect(await getListingWithCount(pageOne.id)).not.toBe(null);
+    });
+
     test("API delete of the only rescuing page of a child add-on is blocked, leaving it", async () => {
       // The admin JSON API delete must run the same guard as the HTML delete.
       const { thatPage } = await rescuingPageSetup();
@@ -197,6 +236,80 @@ describeWithEnv(
         }),
       );
       expect(await getListingWithCount(thatPage.id)).not.toBe(null);
+    });
+
+    test("a rescuing page deactivated between the guard and the update makes the deactivation refuse", async () => {
+      // The race the transaction closes: admin A deactivates rescuer one (the
+      // guard passes: rescuer two still rescues the add-on), and while A's
+      // write is still in flight admin B deactivates rescuer two. The guard
+      // and the write share one transaction, so B's guard runs after A's
+      // commit, sees the add-on's last live page going dark, and refuses.
+      const { pageOne, pageTwo } = await twoRescuerSetup();
+
+      // Hold A between its guard and its write, the window the transaction
+      // closes. Only the non-transactional write path calls listingsTable.update,
+      // so the hold applies to the racy flow and is inert on the fixed one.
+      let releaseA: () => void = () => {};
+      const gateA = new Promise<void>((resolve) => {
+        releaseA = resolve;
+      });
+      let aReachedWrite: () => void = () => {};
+      const writeReached = new Promise<void>((resolve) => {
+        aReachedWrite = resolve;
+      });
+      const realUpdate = listingsTable.update.bind(listingsTable);
+      let holdsLeft = 1;
+      using _holdWrite = stub(
+        listingsTable,
+        "update",
+        async (id, input): Promise<Listing | null> => {
+          aReachedWrite();
+          // Hold only the first writer (A); later writers commit normally.
+          if (holdsLeft > 0) {
+            holdsLeft -= 1;
+            await gateA;
+          }
+          return realUpdate(id, input);
+        },
+      );
+
+      const toggleA = toggleListingActive(
+        pageOne.id,
+        (await getListingWithCount(pageOne.id))!,
+        false,
+      );
+      // The fixed path never reaches the held write: it committed already.
+      await Promise.race([writeReached, toggleA]);
+
+      // Admin B deactivates rescuer two while A's write is in flight.
+      const toggleB = toggleListingActive(
+        pageTwo.id,
+        (await getListingWithCount(pageTwo.id))!,
+        false,
+      );
+      const resultB = await toggleB;
+      releaseA();
+      await toggleA;
+
+      // B's guard must re-read committed state inside its own transaction and
+      // refuse, leaving rescuer two — the add-on's last live page — active.
+      expect("error" in resultB && resultB.error).toContain(ADDON_ERROR);
+      await expectStaysActive(pageTwo.id);
+    });
+
+    test("a stale loaded row does not skip the stored toggle", async () => {
+      // toggleListingActive must decide from the stored state inside the write
+      // transaction: a replica-lagged load can read the opposite of the
+      // truth, and deciding noChange from it would leave the listing in the
+      // very state the operator asked to change.
+      const listing = await createTestListing({ name: "Stale read" });
+      const fresh = (await getListingWithCount(listing.id))!;
+      const stale = { ...fresh, active: false };
+      const result = await toggleListingActive(listing.id, stale, false);
+      expect(result).toEqual({
+        updated: expect.objectContaining({ active: false }),
+      });
+      expect((await getListingWithCount(listing.id))?.active).toBe(false);
     });
 
     test("deleting a listing unrelated to any child add-on still works", async () => {

@@ -89,6 +89,8 @@ const serveHandler = async (
     return scheduledResponse(scheduledAccess.status);
   }
   const url = new URL(request.url);
+  // Seed before any context opens: a boot failure reports out of request,
+  // and the fallback must name this site, not the default.
   if (scheduledAccess.kind === "authorized") seedEffectiveDomainHost(url);
   try {
     await initialize();

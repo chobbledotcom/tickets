@@ -231,6 +231,27 @@ const parseOptions = (
   return options;
 };
 
+/** One category file name: the frontmatter may prefix `src/` or `categories/`
+ *  and end in `.md`, but the result must be a bare name — a path would read
+ *  files the catalog never named and post their titles to the site. */
+const categorySlug = (filename: string, path: string): string => {
+  const slug = path
+    .replace(/^src\//, "")
+    .replace(/\.md$/, "")
+    .replace(/^categories\//, "");
+  if (
+    slug === "" ||
+    slug.includes("/") ||
+    slug.includes("\\") ||
+    slug.startsWith(".")
+  ) {
+    throw new Error(
+      `${filename}: category "${path}" must be a bare category file name`,
+    );
+  }
+  return slug;
+};
+
 /** Parse one product file's frontmatter, or null when it holds no product. */
 export const parseProductFile = (
   filename: string,
@@ -244,11 +265,7 @@ export const parseProductFile = (
   if (title === "") return null;
   return {
     categories: asStringList(filename, "categories", front.categories).map(
-      (path) =>
-        path
-          .replace(/^src\//, "")
-          .replace(/\.md$/, "")
-          .replace(/^categories\//, ""),
+      (path) => categorySlug(filename, path),
     ),
     features: asStringList(filename, "features", front.features),
     filename: filename.replace(/\.md$/, ""),
