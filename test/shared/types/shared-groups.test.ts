@@ -166,6 +166,22 @@ describe("combinedChildCapacityForParent", () => {
     ).toBe(2);
   });
 
+  test("ignores a shared pool whose remaining is unknown", () => {
+    // Only capped groups with a known remaining enter the bound: a daily
+    // child's pool with no submitted date bounds nothing here, and the
+    // submit fold decides.
+    expect(
+      combinedChildCapacityForParent(
+        [7],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [7], ownMax: 2 },
+        ],
+        byGroup({}),
+      ),
+    ).toBe(4);
+  });
+
   test("adds the ceilings of children that draw separate pools", () => {
     // Two pools of four spots each, one child per pool: four parent tickets
     // can be served, two through each pool.

@@ -1,6 +1,8 @@
 /** Capacity facts for a parent listing and one of its children that share
  * capped groups: what still fits in the pools the pair contends for. */
 
+import { requireValue } from "#shared/required-value.ts";
+
 /** Units of a shared capped group consumed by one parent+child order. The
  * parent line and its single required child line each take one spot in the
  * group they share (invariants I1, I7). Converts a shared group's remaining
@@ -87,8 +89,11 @@ export const combinedChildCapacityForParent = (
   }
   let bound = ownTotal;
   for (const [groupId, userCeiling] of userCeilings) {
-    const remaining = remainingByGroupId.get(groupId);
-    if (remaining === undefined) continue;
+    // A shared pool is by construction present in the remaining map.
+    const remaining = requireValue(
+      remainingByGroupId.get(groupId),
+      `Group ${groupId} missing from the remaining map`,
+    );
     const outside = ownTotal - userCeiling;
     bound = Math.min(
       bound,
