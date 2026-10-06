@@ -3021,8 +3021,8 @@
     "semicolon": 4
   },
   "src/ui/templates/public/reservations/child-pricing.ts": {
-    "long-sentence": 9,
-    "semicolon": 7,
+    "long-sentence": 8,
+    "semicolon": 6,
     "contraction": 3,
     "banned-modal": 2
   },
