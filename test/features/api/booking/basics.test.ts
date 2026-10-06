@@ -67,15 +67,12 @@ describePublicApi(() => {
     });
 
     test("requires the quantity field instead of booking one ticket", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      // The helper's default body carries quantity 1, so the absence the API
-      // refuses is spelled out here.
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-      });
       // The API no longer defaults an absent quantity to 1: every booking
       // must state how many places it books.
+      const { listing, response, body } = await createAndBook(
+        { maxAttendees: 10 },
+        { email: "alice@test.com", name: "Alice" },
+      );
       expect(response.status).toBe(400);
       expect(body.error).toBe("Quantity is required");
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
@@ -83,44 +80,30 @@ describePublicApi(() => {
     });
 
     test("rejects a malformed quantity", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: "abc",
-      });
+      const { response, body } = await createAndBook(
+        { maxAttendees: 10 },
+        { quantity: "abc" },
+      );
       expect(response.status).toBe(400);
       expect(body.error).toBe("Quantity must be a whole number of 1 or more");
     });
 
     test("rejects a quantity below the listing's minimum", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
-      const below = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 2,
-      });
-      expect(below.response.status).toBe(400);
-      expect(below.body.error).toBe("Quantity must be at least 3");
+      const { listing, response, body } = await createAndBook(
+        { maxAttendees: 10, maxQuantity: 10, minimumQuantity: 3 },
+        { quantity: 2 },
+      );
+      expect(response.status).toBe(400);
+      expect(body.error).toBe("Quantity must be at least 3");
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
     test("books the listing's minimum quantity", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 10,
-        minimumQuantity: 3,
-      });
-      const { response } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 3,
-      });
+      const { response } = await createAndBook(
+        { maxAttendees: 10, maxQuantity: 10, minimumQuantity: 3 },
+        { quantity: 3 },
+      );
       expect(response.status).toBe(200);
     });
 
