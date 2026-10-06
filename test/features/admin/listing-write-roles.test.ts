@@ -41,6 +41,11 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       201,
       (body) => {
         expect(body.listing.name).toBe("Editor Made Listing");
+        // The create route answers through the post-write response path, so
+        // the editor's money-free read applies here too.
+        for (const field of ["cost", "income", "profit"]) {
+          expect(field in body.listing).toBe(false);
+        }
       },
     );
   });
@@ -60,6 +65,9 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       200,
       (body) => {
         expect(body.listing.name).toBe("Editor Renamed");
+        for (const field of ["cost", "income", "profit"]) {
+          expect(field in body.listing).toBe(false);
+        }
       },
     );
   });
