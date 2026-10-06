@@ -6,7 +6,7 @@ import {
   quantityBelowMin,
   ticketsThatFitInPool,
 } from "#booking/model.ts";
-import { listing } from "#test-utils/booking-model-fixtures.ts";
+import { dailyOverrides, listing } from "#test-utils/booking-model-fixtures.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — capacity", () => {
@@ -87,10 +87,28 @@ describe("booking model — capacity", () => {
       expect(tl.maxPurchasable).toBe(5);
     });
 
-    test("daily listings ignore attendee headcount entirely, even at a full house", () => {
-      // max_attendees/attendee_count would say sold out for a standard
-      // listing, but a daily listing's own capacity is unlimited (each day
-      // is its own booking) — max_quantity is the only real cap here.
+    test("a daily listing cannot advertise more places than max_attendees before a date is chosen", () => {
+      // The per-date booked count is unknown until a date is picked, but
+      // max_attendees bounds every date, so it still caps the ceiling here.
+      const tl = buildTicketListing(
+        listing(
+          dailyOverrides({
+            max_attendees: 2,
+            max_quantity: 5,
+            min_quantity: 3,
+          }),
+        ),
+        false,
+        undefined,
+      );
+      expect(tl.isSoldOut).toBe(true);
+      expect(tl.maxPurchasable).toBe(0);
+    });
+
+    test("daily listings ignore attendee headcount but keep the static max_attendees cap", () => {
+      // attendee_count is per-date and unknown before a date is chosen, so a
+      // full house date-lessly means nothing — but max_attendees bounds every
+      // date, so it still caps the ceiling (max_quantity on top of it).
       const tl = buildTicketListing(
         listing({
           attendee_count: 5,
@@ -102,7 +120,7 @@ describe("booking model — capacity", () => {
         undefined,
       );
       expect(tl.isSoldOut).toBe(false);
-      expect(tl.maxPurchasable).toBe(100);
+      expect(tl.maxPurchasable).toBe(5);
     });
 
     test("a daily listing still sells out when its shared group pool is empty", () => {
