@@ -77,39 +77,28 @@ const dateStringResult = (key: string, raw: string): Result<DateString> => {
  * `DateString` no comparison can mis-order. Absent or empty answers the
  * same rejection shape as {@link requireStrings}.
  */
-/** Read one supplied date value from the body and hand it to the reader's
- *  outcomes. The value is text, the key is absent, or the value is not text.
- *  A non-text value is malformed, not absent. */
-const withSuppliedDateValue = (
-  body: Record<string, unknown>,
-  key: string,
-  onValue: (value: string) => Result<DateString>,
-  onAbsent: () => Result<DateString>,
-): Result<DateString> => {
-  const raw = body[key];
-  if (raw === undefined) return onAbsent();
-  if (typeof raw !== "string") {
-    return errorResult(`${key} has an invalid value`);
+/** The required date's outcome for one value: a blank value answers
+ *  required, a present text value parses. */
+function requiredDate(key: string, value: string): Result<DateString> {
+  if (value.trim() === "") {
+    return errorResult(`${key} is required`);
   }
-  return onValue(raw);
-};
-
-/** The required date's outcomes: a blank or absent key answers required, a
- *  present text value parses. */
-const requiredDate =
-  (key: string) =>
-  (value: string): Result<DateString> =>
-    value.trim() === ""
-      ? errorResult(`${key} is required`)
-      : dateStringResult(key, value);
+  return dateStringResult(key, value);
+}
 
 export const requireDateString = (
   body: Record<string, unknown>,
   key: string,
-): Result<DateString> =>
-  withSuppliedDateValue(body, key, requiredDate(key), () =>
-    errorResult(`${key} is required`),
-  );
+): Result<DateString> => {
+  const raw = body[key];
+  if (raw === undefined || (typeof raw === "string" && raw.trim() === "")) {
+    return errorResult(`${key} is required`);
+  }
+  if (typeof raw !== "string") {
+    return errorResult(`${key} has an invalid value`);
+  }
+  return requiredDate(key, raw);
+};
 
 /** Read the required name for one entity write. A supplied name must be a
  *  string: anything else is refused with the field-named message instead of
@@ -149,13 +138,17 @@ export const optionalDateString = (
   body: Record<string, unknown>,
   key: string,
   fallback: string,
-): Result<DateString> =>
-  withSuppliedDateValue(
-    body,
-    key,
-    (value) => dateStringResult(key, value),
-    () => okResult(parseStoredDateString(fallback, `${key} fallback`)),
-  );
+): Result<DateString> => {
+  const raw = body[key];
+  // A present non-string is malformed whatever the absence question is.
+  if (raw !== undefined && typeof raw !== "string") {
+    return errorResult(`${key} has an invalid value`);
+  }
+  if (raw === undefined) {
+    return okResult(parseStoredDateString(fallback, `${key} fallback`));
+  }
+  return dateStringResult(key, raw);
+};
 
 /**
  * Read an optional number from a JSON body, falling back to `fallback` when the
