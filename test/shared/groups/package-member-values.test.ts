@@ -3,9 +3,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  isValidMemberDayPrices,
   isValidMemberPrice,
   isValidMemberQuantity,
+  memberDayPricesFault,
 } from "#shared/groups/package-member-values.ts";
 
 describe("package member value rules", () => {
@@ -37,21 +37,22 @@ describe("package member value rules", () => {
   });
 
   test("accepts whole day counts of one or more with whole prices", () => {
-    expect(isValidMemberDayPrices({ 1: 500, 2: 900 })).toBe(true);
-    expect(isValidMemberDayPrices({ 1: 0 })).toBe(true);
-    expect(isValidMemberDayPrices({})).toBe(true);
+    expect(memberDayPricesFault({ 1: 500, 2: 900 })).toBeNull();
+    expect(memberDayPricesFault({ 1: 0 })).toBeNull();
+    expect(memberDayPricesFault({})).toBeNull();
   });
 
-  test("refuses a zero day count, a negative price, or a junk shape", () => {
-    expect(isValidMemberDayPrices({ 0: 500 })).toBe(false);
-    expect(isValidMemberDayPrices({ 1: -500 })).toBe(false);
-    expect(isValidMemberDayPrices({ 1: 5.5 })).toBe(false);
-    expect(isValidMemberDayPrices({ x: 500 })).toBe(false);
-    expect(
-      isValidMemberDayPrices({ [`${Number.MAX_SAFE_INTEGER}0`]: 500 }),
-    ).toBe(false);
-    expect(isValidMemberDayPrices(null)).toBe(false);
-    expect(isValidMemberDayPrices([500])).toBe(false);
-    expect(isValidMemberDayPrices("days")).toBe(false);
+  test("names the day counts as the broken part", () => {
+    expect(memberDayPricesFault({ 0: 500 })).toBe("days");
+    expect(memberDayPricesFault({ x: 500 })).toBe("days");
+    expect(memberDayPricesFault({ [`${Number.MAX_SAFE_INTEGER}0`]: 500 })).toBe(
+      "days",
+    );
+  });
+
+  test("names the prices as the broken part", () => {
+    expect(memberDayPricesFault({ 1: -500 })).toBe("prices");
+    expect(memberDayPricesFault({ 1: 5.5 })).toBe("prices");
+    expect(memberDayPricesFault({ 1: "500" })).toBe("prices");
   });
 });

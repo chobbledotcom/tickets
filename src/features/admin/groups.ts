@@ -143,34 +143,32 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   );
 };
 
-/** Parse one package-price input to minor units. A blank, non-numeric, or
- * negative value is `null` — "no override; use the listing's own price" — so a
- * typo cannot fail the save or store a negative override. An explicit `0` is a
- * real value: the listing is FREE within this package, distinct from "no
- * override". {@link parseOptionalMinorUnits} is exactly this optional-field
- * shape (blank ⇒ unset, never a real 0) and enforces the whole-string,
- * currency-decimal rule. A typo like `12abc`/`1,50` falls back to no override
- * rather than a partial `12`/`1`. */
+/** Parse one package-price input to minor units. The form-level validation
+ *  ({@link validatePackageMemberForm}) has already refused a non-numeric or
+ *  negative value, so only a blank input falls through to `null` — "no
+ *  override; use the listing's own price". An explicit `0` is a real value:
+ *  the listing is FREE within this package, distinct from "no override".
+ *  {@link parseOptionalMinorUnits} is exactly this optional-field shape
+ *  (blank ⇒ unset, never a real 0) and enforces the whole-string,
+ *  currency-decimal rule. */
 const parsePackagePrice = (raw: string): number | null =>
   parseOptionalMinorUnits(raw);
 
-/** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
- * defaults to 1 (a package always includes at least one of each member). The
- * whole string must be digits: unlike `parseInt` (which accepts a leading
- * prefix), a typo like `2abc` or `1e3` defaults to 1 rather than parsing a
- * partial 2/1. */
+/** Parse one package-quantity input. The form-level validation
+ *  ({@link validatePackageMemberForm}) has already refused a non-digit or
+ *  sub-1 value. A blank input is the one legal "no override" form, and a
+ *  package always includes at least one of each member. */
 const parsePackageQuantity = (raw: string): number => {
   const trimmed = raw.trim();
-  if (!/^\d+$/.test(trimmed)) return 1;
-  const n = Number(trimmed);
-  return Number.isSafeInteger(n) && n >= 1 ? n : 1;
+  return trimmed === "" ? 1 : Number(trimmed);
 };
 
-/** The per-listing `package_day_price_<listingId>_<n>` inputs folded into each
- * listing's day-price override map. A blank, non-numeric, or negative input
- * contributes nothing — "no override for that span; use the listing's own day
- * price" — while an explicit `0` makes the span free in this package, matching
- * {@link parsePackagePrice}'s rules for the flat override. */
+/** The per-listing `package_day_price_<listingId>_<n>` inputs folded into
+ * each listing's day-price override map. The form-level validation
+ * ({@link validatePackageMemberForm}) has already refused a non-numeric or
+ * negative input. A blank input contributes nothing: no override for that
+ * span, and the listing keeps its own day price. An explicit `0` makes the
+ * span free in this package, matching {@link parsePackagePrice}. */
 const parseMemberDayPrices = (
   keys: ReadonlySet<string>,
   form: FormParams,
@@ -190,18 +188,18 @@ const parseMemberDayPrices = (
   return byListing;
 };
 
-// The package-member form fields are dynamic — one price and quantity pair
-// per member listing, keyed by listing id — so the static form schema cannot
+// The package-member form fields are dynamic: one price and quantity pair
+// per member listing, keyed by listing id. The static form schema cannot
 // declare them. The save's form-level validation walks them and refuses the
-// first malformed one in plain words, instead of the parse silently
-// defaulting it: a junk price used to become "no override", a junk quantity
-// became 1, and a junk day price was dropped.
+// first malformed one in plain words. Before this check the parse silently
+// defaulted a malformed value. A junk price became "no override". A junk
+// quantity became 1. A junk day price was dropped.
 const PACKAGE_PRICE_KEY = /^package_price_(\d+)$/;
 const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
 const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
 
 /** One member override field family: how to recognise its keys, the rule a
- *  typed value must satisfy, and which message a broken value reports. */
+ *  typed value must satisfy, and the message a broken value reports. */
 const MEMBER_FORM_FIELDS: readonly {
   key: RegExp;
   message: string;
@@ -224,9 +222,9 @@ const MEMBER_FORM_FIELDS: readonly {
   },
 ];
 
-/** The strict form check the package routes run before their parse: every
+/** The strict form check the package routes run before their parse. Every
  *  package_price_, package_qty_, and package_day_price_ field must hold a
- *  value the member rules accept. Blank stays legal — it means "no
+ *  value the member rules accept. Blank stays legal and means "no
  *  override". Returns the first error message, or null. */
 export const validatePackageMemberForm = (form: FormParams): string | null => {
   for (const [key, raw] of form.entries()) {

@@ -2067,7 +2067,7 @@
     "contraction": 1
   },
   "src/shared/rest/resource.ts": {
-    "wordy": 3,
+    "wordy": 2,
     "long-sentence": 2,
     "semicolon": 1,
     "banned-modal": 1,

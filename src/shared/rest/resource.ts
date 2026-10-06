@@ -108,11 +108,10 @@ export interface ResourceConfig<
    *  keyed by listing id. Return an error message, or null when the form is
    *  well-formed. */
   validateForm?: (form: FormParams) => string | null;
-  /** Cross-field validation on the parsed form values, before `toInput`. Unlike
-   * `validate` (which runs on the converted `Input`), this sees the raw field
-   * values together, so a field whose rule depends on a sibling — e.g. a
-   * modifier's `calc_value` bounds depend on its `calc_kind` — can be checked
-   * where both are visible. Return an error message or null. */
+  /** Cross-field validation on the parsed form values, before `toInput`.
+   * `validate` runs on the converted `Input`. This hook instead sees the raw
+   * field values together. A field whose rule depends on a sibling can be
+   * checked here, where both are visible. Return an error message or null. */
   validateValues?: (values: Values) => string | null;
 }
 

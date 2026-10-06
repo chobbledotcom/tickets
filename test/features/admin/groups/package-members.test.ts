@@ -94,13 +94,13 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     expect(row.quantity).toBe(1);
   });
 
-  test("treats a blank price and a blank day price as no override", async () => {
+  test("treats a blank price, a blank quantity, and a blank day price as no override", async () => {
     const { group, member } = await dayPricedPackage("Blank");
 
     await savePackage(group, {
       [`package_day_price_${member.id}_1`]: "",
       [`package_price_${member.id}`]: "",
-      [`package_qty_${member.id}`]: "1",
+      [`package_qty_${member.id}`]: "",
     });
 
     const [row] = await getGroupPackagePrices(group.id);
