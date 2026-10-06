@@ -265,15 +265,21 @@ rules, with their reference implementations:
   first-use, never import-time.
 - **Request-scoped memoization, not global state.** `requestCache`
   (`src/shared/request-cache.ts`) shares one fetch among all callers within a
-  request. Any new per-request state is built on one of the three factories in
+  request. The one request store (`RequestStore` in
+  `src/shared/request-context.ts`) carries the facts and slots of one request. A
+  new per-request value is a `RequestSlot` on that store. The store allocates
+  the slot on first use, and a read outside a live request answers `undefined`.
+  See `QUERY_LOG_SLOT` in `src/shared/db/query-log.ts` for the pattern. Two
+  concurrent requests on one isolate cannot clobber each other, and a leaked
+  post-request context always reads as "outside a request". A scope with a
+  different lifetime, such as a nested re-scope, still uses the factories in
   `src/shared/request-scoped.ts` (`createScope`, `createScopedValue`,
-  `createRequestScoped`) — the only module allowed to touch `AsyncLocalStorage`
-  — so two concurrent requests on one isolate cannot clobber each other and a
-  leaked post-request context always reads as "outside a request". Isolate-lived
-  caches are best-effort and bounded (`src/shared/db/keyed-cache.ts`; the
-  settings version-stamp cache in `src/shared/db/settings.ts`) — never
-  authoritative for security decisions, and invalidated automatically by the
-  write-sniffing db client (`src/shared/cache-registry.ts`).
+  `createBooleanScope`). That module is the only one allowed to touch
+  `AsyncLocalStorage`. Isolate-lived caches are best-effort and bounded
+  (`src/shared/db/keyed-cache.ts` and the settings version-stamp cache in
+  `src/shared/db/settings.ts`) — never authoritative for security decisions, and
+  invalidated automatically by the write-sniffing db client
+  (`src/shared/cache-registry.ts`).
 - **Compile once, render many.** ICU message templates (including the
   `I18N_REPLACEMENTS` rebranding pass) compile once and cache
   (`src/shared/i18n.ts`), so rendering is a plain format call.
