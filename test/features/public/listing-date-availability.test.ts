@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingChildren } from "#db/listing-parents.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -163,6 +164,42 @@ describeWithEnv(
       const soldOut = await loadDailyDateAvailability([listing], date, []);
 
       expect(soldOut).toEqual(new Set([listing.id]));
+    });
+
+    test("a daily parent is unavailable when its children cannot serve the minimum", async () => {
+      const { loadDailyDateAvailability } = await import(
+        "#routes/public/listing-date-availability.ts"
+      );
+      // The parent sells at least 3 per purchase and has places of its own,
+      // but its required child holds only 2 on the date: no fold of three
+      // child tickets can serve the minimum, so the parent's date is as
+      // unavailable as an empty row.
+      const parent = await createDailyTestListing({
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 3,
+        name: "Batched base",
+      });
+      const child = await createDailyTestListing({
+        maxAttendees: 5,
+        maxQuantity: 5,
+        name: "Small add-on",
+      });
+      await listingChildren.setIds(parent.id, [child.id]);
+      const date = (await bookableStartDates(parent.id))[0]!;
+      await bookAttendee(child, {
+        date,
+        email: "two-left@example.com",
+        quantity: 3,
+      });
+
+      const soldOut = await loadDailyDateAvailability(
+        [parent, child],
+        date,
+        [],
+      );
+
+      expect(soldOut).toEqual(new Set([parent.id]));
     });
 
     test("a fully booked daily member makes only its package sold out", async () => {

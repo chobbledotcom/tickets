@@ -2,17 +2,21 @@
  * The `/listings` date filter's per-listing availability: ONE capacity
  * snapshot over the union of daily listing cards and package members,
  * whatever their booking spans. Each listing's result reads only its own
- * span's prefix of that snapshot, so the widest-span read answers the page
- * and adding packages adds no database round trips.
+ * span's prefix of that snapshot. The widest-span read answers the page, and
+ * adding packages adds no database round trips.
  */
 
 import {
+  groupRemainingForSpan,
   loadCapacitySnapshot,
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
-import { requiredMapValue, uniqueBy } from "#fp";
+import { loadParentAndChildLinks } from "#db/listing-parents.ts";
+import { uniqueBy } from "#fp";
 import { getBookableStartDates } from "#shared/dates.ts";
+import { combinedChildCapacityForParent } from "#shared/group-capacity.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
 
 /** The booked span a daily listing's card availability is judged over: a
@@ -34,15 +38,35 @@ export const loadDailyDateAvailability = async (
   const widestSpan = Math.max(...rows.map(cardSpanDays));
   const snapshot = await loadCapacitySnapshot([...rows], date, widestSpan);
   const remaining = remainingFromSnapshot(snapshot, rows, cardSpanDays);
+  // A parent with required children needs the children's combined capacity on
+  // the date, not merely its own places: a minimum its children cannot serve
+  // makes the date as unavailable as an empty row.
+  const links = await loadParentAndChildLinks(rows.map((row) => row.id));
+  const memberships = await listingGroups.getIdsByKeys(
+    rows.map((row) => row.id),
+  );
+  const belowMinimumFor = (listing: ListingWithCount): boolean => {
+    if (remaining.get(listing.id)! < listing.min_quantity) {
+      return true;
+    }
+    const children = links.childrenByParent.get(listing.id);
+    if (!children || children.length === 0) return false;
+    const combined = combinedChildCapacityForParent(
+      memberships.get(listing.id) ?? [],
+      children.map((child) => ({
+        groupIds: memberships.get(child.id) ?? [],
+        ownMax: remaining.get(child.id) ?? 0,
+      })),
+      groupRemainingForSpan(snapshot, cardSpanDays(listing)),
+    );
+    return combined < listing.min_quantity;
+  };
   return new Set(
     rows
       .filter(
         (listing) =>
           !getBookableStartDates(listing, [...holidays]).includes(date) ||
-          // A date with fewer places left than the listing's minimum is as
-          // unavailable as an empty one: no valid purchase can use it.
-          requiredMapValue(remaining, listing.id, "Missing date availability") <
-            listing.min_quantity,
+          belowMinimumFor(listing),
       )
       .map((listing) => listing.id),
   );
