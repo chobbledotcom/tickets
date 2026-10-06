@@ -40,7 +40,6 @@ describePublicApi(() => {
         const { response } = await bookListing(slug, {
           email: "alice@test.com",
           name: "Alice",
-          quantity: 1,
         });
         expect(response.status).toBe(200);
       } finally {
@@ -54,7 +53,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(children[0]!.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(400);
       expect(body).toEqual({
@@ -68,7 +66,6 @@ describePublicApi(() => {
       const { response, body } = await bookListing(parent.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.checkoutUrl).toBeDefined();
@@ -81,7 +78,6 @@ describePublicApi(() => {
         const { response, body } = await bookListing(parent.slug, {
           email: "alice@test.com",
           name: "Alice",
-          quantity: 1,
         });
         expect(response.status).toBe(400);
         expect(body.error).toBe("Provider rejected");
@@ -95,7 +91,6 @@ describePublicApi(() => {
         const { response, body } = await bookListing(parent.slug, {
           email: "alice@test.com",
           name: "Alice",
-          quantity: 1,
         });
         expect(response.status).toBe(500);
         expect(body.error).toMatch(/payment session/i);
@@ -127,7 +122,6 @@ describePublicApi(() => {
       const { body } = await bookListing(parent.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
       const [attendee] = await getAttendeesByTokens([
@@ -168,7 +162,6 @@ describePublicApi(() => {
         children: [{ customPrice: 30, quantity: 1, slug: child.slug }],
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
       expect(body.booking?.amountOwed).toBe(3000);
@@ -256,7 +249,6 @@ describePublicApi(() => {
       const { response } = await bookListing(parent.slug, {
         email: "alice@test.com",
         name: "Alice",
-        quantity: 1,
       });
       expect(response.status).toBe(200);
 
