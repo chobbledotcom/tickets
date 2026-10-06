@@ -3,17 +3,13 @@
  */
 
 import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
+import { holidayInput, readDates } from "#routes/admin/holiday-input.ts";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
 import { invalidApiValueField } from "#shared/catalog-fields/definition.ts";
 import { holidayFields } from "#shared/catalog-fields/fields.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import {
-  dateRange,
-  optionalDateString,
-  requireDateString,
-  requireEntityName,
-} from "#shared/rest/crud-parsers.ts";
+import { requireEntityName } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** JSON body accepted by POST /api/admin/holidays */
@@ -28,31 +24,6 @@ export type UpdateHolidayBody = Partial<CreateHolidayBody>;
 
 // DELETE /api/admin/holidays/:holidayId takes the shared DeleteBody the
 // crud-parsers module exports.
-
-/** Assemble one holiday input from its name and the cleaned date range. */
-const holidayInput = (
-  name: string,
-  dates: { endDate: string; startDate: string },
-): HolidayInput => ({
-  endDate: dates.endDate,
-  name,
-  startDate: dates.startDate,
-});
-
-/** Read the start and end dates of one holiday: required on create, falling
- *  back to the stored dates on update. */
-const readDates = (
-  body: Record<string, unknown>,
-  existing: { end_date: string; start_date: string } | null,
-) =>
-  dateRange(
-    existing
-      ? optionalDateString(body, "start_date", existing.start_date)
-      : requireDateString(body, "start_date"),
-    existing
-      ? optionalDateString(body, "end_date", existing.end_date)
-      : requireDateString(body, "end_date"),
-  );
 
 /** The field-value guard both mappers run first: a supplied value that fails
  *  its field check names the field in the refusal. The create mapper answers

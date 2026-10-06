@@ -48,6 +48,18 @@ export const parseDateString = (raw: string): DateString | null => {
   return value as DateString;
 };
 
+/** Whether a value is a UTC instant of a real calendar day — the shape the
+ *  listing datetime columns store. The date half answers to the shared
+ *  real-day rule, and a value with no zone designator is refused rather than
+ *  silently read as local time. */
+export const isUtcInstantOfRealDay = (value: string): boolean => {
+  const [datePart = "", timePart] = value.split("T");
+  return (
+    isIsoDate(datePart) &&
+    /^\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?Z$/.test(timePart ?? "")
+  );
+};
+
 /**
  * A calendar month in strict `YYYY-MM` form, month `01`–`12` — the shape the
  * date pickers round-trip as their paged-month query param. valibot has no

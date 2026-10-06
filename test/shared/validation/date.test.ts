@@ -5,6 +5,7 @@ import {
   isIsoDate,
   isIsoMonth,
   isRealCalendarDay,
+  isUtcInstantOfRealDay,
   parseDateString,
 } from "#shared/validation/date.ts";
 
@@ -119,5 +120,23 @@ describe("parseDateString", () => {
     // @ts-expect-error - a raw string is not a cleaned DateString
     takesBrand("2027-06-01");
     expect(takesBrand(cleaned)).toBe("2027-06-01");
+  });
+});
+
+describe("isUtcInstantOfRealDay", () => {
+  test("accepts a UTC instant of a real calendar day", () => {
+    expect(isUtcInstantOfRealDay("2026-06-14T23:59:00Z")).toBe(true);
+    expect(isUtcInstantOfRealDay("2026-01-02T00:00:00.000Z")).toBe(true);
+  });
+
+  test("refuses a date half that is not a real calendar day", () => {
+    expect(isUtcInstantOfRealDay("2026-6-14T23:59:00Z")).toBe(false);
+    expect(isUtcInstantOfRealDay("2026-02-30T10:00:00Z")).toBe(false);
+    expect(isUtcInstantOfRealDay("soon")).toBe(false);
+  });
+
+  test("refuses a value with no zone designator", () => {
+    expect(isUtcInstantOfRealDay("2026-06-15T10:00:00")).toBe(false);
+    expect(isUtcInstantOfRealDay("2026-06-15")).toBe(false);
   });
 });

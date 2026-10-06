@@ -247,9 +247,27 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
-    // The stored dates carry no stray whitespace: a leading space breaks the
-    // string comparison the date-range check runs (a space sorts before any
-    // digit). Both mappers share the trim, so update cannot drift from create.
+    // The update mapper runs the same shared date readers: a stored fallback
+    // applies to an absent field, and a supplied unusable date is refused.
+    test("refuses an unusable supplied date on update", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Padded Update",
+        startDate: "2026-01-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { start_date: "2027-02-30" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("start_date has an invalid value");
+        },
+      );
+    });
+
     test("trims a padded date on update", async () => {
       const holiday = await createTestHoliday({
         endDate: "2027-06-30",
