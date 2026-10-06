@@ -50,7 +50,7 @@ const standaloneRowUnavailable = (
     childCeiling = childCeilings.get(info.listing.id);
   }
   const ceiling = childCeiling ?? info.maxPurchasable;
-  return ceiling < info.listing.minimum_quantity;
+  return ceiling < info.listing.min_quantity;
 };
 
 /** Each page package's bundle limit, plus whether the whole page should show as

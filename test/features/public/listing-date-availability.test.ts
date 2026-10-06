@@ -150,7 +150,7 @@ describeWithEnv(
       const listing = await createDailyTestListing({
         maxAttendees: 5,
         maxQuantity: 5,
-        minimumQuantity: 3,
+        minQuantity: 3,
         name: "Batches Only",
       });
       const date = (await bookableStartDates(listing.id))[0]!;

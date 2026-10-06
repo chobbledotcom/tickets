@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   buildTicketListing,
   parentAndChildFitGroup,
-  quantityBelowMinimum,
+  quantityBelowMin,
   ticketsThatFitInPool,
 } from "#booking/model.ts";
 import { listing } from "#test-utils/booking-model-fixtures.ts";
@@ -164,7 +164,7 @@ describe("booking model — capacity", () => {
           listing_type: "standard",
           max_attendees: 10,
           max_quantity: 10,
-          minimum_quantity: 3,
+          min_quantity: 3,
         }),
         true,
         undefined,
@@ -181,7 +181,7 @@ describe("booking model — capacity", () => {
           listing_type: "standard",
           max_attendees: 10,
           max_quantity: 10,
-          minimum_quantity: 3,
+          min_quantity: 3,
         }),
         false,
         undefined,
@@ -197,7 +197,7 @@ describe("booking model — capacity", () => {
           listing_type: "standard",
           max_attendees: 10,
           max_quantity: 10,
-          minimum_quantity: 2,
+          min_quantity: 2,
         }),
         false,
         undefined,
@@ -213,7 +213,7 @@ describe("booking model — capacity", () => {
           listing_type: "standard",
           max_attendees: 10,
           max_quantity: 10,
-          minimum_quantity: 3,
+          min_quantity: 3,
         }),
         false,
         undefined,
@@ -229,7 +229,7 @@ describe("booking model — capacity", () => {
           listing_type: "standard",
           max_attendees: 10,
           max_quantity: 10,
-          minimum_quantity: 3,
+          min_quantity: 3,
         }),
         false,
         2,
@@ -245,7 +245,7 @@ describe("booking model — capacity", () => {
         listing({
           listing_type: "daily",
           max_quantity: 5,
-          minimum_quantity: 3,
+          min_quantity: 3,
         }),
         false,
         undefined,
@@ -255,29 +255,29 @@ describe("booking model — capacity", () => {
     });
   });
 
-  describe("quantityBelowMinimum", () => {
+  describe("quantityBelowMin", () => {
     test("zero is never below the minimum", () => {
-      expect(quantityBelowMinimum(0, 3)).toBe(false);
+      expect(quantityBelowMin(0, 3)).toBe(false);
     });
 
     test("one is below any higher minimum", () => {
-      expect(quantityBelowMinimum(1, 2)).toBe(true);
+      expect(quantityBelowMin(1, 2)).toBe(true);
     });
 
     test("any count above zero but below the minimum is refused", () => {
-      expect(quantityBelowMinimum(2, 3)).toBe(true);
+      expect(quantityBelowMin(2, 3)).toBe(true);
     });
 
     test("the minimum itself is allowed", () => {
-      expect(quantityBelowMinimum(3, 3)).toBe(false);
+      expect(quantityBelowMin(3, 3)).toBe(false);
     });
 
     test("counts above the minimum are allowed", () => {
-      expect(quantityBelowMinimum(5, 3)).toBe(false);
+      expect(quantityBelowMin(5, 3)).toBe(false);
     });
 
     test("minimum 1 allows every positive count", () => {
-      expect(quantityBelowMinimum(0, 1)).toBe(false);
+      expect(quantityBelowMin(0, 1)).toBe(false);
     });
   });
 });

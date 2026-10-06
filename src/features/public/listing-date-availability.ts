@@ -42,7 +42,7 @@ export const loadDailyDateAvailability = async (
           // A date with fewer places left than the listing's minimum is as
           // unavailable as an empty one: no valid purchase can use it.
           requiredMapValue(remaining, listing.id, "Missing date availability") <
-            listing.minimum_quantity,
+            listing.min_quantity,
       )
       .map((listing) => listing.id),
   );

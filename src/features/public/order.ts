@@ -305,8 +305,8 @@ const bookingUrlFor = (
               prefill:
                 !info.isSoldOut &&
                 !info.isClosed &&
-                info.maxPurchasable >= info.listing.minimum_quantity
-                  ? `q_${info.listing.id}=${info.listing.minimum_quantity}`
+                info.maxPurchasable >= info.listing.min_quantity
+                  ? `q_${info.listing.id}=${info.listing.min_quantity}`
                   : null,
               slug: info.listing.slug,
             };

@@ -91,10 +91,10 @@ const listingControls = (
             listing.id,
             prefill,
             maxPurchasable,
-            listing.minimum_quantity,
+            listing.min_quantity,
           ),
           monthLabelsForListing(listing, renewal),
-          listing.minimum_quantity,
+          listing.min_quantity,
         )}</select>`,
     termNote: termNoteFor(listing, hideQuantity, renewal),
   };
@@ -138,8 +138,7 @@ const renderListingRow: RenderListingControls = (
   // Required children can cap the parent below its own capacity. A ceiling
   // under the minimum is as unsellable as an empty one.
   const soldOut =
-    info.isSoldOut ||
-    childLimitedMax(info, childCtx) < listing.minimum_quantity;
+    info.isSoldOut || childLimitedMax(info, childCtx) < listing.min_quantity;
   if (soldOut) {
     return `
       <div class="ticket-row sold-out">

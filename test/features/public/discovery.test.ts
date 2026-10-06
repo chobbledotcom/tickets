@@ -309,7 +309,7 @@ describeWithEnv(
           children: [{ maxQuantity: 2, name: "Two-ticket add-on" }],
           parent: {
             maxQuantity: 10,
-            minimumQuantity: 3,
+            minQuantity: 3,
             name: "Bulk base unit",
           },
         });
@@ -323,7 +323,7 @@ describeWithEnv(
           children: [{ maxQuantity: 5, name: "Wide add-on" }],
           parent: {
             maxQuantity: 10,
-            minimumQuantity: 3,
+            minQuantity: 3,
             name: "Bulk bookable unit",
           },
         });

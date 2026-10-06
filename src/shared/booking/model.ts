@@ -212,7 +212,7 @@ export const buildTicketListing = (
     groupRemaining === undefined
       ? listingRemaining
       : Math.min(listingRemaining, groupRemaining);
-  const isSoldOut = spotsRemaining < listing.minimum_quantity;
+  const isSoldOut = spotsRemaining < listing.min_quantity;
   // Fewer spots left than the minimum is sold out: 0 is then the only valid
   // choice, and the row shows no quantity selector at all.
   const maxPurchasable =
@@ -223,10 +223,8 @@ export const buildTicketListing = (
 /** Whether a submitted quantity is a purchase the listing's minimum refuses:
  *  any count above none but below the minimum. The one rule every surface
  *  (public form, JSON API, QR prefill) reads, so the refusals cannot drift. */
-export const quantityBelowMinimum = (
-  quantity: number,
-  minimum: number,
-): boolean => quantity > 0 && quantity < minimum;
+export const quantityBelowMin = (quantity: number, minimum: number): boolean =>
+  quantity > 0 && quantity < minimum;
 
 /** Each customisable listing on the page with the day counts it supports on
  * its own — the booking-length facts the cart conflict rules read. */
