@@ -52,6 +52,53 @@ export const sharedGroupRemaining = (
   return minOver(shared, remainingByGroupId);
 };
 
+/** One child's part in a parent's combined capacity: the child's group ids and
+ *  the child's own per-listing ceiling. */
+export type ChildCapacityPart = {
+  groupIds: readonly number[];
+  ownMax: number;
+};
+
+/** The parent tickets a parent's children can serve together. Each child
+ *  contributes its own ceiling. Every capped group a child shares with the
+ *  parent holds whole parent+child pairs. Its remaining bounds the tickets
+ *  drawn from that pool once, not once per child. Children partitioned by the
+ *  exact set of groups they share draw separate pools, so their parts add. */
+export const combinedChildCapacityForParent = (
+  parentGroupIds: readonly number[],
+  children: readonly ChildCapacityPart[],
+  remainingByGroupId: ReadonlyMap<number, number>,
+): number => {
+  const partsByPoolSet = new Map<string, number[]>();
+  for (const child of children) {
+    const shared = sharedCappedGroupIds(
+      parentGroupIds,
+      child.groupIds,
+      remainingByGroupId,
+    );
+    const key = shared.toSorted((a, b) => a - b).join(",");
+    const ownMaxList = partsByPoolSet.get(key) ?? [];
+    ownMaxList.push(child.ownMax);
+    partsByPoolSet.set(key, ownMaxList);
+  }
+  let total = 0;
+  for (const [key, ownMaxList] of partsByPoolSet) {
+    let part = ownMaxList.reduce((sum, own) => sum + own, 0);
+    for (const groupId of key.split(",").filter(Boolean).map(Number)) {
+      const remaining = remainingByGroupId.get(groupId);
+      if (remaining !== undefined) {
+        part = Math.min(part, ticketsThatFit(remaining));
+      }
+    }
+    total += part;
+  }
+  return total;
+};
+
+/** Whole parent+child pairs a pool of `remaining` spots still serves. */
+const ticketsThatFit = (remaining: number): number =>
+  Math.floor(remaining / PARENT_CHILD_GROUP_UNITS);
+
 /**
  * The capacity a parent and one of its children share, as two separate facts:
  * - `staticCap` — `groups.max_attendees`, date-INDEPENDENT. Below

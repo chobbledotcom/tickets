@@ -216,6 +216,22 @@ describeWithEnv(
         await assertBookable(parent.slug);
       });
 
+      test("two children sharing one capped group below the parent minimum are sold out", async () => {
+        // Both children draw parent+child pairs from the SAME pool, so the pool
+        // bounds the parent tickets once: two free spots serve one pair, and a
+        // minimum of three can never be met. The combined capacity must not
+        // count the shared pool once per child.
+        const { parent } = await makeParent({
+          children: [
+            { maxAttendees: 3, maxQuantity: 3, name: "Left add-on" },
+            { maxAttendees: 3, maxQuantity: 3, name: "Right add-on" },
+          ],
+          group: { maxAttendees: 4, name: "Shared pool" },
+          parent: { maxQuantity: 3, minQuantity: 3, name: "Base unit" },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
       test("a child is not an add-on of a parent its children cannot serve", async () => {
         // The parent's minimum is three but its only child can serve two: no
         // split of this one child reaches the minimum, so the add-on note would
