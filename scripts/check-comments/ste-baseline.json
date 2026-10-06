@@ -509,8 +509,8 @@
   },
   "src/shared/booking/model.ts": {
     "semicolon": 2,
-    "long-sentence": 2,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "long-sentence": 2
   },
   "src/shared/booking/node-order.ts": {
     "long-sentence": 1,

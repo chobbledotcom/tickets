@@ -23,7 +23,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       { quantity: "5" },
     );
     const body = await response.text();
-    expect(body).toContain("Quantity cannot exceed 2");
+    expect(body).toContain("Quantity must be at most 2.");
     expect(extractToken(body)).toBeNull();
   });
 
