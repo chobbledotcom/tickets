@@ -63,8 +63,19 @@ const listingToggleHandlers = (opts: {
     onConfirm: async (listing, id) => {
       // The authoritative guard re-runs inside the write transaction, so a
       // concurrent change between the confirmation page and this POST cannot
-      // orphan a child-scoped add-on.
+      // orphan a child-scoped add-on. A repeat toggle answers with the same
+      // plain-words refusal the JSON API gives.
       const result = await toggleListingActive(id, listing, opts.active);
+      if ("noChange" in result) {
+        return errorRedirect(
+          `/admin/listing/${id}/${opts.action}`,
+          t(
+            opts.active
+              ? "error.listing_already_active"
+              : "error.listing_already_deactivated",
+          ),
+        );
+      }
       return "error" in result
         ? errorRedirect(`/admin/listing/${id}/${opts.action}`, result.error)
         : undefined;
