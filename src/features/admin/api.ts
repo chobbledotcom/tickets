@@ -182,10 +182,11 @@ const prepareApiListingJoins = async (
   body: Record<string, unknown>,
   existing: ListingWithCount | null,
 ): Promise<{ error: string } | { value: PreparedListingJoins }> => {
-  const base = await prepareListingJoins(input);
   const childEdges = await prepareChildEdges(body, input, existing);
   if ("error" in childEdges) return childEdges;
-  return { value: { ...base.value, childEdges: childEdges.childIds } };
+  return {
+    value: { ...prepareListingJoins(input), childEdges: childEdges.childIds },
+  };
 };
 
 const listingApiRoutes = defineCrudApi<

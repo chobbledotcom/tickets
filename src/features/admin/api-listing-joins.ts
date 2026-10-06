@@ -87,15 +87,13 @@ const submittedChildIds = (
  *  group memberships, day prices, and attribute options from the input. The
  *  page form has no child or attribute fields. The JSON API adds child edges
  *  through {@link prepareChildEdges} when its body carries them. */
-export const prepareListingJoins = async (
+export const prepareListingJoins = (
   input: ListingInput,
-): Promise<{ value: PreparedListingJoins }> => ({
-  value: {
-    attributeOptionIds: input.attributeOptionIds,
-    childEdges: null,
-    dayPrices: input.dayPrices,
-    groupIds: input.groupIds,
-  },
+): PreparedListingJoins => ({
+  attributeOptionIds: input.attributeOptionIds,
+  childEdges: null,
+  dayPrices: input.dayPrices,
+  groupIds: input.groupIds,
 });
 
 /**

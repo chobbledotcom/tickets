@@ -35,12 +35,6 @@ import {
   LISTING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
-
-/** The stored values an editor's submitted form freezes the locked fields
- *  back to. */
-type EditorFormExisting = { useDefaults: boolean; webhookUrl: string };
-
 import {
   generateUniqueListingSlug,
   validateListingInput,
@@ -61,12 +55,17 @@ import {
   type ListingType,
   parseDayPrices,
 } from "#types";
+import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
 import {
   persistListingJoins,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
 
 /* jscpd:ignore-end */
+
+/** The stored values an editor's submitted form freezes the locked fields
+ *  back to. */
+type EditorFormExisting = { useDefaults: boolean; webhookUrl: string };
 
 type ListingWriteMode = "create" | "update";
 type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
@@ -274,8 +273,7 @@ const writeListingJoins = async (
   id: number,
   input: ListingInput,
 ): Promise<void> => {
-  const prepared = await prepareListingJoins(input);
-  await persistListingJoins(tx, id, prepared.value);
+  await persistListingJoins(tx, id, prepareListingJoins(input));
 };
 
 /** Create-only afterWrite. Persist the joins. For a duplicate, copy the

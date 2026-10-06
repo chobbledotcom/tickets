@@ -368,6 +368,14 @@ export type ToggleActiveResult =
   | { noChange: true }
   | { error: string };
 
+/** Whether the listing's stored state already matches the wanted one. The
+ *  page and the JSON API share this one rule. Each surface keeps its own
+ *  message for it. */
+export const listingAlreadyInState = (
+  listingActive: boolean,
+  wantedActive: boolean,
+): boolean => listingActive === wantedActive;
+
 /**
  * Toggle listing active state, log activity, and return the updated listing.
  *
@@ -383,6 +391,7 @@ export const toggleListingActive = async (
   listing: ListingWithCount,
   active: boolean,
 ): Promise<ToggleActiveResult> => {
+<<<<<<< HEAD
   const outcome = await withTransaction(
     async (tx): Promise<ToggleActiveResult | null> => {
       // The stored state decides, not the loaded row: a replica lag can leave
@@ -396,7 +405,7 @@ export const toggleListingActive = async (
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
-      if (row === undefined || row.active === (active ? 1 : 0)) {
+      if (row === undefined || listingAlreadyInState(row.active === 1, active)) {
         return { noChange: true };
       }
       if (!active) {
