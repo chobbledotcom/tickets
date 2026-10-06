@@ -76,8 +76,8 @@ export const childCapacityPartsFor =
       ownMax: ownMaxOf(child),
     }));
 
-/** Whether `t` parent tickets are servable: the parent's own `t` places come
- *  out of every shared pool first, then a depth-first split of the remaining
+/** Whether `t` parent tickets are servable. The parent's own `t` places come
+ *  out of every shared pool first. Then a depth-first split of the remaining
  *  child lines over `capped` must keep every pool within its residual.
  *  Largest ceilings try first, so the tight pools prune early. */
 const splitFits = (
@@ -127,7 +127,7 @@ const splitFits = (
  *  in each capped group that child belongs to. T tickets are servable exactly
  *  when some split of the T child lines over the children keeps every shared
  *  pool within its places. The search walks T down from the tightest upper
- *  bound; the inputs are tiny by domain (a parent's few children and pools),
+ *  bound. The inputs are tiny by domain (a parent's few children and pools),
  *  so the search is cheap and the answer needs no bound. */
 export const combinedChildCapacityForParent = (
   parentGroupIds: readonly number[],
