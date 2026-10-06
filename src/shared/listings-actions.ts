@@ -391,7 +391,6 @@ export const toggleListingActive = async (
   listing: ListingWithCount,
   active: boolean,
 ): Promise<ToggleActiveResult> => {
-<<<<<<< HEAD
   const outcome = await withTransaction(
     async (tx): Promise<ToggleActiveResult | null> => {
       // The stored state decides, not the loaded row: a replica lag can leave
