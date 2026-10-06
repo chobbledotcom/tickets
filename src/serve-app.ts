@@ -16,6 +16,7 @@ import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
+import { seedEffectiveDomainHost } from "#shared/config.ts";
 import { getEnv } from "#shared/env.ts";
 import {
   ErrorCode,
@@ -88,6 +89,9 @@ const serveHandler = async (
     return scheduledResponse(scheduledAccess.status);
   }
   const url = new URL(request.url);
+  // Seed before any context opens: a boot failure reports out of request,
+  // and the fallback must name this site, not the default.
+  if (scheduledAccess.kind === "authorized") seedEffectiveDomainHost(url);
   try {
     await initialize();
     if (scheduledAccess.kind === "authorized") {
