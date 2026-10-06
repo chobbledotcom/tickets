@@ -66,7 +66,7 @@ Given(
   ) {
     await putsOnSaleWithMinimum(this, name, {
       maxQuantity: max,
-      minimumQuantity: minimum,
+      minQuantity: minimum,
     });
   },
 );
@@ -81,7 +81,7 @@ Given(
   ) {
     await putsOnSaleWithMinimum(this, name, {
       maxAttendees: places,
-      minimumQuantity: minimum,
+      minQuantity: minimum,
     });
   },
 );
@@ -97,8 +97,8 @@ When(
     const browser = await adminBrowser(this);
     await browser.visit(`/admin/listing/${listingIdNamed(this, name)}/edit`);
     await savesServedForm(browser, (served) => {
-      expectCanReallySend(served, { minimum_quantity: String(minimum) });
-      return { minimum_quantity: String(minimum) };
+      expectCanReallySend(served, { min_quantity: String(minimum) });
+      return { min_quantity: String(minimum) };
     });
     keepsWhatTheOrganiserSaw(this, browser);
   },
@@ -113,7 +113,7 @@ const storedMinimum = async (
     world,
     `/admin/listing/${listingIdNamed(world, name)}/edit`,
   );
-  const box = boxFor(browser.currentHtml, "minimum_quantity");
+  const box = boxFor(browser.currentHtml, "min_quantity");
   if (!box) {
     throw new Error(`The ${name} edit form offers no minimum box at all`);
   }
