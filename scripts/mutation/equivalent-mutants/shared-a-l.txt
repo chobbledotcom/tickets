@@ -333,7 +333,6 @@ src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecor
 src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → ||   # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 
-<<<<<<< HEAD
 # group-capacity.ts exact solver: the residual map is built one entry per
 # shared pool and read only for those keys, so every lookup inside the search
 # finds its key and the fallbacks are dead. The guard and the sum prune are
