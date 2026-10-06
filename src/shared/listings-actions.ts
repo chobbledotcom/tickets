@@ -278,16 +278,15 @@ export const deleteOrphanedAddOnError = (
 /**
  * Run one guarded lifecycle write: the orphaned-add-on guard and the write
  * share one write transaction, so no concurrent write can land between the
- * check and the write. Pass a null guard for a write that only adds reachable
- * pages, such as a reactivation. Returns the guard's refusal, or null when the
- * write committed.
+ * check and the write. Returns the guard's refusal, or null when the write
+ * committed.
  */
 export const guardedListingWrite = async (
-  guard: ((tx: TxScope) => Promise<string | null>) | null,
+  guard: (tx: TxScope) => Promise<string | null>,
   write: (tx: TxScope) => Promise<void>,
 ): Promise<string | null> =>
   withTransaction(async (tx) => {
-    const refusal = guard === null ? null : await guard(tx);
+    const refusal = await guard(tx);
     if (refusal !== null) return refusal;
     await write(tx);
     return null;
