@@ -1,8 +1,8 @@
-/** Pure child capacity and pricing helpers: the effective max a parent can book
- * once its children are counted, the questions still owed by a child, the
- * per-child price (fixed, inherited, or "from" under a customisable parent), and
- * the per-child capacity a parent selector can reserve. Callers fetch; this
- * module computes. */
+/** Pure child capacity and pricing helpers. They compute the effective max a
+ * parent can book once its children are counted, the questions still owed by a
+ * child, the per-child price (fixed, inherited, or "from" under a customisable
+ * parent), and the per-child capacity a parent selector can reserve. Callers
+ * fetch. This module computes. */
 
 import { childDaysFromParent, type TicketListing } from "#booking/model.ts";
 import {
@@ -14,6 +14,7 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { filter, flatMap, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
+import { combinedChildCapacityForParent } from "#shared/group-capacity.ts";
 import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 import { answerableQuestion } from "./questions.tsx";
 import type { ChildRenderCtx } from "./types.ts";
@@ -137,20 +138,34 @@ export const childPriceLabel = (
 /** For every child that a PAGE parent folds, the capacity to reserve from that
  * child's own standalone row: the sum of each such parent's own `maxPurchasable`.
  * A parent books at most that many units, each folding at most one unit of this
- * child, so holding back the sum guarantees the standalone row plus the parents'
+ * child. Holding back the sum guarantees the standalone row plus the parents'
  * folds can never exceed the child's capacity. Only parents present on the page
- * (they render a selector) reserve; a child with no page parent maps to nothing. */
+ * (they render a selector) reserve. A child with no page parent maps to nothing.
+ * A parent whose minimum exceeds what its children can together serve can never
+ * fold a booking. It reserves nothing, so its phantom demand cannot zero out a
+ * `bookable_alone` child's row. */
 export const foldReserveByChildId = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
 ): Map<number, number> => {
-  // Each parent contributes one (childId, maxPurchasable) pair per child it
-  // folds; summing those pairs gives the total to hold back per child.
-  const reserves = flatMap((parent: TicketListing) =>
-    (childrenByParentId.get(parent.listing.id) ?? []).map(
-      (child) => [child.listing.id, parent.maxPurchasable] as const,
-    ),
-  )(listings);
+  // Each parent contributes one (childId, reserve) pair per child it folds;
+  // summing those pairs gives the total to hold back per child.
+  const reserves = flatMap((parent: TicketListing) => {
+    const children = childrenByParentId.get(parent.listing.id) ?? [];
+    const combined = combinedChildCapacityForParent(
+      groupIdsByListingId.get(parent.listing.id) ?? [],
+      children.map((child) => ({
+        groupIds: groupIdsByListingId.get(child.listing.id) ?? [],
+        ownMax: child.maxPurchasable,
+      })),
+      groupRemainingByGroupId,
+    );
+    const foldable =
+      combined >= parent.listing.min_quantity ? parent.maxPurchasable : 0;
+    return children.map((child) => [child.listing.id, foldable] as const);
+  })(listings);
   return reduce(
     (acc, [childId, reserve]: readonly [number, number]) =>
       acc.set(childId, (acc.get(childId) ?? 0) + reserve),
