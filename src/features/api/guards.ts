@@ -3,9 +3,9 @@ import { LISTING_NOT_FOUND, withActiveListing } from "#routes/api/helpers.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import type { ListingWithCount } from "#types";
 
-/** How a single listing should read on the detail/availability surfaces under
- * the parent/child feature: a child is not standalone-bookable (404, matching
- * how the web booking page rejects a child slug), and a parent with no bookable
+/** How a single listing reads on the detail/availability surfaces under
+ * the parent/child feature. A child is not standalone-bookable (404, matching
+ * how the web booking page rejects a child slug). A parent with no bookable
  * child reads sold out / unavailable. */
 type ListingDiscoveryState = { isChild: boolean; isSoldOutParent: boolean };
 
@@ -37,7 +37,7 @@ const guardChildListing = async (
 };
 
 /** Combines withActiveListing and guardChildListing: resolves the listing by
- * slug, rejects child listings with a 404, then calls the
+ * slug, rejects children with a 404, then calls the
  * handler with the listing and its isSoldOutParent flag. */
 export const withGuardedListing = (
   handler: (

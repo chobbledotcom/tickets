@@ -4,7 +4,8 @@
  * Kept separate from the core attendee form model so the (common) non-logistics
  * flow is untouched. Provides the field-name scheme, parsing of the submitted
  * start/end agent + time choices into a per-listing plan, and the data the
- * template needs to render the selectors (pre-filled from saved assignments).
+ * template needs for the selectors. The selectors render pre-filled from
+ * saved assignments.
  */
 
 import {
@@ -66,7 +67,7 @@ export type AttendeeLogisticsTabData = {
   values: LogisticsFormValues;
   addressError: string | null;
   locationError: string | null;
-  /** Start/end selectors data, or undefined when logistics doesn't apply. */
+  /** Start/end selectors data, or undefined when logistics does not apply. */
   logistics: AttendeeLogisticsData | undefined;
   /** Other attendees booked on overlapping dates (empty ⇒ section hidden). */
   others: OtherAttendeeLine[];
@@ -77,7 +78,8 @@ const suffix = (listingId?: number): string =>
   listingId === undefined ? "" : `_${listingId}`;
 
 /** Start-agent select field name. With a listing id it is the split
- * (per-listing) field; without, the single field applied to every listing. */
+ * (per-listing) field. Without one, the single field applies to every
+ * listing. */
 export const startAgentField = (listingId?: number): string =>
   `logistics_start${suffix(listingId)}`;
 
@@ -113,10 +115,10 @@ export type AttendeeLogisticsData = {
 };
 
 /** The logistics listings an attendee actually books (booked lines only). A
- * no-quantity line is never a delivery drop-off/collection, so it's excluded
- * even when it has an existing booking row — the atomic edit clears its agents,
- * times and done flags, and this stops the form re-rendering or re-persisting
- * any assignment for it. */
+ * no-quantity line is never a delivery drop-off or collection, so it is
+ * excluded even when it has an existing booking row. The atomic edit clears
+ * its agents, times, and done flags. The form and the save therefore never
+ * touch an assignment on that line. */
 const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
   uniqueBy((line: AttendeeFormLine) => line.listingId)(
     lines.filter(
@@ -162,8 +164,8 @@ const EMPTY_ASSIGNMENT: LogisticsAssignment = {
 };
 
 /** The selectors re-rendered with a submitted plan's choices in place of the
- * saved ones — a failed save must show exactly what the operator entered,
- * not what's stored. Pure: returns a new data object. */
+ * saved ones. A failed save must show exactly what the operator entered, not
+ * what is stored. Pure: returns a new data object. */
 export const withSubmittedPlan = (
   data: AttendeeLogisticsData,
   plan: { split: boolean; perListing: Map<number, LogisticsAssignment> },

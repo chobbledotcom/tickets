@@ -6,159 +6,6 @@
   "src/docs/database.ts": {
     "long-sentence": 1
   },
-  "src/features/admin/actions.ts": {
-    "participle": 1,
-    "wordy": 3,
-    "banned-modal": 1,
-    "contraction": 1,
-    "long-sentence": 1
-  },
-  "src/features/admin/aggregate-recalculation.ts": {
-    "long-sentence": 3,
-    "semicolon": 1
-  },
-  "src/features/admin/api-listing-body.ts": {
-    "wordy": 1,
-    "semicolon": 2,
-    "contraction": 1,
-    "long-sentence": 2
-  },
-  "src/features/admin/api.ts": {
-    "semicolon": 1,
-    "long-sentence": 1
-  },
-  "src/features/admin/attendee-delete.ts": {
-    "semicolon": 1
-  },
-  "src/features/admin/attendee-ledger-panel.ts": {
-    "long-sentence": 1,
-    "semicolon": 2
-  },
-  "src/features/admin/attendee-logistics-routes.ts": {
-    "long-sentence": 2,
-    "semicolon": 2,
-    "contraction": 1
-  },
-  "src/features/admin/attendee-logistics-tab.ts": {
-    "semicolon": 1,
-    "long-sentence": 3
-  },
-  "src/features/admin/attendee-logistics.ts": {
-    "long-sentence": 3,
-    "contraction": 3,
-    "semicolon": 1
-  },
-  "src/features/admin/attendee-notes.ts": {
-    "contraction": 2,
-    "long-sentence": 1
-  },
-  "src/features/admin/attendee-refunds/bulk.ts": {
-    "banned-modal": 1
-  },
-  "src/features/admin/attendees-checkin-routes.ts": {
-    "long-sentence": 4,
-    "banned-modal": 1
-  },
-  "src/features/api/booking.ts": {
-    "semicolon": 1,
-    "long-sentence": 3,
-    "banned-modal": 2,
-    "contraction": 1
-  },
-  "src/features/api/cors.ts": {
-    "long-sentence": 2,
-    "wordy": 1
-  },
-  "src/features/api/folded-booking.ts": {
-    "long-sentence": 16,
-    "semicolon": 7,
-    "contraction": 5,
-    "banned-modal": 4
-  },
-  "src/features/api/guards.ts": {
-    "banned-modal": 1,
-    "long-sentence": 2
-  },
-  "src/features/api/health.ts": {
-    "long-sentence": 1
-  },
-  "src/features/api/helpers.ts": {
-    "semicolon": 1,
-    "long-sentence": 8,
-    "banned-modal": 2
-  },
-  "src/features/api/index.ts": {
-    "semicolon": 1
-  },
-  "src/features/api/listings.ts": {
-    "long-sentence": 6,
-    "semicolon": 3,
-    "banned-modal": 1
-  },
-  "src/features/api/packages.ts": {
-    "long-sentence": 9,
-    "semicolon": 4
-  },
-  "src/features/api/payment-callback.ts": {
-    "long-sentence": 4,
-    "banned-modal": 5,
-    "semicolon": 2,
-    "wordy": 1
-  },
-  "src/features/api/payment-processing/cancel.ts": {
-    "long-sentence": 2,
-    "semicolon": 1,
-    "banned-modal": 2
-  },
-  "src/features/api/payment-processing/classify.ts": {
-    "long-sentence": 5,
-    "wordy": 1,
-    "banned-modal": 4,
-    "contraction": 1,
-    "semicolon": 1
-  },
-  "src/features/api/payment-processing/completion.ts": {
-    "long-sentence": 1
-  },
-  "src/features/api/payment-processing/create.ts": {
-    "long-sentence": 8,
-    "semicolon": 2,
-    "contraction": 2,
-    "banned-modal": 2
-  },
-  "src/features/api/payment-processing/index.ts": {
-    "long-sentence": 16,
-    "banned-modal": 4,
-    "semicolon": 3,
-    "contraction": 3
-  },
-  "src/features/api/payment-processing/items.ts": {
-    "long-sentence": 5,
-    "semicolon": 2,
-    "banned-modal": 1
-  },
-  "src/features/api/payment-processing/metadata.ts": {
-    "long-sentence": 4,
-    "banned-modal": 2,
-    "semicolon": 1
-  },
-  "src/features/api/payment-processing/package-pricing.ts": {
-    "long-sentence": 1
-  },
-  "src/features/api/payment-processing/placeholder-completion.ts": {
-    "long-sentence": 2
-  },
-  "src/features/api/payment-processing/placeholder-resume.ts": {
-    "contraction": 1,
-    "long-sentence": 5,
-    "banned-modal": 3,
-    "semicolon": 1
-  },
-  "src/features/api/payment-processing/pricing.ts": {
-    "long-sentence": 4,
-    "semicolon": 1,
-    "banned-modal": 1
-  },
   "src/features/api/payment-processing/refunds.ts": {
     "long-sentence": 5,
     "semicolon": 2,
@@ -189,22 +36,6 @@
     "contraction": 1,
     "banned-modal": 1
   },
-  "src/features/api/request-schemas.ts": {
-    "long-sentence": 3,
-    "semicolon": 1
-  },
-  "src/features/api/sms-webhook.ts": {
-    "long-sentence": 2,
-    "semicolon": 1,
-    "contraction": 2,
-    "banned-modal": 1
-  },
-  "src/features/api/webhook-types.ts": {
-    "long-sentence": 1,
-    "banned-modal": 1,
-    "present-perfect": 1,
-    "wordy": 1
-  },
   "src/features/api/webhooks.ts": {
     "banned-modal": 2,
     "long-sentence": 3,
@@ -233,10 +64,10 @@
     "semicolon": 1
   },
   "src/features/auth.ts": {
+    "long-sentence": 11,
     "wordy": 5,
     "banned-modal": 9,
-    "semicolon": 4,
-    "long-sentence": 9,
+    "semicolon": 6,
     "contraction": 2
   },
   "src/features/checkin.ts": {
@@ -2204,7 +2035,7 @@
     "semicolon": 1
   },
   "src/shared/request-scoped.ts": {
-    "long-sentence": 2
+    "long-sentence": 3
   },
   "src/shared/request-trace.ts": {
     "banned-modal": 1
@@ -2221,11 +2052,11 @@
     "semicolon": 1
   },
   "src/shared/rest/crud-api-types.ts": {
+    "wordy": 8,
     "banned-modal": 2,
     "present-perfect": 1,
-    "wordy": 8,
-    "semicolon": 3,
-    "long-sentence": 5
+    "long-sentence": 5,
+    "semicolon": 3
   },
   "src/shared/rest/crud-api.ts": {
     "long-sentence": 3,

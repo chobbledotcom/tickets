@@ -3,10 +3,11 @@
  *
  * A provider tells us a checkout completed either through its webhook or,
  * for SumUp, through a recovery check that asks after the fact. Both need the
- * same answer to the same question — was this booked, is the money accounted
- * for, should we be asked again — so both run this, and neither decides money
- * for itself. The webhook turns the answer into an HTTP response; the
- * recovery task turns it into the event that moves its row along.
+ * same answer to the same question: was this booked, is the money accounted
+ * for, does the provider need to answer again. Both run this, and neither
+ * decides money for itself. The webhook turns the answer into an HTTP
+ * response. The recovery task turns it into the event that moves its row
+ * along.
  */
 
 import {
@@ -27,12 +28,12 @@ import type {
 } from "#shared/payments.ts";
 
 /** What the operator sees a log line came from. The two callers write the
- * same facts, and which one was running is the part that tells an operator
- * whether a customer was waiting on it. */
+ * same facts. Which one was running tells an operator whether a customer was
+ * waiting on it. */
 export type CallbackSource = "Recovery check" | "Webhook";
 
 /** What a caller needs to answer and log one settled-but-unbooked callback.
- * `error` is what the provider is told; `detail` is diagnostic and is never
+ * `error` is what the provider is told. `detail` is diagnostic and is never
  * shown to a buyer. */
 type CallbackFailure = {
   readonly detail: string;
@@ -42,22 +43,22 @@ type CallbackFailure = {
 
 /**
  * What one callback amounted to. Exhaustive, so every caller has to say what
- * it does about each answer rather than falling through to a default —
- * "nothing happened" and "the money is stuck" must never share an arm.
+ * it does about each answer rather than falling through to a default.
+ * "Nothing happened" and "the money is stuck" must never share an arm.
  */
 export type CallbackOutcome =
-  /** The provider's answer could not be used at all. Ask again. */
+  /** The provider's answer cannot be used at all. Ask again. */
   | { readonly kind: "refused" }
   /** The payment is not complete, and the provider said so plainly. */
   | { readonly kind: "not_yet" }
-  /** Resolved to a session that is not paid — worth recording, unlike the
-   * provider simply saying "not yet". */
+  /** Resolved to a session that is not paid — worth recording, unlike a
+   * bare "not yet" from the provider. */
   | { readonly kind: "unpaid"; readonly detail: string }
   /** No session of ours answers to this. Nothing to do, ever. */
   | { readonly kind: "unrecognised" }
   /** Paid, but nothing proves it is ours, so we must not touch the money. */
   | { readonly kind: "unverifiable" }
-  /** Ours and signed, but the booking could not be read. Ask again. */
+  /** Ours and signed, but the booking cannot be read. Ask again. */
   | { readonly kind: "unreadable" }
   /** Another request holds the reservation right now. Ask again. */
   | ({ readonly kind: "held" } & CallbackFailure)
@@ -73,7 +74,7 @@ export type CallbackOutcome =
   | ({ readonly kind: "unsettled" } & CallbackFailure);
 
 /** A rejected charge is chased for its money before anything else: settled
- * means nothing is left owing, and the two are kept apart because one moved
+ * means nothing is left owing. The two are kept apart because one moved
  * money and the other found nothing to move. */
 const rejectionOutcome = async (
   rejection: SessionRejection,
@@ -140,13 +141,13 @@ export const settlePaymentCallback = async (
 ): Promise<CallbackOutcome> => {
   if (resolved === "retry") return { kind: "refused" };
   if (resolved === "skip") return { kind: "not_yet" };
-  // A charge the boundary could not read: a paid one is returned rather than
+  // A charge the boundary cannot read: a paid one is returned rather than
   // acknowledged into limbo, because the money was captured.
   if (isSessionRejection(resolved)) {
     return await rejectionOutcome(resolved, source);
   }
   if (!resolved) return { kind: "unrecognised" };
-  // An unpaid session can still carry an amount that would classify as
+  // An unpaid session can still carry an amount that classifies as
   // trusted, so payment is confirmed before anything is classified.
   if (resolved.paymentStatus !== "paid") {
     return {

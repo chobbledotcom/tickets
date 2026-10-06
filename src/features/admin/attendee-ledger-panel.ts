@@ -1,9 +1,10 @@
 /**
  * Loader for the attendee Ledger tab: the plain-language order summary, the
- * shared account statement (the source of truth), how to collect any balance
- * (customer pay link or offline guidance), and a short activity history.
- * Rendered by the attendee entity page (attendee-page.ts); the tab is
- * owner-only, matching the money-exposing standalone /admin/ledger routes.
+ * shared account statement (the source of truth), the balance path, and the
+ * activity history. The balance collects through a customer pay link
+ * or offline guidance. Rendered by the attendee entity page
+ * (attendee-page.ts). The tab is owner-only, matching the money-exposing
+ * standalone /admin/ledger routes.
  */
 
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -50,8 +51,8 @@ export const loadAttendeeLedgerPanel = async (
     fullLedgerHref: `/admin/ledger/${account.type}/${account.id}`,
     ledger,
     link: `${baseUrl}/pay/${token}`,
-    // The customer pay link only works when a provider can take the payment;
-    // without one, the /pay POST dead-ends, so the template withholds it.
+    // The customer pay link only works when a provider can take the payment.
+    // Without one, the /pay POST dead-ends, so the template withholds it.
     paymentsEnabled: isPaymentsEnabled(),
     remainingBalance: state.remainingBalance,
     returnUrl,

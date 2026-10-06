@@ -4,7 +4,7 @@
  * Receives delivery/failure/inbound events from the SMS Gateway app. Requests
  * are authenticated with an HMAC-SHA256 signature over `rawBody + timestamp`
  * using the shared webhook secret. Events are recorded in the (encrypted)
- * activity log against the relevant attendee; message text and the sender
+ * activity log against the relevant attendee. Message text and the sender
  * number arrive end-to-end encrypted and are decrypted with the gateway
  * passphrase. No message content is persisted outside the activity log.
  */
@@ -65,7 +65,7 @@ const isValidSignature = async (
   return constantTimeEqual(expected, signature);
 };
 
-/** Decrypt an E2E field, falling back to the raw value if it isn't encrypted. */
+/** Decrypt an E2E field, falling back to the raw value if it is not encrypted. */
 const tryDecrypt = async (
   value: string,
   passphrase: string,
@@ -116,8 +116,8 @@ const handleReceived = async (
 };
 
 /** What to do for each gateway event we track, keyed by the envelope's event
- * name. An event not in this table is acknowledged without action — the
- * gateway may send kinds we don't record, so the envelope schema deliberately
+ * name. An event not in this table is acknowledged without action. The
+ * gateway can send kinds we do not record, so the envelope schema deliberately
  * keeps `event` an open string rather than a picklist. */
 const smsEventHandlers: Record<
   string,

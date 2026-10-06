@@ -3,7 +3,7 @@
  * form values, the logistics start/end selectors, and the "Other Attendees"
  * list of bookings on the same dates.
  *
- * GET renders through the attendee entity page (attendee-page.ts); the POST
+ * GET renders through the attendee entity page (attendee-page.ts). The POST
  * lives in attendee-logistics-routes.ts. This module is the seam between
  * them, so neither imports the other — the same split the Edit tab uses
  * (attendee-page-data.ts / attendee-form-routes.ts).
@@ -32,9 +32,9 @@ import {
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
 
-/** Rebuild the attendee's form lines from their stored bookings — the same
- * lines the Edit tab renders, reused here so the logistics selectors cover
- * exactly the delivered listings. */
+/** Rebuild the attendee's form lines from their stored bookings. They are the
+ * same lines the Edit tab renders, reused here so the logistics selectors
+ * cover exactly the delivered listings. */
 export const storedFormLines = async (entity: LoadedAttendee) => {
   const renderListings = await getRenderListings(entity.existing);
   return buildEditFormFromAttendee(
@@ -52,9 +52,9 @@ export const bookedIntervals = (entity: LoadedAttendee): DayRange[] =>
     .filter((booking) => booking.quantity > 0 && booking.start_at !== null)
     .map((booking) => ({ endAt: booking.end_at!, startAt: booking.start_at! }));
 
-/** Whether a booking's [start_at, end_at) range overlaps any of the windows —
- * the same predicate the SQL uses, re-applied per window so a gap between two
- * bookings never counts as booked. */
+/** Whether a booking's [start_at, end_at) range overlaps any of the windows.
+ * It is the same predicate the SQL uses, re-applied per window so a gap
+ * between two bookings never counts as booked. */
 export const overlapsAnyInterval = (
   intervals: DayRange[],
   row: { start_at: string; end_at: string },
@@ -65,7 +65,7 @@ export const overlapsAnyInterval = (
   );
 
 /** Load and label the other attendees booked on overlapping dates. One query
- * bounded to the whole booked span, then filtered to the actual windows — an
+ * bounded to the whole booked span, then filtered to the actual windows. An
  * attendee booked only in a gap between this attendee's bookings never
  * appears. */
 const loadOtherAttendees = async (

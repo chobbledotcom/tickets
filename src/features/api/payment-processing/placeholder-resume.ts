@@ -61,10 +61,10 @@ import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 /* jscpd:ignore-end */
 
 /**
- * User-facing message when a signed-by-us payment can't be honoured (price
- * changed, charge mismatch, sold out, or an unexpected error) so the booking
+ * User-facing message when a signed-by-us payment cannot be honoured (price
+ * changed, charge mismatch, sold out, or an unexpected error). The booking
  * is kept and refunded. The refund clause is appended by formatPaymentError
- * (or the refund-pending suffix below), so this just covers "we saved your
+ * (or the refund-pending suffix below), so this covers "we saved your
  * details".
  */
 const BOOKING_SAVED_MESSAGE =
@@ -88,8 +88,8 @@ export const placeholderFailure = (
 });
 
 /** The stored form of a placeholder outcome: the replayed answer plus the
- * marker naming the refund reason, so a later delivery can finish and label
- * the money records exactly as the first one would have. */
+ * marker naming the refund reason. A later delivery can then finish and label
+ * the money records exactly as the first one does. */
 export const storedPlaceholderOutcome = (
   spec: PlaceholderRefund,
   refunded: boolean,
@@ -98,7 +98,7 @@ export const storedPlaceholderOutcome = (
   ...sessionAnswerOf(placeholderFailure(spec, refunded)),
 });
 
-/** Rebuild the exact settlement a stored claim's holder would have used, so
+/** Rebuild the exact settlement a stored claim's holder uses, so
  * the release matches the fence a crashed run left on the row. */
 export const settlementForHeldClaim = (
   sessionId: string,
@@ -117,7 +117,7 @@ const unreturnedNoteKey = (work: PlaceholderMoneyTarget): string =>
     sortStrings(unique([...work.referenceIndexes])),
   ]);
 
-/** The refund did not come back: land the payment leg so the books show the
+/** The refund did not come back. Land the payment leg so the books show the
  * money in, tell the operator once, and let go of the row. The refund itself
  * stays with the durable authority's recovery routes. */
 const recordUnreturnedRefund = async (
@@ -149,10 +149,10 @@ const recordUnreturnedRefund = async (
 };
 
 /**
- * Drive a stored placeholder's refund to its recorded end: ask the durable
- * authority (idempotent — an already-sent refund answers from its own row),
- * finish the money records for a returned one, or record the payment leg and
- * park the refund with its recovery routes for anything else. Ends by
+ * Drive a stored placeholder's refund to its recorded end. Ask the durable
+ * authority (idempotent — an already-sent refund answers from its own row).
+ * Finish the money records for a returned one. For anything else, record the
+ * payment leg and park the refund with its recovery routes. Ends by
  * advancing the stored outcome, so replays tell the buyer what really
  * happened.
  */
@@ -233,7 +233,7 @@ export const findHeldAnchor = async (
 };
 
 /**
- * A redelivered session whose stored outcome may carry the completion
+ * A redelivered session whose stored outcome can carry the completion
  * marker: finish whatever tail is still open and answer with the result.
  * Null means there is nothing to finish — the caller replays the stored
  * outcome exactly as it is. Unmarked outcomes cost no extra reads.
@@ -262,7 +262,7 @@ export const resumePlaceholderSession = async (
       false,
     ),
     // A row whose reference carries no charge answers with a null name and
-    // becomes "absent" here; no rows at all means nothing to check.
+    // becomes "absent" here. No rows at all means nothing to check.
     search.rows.map((row) => authorityFactOf(row.refundStateName)),
     `resume of session ${session.id}`,
   );
@@ -282,7 +282,7 @@ export const resumePlaceholderSession = async (
       spec,
     });
   }
-  // No held claim: the tail is done except, possibly, the final words — a
+  // No held claim: the tail is done except, possibly, the final words. A
   // crash between the release and the advance leaves the pending outcome on
   // a refund the durable authority knows completed.
   if (stored.refunded === true) return null;

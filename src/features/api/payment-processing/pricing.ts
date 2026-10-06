@@ -1,10 +1,10 @@
 /**
  * Turn validated items into a checkout intent, re-price it, and decide whether a
- * trusted session's *current* prices still match what was charged — the last
- * gate before a signed order is honoured. A mismatch here (a listing, modifier,
- * or answer price edited between checkout and now) yields a
- * {@link PlaceholderRefund},
- * so the booking is stored and refunded rather than completed.
+ * trusted session's *current* prices still match what was charged. This is the
+ * last gate before a signed order is honoured. A mismatch here (a listing,
+ * modifier, or answer price edited between checkout and now) yields a
+ * {@link PlaceholderRefund}. The booking is then stored and refunded rather
+ * than completed.
  */
 
 import { contactFields } from "#db/attendees/pii.ts";
@@ -56,7 +56,7 @@ export const checkoutIntentForSession = (
   ...contactFields(intent),
   date: intent.date,
   items: validatedItems.map((v) => ({
-    // The signed name conceals a hidden package's member; the listing facts
+    // The signed name conceals a hidden package's member. The listing facts
     // beneath it resolve what one unit buys.
     ...checkoutItem(
       { ...v.listing, name: v.name },
@@ -97,11 +97,11 @@ export const paidByItem = (order: PricedOrder): Map<CheckoutItem, number> => {
  * Computed WITHOUT refunding, so the booking is stored first and the refund
  * happens together with the ledger reversal and note.
  *
- * The proof already pins every pricing input and the charge equals `agreed`, so
- * the only thing that can still differ is the *current* database price, edited
- * between checkout and now. Pricing-code divergence on identical inputs is
- * caught at dev time by the property-based consistency test, so this path
- * refunds without paging.
+ * The proof already pins every pricing input, and the charge equals `agreed`.
+ * The only thing that can still differ is the *current* database price,
+ * edited between checkout and now. Pricing-code divergence on identical
+ * inputs is caught at dev time by the property-based consistency test, so
+ * this path refunds without paging.
  */
 export const paidPricingRefund = (
   validatedItems: ValidatedItem[],
@@ -120,12 +120,12 @@ export const paidPricingRefund = (
     }
   }
   // Per-item prices are ticket-only (no fee), so validate without booking fee.
-  // EVERY item is checked, not just the ones signed paid: a package override (or
-  // base price) raised from 0 to positive while an add-on/modifier kept the order
-  // paid would otherwise slip through, because `pricedOrder` is re-derived from
-  // the signed zero unit prices so the total still matches `agreed` — only this
-  // comparison against the freshly loaded `expectedPrice` sees the drift. A
-  // genuinely free line (signed 0, still 0) costs nothing here: it never
+  // EVERY item is checked, not just the ones signed paid. A package override
+  // (or base price) raised from 0 to positive while an add-on/modifier kept
+  // the order paid otherwise slips through. `pricedOrder` is re-derived from
+  // the signed zero unit prices, so the total still matches `agreed`. Only
+  // this comparison against the freshly loaded `expectedPrice` sees the drift.
+  // A genuinely free line (signed 0, still 0) costs nothing here: it never
   // mismatches. expectedPrice is non-null by the fail-closed loop above.
   for (const { item, listing, expectedPrice } of validatedItems) {
     if (hasPriceMismatch(item.p, expectedPrice!, listing, 0, item.q)) {

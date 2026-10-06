@@ -151,11 +151,11 @@ const toApiAttendee = ({
   ...attendee
 }: Attendee): AdminApiAttendee => attendee;
 
-/** Handle GET /api/admin/listings/:listingId/attendees — the listing's roster
- * as JSON. One row per booking line, newest first; every line shows, including
- * a quantity-0 placeholder, and a booking on another listing never appears.
- * Staff-only: the dashboard's roster tab is a staff-only surface
- * (listing-page.ts), and the answers carry decrypted attendee PII. */
+/** The listing's roster as JSON. One row per booking line, newest first.
+ * Every line shows, including a quantity-0 placeholder, and a booking on
+ * another listing never appears. Staff-only: the dashboard's roster tab is a
+ * staff-only surface (listing-page.ts), and the answers carry decrypted
+ * attendee PII. */
 const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
   withApiEntity(
     request,

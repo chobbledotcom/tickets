@@ -1,12 +1,12 @@
 /**
  * Finish the money records for a stored quantity-0 placeholder whose payment
- * came back: post the ledger legs, complete the authority's local recording,
+ * came back. Post the ledger legs, complete the authority's local recording,
  * write the note and activity line exactly once, and let go of the row.
  *
- * Every step is safe to run again — the legs replay by identity, a recorded
- * authority tolerates its stale receipt, the confirmation latch turns replays
- * into one write, and the settle only touches the exact hold — so a delivery
- * can crash anywhere and a later one finishes the job from that point.
+ * Every step is safe to run again. The legs replay by identity. A recorded
+ * authority tolerates its stale receipt. The confirmation latch turns replays
+ * into one write, and the settle only touches the exact hold. So a delivery
+ * can crash anywhere, and a later one finishes the job from that point.
  */
 
 import { logActivity } from "#db/activity-log.ts";

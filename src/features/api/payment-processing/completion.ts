@@ -23,7 +23,7 @@ export const completePaidBooking = async (
   notificationPackages: RegistrationPackageFacts,
   sessionId: string,
 ): Promise<PaymentResult> => {
-  // The answers save before the staged row is taken: a save that fails must
+  // The answers save before the staged row is taken. A save that fails must
   // leave the staged plaintext in place, not destroy the only copy the
   // completion's emails can read.
   await saveSessionAnswers(createdEntries, intent);
