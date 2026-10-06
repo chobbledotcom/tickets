@@ -103,9 +103,9 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       ).toBe(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
     });
 
-    test("refuses a package whose member minimum rose above what the bundles serve", async () => {
-      // One bundle books one unit of a member that now sells at least three
-      // per purchase, so the page re-reads the stored fact at submit time.
+    /** A hidden one-member package whose member sells at least three per
+     * purchase, with the form context that offers it. */
+    const makePackageContext = async () => {
       const group = await createHiddenPackageGroup("Mystery Box");
       const member = await createTestListing({
         groupId: group.id,
@@ -114,14 +114,48 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
         minQuantity: 3,
         name: "Secret Contents",
       });
-      const ctx = await ticketContext([member.id], group);
+      return { ctx: await ticketContext([member.id], group), group, member };
+    };
 
-      expect(validateFormState(quantityForm({}, { [group.id]: 1 }), ctx)).toBe(
-        "Sorry, Secret Contents sells at least 3 tickets per booking.",
-      );
-      expect(validateFormState(quantityForm({}, { [group.id]: 3 }), ctx)).toBe(
-        null,
-      );
+    test("refuses a package whose member minimum rose above what the bundles serve", async () => {
+      // One bundle books one unit of a member that now sells at least three
+      // per purchase, so the page re-reads the stored fact at submit time.
+      const { ctx } = await makePackageContext();
+
+      expect(
+        validateFormState(
+          quantityForm({}, { [ctx.packages[0]!.groupId]: 1 }),
+          ctx,
+        ),
+      ).toBe("Sorry, Secret Contents sells at least 3 tickets per booking.");
+      expect(
+        validateFormState(
+          quantityForm({}, { [ctx.packages[0]!.groupId]: 3 }),
+          ctx,
+        ),
+      ).toBe(null);
+    });
+
+    test("a package member without a stored quantity counts one per package", async () => {
+      // The stored member quantities can lack a member (a member added
+      // before the quantity column existed), so the fold defaults that
+      // member to one unit per package, the same way the page select does.
+      const { ctx } = await makePackageContext();
+      // A member absent from the stored quantity map: build the same shape
+      // the page render tests build, one package whose map misses its member.
+      const withoutQuantity = {
+        ...ctx.packages[0]!,
+        quantities: new Map<number, number>(),
+      };
+      const packageCtx = { ...ctx, packages: [withoutQuantity] };
+      const groupId = ctx.packages[0]!.groupId;
+
+      expect(
+        validateFormState(quantityForm({}, { [groupId]: 2 }), packageCtx),
+      ).toBe("Sorry, Secret Contents sells at least 3 tickets per booking.");
+      expect(
+        validateFormState(quantityForm({}, { [groupId]: 3 }), packageCtx),
+      ).toBe(null);
     });
   });
 });
