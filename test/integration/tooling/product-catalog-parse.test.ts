@@ -318,7 +318,7 @@ describe("product catalog parse", () => {
   test("rejects a category that climbs out of the catalog", () => {
     // A path slug would read files the catalog never named and post their
     // titles to the site as groups.
-    for (const entry of ["../secret", "a/../b", "/etc/tickets", ".hidden"]) {
+    for (const entry of ["../secret", "a/../b", "a\\..\\secret", "/etc/tickets", ".hidden"]) {
       expect(() =>
         parseProductFile(
           "a.md",

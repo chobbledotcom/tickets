@@ -240,6 +240,11 @@ const processRequest = async (request: Request): Promise<Response> => {
 
   let response!: Response;
   try {
+    // Seed the request's own host before anything reads a domain. The static
+    // path applies security headers, so isSecureMode must answer from this
+    // request's host, never another request's.
+    seedEffectiveDomainHost(url);
+
     // A body-bearing request to a path no route serves is a bot probe. 404 it
     // before the body read: the read waits out the connection and reports a
     // CDN error for a scanner.
@@ -255,8 +260,6 @@ const processRequest = async (request: Request): Promise<Response> => {
         await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
       );
     }
-
-    seedEffectiveDomainHost(url);
 
     const cleanLocation = trackingRedirectLocation(url, method);
     if (cleanLocation) {

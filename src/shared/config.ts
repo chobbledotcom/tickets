@@ -1,13 +1,15 @@
 /**
- * Configuration module for ticket reservation system
- * Reads configuration from database (set during setup phase)
- * Payment provider and keys are configured via admin settings (stored encrypted in DB)
+ * Configuration module for the ticket reservation system.
+ * Reads configuration from the database. Values are set during the setup
+ * phase. Payment providers and keys are configured via admin settings, and
+ * the sensitive ones are stored encrypted in the database.
  */
 
 import { settings } from "#db/settings.ts";
 import { getEnv, requireEnv } from "#shared/env.ts";
 import { paymentProviderHasCredentials } from "#shared/payment-provider-status.ts";
 import {
+  currentRequestStore,
   getRequestEffectiveDomain,
   setRequestEffectiveDomain,
 } from "#shared/request-context.ts";
@@ -104,9 +106,13 @@ export const seedEffectiveDomainHost = (requestUrl: URL): void => {
 };
 
 /** Get the effective domain synchronously: the live request's own domain, or
- * DEFAULT_DOMAIN until a request resolves a real one. */
+ * DEFAULT_DOMAIN otherwise. A live request that has not seeded its domain yet
+ * reads DEFAULT_DOMAIN, never the fallback — the fallback names the site for
+ * out-of-request reporting, and one request's host must not answer another's
+ * security-header decision. */
 export const getEffectiveDomain = (): string =>
-  getRequestEffectiveDomain() ?? fallbackDomain.domain;
+  getRequestEffectiveDomain() ??
+  (currentRequestStore() ? DEFAULT_DOMAIN : fallbackDomain.domain);
 
 /**
  * Whether we are serving a real, resolved host rather than the default. Gates

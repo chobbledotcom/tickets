@@ -239,7 +239,12 @@ const categorySlug = (filename: string, path: string): string => {
     .replace(/^src\//, "")
     .replace(/\.md$/, "")
     .replace(/^categories\//, "");
-  if (slug === "" || slug.includes("/") || slug.startsWith(".")) {
+  if (
+    slug === "" ||
+    slug.includes("/") ||
+    slug.includes("\\") ||
+    slug.startsWith(".")
+  ) {
     throw new Error(
       `${filename}: category "${path}" must be a bare category file name`,
     );

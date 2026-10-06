@@ -126,6 +126,30 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
     expect(resultA.secure).toBe(true);
   });
 
+  test("an unseeded request reads the default, not another request's domain", async () => {
+    // Request A seeds its host (and with it the out-of-request fallback).
+    // Request B is live but has not seeded yet: it must read the default, so
+    // a pre-seed security-header decision can never take A's host.
+    const requestA = new Request("https://site-a.example/ticket/x");
+    const requestB = new Request("https://site-b.example/ticket/x");
+    const facts = { clientIp: "direct", locale: "en" };
+
+    await runWithRequestContext(requestA, facts, () => {
+      loadEffectiveDomain(new URL(requestA.url));
+      expect(getEffectiveDomain()).toBe("site-a.example");
+      return Promise.resolve();
+    });
+
+    await runWithRequestContext(requestB, facts, () => {
+      expect(getEffectiveDomain()).toBe("localhost");
+      expect(isSecureMode()).toBe(false);
+      loadEffectiveDomain(new URL(requestB.url));
+      expect(getEffectiveDomain()).toBe("site-b.example");
+      expect(isSecureMode()).toBe(true);
+      return Promise.resolve();
+    });
+  });
+
   test("seedEffectiveDomainHost sets the request hostname before settings load", () => {
     seedEffectiveDomainHost(new URL("https://listing.example.com/ticket/abc"));
     expect(getEffectiveDomain()).toBe("listing.example.com");
