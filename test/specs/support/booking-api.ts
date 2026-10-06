@@ -101,6 +101,9 @@ export const apiBooks = async (
       date: day,
       email: emailFor(who),
       name: who,
+      // The API requires the field: a machine caller names its count, and the
+      // API never defaults one. Every journey here books one place a day.
+      quantity: 1,
     },
     method: "POST",
   });
