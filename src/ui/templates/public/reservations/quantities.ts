@@ -3,7 +3,7 @@
  * the allowed range. Shared by the per-listing and package-count restores so the
  * two can't drift. */
 
-import { quantityBelowMinimum } from "#booking/model.ts";
+import { quantityBelowMin } from "#booking/model.ts";
 /* jscpd:ignore-start */
 import {
   childQuantityFieldName,
@@ -101,14 +101,14 @@ export const restoredQuantity = (
   listingId: number,
   prefill: TicketPrefill | undefined,
   maxPurchasable: number,
-  minimumQuantity: number,
+  minQuantity: number,
 ): number => {
   const restored = clampSavedQuantity(
     savedFormValue(quantityFieldName(listingId)),
     maxPurchasable,
     resolveQuantity(prefill, maxPurchasable),
   );
-  return quantityBelowMinimum(restored, minimumQuantity) ? 0 : restored;
+  return quantityBelowMin(restored, minQuantity) ? 0 : restored;
 };
 
 /** One package's count to pre-select: the value the buyer just submitted

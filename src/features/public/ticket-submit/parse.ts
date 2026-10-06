@@ -7,7 +7,7 @@
 
 import type { buildBookingTree } from "#booking/build-tree.ts";
 import { bookingError, parseCustomPrice } from "#booking/form.ts";
-import { quantityBelowMinimum } from "#booking/model.ts";
+import { quantityBelowMin } from "#booking/model.ts";
 import {
   aggregateNodeQuantities,
   nodeQuantitiesFor,
@@ -66,9 +66,9 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
     // rows keep the skip behaviour: their posted quantity is ignored.
     if (
       maxPurchasable > 0 &&
-      quantityBelowMinimum(selectedQty, listing.minimum_quantity)
+      quantityBelowMin(selectedQty, listing.min_quantity)
     ) {
-      return bookingError.minimum(listing.name, listing.minimum_quantity);
+      return bookingError.minimum(listing.name, listing.min_quantity);
     }
   }
   return null;

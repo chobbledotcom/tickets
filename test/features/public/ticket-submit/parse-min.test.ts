@@ -31,7 +31,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       createTestListing({
         maxAttendees: 5,
         maxQuantity: 10,
-        minimumQuantity: 3,
+        minQuantity: 3,
       });
 
     test("refuses a posted quantity below the minimum on an offered row", async () => {
@@ -39,7 +39,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       const ctx = await ticketContext([listing.id]);
 
       expect(validateFormState(quantityForm({ [listing.id]: 2 }), ctx)).toBe(
-        bookingError.minimum(listing.name, listing.minimum_quantity),
+        bookingError.minimum(listing.name, listing.min_quantity),
       );
     });
 

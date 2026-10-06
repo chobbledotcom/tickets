@@ -384,10 +384,6 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...sumupCheckoutRequests,
   groupScanChecksInAllListings,
   groupShowHiddenListings,
-<<<<<<< HEAD
-  listingMinQuantity,
-=======
->>>>>>> e9a987884 (Cut the machine-surface enforcement for the layer above)
   sumupHostedCheckout,
   ...warningDeleteProps,
 ].toSorted((left, right) =>

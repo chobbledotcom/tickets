@@ -17,7 +17,7 @@ const parent = (minimum: number, remaining = 10): TicketListing =>
     id: 1,
     max_attendees: 10,
     max_quantity: 10,
-    minimum_quantity: minimum,
+    min_quantity: minimum,
     name: "Parent",
     slug: "parent",
   });

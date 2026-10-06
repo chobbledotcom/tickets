@@ -251,7 +251,7 @@ export const classifyForDiscovery = async (
       children.some(
         (child) =>
           childServedParentMax(parent, child, caps, holidays) >=
-          parent.minimum_quantity,
+          parent.min_quantity,
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }

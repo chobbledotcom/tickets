@@ -155,7 +155,7 @@ describe("buildPageListingRows", () => {
         ]),
       },
       listings: [
-        tl(7, 10, { minimum_quantity: 3, name: "Bundled", slug: "bun010" }),
+        tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" }),
       ],
     });
     expect(html).toContain("Sold Out");
@@ -166,7 +166,7 @@ describe("buildPageListingRows", () => {
     const html = renderRows({
       childCtx: childCtx(),
       listings: [
-        tl(7, 10, { minimum_quantity: 3, name: "Bundled", slug: "bun010" }),
+        tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" }),
       ],
     });
     expect(html).toContain('name="quantity_7"');
