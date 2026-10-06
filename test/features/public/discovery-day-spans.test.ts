@@ -166,6 +166,67 @@ describeWithEnv(
         });
         await assertBookable(parent.slug);
       });
+
+      test("two children that serve the minimum on different dates do not sum", async () => {
+        // The parent sells at least three per purchase. Each child offers two
+        // units, but only on its own weekday: no single date carries three
+        // child units, so summing the two ceilings (four) would advertise a
+        // booking no offered date can fold. The parent must read sold out.
+        const { parent } = await makeParent({
+          children: [
+            {
+              bookableDays: ["Monday"],
+              daily: true,
+              maxQuantity: 2,
+              name: "Monday pair",
+            },
+            {
+              bookableDays: ["Tuesday"],
+              daily: true,
+              maxQuantity: 2,
+              name: "Tuesday pair",
+            },
+          ],
+          parent: {
+            bookableDays: ["Monday", "Tuesday"],
+            daily: true,
+            maxQuantity: 5,
+            minQuantity: 3,
+            name: "Batched base",
+          },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
+      test("two children that serve the minimum together on one date stay advertised", async () => {
+        // Both children fold on the parent's Monday: two units each make four,
+        // which covers the minimum of three on one date, so the parent keeps
+        // its Book link.
+        const { parent } = await makeParent({
+          children: [
+            {
+              bookableDays: ["Monday"],
+              daily: true,
+              maxQuantity: 2,
+              name: "Monday pair",
+            },
+            {
+              bookableDays: ["Monday"],
+              daily: true,
+              maxQuantity: 2,
+              name: "Monday pair two",
+            },
+          ],
+          parent: {
+            bookableDays: ["Monday", "Tuesday"],
+            daily: true,
+            maxQuantity: 5,
+            minQuantity: 3,
+            name: "Batched base",
+          },
+        });
+        await assertBookable(parent.slug);
+      });
     });
   },
 );
