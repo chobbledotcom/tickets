@@ -57,10 +57,10 @@ const resolveQuantityAndDate = async (
   const quantity = resolvePositiveQuantity(body);
   if (quantity instanceof Response) return quantity;
   if (quantityBelowMin(quantity, listing.min_quantity)) {
-    return apiError(`Quantity must be at least ${listing.min_quantity}`);
+    return apiError(bookingError.belowMinimumQuantity(listing.min_quantity));
   }
   if (quantity > listing.max_quantity) {
-    return apiError(`Quantity cannot exceed ${listing.max_quantity}`);
+    return apiError(bookingError.aboveMaximumQuantity(listing.max_quantity));
   }
   if (!countsPerDate(listing.listing_type)) {
     return { date: null, quantity };

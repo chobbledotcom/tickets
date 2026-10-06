@@ -1,6 +1,8 @@
 /* jscpd:ignore-start */
 
 import { buildBookingTree } from "#booking/build-tree.ts";
+import { bookingError } from "#booking/form.ts";
+import { packageBundleMinError } from "#booking/min-refusal.ts";
 import { bookableChildIds, pageDayCounts } from "#booking/model.ts";
 import { nodeQuantitiesFor } from "#booking/order-lines.ts";
 import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
@@ -250,10 +252,29 @@ const resolvePackageOrder = async (
   const requestedQty = resolvePositiveQuantity(body);
   if (requestedQty instanceof Response) return requestedQty;
   if (requestedQty > limit) {
-    return apiError(`Quantity cannot exceed ${limit}`);
+    return apiError(bookingError.aboveMaximumQuantity(limit));
   }
+  // An owner can raise a member's minimum after the package was saved, so
+  // the fold re-reads the stored fact the same way the webhook does.
+  const fixedByListingId = fixedQuantitiesByListingId(tree);
+  const memberMinError = packageBundleMinError(
+    ctx.listings.flatMap((info) => {
+      const fixed = fixedByListingId.get(info.listing.id);
+      return fixed === undefined
+        ? []
+        : [
+            {
+              fixed,
+              minQuantity: info.listing.min_quantity,
+              name: info.listing.name,
+            },
+          ];
+    }),
+    requestedQty,
+  );
+  if (memberMinError) return apiError(memberMinError);
   const quantities = new Map(
-    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
+    [...fixedByListingId].map(([listingId, fixed]) => [
       listingId,
       fixed * requestedQty,
     ]),

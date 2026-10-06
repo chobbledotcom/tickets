@@ -397,6 +397,24 @@ export const packageBundleLimit = (
     sharedChildrenAcrossMembersLimit(tree, ctx),
   );
 
+/** The smallest non-zero bundle count a package's members' minimums allow:
+ *  each member's per-purchase minimum over its fixed per-package count,
+ *  rounded up. An owner raising a member's minimum after the package was
+ *  saved lifts this floor, exactly as it lifts the webhook's refusal. Zero
+ *  bundles stay valid — they book nothing. */
+export const packageBundleMinimum = (
+  fixedByListingId: ReadonlyMap<number, number>,
+  minQuantityByListingId: ReadonlyMap<number, number>,
+): number =>
+  Math.max(
+    1,
+    ...[...fixedByListingId]
+      .filter(([, fixed]) => fixed > 0)
+      .map(([listingId, fixed]) =>
+        Math.ceil((minQuantityByListingId.get(listingId) ?? 1) / fixed),
+      ),
+  );
+
 /** Whole bundles of ONE page package the buyer may still book, on a page that
  * can sell several bundles alongside other listings: {@link packageBundleLimit}
  * over just that package's member nodes and member listings (`page` carries the

@@ -1,6 +1,6 @@
 /**
- * Validate every signed line of a paid order against the CURRENT database.
- * Confirm each listing still accepts registrations, and compute its expected
+ * Validate every signed line of a paid order against the CURRENT database:
+ * confirm each listing still accepts registrations, and compute its expected
  * price. Fail the whole order closed to a price_changed refund when the
  * package structure, a required child-edge, or a non-standalone flag drifted
  * mid-checkout.
@@ -80,6 +80,23 @@ const validateListingForPayment = (
   if (belowMinimum) {
     return { error: belowMinimum, ok: false, status: 410 };
   }
+  // The same staleness runs the other way: the owner can lower the maximum
+  // while a checkout is open, and the webhook is the last stop that re-reads
+  // the stored fact.
+  if (quantity > listing.max_quantity) {
+    return {
+      error: name
+        ? t("payment.failure.above_maximum_named", {
+            max_quantity: listing.max_quantity,
+            name,
+          })
+        : t("payment.failure.above_maximum", {
+            max_quantity: listing.max_quantity,
+          }),
+      ok: false,
+      status: 410,
+    };
+  }
   return { listing, ok: true };
 };
 
@@ -125,7 +142,7 @@ interface BookingPaths {
 
 const bookingPaths = (intent: BookingIntent): BookingPaths => {
   const allocations = intent.allocations ?? [];
-  // Parent listings with at least one package-tagged line. Children folded
+  // Parent listings with at least one package-tagged line; children folded
   // under them book as part of some bundle.
   const taggedParentIds = new Set(
     intent.items
@@ -134,9 +151,9 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
   );
   // Children folded under a tagged member book as part of that bundle.
   const bundledChildIds = allocatedChildIds(allocations, taggedParentIds);
-  // Standalone-ness is judged per LINE, not per listing: an order can book
-  // the same listing through a package AND its own row. The standalone
-  // path must still take the stale checks below, even though a tagged line
+  // Standalone-ness is judged per LINE, not per listing: an order may book
+  // the same listing through a package AND its own row, and the standalone
+  // path must still take the stale checks below even though a tagged line
   // shares its listing id.
   const standaloneLineIds = standaloneLineListingIds(intent.items).filter(
     (id) => !bundledChildIds.has(id),
@@ -160,12 +177,12 @@ export const validateAllItems = async (
     bookingPaths(intent);
   const pricingByGroup = snapshot.notificationPackages.pricingByGroup;
   // A folded child rides an UNTAGGED line that bundledChildIds removes from
-  // standaloneLineIds wholesale. Yet that one line can hold more units than
-  // the package-tagged allocations cover. A bookable-alone child bought
-  // beside its member parent books one aggregated line. So
-  // hasStaleStandaloneChild judges that per-child surplus itself: consult it
-  // whenever the order carries any standalone line OR any folded allocation.
-  // Only a pure member-only order skips its read.
+  // standaloneLineIds wholesale, yet that one line can hold more units than
+  // the package-tagged allocations cover (a bookable-alone child bought beside
+  // its member parent books one aggregated line). hasStaleStandaloneChild
+  // judges that per-child surplus itself, so consult it whenever the order
+  // carries any standalone line OR any folded allocation — only a pure
+  // member-only order skips its read.
   const staleNonStandaloneChild =
     (standaloneLineIds.length > 0 || allocations.length > 0) &&
     hasStaleStandaloneChildFromFacts(
@@ -199,8 +216,8 @@ export const validateAllItems = async (
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
-    // member). It is carried through, so the price-mismatch pass refunds it
-    // via the normal stored-placeholder path.
+    // member); it is carried through so the price-mismatch pass refunds it via
+    // the normal stored-placeholder path.
     validatedItems.push({
       expectedPrice: expectedItemPrice(
         itemGroupId === undefined ? undefined : pricingByGroup.get(itemGroupId),
@@ -215,10 +232,10 @@ export const validateAllItems = async (
       name,
     });
   }
-  // Order-level package check. Fail every line closed when any bundle's signed
-  // lines no longer match its current membership (member added/removed, or
-  // quantities no longer share one package count). The whole order then takes
-  // the price_changed refund rather than booking a partial/stale bundle.
+  // Order-level package check: if any bundle's signed lines no longer match its
+  // current membership (member added/removed, or quantities no longer share one
+  // package count), fail every line closed so the whole order takes the
+  // price_changed refund rather than booking a partial/stale bundle.
   if (
     staleNonStandaloneChild ||
     anyPackageBundleMismatch(pricingByGroup, intent.items) ||

@@ -18,6 +18,12 @@ export const parseCustomPrice = (
 /** The messages a failed public booking answers with — written once here so
  * the web form and the JSON API never retype (and drift on) the same copy. */
 export const bookingError = {
+  /** Above a surface's maximum quantity or bundle limit. */
+  aboveMaximumQuantity: (maximum: number): string =>
+    t("booking.quantity_above_maximum", { maximum }),
+  /** Below a surface's minimum quantity, with no listing name to point at. */
+  belowMinimumQuantity: (minimum: number): string =>
+    t("booking.quantity_below_minimum", { minimum }),
   /** An attendee write failure that isn't about capacity. */
   fallback: "Registration failed. Please try again.",
   /** Out of capacity, with no listing name to point at. */
