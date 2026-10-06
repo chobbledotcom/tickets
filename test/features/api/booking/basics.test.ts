@@ -151,7 +151,7 @@ describePublicApi(() => {
       expect(body.booking?.ticketToken).toBeDefined();
     });
 
-    test("caps quantity at max_quantity", async () => {
+    test("rejects a quantity above max_quantity instead of clamping it", async () => {
       const listing = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 2,
@@ -161,8 +161,8 @@ describePublicApi(() => {
         name: "Alice",
         quantity: 99,
       });
-      // Should succeed — quantity capped to 2
-      expect(response.status).toBe(200);
+      // Should refuse — the form's select never offers more than 2
+      expect(response.status).toBe(400);
     });
 
     test("returns 400 when registration is closed", async () => {
