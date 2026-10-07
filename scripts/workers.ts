@@ -41,7 +41,8 @@ export const resolveDenoJobs = (
  * workers run concurrently, so the gate's total memory is roughly
  * workers × per-isolate peak. Four keeps that sum inside a standard CI
  * runner's budget (the group count rises with the file count, so each
- * isolate stays small). An explicit `DENO_JOBS` always wins.
+ * isolate stays small). A valid explicit `DENO_JOBS` wins; blank and
+ * invalid values fall back to the capped count.
  */
 export const COVERAGE_WORKER_CAP = 4;
 
@@ -49,7 +50,7 @@ export const coverageDenoJobs = (
   currentDenoJobs: string | undefined,
   hardwareConcurrency: number,
 ): number | undefined =>
-  currentDenoJobs === undefined
+  parseWorkerCount(currentDenoJobs, 0) === 0
     ? Math.min(hardwareConcurrency, COVERAGE_WORKER_CAP)
     : undefined;
 

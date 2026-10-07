@@ -48,7 +48,13 @@ describe("coverageDenoJobs", () => {
     expect(coverageDenoJobs(undefined, 2)).toBe(2);
   });
 
-  test("leaves an explicit count alone", () => {
+  test("caps the workers for blank and invalid values", () => {
+    expect(coverageDenoJobs("", 16)).toBe(4);
+    expect(coverageDenoJobs("0", 16)).toBe(4);
+    expect(coverageDenoJobs("abc", 16)).toBe(4);
+  });
+
+  test("leaves a valid explicit count alone", () => {
     expect(coverageDenoJobs("8", 16)).toBeUndefined();
     expect(coverageDenoJobs("1", 16)).toBeUndefined();
   });
