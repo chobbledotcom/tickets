@@ -10,7 +10,6 @@ import { getListingWithCount } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { listingToggleStateError } from "#routes/admin/listing-toggle-state.ts";
 import { AUTH_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
@@ -53,12 +52,13 @@ const listingToggleHandlers = (opts: {
     ...listingConfirmBase,
     actionLabel: `${opts.action}ion`,
     ...(opts.guardError && {
-      guardError: async (listing: ListingWithCount, id: number) =>
-        listingToggleStateError(listing.active, opts.active) ??
-        (await opts.guardError!(id)),
+      guardError: async (_listing: ListingWithCount, id: number) =>
+        await opts.guardError!(id),
     }),
-    // The authoritative guard runs inside the write's transaction (see
-    // onConfirm), so the framework skips its own POST-time check.
+    // The authoritative guards (the stored state and the orphaned-add-on
+    // reachability) run inside the write's transaction (see onConfirm). The
+    // framework skips its own POST-time check: the loaded row can be stale
+    // by the time the write runs.
     guardInTx: true,
     onConfirm: async (listing, id) => {
       // The authoritative guard re-runs inside the write transaction, so a
