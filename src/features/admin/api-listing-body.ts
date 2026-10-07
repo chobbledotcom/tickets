@@ -20,7 +20,7 @@ import {
 import {
   bodyNumber,
   parseOptionalArray,
-  parseUpdateName,
+  requireEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
@@ -247,7 +247,7 @@ export const bodyToUpdateInput = async (
 ): Promise<Result<ListingInput>> => {
   const stored = await getStoredListingWithCount(resolved.id);
   const existing = stored === null ? resolved : stored;
-  const parsedName = parseUpdateName(body, existing.name);
+  const parsedName = requireEntityName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
   return withParsedJoinIds(session, body, async (joinIds) => {

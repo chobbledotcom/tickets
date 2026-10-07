@@ -125,6 +125,14 @@ export const requireDateString = (
   key: string,
 ): Result<DateString> => readDateField(body, key, requiredDateAbsent(key));
 
+/** Refuse a supplied non-string name with the field-named message. */
+const refuseNonStringName = (
+  body: Record<string, unknown>,
+): Result<never> | null =>
+  body.name !== undefined && typeof body.name !== "string"
+    ? errorResult("name must be a string")
+    : null;
+
 /** Read the required name for one entity write. A supplied name must be a
  *  string: anything else is refused with the field-named message instead of
  *  coerced into stored text. An update without a supplied name keeps the
@@ -133,9 +141,8 @@ export const requireEntityName = (
   body: Record<string, unknown>,
   existing: string | null,
 ): Result<string> => {
-  if (body.name !== undefined && typeof body.name !== "string") {
-    return errorResult("name must be a string");
-  }
+  const refusal = refuseNonStringName(body);
+  if (refusal) return refusal;
   if (existing !== null) return parseUpdateName(body, existing);
   const name = requireStrings(body, ["name"]);
   return name.ok ? okResult(name.value.name) : name;
@@ -233,23 +240,6 @@ export const parseUpdateSlug = async <Index extends string>(
     ? normalize(String(body.slug))
     : existing;
   return { slug, slugIndex: await computeIndex(slug) };
-};
-
-/**
- * Parse a name field from a JSON body for update operations. A supplied name
- * must be a string: anything else is refused with the field-named message.
- * An absent name keeps the stored one, and the resolved name — stored or
- * supplied — must be non-empty.
- */
-export const parseUpdateName = (
-  body: Record<string, unknown>,
-  existing: string,
-): Result<string> => {
-  if (body.name !== undefined && typeof body.name !== "string") {
-    return errorResult("name must be a string");
-  }
-  const name = body.name === undefined ? existing : body.name.trim();
-  return name === "" ? errorResult("name cannot be empty") : okResult(name);
 };
 
 /** Callback receiving an entity row plus auth context */

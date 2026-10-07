@@ -36,6 +36,22 @@ const refuseInvalidFieldValue = (
   return invalid ? errorResult(`${invalid} has an invalid value`) : null;
 };
 
+/** The shared mapper spine: the field guard, then the name, then the date
+ *  reads. The two mappers hand it their existing row for the update
+ *  fallbacks, or null on create. */
+const holidayInputFrom = (
+  body: Record<string, unknown>,
+  existing: { end_date: string; name: string; start_date: string } | null,
+): Result<HolidayInput> => {
+  const guard = refuseInvalidFieldValue(body);
+  if (guard) return guard;
+  const name = requireEntityName(body, existing?.name ?? null);
+  if (!name.ok) return name;
+  const dates = readDates(body, existing);
+  if (!dates.ok) return dates;
+  return okResult(holidayInput(name.value, dates.value));
+};
+
 export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   getAll: holidays.getAll,
   name: "holidays",
@@ -47,24 +63,8 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   singular: "Holiday",
   table: holidays.table,
 
-  toCreateInput: (body) => {
-    const guard = refuseInvalidFieldValue(body);
-    if (guard) return guard;
-    const dates = readDates(body, null);
-    if (!dates.ok) return dates;
-    const name = requireEntityName(body, null);
-    if (!name.ok) return name;
-    return okResult(holidayInput(name.value, dates.value));
-  },
+  toCreateInput: (body) => holidayInputFrom(body, null),
 
-  toUpdateInput: (body, existing) => {
-    const guard = refuseInvalidFieldValue(body);
-    if (guard) return guard;
-    const name = requireEntityName(body, existing.name);
-    if (!name.ok) return name;
-    const dates = readDates(body, existing);
-    if (!dates.ok) return dates;
-    return okResult(holidayInput(name.value, dates.value));
-  },
+  toUpdateInput: (body, existing) => holidayInputFrom(body, existing),
   validate: validateDateRange,
 });
