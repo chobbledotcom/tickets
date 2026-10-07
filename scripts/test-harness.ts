@@ -231,6 +231,18 @@ export const runSuiteWithHarness = async (
   // Only a missing file is expected here; a real removal failure (e.g.
   // permissions) must surface rather than leave a stale JUnit file behind.
   await Deno.remove(JUNIT_PATH).catch(rethrowUnlessNotFound);
+  // The coverage gate's workers run concurrently, and each one's memory grows
+  // with the files its group holds. Without an explicit count, cap the
+  // workers so the gate's total memory stays inside the runner's budget; the
+  // group count rises with the file count, so every isolate stays small.
+  if (useCoverage) {
+    const { coverageDenoJobs } = await import("./workers.ts");
+    const jobs = coverageDenoJobs(
+      Deno.env.get("DENO_JOBS"),
+      navigator.hardwareConcurrency,
+    );
+    if (jobs !== undefined) Deno.env.set("DENO_JOBS", String(jobs));
+  }
   return withTestHarness(async () => {
     let testCode: number;
     if (Deno.env.get("TICKETS_TEST_UNGROUPED") === "1") {

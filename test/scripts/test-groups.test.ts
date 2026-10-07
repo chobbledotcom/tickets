@@ -112,6 +112,19 @@ describe("test-groups", () => {
     test("never drops below the floor on small machines", () => {
       expect(defaultGroupCount(1)).toBe(8);
     });
+
+    test("splits the file count so no isolate holds too many files", () => {
+      // The suite deals about two thousand three hundred files; at eight
+      // workers the worker term alone would hold seventy-odd files per
+      // isolate, and the file-count term keeps every group near the size a
+      // coverage run survives.
+      expect(defaultGroupCount(8, 2300)).toBe(58);
+      expect(defaultGroupCount(8, 2000)).toBe(50);
+    });
+
+    test("keeps the worker term when the file count is small", () => {
+      expect(defaultGroupCount(8, 40)).toBe(32);
+    });
   });
 
   describe("cleanup error filters", () => {
