@@ -178,7 +178,8 @@ const roomForChild = (
 /** Whether the children from `index` on can place `left` more lines. The
  *  children walk largest-ceiling first, and the running per-pool spend sits
  *  in `remaining`. `suffix[i]` holds the total ceiling of the children from
- *  `i` on, so a call refuses at once when the tail cannot finish. */
+ *  `i` on. The floor bound keeps every call's `left` within it, so no call
+ *  can owe the tail more than it holds. */
 const placeFrom = (
   order: readonly CappedChild[],
   suffix: readonly number[],
@@ -190,7 +191,6 @@ const placeFrom = (
   // The walk therefore lands on an exact zero and never runs past the last
   // child with lines still owed.
   if (left <= 0) return true;
-  if (left > suffix[index]!) return false;
   const child = order[index]!;
   const room = roomForChild(child, left, remaining);
   // The children after this one can carry at most suffix[index + 1] lines,
@@ -205,15 +205,26 @@ const placeFrom = (
   return false;
 };
 
+/** Move `units` of one child's lines across one pool, in place. The map
+ *  carries an entry for every pool the search's children draw from, so the
+ *  read cannot miss. */
+const spendAcrossPool = (
+  remaining: Map<number, number>,
+  groupId: number,
+  units: number,
+): void => {
+  remaining.set(groupId, remaining.get(groupId)! + units);
+};
+
 /** Move `units` of one child's lines across every pool the child draws
- *  from, in place. */
+ * from, in place. */
 const spendAcrossPools = (
   remaining: Map<number, number>,
   pools: readonly number[],
   units: number,
 ): void => {
   for (const groupId of pools) {
-    remaining.set(groupId, (remaining.get(groupId) ?? 0) + units);
+    spendAcrossPool(remaining, groupId, units);
   }
 };
 

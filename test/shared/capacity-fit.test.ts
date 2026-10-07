@@ -183,6 +183,24 @@ describe("combinedChildCapacityForParent", () => {
     ).toBe(2);
   });
 
+  test("refuses a count the flow bound passes but no split can place", () => {
+    // Both children draw both pools, and each pool holds five places with
+    // the parent spending three: the residuals (two each) pass the flow
+    // bound for three lines, but the largest child's room (two) leaves one
+    // line the smaller child cannot place in pools it has already emptied.
+    // The exact search refuses it and answers two.
+    expect(
+      combinedChildCapacityForParent(
+        [7, 8],
+        [
+          { groupIds: [7, 8], ownMax: 4 },
+          { groupIds: [7, 8], ownMax: 2 },
+        ],
+        byGroup({ 7: 5, 8: 5 }),
+      ),
+    ).toBe(2);
+  });
+
   test("bounds a pool across children whose shared sets merely overlap", () => {
     // One child uses pool A alone, the other pools A and B. Both draw pairs
     // from A, so A bounds their total even though the children partition
