@@ -49,6 +49,17 @@ export const childOfferedWithoutDate = (
     childHasDateOrStockForDays([...holidays], days, parentDates)(child),
   );
 
+/** Whether the child holds the offered span on one exact date: the booking
+ *  model's calendar rule reads the child's span over the parent's day count.
+ *  A `null` count books the one-day span. */
+const childBookableForSpan = (
+  child: TicketListing,
+  date: string,
+  holidays: readonly Holiday[],
+  days: number | null,
+): boolean =>
+  isBookingRangeValid(child.listing, date, days ?? 1, [...holidays]);
+
 /** Whether the child can fold on one exact date. A non-daily child needs
  *  only stock. A daily child must start that date and hold it for the span
  *  one of the parent's offered day counts books. `starts` is the child's
@@ -63,6 +74,6 @@ export const childOfferedOnDate = (
   if (child.listing.listing_type !== "daily") return childInStock(child);
   if (!starts.includes(date)) return false;
   return dayCounts.some((days) =>
-    isBookingRangeValid(child.listing, date, days ?? 1, [...holidays]),
+    childBookableForSpan(child, date, holidays, days),
   );
 };

@@ -6,7 +6,6 @@
  * adding packages adds no database round trips.
  */
 
-import { buildTicketListing, childActive, childOpen } from "#booking/model.ts";
 import {
   groupRemainingForSpan,
   loadCapacitySnapshot,
@@ -16,18 +15,14 @@ import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { loadParentAndChildLinks } from "#db/listing-parents.ts";
 import { uniqueBy } from "#fp";
-import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  childCapacityPartsFor,
-  minimumUnservable,
-} from "#shared/capacity-fit.ts";
+import { minimumUnservable } from "#shared/capacity-fit.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
 import {
-  childOfferedOnDate,
-  childStartDates,
-  parentOfferedDayCounts,
-} from "./discovery/child-offered.ts";
+  type ChildDateCapacityCtx,
+  childDateCapacityParts,
+} from "./discovery/child-date-capacity.ts";
+import { parentOfferedDayCounts } from "./discovery/child-offered.ts";
 
 /** The booked span a daily listing's card availability is judged over. A
  *  customisable listing offers per-day starts, so the span is chosen later.
@@ -77,32 +72,22 @@ export const loadDailyDateAvailability = async (
     // Raw remaining lets the date filter advertise a parent the discovery
     // cards read as sold out.
     const dayCounts = parentOfferedDayCounts(listing);
-    const parts = childCapacityPartsFor(
-      memberships,
+    const childCapacityCtx: ChildDateCapacityCtx = {
+      date,
+      dayCounts,
+      holidays,
+      remaining,
+    };
+    const parts = childDateCapacityParts(
       links.childrenByParent.get(listing.id) ?? [],
-      (child) => child.id,
-      (child) => {
-        const info = buildTicketListing(
-          child,
-          isRegistrationClosed(child),
-          remaining.get(child.id) ?? 0,
-        );
-        if (!childActive(info) || !childOpen(info)) return 0;
-        const offered = childOfferedOnDate(
-          info,
-          holidays,
-          dayCounts,
-          childStartDates(info, holidays),
-          date,
-        );
-        return offered ? info.maxPurchasable : 0;
-      },
+      memberships,
+      childCapacityCtx,
     );
     if (
       minimumUnservable(
-        remaining.get(listing.id) ?? 0,
+        remaining.get(listing.id)!,
         listing.min_quantity,
-        memberships.get(listing.id) ?? [],
+        memberships.get(listing.id)!,
         parts,
         groupRemainingForSpan(snapshot, cardSpanDays(listing)),
       )
