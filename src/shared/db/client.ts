@@ -598,16 +598,6 @@ export const queryBatchPrimary = batchFor("write", true);
  *  suited to cascading deletes and multi-step writes. */
 export const executeBatchWithResults = batchFor("write", false);
 
-/** Runs the statements on the caller's open transaction, or as one batch on
- *  the client when there is no caller transaction. */
-export const batchOnScope = (
-  statements: SqlStatement[],
-  transaction?: TxScope,
-): Promise<ResultSet[]> =>
-  transaction
-    ? transaction.batch(statements)
-    : executeBatchWithResults(statements);
-
 /** Execute multiple write statements, discarding results. */
 export const executeBatch = async (
   statements: SqlStatement[],

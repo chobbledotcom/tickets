@@ -8,13 +8,13 @@
 
 import * as v from "valibot";
 import {
-  batchOnScope,
   inPlaceholders,
   queryIdColumn,
   resultRows,
   type TxScope,
 } from "#db/client.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
+import { batchOnScope } from "#db/scope-batch.ts";
 import { chunk } from "#fp";
 
 /** A `listings` row projected to the one column the `base` mirror derives
