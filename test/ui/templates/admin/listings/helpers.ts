@@ -8,6 +8,7 @@ import type {
   DateOption,
 } from "#shared/attendee-list-controls.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
   ListingOverviewPanel,
@@ -53,7 +54,10 @@ const rosterListViewOf = (opts: DetailOptions): RosterListView => ({
   setup: rosterListSetup(opts.listing, opts.availableDates ?? []),
   state: {
     checkin: opts.activeFilter ?? "all",
-    date: opts.dateFilter ?? null,
+    date:
+      opts.dateFilter === null || opts.dateFilter === undefined
+        ? null
+        : parseDateStringOrThrow(opts.dateFilter, "the test's date filter"),
     groupId: null,
     listingId: null,
     page: 0,

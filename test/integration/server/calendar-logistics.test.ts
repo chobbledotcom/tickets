@@ -7,6 +7,7 @@ import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -14,7 +15,7 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
-const date = () => addDays(todayInTz("UTC"), 1);
+const date = () => addDays(testDate(todayInTz("UTC")), 1);
 
 const calendarHtml = async (query: string): Promise<string> => {
   const response = await awaitTestRequest(query, {

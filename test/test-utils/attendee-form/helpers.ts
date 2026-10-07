@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -62,7 +63,7 @@ export const everydayDailyListing = (
 
 /** Tomorrow's date in the configured timezone (the standard bookable day). */
 export const tomorrowInTz = (): string =>
-  addDays(todayInTz(settings.timezone), 1);
+  addDays(testDate(todayInTz(settings.timezone)), 1);
 
 /** A listing + attendee whose booking rows have been deleted (an orphan). */
 export const attendeeWithNoBookings = async (name: string) => {

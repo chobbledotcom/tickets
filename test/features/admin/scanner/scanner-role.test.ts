@@ -15,6 +15,7 @@ import { handleRequest } from "#routes";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
@@ -217,7 +218,7 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       },
       ["Standard", "Society"],
     );
-    const firstDay = addDays(todayInTz(settings.timezone), 10);
+    const firstDay = addDays(testDate(todayInTz(settings.timezone)), 10);
     // Two people with the same name and the same number of places, booked
     // for different days on different listings of this door. The day, and
     // the listing on a multi-listing door, are what tell their two picks
@@ -228,7 +229,13 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       "ada-standard@test.com",
     );
     await bookTestAttendee(
-      [{ date: addDays(firstDay, 1), listingId: members[1]!.id, quantity: 2 }],
+      [
+        {
+          date: addDays(testDate(firstDay), 1),
+          listingId: members[1]!.id,
+          quantity: 2,
+        },
+      ],
       "Ada",
       "ada-society@test.com",
     );
@@ -238,7 +245,7 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
     );
     expect(body).toContain(
-      `Ada (2 tickets) — Society · ${formatDateLabel(addDays(firstDay, 1))}`,
+      `Ada (2 tickets) — Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
     );
   });
 

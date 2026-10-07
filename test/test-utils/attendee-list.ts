@@ -10,6 +10,7 @@ import {
   type AttendeeSort,
   readAttendeeListState,
 } from "#shared/attendee-list-controls.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** Read one setup's state from a query string, the way a test writes queries. */
@@ -46,7 +47,7 @@ export const testRosterListSetup = (
 ): AttendeeListSetup<null> => ({
   basePath: "/admin/listing/5/attendees",
   csvPath: "/admin/listing/5/export",
-  dates: [{ label: "3 August", value: "2026-08-03" }],
+  dates: [{ label: "3 August", value: testDate("2026-08-03") }],
   defaultSort: null,
   groups: [],
   listings: [],

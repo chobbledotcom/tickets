@@ -8,6 +8,7 @@ import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -195,7 +196,7 @@ describeWithEnv(
         expect(html).toContain("Small (1)");
       });
       test("shows the Group Attendees row on the roster's per-date capacity for a daily listing in a capped group", async () => {
-        const bookingDate = addDays(todayInTz("UTC"), 1);
+        const bookingDate = addDays(testDate(todayInTz("UTC")), 1);
         const group = await createTestGroup({
           maxAttendees: 20,
           name: "Daily Capped Group",

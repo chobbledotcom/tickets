@@ -5,6 +5,7 @@ import {
   setLogisticsAssignments,
 } from "#db/logistics.ts";
 import { addDays } from "#shared/dates.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 
 export const logisticsAgentAssignment = (
   agentId: number,
@@ -55,7 +56,7 @@ export const assignBookingToAgent = async (
   attendeeId: number,
   listingId: number,
   agentId: number,
-  date: string,
+  date: DateString,
 ): Promise<void> => {
   await assignBookingLogistics(
     { attendeeId, listingId },

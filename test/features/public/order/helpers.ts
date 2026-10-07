@@ -4,7 +4,9 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import { expectStatus } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -43,4 +45,5 @@ export const fetchAvailability = async (
 };
 
 /** A start date comfortably inside every daily listing's booking window. */
-export const orderDate = (): string => addDays(todayInTz("UTC"), 2);
+export const orderDate = (): DateString =>
+  addDays(testDate(todayInTz("UTC")), 2);

@@ -44,6 +44,7 @@ import { addDays } from "#shared/dates.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 import { type Attendee, isDoorRole, isStaffRole } from "#types";
 
@@ -66,7 +67,10 @@ const decryptEntries = async (entries: TokenEntry[]): Promise<TokenEntry[]> => {
 };
 
 const agentRunSheetDates = (): string[] => {
-  const today = todayInTz(settings.timezone);
+  const today = parseDateStringOrThrow(
+    todayInTz(settings.timezone),
+    "the configured timezone's clock",
+  );
   return [today, addDays(today, 1)];
 };
 

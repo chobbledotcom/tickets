@@ -18,6 +18,7 @@ import { groups } from "#db/groups.ts";
 import { formatDateRangeLabelCompactEn } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -167,7 +168,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         { name: "Trip Kayak" },
       ]);
       const [oneDay, twoDay, oneDayB] = made;
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
 
       const body = await ticketBodyForBooking(
         [
@@ -220,7 +221,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         minimumDaysBefore: 0,
         name: "Flex Firepit",
       });
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
 
       const body = await ticketBodyForBooking(
         [

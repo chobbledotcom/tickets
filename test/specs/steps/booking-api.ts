@@ -50,7 +50,8 @@ Given(
     name: string,
   ): Promise<void> {
     const { addDays } = await import("#shared/dates.ts");
-    const middle = addDays(await firstDayOffered(this, name), 1);
+    const { testDate } = await import("#test-utils/dates.ts");
+    const middle = addDays(testDate(await firstDayOffered(this, name)), 1);
     // A one-day booking, so only the middle day of the coming stay is full.
     const booked = await bookAttendee(listingNamed(this, name), {
       date: middle,

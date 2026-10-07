@@ -11,6 +11,7 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken, submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -23,7 +24,7 @@ describeWithEnv(
   () => {
     describe("daily listings (single ticket)", () => {
       // A valid bookable date: tomorrow (today + 1 day)
-      const validDate = addDays(todayInTz("UTC"), 1);
+      const validDate = addDays(testDate(todayInTz("UTC")), 1);
 
       test("GET shows date selector for daily listing", async () => {
         const listing = await createDailyListing();
@@ -124,7 +125,7 @@ describeWithEnv(
         expect(response1.status).toBe(302);
 
         // Book different date should succeed
-        const otherDate = addDays(todayInTz("UTC"), 2);
+        const otherDate = addDays(testDate(todayInTz("UTC")), 2);
         const response2 = await submitTicketForm(listing.slug, {
           date: otherDate,
           email: "second@example.com",

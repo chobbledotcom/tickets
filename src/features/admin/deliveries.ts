@@ -42,6 +42,8 @@ import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import {
   agentDeliveriesPage,
   type DeliveriesDateNav,
@@ -117,7 +119,7 @@ const bookingsForDate = (
  * following day read as "Today"/"Tomorrow" when they line up with the real
  * calendar, and as a full date label ("Monday 6 July 2026") otherwise. So a
  * staff member who opens a future date sees which day each section is. */
-const dayHeading = (date: string, today: string): string =>
+const dayHeading = (date: string, today: DateString): string =>
   date === today
     ? t("deliveries.today")
     : date === addDays(today, 1)
@@ -126,9 +128,9 @@ const dayHeading = (date: string, today: string): string =>
 
 const buildGroups = (
   legs: AgentRunLeg[],
-  baseDate: string,
-  tomorrow: string,
-  today: string,
+  baseDate: DateString,
+  tomorrow: DateString,
+  today: DateString,
   lookups: LegLookups,
 ): DeliveryDayGroup[] => [
   {
@@ -193,12 +195,19 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
     );
   }
 
-  const today = todayInTz(settings.timezone);
+  const today = parseDateStringOrThrow(
+    todayInTz(settings.timezone),
+    "the configured timezone's clock",
+  );
   // Only staff can open a different date. An agent's date and month params
   // are ignored, so a driver always sees just today and tomorrow.
   const selected = staff ? getDateFilter(request) : null;
   const viewMonth = staff ? getMonthFilter(request) : null;
-  const baseDate = selected ?? today;
+  // The date filter validated its param, so a staff-selected value only
+  // needs the brand. An agent's base is the clock's parsed today.
+  const baseDate = selected
+    ? parseDateStringOrThrow(selected, "the deliveries date filter")
+    : today;
   const tomorrow = addDays(baseDate, 1);
   const legs = await getAgentRunSheet(agentIds, [baseDate, tomorrow]);
 
@@ -223,7 +232,10 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
  * the query's per-day scoping (and agent ownership) to police. */
 const markDateAllowed = (session: AuthSession, date: string): boolean => {
   if (isStaffRole(session.adminLevel)) return true;
-  const today = todayInTz(settings.timezone);
+  const today = parseDateStringOrThrow(
+    todayInTz(settings.timezone),
+    "the configured timezone's clock",
+  );
   return date === today || date === addDays(today, 1);
 };
 

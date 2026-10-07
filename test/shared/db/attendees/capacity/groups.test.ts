@@ -11,6 +11,7 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookUnits } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -78,7 +79,7 @@ describeWithEnv(
   "db > attendees > group capacity by day",
   { db: true, triggers: true },
   () => {
-    const day = (): string => addDays(todayInTz("UTC"), 2);
+    const day = (): string => addDays(testDate(todayInTz("UTC")), 2);
 
     test("answers for a single group capped at a single unit", async () => {
       const group = await createTestGroup({

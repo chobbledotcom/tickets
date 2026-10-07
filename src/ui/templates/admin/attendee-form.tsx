@@ -22,6 +22,7 @@ import { addDays } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { AdminPage, renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
@@ -60,7 +61,12 @@ const dayCountOptions = (startDate: string): SelectOption[] =>
     label: startDate
       ? t("attendee_form.day_count_option_with_end", {
           count: n,
-          end: formatDateLabel(addDays(startDate, n - 1)),
+          end: formatDateLabel(
+            addDays(
+              parseDateStringOrThrow(startDate, "the form's start date"),
+              n - 1,
+            ),
+          ),
         })
       : t("attendee_form.day_count_option", { count: n }),
     value: String(n),

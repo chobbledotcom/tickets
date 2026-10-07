@@ -21,7 +21,11 @@ import {
   type ListingFilter,
   readChosenId,
 } from "#shared/listing-filter.ts";
-import { isIsoDate } from "#shared/validation/date-string.ts";
+import {
+  type DateString,
+  isIsoDate,
+  parseDateStringOrThrow,
+} from "#shared/validation/date-string.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { ListingWithCount } from "#types";
@@ -35,8 +39,9 @@ export const isAttendeeSort = guardFor(AttendeeSortSchema);
 /** The check-in filter: everyone, checked in only, or not checked in only. */
 export type AttendeeFilter = "all" | "in" | "out";
 
-/** One day the date dropdown offers. */
-export type DateOption = { value: string; label: string };
+/** One day the date dropdown offers. The value is the branded date the list
+ *  state reads back. */
+export type DateOption = { value: DateString; label: string };
 
 /**
  * How one attendee list is set up: where it lives and which controls it
@@ -80,7 +85,7 @@ export type AttendeeListState<
   type: ListingFilter;
   sort: AttendeeSort | Sort;
   checkin: AttendeeFilter;
-  date: string | null;
+  date: DateString | null;
   page: number;
 };
 
@@ -110,7 +115,7 @@ export const readAttendeeListState = <Sort extends AttendeeSort | null>(
     checkin: setup.withCheckin ? readCheckin(query.get("filter")) : "all",
     date:
       setup.withDates && rawDate !== null && isIsoDate(rawDate)
-        ? rawDate
+        ? parseDateStringOrThrow(rawDate, "the attendee list date filter")
         : null,
     groupId: readChosenId(setup.groups, query.get("group")),
     listingId: readChosenId(setup.listings, query.get("listing")),

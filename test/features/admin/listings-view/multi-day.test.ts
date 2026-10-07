@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateOptionsFor, filterByDate } from "#routes/admin/listings-view.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 import type { Attendee, ListingWithCount } from "#types";
 
@@ -20,19 +21,22 @@ const attendees = [stay, oneDay, later];
 
 describe("the roster's view of a multi-day booking", () => {
   test("lists a stay on the first day it covers", () => {
-    expect(filterByDate(attendees, "2026-03-02")).toEqual([stay]);
+    expect(filterByDate(attendees, testDate("2026-03-02"))).toEqual([stay]);
   });
 
   test("lists a stay on a middle day nobody starts on", () => {
-    expect(filterByDate(attendees, "2026-03-04")).toEqual([stay]);
+    expect(filterByDate(attendees, testDate("2026-03-04"))).toEqual([stay]);
   });
 
   test("drops a stay on the day it ends, which it does not cover", () => {
-    expect(filterByDate(attendees, "2026-03-05")).toEqual([]);
+    expect(filterByDate(attendees, testDate("2026-03-05"))).toEqual([]);
   });
 
   test("lists a stay alongside the single days inside it", () => {
-    expect(filterByDate(attendees, "2026-03-03")).toEqual([stay, oneDay]);
+    expect(filterByDate(attendees, testDate("2026-03-03"))).toEqual([
+      stay,
+      oneDay,
+    ]);
   });
 
   test("keeps every attendee when no day is chosen", () => {
@@ -55,6 +59,6 @@ describe("the roster's view of a multi-day booking", () => {
   test("skips a booking with no date at all", () => {
     const undated = booking("Sam", null, null);
     expect(dateOptionsFor(daily(), [undated])).toEqual([]);
-    expect(filterByDate([undated], "2026-03-02")).toEqual([]);
+    expect(filterByDate([undated], testDate("2026-03-02"))).toEqual([]);
   });
 });

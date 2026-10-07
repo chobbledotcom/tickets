@@ -20,6 +20,7 @@ import { addDays } from "#shared/dates.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -573,7 +574,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(items).toHaveLength(1);
       // The day can't fit a 5-day span, yet it's offered as a start.
       expect(items[0]).toMatchObject({
-        dates: expect.arrayContaining([addDays(todayInTz("UTC"), 3)]),
+        dates: expect.arrayContaining([addDays(testDate(todayInTz("UTC")), 3)]),
         id: listing.id,
         name: "Windowed",
       });

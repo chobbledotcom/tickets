@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { formatDateLabel } from "#shared/date-labels.ts";
-import { addDays } from "#shared/dates.ts";
+import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   expectCsvDownloadHeaders,
@@ -10,18 +9,32 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import {
-  bookDailyTicket,
-  fetchCalendarHtml,
-  fetchCalendarResponse,
-  tomorrow,
-} from "./calendar-test-helpers.ts";
+import { adminGet } from "#test-utils/session.ts";
+
+const tomorrow = () => addDays(testDate(todayInTz("UTC")), 1);
+
+async function fetchCalendarHtml(path = "/admin/calendar") {
+  const response = await adminGet(path);
+  return response.text();
+}
+
+async function fetchCalendarResponse(path = "/admin/calendar") {
+  return adminGet(path);
+}
+
+async function bookDailyTicket(
+  slug: string,
+  opts: { name: string; email: string; date: string },
+) {
+  await submitTicketForm(slug, opts);
+}
 
 async function setupDailyBooking(
   date = tomorrow(),
@@ -140,8 +153,8 @@ describeWithEnv(
       });
 
       test("filters attendees by date parameter", async () => {
-        const date1 = addDays(todayInTz("UTC"), 1);
-        const date2 = addDays(todayInTz("UTC"), 2);
+        const date1 = addDays(testDate(todayInTz("UTC")), 1);
+        const date2 = addDays(testDate(todayInTz("UTC")), 2);
         const listing = await createDailyTestListing();
         await bookDailyTicket(listing.slug, {
           date: date1,
@@ -238,7 +251,7 @@ describeWithEnv(
       });
 
       test("shows mixed daily and standard listing attendees for same date", async () => {
-        const listingDate = addDays(todayInTz("UTC"), 3);
+        const listingDate = addDays(testDate(todayInTz("UTC")), 3);
         const { dailyListing } = await setupMixedBookings(listingDate);
 
         const html = await fetchCalendarHtml(
@@ -436,7 +449,7 @@ describeWithEnv(
       });
 
       test("includes mixed daily and standard attendees in CSV export", async () => {
-        const listingDate = addDays(todayInTz("UTC"), 3);
+        const listingDate = addDays(testDate(todayInTz("UTC")), 3);
         const { dailyListing } = await setupMixedBookings(
           listingDate,
           "Daily CSV",
@@ -451,6 +464,48 @@ describeWithEnv(
         expect(csv).toContain("Standard CSV");
         expect(csv).toContain(dailyListing.name);
         expect(csv).toContain("Workshop");
+      });
+    });
+
+    describe("availability checker", () => {
+      test("lists bookable listings with remaining and a create form", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Avail Listing",
+        });
+        const html = await fetchCalendarHtml();
+        expect(html).toContain("Check availability");
+        expect(html).toContain("data-availability-checker");
+        expect(html).toContain("Avail Listing");
+        expect(html).toContain("5/5");
+        expect(html).toContain('action="/admin/attendees/new"');
+        expect(html).toContain('formaction="/admin/servicing/new"');
+        expect(html).toContain("Create Service Event");
+        expect(html).toContain(`name="select_${listing.id}"`);
+      });
+
+      test("reflects bookings in the remaining count", async () => {
+        await createTestListing({ maxAttendees: 5, name: "Half Full" });
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Booked Up",
+        });
+        await bookAttendee(listing, { quantity: 2 });
+        const html = await fetchCalendarHtml();
+        expect(html).toContain("3/5");
+      });
+
+      test("passes the selected calendar date to the create form", async () => {
+        const date = tomorrow();
+        const listing = await createDailyTestListing({ name: "Daily Avail" });
+        await bookDailyTicket(listing.slug, {
+          date,
+          email: "a@test.com",
+          name: "A",
+        });
+        const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
+        expect(html).toContain('name="start_date"');
+        expect(html).toContain(`value="${date}"`);
       });
     });
   },

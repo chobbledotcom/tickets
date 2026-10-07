@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { expectStatus } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -90,7 +91,7 @@ describeWithEnv(
         const booked = await attendeesApi.createAttendeeAtomic({
           bookings: [
             {
-              date: addDays(todayInTz("UTC"), 2),
+              date: addDays(testDate(todayInTz("UTC")), 2),
               listingId: member.id,
               packageGroupId: group.id,
               quantity: 1,

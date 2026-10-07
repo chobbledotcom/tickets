@@ -21,6 +21,7 @@ import { getBaseUrl } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { getAvailableDates } from "#shared/dates.ts";
+import { parseDateString } from "#shared/validation/date-string.ts";
 import {
   extractContact,
   tryValidateTicketFields,
@@ -59,10 +60,14 @@ const resolveQuantityAndDate = async (
     return { date: null, quantity: clampedQuantity };
   }
   const availableDates = getAvailableDates(listing, await getActiveHolidays());
-  if (typeof body.date !== "string" || !availableDates.includes(body.date)) {
+  if (typeof body.date !== "string") {
     return apiError(bookingError.invalidDate);
   }
-  return { date: body.date, quantity: clampedQuantity };
+  const date = parseDateString(body.date);
+  if (date === null || !availableDates.includes(date)) {
+    return apiError(bookingError.invalidDate);
+  }
+  return { date, quantity: clampedQuantity };
 };
 
 /** POST /api/listings/:slug/book — create a booking */

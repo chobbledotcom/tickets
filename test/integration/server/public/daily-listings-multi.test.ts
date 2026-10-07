@@ -16,6 +16,7 @@ import {
   bookTwoListingsAsTestUser,
   submitMultiTicketForm,
 } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -27,7 +28,7 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("daily listings (ticket)", () => {
-      const validDate = addDays(todayInTz("UTC"), 1);
+      const validDate = addDays(testDate(todayInTz("UTC")), 1);
 
       test("GET shows date selector for ticket with daily listings", async () => {
         const listing1 = await createDailyListing();
@@ -153,7 +154,9 @@ describeWithEnv(
         // A one-day window (tomorrow only, since maximum_days_after 0 means
         // "no maximum") whose weekday the listing excludes, so it can never
         // offer a date whatever day the test runs.
-        const tomorrow = new Date(`${addDays(todayInTz("UTC"), 1)}T00:00:00Z`);
+        const tomorrow = new Date(
+          `${addDays(testDate(todayInTz("UTC")), 1)}T00:00:00Z`,
+        );
         const tomorrowName = tomorrow.toLocaleDateString("en-US", {
           timeZone: "UTC",
           weekday: "long",

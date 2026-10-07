@@ -9,6 +9,7 @@ import {
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { addDays } from "#shared/dates.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
 /**
@@ -169,7 +170,9 @@ describe("buildCartCapacitySql", () => {
     // 200 buckets with 90 shared days: the old one-slot-per-bind scheme
     // needed 200 x (1 + 90 x 2) = 36,200 variables, past SQLite's 32,766
     // cap. Interning keeps the id per bucket and one pair per distinct day.
-    const days = Array.from({ length: 90 }, (_, index) => addDays(DAY, index));
+    const days = Array.from({ length: 90 }, (_, index) =>
+      addDays(testDate(DAY), index),
+    );
     const perDay = days.map((day) => [day, 1] as [string, number]);
     const listing = new Map(
       Array.from({ length: 200 }, (_, index) => [index + 1, bucket(perDay, 0)]),

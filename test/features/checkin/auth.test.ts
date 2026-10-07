@@ -5,6 +5,7 @@ import { settings } from "#db/settings.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import {
@@ -44,7 +45,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         "other@example.com",
         { usesLogistics: true },
       );
-      const today = todayInTz(settings.timezone);
+      const today = testDate(todayInTz(settings.timezone));
       await assignBookingToAgent(
         own.attendee.id,
         own.listing.id,
@@ -123,7 +124,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         own.attendee.id,
         own.listing.id,
         assignedAgent,
-        todayInTz(settings.timezone),
+        testDate(todayInTz(settings.timezone)),
       );
       await refundThroughLedger(own.attendee.id, own.listing.id);
 
@@ -191,7 +192,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         token: "checkin-multirow",
         username: "checkin-multirow",
       });
-      const today = todayInTz(settings.timezone);
+      const today = testDate(todayInTz(settings.timezone));
       const laterDate = "2099-12-31";
       const { attendee, listing, token } = await createTestAttendeeWithToken(
         "Multi Row Person",
@@ -226,7 +227,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         token: "checkin-agent-tomorrow",
         username: "checkin-agent-tomorrow",
       });
-      const tomorrow = addDays(todayInTz(settings.timezone), 1);
+      const tomorrow = addDays(testDate(todayInTz(settings.timezone)), 1);
       const { attendee, listing, token } = await createTestAttendeeWithToken(
         "Tomorrow Person",
         "tomorrow@example.com",

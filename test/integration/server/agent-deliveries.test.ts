@@ -11,7 +11,9 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -53,7 +55,7 @@ const makeVan = async (name: string): Promise<number> =>
 const makeBookingOn = async (
   startAgent: number,
   endAgent: number,
-  startDate: string,
+  startDate: DateString,
   durationDays = 1,
   name = "Bouncy Castle",
 ): Promise<{ attendeeId: number; listingId: number; listingName: string }> => {
@@ -111,7 +113,7 @@ const makeTodayBooking = (
   makeBookingOn(
     startAgent,
     endAgent,
-    todayInTz(settings.timezone),
+    testDate(todayInTz(settings.timezone)),
     durationDays,
     name,
   );
@@ -287,7 +289,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
 
     const response = await markRequest(cookie, {
       attendee_id: String(attendeeId),
-      date: addDays(todayInTz(settings.timezone), 2),
+      date: addDays(testDate(todayInTz(settings.timezone)), 2),
       done: "1",
       kind: "start",
       listing_id: String(listingId),
@@ -402,7 +404,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   test("staff can open a future date and see that day's deliveries", async () => {
     const van = await makeVan("Van 1");
     await assignOwnerAgents([van]);
-    const today = todayInTz(settings.timezone);
+    const today = testDate(todayInTz(settings.timezone));
     const future = addDays(today, 10);
     await makeBookingOn(van, van, future, 1, "Future Castle");
 
@@ -419,7 +421,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     // out-of-window date.
     const van = await makeVan("Van 1");
     await assignOwnerAgents([van]);
-    const future = addDays(todayInTz(settings.timezone), 10);
+    const future = addDays(testDate(todayInTz(settings.timezone)), 10);
     const { attendeeId, listingId } = await makeBookingOn(
       van,
       van,
@@ -444,7 +446,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   test("staff run sheet offers a date picker linking to their delivery dates", async () => {
     const van = await makeVan("Van 1");
     await assignOwnerAgents([van]);
-    const future = addDays(todayInTz(settings.timezone), 10);
+    const future = addDays(testDate(todayInTz(settings.timezone)), 10);
     await makeBookingOn(van, van, future, 1, "Future Castle");
 
     const html = await fetchDeliveriesHtml();
@@ -461,7 +463,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
       token: "a15",
       username: "agent15",
     });
-    const today = todayInTz(settings.timezone);
+    const today = testDate(todayInTz(settings.timezone));
     const future = addDays(today, 10);
     await makeBookingOn(van, van, today, 1, "Today Castle");
     await makeBookingOn(van, van, future, 1, "Future Castle");

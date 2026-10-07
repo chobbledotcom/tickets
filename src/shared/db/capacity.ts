@@ -15,6 +15,7 @@ import type {
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { DAY_MS } from "#shared/now.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { clampDurationDays } from "#types";
 
 /** A half-open [startAt, endAt) window of whole days, as timestamps. Also
@@ -268,9 +269,10 @@ export const buildCapacityCondition =
       );
     if (!date) return sqlFor(null);
 
+    const booked = parseDateStringOrThrow(date, "a stored booking date");
     return Array.from(
       { length: clampDurationDays(durationDays) },
-      (_, index) => `(${sqlFor(dateToRange(addDays(date, index)))})`,
+      (_, index) => `(${sqlFor(dateToRange(addDays(booked, index)))})`,
     ).join(" AND ");
   };
 

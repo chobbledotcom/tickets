@@ -18,6 +18,7 @@ import {
   rosterListSetup,
 } from "#routes/admin/listings-view.ts";
 import { createQuestionWithAnswers } from "#test/shared/db/questions/helpers.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -120,7 +121,9 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
   test("keeps only the attendees booked for the chosen date", async () => {
     const { attendees } = await bookedOnTwoDates("Filtered");
 
-    expect(filterByDate(attendees, "2026-08-01")).toEqual([attendees[1]]);
+    expect(filterByDate(attendees, testDate("2026-08-01"))).toEqual([
+      attendees[1],
+    ]);
   });
 
   test("keeps every attendee when no date was chosen", async () => {
@@ -184,7 +187,7 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
 
   test("describes the roster's controls from the listing", () => {
     const daily = rosterListSetup({ id: 5, listing_type: "daily" }, [
-      { label: "3 August", value: "2026-08-03" },
+      { label: "3 August", value: testDate("2026-08-03") },
     ]);
     expect(daily).toMatchObject({
       basePath: "/admin/listing/5/attendees",

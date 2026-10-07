@@ -19,6 +19,7 @@ import {
   testBrowserListSetup,
   testRosterListSetup,
 } from "#test-utils/attendee-list.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const state = (
@@ -73,7 +74,7 @@ describe("the shared attendee-list controls", () => {
   test("the check-in links keep the chosen day and sort", () => {
     const html = controlsHtml(
       testRosterListSetup(),
-      state({ date: "2026-08-03", sort: "newest" }),
+      state({ date: testDate("2026-08-03"), sort: "newest" }),
     );
     expect(html).toContain(
       'href="/admin/listing/5/attendees?sort=newest&filter=in&date=2026-08-03"',
@@ -83,7 +84,7 @@ describe("the shared attendee-list controls", () => {
   test("the day dropdown marks the chosen day and keeps the check-in filter", () => {
     const html = controlsHtml(
       testRosterListSetup(),
-      state({ checkin: "in", date: "2026-08-03" }),
+      state({ checkin: "in", date: testDate("2026-08-03") }),
     );
     expect(html).toContain(
       '<option value="/admin/listing/5/attendees?filter=in&amp;date=2026-08-03" selected>',

@@ -10,6 +10,7 @@ import { createDailyListing } from "#test/integration/server/listings/_shared-se
 import { logActivity } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -64,8 +65,8 @@ describeWithEnv(
         )(outResponse);
       });
       test("keeps the email action enabled when the date filter hides emailable attendees", async () => {
-        const visibleDate = addDays(todayInTz("UTC"), 1);
-        const hiddenDate = addDays(todayInTz("UTC"), 2);
+        const visibleDate = addDays(testDate(todayInTz("UTC")), 1);
+        const hiddenDate = addDays(testDate(todayInTz("UTC")), 2);
         const listing = await createDailyListing();
         await submitTicketForm(listing.slug, {
           date: visibleDate,
