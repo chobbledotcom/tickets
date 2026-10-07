@@ -333,17 +333,4 @@ src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecor
 src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → ||   # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 
-# group-capacity.ts exact solver: the residual map is built one entry per
-# shared pool and read only for those keys, so every lookup inside the search
-# finds its key and the fallbacks are dead. The guard and the sum prune are
-# optimisations whose negative the depth-first split reaches anyway.
-src/shared/group-capacity.ts::childCapacityPartsFor.groupIds~1cmgw50  ?? → ||   # the lookup answers undefined or an array of group ids; every array is truthy, so both operators fall back only on undefined
-src/shared/group-capacity.ts::splitFits~18nk4dd  ?? → ||   # the residual map is built one entry per shared pool and read only for those keys, so the lookup never misses and the fallback is dead
-src/shared/group-capacity.ts::splitFits~18nk4dd  0→1   # the same dead fallback: the lookup never returns undefined, so the substitute value never reaches the comparison
-src/shared/group-capacity.ts::splitFits.adjust~18nk4dd  ?? → ||   # adjust writes and reads only keys the residual map was built with, so the lookup never misses
-src/shared/group-capacity.ts::splitFits.adjust~18nk4dd  0→1   # the same dead fallback inside adjust
-src/shared/group-capacity.ts::splitFits~0433s4h@1  false→true   # the guard is an optimisation: with a negative residual every child's room over that pool is negative, so the assignment loop places nothing and returns false anyway
-src/shared/group-capacity.ts::splitFits~0433s4h@2  false→true   # the sum prune is an optimisation: the depth-first split still hits a zero-room child and returns false on the same graphs
-src/shared/group-capacity.ts::splitFits~1cia404  0→1   # the prune's accumulator start is off by one, which only delays the prune by one child; the split still answers false on the same graphs
-src/shared/group-capacity.ts::splitFits.order~0p8s109  -→/   # every ownMax in the order is a positive whole number of places, and b/a and b-a share a sign for positive values, so the sort order is unchanged
-src/shared/group-capacity.ts::combinedChildCapacityForParent.ownTotal~1cia404  0→1   # ownTotal is only the scan's starting upper bound; feasibility is decided by the split, so a larger start only adds rejected candidates
+
