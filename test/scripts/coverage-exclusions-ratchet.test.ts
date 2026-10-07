@@ -76,9 +76,21 @@ describe("baseEntries", () => {
     expect(await baseEntries(run, "base123")).toEqual([]);
   });
 
-  test("surfaces a git failure that is not a missing path", async () => {
+  test("surfaces a probe failure that is not a missing path", async () => {
     const run = stubRun({
       [lsTree("base123", EXCLUSIONS_PATH)]: {
+        code: 128,
+        stderr: "fatal: bad object base123",
+        stdout: "",
+      },
+    });
+    await expect(baseEntries(run, "base123")).rejects.toThrow(/bad object/);
+  });
+
+  test("surfaces a read failure after the path checks out", async () => {
+    const run = stubRun({
+      [lsTree("base123", EXCLUSIONS_PATH)]: holds(EXCLUSIONS_PATH),
+      [gitShow("base123", EXCLUSIONS_PATH)]: {
         code: 128,
         stderr: "fatal: bad object base123",
         stdout: "",
