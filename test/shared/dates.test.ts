@@ -2,6 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookedRangeLabel } from "#shared/date-labels.ts";
 import {
+  calendarGridDates,
+  formatDateLabel,
+  formatDateRangeLabel,
+  formatDateRangeLabelCompactEn,
+  formatMonthLabel,
+  monthsAround,
+  shiftMonth,
+} from "#shared/date-labels.ts";
+import {
   addDays,
   addMonthsIso,
   bookedSpanDays,
