@@ -1,3 +1,4 @@
+import { bindFirst } from "#fp-bind";
 import { ADMIN_API_MESSAGE_GROUPS } from "#locales/groups.ts";
 import { GUIDE_MESSAGE_GROUPS, type MessageGroup } from "#locales/manifest.ts";
 import type { AdminAreaId } from "#shared/admin-surface/ids.ts";
@@ -15,18 +16,21 @@ const sameMessageGroups =
   (_segment: string): readonly MessageGroup[] =>
     messageGroups;
 
-const messageGroupsBySegment =
-  (
-    groups: Readonly<Record<string, readonly MessageGroup[]>>,
-  ): ((segment: string) => readonly MessageGroup[]) =>
-  (segment) => {
-    if (!Object.hasOwn(groups, segment)) {
-      throw new Error(
-        `No message groups declared for admin segment "${segment}"`,
-      );
-    }
-    return groups[segment]!;
-  };
+/** The groups `groups` declares for `segment`, failing loudly on a segment
+ * nobody declared. */
+const messageGroupsOf = (
+  groups: Readonly<Record<string, readonly MessageGroup[]>>,
+  segment: string,
+): readonly MessageGroup[] => {
+  if (!Object.hasOwn(groups, segment)) {
+    throw new Error(
+      `No message groups declared for admin segment "${segment}"`,
+    );
+  }
+  return groups[segment]!;
+};
+
+const messageGroupsBySegment = bindFirst(messageGroupsOf);
 
 /** Declare an area without importing its routes until that area is requested. */
 const area = <M extends { adminHandlers: HandlerMap }>(

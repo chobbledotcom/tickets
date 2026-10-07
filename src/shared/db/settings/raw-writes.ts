@@ -5,10 +5,10 @@
  * the rest of this request reads its own write), and bumps the shared
  * `settings_version` so other isolates reload on their next request.
  *
- * `stringUpdate` lifts the writer into a `(key) => (v) => Promise` factory so
- * the same code path backs both the encrypted and plaintext generated-string
- * accessors (and the wallet settings factories, which take an
- * `EncryptedUpdateFn`).
+ * `encryptedUpdate` and `plaintextUpdate` lift a writer into the
+ * `(key) => (v) => Promise` shape that the generated-string accessors and the
+ * wallet settings factories (which take an `EncryptedUpdateFn`) expect, over
+ * one shared write path.
  */
 
 import { encrypt } from "#crypto/encryption.ts";
@@ -28,6 +28,7 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { recordSettingsLoaded } from "#db/settings-audit.ts";
+import { bindFirst } from "#fp-bind";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 
 export { getRawCached };
@@ -145,16 +146,22 @@ export const writeEncrypted: SettingWriter = makeWriter(encrypt);
  * string key so it satisfies `EncryptedUpdateFn` for wallet factories; callers
  * always pass a `CONFIG_KEYS.*` value that is a real snapshot field.
  */
-const stringUpdate =
-  (writer: (key: string, value: string) => Promise<void>) =>
-  (key: string) =>
-  async (v: string): Promise<void> => {
-    await writer(key, v);
-    setSnapshotField(key as StringSettingKey, v);
-  };
+const stringUpdate = async (
+  writer: (key: string, value: string) => Promise<void>,
+  key: string,
+  v: string,
+): Promise<void> => {
+  await writer(key, v);
+  setSnapshotField(key as StringSettingKey, v);
+};
+
+const encryptedStringUpdate = bindFirst(stringUpdate)(writeEncrypted);
+const plaintextStringUpdate = bindFirst(stringUpdate)(writeOrDelete);
 
 /** Encrypt then write, mirroring the plaintext into the snapshot. */
-export const encryptedUpdate: EncryptedUpdateFn = stringUpdate(writeEncrypted);
+export const encryptedUpdate: EncryptedUpdateFn = (key) => (v) =>
+  encryptedStringUpdate(key, v);
 
 /** Write (or delete, when empty) a plaintext value, mirroring into snapshot. */
-export const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
+export const plaintextUpdate: EncryptedUpdateFn = (key) => (v) =>
+  plaintextStringUpdate(key, v);
