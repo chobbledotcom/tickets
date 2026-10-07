@@ -1,3 +1,5 @@
+// test-groups: run-alone — see the marker comment on
+// check-coverage-exclusions.test.ts.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {

@@ -19,7 +19,8 @@ export const LEGACY_PATH = "scripts/coverage-check.ts";
 
 /** Where a reader finds the rule and the way out. */
 export const RATCHET_GUIDE =
-  '"Never add a coverage exclusion" in AGENTS.md and docs/designing-systems.md';
+  '"Never add a coverage exclusion" in AGENTS.md and ' +
+  "docs/designing-systems.md#readable-by-the-coverage-merge";
 
 /** One added exclusion, as the ratchet reports it. */
 export type AddedExclusion = {
@@ -32,12 +33,13 @@ export type AddedExclusion = {
 /**
  * Read the exclusion entries out of the data module's text: one entry per
  * line, a double-quoted path at a two-space indent, exactly as Biome prints
- * the array. Comment lines and blank lines carry no entries.
+ * the array, with an optional trailing comment. Comment lines and blank
+ * lines carry no entries.
  */
 export const parseExclusionEntries = (source: string): string[] =>
   source
     .split("\n")
-    .map((line) => line.match(/^ {2}"([^"]+)",?$/)?.[1])
+    .map((line) => line.match(/^ {2}"([^"]+)",?(?:\s*\/\/.*)?$/)?.[1])
     .filter((entry): entry is string => entry !== undefined);
 
 /**
@@ -60,11 +62,12 @@ export const exclusionFindings = (
   const lines = headSource.split("\n");
   return addedExclusions(parseExclusionEntries(headSource), baseEntries).map(
     (path) => {
-      const line = lines.indexOf(`  "${path}",`) + 1;
+      const line =
+        lines.findIndex((text) => text.startsWith(`  "${path}",`)) + 1;
       return formatFinding(`${EXCLUSIONS_PATH}:${line}`, {
         fix:
           "restructure the code so that the coverage merge reads it. " +
-          "Read docs/designing-systems.md.",
+          "Read docs/designing-systems.md#readable-by-the-coverage-merge.",
         problem: `"${path}" is a new coverage exclusion (the list only shrinks)`,
         rule: "added-exclusion",
       });

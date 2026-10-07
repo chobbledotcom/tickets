@@ -118,7 +118,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   `scripts/check-coverage-exclusions/exclusions.ts` only ever shrinks, and
   the ratchet (`deno task check:coverage-exclusions`) fails on an entry a
   branch adds. Answer a coverage gap by restructuring the code. See
-  docs/designing-systems.md.
+  docs/designing-systems.md#readable-by-the-coverage-merge.
 - **Hardest first, no need to ask**: When the only open question is the order to
   build several things in, build the more difficult one first.
 - **Always the complete version**: Choose the complete, correct version, even
