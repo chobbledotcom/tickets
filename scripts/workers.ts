@@ -24,16 +24,15 @@ const precommitWorkerCount = (
 /**
  * The `DENO_JOBS` value a precommit run should use. A valid positive whole
  * number wins; otherwise use the capped worker count for CI or local work.
+ * The caller can also name a different fallback, as `precommitDenoJobs` does
+ * when it caps the coverage gate's default.
  */
 export const resolveDenoJobs = (
   hardwareConcurrency: number,
   ci: boolean,
   currentDenoJobs: string | undefined,
-): number =>
-  parseWorkerCount(
-    currentDenoJobs,
-    precommitWorkerCount(hardwareConcurrency, ci),
-  );
+  fallback: number = precommitWorkerCount(hardwareConcurrency, ci),
+): number => parseWorkerCount(currentDenoJobs, fallback);
 
 /**
  * Worker count for the coverage gate: every test worker's V8 coverage
@@ -67,8 +66,13 @@ export const precommitDenoJobs = (
     const explicit = parseWorkerCount(currentDenoJobs, 0);
     if (explicit > 0) return explicit;
   }
-  return Math.min(
-    resolveDenoJobs(hardwareConcurrency, ci, undefined),
-    COVERAGE_WORKER_CAP,
+  return resolveDenoJobs(
+    hardwareConcurrency,
+    ci,
+    undefined,
+    Math.min(
+      precommitWorkerCount(hardwareConcurrency, ci),
+      COVERAGE_WORKER_CAP,
+    ),
   );
 };
