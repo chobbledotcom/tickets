@@ -31,13 +31,14 @@ export type AddedExclusion = {
 };
 
 /** One entry line's shape: a double-quoted path at a two-space indent, an
- * optional trailing comma, an optional trailing comment. */
-const ENTRY_LINE = /^ {2}"([^"]+)",?(?:\s*\/\/.*)?$/;
+ * optional trailing comma, an optional trailing comment, and an optional
+ * carriage return (a CRLF checkout must parse the same way). */
+const ENTRY_LINE = /^ {2}"([^"]+)",?\r?(?:\s*\/\/.*)?$/;
 
 /** The same shape anchored on one exact path, for finding its line. */
 export const entryLine = (path: string): RegExp =>
   new RegExp(
-    `^ {2}"${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}",?(?:\\s*\\/\\/.*)?$`,
+    `^ {2}"${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}",?\\r?(?:\\s*\\/\\/.*)?$`,
   );
 
 /**
