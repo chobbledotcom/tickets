@@ -52,3 +52,22 @@ export const coverageDenoJobs = (
   currentDenoJobs === undefined
     ? Math.min(hardwareConcurrency, COVERAGE_WORKER_CAP)
     : undefined;
+
+/** The DENO_JOBS value a precommit run should use. The run's test step is the
+ *  coverage gate, so the default also takes the gate's worker cap. A valid
+ *  explicit DENO_JOBS wins, and an invalid one falls back to the capped
+ *  default. */
+export const precommitDenoJobs = (
+  hardwareConcurrency: number,
+  ci: boolean,
+  currentDenoJobs: string | undefined,
+): number => {
+  if (currentDenoJobs !== undefined) {
+    const explicit = parseWorkerCount(currentDenoJobs, 0);
+    if (explicit > 0) return explicit;
+  }
+  return Math.min(
+    resolveDenoJobs(hardwareConcurrency, ci, undefined),
+    COVERAGE_WORKER_CAP,
+  );
+};

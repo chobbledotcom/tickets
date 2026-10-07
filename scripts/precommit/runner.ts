@@ -1,5 +1,5 @@
 import { readStream } from "#scripts/stream-lines.ts";
-import { resolveDenoJobs } from "#scripts/workers.ts";
+import { precommitDenoJobs } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
 import { withPrecommitLock } from "./lock.ts";
@@ -129,8 +129,10 @@ export const main = async (): Promise<void> => {
     if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
     // Cap test parallelism for the run. CI uses every thread; a local git hook
     // uses (threads / 2) - 1 so the editor and foreground work keep headroom.
-    // A valid explicit DENO_JOBS wins; replace invalid values with the default.
-    const jobs = resolveDenoJobs(
+    // A valid explicit DENO_JOBS wins; replace invalid values with the
+    // default. The default takes the coverage gate's worker cap, because the
+    // run's test step is the coverage gate.
+    const jobs = precommitDenoJobs(
       navigator.hardwareConcurrency,
       ci,
       Deno.env.get("DENO_JOBS"),
