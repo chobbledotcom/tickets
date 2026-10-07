@@ -41,17 +41,22 @@ const assertParseCoversRuntime = (
 };
 
 /** The text of `path` at `revision`, or undefined when the revision does not
- * hold the file. Existence goes through `git cat-file -e`, whose exit code
- * does not depend on the git locale; a read failure after the path checks
- * out must surface, because the ratchet would otherwise read an empty base
- * and reject unchanged entries as added. */
+ * hold the file. A missing path is not an error: `git ls-tree` exits 0 with
+ * an empty listing, and its exit codes do not depend on the git locale. A
+ * probe or read failure must surface, because the ratchet would otherwise
+ * read an empty base and reject unchanged entries as added. */
 const fileAtRevision = async (
   run: RunCommand,
   revision: string,
   path: string,
 ) => {
-  const probe = await runGit(run, ["cat-file", "-e", `${revision}:${path}`]);
-  if (probe.code !== 0) return;
+  const tree = await runGit(run, ["ls-tree", revision, "--", path]);
+  if (tree.code !== 0) {
+    throw new Error(
+      `git ls-tree ${revision} -- ${path} failed: ${tree.stderr.trim()}`,
+    );
+  }
+  if (tree.stdout === "") return;
   const show = await runGit(run, ["show", `${revision}:${path}`]);
   if (show.code !== 0) {
     throw new Error(

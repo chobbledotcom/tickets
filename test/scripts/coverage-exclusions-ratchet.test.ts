@@ -30,8 +30,13 @@ const stubRun =
 const gitShow = (revision: string, path: string) =>
   `git show ${revision}:${path}`;
 
-const catFile = (revision: string, path: string) =>
-  `git cat-file -e ${revision}:${path}`;
+const lsTree = (revision: string, path: string) =>
+  `git ls-tree ${revision} -- ${path}`;
+
+const holds = (path: string) => ({
+  code: 0,
+  stdout: `100644 blob abc123\t${path}\n`,
+});
 
 const module = (entries: string[]): string =>
   `${entries.map((entry) => `  "${entry}",`).join("\n")}\n`;
@@ -39,7 +44,7 @@ const module = (entries: string[]): string =>
 describe("baseEntries", () => {
   test("reads the data module at the merge base", async () => {
     const run = stubRun({
-      [catFile("base123", EXCLUSIONS_PATH)]: { code: 0, stdout: "" },
+      [lsTree("base123", EXCLUSIONS_PATH)]: holds(EXCLUSIONS_PATH),
       [gitShow("base123", EXCLUSIONS_PATH)]: {
         code: 0,
         stdout: module(["src/a.ts"]),
@@ -50,8 +55,11 @@ describe("baseEntries", () => {
 
   test("falls back to the gate module the list moved out of", async () => {
     const run = stubRun({
-      [catFile("base123", EXCLUSIONS_PATH)]: { code: 1, stdout: "" },
-      [catFile("base123", LEGACY_PATH)]: { code: 0, stdout: "" },
+      [lsTree("base123", EXCLUSIONS_PATH)]: {
+        code: 0,
+        stdout: "",
+      },
+      [lsTree("base123", LEGACY_PATH)]: holds(LEGACY_PATH),
       [gitShow("base123", LEGACY_PATH)]: {
         code: 0,
         stdout: module(["src/old.ts"]),
@@ -62,16 +70,15 @@ describe("baseEntries", () => {
 
   test("answers an empty base when neither file exists there", async () => {
     const run = stubRun({
-      [catFile("base123", EXCLUSIONS_PATH)]: { code: 1, stdout: "" },
-      [catFile("base123", LEGACY_PATH)]: { code: 1, stdout: "" },
+      [lsTree("base123", EXCLUSIONS_PATH)]: { code: 0, stdout: "" },
+      [lsTree("base123", LEGACY_PATH)]: { code: 0, stdout: "" },
     });
     expect(await baseEntries(run, "base123")).toEqual([]);
   });
 
   test("surfaces a git failure that is not a missing path", async () => {
     const run = stubRun({
-      [catFile("base123", EXCLUSIONS_PATH)]: { code: 0, stdout: "" },
-      [gitShow("base123", EXCLUSIONS_PATH)]: {
+      [lsTree("base123", EXCLUSIONS_PATH)]: {
         code: 128,
         stderr: "fatal: bad object base123",
         stdout: "",
@@ -99,7 +106,7 @@ describe("ratchetExit", () => {
     lines.length = 0;
     const run = stubRun({
       "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
-      [catFile("base123", EXCLUSIONS_PATH)]: { code: 0, stdout: "" },
+      [lsTree("base123", EXCLUSIONS_PATH)]: holds(EXCLUSIONS_PATH),
       [gitShow("base123", EXCLUSIONS_PATH)]: {
         code: 0,
         stdout: module(base),
