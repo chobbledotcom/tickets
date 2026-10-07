@@ -14,7 +14,11 @@ import {
   todayInTz,
   utcToZoned,
 } from "#shared/timezone.ts";
-import { isRealCalendarDay } from "#shared/validation/date-string.ts";
+import {
+  type DateString,
+  isRealCalendarDay,
+  parseDateStringOrThrow,
+} from "#shared/validation/date-string.ts";
 import { clampDurationDays, type Listing, type SortableListing } from "#types";
 
 /** Days in each month (1-indexed, index 0 unused) */
@@ -68,11 +72,12 @@ export const startOfHour = (date: Date): Date => {
 /** Maximum future range when maximum_days_after is 0 (no limit) */
 const MAX_FUTURE_DAYS = 730;
 
-/** Add days to a YYYY-MM-DD date string */
-export const addDays = (dateStr: string, days: number): string => {
+/** Add days to a real-calendar-day date. The caller's boundary brands the
+ *  value, so a skip-the-parser caller cannot type-check. */
+export const addDays = (dateStr: DateString, days: number): DateString => {
   const date = new Date(`${dateStr}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  return date.toISOString().slice(0, 10) as DateString;
 };
 
 /** Epoch milliseconds at midnight UTC of a YYYY-MM-DD day */
@@ -95,7 +100,7 @@ const isHoliday = (dateStr: string, holidays: Holiday[]): boolean =>
 /** Generate a range of YYYY-MM-DD date strings from start to end (inclusive).
  * A start past the end is an empty range: Array.from reads the negative
  * length as zero. */
-export const dateRange = (start: string, end: string): string[] => {
+export const dateRange = (start: DateString, end: DateString): DateString[] => {
   const dayCount = wholeDaysBetween(start, end) + 1;
   return Array.from({ length: dayCount }, (_, i) => addDays(start, i));
 };
@@ -103,19 +108,22 @@ export const dateRange = (start: string, end: string): string[] => {
 /** The window of days a daily listing can currently be booked in. */
 interface BookingWindow {
   bookableDays: string[];
-  end: string;
-  start: string;
+  end: DateString;
+  start: DateString;
 }
 
 /** Compute bookable date range for a daily listing */
 const bookableRange = (listing: SortableListing): BookingWindow => {
-  const todayStr = todayInTz(settings.timezone);
-  const start = addDays(todayStr, listing.minimum_days_before);
+  const today = parseDateStringOrThrow(
+    todayInTz(settings.timezone),
+    "the configured timezone's clock",
+  );
+  const start = addDays(today, listing.minimum_days_before);
   const maxDays =
     listing.maximum_days_after === 0
       ? MAX_FUTURE_DAYS
       : listing.maximum_days_after;
-  const end = addDays(todayStr, maxDays);
+  const end = addDays(today, maxDays);
   return { bookableDays: listing.bookable_days, end, start };
 };
 
@@ -134,7 +142,7 @@ const isBookable = (
  */
 const canStartOn =
   (range: BookingWindow, durationDays: number, holidays: Holiday[]) =>
-  (start: string): boolean =>
+  (start: DateString): boolean =>
     Array.from({ length: durationDays }, (_, i) => addDays(start, i)).every(
       (day) =>
         day <= range.end && isBookable(day, range.bookableDays, holidays),
@@ -153,7 +161,7 @@ export const getAvailableDates = (
   listing: Listing,
   holidays: Holiday[],
   durationOverride?: number,
-): string[] => {
+): DateString[] => {
   const range = bookableRange(listing);
   const duration = clampDurationDays(durationOverride ?? listing.duration_days);
   return filter(canStartOn(range, duration, holidays))(
@@ -163,9 +171,9 @@ export const getAvailableDates = (
 
 /**
  * Available start dates for a daily listing's booking/date pickers.
- * Customisable-days listings use single-day availability — the span is chosen
- * separately and validated at submit time — so every individually-bookable
- * start is offered; other listings use their fixed duration.
+ * Customisable-days listings use single-day availability: the span is chosen
+ * separately and validated at submit time. Every individually-bookable start
+ * is offered. Other listings use their fixed duration.
  */
 export const getBookableStartDates = (
   listing: Listing,
@@ -198,8 +206,9 @@ export const isBookingRangeValid = (
   holidays: Holiday[],
 ): boolean => {
   const range = bookableRange(listing);
-  if (date < range.start) return false;
-  return canStartOn(range, clampDurationDays(days), holidays)(date);
+  const branded = parseDateStringOrThrow(date, "a submitted booking date");
+  if (branded < range.start) return false;
+  return canStartOn(range, clampDurationDays(days), holidays)(branded);
 };
 
 /**
@@ -210,7 +219,7 @@ export const isBookingRangeValid = (
 export const getNextBookableDate = (
   listing: SortableListing,
   holidays: Holiday[],
-): string | null => {
+): DateString | null => {
   const range = bookableRange(listing);
   const duration = clampDurationDays(listing.duration_days);
   const first = dateRange(range.start, range.end).find(
@@ -231,17 +240,32 @@ export const normalizeDatetime = (value: string, label: string): string => {
   }
 };
 
+/** Every YYYY-MM-DD day a stored `[date, endDate)` booking covers. The end is
+ * exclusive, and a booking with no end recorded covers only the day it starts. */
 /** The stored `[date, endDate)` booking's start and exclusive end day. The
  *  end is one day before the stored exclusive end; with no end stored the
  *  span covers only the start day. A stored date the rule refuses stops the
  *  request loudly. */
+export const storedBookingSpan = (
+  date: string,
+  endDate: string | null,
+): { lastDay: DateString | null; start: DateString } => {
+  const start = parseDateStringOrThrow(date, "a stored booking date");
+  const lastDay = endDate
+    ? addDays(parseDateStringOrThrow(endDate, "a stored booking end date"), -1)
+    : null;
+  return { lastDay, start };
+};
+
 export const coveredDays = (
   date: string | null,
   endDate: string | null,
-): string[] => {
+): DateString[] => {
   if (!date) return [];
-  const lastDay = endDate ? addDays(endDate, -1) : date;
-  return lastDay > date ? dateRange(date, lastDay) : [date];
+  const { lastDay, start } = storedBookingSpan(date, endDate);
+  return lastDay !== null && lastDay > start
+    ? dateRange(start, lastDay)
+    : [start];
 };
 
 /** The whole day count of a stored `[start_at, end_at)` booking range — the
