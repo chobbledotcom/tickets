@@ -18,7 +18,7 @@ import {
 } from "#crypto/keys.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import {
-  executeBatchWithResults,
+  batchOnScope,
   queryBatch,
   resultRows,
   type TxScope,
@@ -171,9 +171,7 @@ export const logActivities = async (
       ),
     ),
   );
-  const results = transaction
-    ? await transaction.batch(statements)
-    : await executeBatchWithResults(statements);
+  const results = await batchOnScope(statements, transaction);
   return results.map((result, index) => ({
     ...resultRows<StoredActivityLogEntry>(result)[0]!,
     message: activities[index]!.message,

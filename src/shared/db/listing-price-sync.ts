@@ -8,10 +8,11 @@
 
 import * as v from "valibot";
 import {
-  executeBatchWithResults,
+  batchOnScope,
   inPlaceholders,
   queryIdColumn,
   resultRows,
+  type TxScope,
 } from "#db/client.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { chunk } from "#fp";
@@ -65,24 +66,29 @@ const SYNC_PAGE = 200;
  */
 export const syncListingPricesForIds = async (
   ids: readonly number[],
+  transaction?: TxScope,
 ): Promise<void> => {
   if (ids.length === 0) return;
   for (const page of chunk(SYNC_PAGE)([...ids])) {
-    const results = await executeBatchWithResults([
+    const statements = [
       {
         args: [...page],
         sql: `SELECT id, unit_price FROM listings
                WHERE id IN (${inPlaceholders(page)})`,
       },
       ...page.flatMap((id) => [guardedBaseDelete(id), guardedBaseInsert(id)]),
-    ]);
+    ];
+    const results = await batchOnScope(statements, transaction);
     v.parse(v.array(ListingPriceSourceRowSchema), resultRows(results[0]!));
   }
 };
 
-/** The save hook after every listing insert/update: one listing, one batch. */
-export const syncListingPrices = (listingId: number): Promise<void> =>
-  syncListingPricesForIds([listingId]);
+/** The save hook after every listing insert/update: one listing, one batch.
+ *  Pass the caller's transaction so the mirror commits with the write. */
+export const syncListingPrices = (
+  listingId: number,
+  transaction?: TxScope,
+): Promise<void> => syncListingPricesForIds([listingId], transaction);
 
 /**
  * Populate every listing's `base` row from its current `unit_price` — the
