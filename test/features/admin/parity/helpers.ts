@@ -36,7 +36,7 @@ export const pagePostAs = async (
 const apiRequestAs = async (
   path: string,
   method: string,
-  body: Record<string, unknown>,
+  body: Record<string, unknown> | undefined,
   cookie: string,
 ): Promise<Response> =>
   handleRequest(
@@ -46,18 +46,22 @@ const apiRequestAs = async (
         cookie,
         csrfToken: await testCsrfToken(),
       },
-      {
-        body: JSON.stringify(body),
-        headers: { "content-type": "application/json" },
-        method,
-      },
+      // A bodyless read carries no content type: the API treats a JSON
+      // content type on a safe method as a body it must parse.
+      body === undefined
+        ? { method }
+        : {
+            body: JSON.stringify(body),
+            headers: { "content-type": "application/json" },
+            method,
+          },
     ),
   );
 
 const ownerApiRequest = async (
   path: string,
   method: string,
-  body: Record<string, unknown>,
+  body: Record<string, unknown> | undefined,
 ): Promise<Response> => apiRequestAs(path, method, body, await testCookie());
 
 /** POST the JSON route with the owner's session. */
@@ -65,6 +69,10 @@ export const ownerApiPost = (
   path: string,
   body: Record<string, unknown>,
 ): Promise<Response> => ownerApiRequest(path, "POST", body);
+
+/** GET the JSON route with the owner's session. */
+export const ownerApiGet = (path: string): Promise<Response> =>
+  ownerApiRequest(path, "GET", undefined);
 
 /** PUT the JSON route with the owner's session. */
 export const ownerApiPut = (

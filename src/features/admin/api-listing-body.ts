@@ -86,6 +86,11 @@ const INSTANT_OR_NULL = v.union([
   v.pipe(v.string(), v.check(isUtcInstantOfRealDay)),
 ]);
 
+/** The listing date accepts "" beside the usual instants. An undated
+ *  listing stores "" and the GET reads it back as "", so the update
+ *  boundary accepts the sentinel and keeps the round trip. */
+const DATE_OR_EMPTY = v.union([INSTANT_OR_NULL, v.literal("")]);
+
 const API_BODY_FIELD_RULES = [
   [
     "bookable_days",
@@ -102,11 +107,7 @@ const API_BODY_FIELD_RULES = [
     INSTANT_OR_NULL,
     "closes_at must be a UTC instant of a real calendar day",
   ],
-  [
-    "date",
-    INSTANT_OR_NULL,
-    "date must be a UTC instant of a real calendar day",
-  ],
+  ["date", DATE_OR_EMPTY, "date must be a UTC instant of a real calendar day"],
   [
     "day_prices",
     v.pipe(

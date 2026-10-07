@@ -26,7 +26,12 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 import type { ListingWithCount } from "#types";
-import { ownerApiPost, ownerPagePost } from "./helpers.ts";
+import {
+  ownerApiGet,
+  ownerApiPost,
+  ownerApiPut,
+  ownerPagePost,
+} from "./helpers.ts";
 
 describeWithEnv("Listing parity pins", { db: true }, () => {
   test("api create parses day prices, dropping day zero", async () => {
@@ -147,5 +152,29 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
     const apiRepeat = await deactivateViaApi(apiListing.id);
     expect(apiRepeat.status).toBe(400);
     expect((await apiRepeat.json()).error).toContain("already deactivated");
+  });
+
+  test("api round trip keeps an undated listing's empty date", async () => {
+    const created = await assertJson<{ listing: { id: number } }>(
+      ownerApiPost("/api/admin/listings", {
+        max_attendees: 10,
+        name: "Undated Round Trip",
+      }),
+      201,
+    );
+    const read = await assertJson<{
+      listing: { date: string; name: string };
+    }>(ownerApiGet(`/api/admin/listings/${created.listing.id}`), 200);
+    expect(read.listing.date).toBe("");
+    await assertJson(
+      ownerApiPut(`/api/admin/listings/${created.listing.id}`, {
+        date: read.listing.date,
+        name: read.listing.name,
+      }),
+      200,
+      (body) => {
+        expect(body.listing.date).toBe("");
+      },
+    );
   });
 });

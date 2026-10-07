@@ -8,8 +8,9 @@ export const DATETIME_PARTIAL_ERROR =
 
 /** Read one field from submitted form data using the field's input shape.
  *  A date-typed field is cleaned at this boundary: trimmed and validated as
- *  a real calendar day, or null when the value is unusable. Every surface
- *  that reads a form gets the cleaned value without opting in. */
+ *  a real calendar day. An unusable date passes through raw, so the field's
+ *  own validator reports its message. Every surface that reads a form gets
+ *  the value without opting in. */
 export const readSubmittedFieldValue = (
   form: FormParams,
   field: Field,

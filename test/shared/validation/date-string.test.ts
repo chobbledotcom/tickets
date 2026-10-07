@@ -139,4 +139,9 @@ describe("isUtcInstantOfRealDay", () => {
   test("refuses a surplus segment after the zone designator", () => {
     expect(isUtcInstantOfRealDay("2026-06-15T10:00:00ZTextra")).toBe(false);
   });
+
+  test("refuses a sub-millisecond UTC instant", () => {
+    expect(isUtcInstantOfRealDay("2026-06-15T10:00:00.123456Z")).toBe(false);
+    expect(parseDateString("2026-06-15T10:00:00.123456Z")).toBe(null);
+  });
 });
