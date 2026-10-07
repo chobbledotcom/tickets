@@ -103,21 +103,31 @@ export interface ResourceConfig<
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
   validate?: ValidateFn<Input, Id>;
-  /** Cross-field validation on the parsed form values, before `toInput`. Unlike
-   * `validate` (which runs on the converted `Input`), this sees the raw field
-   * values together, so a field whose rule depends on a sibling — e.g. a
-   * modifier's `calc_value` bounds depend on its `calc_kind` — can be checked
-   * where both are visible. Return an error message or null. */
+  /** Validation over the RAW form, before the schema parses it. For dynamic
+   *  fields the static schema cannot declare — a per-member package price
+   *  keyed by listing id. Return an error message, or null when the form is
+   *  well-formed. */
+  validateForm?: (form: FormParams) => string | null;
+  /** Cross-field validation on the parsed form values, before `toInput`.
+   * `validate` runs on the converted `Input`. This hook instead sees the raw
+   * field values together. A field whose rule depends on a sibling can be
+   * checked here, where both are visible. Return an error message or null. */
   validateValues?: (values: Values) => string | null;
 }
 
-/** Validate form and convert to result type */
+/** Validate the form and convert to result type. The form-level check runs
+ *  first, so a dynamic field the static schema cannot declare — a per-member
+ *  package price keyed by listing id — refuses the save before the schema
+ *  parse. */
 const validateAndParse = async <T, V extends FieldValues = FieldValues>(
   form: FormParams,
   schema: FormSchema<V>,
   toInput: (values: V) => T | Promise<T>,
   validateValues?: (values: V) => string | null,
+  validateForm?: (form: FormParams) => string | null,
 ): Promise<Result<T>> => {
+  const formError = validateForm?.(form);
+  if (formError) return { error: formError, ok: false };
   const validation = schema.validate(form);
   if (!validation.valid) return { error: validation.error, ok: false };
   const valuesError = validateValues?.(validation.values);
@@ -173,6 +183,7 @@ export const defineResource = <
       schema,
       toInput,
       config.validateValues,
+      config.validateForm,
     );
 
   /** Run `fn` only when the row exists; otherwise report not found. Asking

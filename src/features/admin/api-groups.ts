@@ -30,6 +30,11 @@ import {
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
+import {
+  isValidMemberPrice,
+  isValidMemberQuantity,
+  memberDayPricesFault,
+} from "#shared/groups/package-member-values.ts";
 import { packageGroups } from "#shared/package-membership.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
@@ -45,12 +50,7 @@ import {
   type Result,
 } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import {
-  buildDayPrices,
-  type DayPrices,
-  type Group,
-  type GroupListing,
-} from "#types";
+import type { DayPrices, Group, GroupListing } from "#types";
 
 /** A package member override in a JSON request body. `price` is minor units:
  * `null` means no override (use the listing's own price), `0` means free in the
@@ -90,19 +90,24 @@ const parseMemberDayPrices = (raw: unknown): Result<DayPrices | undefined> =>
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       return errorResult("package_members day_prices must be an object");
     }
-    const dayPrices = buildDayPrices(value, (key, price) => {
-      const days = Number(key);
-      if (!/^\d+$/.test(key) || !Number.isInteger(days) || days < 1) {
-        return "package_members day_prices keys must be positive day counts";
-      }
-      if (!Number.isInteger(price) || (price as number) < 0) {
-        return "package_members day_prices values must be non-negative integers";
-      }
-      return { days, price: price as number };
-    });
-    return typeof dayPrices === "string"
-      ? errorResult(dayPrices)
-      : okResult(dayPrices);
+    // The shared module decides which part breaks. The API names the part
+    // with its own message.
+    switch (memberDayPricesFault(value as Record<string, unknown>)) {
+      case "days":
+        return errorResult(
+          "package_members day_prices keys must be positive day counts",
+        );
+      case "prices":
+        return errorResult(
+          "package_members day_prices values must be non-negative integers",
+        );
+      case null:
+        return okResult(
+          Object.fromEntries(
+            Object.entries(value).map(([days, price]) => [Number(days), price]),
+          ) as DayPrices,
+        );
+    }
   });
 
 const parsePackageMember = (item: unknown): Result<PackageMemberInput> => {
@@ -118,12 +123,12 @@ const parsePackageMember = (item: unknown): Result<PackageMemberInput> => {
   if (!Number.isInteger(listing_id) || (listing_id as number) <= 0) {
     return errorResult("package_members listing_id must be a positive integer");
   }
-  if (price !== null && (!Number.isInteger(price) || (price as number) < 0)) {
+  if (!isValidMemberPrice(price)) {
     return errorResult(
       "package_members price must be a non-negative integer or null",
     );
   }
-  if (!Number.isInteger(quantity) || (quantity as number) < 1) {
+  if (!isValidMemberQuantity(quantity)) {
     return errorResult("package_members quantity must be a positive integer");
   }
   const dayPrices = parseMemberDayPrices(day_prices);

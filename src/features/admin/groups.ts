@@ -44,17 +44,14 @@ import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
   groupCatalogFields,
-  type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
 import {
   GROUP_DEMO_FIELDS,
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
 import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
@@ -64,11 +61,15 @@ import {
   getGroupCreateForm,
   getGroupForm,
 } from "#templates/fields/group.ts";
-import type { DayPrices, Group } from "#types";
+import type { Group } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";
+import {
+  parsePackageMembers,
+  validatePackageMemberForm,
+} from "./package-member-rules.ts";
 
 /* jscpd:ignore-end */
 
@@ -142,77 +143,6 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   );
 };
 
-/** Parse one package-price input to minor units. A blank, non-numeric, or
- * negative value is `null` — "no override; use the listing's own price" — so a
- * typo cannot fail the save or store a negative override. An explicit `0` is a
- * real value: the listing is FREE within this package, distinct from "no
- * override". {@link parseOptionalMinorUnits} is exactly this optional-field
- * shape (blank ⇒ unset, never a real 0) and enforces the whole-string,
- * currency-decimal rule. A typo like `12abc`/`1,50` falls back to no override
- * rather than a partial `12`/`1`. */
-const parsePackagePrice = (raw: string): number | null =>
-  parseOptionalMinorUnits(raw);
-
-/** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
- * defaults to 1 (a package always includes at least one of each member). The
- * whole string must be digits: unlike `parseInt` (which accepts a leading
- * prefix), a typo like `2abc` or `1e3` defaults to 1 rather than parsing a
- * partial 2/1. */
-const parsePackageQuantity = (raw: string): number => {
-  const trimmed = raw.trim();
-  if (!/^\d+$/.test(trimmed)) return 1;
-  const n = Number(trimmed);
-  return Number.isSafeInteger(n) && n >= 1 ? n : 1;
-};
-
-/** The per-listing `package_day_price_<listingId>_<n>` inputs folded into each
- * listing's day-price override map. A blank, non-numeric, or negative input
- * contributes nothing — "no override for that span; use the listing's own day
- * price" — while an explicit `0` makes the span free in this package, matching
- * {@link parsePackagePrice}'s rules for the flat override. */
-const parseMemberDayPrices = (
-  keys: ReadonlySet<string>,
-  form: FormParams,
-): Map<number, DayPrices> => {
-  const byListing = new Map<number, DayPrices>();
-  for (const key of keys) {
-    const match = /^package_day_price_(\d+)_(\d+)$/.exec(key);
-    if (!match) continue;
-    const price = parsePackagePrice(form.getString(key));
-    if (price === null) continue;
-    const listingId = Number(match[1]);
-    const savedDayPrices = byListing.get(listingId);
-    const dayPrices = savedDayPrices === undefined ? {} : savedDayPrices;
-    dayPrices[Number(match[2])] = price;
-    byListing.set(listingId, dayPrices);
-  }
-  return byListing;
-};
-
-/** Read the per-listing `package_price_<id>` / `package_qty_<id>` /
- * `package_day_price_<id>_<n>` inputs from the edit form into one member entry
- * per listing whose price input is present. */
-const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
-  const members: PackageMemberInput[] = [];
-  const keys = new Set(form.keys());
-  const dayPricesByListing = parseMemberDayPrices(keys, form);
-  for (const key of keys) {
-    const match = /^package_price_(\d+)$/.exec(key);
-    if (!match) continue;
-    const listingId = Number(match[1]);
-    const savedDayPrices = dayPricesByListing.get(listingId);
-    members.push({
-      dayPrices: savedDayPrices === undefined ? {} : savedDayPrices,
-      listingId,
-      price: parsePackagePrice(form.getString(key)),
-      quantity: parsePackageQuantity(
-        form.getString(`package_qty_${listingId}`),
-      ),
-    });
-  }
-  return members;
-};
-
 const sharedGroupFields = (values: GroupCreateFormValues) =>
   projectCatalogFields(groupCatalogFields, "form", values);
 
@@ -275,6 +205,7 @@ const groupResourceBase = {
   onDelete: deleteGroup,
   table: groups.table,
   validate: validateGroupWithPackage,
+  validateForm: validatePackageMemberForm,
 } as const;
 
 const groupsCreateResource = defineResource({

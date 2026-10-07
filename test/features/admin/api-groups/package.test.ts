@@ -284,6 +284,12 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
         { day_prices: { "2": -1 }, listing_id: listing.id, price: null },
         "package_members day_prices values must be non-negative integers",
       ],
+      // A null entry would read as a free day through Number(null); the map
+      // expresses "no override for that day" by omitting the day.
+      [
+        { day_prices: { "2": null }, listing_id: listing.id, price: null },
+        "package_members day_prices values must be non-negative integers",
+      ],
     ];
     for (const [member, error] of cases) {
       await assertJson(

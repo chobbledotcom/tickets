@@ -2067,7 +2067,7 @@
     "contraction": 1
   },
   "src/shared/rest/resource.ts": {
-    "wordy": 3,
+    "wordy": 2,
     "long-sentence": 2,
     "semicolon": 1,
     "banned-modal": 1,
@@ -2364,7 +2364,7 @@
     "semicolon": 1
   },
   "src/shared/types.ts": {
-    "long-sentence": 11,
+    "long-sentence": 10,
     "wordy": 2,
     "semicolon": 19,
     "contraction": 2,
