@@ -283,6 +283,7 @@ describe("getSecurityHeaders", () => {
       "/listings",
       "/terms",
       "/contact",
+      "/order",
       "/news",
       "/news/spring-fair",
       "/page/about-us",
@@ -347,6 +348,19 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
     );
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(response.headers.has("x-robots-noindex")).toBe(false);
+  });
+
+  test("keeps a non-2xx public page out of the index", async () => {
+    await enablePublicSite();
+    try {
+      const response = await applySecurityHeaders(
+        new Response("gone", { status: 404 }),
+        "/page/unknown-page",
+      );
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    } finally {
+      await disablePublicSite();
+    }
   });
 
   test("prevents caching when the response has no explicit policy", async () => {

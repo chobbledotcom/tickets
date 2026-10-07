@@ -117,10 +117,10 @@ export const isEmbeddablePath = (path: string): boolean =>
 
 /** The paths the public site serves when its feature is on. They are the
  *  home page, the listings page, the terms, the news pages, the custom
- *  pages, and the contact page. The x-robots-tag follows this list. A new
- *  public page joins this list to be indexable. */
+ *  pages, the contact page, and the order page. The x-robots-tag follows
+ *  this list. A new public page joins this list to be indexable. */
 const PUBLIC_SITE_PATH = new RegExp(
-  `^(?:/|/listings|/terms|/contact|/news(?:/${SLUG})?|/page/${SLUG})$`,
+  `^(?:/|/listings|/terms|/contact|/order|/news(?:/${SLUG})?|/page/${SLUG})$`,
 );
 
 /**
@@ -272,6 +272,13 @@ export const applySecurityHeaders = async (
 
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
+  }
+
+  // A public page that did not answer 2xx is not an indexable page. An
+  // unknown slug, an unconfigured page, or a redirect must not claim
+  // index, follow.
+  if (response.status < 200 || response.status >= 300) {
+    response.headers.set("x-robots-tag", "noindex, nofollow");
   }
 
   // Override x-robots-tag for hidden listings (signal header set by route handlers)

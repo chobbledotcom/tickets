@@ -5,6 +5,7 @@
  *  site serves is open. The private areas lean on their noindex headers and
  *  their auth. The file names no path for a crawler to probe. */
 
+import { isMissingSettingsTableError } from "#db/migrations/errors.ts";
 import { settings } from "#db/settings.ts";
 import { encodeBody } from "#routes/response.ts";
 import { TEXT } from "#shared/content-types.ts";
@@ -19,7 +20,13 @@ const PUBLIC_ROBOTS_TXT = "User-agent: *\nAllow: /\n";
  *  fresh and declared. The cache is short, because the body follows a
  *  setting an operator can flip. */
 export const handleRobotsTxt = async (): Promise<Response> => {
-  await settings.loadKeys([CONFIG_KEYS.ENABLED_FEATURES]);
+  try {
+    await settings.loadKeys([CONFIG_KEYS.ENABLED_FEATURES]);
+  } catch (error) {
+    // A site before setup has no settings table, so the feature cannot be
+    // on and the default body is the answer. Every other failure stays loud.
+    if (!isMissingSettingsTableError(error)) throw error;
+  }
   return new Response(
     encodeBody(settings.features.site ? PUBLIC_ROBOTS_TXT : PRIVATE_ROBOTS_TXT),
     {
