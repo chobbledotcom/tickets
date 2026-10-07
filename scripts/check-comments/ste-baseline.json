@@ -1385,7 +1385,7 @@
     "long-sentence": 3
   },
   "src/shared/db/settings/raw-writes.ts": {
-    "long-sentence": 2,
+    "long-sentence": 1,
     "semicolon": 1
   },
   "src/shared/db/settings/setup.ts": {
