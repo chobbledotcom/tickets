@@ -2,9 +2,10 @@
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { adminGet } from "#test-utils/session.ts";
 
-export const tomorrow = () => addDays(todayInTz("UTC"), 1);
+export const tomorrow = () => addDays(testDate(todayInTz("UTC")), 1);
 
 export async function fetchCalendarHtml(path = "/admin/calendar") {
   const response = await adminGet(path);
