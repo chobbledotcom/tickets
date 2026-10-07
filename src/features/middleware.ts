@@ -86,8 +86,10 @@ export const getSecurityHeaders = (
   csp = buildCspHeader(isEmbeddablePath(path)),
 ): Record<string, string> => {
   const embeddable = isEmbeddablePath(path);
+  // The setting read sits behind the path check. A path the public site
+  // never serves (a static asset, an admin page) reads no setting at all.
   const indexable =
-    embeddable || (settings.features.site && isPublicSitePath(path));
+    embeddable || (isPublicSitePath(path) && settings.features.site);
   return {
     ...BASE_SECURITY_HEADERS,
     ...(!embeddable && { "x-frame-options": "DENY" }),

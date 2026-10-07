@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -37,6 +38,21 @@ describeWithEnv(
           expect(await response.text()).toBe("User-agent: *\nAllow: /\n");
         } finally {
           await disablePublicSite();
+        }
+      });
+
+      test("answers from the database with nothing cached", async () => {
+        // The static path serves before a request loads settings, so the
+        // handler must read its own key: with the process cache emptied, a
+        // body that followed a stale or empty snapshot would say Disallow.
+        await enablePublicSite();
+        settings.invalidateCache();
+        try {
+          const response = await handleRequest(mockRequest("/robots.txt"));
+          expect(await response.text()).toBe("User-agent: *\nAllow: /\n");
+        } finally {
+          await disablePublicSite();
+          settings.invalidateCache();
         }
       });
 
