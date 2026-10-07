@@ -720,11 +720,19 @@
     "semicolon": 1
   },
   "src/shared/dates.ts": {
+<<<<<<< HEAD
     "wordy": 4,
     "long-sentence": 3,
     "semicolon": 3,
     "contraction": 1,
     "banned-modal": 1
+=======
+    "wordy": 5,
+    "long-sentence": 4,
+    "contraction": 1,
+    "semicolon": 2,
+    "banned-modal": 2
+>>>>>>> 31f9883b0 (Stay inside the accepted test file budgets)
   },
   "src/shared/day-names.ts": {
     "long-sentence": 1

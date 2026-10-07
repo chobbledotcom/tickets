@@ -170,8 +170,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
 
     test("a package capacity error uses its buyer-safe name", async () => {
-      // The prepared package line supplies its buyer-safe name to a later
-      // capacity error.
+      // The prepared package line supplies its buyer-safe name to a later capacity error.
       const group = await createTestGroup({
         isPackage: true,
         name: "Sellout Kit",

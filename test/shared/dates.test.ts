@@ -226,8 +226,7 @@ describe("dates", () => {
     });
 
     test("returns empty array when no bookable days match", () => {
-      // Choose a day that doesn't appear in the 7-day range from today
-      // by picking a bogus day name
+      // Pick a day name that is not in the 7-day range from today.
       const listing = testListing({
         bookable_days: [],
         listing_type: "daily",
