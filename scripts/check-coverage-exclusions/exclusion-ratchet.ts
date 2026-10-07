@@ -30,16 +30,25 @@ export type AddedExclusion = {
   line: number;
 };
 
+/** One entry line's shape: a double-quoted path at a two-space indent, an
+ * optional trailing comma, an optional trailing comment. */
+const ENTRY_LINE = /^ {2}"([^"]+)",?(?:\s*\/\/.*)?$/;
+
+/** The same shape anchored on one exact path, for finding its line. */
+export const entryLine = (path: string): RegExp =>
+  new RegExp(
+    `^ {2}"${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}",?(?:\\s*\\/\\/.*)?$`,
+  );
+
 /**
  * Read the exclusion entries out of the data module's text: one entry per
- * line, a double-quoted path at a two-space indent, exactly as Biome prints
- * the array, with an optional trailing comment. Comment lines and blank
+ * line in the shape {@link ENTRY_LINE} matches. Comment lines and blank
  * lines carry no entries.
  */
 export const parseExclusionEntries = (source: string): string[] =>
   source
     .split("\n")
-    .map((line) => line.match(/^ {2}"([^"]+)",?(?:\s*\/\/.*)?$/)?.[1])
+    .map((line) => line.match(ENTRY_LINE)?.[1])
     .filter((entry): entry is string => entry !== undefined);
 
 /**
@@ -62,8 +71,7 @@ export const exclusionFindings = (
   const lines = headSource.split("\n");
   return addedExclusions(parseExclusionEntries(headSource), baseEntries).map(
     (path) => {
-      const line =
-        lines.findIndex((text) => text.startsWith(`  "${path}",`)) + 1;
+      const line = lines.findIndex((text) => entryLine(path).test(text)) + 1;
       return formatFinding(`${EXCLUSIONS_PATH}:${line}`, {
         fix:
           "restructure the code so that the coverage merge reads it. " +

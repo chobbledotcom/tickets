@@ -47,6 +47,19 @@ describe("parseExclusionEntries", () => {
     ).toEqual(["src/a.ts", "src/b.ts"]);
   });
 
+  test("reads a final entry written without its trailing comma", () => {
+    expect(
+      parseExclusionEntries(
+        [
+          "export const COVERAGE_EXCLUSIONS = [",
+          '  "src/a.ts",',
+          '  "src/b.ts"',
+          "];",
+        ].join("\n"),
+      ),
+    ).toEqual(["src/a.ts", "src/b.ts"]);
+  });
+
   test("parses the real data module into the array the gate imports", () => {
     const source = Deno.readTextFileSync(EXCLUSIONS_PATH);
     expect(parseExclusionEntries(source)).toEqual([...COVERAGE_EXCLUSIONS]);
@@ -92,6 +105,22 @@ describe("exclusionFindings", () => {
       "export const COVERAGE_EXCLUSIONS = [",
       '  "src/kept.ts",',
       '  "src/added.ts", // Deno mis-attributes this file once isolates load it',
+      "];",
+      "",
+    ].join("\n");
+    expect(exclusionFindings(head, ["src/kept.ts"])).toEqual([
+      `${EXCLUSIONS_PATH}:3 [added-exclusion]: "src/added.ts" is a new ` +
+        "coverage exclusion (the list only shrinks) — restructure the code " +
+        "so that the coverage merge reads it. Read " +
+        "docs/designing-systems.md#readable-by-the-coverage-merge.",
+    ]);
+  });
+
+  test("reports a comma-less added entry at its line", () => {
+    const head = [
+      "export const COVERAGE_EXCLUSIONS = [",
+      '  "src/kept.ts",',
+      '  "src/added.ts"',
       "];",
       "",
     ].join("\n");
