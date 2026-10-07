@@ -404,7 +404,10 @@ export const toggleListingActive = async (
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
-      if (row === undefined || listingAlreadyInState(row.active === 1, active)) {
+      if (
+        row === undefined ||
+        listingAlreadyInState(row.active === 1, active)
+      ) {
         return { noChange: true };
       }
       if (!active) {
