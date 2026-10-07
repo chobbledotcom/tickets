@@ -1,4 +1,4 @@
-import { CSS, JS, SVG, TEXT } from "#shared/content-types.ts";
+import { CSS, JS, SVG } from "#shared/content-types.ts";
 import { ASSETS, readAsset } from "#shared/images/wasm-assets.ts";
 import type { AssetDef } from "./edge-bundle-modules.ts";
 import { wasmFilename } from "./inline-jsquash-wasm.ts";
@@ -6,7 +6,8 @@ import type { StaticCdnAsset } from "./static-cdn.ts";
 
 /** One schema drives embedded handlers, public paths, and CDN publication. */
 export const ASSET_DEFS: AssetDef[] = [
-  ["robots.txt", "handleRobotsTxt", TEXT, ""],
+  // robots.txt is not here: its body follows the site's public-site feature,
+  // so the app's own settings-reading handler ships in the bundle instead.
   ["favicon.svg", "handleFavicon", SVG, ""],
   ["icons.svg", "handleIcons", SVG, "ICONS_PATH"],
   ["style.css", "handleStyleCss", CSS, "CSS_PATH", true],

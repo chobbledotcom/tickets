@@ -5,7 +5,7 @@
 import { dirname, fromFileUrl, join } from "@std/path";
 import { once } from "#fp";
 import { encodeBody } from "#routes/response.ts";
-import { CSS, JS, SVG, TEXT } from "#shared/content-types.ts";
+import { CSS, JS, SVG } from "#shared/content-types.ts";
 
 const currentDir = dirname(fromFileUrl(import.meta.url));
 const staticDir = join(currentDir, "..", "ui", "static");
@@ -27,7 +27,6 @@ const staticHandler = (
     });
 };
 
-export const handleRobotsTxt = staticHandler("robots.txt", TEXT);
 export const handleFavicon = staticHandler("favicon.svg", SVG);
 export const handleIcons = staticHandler("icons.svg", SVG);
 export const handleStyleCss = staticHandler("style.css", CSS);

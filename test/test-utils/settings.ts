@@ -240,6 +240,12 @@ export const enablePublicSite = async (): Promise<void> => {
   await enableFeature("site");
 };
 
+/** Turn the public site feature back off, so a test's state never leaks into
+ *  its neighbours. */
+export const disablePublicSite = async (): Promise<void> => {
+  await setAdminFeatureEnabled("site", false);
+};
+
 /** The address the site both sends from and delivers contact messages to. */
 export const CONTACT_OWNER_EMAIL = "owner@example.com";
 

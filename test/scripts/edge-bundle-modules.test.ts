@@ -48,7 +48,7 @@ describe("buildBuildInfoModule", () => {
 });
 
 const PATH_DEFS: AssetDef[] = [
-  ["robots.txt", "handleRobotsTxt", "text/plain", ""],
+  ["favicon.svg", "handleFavicon", "image/svg+xml", ""],
   ["style.css", "handleStyleCss", "text/css", "CSS_PATH"],
   ["embed.js", "handleEmbedJs", "application/javascript", "EMBED_JS_PATH"],
 ];
@@ -56,8 +56,8 @@ const PATH_DEFS: AssetDef[] = [
 describe("buildAssetPathsModule", () => {
   test("emits a const only for defs that carry a path constant", () => {
     const out = buildAssetPathsModule(PATH_DEFS, 1234);
-    // robots.txt has no path constant, so it is filtered out entirely.
-    expect(out).not.toContain("robots");
+    // favicon.svg has no path constant, so it is filtered out entirely.
+    expect(out).not.toContain("favicon");
     expect(out).toContain("CSS_PATH");
     expect(out).toContain("EMBED_JS_PATH");
   });

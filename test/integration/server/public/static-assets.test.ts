@@ -9,6 +9,7 @@ import {
   expectLongCacheHeaders,
   expectStaticFile,
 } from "#test-utils/public/static-route-checks.ts";
+import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -21,20 +22,64 @@ describeWithEnv(
         await expectStaticFile("/robots.txt", "text/plain; charset=utf-8");
       });
 
-      test("allows crawlers on /listings/ but disallows everything else", async () => {
+      test("keeps the listings-only body while the public site is off", async () => {
+        await disablePublicSite();
         const response = await handleRequest(mockRequest("/robots.txt"));
-        const body = await response.text();
-        expect(body).toContain("User-agent: *");
-        expect(body).toContain("Allow: /listings/");
-        expect(body).toContain("Disallow: /");
+        expect(await response.text()).toBe(
+          "User-agent: *\nAllow: /listings/\nDisallow: /\n",
+        );
+      });
+
+      test("opens every page once the public site is on", async () => {
+        await enablePublicSite();
+        try {
+          const response = await handleRequest(mockRequest("/robots.txt"));
+          expect(await response.text()).toBe("User-agent: *\nAllow: /\n");
+        } finally {
+          await disablePublicSite();
+        }
+      });
+
+      test("names no private path in either state", async () => {
+        for (const publicSite of [false, true] as const) {
+          if (publicSite) {
+            await enablePublicSite();
+          } else {
+            await disablePublicSite();
+          }
+          const body = await (
+            await handleRequest(mockRequest("/robots.txt"))
+          ).text();
+          for (const family of [
+            "/admin",
+            "/api",
+            "/checkout",
+            "/payment",
+            "/webhook",
+            "/ticket",
+            "/order",
+            "/pay",
+            "/renew",
+            "/join",
+            "/unsubscribe",
+            "/setup",
+            "/login",
+          ]) {
+            expect(body.includes(family)).toBe(false);
+          }
+        }
+        await disablePublicSite();
       });
 
       test("returns 404 for non-GET requests to /robots.txt", async () => {
         await expect404ForNonGetStatic("/robots.txt");
       });
 
-      test("has long cache headers", async () => {
-        await expectLongCacheHeaders("/robots.txt");
+      test("caches briefly, because the body follows a setting", async () => {
+        const response = await handleRequest(mockRequest("/robots.txt"));
+        expect(response.headers.get("cache-control")).toBe(
+          "public, max-age=300",
+        );
       });
     });
 

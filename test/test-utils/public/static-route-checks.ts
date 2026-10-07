@@ -3,13 +3,15 @@ import { handleRequest } from "#routes";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 
 /**
- * Every small static-file route (robots.txt, favicon.ico, style.css,
- * admin.js, the embed bundles, ...) shares the same three-part contract: a
- * GET returns 200 with a fixed content-type (and the caller can poke at the
- * body), a non-GET request 404s, and the response carries a one-year
- * immutable cache-control header. These three curried checks are the shared
- * shape behind `static-assets.test.ts` and `embed-bundles.test.ts` — the
- * varying bits (path, content-type, body check) are the sole arguments.
+ * Every small static-file route (favicon.ico, style.css, admin.js, the embed
+ * bundles, ...) shares the same three-part contract: a GET returns 200 with a
+ * fixed content-type (and the caller can poke at the body), a non-GET request
+ * 404s, and the response carries a one-year immutable cache-control header.
+ * These three curried checks are the shared shape behind
+ * `static-assets.test.ts` and `embed-bundles.test.ts` — the varying bits
+ * (path, content-type, body check) are the sole arguments. robots.txt serves
+ * from the site's state and carries its own shorter cache, so its tests stand
+ * beside these.
  */
 export const expectStaticFile = async (
   path: string,

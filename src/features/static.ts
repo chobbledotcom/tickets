@@ -14,10 +14,10 @@ import {
   handleLogisticsMapCss,
   handleLogisticsMapJs,
   handleMarkdownEditorJs,
-  handleRobotsTxt,
   handleScannerJs,
   handleStyleCss,
 } from "#routes/assets.ts";
+import { handleRobotsTxt } from "#routes/robots-txt.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 
 /** Static routes definition */
