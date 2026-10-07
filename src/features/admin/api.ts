@@ -44,6 +44,7 @@ import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,
   persistListingJoins,
+  prepareChildEdges,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
 
@@ -173,6 +174,21 @@ const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
     ADMIN_API,
   );
 
+/** The JSON write's join validation: the base joins come from the input. The
+ *  child edges come from the body, validated against the parent before the row
+ *  is written. */
+const prepareApiListingJoins = async (
+  input: ListingInput,
+  body: Record<string, unknown>,
+  existing: ListingWithCount | null,
+): Promise<{ error: string } | { value: PreparedListingJoins }> => {
+  const childEdges = await prepareChildEdges(body, input, existing);
+  if ("error" in childEdges) return childEdges;
+  return {
+    value: { ...prepareListingJoins(input), childEdges: childEdges.childIds },
+  };
+};
+
 const listingApiRoutes = defineCrudApi<
   Listing,
   ListingInput,
@@ -222,7 +238,7 @@ const listingApiRoutes = defineCrudApi<
   },
   sideEffect: {
     persist: persistListingJoins,
-    validate: prepareListingJoins,
+    validate: prepareApiListingJoins,
   },
   singular: "Listing",
   stripKeys: ["slug_index"],

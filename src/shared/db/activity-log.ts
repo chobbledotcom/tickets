@@ -17,15 +17,11 @@ import {
   HYBRID_PREFIX,
 } from "#crypto/keys.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  executeBatchWithResults,
-  queryBatch,
-  resultRows,
-  type TxScope,
-} from "#db/client.ts";
+import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { listingReader } from "#db/listings/select.ts";
+import { batchOnScope } from "#db/scope-batch.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { col, defineTable } from "#db/table.ts";
 import { isNullish } from "#fp";
@@ -171,9 +167,7 @@ export const logActivities = async (
       ),
     ),
   );
-  const results = transaction
-    ? await transaction.batch(statements)
-    : await executeBatchWithResults(statements);
+  const results = await batchOnScope(statements, transaction);
   return results.map((result, index) => ({
     ...resultRows<StoredActivityLogEntry>(result)[0]!,
     message: activities[index]!.message,

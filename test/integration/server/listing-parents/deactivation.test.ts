@@ -238,12 +238,12 @@ describeWithEnv(
       expect(await getListingWithCount(thatPage.id)).not.toBe(null);
     });
 
-    test("a rescuing page deactivated between the guard and the update makes the deactivation refuse", async () => {
+    test("a rescuing page deactivated after the first commit makes the deactivation refuse", async () => {
       // The race the transaction closes: admin A deactivates rescuer one (the
-      // guard passes: rescuer two still rescues the add-on), and while A's
-      // write is still in flight admin B deactivates rescuer two. The guard
-      // and the write share one transaction, so B's guard runs after A's
-      // commit, sees the add-on's last live page going dark, and refuses.
+      // guard passes: rescuer two still rescues the add-on), and once A has
+      // committed, admin B deactivates rescuer two. B's guard re-reads
+      // committed state inside its own transaction, sees the add-on's last
+      // live page going dark, and refuses.
       const { pageOne, pageTwo } = await twoRescuerSetup();
 
       // Hold A between its guard and its write, the window the transaction

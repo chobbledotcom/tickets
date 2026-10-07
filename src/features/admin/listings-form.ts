@@ -13,12 +13,8 @@ import {
   requireMembershipValidation,
   validateListingGroupMembershipsTx,
 } from "#db/groups/membership.ts";
-import {
-  copyPackageMemberOverridesTx,
-  setListingGroupsTx,
-} from "#db/groups.ts";
+import { copyPackageMemberOverridesTx } from "#db/groups.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
-import { writeListingDayCounts } from "#db/listing-prices.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
@@ -59,8 +55,17 @@ import {
   type ListingType,
   parseDayPrices,
 } from "#types";
+import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
+import {
+  persistListingJoins,
+  prepareListingJoins,
+} from "./api-listing-joins.ts";
 
 /* jscpd:ignore-end */
+
+/** The stored values an editor's submitted form freezes the locked fields
+ *  back to. */
+type EditorFormExisting = { useDefaults: boolean; webhookUrl: string };
 
 type ListingWriteMode = "create" | "update";
 type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
@@ -72,18 +77,34 @@ type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
  * `use_defaults` either, because that changes the same effective webhook.
  *
  * Both fields are forced to their existing values, so a submitted value is
- * ignored. The editor form hides them too. This is the backstop.
+ * ignored. The editor form hides them too. This is the backstop. The field
+ * list is the API's own EDITOR_LOCKED_LISTING_FIELDS, so the surfaces cannot
+ * drift. The freeze map is exhaustive over that list, so a new locked field
+ * must name its page behaviour to compile.
  */
+const EDITOR_FORM_FREEZE: Record<
+  (typeof EDITOR_LOCKED_LISTING_FIELDS)[number],
+  ((form: FormParams, existing: EditorFormExisting) => void) | null
+> = {
+  // The page form has no active control, so the page parser never reads the
+  // key and there is nothing to freeze.
+  active: null,
+  use_defaults: (form, existing) =>
+    form.set("use_defaults", existing.useDefaults ? "1" : ""),
+  webhook_url: (form, existing) => form.set("webhook_url", existing.webhookUrl),
+};
+
 export const parseListingForm = (
   session: AdminSession,
   formData: FormData,
-  existing: { webhookUrl: string; useDefaults: boolean },
+  existing: EditorFormExisting,
 ): FormParams => {
   const form = formDataToParams(formData);
   applyDemoOverrides(form, LISTING_DEMO_FIELDS);
   if (session.adminLevel === "editor") {
-    form.set("webhook_url", existing.webhookUrl);
-    form.set("use_defaults", existing.useDefaults ? "1" : "");
+    for (const field of EDITOR_LOCKED_LISTING_FIELDS) {
+      EDITOR_FORM_FREEZE[field]?.(form, existing);
+    }
   }
   return form;
 };
@@ -242,31 +263,27 @@ const extractListingUpdateInput = async (
   };
 };
 
-/** Persist the listing's group memberships AND its per-day-count prices in the
- * row write's transaction.
- *
- * extractCommonFields always sets groupIds (parseGroupIds returns an array)
- * and dayPrices, so both are non-null here. The transactional
- * insertStatement/updateStatement path does not write `day_count` rows because
- * they are no longer a column. This writes them from the submitted day prices.
- * The `base` mirror is reconciled from the `unit_price` column by afterCommit. */
-const writeListingGroups = async (
+/** The page save's join write, through the same pair the JSON API uses. The
+ *  page form carries no child or attribute fields, so the prepare step yields
+ *  no child edges and no attribute options. The persist writes the group
+ *  memberships and the per-day-count prices. The `base` mirror is reconciled
+ *  from the `unit_price` column by afterCommit. */
+const writeListingJoins = async (
   tx: TxScope,
   id: number,
   input: ListingInput,
-) => {
-  await setListingGroupsTx(tx, id, input.groupIds!);
-  await writeListingDayCounts(tx, id, input.dayPrices);
+): Promise<void> => {
+  await persistListingJoins(tx, id, prepareListingJoins(input));
 };
 
-/** Create-only afterWrite. Persist the memberships. For a duplicate, copy the
+/** Create-only afterWrite. Persist the joins. For a duplicate, copy the
  * source's package overrides and attribute selections onto the new rows in the
  * SAME transaction. The duplicate then never commits as a live package member
  * at the default price when the override copy fails. */
-const writeCreateListingGroups =
+const writeCreateListingJoins =
   (form: FormParams) =>
   async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
-    await writeListingGroups(tx, id, input);
+    await writeListingJoins(tx, id, input);
     const sourceId = form.getOptionalInt("duplicated_from");
     if (sourceId !== null) {
       await copyPackageMemberOverridesTx(tx, sourceId, id);
@@ -298,7 +315,7 @@ export const buildCreateListingResource = (form: FormParams) =>
     // post-commit (afterCommit) since the transactional insertStatement path
     // bypasses the listingsTable wrapper that syncs direct writes.
     afterCommit: syncListingPrices,
-    afterWrite: writeCreateListingGroups(form),
+    afterWrite: writeCreateListingJoins(form),
     form: getListingForm(),
     table: listingsTable,
     toInput: (values: ListingFormValues) => extractListingInput(values, form),
@@ -309,7 +326,7 @@ export const buildCreateListingResource = (form: FormParams) =>
 export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
     afterCommit: syncListingPrices,
-    afterWrite: writeListingGroups,
+    afterWrite: writeListingJoins,
     // The add-on reachability half of the save refuses inside the row write's
     // transaction, so two concurrent page-removing saves cannot both commit.
     checkTx: listingSaveOrphanedAddOnTx,

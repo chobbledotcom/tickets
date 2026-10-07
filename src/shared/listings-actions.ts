@@ -368,6 +368,14 @@ export type ToggleActiveResult =
   | { noChange: true }
   | { error: string };
 
+/** Whether the listing's stored state already matches the wanted one. The
+ *  page and the JSON API share this one rule. Each surface keeps its own
+ *  message for it. */
+export const listingAlreadyInState = (
+  listingActive: boolean,
+  wantedActive: boolean,
+): boolean => listingActive === wantedActive;
+
 /**
  * Toggle listing active state, log activity, and return the updated listing.
  *
@@ -396,7 +404,10 @@ export const toggleListingActive = async (
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
-      if (row === undefined || row.active === (active ? 1 : 0)) {
+      if (
+        row === undefined ||
+        listingAlreadyInState(row.active === 1, active)
+      ) {
         return { noChange: true };
       }
       if (!active) {
@@ -407,16 +418,23 @@ export const toggleListingActive = async (
         if (refusal !== null) return { error: refusal };
       }
       // Every table on the transactional write path carries updateStatement
-      // (see crud-api.ts), so the toggle's row write joins the guard's tx.
+      // (see crud-api.ts), so the toggle's row write joins the guard's tx. The
+      // price mirror and the activity log join it too: a failure in either
+      // rolls the toggle back, so a retry re-runs all three.
       await tx.execute(
         await listingsTable.updateStatement!(listingId, { active }),
+      );
+      await syncListingPrices(listingId, tx);
+      const verb = active ? "reactivated" : "deactivated";
+      await logActivity(
+        `Listing '${listing.name}' ${verb}`,
+        listingId,
+        null,
+        tx,
       );
       return null;
     },
   );
   if (outcome !== null) return outcome;
-  await syncListingPrices(listingId);
-  const verb = active ? "reactivated" : "deactivated";
-  await logActivity(`Listing '${listing.name}' ${verb}`, listingId);
   return { updated: (await getListingWithCount(listingId))! };
 };

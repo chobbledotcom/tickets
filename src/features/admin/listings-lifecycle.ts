@@ -52,17 +52,30 @@ const listingToggleHandlers = (opts: {
     ...listingConfirmBase,
     actionLabel: `${opts.action}ion`,
     ...(opts.guardError && {
-      guardError: (_listing: ListingWithCount, id: number) =>
-        opts.guardError!(id),
+      guardError: async (_listing: ListingWithCount, id: number) =>
+        await opts.guardError!(id),
     }),
-    // The authoritative guard runs inside the write's transaction (see
-    // onConfirm), so the framework skips its own POST-time check.
+    // The authoritative guards (the stored state and the orphaned-add-on
+    // reachability) run inside the write's transaction (see onConfirm). The
+    // framework skips its own POST-time check: the loaded row can be stale
+    // by the time the write runs.
     guardInTx: true,
     onConfirm: async (listing, id) => {
       // The authoritative guard re-runs inside the write transaction, so a
       // concurrent change between the confirmation page and this POST cannot
-      // orphan a child-scoped add-on.
+      // orphan a child-scoped add-on. A repeat toggle answers with the same
+      // plain-words refusal the JSON API gives.
       const result = await toggleListingActive(id, listing, opts.active);
+      if ("noChange" in result) {
+        return errorRedirect(
+          `/admin/listing/${id}/${opts.action}`,
+          t(
+            opts.active
+              ? "error.listing_already_active"
+              : "error.listing_already_deactivated",
+          ),
+        );
+      }
       return "error" in result
         ? errorRedirect(`/admin/listing/${id}/${opts.action}`, result.error)
         : undefined;

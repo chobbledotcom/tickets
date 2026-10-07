@@ -49,28 +49,35 @@ export type CreateListingBody = Omit<
 /** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
 export type UpdateListingBody = Partial<CreateListingBody> & { slug?: string };
 
-/** Fields the JSON body cannot set for an editor. The dashboard's listing
- *  form sets the same rule. The registration webhook posts full attendee PII
- *  to webhook_url. A crafted value exfiltrates the data that the keyless
- *  editor role cannot otherwise read. use_defaults changes the same effective
- *  webhook. active drives the bookable state. The editor form offers no
- *  control for it, and only staff deactivate or reactivate. Stripping the
- *  fields from the body leaves the stored values in place on update and the
- *  column defaults on create. The form applies the same ignore-the-submission
- *  behaviour. Staff sessions keep setting all three through the API. The
- *  add-on orphan guard's rejection tests pin that path. */
+/** The listing fields an editor session cannot set, shared by both surfaces.
+ *  The dashboard's form freezes them to their stored values
+ *  (parseListingForm). The JSON body parser strips them, so the stored values
+ *  stand on update and the column defaults on create.
+ *
+ *  The registration webhook posts full attendee PII to webhook_url.
+ *  use_defaults changes the same effective webhook. active drives the bookable
+ *  state. Only the staff lifecycle routes change it. */
+export const EDITOR_LOCKED_LISTING_FIELDS = [
+  "active",
+  "use_defaults",
+  "webhook_url",
+] as const;
+
+const EDITOR_LOCKED_SET: ReadonlySet<string> = new Set(
+  EDITOR_LOCKED_LISTING_FIELDS,
+);
+
+/** Fields the JSON body cannot set for an editor. Staff sessions keep setting
+ *  all three through the API. The add-on orphan guard's rejection tests pin
+ *  that path. */
 const withoutEditorLockedFields = (
   body: Record<string, unknown>,
   session: AdminSession | undefined,
 ): Record<string, unknown> => {
   if (session?.adminLevel !== "editor") return body;
-  const {
-    active: _active,
-    use_defaults: _useDefaults,
-    webhook_url: _webhookUrl,
-    ...frozen
-  } = body;
-  return frozen;
+  return Object.fromEntries(
+    Object.entries(body).filter(([key]) => !EDITOR_LOCKED_SET.has(key)),
+  );
 };
 
 const API_BODY_FIELD_RULES = [
