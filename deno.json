@@ -80,7 +80,6 @@
     "#db/": "./src/shared/db/",
     "#e2e/": "./e2e-payments/src/",
     "#fp": "./src/fp.ts",
-    "#fp-bind": "./src/fp-bind.ts",
     "#fp-strings": "./src/fp-strings.ts",
     "#i18n": "./src/shared/i18n.ts",
     "#jsx/": "./src/shared/jsx/",

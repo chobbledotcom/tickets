@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bindFirst } from "#fp-bind";
+import { bindFirst } from "#shared/fp-bind.ts";
 
 describe("bindFirst", () => {
   const join = (first: string, second: string, third: string): string =>

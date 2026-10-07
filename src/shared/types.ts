@@ -12,7 +12,7 @@ import type {
   TokenHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
-import { bindFirst } from "#fp-bind";
+import { bindFirst } from "#shared/fp-bind.ts";
 import type {
   CalcKind,
   ModifierDirection,

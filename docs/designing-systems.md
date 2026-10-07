@@ -253,11 +253,11 @@ Write the logic in the house shape, so the merge can attribute it:
 - The logic lives in a module-level, named, flat function: a block body with
   `if`/`return`, no ternary head, no multi-line expression body.
 - Currying comes from a shared combinator, never from a hand-written returned
-  closure in a domain file. `bindFirst` (`#fp-bind`) gives a plain
+  closure in a domain file. `bindFirst` (`#shared/fp-bind.ts`) gives a plain
   multi-argument function partial application: write `requiredDate(key, value)`
   flat, then `export const requireDateString = bindFirst(requiredDate)`.
-- The combinator's own closure lives in `src/fp-bind.ts`, and the modules that
-  call it (`src/shared/types.ts`, `src/shared/db/settings/raw-writes.ts`,
+- The combinator's own closure lives in `src/shared/fp-bind.ts`, and the modules
+  that call it (`src/shared/types.ts`, `src/shared/db/settings/raw-writes.ts`,
   `src/features/admin/area-loaders.ts`) load it from many isolates. The domain
   logic stays a plain function whose lines the merge can sum across workers.
 

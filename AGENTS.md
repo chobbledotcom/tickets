@@ -365,8 +365,8 @@ cover, use `@std/collections` directly, and wrap it in a curried `#fp` adapter
 once more than one caller needs it. `@std/collections` has no `groupBy` export.
 Use native `Object.groupBy` / `Map.groupBy`, or `#fp`'s `groupToMap`. Use
 `for...of` instead of `forEach`, and `reduce` with a mutable accumulator instead
-of an array spread. Currying in domain files uses `#fp-bind`'s `bindFirst`
-over a flat named function - see
+of an array spread. Currying in domain files uses `#shared/fp-bind.ts`'s
+`bindFirst` over a flat named function - see
 [Readable by the coverage merge](docs/designing-systems.md#readable-by-the-coverage-merge)
 for why.
 
