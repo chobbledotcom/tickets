@@ -21,10 +21,9 @@ import {
 
 /**
  * The entries the gate actually enforces, `COVERAGE_EXCLUSIONS`, are the
- * truth. The text parser must account for every one of them: an entry
- * written in a shape the parser skips would otherwise add an exclusion
- * without the ratchet seeing it. Throw, naming the unread entries, instead
- * of passing silently.
+ * truth. The text parser must account for every one of them: an entry in a
+ * shape that the parser skips adds an exclusion without the ratchet to see
+ * it. When the parser misses an entry, throw and name the unread entries.
  */
 const assertParseCoversRuntime = (
   parsed: readonly string[],
@@ -42,28 +41,24 @@ const assertParseCoversRuntime = (
 };
 
 /** The text of `path` at `revision`, or undefined when the revision does not
- * hold the file. A git failure other than a missing path must surface: the
- * ratchet would otherwise read an empty base and reject unchanged entries
- * as added. */
+ * hold the file. Existence goes through `git cat-file -e`, whose exit code
+ * does not depend on the git locale; a read failure after the path checks
+ * out must surface, because the ratchet would otherwise read an empty base
+ * and reject unchanged entries as added. */
 const fileAtRevision = async (
   run: RunCommand,
   revision: string,
   path: string,
 ) => {
+  const probe = await runGit(run, ["cat-file", "-e", `${revision}:${path}`]);
+  if (probe.code !== 0) return;
   const show = await runGit(run, ["show", `${revision}:${path}`]);
-  // Git names a missing path two ways: one that never existed ("does not
-  // exist") and one present in the worktree but absent at the revision. Any
-  // other failure must surface: the ratchet would otherwise read an empty
-  // base and reject unchanged entries as added.
-  if (
-    show.code !== 0 &&
-    !/does not exist|exists on disk, but not in/i.test(show.stderr)
-  ) {
+  if (show.code !== 0) {
     throw new Error(
       `git show ${revision}:${path} failed: ${show.stderr.trim()}`,
     );
   }
-  return show.code === 0 ? show.stdout : undefined;
+  return show.stdout;
 };
 
 /** The exclusion entries the merge base holds: from the data module, or from

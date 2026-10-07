@@ -22,14 +22,6 @@ export const RATCHET_GUIDE =
   '"Never add a coverage exclusion" in AGENTS.md and ' +
   "docs/designing-systems.md#readable-by-the-coverage-merge";
 
-/** One added exclusion, as the ratchet reports it. */
-export type AddedExclusion = {
-  /** The excluded path, exactly as the entry names it. */
-  path: string;
-  /** The 1-based line of the added entry in the HEAD data module. */
-  line: number;
-};
-
 /** One entry line's shape: a double-quoted path at a two-space indent, an
  * optional trailing comma, an optional trailing comment, and an optional
  * carriage return (a CRLF checkout must parse the same way). */
