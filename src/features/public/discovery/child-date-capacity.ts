@@ -10,12 +10,12 @@ import {
   buildTicketListing,
   childActive,
   childOpen,
-} from "#shared/booking/model.ts";
+} from "#booking/model.ts";
 import {
   type ChildCapacityPart,
   childCapacityPartsFor,
 } from "#shared/capacity-fit.ts";
-import type { Holiday } from "#shared/db/holidays.ts";
+import type { Holiday } from "#db/holidays.ts";
 import type { ListingWithCount } from "#types";
 import {
   childOfferedOnDate,
