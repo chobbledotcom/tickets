@@ -13,7 +13,7 @@ import {
   groups,
   loadPackageMemberPricingByGroupIds,
 } from "#db/groups.ts";
-import { isNotNullish, requiredMapValue } from "#fp";
+import { requiredMapValue } from "#fp";
 import {
   deleteGroup,
   soldHiddenPackageError,
@@ -22,7 +22,7 @@ import {
 import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import {
   type CatalogApiBody,
-  isValidCatalogApiValue,
+  invalidApiValueField,
   projectCatalogFields,
 } from "#shared/catalog-fields/definition.ts";
 import {
@@ -189,15 +189,8 @@ const toGroupInput = async (
     ? parseUpdateName(body, existing.name)
     : requireStrings(body, ["name"]);
   if (!name.ok) return name;
-  const invalid = Object.values(groupCatalogFields).find((field) => {
-    const value = body[field[0]];
-    return (
-      (Number(field[3]) & 1) !== 0 &&
-      isNotNullish(value) &&
-      !isValidCatalogApiValue(field, value)
-    );
-  });
-  if (invalid) return errorResult(`${invalid[0]} has an invalid value`);
+  const invalid = invalidApiValueField(groupCatalogFields, body);
+  if (invalid) return errorResult(`${invalid} has an invalid value`);
   const fields = projectCatalogFields(groupCatalogFields, "api", body);
 
   const members = parsePackageMembers(body);

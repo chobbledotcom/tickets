@@ -86,6 +86,20 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     );
   });
 
+  test("api create refuses a non-text date with the field message", async () => {
+    await assertJson(
+      ownerApiPost("/api/admin/holidays", {
+        end_date: "2027-02-02",
+        name: "Pinned Create Date Type",
+        start_date: 20270201,
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("start_date has an invalid value");
+      },
+    );
+  });
+
   test("api update refuses end before start with the shared message", async () => {
     const created = await assertJson<{ holiday: { id: number } }>(
       ownerApiPost("/api/admin/holidays", {
@@ -122,6 +136,68 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
       200,
       (body) => {
         expect(body.holiday.name).toBe("123");
+      },
+    );
+  });
+
+  // L1's named behaviour change: a non-text date is refused instead of
+  // coerced into stored text. The create and update mappers answer the same
+  // body with the same field-named message, whichever name rule runs.
+  test("api update refuses a non-text date with the field message", async () => {
+    const created = await assertJson<{ holiday: { id: number } }>(
+      ownerApiPost("/api/admin/holidays", {
+        end_date: "2027-06-02",
+        name: "Pinned Date Type Holiday",
+        start_date: "2027-06-01",
+      }),
+      201,
+    );
+    await assertJson(
+      ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, {
+        name: 123,
+        start_date: 20270603,
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("start_date has an invalid value");
+      },
+    );
+    // The end date carries its own field metadata, so it is pinned on its
+    // own: a numeric end_date is refused by name too.
+    await assertJson(
+      ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, {
+        end_date: 20270602,
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("end_date has an invalid value");
+      },
+    );
+    // The refused update stored nothing: the stored dates stand.
+    const all = await holidays.getAll();
+    const row = all.find((h) => h.name === "Pinned Date Type Holiday");
+    expect(row?.start_date).toBe("2027-06-01");
+    expect(row?.end_date).toBe("2027-06-02");
+  });
+
+  test("api update keeps the stored dates when none are supplied", async () => {
+    const created = await assertJson<{ holiday: { id: number } }>(
+      ownerApiPost("/api/admin/holidays", {
+        end_date: "2027-07-02",
+        name: "Pinned Merge Holiday",
+        start_date: "2027-07-01",
+      }),
+      201,
+    );
+    await assertJson(
+      ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, {
+        name: "Pinned Merge Holiday Renamed",
+      }),
+      200,
+      (body) => {
+        expect(body.holiday.name).toBe("Pinned Merge Holiday Renamed");
+        expect(body.holiday.start_date).toBe("2027-07-01");
+        expect(body.holiday.end_date).toBe("2027-07-02");
       },
     );
   });
