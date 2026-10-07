@@ -29,7 +29,7 @@ describeWithEnv("admin listing QR minimum quantity", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("Quantity must be at least 3");
+    expect(body).toContain("Quantity must be at least 3.");
     expect(extractToken(body)).toBeNull();
   });
 
@@ -51,7 +51,7 @@ describeWithEnv("admin listing QR minimum quantity", { db: true }, () => {
     expect(response.status).toBe(400);
     const body = (await response.json()) as { ok: boolean; error?: string };
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("Quantity must be at least 3");
+    expect(body.error).toBe("Quantity must be at least 3.");
   });
 
   test("the JSON refresh honours a quantity exactly at the minimum", async () => {
