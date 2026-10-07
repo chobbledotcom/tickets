@@ -36,9 +36,12 @@ export const isIsoDate = (value: string): boolean => v.is(IsoDateSchema, value);
 declare const dateBrand: unique symbol;
 
 /** A `YYYY-MM-DD` string that passed the real-calendar-day check. The brand
- *  is the compile-level half of the cleanup. Every helper that consumes a
- *  date — comparisons, storage, normalisation — takes a `DateString`, so a
- *  caller that skips the parser cannot type-check. */
+ *  is the compile-level half of the cleanup. Today it guards the holiday
+ *  boundary: `HolidayInput.startDate` and `.endDate` carry it, and the
+ *  readers that produce it are `parseDateString`, `parseDateStringOrThrow`,
+ *  `dateRange`, `requireDateString`, and `optionalDateString`. The consumers
+ *  in `src/shared/dates.ts` still take plain strings. Migrating them onto
+ *  this type is the stacked layer above this branch. */
 export type DateString = string & { readonly [dateBrand]: "DateString" };
 
 /** Clean one raw date value at a boundary: trim the whitespace around it,

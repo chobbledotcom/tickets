@@ -107,9 +107,6 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     );
   });
 
-  // Recorded for #2476: parseUpdateName coerced a non-string name into
-  // stored text. requireEntityName refuses it instead, so the coercion
-  // claim drops with this branch's parser change.
   test("api update refuses a non-string name with the field message", async () => {
     await expectNonStringNameRefused("holidays", "holiday", {
       end_date: "2027-04-02",
