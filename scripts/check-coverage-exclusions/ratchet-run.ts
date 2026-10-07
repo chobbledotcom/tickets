@@ -19,6 +19,28 @@ import {
   RATCHET_GUIDE,
 } from "./exclusion-ratchet.ts";
 
+/**
+ * The entries the gate actually enforces, `COVERAGE_EXCLUSIONS`, are the
+ * truth. The text parser must account for every one of them: an entry
+ * written in a shape the parser skips would otherwise add an exclusion
+ * without the ratchet seeing it. Throw, naming the unread entries, instead
+ * of passing silently.
+ */
+const assertParseCoversRuntime = (
+  parsed: readonly string[],
+  runtime: readonly string[],
+): void => {
+  const parsedSet = new Set(parsed);
+  const unread = runtime.filter((entry) => !parsedSet.has(entry));
+  if (unread.length > 0) {
+    throw new Error(
+      `The ratchet could not read ${unread.length} exclusion entries in ` +
+        `${EXCLUSIONS_PATH}: ${unread.join(", ")}. Write each entry on its ` +
+        'own line as "path", or extend parseExclusionEntries.',
+    );
+  }
+};
+
 /** The text of `path` at `revision`, or undefined when the revision does not
  * hold the file. Raw output: the line parser reads the two-space indent the
  * data module keeps its entries at. */
@@ -45,10 +67,12 @@ export const baseEntries = async (
 };
 
 /** Read HEAD's data module, diff it against the merge base, and return the
- * process exit code with the report printed. */
+ * process exit code with the report printed. `runtimeEntries` is the array
+ * the coverage gate imports; the parser must account for all of it. */
 export const ratchetExit = async (
   run: RunCommand,
   headSource: string,
+  runtimeEntries: readonly string[],
   output: CheckOutput,
 ): Promise<number> => {
   const mergeBase = await commandValue(run, [
@@ -61,6 +85,7 @@ export const ratchetExit = async (
       "The ratchet needs origin/main. Run git fetch origin main first.",
     );
   }
+  assertParseCoversRuntime(parseExclusionEntries(headSource), runtimeEntries);
   const base = await baseEntries(run, mergeBase);
   return reportCheck({
     found: exclusionFindings(headSource, base),

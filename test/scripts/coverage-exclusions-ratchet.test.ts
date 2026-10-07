@@ -69,9 +69,14 @@ describe("ratchetExit", () => {
     logError: (line: string) => lines.push(line),
   };
 
-  /** Run the ratchet over `head` against a base that holds `base`, with the
-   * report lines collected for the assertions. */
-  const exitFor = async (head: string[], base: string[]): Promise<number> => {
+  /** Run the ratchet over `head` against a base that holds `base`, with
+   * `runtime` as the array the gate imports and the report lines collected
+   * for the assertions. */
+  const exitFor = async (
+    head: string[],
+    base: string[],
+    runtime: readonly string[] = head,
+  ): Promise<number> => {
     lines.length = 0;
     const run = stubRun({
       "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
@@ -80,7 +85,7 @@ describe("ratchetExit", () => {
         stdout: module(base),
       },
     });
-    return ratchetExit(run, module(head), output);
+    return ratchetExit(run, module(head), runtime, output);
   };
 
   test("exits 0 and reports nothing added on a clean list", async () => {
@@ -96,12 +101,33 @@ describe("ratchetExit", () => {
     expect(lines.join("\n")).toContain(RATCHET_GUIDE);
   });
 
+  test("fails loudly when an entry hides from the parser", async () => {
+    const head = [
+      "export const COVERAGE_EXCLUSIONS = [",
+      '  "src/a.ts",',
+      '  "src/b.ts", /* hidden from the line parser */',
+      "];",
+      "",
+    ].join("\n");
+    lines.length = 0;
+    const run = stubRun({
+      "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
+      [gitShow("base123", EXCLUSIONS_PATH)]: {
+        code: 0,
+        stdout: module(["src/a.ts"]),
+      },
+    });
+    await expect(
+      ratchetExit(run, head, ["src/a.ts", "src/b.ts"], output),
+    ).rejects.toThrow(/could not read 1 exclusion entries.*src\/b\.ts/s);
+  });
+
   test("fails loudly when origin/main is missing", async () => {
     lines.length = 0;
     const run = stubRun({
       "git merge-base HEAD origin/main": { code: 128, stdout: "" },
     });
-    await expect(ratchetExit(run, module([]), output)).rejects.toThrow(
+    await expect(ratchetExit(run, module([]), [], output)).rejects.toThrow(
       /git fetch origin main/,
     );
   });

@@ -11,6 +11,7 @@
 
 import { consoleOutput } from "#scripts/check-report.ts";
 import { EXCLUSIONS_PATH } from "./check-coverage-exclusions/exclusion-ratchet.ts";
+import { COVERAGE_EXCLUSIONS } from "./check-coverage-exclusions/exclusions.ts";
 import { ratchetExit } from "./check-coverage-exclusions/ratchet-run.ts";
 import { runCommand } from "./precommit/git.ts";
 
@@ -18,6 +19,7 @@ Deno.exit(
   await ratchetExit(
     runCommand,
     await Deno.readTextFile(EXCLUSIONS_PATH),
+    COVERAGE_EXCLUSIONS,
     consoleOutput,
   ),
 );
