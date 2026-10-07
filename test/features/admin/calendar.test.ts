@@ -10,7 +10,6 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
-import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -141,8 +140,8 @@ describeWithEnv(
       });
 
       test("filters attendees by date parameter", async () => {
-        const date1 = addDays(testDate(todayInTz("UTC")), 1);
-        const date2 = addDays(testDate(todayInTz("UTC")), 2);
+        const date1 = addDays(todayInTz("UTC"), 1);
+        const date2 = addDays(todayInTz("UTC"), 2);
         const listing = await createDailyTestListing();
         await bookDailyTicket(listing.slug, {
           date: date1,
@@ -239,7 +238,7 @@ describeWithEnv(
       });
 
       test("shows mixed daily and standard listing attendees for same date", async () => {
-        const listingDate = addDays(testDate(todayInTz("UTC")), 3);
+        const listingDate = addDays(todayInTz("UTC"), 3);
         const { dailyListing } = await setupMixedBookings(listingDate);
 
         const html = await fetchCalendarHtml(
@@ -437,7 +436,7 @@ describeWithEnv(
       });
 
       test("includes mixed daily and standard attendees in CSV export", async () => {
-        const listingDate = addDays(testDate(todayInTz("UTC")), 3);
+        const listingDate = addDays(todayInTz("UTC"), 3);
         const { dailyListing } = await setupMixedBookings(
           listingDate,
           "Daily CSV",

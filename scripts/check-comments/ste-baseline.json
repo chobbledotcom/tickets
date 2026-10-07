@@ -720,8 +720,8 @@
     "semicolon": 1
   },
   "src/shared/dates.ts": {
-    "wordy": 9,
-    "long-sentence": 6,
+    "wordy": 5,
+    "long-sentence": 5,
     "semicolon": 3,
     "contraction": 1,
     "banned-modal": 2
