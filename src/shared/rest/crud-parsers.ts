@@ -128,15 +128,19 @@ export const parseUpdateSlug = async <Index extends string>(
 };
 
 /**
- * Parse a name field from a JSON body for update operations.
- * Returns the trimmed name from the body (if provided), or falls back to the existing value.
- * Returns an error result if the resolved name is empty.
+ * Parse a name field from a JSON body for update operations. A supplied name
+ * must be a string: anything else is refused with the field-named message.
+ * An absent name keeps the stored one, and the resolved name — stored or
+ * supplied — must be non-empty.
  */
 export const parseUpdateName = (
   body: Record<string, unknown>,
   existing: string,
 ): Result<string> => {
-  const name = isNotNullish(body.name) ? String(body.name).trim() : existing;
+  if (body.name !== undefined && typeof body.name !== "string") {
+    return errorResult("name must be a string");
+  }
+  const name = body.name === undefined ? existing : body.name.trim();
   return name === "" ? errorResult("name cannot be empty") : okResult(name);
 };
 

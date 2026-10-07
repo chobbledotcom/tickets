@@ -13,7 +13,9 @@ describe("listing editor field locks", () => {
     const formData = new FormData();
     formData.set("active", "0");
     formData.set("name", "Whatever");
-    formData.set("use_defaults", "1");
+    // The stored value is true, so a submission of "" makes an echo of the
+    // submission distinguishable from the freeze.
+    formData.set("use_defaults", "");
     formData.set("webhook_url", "https://attacker.example/steal");
     return formData;
   };
@@ -48,7 +50,7 @@ describe("listing editor field locks", () => {
     expect(form.getString("webhook_url")).toBe(
       "https://attacker.example/steal",
     );
-    expect(form.getString("use_defaults")).toBe("1");
+    expect(form.getString("use_defaults")).toBe("");
     expect(form.getString("active")).toBe("0");
   });
 });

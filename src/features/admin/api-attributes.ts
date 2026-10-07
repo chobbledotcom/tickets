@@ -33,7 +33,7 @@ import {
   parseUpdateName,
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
-import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { okResult, type Result } from "#shared/result.ts";
 
 /** JSON body accepted by POST /api/admin/attributes */
 export type CreateAttributeBody = { name: string };
@@ -49,10 +49,8 @@ export type AttributeOptionBody = { text: string };
 // DeleteBody the crud-parsers module exports.
 
 /** The attribute's name for a create (required) or an update (falls back to
- * the stored name), read from one JSON body. A supplied name must be a
- * string. The shared update parser stores anything else as text, and the
- * declared body type promises a string. The shared defect is tracked in
- * issue #2476. */
+ *  the stored name), read from one JSON body. The shared update parser refuses
+ *  a supplied non-string name (issue #2476). */
 const attributeName = (
   body: Record<string, unknown>,
   existing: string | null,
@@ -60,9 +58,6 @@ const attributeName = (
   if (existing === null) {
     const required = requireStrings(body, ["name"]);
     return required.ok ? okResult(required.value.name) : required;
-  }
-  if (body.name !== undefined && typeof body.name !== "string") {
-    return errorResult("name must be a string");
   }
   return parseUpdateName(body, existing);
 };

@@ -120,24 +120,30 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     );
   });
 
-  // Recorded for #2476: parseUpdateName coerces a non-string name into
-  // stored text.
-  test("api update coerces a non-string name into text", async () => {
+  // #2476, fixed here: the shared update parser refuses a non-string name
+  // instead of coercing it into stored text.
+  test("api update refuses a non-string name with the field message", async () => {
     const created = await assertJson<{ holiday: { id: number } }>(
       ownerApiPost("/api/admin/holidays", {
         end_date: "2027-04-02",
-        name: "Pinned Coercion Holiday",
+        name: "Pinned Name Type Holiday",
         start_date: "2027-04-01",
       }),
       201,
     );
     await assertJson(
       ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, { name: 123 }),
-      200,
+      400,
       (body) => {
-        expect(body.holiday.name).toBe("123");
+        expect(body.error).toBe("name must be a string");
       },
     );
+    // The refused update stored nothing: the stored name stands.
+    const all = await holidays.getAll();
+    expect(
+      all.find((h) => h.name === "Pinned Name Type Holiday"),
+    ).toBeDefined();
+    expect(all.find((h) => h.name === "123")).toBeUndefined();
   });
 
   // The create and update mappers answer the same bad body with the same
