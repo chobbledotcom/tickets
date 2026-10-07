@@ -13,14 +13,16 @@ import type { CapturedOutput } from "#scripts/process.ts";
 
 /** A RunCommand stub that answers a fixed map of git invocations. */
 const stubRun =
-  (answers: Record<string, { code: number; stdout: string }>) =>
+  (
+    answers: Record<string, { code: number; stderr?: string; stdout: string }>,
+  ) =>
   (cmd: string[]): Promise<CapturedOutput> => {
     const key = cmd.join(" ");
     const answer = answers[key];
     if (!answer) return Promise.reject(new Error(`unexpected command: ${key}`));
     return Promise.resolve({
-      ...answer,
       stderr: "",
+      ...answer,
       success: answer.code === 0,
     });
   };
@@ -43,8 +45,13 @@ describe("baseEntries", () => {
   });
 
   test("falls back to the gate module the list moved out of", async () => {
+    const missing = "does not exist";
     const run = stubRun({
-      [gitShow("base123", EXCLUSIONS_PATH)]: { code: 128, stdout: "" },
+      [gitShow("base123", EXCLUSIONS_PATH)]: {
+        code: 128,
+        stderr: `fatal: path '${EXCLUSIONS_PATH}' ${missing}`,
+        stdout: "",
+      },
       [gitShow("base123", LEGACY_PATH)]: {
         code: 0,
         stdout: module(["src/old.ts"]),
@@ -54,11 +61,27 @@ describe("baseEntries", () => {
   });
 
   test("answers an empty base when neither file exists there", async () => {
+    const missing = (path: string) => ({
+      code: 128,
+      stderr: `fatal: path '${path}' does not exist`,
+      stdout: "",
+    });
     const run = stubRun({
-      [gitShow("base123", EXCLUSIONS_PATH)]: { code: 128, stdout: "" },
-      [gitShow("base123", LEGACY_PATH)]: { code: 128, stdout: "" },
+      [gitShow("base123", EXCLUSIONS_PATH)]: missing(EXCLUSIONS_PATH),
+      [gitShow("base123", LEGACY_PATH)]: missing(LEGACY_PATH),
     });
     expect(await baseEntries(run, "base123")).toEqual([]);
+  });
+
+  test("surfaces a git failure that is not a missing path", async () => {
+    const run = stubRun({
+      [gitShow("base123", EXCLUSIONS_PATH)]: {
+        code: 128,
+        stderr: "fatal: bad object base123",
+        stdout: "",
+      },
+    });
+    await expect(baseEntries(run, "base123")).rejects.toThrow(/bad object/);
   });
 });
 
@@ -125,7 +148,11 @@ describe("ratchetExit", () => {
   test("fails loudly when origin/main is missing", async () => {
     lines.length = 0;
     const run = stubRun({
-      "git merge-base HEAD origin/main": { code: 128, stdout: "" },
+      "git merge-base HEAD origin/main": {
+        code: 128,
+        stderr: "fatal: not a valid revision",
+        stdout: "",
+      },
     });
     await expect(ratchetExit(run, module([]), [], output)).rejects.toThrow(
       /git fetch origin main/,

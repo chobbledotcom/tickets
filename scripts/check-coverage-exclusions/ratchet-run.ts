@@ -42,15 +42,28 @@ const assertParseCoversRuntime = (
 };
 
 /** The text of `path` at `revision`, or undefined when the revision does not
- * hold the file. Raw output: the line parser reads the two-space indent the
- * data module keeps its entries at. */
+ * hold the file. A git failure other than a missing path must surface: the
+ * ratchet would otherwise read an empty base and reject unchanged entries
+ * as added. */
 const fileAtRevision = async (
   run: RunCommand,
   revision: string,
   path: string,
-): Promise<string | undefined> => {
-  const { code, stdout } = await runGit(run, ["show", `${revision}:${path}`]);
-  return code === 0 ? stdout : undefined;
+) => {
+  const show = await runGit(run, ["show", `${revision}:${path}`]);
+  // Git names a missing path two ways: one that never existed ("does not
+  // exist") and one present in the worktree but absent at the revision. Any
+  // other failure must surface: the ratchet would otherwise read an empty
+  // base and reject unchanged entries as added.
+  if (
+    show.code !== 0 &&
+    !/does not exist|exists on disk, but not in/i.test(show.stderr)
+  ) {
+    throw new Error(
+      `git show ${revision}:${path} failed: ${show.stderr.trim()}`,
+    );
+  }
+  return show.code === 0 ? show.stdout : undefined;
 };
 
 /** The exclusion entries the merge base holds: from the data module, or from
