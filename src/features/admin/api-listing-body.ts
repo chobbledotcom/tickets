@@ -259,7 +259,7 @@ export const bodyToUpdateInput = async (
       "max_attendees",
       existing.max_attendees,
     );
-    if (!Number.isInteger(maxAttendees) || maxAttendees < 1) {
+    if (!Number.isSafeInteger(maxAttendees) || maxAttendees < 1) {
       return errorResult("max_attendees must be a whole number of at least 1");
     }
 
