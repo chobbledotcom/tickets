@@ -164,9 +164,8 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
       token: "a1",
       username: "agent1",
     });
-    // Two bookings whose drop-off legs share the same time exercise the
-    // run-sheet sort's listing-name tie-break. Names must differ (listing names
-    // are unique), so the tie-break resolves deterministically by name.
+    // Two drop-off legs share a time, so the run-sheet sort's listing-name
+    // tie-break (listing names are unique) resolves by name.
     await makeTodayBooking(van, van);
     await makeTodayBooking(van, van, 1, "Bouncy Castle 2");
 
