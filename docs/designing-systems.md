@@ -242,11 +242,11 @@ reported a function's body lines as unhit (`DA:0`) while the tests demonstrably
 executed them. Sometimes the same function also carried a non-zero `FNDA`
 count. The sightings are `crud-parsers.ts` on #2504, the note in
 `src/shared/db/attendees/update.ts`, and the exclusions in
-`scripts/coverage-check.ts` with a "mis-attributes" comment. Each sighting puts
-the body in a nested arrow (a hand-written curried closure), a multi-line
-expression body, or a ternary head. The file is one that many test isolates
-load. A minimal fixture of the shape did not reproduce the mis-read. Treat the
-shape as the recorded evidence, not as a proven cause.
+`scripts/coverage-check.ts` with a "mis-attributes" comment. Only the #2504
+sighting has a known shape cause: its body sat in the inner arrow of a curried
+ternary helper. The other sightings have no known shape cause yet. A minimal
+fixture of the #2504 shape did not reproduce the mis-read. Treat the house
+shape below as the working rule from that one case, not as a proven cause.
 
 Write the logic in the house shape, so the merge can attribute it:
 

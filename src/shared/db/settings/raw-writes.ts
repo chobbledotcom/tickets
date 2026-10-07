@@ -159,9 +159,11 @@ const encryptedStringUpdate = bindFirst(stringUpdate)(writeEncrypted);
 const plaintextStringUpdate = bindFirst(stringUpdate)(writeOrDelete);
 
 /** Encrypt then write, mirroring the plaintext into the snapshot. */
-export const encryptedUpdate: EncryptedUpdateFn = (key) => (v) =>
-  encryptedStringUpdate(key, v);
+export const encryptedUpdate: EncryptedUpdateFn = bindFirst(
+  encryptedStringUpdate,
+);
 
 /** Write (or delete, when empty) a plaintext value, mirroring into snapshot. */
-export const plaintextUpdate: EncryptedUpdateFn = (key) => (v) =>
-  plaintextStringUpdate(key, v);
+export const plaintextUpdate: EncryptedUpdateFn = bindFirst(
+  plaintextStringUpdate,
+);
