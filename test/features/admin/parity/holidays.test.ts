@@ -10,6 +10,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 import {
   apiPostAs,
+  expectNonStringNameRefused,
   ownerApiPost,
   ownerApiPut,
   ownerPagePost,
@@ -110,21 +111,11 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
   // stored text. requireEntityName refuses it instead, so the coercion
   // claim drops with this branch's parser change.
   test("api update refuses a non-string name with the field message", async () => {
-    const created = await assertJson<{ holiday: { id: number } }>(
-      ownerApiPost("/api/admin/holidays", {
-        end_date: "2027-04-02",
-        name: "Pinned Coercion Holiday",
-        start_date: "2027-04-01",
-      }),
-      201,
-    );
-    await assertJson(
-      ownerApiPut(`/api/admin/holidays/${created.holiday.id}`, { name: 123 }),
-      400,
-      (body) => {
-        expect(body.error).toBe("name must be a string");
-      },
-    );
+    await expectNonStringNameRefused("holidays", "holiday", {
+      end_date: "2027-04-02",
+      name: "Pinned Coercion Holiday",
+      start_date: "2027-04-01",
+    });
   });
 
   test("a manager is refused on both surfaces", async () => {
