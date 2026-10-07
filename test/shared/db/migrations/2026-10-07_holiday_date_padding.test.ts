@@ -33,21 +33,28 @@ const insertHoliday = async (
   });
 };
 
-const holidayIdByName = async (name: string): Promise<number> =>
-  resultRows<{ id: number }>(
-    await getDb().execute({
-      args: [name],
-      sql: "SELECT id FROM holidays WHERE name = ?",
-    }),
-  )[0]!.id;
-
 describeWithEnv("holiday date padding migration", { db: true }, () => {
-  test("pads unpadded stored dates, leaves strict ones, refuses garbage", async () => {
+  test("pads unpadded stored dates and leaves strict ones", async () => {
     await insertHoliday("Padded Party", "2027-06-01", "2027-06-02");
     await insertHoliday("Unpadded Party", "2027-6-1", "2027-6-2");
+
+    await holidayDatePaddingMigration(buildMigrationContext()).up();
+
+    const rows = await holidayRows();
+    const byName = new Map(rows.map((row) => [row.name, row]));
+    expect(byName.get("Unpadded Party")).toMatchObject({
+      end_date: "2027-06-02",
+      start_date: "2027-06-01",
+    });
+    expect(byName.get("Padded Party")).toMatchObject({
+      end_date: "2027-06-02",
+      start_date: "2027-06-01",
+    });
+  });
+
+  test("refuses garbage dates without repairing them", async () => {
     await insertHoliday("Broken Party", "not-a-date", "also-not-a-date");
-    await insertHoliday("Broken End Party", "2027-06-01", "also-not-a-date");
-    const brokenId = await holidayIdByName("Broken Party");
+    await insertHoliday("Strict Party", "2027-06-01", "2027-06-02");
 
     await expect(
       holidayDatePaddingMigration(buildMigrationContext()).up(),
@@ -56,10 +63,35 @@ describeWithEnv("holiday date padding migration", { db: true }, () => {
     );
 
     const rows = await holidayRows();
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    expect(byId.get(brokenId)?.start_date).toBe("not-a-date");
-    const unpadded = rows.find((row) => row.name !== "Broken Party");
-    expect(unpadded?.start_date).toBe("2027-06-01");
+    const byName = new Map(rows.map((row) => [row.name, row]));
+    expect(byName.get("Broken Party")).toMatchObject({
+      end_date: "also-not-a-date",
+      start_date: "not-a-date",
+    });
+    expect(byName.get("Strict Party")).toMatchObject({
+      end_date: "2027-06-02",
+      start_date: "2027-06-01",
+    });
+  });
+
+  test("refuses a padded date no padding can repair", async () => {
+    await insertHoliday("Impossible Party", "2027-02-30", "2027-06-02");
+
+    await expect(
+      holidayDatePaddingMigration(buildMigrationContext()).up(),
+    ).rejects.toThrow(
+      "the holiday start_date does not hold a usable date: 2027-02-30",
+    );
+  });
+
+  test("refuses an unpadded date whose padded form is invalid", async () => {
+    await insertHoliday("Unpadded Impossible Party", "2027-2-30", "2027-06-02");
+
+    await expect(
+      holidayDatePaddingMigration(buildMigrationContext()).up(),
+    ).rejects.toThrow(
+      "the holiday start_date does not hold a usable date: 2027-02-30",
+    );
   });
 
   test("refuses a garbage end date the same way", async () => {

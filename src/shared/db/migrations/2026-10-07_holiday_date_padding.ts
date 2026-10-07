@@ -27,14 +27,16 @@ export default bareSchemaMigration(
       sql: "SELECT id, start_date, end_date FROM holidays",
     });
     for (const row of rows) {
-      // An unpadded value pads; a value that is already strict stays as it
-      // is; anything else is an impossible stored state and stops the run.
-      const startDate =
-        padLegacyDateParts(row.start_date) ??
-        parseDateStringOrThrow(row.start_date, "the holiday start_date");
-      const endDate =
-        padLegacyDateParts(row.end_date) ??
-        parseDateStringOrThrow(row.end_date, "the holiday end_date");
+      // An unpadded value pads; an already-padded value stays as it is; the
+      // strict rule then decides, and a value it refuses stops the run.
+      const startDate = parseDateStringOrThrow(
+        padLegacyDateParts(row.start_date) ?? row.start_date,
+        "the holiday start_date",
+      );
+      const endDate = parseDateStringOrThrow(
+        padLegacyDateParts(row.end_date) ?? row.end_date,
+        "the holiday end_date",
+      );
       if (startDate === row.start_date && endDate === row.end_date) continue;
       await withTransaction(async (tx) => {
         await tx.execute({
