@@ -1,7 +1,3 @@
-// test-groups: run-alone — these two files sit outside the shared-isolate
-// plan so their addition does not reshuffle every other file's group, which
-// reshuffles the multi-isolate coverage merge for files like
-// fields-of-source.ts (see docs/designing-systems.md#readable-by-the-coverage-merge).
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
