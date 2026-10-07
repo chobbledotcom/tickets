@@ -1,7 +1,7 @@
-import { bindFirst } from "#shared/fp-bind.ts";
 import { ADMIN_API_MESSAGE_GROUPS } from "#locales/groups.ts";
 import { GUIDE_MESSAGE_GROUPS, type MessageGroup } from "#locales/manifest.ts";
 import type { AdminAreaId } from "#shared/admin-surface/ids.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 
 type HandlerMap = Record<string, (...args: never[]) => unknown>;
 
