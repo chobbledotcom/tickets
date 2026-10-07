@@ -11,7 +11,7 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";

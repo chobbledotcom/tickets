@@ -16,7 +16,7 @@ import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 /* jscpd:ignore-end */
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { answerRows } from "#templates/admin/answer-rows.ts";

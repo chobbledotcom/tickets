@@ -51,11 +51,8 @@ import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import {
-  formatDateLabel,
-  getAvailableDates,
-  listingDateToCalendarDate,
-} from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { getAvailableDates, listingDateToCalendarDate } from "#shared/dates.ts";
 import {
   type AgentFilter,
   assignmentMatchesAgentFilter,

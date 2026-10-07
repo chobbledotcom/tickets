@@ -19,7 +19,7 @@ import {
   LNG_FIELD,
   type OtherAttendeeLine,
 } from "#routes/admin/attendee-logistics.ts";
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { defineTable } from "#shared/tables/definition.ts";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";

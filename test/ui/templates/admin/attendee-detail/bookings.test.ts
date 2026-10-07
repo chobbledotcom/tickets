@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import { AttendeeBookingsTable } from "#templates/admin/attendee-detail.tsx";
 import { expectListingRowQuantity } from "#test-utils/assertions.ts";
 

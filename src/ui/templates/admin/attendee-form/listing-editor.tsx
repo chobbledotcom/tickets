@@ -12,7 +12,7 @@ import {
   isPaymentLockedLine,
   isRetainedLine,
 } from "#routes/admin/attendee-form-model.ts";
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { adminListingLink } from "#templates/admin/admin-page.tsx";

@@ -8,7 +8,7 @@ import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";

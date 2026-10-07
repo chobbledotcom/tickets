@@ -7,7 +7,6 @@
   "src/features/public/ticket-submit.ts": 581,
   "src/fp.ts": 585,
   "src/shared/bunny-cdn.ts": 673,
-  "src/shared/dates.ts": 524,
   "src/shared/db/attendees/servicing.ts": 908,
   "src/shared/db/client.ts": 932,
   "src/shared/db/groups.ts": 809,

@@ -7,7 +7,8 @@
 import { escapeHtml } from "#jsx/escape-html.ts";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { formatDatetimeLabel } from "#shared/dates.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 
 /** Non-PII ticket data for the SVG, with its values already formatted. */

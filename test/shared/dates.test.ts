@@ -1,27 +1,29 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  calendarGridDates,
+  formatDateLabel,
+  formatDateRangeLabel,
+  formatDateRangeLabelCompactEn,
+  formatMonthLabel,
+  monthsAround,
+  shiftMonth,
+} from "#shared/date-labels.ts";
+import {
   addDays,
   addMonthsIso,
   bookedRangeLabel,
   bookedSpanDays,
-  calendarGridDates,
   daysAgo,
-  formatDateLabel,
-  formatDateRangeLabel,
-  formatDateRangeLabelCompactEn,
   formatDatetimeLabel,
   formatDatetimeShort,
-  formatMonthLabel,
   formatTimeAgo,
   getAvailableDates,
   getNextBookableDate,
   isBookingRangeValid,
   listingDateToCalendarDate,
-  monthsAround,
   normalizeDatetime,
   parseIsoDateParam,
-  shiftMonth,
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/day-names.ts";

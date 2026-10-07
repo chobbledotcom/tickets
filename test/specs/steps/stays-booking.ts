@@ -3,7 +3,8 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
-import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
+import { addDays } from "#shared/dates.ts";
 import {
   adminBrowser,
   browserSeenBy,

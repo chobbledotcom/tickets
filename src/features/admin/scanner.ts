@@ -16,7 +16,7 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {

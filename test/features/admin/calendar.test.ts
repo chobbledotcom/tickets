@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { addDays, formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   expectCsvDownloadHeaders,

@@ -33,7 +33,8 @@ import {
   type DateOption,
   readAttendeeListState,
 } from "#shared/attendee-list-controls.ts";
-import { coveredDays, formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { coveredDays } from "#shared/dates.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { GroupContext } from "#templates/admin/listings/types.ts";

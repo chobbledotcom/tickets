@@ -12,7 +12,8 @@ import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
-import { addDays, formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

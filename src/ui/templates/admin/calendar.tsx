@@ -12,7 +12,7 @@ import {
   withPairBookings,
 } from "#shared/attendee-table-rows.ts";
 /* jscpd:ignore-end */
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { filterHref, type ParamWriter } from "#shared/filter-href.ts";
 import {
   type AgentFilter,

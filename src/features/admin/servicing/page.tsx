@@ -10,7 +10,7 @@ import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";

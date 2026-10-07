@@ -7,7 +7,7 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
