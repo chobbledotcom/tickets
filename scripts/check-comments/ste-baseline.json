@@ -720,11 +720,11 @@
     "semicolon": 1
   },
   "src/shared/dates.ts": {
-    "wordy": 5,
-    "long-sentence": 5,
+    "wordy": 4,
+    "long-sentence": 3,
     "semicolon": 3,
     "contraction": 1,
-    "banned-modal": 2
+    "banned-modal": 1
   },
   "src/shared/day-names.ts": {
     "long-sentence": 1

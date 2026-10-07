@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { formatDateLongLabel } from "#shared/dates.ts";
+import { formatDateLongLabel } from "#shared/date-labels.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("formatDateLongLabel", () => {

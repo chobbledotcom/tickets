@@ -16,10 +16,6 @@ import {
 } from "#shared/timezone.ts";
 import { isRealCalendarDay } from "#shared/validation/date-string.ts";
 import { clampDurationDays, type Listing, type SortableListing } from "#types";
-import {
-  formatDateLabel,
-  formatDateRangeLabelCompactEn,
-} from "#shared/date-labels.ts";
 
 /** Days in each month (1-indexed, index 0 unused) */
 const DAYS_IN_MONTH = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -261,29 +257,6 @@ export const bookedSpanDays = (
   return diffDays > 1 ? diffDays : 1;
 };
 
-/** The human-readable label for one booking's actual span: the stored
- * `[date, endDate)` range when a multi-day range is stored, the listing's
- * fixed duration when only a start date is (legacy rows written before end
- * dates were stored), else the single booked day. "" when there is no date.
- * The ONE booked-range renderer the confirmation email, the /t ticket cards,
- * and the collapsed package displays share, so they can never disagree about
- * a booking's stay. */
-export const bookedRangeLabel = (
-  date: string | null,
-  endDate: string | null,
-  fallbackDurationDays = 1,
-): string => {
-  if (!date) return "";
-  const lastDay = endDate
-    ? addDays(endDate, -1)
-    : fallbackDurationDays > 1
-      ? addDays(date, fallbackDurationDays - 1)
-      : null;
-  return lastDay && lastDay > date
-    ? formatDateRangeLabelCompactEn(date, lastDay)
-    : formatDateLabel(date);
-};
-
 /** The dated entry whose booked range ends last — the stay covering a whole
  * package bundle — or null when every entry is date-less (a standard package).
  * A dated entry with no stored end (a single-day booking, or a legacy row)
@@ -381,15 +354,4 @@ export const listingDateToCalendarDate = (utcIso: string): string | null => {
   } catch {
     return null;
   }
-};
-
-/**
- * Format a UTC ISO datetime as a date-only label in the configured timezone,
- * e.g. "Monday 15 June 2026" — no time. Returns "" for an empty/invalid input.
- * Used where a stored timestamp should read as a plain published date (the
- * public news post page).
- */
-export const formatDateLongLabel = (utcIso: string): string => {
-  const calendarDate = listingDateToCalendarDate(utcIso);
-  return calendarDate ? formatDateLabel(calendarDate) : "";
 };

@@ -14,7 +14,7 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { formatDateLongLabel } from "#shared/dates.ts";
+import { formatDateLongLabel } from "#shared/date-labels.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import type { NewsPost, NewsPostCard } from "#types";

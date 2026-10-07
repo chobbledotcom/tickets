@@ -1,7 +1,11 @@
 /** The display half of the date helpers: the human-readable labels for days,
  *  months, and ranges, plus the calendar grid and month picker lists. */
 
-import { addDays, dateRange } from "#shared/dates.ts";
+import {
+  addDays,
+  dateRange,
+  listingDateToCalendarDate,
+} from "#shared/dates.ts";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { DAY_MS } from "#shared/now.ts";
 
@@ -138,4 +142,40 @@ export const formatDateRangeLabel = (
   if (diffDays <= 1) return formatDateLabel(startDate);
   const lastDay = new Date(endMs - DAY_MS).toISOString().slice(0, 10);
   return formatDateRangeLabelCompactEn(startDate, lastDay);
+};
+
+/** The human-readable label for one booking's actual span.
+ *
+ * A stored `[date, endDate)` range gives the multi-day span. A legacy row
+ * with only a start date uses the listing's fixed duration. Otherwise the
+ * label is the single booked day. "" when there is no date.
+ *
+ * The ONE booked-range renderer the confirmation email, the /t ticket
+ * cards, and the collapsed package displays share. No surface can disagree
+ * about a booking's stay. */
+export const bookedRangeLabel = (
+  date: string | null,
+  endDate: string | null,
+  fallbackDurationDays = 1,
+): string => {
+  if (!date) return "";
+  const lastDay = endDate
+    ? addDays(endDate, -1)
+    : fallbackDurationDays > 1
+      ? addDays(date, fallbackDurationDays - 1)
+      : null;
+  return lastDay && lastDay > date
+    ? formatDateRangeLabelCompactEn(date, lastDay)
+    : formatDateLabel(date);
+};
+
+/**
+ * Format a UTC ISO datetime as a date-only label in the configured timezone,
+ * for example "Monday 15 June 2026" — no time. Returns "" for an
+ * empty/invalid input. Used where a stored timestamp reads as a plain
+ * published date (the public news post page).
+ */
+export const formatDateLongLabel = (utcIso: string): string => {
+  const calendarDate = listingDateToCalendarDate(utcIso);
+  return calendarDate ? formatDateLabel(calendarDate) : "";
 };
