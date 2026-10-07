@@ -93,13 +93,10 @@ describe("parseStoredDateString", () => {
     );
   });
 
-  test("repairs a legacy unpadded stored date", () => {
-    expect(parseStoredDateString("2027-6-1", "the stored date")).toBe(
-      "2027-06-01",
+  test("stops loudly on a stored date no migration could have padded", () => {
+    expect(() => parseStoredDateString("2027-6-1", "the stored date")).toThrow(
+      "the stored date does not hold a usable date: 2027-6-1",
     );
-  });
-
-  test("stops loudly on a stored date no repair can read", () => {
     expect(() =>
       parseStoredDateString("2026-02-30", "the stored date"),
     ).toThrow("the stored date does not hold a usable date: 2026-02-30");

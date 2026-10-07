@@ -226,6 +226,27 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
+    test("keeps the stored dates when none are supplied", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Stored Dates",
+        startDate: "2026-01-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { name: "Renamed Only" },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.holiday.name).toBe("Renamed Only");
+          expect(body.holiday.start_date).toBe("2026-01-01");
+          expect(body.holiday.end_date).toBe("2026-01-02");
+        },
+      );
+    });
+
     test("updates dates only", async () => {
       const holiday = await createTestHoliday({
         endDate: "2026-01-02",

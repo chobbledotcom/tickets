@@ -62,5 +62,10 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-05_listing_min_quantity",
     () => import("./2026-10-05_listing_min_quantity.ts"),
   ),
+  // Repair the holiday dates the pre-2476 mapper stored unpadded.
+  entry(
+    "2026-10-07_holiday_date_padding",
+    () => import("./2026-10-07_holiday_date_padding.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

@@ -40,8 +40,7 @@ declare const dateBrand: unique symbol;
  *  boundary: `HolidayInput.startDate` and `.endDate` carry it, and the
  *  readers that produce it are `parseDateString`, `parseDateStringOrThrow`,
  *  `dateRange`, `requireDateString`, and `optionalDateString`. The consumers
- *  in `src/shared/dates.ts` still take plain strings. Migrating them onto
- *  this type is the stacked layer above this branch. */
+ *  in `src/shared/dates.ts` still take plain strings. */
 export type DateString = string & { readonly [dateBrand]: "DateString" };
 
 /** Clean one raw date value at a boundary: trim the whitespace around it,
@@ -67,27 +66,11 @@ export const parseDateStringOrThrow = (
   return parsed;
 };
 
-/** The unpadded-ISO repair of the pre-2476 mapper's stored dates, or null
- *  when the value is not that shape. */
-const padLegacyDateParts = (raw: string): string | null => {
-  const parts = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw.trim());
-  return parts === null
-    ? null
-    : `${parts[1]}-${parts[2]!.padStart(2, "0")}-${parts[3]!.padStart(2, "0")}`;
-};
-
-/** Parse a stored date as a read fallback. The pre-2476 mapper stored
- *  supplied strings without validation, so legacy rows can hold unpadded
- *  dates whose parts are unambiguous: "2027-6-1" names June the first. One
- *  bounded repair pads those parts and re-runs the strict rule. A value the
- *  rule still refuses stops loudly: the repair must not guess. */
-export const parseStoredDateString = (
-  raw: string,
-  what: string,
-): DateString => {
-  const repaired = padLegacyDateParts(raw);
-  return parseDateString(repaired ?? raw) ?? parseDateStringOrThrow(raw, what);
-};
+/** Parse a stored date. The stored holiday dates are repaired once by the
+ *  holiday-date-padding migration. A stored value the rule refuses is an
+ *  impossible state and stops the request loudly: the read must not guess. */
+export const parseStoredDateString = (raw: string, what: string): DateString =>
+  parseDateStringOrThrow(raw, what);
 
 /** Whether a value is a UTC instant of a real calendar day — the shape the
  *  listing datetime columns store. The whole value must match. The date half
