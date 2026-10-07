@@ -7,10 +7,6 @@ import {
   listingDateToCalendarDate,
   storedBookingSpan,
 } from "#shared/dates.ts";
-import {
-  type DateString,
-  parseDateStringOrThrow,
-} from "#shared/validation/date-string.ts";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { DAY_MS } from "#shared/now.ts";
 import {
