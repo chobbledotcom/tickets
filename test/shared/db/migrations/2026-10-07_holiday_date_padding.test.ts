@@ -46,6 +46,7 @@ describeWithEnv("holiday date padding migration", { db: true }, () => {
     await insertHoliday("Padded Party", "2027-06-01", "2027-06-02");
     await insertHoliday("Unpadded Party", "2027-6-1", "2027-6-2");
     await insertHoliday("Broken Party", "not-a-date", "also-not-a-date");
+    await insertHoliday("Broken End Party", "2027-06-01", "also-not-a-date");
     const brokenId = await holidayIdByName("Broken Party");
 
     await expect(
@@ -59,5 +60,14 @@ describeWithEnv("holiday date padding migration", { db: true }, () => {
     expect(byId.get(brokenId)?.start_date).toBe("not-a-date");
     const unpadded = rows.find((row) => row.name !== "Broken Party");
     expect(unpadded?.start_date).toBe("2027-06-01");
+  });
+
+  test("refuses a garbage end date the same way", async () => {
+    await insertHoliday("Broken End Party", "2027-06-01", "also-not-a-date");
+    await expect(
+      holidayDatePaddingMigration(buildMigrationContext()).up(),
+    ).rejects.toThrow(
+      "the holiday end_date does not hold a usable date: also-not-a-date",
+    );
   });
 });
