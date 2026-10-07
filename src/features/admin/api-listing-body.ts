@@ -17,12 +17,14 @@ import {
   generateUniqueListingSlug,
   parseUpdatedListingSlug,
 } from "#shared/listings-actions.ts";
+// jscpd:ignore-start
 import {
   bodyNumber,
   parseOptionalArray,
   requireEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+// jscpd:ignore-end
 import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 

@@ -125,13 +125,16 @@ export const requireDateString = (
   key: string,
 ): Result<DateString> => readDateField(body, key, requiredDateAbsent(key));
 
-/** Refuse a supplied non-string name with the field-named message. */
-const refuseNonStringName = (
+/** The refusal a boundary guard answers when a body fails its field rule. */
+export type FieldRefusal = (
   body: Record<string, unknown>,
-): Result<never> | null =>
-  body.name !== undefined && typeof body.name !== "string"
-    ? errorResult("name must be a string")
-    : null;
+) => Result<never> | null;
+
+/** Refuse a supplied non-string name with the field-named message. */
+const refuseNonStringName: FieldRefusal = (body) => {
+  if (body.name === undefined || typeof body.name === "string") return null;
+  return errorResult("name must be a string");
+};
 
 /** Read the required name for one entity write. A supplied name must be a
  *  string: anything else is refused with the field-named message instead of
@@ -143,7 +146,12 @@ export const requireEntityName = (
 ): Result<string> => {
   const refusal = refuseNonStringName(body);
   if (refusal) return refusal;
-  if (existing !== null) return parseUpdateName(body, existing);
+  if (existing !== null) {
+    // The non-string refusal above has run, so a present name is a string.
+    const supplied = typeof body.name === "string" ? body.name : undefined;
+    const name = supplied === undefined ? existing : supplied.trim();
+    return name === "" ? errorResult("name cannot be empty") : okResult(name);
+  }
   const name = requireStrings(body, ["name"]);
   return name.ok ? okResult(name.value.name) : name;
 };

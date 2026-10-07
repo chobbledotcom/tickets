@@ -10,9 +10,9 @@ import {
   bodyNumber,
   optionalDateString,
   parseOptionalArray,
-  parseUpdateName,
   parseUpdateSlug,
   requireDateString,
+  requireEntityName,
   requireStrings,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
@@ -113,33 +113,33 @@ test("parseUpdateSlug keeps the existing slug when none is submitted", async () 
   ).toEqual({ slug: "old-slug", slugIndex: "index:old-slug" });
 });
 
-test("parseUpdateName trims the submitted name", () => {
-  expect(parseUpdateName({ name: " Updated " }, "Original")).toEqual({
+test("requireEntityName trims the submitted name", () => {
+  expect(requireEntityName({ name: " Updated " }, "Original")).toEqual({
     ok: true,
     value: "Updated",
   });
 });
 
-test("parseUpdateName falls back to the existing name when omitted", () => {
-  expect(parseUpdateName({}, "Original")).toEqual({
+test("requireEntityName falls back to the existing name when omitted", () => {
+  expect(requireEntityName({}, "Original")).toEqual({
     ok: true,
     value: "Original",
   });
 });
 
-test("parseUpdateName rejects an empty name", () => {
-  expect(parseUpdateName({ name: "" }, "Original")).toEqual({
+test("requireEntityName rejects an empty name", () => {
+  expect(requireEntityName({ name: "" }, "Original")).toEqual({
     error: "name cannot be empty",
     ok: false,
   });
 });
 
-test("parseUpdateName rejects a non-string name", () => {
-  expect(parseUpdateName({ name: 123 }, "Original")).toEqual({
+test("requireEntityName rejects a non-string name", () => {
+  expect(requireEntityName({ name: 123 }, "Original")).toEqual({
     error: "name must be a string",
     ok: false,
   });
-  expect(parseUpdateName({ name: null }, "Original")).toEqual({
+  expect(requireEntityName({ name: null }, "Original")).toEqual({
     error: "name must be a string",
     ok: false,
   });

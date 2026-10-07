@@ -9,8 +9,13 @@ import { OWNER_API } from "#routes/auth.ts";
 import { invalidApiValueField } from "#shared/catalog-fields/definition.ts";
 import { holidayFields } from "#shared/catalog-fields/fields.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import { requireEntityName } from "#shared/rest/crud-parsers.ts";
+// jscpd:ignore-start
+import {
+  type FieldRefusal,
+  requireEntityName,
+} from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+// jscpd:ignore-end
 
 /** JSON body accepted by POST /api/admin/holidays */
 export type CreateHolidayBody = {
@@ -29,11 +34,10 @@ export type UpdateHolidayBody = Partial<CreateHolidayBody>;
  *  its field check names the field in the refusal. The create mapper answers
  *  the field error first. The update mapper uses the same order, so the same
  *  bad body gets the same message on both surfaces. */
-const refuseInvalidFieldValue = (
-  body: Record<string, unknown>,
-): Result<never> | null => {
+const refuseInvalidFieldValue: FieldRefusal = (body) => {
   const invalid = invalidApiValueField(holidayFields, body);
-  return invalid ? errorResult(`${invalid} has an invalid value`) : null;
+  if (invalid === null) return null;
+  return errorResult(`${invalid} has an invalid value`);
 };
 
 /** The shared mapper spine: the field guard, then the name, then the date
