@@ -12,6 +12,7 @@ import type {
   TokenHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import type {
   CalcKind,
   ModifierDirection,
@@ -490,10 +491,9 @@ export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;
 
 /** Build a membership predicate over a role set. Typed at `AdminLevel` so the
  * `as const` role-set constants pass without per-call-site casts. */
-const roleIn =
-  (levels: readonly AdminLevel[]) =>
-  (level: AdminLevel): boolean =>
-    levels.includes(level);
+const hasRole = (levels: readonly AdminLevel[], level: AdminLevel): boolean =>
+  levels.includes(level);
+const roleIn = bindFirst(hasRole);
 
 /** True for back-office staff (owner/manager). */
 export const isStaffRole = roleIn(STAFF_ADMIN_LEVELS);

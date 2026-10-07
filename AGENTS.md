@@ -365,7 +365,10 @@ cover, use `@std/collections` directly, and wrap it in a curried `#fp` adapter
 once more than one caller needs it. `@std/collections` has no `groupBy` export.
 Use native `Object.groupBy` / `Map.groupBy`, or `#fp`'s `groupToMap`. Use
 `for...of` instead of `forEach`, and `reduce` with a mutable accumulator instead
-of an array spread.
+of an array spread. Currying in domain files uses `#shared/fp-bind.ts`'s
+`bindFirst` over a flat named function - see
+[Readable by the coverage merge](docs/designing-systems.md#readable-by-the-coverage-merge)
+for why.
 
 ## Code Duplication
 
@@ -433,10 +436,11 @@ automatic.
 - `deno task specs:check` — parse and validate every Feature
 - `deno task specs:files <feature>... [--tags <expression>]` — run selected
   Features
-- `deno task lint` — format and lint code with Biome (`check --write
-  --unsafe`). Format through this task. Fixable findings — including
-  unsafe-fix ones like unused imports — self-heal here instead of failing.
-  Warn and info findings are left to the strict `lint:ci` gate
+- `deno task lint` — format and lint code with Biome
+  (`check --write
+  --unsafe`). Format through this task. Fixable findings —
+  including unsafe-fix ones like unused imports — self-heal here instead of
+  failing. Warn and info findings are left to the strict `lint:ci` gate
 - `deno task lint:ci` — the strict read-only lint that precommit runs
 - `deno task build:edge` — build for Bunny Edge deployment
 - `deno task check:file-lengths` — the 500-line limit over every source tree,

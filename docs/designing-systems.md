@@ -235,6 +235,41 @@ function takes the data.
   `defineTable`, `defineCrudApi`, `defineForm`, and `cachedClientFactory`
   (`src/shared/payment-helpers.ts`).
 
+## Readable by the coverage merge
+
+The coverage gate has three recorded failures on `--parallel` runs. Each failure
+reported a function's body lines as unhit (`DA:0`) while the tests demonstrably
+executed them. Sometimes the same function also carried a non-zero `FNDA`
+count. The sightings are `crud-parsers.ts` on #2504, the note in
+`src/shared/db/attendees/update.ts`, and the exclusions in
+`scripts/coverage-check.ts` with a "mis-attributes" comment. Only the #2504
+sighting has a known shape cause: its body sat in the inner arrow of a curried
+ternary helper. The other sightings have no known shape cause yet. A minimal
+fixture of the #2504 shape did not reproduce the mis-read. Treat the house
+shape below as the working rule from that one case, not as a proven cause.
+
+Write the logic in the house shape, so the merge can attribute it:
+
+- The logic lives in a module-level, named, flat function: a block body with
+  `if`/`return`, no ternary head, no multi-line expression body.
+- Currying comes from a shared combinator, never from a hand-written returned
+  closure in a domain file. `bindFirst` (`#shared/fp-bind.ts`) gives a plain
+  multi-argument function partial application: write `requiredDate(key, value)`
+  flat, then `export const requireDateString = bindFirst(requiredDate)`.
+- The combinator's own closure lives in `src/shared/fp-bind.ts`, and the modules
+  that call it (`src/shared/types.ts`, `src/shared/db/settings/raw-writes.ts`,
+  `src/features/admin/area-loaders.ts`) load it from many isolates. The domain
+  logic stays a plain function whose lines the merge can sum across workers.
+
+The evidence is a before and after on the real case. `crud-parsers.ts` read
+`DA:0` on the inner arrow of a curried ternary helper and failed the gate. The
+same logic as a plain two-argument function with an `if`/`return` body passed
+the gate with no exclusion (#2504). A load-only isolate contributes a
+zero-count range for a compiled-but-uncalled function, so give the merge
+nothing to mis-sum in the body lines: keep them flat, named, and block-bodied.
+When the gate reports `DA:0` on lines the tests demonstrably run, check the
+shape against this section before reaching for an exclusion.
+
 ## Built for cold starts
 
 Most production requests land on a freshly booted edge isolate with a ~500ms
