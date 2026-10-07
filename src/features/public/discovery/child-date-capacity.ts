@@ -5,17 +5,13 @@
  *  without the site, and the coverage merger sees them exercised from one
  *  isolate. */
 
+import { buildTicketListing, childActive, childOpen } from "#booking/model.ts";
+import type { Holiday } from "#db/holidays.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  buildTicketListing,
-  childActive,
-  childOpen,
-} from "#booking/model.ts";
 import {
   type ChildCapacityPart,
   childCapacityPartsFor,
 } from "#shared/capacity-fit.ts";
-import type { Holiday } from "#db/holidays.ts";
 import type { ListingWithCount } from "#types";
 import {
   childOfferedOnDate,
