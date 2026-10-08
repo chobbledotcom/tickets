@@ -64,7 +64,9 @@ describeWithEnv(
       const response = await submitBuyerOrder(listing);
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+      // A redirect is not an indexable page: only 2xx answers carry
+      // index, follow.
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       const attendee = await latestAttendee();
       expect(attendee.pricePaid).toBe(0);
       expect(attendee.remainingBalance).toBe(0);

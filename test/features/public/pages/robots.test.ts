@@ -6,8 +6,12 @@ import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestNewsPost,
+  createTestSitePage,
+} from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
+import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 const robotsTagFor = async (path: string): Promise<Headers> =>
   (await handleRequest(mockRequest(path))).headers;
@@ -156,6 +160,56 @@ describeWithEnv(
       const headers = await robotsTagFor(`/ticket/${listing.slug}`);
       expect(headers.get("x-robots-tag")).toBe("noindex, nofollow");
       expect(headers.has("x-robots-noindex")).toBe(false);
+    });
+
+    test("a public site page drops noindex while the site feature is on", async () => {
+      await createTestSitePage("about-us");
+      await createTestNewsPost("Spring fair");
+      await enablePublicSite();
+      try {
+        for (const path of ["/", "/listings", "/news", "/page/about-us"]) {
+          expect((await robotsTagFor(path)).get("x-robots-tag")).toBe(
+            "index, follow",
+          );
+        }
+      } finally {
+        await disablePublicSite();
+      }
+    });
+
+    test("an unknown public slug stays noindex while the site feature is on", async () => {
+      await enablePublicSite();
+      try {
+        for (const path of ["/page/unknown-page", "/news/unknown-post"]) {
+          const response = await handleRequest(mockRequest(path));
+          expect(response.status).toBe(404);
+          expect(response.headers.get("x-robots-tag")).toBe(
+            "noindex, nofollow",
+          );
+        }
+      } finally {
+        await disablePublicSite();
+      }
+    });
+
+    test("a public site page keeps noindex while the site feature is off", async () => {
+      await disablePublicSite();
+      for (const path of ["/", "/listings"]) {
+        expect((await robotsTagFor(path)).get("x-robots-tag")).toBe(
+          "noindex, nofollow",
+        );
+      }
+    });
+
+    test("a private page keeps noindex even with the public site on", async () => {
+      await enablePublicSite();
+      try {
+        expect((await robotsTagFor("/admin/login")).get("x-robots-tag")).toBe(
+          "noindex, nofollow",
+        );
+      } finally {
+        await disablePublicSite();
+      }
     });
   },
 );

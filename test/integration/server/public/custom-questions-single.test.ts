@@ -146,7 +146,9 @@ describeWithEnv(
           [`question_${question.id}`]: String(answer1.id),
         });
         expectReservedRedirectWithTokens(first);
-        expect(first.headers.get("x-robots-tag")).toBe("index, follow");
+        // A redirect is not an indexable page: only 2xx answers carry
+        // index, follow.
+        expect(first.headers.get("x-robots-tag")).toBe("noindex, nofollow");
 
         // The unit was consumed. With no payment provider nothing is collected up
         // front, but the booking owes the tier's £5.00 and records it on the ledger

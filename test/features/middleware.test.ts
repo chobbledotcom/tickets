@@ -22,6 +22,7 @@ import {
   providerCheckoutFormOrigins,
 } from "#shared/payment-providers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 const BASE_CSP =
   "default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; form-action 'self'";
@@ -262,7 +263,7 @@ describe("getCleanUrl", () => {
 
 describe("getSecurityHeaders", () => {
   test("sets the exact base headers on ordinary pages", () => {
-    expect(getSecurityHeaders(false)).toMatchObject({
+    expect(getSecurityHeaders("/admin")).toMatchObject({
       "referrer-policy": "strict-origin-when-cross-origin",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
@@ -271,22 +272,70 @@ describe("getSecurityHeaders", () => {
   });
 
   test("allows indexing and framing on embeddable pages", () => {
-    const headers = getSecurityHeaders(true);
+    const headers = getSecurityHeaders("/ticket/example");
     expect(headers["x-robots-tag"]).toBe("index, follow");
     expect(headers["x-frame-options"]).toBeUndefined();
+  });
+
+  describeWithEnv("x-robots-tag on a public site page", { db: true }, () => {
+    const PUBLIC_PATHS = [
+      "/",
+      "/listings",
+      "/terms",
+      "/contact",
+      "/order",
+      "/news",
+      "/news/spring-fair",
+      "/page/about-us",
+    ] as const;
+
+    test("every public site page drops noindex once the feature is on", async () => {
+      await enablePublicSite();
+      try {
+        for (const path of PUBLIC_PATHS) {
+          expect(getSecurityHeaders(path)["x-robots-tag"]).toBe(
+            "index, follow",
+          );
+        }
+      } finally {
+        await disablePublicSite();
+      }
+    });
+
+    test("every public site page keeps noindex while the feature is off", async () => {
+      await disablePublicSite();
+      for (const path of PUBLIC_PATHS) {
+        expect(getSecurityHeaders(path)["x-robots-tag"]).toBe(
+          "noindex, nofollow",
+        );
+      }
+    });
+
+    test("a private page keeps noindex even with the feature on", async () => {
+      await enablePublicSite();
+      try {
+        for (const path of ["/admin", "/api/listings", "/pay/balance"]) {
+          expect(getSecurityHeaders(path)["x-robots-tag"]).toBe(
+            "noindex, nofollow",
+          );
+        }
+      } finally {
+        await disablePublicSite();
+      }
+    });
   });
 
   test("sets HSTS only for a resolved production host", () => {
     setEffectiveDomainForTest("tickets.example.com");
     try {
-      expect(getSecurityHeaders(false)["strict-transport-security"]).toBe(
+      expect(getSecurityHeaders("/admin")["strict-transport-security"]).toBe(
         "max-age=63072000; includeSubDomains; preload",
       );
     } finally {
       resetEffectiveDomain();
     }
     expect(
-      getSecurityHeaders(false)["strict-transport-security"],
+      getSecurityHeaders("/admin")["strict-transport-security"],
     ).toBeUndefined();
   });
 });
@@ -295,14 +344,27 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
   test("turns the hidden-listing signal into the public noindex header", async () => {
     const response = await applySecurityHeaders(
       new Response("page", { headers: { "x-robots-noindex": "true" } }),
-      true,
+      "/ticket/example",
     );
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(response.headers.has("x-robots-noindex")).toBe(false);
   });
 
+  test("keeps a non-2xx public page out of the index", async () => {
+    await enablePublicSite();
+    try {
+      const response = await applySecurityHeaders(
+        new Response("gone", { status: 404 }),
+        "/page/unknown-page",
+      );
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
   test("prevents caching when the response has no explicit policy", async () => {
-    const response = await applySecurityHeaders(new Response("page"), false);
+    const response = await applySecurityHeaders(new Response("page"), "/admin");
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
@@ -311,7 +373,7 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
       new Response("asset", {
         headers: { "cache-control": "public, max-age=60" },
       }),
-      false,
+      "/admin",
     );
     expect(response.headers.get("cache-control")).toBe("public, max-age=60");
   });
@@ -319,7 +381,7 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
   test("uses the configured Square sandbox policy", async () => {
     await settings.update.paymentProvider("square");
     await settings.update.square.sandbox(true);
-    const response = await applySecurityHeaders(new Response("page"), false);
+    const response = await applySecurityHeaders(new Response("page"), "/admin");
     expect(response.headers.get("content-security-policy")).toContain(
       "https://connect.squareupsandbox.com",
     );
@@ -327,7 +389,10 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
 
   test("adds configured frame ancestors only to embeddable pages", async () => {
     await settings.update.embedHosts("example.com");
-    const response = await applySecurityHeaders(new Response("page"), true);
+    const response = await applySecurityHeaders(
+      new Response("page"),
+      "/ticket/example",
+    );
     expect(response.headers.get("content-security-policy")).toContain(
       "frame-ancestors 'self' example.com",
     );

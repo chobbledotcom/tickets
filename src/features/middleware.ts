@@ -82,17 +82,25 @@ export const buildCspHeader = (
  * Get security headers for a response
  */
 export const getSecurityHeaders = (
-  embeddable: boolean,
-  csp = buildCspHeader(embeddable),
-): Record<string, string> => ({
-  ...BASE_SECURITY_HEADERS,
-  ...(!embeddable && { "x-frame-options": "DENY" }),
-  ...(embeddable && { "x-robots-tag": "index, follow" }),
-  ...(isSecureMode() && {
-    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
-  }),
-  "content-security-policy": csp,
-});
+  path: string,
+  csp = buildCspHeader(isEmbeddablePath(path)),
+): Record<string, string> => {
+  const embeddable = isEmbeddablePath(path);
+  // The setting read sits behind the path check. A path the public site
+  // never serves (a static asset, an admin page) reads no setting at all.
+  const indexable =
+    embeddable || (isPublicSitePath(path) && settings.features.site);
+  return {
+    ...BASE_SECURITY_HEADERS,
+    ...(!embeddable && { "x-frame-options": "DENY" }),
+    ...(indexable && { "x-robots-tag": "index, follow" }),
+    ...(isSecureMode() && {
+      "strict-transport-security":
+        "max-age=63072000; includeSubDomains; preload",
+    }),
+    "content-security-policy": csp,
+  };
+};
 
 /** One slug: letter/number runs joined by single hyphens or underscores. */
 const SLUG = "[a-z0-9]+(?:[-_][a-z0-9]+)*";
@@ -106,6 +114,21 @@ const EMBEDDABLE_PATH = new RegExp(`^/ticket/${SLUG}(?:\\+${SLUG})*$`);
  */
 export const isEmbeddablePath = (path: string): boolean =>
   EMBEDDABLE_PATH.test(path);
+
+/** The paths the public site serves when its feature is on. They are the
+ *  home page, the listings page, the terms, the news pages, the custom
+ *  pages, the contact page, and the order page. The x-robots-tag follows
+ *  this list. A new public page joins this list to be indexable. */
+const PUBLIC_SITE_PATH = new RegExp(
+  `^(?:/|/listings|/terms|/contact|/order|/news(?:/${SLUG})?|/page/${SLUG})$`,
+);
+
+/**
+ * Check if a path is a public site page: a visitor-facing page the site
+ * feature serves. Paths are normalized to strip trailing slashes.
+ */
+export const isPublicSitePath = (path: string): boolean =>
+  PUBLIC_SITE_PATH.test(path);
 
 /**
  * Check if path is a webhook endpoint that accepts JSON
@@ -171,7 +194,9 @@ export const contentTypeRejectionResponse = (): Response =>
   new Response(encodeBody("Bad Request: Invalid Content-Type"), {
     headers: {
       "content-type": "text/plain",
-      ...getSecurityHeaders(false),
+      // The rejection names no page, so its robots tag never depends on the
+      // public site feature.
+      ...getSecurityHeaders("/bad-content-type"),
     },
     status: 400,
   });
@@ -226,8 +251,9 @@ export const getCleanUrl = (url: URL): string | null => {
  */
 export const applySecurityHeaders = async (
   response: Response,
-  embeddable: boolean,
+  path: string,
 ): Promise<Response> => {
+  const embeddable = isEmbeddablePath(path);
   const provider = settings.paymentProvider;
   const sandbox = provider !== null && paymentProviderUsesSandbox(provider);
   const baseCsp = buildCspHeader(
@@ -239,13 +265,20 @@ export const applySecurityHeaders = async (
     ? buildFrameAncestors(await getEmbedHosts())
     : null;
   const csp = frameAncestors ? `${frameAncestors}; ${baseCsp}` : baseCsp;
-  const securityHeaders = getSecurityHeaders(embeddable, csp);
+  const securityHeaders = getSecurityHeaders(path, csp);
 
   // Check before setting security headers (they don't include cache-control)
   const hasCacheControl = response.headers.has("cache-control");
 
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
+  }
+
+  // A public page that did not answer 2xx is not an indexable page. An
+  // unknown slug, an unconfigured page, or a redirect must not claim
+  // index, follow.
+  if (response.status < 200 || response.status >= 300) {
+    response.headers.set("x-robots-tag", "noindex, nofollow");
   }
 
   // Override x-robots-tag for hidden listings (signal header set by route handlers)

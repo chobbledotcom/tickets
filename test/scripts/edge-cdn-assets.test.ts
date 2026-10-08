@@ -66,7 +66,6 @@ test("ASSET_DEFS describes every embedded and published browser asset", () => {
       "",
       true,
     ],
-    "robots.txt": ["handleRobotsTxt", "text/plain; charset=utf-8", ""],
     "scanner.js": [
       "handleScannerJs",
       "application/javascript; charset=utf-8",

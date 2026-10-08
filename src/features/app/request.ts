@@ -14,7 +14,6 @@ import { SETUP_MESSAGE_GROUPS } from "#locales/groups.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
-  isEmbeddablePath,
   isValidContentType,
 } from "#routes/middleware.ts";
 import { requestScopedHandler } from "#routes/request-scopes.ts";
@@ -181,14 +180,13 @@ const routeAndFinalize = async (
   path: string,
   method: string,
 ): Promise<Response> => {
-  const embeddable = isEmbeddablePath(path);
   const consumedFlashId = applyFlashFromCookie(request, url);
   const response = await handleRequestInternal(request, path, method);
 
   if (consumedFlashId && hasFlash()) {
     withCookie(response, clearFlashCookie(consumedFlashId));
   }
-  return applySecurityHeaders(response, embeddable);
+  return applySecurityHeaders(response, path);
 };
 
 const handleRoutingError = (
@@ -256,9 +254,7 @@ const processRequest = async (request: Request): Promise<Response> => {
 
     const staticResponse = await routeStatic(bufferedRequest, path, method);
     if (staticResponse) {
-      return finish(
-        await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
-      );
+      return finish(await applySecurityHeaders(staticResponse, path));
     }
 
     const cleanLocation = trackingRedirectLocation(url, method);
