@@ -110,7 +110,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       expect(validateFormState(quantityForm({ [listing.id]: 4 }), ctx)).toBe(
         bookingError.maximum(listing.name, 3),
       );
-      expect(validateFormState(quantityForm({ [listing.id]: 3 }), ctx)).toBeNull();
+      expect(
+        validateFormState(quantityForm({ [listing.id]: 3 }), ctx),
+      ).toBeNull();
     });
 
     test("refuses a package count above the bundles the page can sell", async () => {

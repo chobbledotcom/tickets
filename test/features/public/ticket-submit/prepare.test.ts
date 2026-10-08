@@ -57,9 +57,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const result = await prepareOrder(ctx, quantityForm({ [listing.id]: 4 }));
       expect(result.ok).toBe(false);
       if (result.ok) return;
-      expect(result.error).toBe(
-        bookingError.maximum(listing.name, 3),
-      );
+      expect(result.error).toBe(bookingError.maximum(listing.name, 3));
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
