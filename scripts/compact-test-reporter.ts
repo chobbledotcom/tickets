@@ -170,10 +170,7 @@ export class CompactTapReporter {
 
     const result = line.match(TEST_RESULT_RE);
     if (!result) {
-      // A line the TAP grammar does not define is the child's own voice: an
-      // error, a panic, or a leak report. Keep the last ones for the summary.
-      this.#dropped.push(line);
-      if (this.#dropped.length > DROPPED_LINE_CAP) this.#dropped.shift();
+      this.#drop(line);
       return;
     }
 
@@ -191,6 +188,13 @@ export class CompactTapReporter {
 
     this.#passed++;
     this.#stdout(this.#formatResultLine("ok  ", name));
+  }
+
+  /** Keep a line the TAP grammar does not define for the summary: it is the
+   * child's own voice — an error, a panic, or a leak report. */
+  #drop(line: string): void {
+    this.#dropped.push(line);
+    if (this.#dropped.length > DROPPED_LINE_CAP) this.#dropped.shift();
   }
 
   finish(): CompactTapSummary {
@@ -315,6 +319,46 @@ const describeStatus = (status: {
     ? `deno exited with code ${status.code}, killed by ${status.signal}`
     : `deno exited with code ${status.code}`;
 
+/** The facts about a run that exited non-zero without a failed test: the
+ * exit code and signal, the files deno's JUnit report blames, the stdout
+ * lines the TAP results carried, and the last result shown. */
+const printNoFailedTestFacts = (
+  summary: CompactTapSummary,
+  status: { code: number; signal?: string | null },
+  junitErrorFiles: string[],
+  extra: string,
+): void => {
+  console.error(describeStatus(status));
+  if (junitErrorFiles.length > 0) {
+    console.error(
+      "\ndeno's JUnit report marks these files with uncaught errors:",
+    );
+    for (const file of junitErrorFiles) console.error(`  ${file}`);
+  }
+  if (summary.droppedLines.length > 0) {
+    console.error("\nStdout lines deno printed beside the TAP results:");
+    for (const line of summary.droppedLines) console.error(line);
+  }
+  if (
+    extra === "" &&
+    summary.droppedLines.length === 0 &&
+    junitErrorFiles.length === 0
+  ) {
+    console.error("\ndeno printed no cause for this exit on either stream.");
+  }
+  const last =
+    summary.lastResultName === undefined ? "(none)" : summary.lastResultName;
+  console.error(`The last result shown was: ${last}`);
+};
+
+const printFailures = (summary: CompactTapSummary): void => {
+  if (summary.failures.length === 0) return;
+  console.error("\nFailed tests:");
+  for (const failure of summary.failures) {
+    console.error(`  ${formatLocation(failure.location)} - ${failure.name}`);
+  }
+};
+
 export const printCompactSummary = (
   summary: CompactTapSummary,
   status: { code: number; signal?: string | null },
@@ -342,27 +386,7 @@ export const printCompactSummary = (
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
 
   if (summary.failed === 0) {
-    console.error(describeStatus(status));
-    if (junitErrorFiles.length > 0) {
-      console.error(
-        "\ndeno's JUnit report marks these files with uncaught errors:",
-      );
-      for (const file of junitErrorFiles) console.error(`  ${file}`);
-    }
-    if (summary.droppedLines.length > 0) {
-      console.error("\nStdout lines deno printed beside the TAP results:");
-      for (const line of summary.droppedLines) console.error(line);
-    }
-    if (
-      extra === "" &&
-      summary.droppedLines.length === 0 &&
-      junitErrorFiles.length === 0
-    ) {
-      console.error("\ndeno printed no cause for this exit on either stream.");
-    }
-    const last =
-      summary.lastResultName === undefined ? "(none)" : summary.lastResultName;
-    console.error(`The last result shown was: ${last}`);
+    printNoFailedTestFacts(summary, status, junitErrorFiles, extra);
   }
 
   if (missing > 0 && !(summary.failed === 0 && extra !== "")) {
@@ -371,12 +395,7 @@ export const printCompactSummary = (
     );
   }
 
-  if (summary.failures.length > 0) {
-    console.error("\nFailed tests:");
-    for (const failure of summary.failures) {
-      console.error(`  ${formatLocation(failure.location)} - ${failure.name}`);
-    }
-  }
+  printFailures(summary);
 
   // Always surface stderr on a failing run: an uncaught error in a test
   // module (which aborts that module's remaining tests) is only reported
