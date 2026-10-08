@@ -11,7 +11,6 @@ import {
   expectReservedRedirectWithTokens,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
-import { parseFlashValue } from "#shared/cookies.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -196,15 +195,7 @@ describeWithEnv(
             [`quantity_${listing2.id}`]: "0",
           },
         );
-        const flashCookie = response.headers
-          .getSetCookie()
-          .find((c) => c.startsWith("flash_"));
-        const parsed = parseFlashValue(
-          flashCookie!.split("=").slice(1).join("="),
-        );
-        expect(parsed.error).toBe(
-          bookingError.maximum("Post Multi Cap 1", 2),
-        );
+        expectFlash(response, bookingError.maximum("Post Multi Cap 1", 2), false);
 
         // A refusal books nothing, not a clamped count.
         await expectAttendeeCounts([

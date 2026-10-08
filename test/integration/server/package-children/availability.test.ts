@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
-import { parseFlashValue } from "#shared/cookies.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
 import {
   bookingRows,
   capAddonsAtThree,
@@ -65,13 +65,7 @@ describeWithEnv("package child availability", { db: true }, () => {
       name: "Clamp Buyer",
       [`package_quantity_${group.id}`]: "9",
     });
-    const flashCookie = submit.headers
-      .getSetCookie()
-      .find((c) => c.startsWith("flash_"));
-    const parsed = parseFlashValue(
-      flashCookie!.split("=").slice(1).join("="),
-    );
-    expect(parsed.error).toBe(bookingError.packageMaximum("Clamp", 3));
+    expectFlash(submit, bookingError.packageMaximum("Clamp", 3), false);
 
     // A refusal books nothing, not a clamped count.
     expect((await bookingRows(parent.id)).length).toBe(0);

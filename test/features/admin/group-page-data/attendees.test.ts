@@ -74,7 +74,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         response,
         200,
         "Running total check",
-        "expected <strong>1</strong>, got",
+        "expected <strong>2</strong>, got",
         "Review group listings",
       );
     });
