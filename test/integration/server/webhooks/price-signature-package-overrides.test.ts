@@ -15,6 +15,7 @@ import {
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -141,7 +142,7 @@ describeWithEnv(
       const { todayInTz } = await import("#shared/timezone.ts");
       return signMeta(
         webhookMeta({
-          date: addDays(todayInTz("UTC"), 2),
+          date: addDays(testDate(todayInTz("UTC")), 2),
           day_count: "2",
           email: "buyer@example.com",
           items: JSON.stringify([

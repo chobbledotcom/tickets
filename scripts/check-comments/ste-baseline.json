@@ -721,9 +721,9 @@
   },
   "src/shared/dates.ts": {
     "wordy": 4,
-    "long-sentence": 3,
-    "semicolon": 3,
+    "long-sentence": 2,
     "contraction": 1,
+    "semicolon": 2,
     "banned-modal": 1
   },
   "src/shared/day-names.ts": {

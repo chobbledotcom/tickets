@@ -28,6 +28,7 @@ import {
 } from "#db/numbered-statement.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { remembered } from "#shared/remembered.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 
 /** One listing's or one group's cart demand. `perDay` holds the dated demand
  * on per-date counting listings, keyed by day. `everyDay` holds demand that
@@ -99,7 +100,10 @@ export const addDemandToBucket = (
     bucket.throughLastUndated = bucket.runningTotal;
     return;
   }
-  for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
+  for (const day of expandDailyRange(
+    parseDateStringOrThrow(date, "a stored booking date"),
+    item.durationDays ?? 1,
+  )) {
     bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
   }
 };

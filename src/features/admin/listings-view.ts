@@ -37,14 +37,16 @@ import { formatDateLabel } from "#shared/date-labels.ts";
 import { coveredDays } from "#shared/dates.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import type { GroupContext } from "#templates/admin/listings/types.ts";
 import type { Attendee, ListingWithCount } from "#types";
 
 /** Keep the attendees a chosen day belongs to. A booking counts for every day
- * it covers, so day 2 of a three-day stay lists that stay. */
+ * it covers, so day 2 of a three-day stay lists that stay. The caller's
+ * boundary brands the picked day. */
 export const filterByDate = (
   attendees: Attendee[],
-  date: string | null,
+  date: DateString | null,
 ): Attendee[] =>
   date
     ? filter((a: Attendee) => coveredDays(a.date, a.end_date).includes(date))(
@@ -55,10 +57,10 @@ export const filterByDate = (
 const getUniqueDates: (attendees: Attendee[]) => DateOption[] = pipe(
   (attendees: Attendee[]) =>
     attendees.flatMap((a: Attendee) => coveredDays(a.date, a.end_date)),
-  (dates: string[]) => compact(dates),
+  (dates) => compact(dates),
   (dates) => unique(dates),
   sort((a, b) => a.localeCompare(b)),
-  map((d: string) => ({ label: formatDateLabel(d), value: d })),
+  map((d: DateString) => ({ label: formatDateLabel(d), value: d })),
 );
 
 /** The roster's date-picker options. Empty for a listing not booked by the day. */

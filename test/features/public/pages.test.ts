@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -88,7 +89,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
 
     test("uses the selected stay length for daily capacity", async () => {
       await enablePublicSite();
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
       const secondDay = addDays(date, 1);
       const fixed = await createTestListing({
         durationDays: 2,
@@ -163,7 +164,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
   describe("group cards", () => {
     test("marks a package unavailable only on its member's full date", async () => {
       await enablePublicSite();
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
       const pkg = await createTestGroup({
         isPackage: true,
         name: "Weekend Package",
@@ -192,7 +193,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         filtered.indexOf("Weekend Package"),
       );
 
-      const otherDate = addDays(todayInTz("UTC"), 3);
+      const otherDate = addDays(testDate(todayInTz("UTC")), 3);
       const available = await assertPublicHtml(
         `/listings?date=${otherDate}`,
         "Weekend Package",

@@ -7,6 +7,7 @@ import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -56,7 +57,7 @@ describeWithEnv(
           name: "Daily Hire",
         });
         await bookAttendee(listing, {
-          date: addDays(todayInTz("UTC"), 2),
+          date: addDays(testDate(todayInTz("UTC")), 2),
           email: "first@test.com",
           name: "First",
           quantity: 1,
@@ -78,7 +79,7 @@ describeWithEnv(
         // date; with one chosen, each daily card answers for THAT date and a
         // bookable card's CTA carries the date into its booking page.
         await enablePublicSite();
-        const date = addDays(todayInTz("UTC"), 2);
+        const date = addDays(testDate(todayInTz("UTC")), 2);
         const fullDaily = await createTestListing({
           listingType: "daily",
           maxAttendees: 1,
@@ -156,7 +157,7 @@ describeWithEnv(
         // single member with no room on the searched date makes the whole
         // package unbookable that day, even while its other members are free.
         await enablePublicSite();
-        const date = addDays(todayInTz("UTC"), 2);
+        const date = addDays(testDate(todayInTz("UTC")), 2);
         const pkg = await createTestGroup({
           isPackage: true,
           name: "Bundle Package",
@@ -205,7 +206,7 @@ describeWithEnv(
 
       test("a date search splits out a sold-out package and member", async () => {
         await enablePublicSite();
-        const date = addDays(todayInTz("UTC"), 2);
+        const date = addDays(testDate(todayInTz("UTC")), 2);
         const pkg = await createTestGroup({
           isPackage: true,
           name: "Hidden Member Package",

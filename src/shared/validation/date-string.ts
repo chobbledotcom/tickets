@@ -33,10 +33,14 @@ export const isIsoDate = (value: string): boolean => v.is(IsoDateSchema, value);
 declare const dateBrand: unique symbol;
 
 /** A `YYYY-MM-DD` string that passed the real-calendar-day check. The brand
- *  is the compile-level half of the cleanup. It guards the holiday
- *  boundary: `HolidayInput.startDate` and `.endDate` carry it, and the
- *  readers that produce it are `parseDateString`, `parseDateStringOrThrow`,
- *  `dateRange`, `requireDateString`, and `optionalDateString`. */
+ *  is the compile-level half of the cleanup. It guards the holiday boundary
+ *  and the booking-date arithmetic in `src/shared/dates.ts`: `addDays`,
+ *  `dateRange`, `coveredDays`, and `getBookableStartDates` take or return it,
+ *  and `parseDateString`, `parseDateStringOrThrow`, `dateRange`,
+ *  `requireDateString`, and `optionalDateString` produce it. The stored-ISO
+ *  readers (`bookedSpanDays`, `bookedRangeLabel`, `widestDatedEntry`) and the
+ *  admin attendee form still take plain strings: they re-render legacy or
+ *  rejected values, which this layer does not clean. */
 export type DateString = string & { readonly [dateBrand]: "DateString" };
 
 /** Clean one raw date value at a boundary: trim the whitespace around it,

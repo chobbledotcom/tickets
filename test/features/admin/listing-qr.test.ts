@@ -14,6 +14,7 @@ import { addDays } from "#shared/dates.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -126,7 +127,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       expect(body).toContain('name="date"');
       // A date one day before the window edge supports a single day even though
       // it can't fit the 2-day maximum — single-day availability still offers it.
-      expect(body).toContain(addDays(todayInTz("UTC"), 60));
+      expect(body).toContain(addDays(testDate(todayInTz("UTC")), 60));
     });
 
     test("offers only child-servable dates for a daily parent", async () => {

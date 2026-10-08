@@ -14,6 +14,7 @@ import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { formatDatetimeShortInTz } from "#shared/timezone.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
@@ -40,7 +41,10 @@ export const csvDateRange = (
 ): string => {
   if (!date) return "";
   if (!endDate) return date;
-  const lastDay = addDays(endDate, -1);
+  const lastDay = addDays(
+    parseDateStringOrThrow(endDate, "a stored booking end date"),
+    -1,
+  );
   return lastDay > date ? `${date} to ${lastDay}` : date;
 };
 

@@ -17,6 +17,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { addDays } from "#shared/dates.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookUnits } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -28,7 +29,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import type { ListingWithCount } from "#types";
 
 /** A start date comfortably inside every test listing's booking window. */
-const startDate = (): string => addDays(todayInTz("UTC"), 2);
+const startDate = (): string => addDays(testDate(todayInTz("UTC")), 2);
 
 /** Enough for the snapshot's fixed reads, far below one read per length. */
 const SNAPSHOT_CALL_LIMIT = 10;
@@ -95,7 +96,7 @@ describeWithEnv(
       // A booking on the third day is inside the 3-day stay and outside the
       // 1-day one, so the lengths must not all report the same figure.
       for (const listing of listings) {
-        await bookUnits(listing.id, 4, addDays(date, 2));
+        await bookUnits(listing.id, 4, addDays(testDate(date), 2));
       }
 
       const fromSnapshot = await remainingPerOwnLength(listings, date);
@@ -127,7 +128,7 @@ describeWithEnv(
         name: "Long stay",
       });
       // Booked on the third day: only the three-day stay reaches it.
-      await bookUnits(short.id, 4, addDays(date, 2));
+      await bookUnits(short.id, 4, addDays(testDate(date), 2));
 
       const snapshot = await loadCapacitySnapshot([short, long], date, 3);
 

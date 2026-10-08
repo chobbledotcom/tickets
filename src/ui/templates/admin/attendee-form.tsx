@@ -22,6 +22,7 @@ import { addDays } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
+import { parseDateString } from "#shared/validation/date-string.ts";
 import { AdminPage, renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
@@ -54,17 +55,20 @@ import { type AdminSession, MAX_DURATION_DAYS } from "#types";
 /* jscpd:ignore-end */
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
- * resulting end date when a start date is known. */
+ * resulting end date when a start date is known. A malformed submitted date
+ * falls back to the plain day-count labels: validation reports the bad
+ * date, and the re-render must not throw while showing it. */
 const dayCountOptions = (startDate: string): SelectOption[] =>
-  range(1, MAX_DURATION_DAYS + 1).map((n) => ({
-    label: startDate
+  range(1, MAX_DURATION_DAYS + 1).map((n) => {
+    const day = parseDateString(startDate);
+    const label = day
       ? t("attendee_form.day_count_option_with_end", {
           count: n,
-          end: formatDateLabel(addDays(startDate, n - 1)),
+          end: formatDateLabel(addDays(day, n - 1)),
         })
-      : t("attendee_form.day_count_option", { count: n }),
-    value: String(n),
-  }));
+      : t("attendee_form.day_count_option", { count: n });
+    return { label, value: String(n) };
+  });
 
 /** Shared start date + length for every daily listing. The length is a select
  * of day counts (the end date is derived, never edited directly). The

@@ -1,5 +1,6 @@
 import { dateRange } from "#shared/dates.ts";
 import { epochMsToTzDate } from "#shared/timezone.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import {
   type DatePickerDate,
   selectableDates,
@@ -12,8 +13,18 @@ export const pickerDatesFromBounds = (
   tz: string,
 ): DatePickerDate[] => {
   if (!bounds) return [];
-  const startDay = epochMsToTzDate(bounds.minMs, tz);
-  const latest = epochMsToTzDate(bounds.maxMs, tz);
-  const endDay = latest > today ? latest : today;
+  const brandedToday = parseDateStringOrThrow(
+    today,
+    "the configured timezone's clock",
+  );
+  const startDay = parseDateStringOrThrow(
+    epochMsToTzDate(bounds.minMs, tz),
+    "a picker bound date",
+  );
+  const latest = parseDateStringOrThrow(
+    epochMsToTzDate(bounds.maxMs, tz),
+    "a picker bound date",
+  );
+  const endDay = latest > brandedToday ? latest : brandedToday;
   return selectableDates(dateRange(startDay, endDay));
 };

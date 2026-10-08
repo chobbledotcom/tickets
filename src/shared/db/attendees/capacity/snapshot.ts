@@ -12,6 +12,7 @@ import { inPlaceholders, queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { clampDurationDays } from "#types";
 import {
   getGroupPerDayRemaining,
@@ -78,7 +79,12 @@ export const loadCapacitySnapshot = async (
   widestSpanDays: number,
   knownMembership?: ReadonlyMap<number, number[]>,
 ): Promise<CapacitySnapshot> => {
-  const days = date ? expandDailyRange(date, widestSpanDays) : [];
+  const days = date
+    ? expandDailyRange(
+        parseDateStringOrThrow(date, "a capacity snapshot date"),
+        widestSpanDays,
+      )
+    : [];
   const membership =
     knownMembership ?? (await getListingGroupMembership(listings));
   const groupsOf = (listing: ListingCapacityRow): number[] =>

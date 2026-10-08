@@ -31,7 +31,10 @@ import { sortByName } from "#shared/name-order.ts";
 import { loadListingsAndGroupNames } from "#shared/sort-listings.ts";
 import { dayStartEpochMs, todayInTz } from "#shared/timezone.ts";
 import { isIsoMonth } from "#shared/validation/date.ts";
-import { isIsoDate } from "#shared/validation/date-string.ts";
+import {
+  isIsoDate,
+  parseDateStringOrThrow,
+} from "#shared/validation/date-string.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   type LedgerFilterState,
@@ -64,10 +67,20 @@ const filterRange = (
   from: string | null,
   to: string | null,
   tz: string,
-): LedgerRange => ({
-  endMs: to ? dayStartEpochMs(addDays(to, 1), tz) : null,
-  startMs: from ? dayStartEpochMs(from, tz) : null,
-});
+): LedgerRange => {
+  // The query-param boundary already validated both, so the parse only
+  // stops loudly if a validated value stopped being a real calendar day.
+  const brandedFrom = from
+    ? parseDateStringOrThrow(from, "the ledger's from filter")
+    : null;
+  const brandedTo = to
+    ? parseDateStringOrThrow(to, "the ledger's to filter")
+    : null;
+  return {
+    endMs: brandedTo ? dayStartEpochMs(addDays(brandedTo, 1), tz) : null,
+    startMs: brandedFrom ? dayStartEpochMs(brandedFrom, tz) : null,
+  };
+};
 
 const buildPickerDates = async (
   tz: string,

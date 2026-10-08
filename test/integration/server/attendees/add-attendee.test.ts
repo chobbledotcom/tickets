@@ -247,7 +247,8 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
     test("adds attendee to daily listing with date", async () => {
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
-      const futureDate = addDays(todayInTz("UTC"), 7);
+      const { testDate } = await import("#test-utils/dates.ts");
+      const futureDate = addDays(testDate(todayInTz("UTC")), 7);
 
       const { listing, cookie, csrfToken } = await setupListingAndLogin({
         bookableDays: [

@@ -24,7 +24,9 @@ import {
   signQrBookToken,
 } from "#shared/qr-token.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -40,6 +42,27 @@ import {
   scanWithStripe,
   withStripe,
 } from "./qr-book/helpers.ts";
+
+/** A daily listing one day from now, signed into a QR booking request for
+ *  the given value. The two QR-date tests share the whole setup; each makes
+ *  its own request so the Stripe mock can wrap the call. */
+const qrTomorrowSetup = async (
+  fields: string,
+  maxAttendees: number,
+  value: number,
+): Promise<{ path: string; tomorrow: DateString }> => {
+  const listing = await createDailyTestListing({
+    fields,
+    maxAttendees,
+    unitPrice: 500,
+  });
+  const tomorrow = addDays(testDate(todayInTz(settings.timezone)), 1);
+  const token = await signQrBookToken(
+    listing.slug,
+    buildQrBookPayload({ date: tomorrow, name: "Ada", value }),
+  );
+  return { path: qrBookPath(listing.slug, token), tomorrow };
+};
 
 describeWithEnv("QR booking", { db: true }, () => {
   describe("error paths", () => {
@@ -153,16 +176,8 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("pre-fills the daily date selector", async () => {
-      const listing = await createDailyTestListing({
-        fields: "email",
-        unitPrice: 500,
-      });
-      const tomorrow = addDays(todayInTz(settings.timezone), 1);
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ date: tomorrow, name: "Ada", value: 500 }),
-      );
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
+      const { path, tomorrow } = await qrTomorrowSetup("email", 1, 500);
+      const response = await awaitTestRequest(path);
       const body = await response.text();
       expect(body).toMatch(new RegExp(`value="${tomorrow}"\\s+selected`));
     });
@@ -199,7 +214,7 @@ describeWithEnv("QR booking", { db: true }, () => {
       const token = await signQrBookToken(
         listing.slug,
         buildQrBookPayload({
-          date: addDays(todayInTz("UTC"), 5),
+          date: addDays(testDate(todayInTz("UTC")), 5),
           name: "Ada",
           value: 1000,
         }),
@@ -295,20 +310,9 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("daily listing with a bookable date skips straight to Stripe with the date set", async () => {
-      const listing = await createDailyTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const tomorrow = addDays(todayInTz(settings.timezone), 1);
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ date: tomorrow, name: "Ada", value: 1000 }),
-      );
+      const { path, tomorrow } = await qrTomorrowSetup("", 10, 1000);
       await withStripe(async (stripe) => {
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
+        const response = await awaitTestRequest(path);
         expect(response.status).toBe(302);
         const intent = stripe.getCaptured()!;
         expect(intent.date).toBe(tomorrow);

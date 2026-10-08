@@ -12,6 +12,7 @@ import {
 } from "#test/specs/support/orders.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import {
   lineCountFor,
   lineQty,
@@ -25,7 +26,7 @@ const BUYER = "Journey Buyer";
 Given(
   "the shop sells a Mega Kit bundle, a Marquee with a Generator add-on, T-Shirts, and a Campervan by the day",
   function (this: TicketsWorld): void {
-    this.orderDay = addDays(todayInTz(settings.timezone), 3);
+    this.orderDay = addDays(testDate(todayInTz(settings.timezone)), 3);
     orderCatalog(this, {
       listings: [{ name: "T-Shirt" }, { daily: true, name: "Campervan" }],
       packages: [

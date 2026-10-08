@@ -4,6 +4,7 @@ import type { Holiday } from "#db/holidays.ts";
 import { addDays } from "#shared/dates.ts";
 import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListing, testListingWithCount } from "#test-utils/factories.ts";
@@ -269,10 +270,10 @@ describeWithEnv("sortListings", { db: true }, () => {
     // Block the next few days so listing A's first bookable date is pushed later
     const holidays: Holiday[] = [
       {
-        end_date: addDays(todayStr, 5),
+        end_date: addDays(testDate(todayStr), 5),
         id: 1,
         name: "Holiday",
-        start_date: addDays(todayStr, 1),
+        start_date: addDays(testDate(todayStr), 1),
       },
     ];
 

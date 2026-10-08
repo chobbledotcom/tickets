@@ -11,6 +11,7 @@ import {
   selectOrder,
 } from "#test/features/public/order/helpers.ts";
 import { expectRedirect, expectStatus } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -223,7 +224,11 @@ describeWithEnv(
         const { attendeesApi } = await import("#db/attendees/api.ts");
         const fill = await attendeesApi.createAttendeeAtomic({
           bookings: [
-            { date: addDays(start, 1), listingId: daily.id, quantity: 1 },
+            {
+              date: addDays(start, 1),
+              listingId: daily.id,
+              quantity: 1,
+            },
           ],
           email: "early@test.com",
           name: "Early Bird",
@@ -284,7 +289,11 @@ describeWithEnv(
         const { attendeesApi } = await import("#db/attendees/api.ts");
         const fill = await attendeesApi.createAttendeeAtomic({
           bookings: [
-            { date: addDays(start, 1), listingId: dayBoat.id, quantity: 2 },
+            {
+              date: addDays(start, 1),
+              listingId: dayBoat.id,
+              quantity: 2,
+            },
           ],
           email: "second-day@test.com",
           name: "Second Day",
@@ -309,7 +318,7 @@ describeWithEnv(
           maximumDaysAfter: 1,
           name: "Near Pass",
         });
-        const farDate = addDays(todayInTz("UTC"), 30);
+        const farDate = addDays(testDate(todayInTz("UTC")), 30);
         const data = await fetchAvailability(`start_date=${farDate}`);
         expect(data.states[`listing:${daily.id}`]).toEqual({
           label: "Sold Out",

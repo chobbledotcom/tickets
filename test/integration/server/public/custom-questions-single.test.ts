@@ -18,6 +18,7 @@ import {
   expectReservedRedirectWithTokens,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -207,7 +208,7 @@ describeWithEnv(
 
       test("daily listing parses date after question validation", async () => {
         const today = todayInTz("UTC");
-        const validDate = addDays(today, 1);
+        const validDate = addDays(testDate(today), 1);
         const listing = await createDailyListing({
           maxAttendees: 50,
           thankYouUrl: "",

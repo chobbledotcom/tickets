@@ -17,6 +17,7 @@ import {
   PublicListingDetailSchema,
   PublicListingSchema,
 } from "#test-utils/api-schemas.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -104,7 +105,7 @@ describePublicApi(() => {
         maxQuantity: 4,
       });
       await bookAttendee(listing, {
-        date: addDays(todayInTz("UTC"), 2),
+        date: addDays(testDate(todayInTz("UTC")), 2),
         quantity: 1,
       });
       const { listings } = await fetchListingsList();
@@ -294,7 +295,7 @@ describePublicApi(() => {
 
     test("a daily listing answers per date, not by the cumulative aggregate", async () => {
       const listing = await createDailyTestListing({ maxAttendees: 1 });
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
       await bookAttendee(listing, { date, quantity: 1 });
       const full = await fetchAvailability(listing.slug, `date=${date}`);
       expect(full.body.available).toBe(false);

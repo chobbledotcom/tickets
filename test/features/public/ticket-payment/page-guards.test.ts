@@ -18,6 +18,8 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import { addDays } from "#shared/dates.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -43,8 +45,8 @@ const parentWithChild = async (
 
 /** The next date on the given weekday (1 = Monday) at least a week out, so it
  * sits inside a 30-day booking window whichever timezone "today" is read in. */
-const comingWeekday = (weekday: number): string => {
-  const weekStart = addDays(new Date().toISOString().slice(0, 10), 7);
+const comingWeekday = (weekday: number): DateString => {
+  const weekStart = addDays(testDate(new Date().toISOString().slice(0, 10)), 7);
   const week = map((step: number) => addDays(weekStart, step))([
     0, 1, 2, 3, 4, 5, 6,
   ]);

@@ -8,6 +8,7 @@ import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { ListingWithCount } from "#types";
@@ -98,7 +99,7 @@ describe("ticketPage listing date and location", () => {
   });
 
   test("past listing badge shows singular day for 1 day ago", async () => {
-    const yesterday = addDays(todayInTz(settings.timezone), -1);
+    const yesterday = addDays(testDate(todayInTz(settings.timezone)), -1);
     const listing = testListingWithCount({
       attendee_count: 0,
       date: `${yesterday}T12:00:00.000Z`,
@@ -109,7 +110,7 @@ describe("ticketPage listing date and location", () => {
   });
 
   test("past listing badge shows plural days for multiple days ago", async () => {
-    const threeDaysAgo = addDays(todayInTz(settings.timezone), -3);
+    const threeDaysAgo = addDays(testDate(todayInTz(settings.timezone)), -3);
     const listing = testListingWithCount({
       attendee_count: 0,
       date: `${threeDaysAgo}T12:00:00.000Z`,

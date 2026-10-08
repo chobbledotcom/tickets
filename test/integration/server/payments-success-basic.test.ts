@@ -9,6 +9,7 @@ import {
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -194,7 +195,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         name: "Dated Hut",
         unitPrice: 300,
       });
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
@@ -274,7 +275,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         { dayPrices: { 2: 1000 }, listingId: boat.id, price: null },
         { listingId: hut.id, price: null },
       ]);
-      const date = addDays(todayInTz("UTC"), 2);
+      const date = addDays(testDate(todayInTz("UTC")), 2);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({

@@ -5,6 +5,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { expandDailyRange, overlapsDay } from "#db/attendees/capacity/range.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { addDays } from "#shared/dates.ts";
+import { testDate } from "#test-utils/dates.ts";
 
 // jscpd:ignore-end
 
@@ -31,14 +32,14 @@ describe("servicing §0 — capacity overlap predicate is half-open", () => {
     ],
     [
       "adjacent previous day, ends exactly at day start (boundary excluded)",
-      `${addDays(day, -1)}T00:00:00Z`,
+      `${addDays(testDate(day), -1)}T00:00:00Z`,
       startAt,
       false,
     ],
     [
       "adjacent next day, starts exactly at day end (boundary excluded)",
       endAt,
-      `${addDays(day, 2)}T00:00:00Z`,
+      `${addDays(testDate(day), 2)}T00:00:00Z`,
       false,
     ],
     [
@@ -80,11 +81,11 @@ describe("servicing §0 — capacity overlap predicate is half-open", () => {
 
 describe("servicing §0 — expandDailyRange includes start and excludes start+duration", () => {
   test("single-day range (durationDays=1) yields just the start date", () => {
-    expect(expandDailyRange("2026-06-24", 1)).toEqual(["2026-06-24"]);
+    expect(expandDailyRange(testDate("2026-06-24"), 1)).toEqual(["2026-06-24"]);
   });
 
   test("a three-day range is start, start+1, start+2 (start is included, start+duration is the excluded bound)", () => {
-    expect(expandDailyRange("2026-06-24", 3)).toEqual([
+    expect(expandDailyRange(testDate("2026-06-24"), 3)).toEqual([
       "2026-06-24",
       "2026-06-25",
       "2026-06-26",
@@ -93,8 +94,8 @@ describe("servicing §0 — expandDailyRange includes start and excludes start+d
 
   test("adjacent ranges tile with no overlap and no gap (boundary cases)", () => {
     // `[24, 27)` and `[27, 28)` are back-to-back without overlap.
-    const first = expandDailyRange("2026-06-24", 3);
-    const second = expandDailyRange("2026-06-27", 1);
+    const first = expandDailyRange(testDate("2026-06-24"), 3);
+    const second = expandDailyRange(testDate("2026-06-27"), 1);
     const intersection = first.filter((d) => second.includes(d));
     expect(intersection).toEqual([]);
     expect(first.at(-1)).toBe("2026-06-26");

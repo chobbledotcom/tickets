@@ -23,6 +23,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { offeredDaysOf } from "./stays-booking.ts";
 
 // jscpd:ignore-end
@@ -46,7 +47,11 @@ Given(
 When(
   "the organiser stops opening the {word} on the second day of that stay",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    await stopOpeningOn(this, name, weekdayOf(addDays(stayStart(this), 1)));
+    await stopOpeningOn(
+      this,
+      name,
+      weekdayOf(addDays(testDate(stayStart(this)), 1)),
+    );
   },
 );
 

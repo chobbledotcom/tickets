@@ -30,6 +30,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { reservesHint, reservesHintStart } from "#test-utils/duration-hint.ts";
 
@@ -255,7 +256,7 @@ export const expectStayRunsFor = async (
   days: number,
 ): Promise<void> => {
   const first = stayStart(world);
-  const dayAfterTheLast = addDays(first, days);
+  const dayAfterTheLast = addDays(testDate(first), days);
   const bookingId = requiredWorldValue(world.attendeeId, "the booking");
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/attendees/${bookingId}`);
@@ -285,7 +286,7 @@ Then(
       await expectStayCanBeBooked(
         this,
         name,
-        addDays(stayStart(this), day),
+        addDays(testDate(stayStart(this)), day),
         false,
         guest(4 + day),
       );
@@ -298,7 +299,7 @@ Then(
   function (this: TicketsWorld, name: string): Promise<void> {
     // A stay of N days starting on day 0 ends on day N-1, so day N is free.
     const day = addDays(
-      stayStart(this),
+      testDate(stayStart(this)),
       listingNamed(this, name).duration_days,
     );
     return expectStayCanBeBooked(this, name, day, true, guest(3));

@@ -5,9 +5,14 @@ import {
   addDays,
   dateRange,
   listingDateToCalendarDate,
+  storedBookingSpan,
 } from "#shared/dates.ts";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { DAY_MS } from "#shared/now.ts";
+import {
+  type DateString,
+  parseDateStringOrThrow,
+} from "#shared/validation/date-string.ts";
 
 /**
  * Format a YYYY-MM-DD date for display.
@@ -59,11 +64,17 @@ export const monthsAround = (
  * strings. The grid is whole Monday→Sunday weeks spanning the month plus one
  * extra full week on each side, so adjacent-month context is always visible.
  */
-export const calendarGridDates = (month: string): string[] => {
-  const first = `${month}-01`;
+export const calendarGridDates = (month: string): DateString[] => {
+  const first = parseDateStringOrThrow(`${month}-01`, "the calendar month");
   const firstDow = new Date(`${first}T00:00:00Z`).getUTCDay();
   const start = addDays(first, -(((firstDow + 6) % 7) + 7));
-  const last = addDays(`${shiftMonth(month, 1)}-01`, -1);
+  const last = addDays(
+    parseDateStringOrThrow(
+      `${shiftMonth(month, 1)}-01`,
+      "the next calendar month",
+    ),
+    -1,
+  );
   const lastDow = new Date(`${last}T00:00:00Z`).getUTCDay();
   const end = addDays(last, ((7 - lastDow) % 7) + 7);
   return dateRange(start, end);
@@ -159,14 +170,15 @@ export const bookedRangeLabel = (
   fallbackDurationDays = 1,
 ): string => {
   if (!date) return "";
-  const lastDay = endDate
-    ? addDays(endDate, -1)
-    : fallbackDurationDays > 1
-      ? addDays(date, fallbackDurationDays - 1)
-      : null;
-  return lastDay && lastDay > date
-    ? formatDateRangeLabelCompactEn(date, lastDay)
-    : formatDateLabel(date);
+  const { lastDay: storedLastDay, start } = storedBookingSpan(date, endDate);
+  const lastDay =
+    storedLastDay ??
+    (fallbackDurationDays > 1
+      ? addDays(start, fallbackDurationDays - 1)
+      : null);
+  return lastDay && lastDay > start
+    ? formatDateRangeLabelCompactEn(start, lastDay)
+    : formatDateLabel(start);
 };
 
 /**

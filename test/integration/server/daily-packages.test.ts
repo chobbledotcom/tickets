@@ -4,6 +4,8 @@ import { queryAll } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -17,7 +19,7 @@ import {
 } from "#test-utils/packages.ts";
 
 /** A start date comfortably inside every member's booking window. */
-const bookingDate = (): string => addDays(todayInTz("UTC"), 2);
+const bookingDate = (): DateString => addDays(testDate(todayInTz("UTC")), 2);
 
 /** The booking rows for a listing, newest first. */
 const bookingRows = (
@@ -162,7 +164,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
 
     // …while the next day books normally.
     const nextDay = await submitPackageBooking(group.slug, {
-      date: addDays(dateA, 1),
+      date: addDays(testDate(dateA), 1),
       email: "next@test.com",
       name: "Next",
       [`package_quantity_${group.id}`]: "1",

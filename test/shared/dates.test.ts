@@ -20,6 +20,7 @@ import {
 import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { today } from "#test-utils/booking-model-fixtures.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { testHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { testWithSetting, useSetting } from "#test-utils/settings.ts";
@@ -28,23 +29,23 @@ describe("dates", () => {
   useSetting({ timezone: "UTC" });
   describe("addDays", () => {
     test("adds positive days to a date", () => {
-      expect(addDays("2026-01-01", 5)).toBe("2026-01-06");
+      expect(addDays(testDate("2026-01-01"), 5)).toBe("2026-01-06");
     });
 
     test("adds zero days returns same date", () => {
-      expect(addDays("2026-06-15", 0)).toBe("2026-06-15");
+      expect(addDays(testDate("2026-06-15"), 0)).toBe("2026-06-15");
     });
 
     test("handles month boundary", () => {
-      expect(addDays("2026-01-30", 3)).toBe("2026-02-02");
+      expect(addDays(testDate("2026-01-30"), 3)).toBe("2026-02-02");
     });
 
     test("handles year boundary", () => {
-      expect(addDays("2026-12-30", 5)).toBe("2027-01-04");
+      expect(addDays(testDate("2026-12-30"), 5)).toBe("2027-01-04");
     });
 
     test("handles large number of days", () => {
-      expect(addDays("2026-01-01", 365)).toBe("2027-01-01");
+      expect(addDays(testDate("2026-01-01"), 365)).toBe("2027-01-01");
     });
   });
 
@@ -121,7 +122,7 @@ describe("dates", () => {
     /** The daily-override listing plus a single one-day holiday at day+2 —
      *  the shared arrange behind the duration-override tests below. */
     const overrideListingWithDay2Holiday = () => {
-      const holidayDay = addDays(today(), 2);
+      const holidayDay = addDays(testDate(today()), 2);
       return {
         holidays: [
           testHoliday({
@@ -164,7 +165,7 @@ describe("dates", () => {
     ];
 
     test("excludes holidays", () => {
-      const holidayDate = addDays(today(), 1);
+      const holidayDate = addDays(testDate(today()), 1);
       const dates = getAvailableDates(
         dailyListingWithAllDays(),
         makeHoliday("Holiday", holidayDate, holidayDate),
@@ -173,14 +174,14 @@ describe("dates", () => {
     });
 
     test("excludes holiday ranges", () => {
-      const holidayStart = addDays(today(), 1);
-      const holidayEnd = addDays(today(), 3);
+      const holidayStart = addDays(testDate(today()), 1);
+      const holidayEnd = addDays(testDate(today()), 3);
       const dates = getAvailableDates(
         dailyListingWithAllDays(),
         makeHoliday("Holiday Range", holidayStart, holidayEnd),
       );
       expect(dates).not.toContain(holidayStart);
-      expect(dates).not.toContain(addDays(today(), 2));
+      expect(dates).not.toContain(addDays(testDate(today()), 2));
       expect(dates).not.toContain(holidayEnd);
     });
 
@@ -194,7 +195,7 @@ describe("dates", () => {
 
       const dates = getAvailableDates(listing, []);
       const earliest = dates[0]!;
-      expect(earliest >= addDays(today(), 3)).toBe(true);
+      expect(earliest >= addDays(testDate(today()), 3)).toBe(true);
     });
 
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
@@ -208,7 +209,7 @@ describe("dates", () => {
       const dates = getAvailableDates(listing, []);
       const latest = dates[dates.length - 1]!;
       // Should extend close to 730 days (2 years)
-      expect(latest >= addDays(today(), 700)).toBe(true);
+      expect(latest >= addDays(testDate(today()), 700)).toBe(true);
     });
 
     test("respects maximum_days_after when non-zero", () => {
@@ -221,12 +222,11 @@ describe("dates", () => {
 
       const dates = getAvailableDates(listing, []);
       const latest = dates[dates.length - 1]!;
-      expect(latest <= addDays(today(), 7)).toBe(true);
+      expect(latest <= addDays(testDate(today()), 7)).toBe(true);
     });
 
     test("returns empty array when no bookable days match", () => {
-      // Choose a day that doesn't appear in the 7-day range from today
-      // by picking a bogus day name
+      // Pick a day name that is not in the 7-day range from today.
       const listing = testListing({
         bookable_days: [],
         listing_type: "daily",
@@ -239,7 +239,7 @@ describe("dates", () => {
     });
 
     test("excludes multi-day start dates whose range covers a holiday", () => {
-      const holidayStart = addDays(today(), 3);
+      const holidayStart = addDays(testDate(today()), 3);
       const holidays = [
         {
           end_date: holidayStart,
@@ -257,37 +257,37 @@ describe("dates", () => {
       });
       const dates = getAvailableDates(listing, holidays);
       // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
-      expect(dates).not.toContain(addDays(today(), 1));
+      expect(dates).not.toContain(addDays(testDate(today()), 1));
       // day+3 start is the holiday itself → excluded
       expect(dates).not.toContain(holidayStart);
       // day+4 start → covers day 4,5,6 → no holiday → included
-      expect(dates).toContain(addDays(today(), 4));
+      expect(dates).toContain(addDays(testDate(today()), 4));
     });
 
     test("durationOverride filters by the given span instead of duration_days", () => {
-      // duration_days is the max (5), but a customisable listing's date list is
-      // built for a single day so every individually-bookable start appears.
+      // duration_days (5) is the max, but a customisable listing's date list
+      // is built per day, so every bookable start appears.
       const { listing, holidays } = overrideListingWithDay2Holiday();
-      // With the listing's own duration (5), the day+1 start spans the holiday
-      // and is excluded; with an override of 1 it is offered.
+      // With duration 5 the day+1 start spans the holiday and is excluded;
+      // with an override of 1 it is offered.
       expect(getAvailableDates(listing, holidays)).not.toContain(
-        addDays(today(), 1),
+        addDays(testDate(today()), 1),
       );
       expect(getAvailableDates(listing, holidays, 1)).toContain(
-        addDays(today(), 1),
+        addDays(testDate(today()), 1),
       );
     });
 
     test("durationOverride of 0 is clamped to one day, not treated as absent", () => {
       // An explicit 0 is a provided override (clamped to the 1-day minimum),
-      // distinct from omitting it (which falls back to duration_days). This is
-      // the `??` (not `||`) contract: `0 ?? duration_days` keeps the 0.
+      // distinct from omitting it, which falls back to duration_days.
+      // `0 ?? duration_days` keeps the 0.
       const { listing, holidays } = overrideListingWithDay2Holiday();
-      // Override 0 → 1-day span, so the day+1 start clears the day+2 holiday and
-      // is offered. Were 0 mistaken for "absent" it would use duration_days (5),
-      // span the holiday, and be excluded.
+      // Override 0 → a 1-day span: the day+1 start clears the day+2 holiday.
+      // Were 0 mistaken for "absent" it would use duration_days (5), which
+      // spans the holiday, and the day would be excluded.
       expect(getAvailableDates(listing, holidays, 0)).toContain(
-        addDays(today(), 1),
+        addDays(testDate(today()), 1),
       );
     });
   });
@@ -306,7 +306,7 @@ describe("dates", () => {
     });
 
     test("rejects a range that overlaps a holiday", () => {
-      const holidayDay = addDays(today(), 2);
+      const holidayDay = addDays(testDate(today()), 2);
       const holidays = [
         { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
       ];
@@ -332,7 +332,6 @@ describe("dates", () => {
         maximum_days_after: 10,
         minimum_days_before: 2,
       });
-      // today is before today+2 (minimum_days_before), so it's too early.
       expect(isBookingRangeValid(listing, today(), 1, [])).toBe(false);
     });
 
@@ -494,7 +493,7 @@ describe("dates", () => {
       // A 3-day booking can only start on days 0, 1, or 2 — day 3 and 4
       // can't fit a 3-day range within the 4-day window.
       expect(dates.length).toBeLessThanOrEqual(3);
-      expect(dates).not.toContain(addDays(today(), 4));
+      expect(dates).not.toContain(addDays(testDate(today()), 4));
     });
 
     test("skips holidays", () => {
@@ -511,7 +510,7 @@ describe("dates", () => {
       });
 
       const result = getNextBookableDate(listing, holidays);
-      expect(result).toBe(addDays(todayStr, 1));
+      expect(result).toBe(addDays(testDate(todayStr), 1));
     });
 
     test("respects minimum_days_before", () => {
@@ -523,12 +522,12 @@ describe("dates", () => {
       });
 
       const result = getNextBookableDate(listing, []);
-      expect(result).toBe(addDays(today(), 3));
+      expect(result).toBe(addDays(testDate(today()), 3));
     });
 
     test("returns null when all dates fall on holidays", () => {
-      const start = addDays(today(), 1);
-      const end = addDays(today(), 3);
+      const start = addDays(testDate(today()), 1);
+      const end = addDays(testDate(today()), 3);
       const holidays = [
         { end_date: end, id: 1, name: "Long Holiday", start_date: start },
       ];
@@ -668,17 +667,17 @@ describe("dates", () => {
     });
 
     test("returns null for future date", () => {
-      const futureStr = addDays(today(), 5);
+      const futureStr = addDays(testDate(today()), 5);
       expect(daysAgo(`${futureStr}T12:00:00.000Z`)).toBeNull();
     });
 
     test("returns 1 for yesterday", () => {
-      const yesterdayStr = addDays(today(), -1);
+      const yesterdayStr = addDays(testDate(today()), -1);
       expect(daysAgo(`${yesterdayStr}T12:00:00.000Z`)).toBe(1);
     });
 
     test("returns correct count for multiple days ago", () => {
-      const pastStr = addDays(today(), -10);
+      const pastStr = addDays(testDate(today()), -10);
       expect(daysAgo(`${pastStr}T12:00:00.000Z`)).toBe(10);
     });
 
@@ -686,10 +685,9 @@ describe("dates", () => {
       "respects timezone when determining past date",
       { timezone: "Asia/Tokyo" },
       () => {
-        // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo
+        // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo.
         const todayTokyo = todayInTz("Asia/Tokyo");
-        const yesterdayTokyo = addDays(todayTokyo, -1);
-        // Listing at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
+        const yesterdayTokyo = addDays(testDate(todayTokyo), -1);
         expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
       },
     );

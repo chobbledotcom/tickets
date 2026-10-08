@@ -32,6 +32,7 @@ import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
 import { addDays } from "#shared/dates.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 
 /* jscpd:ignore-end */
@@ -72,7 +73,10 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   created: input.created,
   date: input.date,
   end_date: input.date
-    ? addDays(input.date, clampDurationDays(input.durationDays ?? 1))
+    ? addDays(
+        parseDateStringOrThrow(input.date, "a stored booking date"),
+        clampDurationDays(input.durationDays ?? 1),
+      )
     : null,
   kind: input.kind,
   lat: "",

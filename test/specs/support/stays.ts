@@ -18,6 +18,7 @@ import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { Attendee, Listing } from "#types";
 // jscpd:ignore-end
@@ -51,7 +52,7 @@ export const newestStayOn: ReadAboutOneThing<number> = async (world, name) => {
  * then check it against the next. */
 export const dayFromToday = (world: TicketsWorld, days: number): string => {
   world.firstDay ??= new Date().toISOString().slice(0, 10);
-  return addDays(world.firstDay, days);
+  return addDays(testDate(world.firstDay), days);
 };
 
 /** A listing booked by the day, where each booking covers `days` days and each

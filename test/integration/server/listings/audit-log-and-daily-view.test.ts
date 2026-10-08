@@ -10,6 +10,7 @@ import {
   fetchListingExportCsv,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -49,8 +50,8 @@ describeWithEnv(
       });
     });
     describe("daily listing admin view", () => {
-      const validDate1 = addDays(todayInTz("UTC"), 1);
-      const validDate2 = addDays(todayInTz("UTC"), 2);
+      const validDate1 = addDays(testDate(todayInTz("UTC")), 1);
+      const validDate2 = addDays(testDate(todayInTz("UTC")), 2);
 
       const createDailyListingWithAttendees = async () => {
         const listing = await createDailyListing();

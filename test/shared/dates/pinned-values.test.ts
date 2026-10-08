@@ -22,6 +22,7 @@ import {
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
@@ -81,16 +82,20 @@ describe("dates — pinned values", () => {
   });
 
   test("a date range includes both of its ends", () => {
-    expect(dateRange("2026-01-30", "2026-02-01")).toEqual([
+    expect(dateRange(testDate("2026-01-30"), testDate("2026-02-01"))).toEqual([
       "2026-01-30",
       "2026-01-31",
       "2026-02-01",
     ]);
-    expect(dateRange("2026-02-01", "2026-02-01")).toEqual(["2026-02-01"]);
+    expect(dateRange(testDate("2026-02-01"), testDate("2026-02-01"))).toEqual([
+      "2026-02-01",
+    ]);
   });
 
   test("a range whose start is past its end is empty", () => {
-    expect(dateRange("2026-02-01", "2026-01-30")).toEqual([]);
+    expect(dateRange(testDate("2026-02-01"), testDate("2026-01-30"))).toEqual(
+      [],
+    );
   });
 
   test("the calendar grid for a Sunday-ending month stops one week after it", () => {

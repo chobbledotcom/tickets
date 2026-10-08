@@ -1,6 +1,7 @@
 import { dateToRange } from "#db/capacity.ts";
 import { filter, map, pipe, sumOf } from "#fp";
 import { addDays } from "#shared/dates.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import { clampDurationDays } from "#types";
 
 /** Convert a nullable date to the stored half-open range. */
@@ -13,9 +14,10 @@ export const dateToStartEnd = (
   return { endAt: range.endAt, startAt: range.startAt };
 };
 
-/** Expand a daily-listing range into individual day strings. */
+/** Expand a daily-listing range into individual day strings. The caller's
+ *  boundary brands the stored or submitted date. */
 export const expandDailyRange = (
-  date: string,
+  date: DateString,
   durationDays: number,
 ): string[] => {
   const duration = clampDurationDays(durationDays);
