@@ -185,7 +185,7 @@ export class CompactTapReporter {
     return true;
   }
 
-  #consumeResult(result: RegExpMatchArray, line: string): void {
+  #consumeResult(result: RegExpMatchArray): void {
     this.#sawTap = true;
     this.#consumedResults++;
     this.#flushPendingFailure();
@@ -406,7 +406,7 @@ export const printCompactSummary = (
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
 
   if (summary.failed === 0) {
-    printNoFailedTestFacts({ summary, status, junitErrorFiles, extra });
+    printNoFailedTestFacts({ extra, junitErrorFiles, status, summary });
   }
 
   if (missing > 0 && !(summary.failed === 0 && extra !== "")) {
