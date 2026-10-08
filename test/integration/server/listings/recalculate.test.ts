@@ -40,6 +40,7 @@ describeWithEnv(
       test("shows current and attendee-derived listing totals", async () => {
         const { listing } = await setupListingAndLogin({
           maxAttendees: 100,
+          maxQuantity: 100,
           thankYouUrl: "https://example.com",
         });
         await createTestAttendee(
@@ -65,13 +66,14 @@ describeWithEnv(
           "From attendee data",
           'value="booked_quantity"',
           ">9<",
-          ">1<",
+          ">2<",
         );
       });
 
       test("resets selected listing totals", async () => {
         const { listing } = await setupListingAndLogin({
           maxAttendees: 100,
+          maxQuantity: 100,
           thankYouUrl: "https://example.com",
         });
         const attendee = await createTestAttendee(

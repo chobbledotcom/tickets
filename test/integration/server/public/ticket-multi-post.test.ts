@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { bookingError } from "#booking/form.ts";
 import { handleRequest } from "#routes";
 import { expectBothReservedAtTwoAndOne } from "#test/integration/server/public/_shared-multi.ts";
 import {
@@ -10,6 +11,7 @@ import {
   expectReservedRedirectWithTokens,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
+import { parseFlashValue } from "#shared/cookies.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -174,7 +176,7 @@ describeWithEnv(
         ]);
       });
 
-      test("caps quantity at max purchasable", async () => {
+      test("refuses a quantity above max purchasable and books nothing", async () => {
         const listing1 = await createTestListing({
           maxAttendees: 3,
           maxQuantity: 2,
@@ -190,15 +192,24 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "10", // Request more than max
+            [`quantity_${listing1.id}`]: "10", // More than the listing can sell
             [`quantity_${listing2.id}`]: "0",
           },
         );
-        expectReservedRedirectWithTokens(response);
+        const flashCookie = response.headers
+          .getSetCookie()
+          .find((c) => c.startsWith("flash_"));
+        const parsed = parseFlashValue(
+          flashCookie!.split("=").slice(1).join("="),
+        );
+        expect(parsed.error).toBe(
+          bookingError.maximum("Post Multi Cap 1", 2),
+        );
 
-        // Verify quantity was capped
+        // A refusal books nothing, not a clamped count.
         await expectAttendeeCounts([
-          { count: 1, listingId: listing1.id, quantity: 2 }, // Capped at maxQuantity
+          { count: 0, listingId: listing1.id },
+          { count: 0, listingId: listing2.id },
         ]);
       });
     });

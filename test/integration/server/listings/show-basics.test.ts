@@ -131,6 +131,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
     test("shows stored-total mismatches on listing detail and edit pages", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
+        maxQuantity: 100,
         name: "Mismatch Listing",
         thankYouUrl: "https://example.com",
       });

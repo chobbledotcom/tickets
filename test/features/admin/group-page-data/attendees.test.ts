@@ -54,6 +54,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 20,
+        maxQuantity: 20,
         name: "Mismatch Listing",
       });
       await createTestAttendee(
