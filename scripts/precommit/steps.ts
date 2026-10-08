@@ -67,6 +67,13 @@ const STEPS = [
     cmd: ["task", "check:file-lengths"],
     name: "check:file-lengths",
   },
+  // The coverage exclusion list only shrinks: fail on an entry the branch
+  // adds against the merge base on origin/main (see "Never add a coverage
+  // exclusion" in AGENTS.md).
+  {
+    cmd: ["task", "check:coverage-exclusions"],
+    name: "check:coverage-exclusions",
+  },
   // Hold the repository Markdown to the mechanical half of the Simplified
   // Technical English rules, against per-document baselines that only fall
   // (see the "Simplified Technical English" section of AGENTS.md).
