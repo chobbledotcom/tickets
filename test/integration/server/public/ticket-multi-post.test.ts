@@ -195,7 +195,11 @@ describeWithEnv(
             [`quantity_${listing2.id}`]: "0",
           },
         );
-        expectFlash(response, bookingError.maximum("Post Multi Cap 1", 2), false);
+        expectFlash(
+          response,
+          bookingError.maximum("Post Multi Cap 1", 2),
+          false,
+        );
 
         // A refusal books nothing, not a clamped count.
         await expectAttendeeCounts([

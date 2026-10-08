@@ -4,8 +4,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { setGroupPackageMembers } from "#db/groups.ts";
 import { bookingError } from "#booking/form.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

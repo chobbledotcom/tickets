@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
 import { handleRequest } from "#routes";
+import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
 import {
   bookingRows,
   capAddonsAtThree,
