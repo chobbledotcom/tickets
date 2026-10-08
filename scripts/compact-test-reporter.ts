@@ -321,13 +321,21 @@ const describeStatus = (status: {
 
 /** The facts about a run that exited non-zero without a failed test: the
  * exit code and signal, the files deno's JUnit report blames, the stdout
- * lines the TAP results carried, and the last result shown. */
-const printNoFailedTestFacts = (
-  summary: CompactTapSummary,
-  status: { code: number; signal?: string | null },
-  junitErrorFiles: string[],
-  extra: string,
-): void => {
+ * lines the TAP results carried, and the last result shown. The block reads
+ * the child's exit status, the JUnit-blamed files, and the filtered stderr. */
+type ExitFacts = {
+  summary: CompactTapSummary;
+  status: { code: number; signal?: string | null };
+  junitErrorFiles: string[];
+  extra: string;
+};
+
+const printNoFailedTestFacts = ({
+  summary,
+  status,
+  junitErrorFiles,
+  extra,
+}: ExitFacts): void => {
   console.error(describeStatus(status));
   if (junitErrorFiles.length > 0) {
     console.error(
@@ -386,7 +394,7 @@ export const printCompactSummary = (
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
 
   if (summary.failed === 0) {
-    printNoFailedTestFacts(summary, status, junitErrorFiles, extra);
+    printNoFailedTestFacts({ summary, status, junitErrorFiles, extra });
   }
 
   if (missing > 0 && !(summary.failed === 0 && extra !== "")) {
