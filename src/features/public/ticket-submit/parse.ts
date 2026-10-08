@@ -91,11 +91,15 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
  *  page's bundle limit refuses instead of silently booking fewer bundles; the
  *  limit check needs the page's booking tree, so a caller that reads only the
  *  stored minimums may omit it. */
-const packageQuantityRefusal = (
+/** One form-state gate: the submitted form, the page context, and the booking
+ *  tree the bundle-limit refusal reads. */
+type FormStateCheck = (
   form: FormParams,
   ctx: TicketCtx,
   tree?: ReturnType<typeof buildBookingTree>,
-): string | null => {
+) => string | null;
+
+const packageQuantityRefusal: FormStateCheck = (form, ctx, tree) => {
   const listingById = byId(ctx.listings.map((info) => info.listing));
   for (const pkg of ctx.packages) {
     const bundleCount = parsePackageCount(form, pkg.groupId);
@@ -149,11 +153,7 @@ const addOnQuantityRefusal = (
  * message, or null when the form state is acceptable. The package bundle-limit
  * refusal reads the page's booking tree; production callers pass it, callers
  * that only exercise the row minimums may omit it. */
-export const validateFormState = (
-  form: FormParams,
-  ctx: TicketCtx,
-  tree?: ReturnType<typeof buildBookingTree>,
-): string | null => {
+export const validateFormState: FormStateCheck = (form, ctx, tree) => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
   }
