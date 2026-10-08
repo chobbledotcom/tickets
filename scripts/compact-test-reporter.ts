@@ -173,7 +173,7 @@ export class CompactTapReporter {
       return;
     }
 
-    this.#consumeResult(result, line);
+    this.#consumeResult(result);
   }
 
   /** A `---` marker under a failed result opens its diagnostic block, which
