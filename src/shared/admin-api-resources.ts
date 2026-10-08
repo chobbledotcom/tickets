@@ -60,11 +60,12 @@ export type AdminApiUpdateHolidayBody = v.InferOutput<
   typeof UpdateHolidayBodySchema
 >;
 
-/** One holiday as the server stores it: the writable fields plus its id. */
-export const HolidayRowSchema = v.intersect([
-  HolidayWriteSchema,
-  v.object({ id: v.number() }),
-]);
+/** One holiday as the server stores it: the writable fields plus its id. The
+ *  row schema stays open — the server owns the rest of the stored row. */
+export const HolidayRowSchema = v.looseObject({
+  ...HolidayWriteSchema.entries,
+  id: v.number(),
+});
 
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
