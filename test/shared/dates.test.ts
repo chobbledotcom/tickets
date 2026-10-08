@@ -305,15 +305,6 @@ describe("dates", () => {
       expect(isBookingRangeValid(dailyAllDays(), today(), 3, [])).toBe(true);
     });
 
-    test("returns false for a malformed submitted date instead of throwing", () => {
-      expect(isBookingRangeValid(dailyAllDays(), "not-a-date", 3, [])).toBe(
-        false,
-      );
-      expect(isBookingRangeValid(dailyAllDays(), "2027-2-30", 3, [])).toBe(
-        false,
-      );
-    });
-
     test("rejects a range that overlaps a holiday", () => {
       const holidayDay = addDays(testDate(today()), 2);
       const holidays = [

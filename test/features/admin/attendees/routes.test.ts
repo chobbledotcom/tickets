@@ -8,6 +8,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
@@ -37,5 +38,24 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("required");
+  });
+
+  test("renders the date error when a malformed start_date rides a daily booking", async () => {
+    // A daily listing is booked, so the shared start date is required. The
+    // submitted "not-a-date" must answer the form page with the validation
+    // error, not throw while the rejected values re-render.
+    const listing = await createDailyTestListing();
+    const { response } = await adminFormPost("/admin/attendees/new", {
+      email: "a@test.com",
+      line_listing_0: String(listing.id),
+      name: "A",
+      qty_0: "1",
+      start_date: "not-a-date",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "A start date is required for the booked daily listings",
+    );
   });
 });
