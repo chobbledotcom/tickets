@@ -46,7 +46,7 @@
   "test/scripts/precommit.test.ts": 503,
   "test/scripts/precommit/mutation-step.test.ts": 506,
   "test/shared/checkout-pricing.test.ts": 640,
-  "test/shared/dates.test.ts": 806,
+  "test/shared/dates.test.ts": 813,
   "test/shared/db/attendee-statuses.test.ts": 536,
   "test/shared/db/backup.test.ts": 501,
   "test/shared/db/client.test.ts": 579,

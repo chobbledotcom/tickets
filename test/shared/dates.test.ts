@@ -265,11 +265,11 @@ describe("dates", () => {
     });
 
     test("durationOverride filters by the given span instead of duration_days", () => {
-      // duration_days is the max (5), but a customisable listing's date list is
-      // built for a single day so every individually-bookable start appears.
+      // duration_days (5) is the max, but a customisable listing's date list
+      // is built per day, so every bookable start appears.
       const { listing, holidays } = overrideListingWithDay2Holiday();
-      // With the listing's own duration (5), the day+1 start spans the holiday
-      // and is excluded; with an override of 1 it is offered.
+      // With duration 5 the day+1 start spans the holiday and is excluded;
+      // with an override of 1 it is offered.
       expect(getAvailableDates(listing, holidays)).not.toContain(
         addDays(testDate(today()), 1),
       );
@@ -280,12 +280,12 @@ describe("dates", () => {
 
     test("durationOverride of 0 is clamped to one day, not treated as absent", () => {
       // An explicit 0 is a provided override (clamped to the 1-day minimum),
-      // distinct from omitting it (which falls back to duration_days). This is
-      // the `??` (not `||`) contract: `0 ?? duration_days` keeps the 0.
+      // distinct from omitting it, which falls back to duration_days.
+      // `0 ?? duration_days` keeps the 0.
       const { listing, holidays } = overrideListingWithDay2Holiday();
-      // Override 0 → 1-day span, so the day+1 start clears the day+2 holiday and
-      // is offered. Were 0 mistaken for "absent" it would use duration_days (5),
-      // span the holiday, and be excluded.
+      // Override 0 → a 1-day span: the day+1 start clears the day+2 holiday.
+      // Were 0 mistaken for "absent" it would use duration_days (5), which
+      // spans the holiday, and the day would be excluded.
       expect(getAvailableDates(listing, holidays, 0)).toContain(
         addDays(testDate(today()), 1),
       );
@@ -303,6 +303,15 @@ describe("dates", () => {
 
     test("accepts a holiday-free range within the booking window", () => {
       expect(isBookingRangeValid(dailyAllDays(), today(), 3, [])).toBe(true);
+    });
+
+    test("returns false for a malformed submitted date instead of throwing", () => {
+      expect(isBookingRangeValid(dailyAllDays(), "not-a-date", 3, [])).toBe(
+        false,
+      );
+      expect(isBookingRangeValid(dailyAllDays(), "2027-2-30", 3, [])).toBe(
+        false,
+      );
     });
 
     test("rejects a range that overlaps a holiday", () => {
@@ -332,7 +341,6 @@ describe("dates", () => {
         maximum_days_after: 10,
         minimum_days_before: 2,
       });
-      // today is before today+2 (minimum_days_before), so it's too early.
       expect(isBookingRangeValid(listing, today(), 1, [])).toBe(false);
     });
 
@@ -686,10 +694,9 @@ describe("dates", () => {
       "respects timezone when determining past date",
       { timezone: "Asia/Tokyo" },
       () => {
-        // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo
+        // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo.
         const todayTokyo = todayInTz("Asia/Tokyo");
         const yesterdayTokyo = addDays(testDate(todayTokyo), -1);
-        // Listing at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
         expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
       },
     );

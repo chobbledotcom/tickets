@@ -17,6 +17,7 @@ import {
 import {
   type DateString,
   isRealCalendarDay,
+  parseDateString,
   parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
 import { clampDurationDays, type Listing, type SortableListing } from "#types";
@@ -206,7 +207,8 @@ export const isBookingRangeValid = (
   holidays: Holiday[],
 ): boolean => {
   const range = bookableRange(listing);
-  const branded = parseDateStringOrThrow(date, "a submitted booking date");
+  const branded = parseDateString(date);
+  if (branded === null) return false;
   if (branded < range.start) return false;
   return canStartOn(range, clampDurationDays(days), holidays)(branded);
 };
