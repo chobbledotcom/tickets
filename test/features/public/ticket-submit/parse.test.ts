@@ -31,6 +31,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
@@ -132,6 +133,21 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       expect(
         validateFormState(quantityForm({}, { [group.id]: 5 }), ctx, tree),
       ).toBeNull();
+    });
+
+    test("refuses an add-on count above its ceiling", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const addOn = await insertModifier({ name: "Parking" });
+      await patchModifier(addOn.id, { trigger: "optional" });
+      const ctx = await ticketContext([listing.id]);
+      const form = quantityForm({ [listing.id]: 1 });
+      form.set(`addon_${addOn.id}`, "99");
+
+      expect(validateFormState(form, ctx)).toBe(
+        bookingError.addOnMaximum("Parking", 20),
+      );
+      form.set(`addon_${addOn.id}`, "20");
+      expect(validateFormState(form, ctx)).toBeNull();
     });
 
     test("refuses a form that skipped the terms box", async () => {
@@ -404,19 +420,6 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         quantityForm({ [listing.id]: 2 }),
       );
       expect(quantities.get(listing.id)).toBe(2);
-    });
-
-    test("clamps a standalone quantity to what the listing can sell", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 3,
-      });
-
-      const { quantities } = await resolvedQuantities(
-        [listing.id],
-        quantityForm({ [listing.id]: 9 }),
-      );
-      expect(quantities.get(listing.id)).toBe(3);
     });
 
     /** A hidden package and one member it can book. */

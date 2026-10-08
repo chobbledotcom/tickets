@@ -33,6 +33,15 @@ export const bookingError = {
   /** Below the listing's minimum quantity. */
   minimum: (name: string, minQuantity: number): string =>
     t("public.ticket.minimum_per_booking", { minimum: minQuantity, name }),
+  /** Above the listing's maximum quantity. */
+  maximum: (name: string, maxQuantity: number): string =>
+    t("public.ticket.maximum_per_booking", { maximum: maxQuantity, name }),
+  /** Above one package's bundle limit for the page. */
+  packageMaximum: (name: string, maxPackages: number): string =>
+    t("public.package_maximum_per_booking", { maximum: maxPackages, name }),
+  /** Above one add-on's quantity ceiling. */
+  addOnMaximum: (name: string, maxQuantity: number): string =>
+    t("public.addon_maximum", { maximum: maxQuantity, name }),
   /** The payment provider wouldn't open a checkout session. */
   paymentSessionFailed: "Failed to create payment session",
   /** Out of capacity on a named listing. */

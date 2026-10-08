@@ -75,19 +75,36 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
     ) {
       return bookingError.minimum(listing.name, listing.min_quantity);
     }
+    // A count above the live limit refuses instead of silently booking fewer
+    // places than the buyer asked for. The select cannot send one, so only a
+    // crafted or stale POST carries it.
+    if (maxPurchasable > 0 && selectedQty > maxPurchasable) {
+      return bookingError.maximum(listing.name, maxPurchasable);
+    }
   }
   return null;
 };
 
 /** The package refusal for one posted bundle count, or null. An owner can
  *  raise a member's minimum after the package was saved, so the fold
- *  re-reads the stored fact the same way the webhook does. */
+ *  re-reads the stored fact the same way the webhook does. A count above the
+ *  page's bundle limit refuses instead of silently booking fewer bundles; the
+ *  limit check needs the page's booking tree, so a caller that reads only the
+ *  stored minimums may omit it. */
 const packageQuantityRefusal = (
   form: FormParams,
   ctx: TicketCtx,
+  tree?: ReturnType<typeof buildBookingTree>,
 ): string | null => {
   const listingById = byId(ctx.listings.map((info) => info.listing));
   for (const pkg of ctx.packages) {
+    const bundleCount = parsePackageCount(form, pkg.groupId);
+    if (tree) {
+      const limit = ctxPackageLimit(ctx, tree, pkg);
+      if (bundleCount > limit) {
+        return bookingError.packageMaximum(pkg.name, limit);
+      }
+    }
     const fixedByListingId = new Map(
       pkg.memberListingIds.map((id) => [id, pkg.quantities.get(id) ?? 1]),
     );
@@ -103,26 +120,48 @@ const packageQuantityRefusal = (
       : listingById;
     const error = packageBundleMinError(
       packageBundleMembers(fixedByListingId, namesById),
-      parsePackageCount(form, pkg.groupId),
+      bundleCount,
     );
     if (error) return error;
   }
   return null;
 };
 
+/** The add-on refusal for one posted count above its ceiling, or null. The
+ * number input only hints the ceiling, so a crafted or typoed POST can carry
+ * more; refuse instead of silently ordering fewer units than the buyer asked
+ * for. */
+const addOnQuantityRefusal = (
+  form: FormParams,
+  ctx: TicketCtx,
+): string | null => {
+  for (const addOn of ctx.addOns) {
+    const selected = parseNonNegativeInt(form.get(`addon_${addOn.id}`) ?? "") ??
+      0;
+    if (selected > addOn.maxQuantity) {
+      return bookingError.addOnMaximum(addOn.name, addOn.maxQuantity);
+    }
+  }
+  return null;
+};
+
 /** Validate page-level form state before deeper parsing. Returns an error
- * message, or null when the form state is acceptable. */
+ * message, or null when the form state is acceptable. The package bundle-limit
+ * refusal reads the page's booking tree; production callers pass it, callers
+ * that only exercise the row minimums may omit it. */
 export const validateFormState = (
   form: FormParams,
   ctx: TicketCtx,
+  tree?: ReturnType<typeof buildBookingTree>,
 ): string | null => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
   }
   return (
     pageWideRefusal(ctx) ??
-    quantityRefusal(form, ctx) ??
-    packageQuantityRefusal(form, ctx)
+      quantityRefusal(form, ctx) ??
+      packageQuantityRefusal(form, ctx, tree) ??
+      addOnQuantityRefusal(form, ctx)
   );
 };
 
@@ -257,10 +296,9 @@ const ctxPackageLimit = (
  * books keep their own `quantity_<id>` inputs. For each package the buyer
  * chooses one `package_quantity_<groupId>` count; each member's booked quantity
  * is its fixed per-package quantity × that count (members have no own inputs).
- * Every posted count is clamped to the same per-package capacity ceiling the
- * page renders ({@link pagePackageBundleLimit}) so a crafted POST can't exceed
- * a member's remaining capacity or book a closed/sold-out member (whose
- * `maxPurchasable` — and thus the cap — is 0). All-zero lines are rejected by
+ * A posted count above the page's bundle limit is refused by
+ * `validateFormState` before this runs, so the counts here are already inside
+ * the ceiling. All-zero lines are rejected by
  * `prepareOrder` as "select at least one ticket".
  */
 export const resolvePageQuantities = (
@@ -276,16 +314,9 @@ export const resolvePageQuantities = (
     ctx.listings.filter((info) => standaloneIds.has(info.listing.id)),
   );
   const packageCounts = new Map(
-    ctx.packages.map((pkg) => [
-      pkg.groupId,
-      Math.max(
-        0,
-        Math.min(
-          parsePackageCount(form, pkg.groupId),
-          ctxPackageLimit(ctx, tree, pkg),
-        ),
-      ),
-    ]),
+    ctx.packages.map((
+      pkg,
+    ) => [pkg.groupId, parsePackageCount(form, pkg.groupId)]),
   );
   const nodeQuantities = nodeQuantitiesFor(
     tree,

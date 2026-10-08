@@ -10,6 +10,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { bookingError } from "#booking/form.ts";
 import { packageQuantityFieldName } from "#booking/tree.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -18,6 +19,7 @@ import {
   singleListingThankYouUrl,
 } from "#routes/public/ticket-submit/prepare.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   bookableStartDates,
@@ -70,8 +72,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
         name: "Secret Contents",
       });
       const ctx = await ticketContext([member.id], group);
-      const form = new FormParams();
-      form.set(packageQuantityFieldName(group.id), "6");
+      const form = quantityForm({}, { [group.id]: 6 });
 
       const result = await prepareOrder(ctx, form);
       expect(result.ok).toBe(false);
