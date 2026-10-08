@@ -1,8 +1,8 @@
 /**
  * The one admin JSON API contract: per resource, the URL path, the response
- * envelope keys, and valibot schemas for every wire shape. The server's route
- * factory, the CLI client, the tests, and the API docs page all read this
- * table. No side can disagree with another about a path or a shape (#2502).
+ * envelope keys, and valibot schemas for every wire shape. The CLI client and
+ * the tests read this table. No side can disagree with another about a path
+ * or a shape (#2502).
  *
  * Types derive from the schemas with v.InferOutput — the schemas are the one
  * vocabulary for the wire shapes. The client validates every response against
