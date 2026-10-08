@@ -21,13 +21,13 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
-import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
 import {
   bookableStartDates,
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
 import {
   prepareTestOrder,
   quantityForm,

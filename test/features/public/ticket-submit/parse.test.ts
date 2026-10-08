@@ -30,7 +30,7 @@ import type { TicketCtx } from "#routes/public/types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import type { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
@@ -419,6 +419,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
     const mysteryBoxMember = async () => {
       const { ctx, group, member } = await hiddenPackageWithMember();
       return {
+        ctx,
         form: (count: string) => {
           const form = new FormParams();
           form.set(packageQuantityFieldName(group.id), count);
@@ -426,7 +427,6 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         },
         group,
         member,
-        ctx,
       };
     };
 

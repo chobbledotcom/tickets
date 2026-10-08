@@ -56,11 +56,11 @@ import {
  * the pre-contact pricing pass. */
 export type PrepareResult =
   | {
-    ok: true;
-    pricingParams: SubmissionPricingParams;
-    pricedOrder: PricedOrder;
-    allocations: ChildAllocation[];
-  }
+      ok: true;
+      pricingParams: SubmissionPricingParams;
+      pricedOrder: PricedOrder;
+      allocations: ChildAllocation[];
+    }
   | { ok: false; error: string };
 
 /**
@@ -107,7 +107,7 @@ export const prepareOrder = async (
     (node) => nodeQuantities.get(node.nodeKey)! > 0,
   );
   const selectedPackages = ctx.packages.filter((pkg) =>
-    selectedNodes.some(isMemberNodeOf(pkg.groupId))
+    selectedNodes.some(isMemberNodeOf(pkg.groupId)),
   );
   const standIns = ctxStandInNames({ ...ctx, packages: selectedPackages });
   const shownSelectedIds = new Set(
@@ -169,12 +169,10 @@ export const prepareOrder = async (
     fold.allocations,
     (allocation) => allocation.parentId,
   );
-  const selectedStandIns = packageStandIns(
-    selectedPackages,
-    (parentId) =>
-      (allocationsByParent.get(parentId) ?? []).map(
-        (allocation) => allocation.childId,
-      ),
+  const selectedStandIns = packageStandIns(selectedPackages, (parentId) =>
+    (allocationsByParent.get(parentId) ?? []).map(
+      (allocation) => allocation.childId,
+    ),
   );
   const namedListingIds = new Set([
     ...shownSelectedIds,
@@ -263,11 +261,11 @@ export const singleListingThankYouUrl = (
   items: readonly CheckoutItem[],
 ): string | null =>
   ctx.listings.length === 1 &&
-    hasNamedBookingPath(
-      new Map(ctx.packages.map((pkg) => [pkg.groupId, pkg])),
-      items
-        .filter((item) => item.listingId === ctx.listings[0]!.listing.id)
-        .map((item) => item.packageGroupId ?? 0),
-    )
+  hasNamedBookingPath(
+    new Map(ctx.packages.map((pkg) => [pkg.groupId, pkg])),
+    items
+      .filter((item) => item.listingId === ctx.listings[0]!.listing.id)
+      .map((item) => item.packageGroupId ?? 0),
+  )
     ? ctx.listings[0]!.listing.thank_you_url
     : null;

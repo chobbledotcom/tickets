@@ -140,8 +140,8 @@ const addOnQuantityRefusal = (
   ctx: TicketCtx,
 ): string | null => {
   for (const addOn of ctx.addOns) {
-    const selected = parseNonNegativeInt(form.get(`addon_${addOn.id}`) ?? "") ??
-      0;
+    const selected =
+      parseNonNegativeInt(form.get(`addon_${addOn.id}`) ?? "") ?? 0;
     if (selected > addOn.maxQuantity) {
       return bookingError.addOnMaximum(addOn.name, addOn.maxQuantity);
     }
@@ -159,9 +159,9 @@ export const validateFormState: FormStateCheck = (form, ctx, tree) => {
   }
   return (
     pageWideRefusal(ctx) ??
-      quantityRefusal(form, ctx) ??
-      packageQuantityRefusal(form, ctx, tree) ??
-      addOnQuantityRefusal(form, ctx)
+    quantityRefusal(form, ctx) ??
+    packageQuantityRefusal(form, ctx, tree) ??
+    addOnQuantityRefusal(form, ctx)
   );
 };
 
@@ -314,9 +314,10 @@ export const resolvePageQuantities = (
     ctx.listings.filter((info) => standaloneIds.has(info.listing.id)),
   );
   const packageCounts = new Map(
-    ctx.packages.map((
-      pkg,
-    ) => [pkg.groupId, parsePackageCount(form, pkg.groupId)]),
+    ctx.packages.map((pkg) => [
+      pkg.groupId,
+      parsePackageCount(form, pkg.groupId),
+    ]),
   );
   const nodeQuantities = nodeQuantitiesFor(
     tree,

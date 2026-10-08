@@ -21,6 +21,9 @@ export const bookingError = {
   /** Above a surface's maximum quantity or bundle limit. */
   aboveMaximumQuantity: (maximum: number): string =>
     t("booking.quantity_above_maximum", { maximum }),
+  /** Above one add-on's quantity ceiling. */
+  addOnMaximum: (name: string, maxQuantity: number): string =>
+    t("public.addon_maximum", { maximum: maxQuantity, name }),
   /** Below a surface's minimum quantity, with no listing name to point at. */
   belowMinimumQuantity: (minimum: number): string =>
     t("booking.quantity_below_minimum", { minimum }),
@@ -30,18 +33,15 @@ export const bookingError = {
   generic: "Sorry, not enough spots available",
   /** A booking for a date the listing doesn't offer. */
   invalidDate: "Please select a valid date",
-  /** Below the listing's minimum quantity. */
-  minimum: (name: string, minQuantity: number): string =>
-    t("public.ticket.minimum_per_booking", { minimum: minQuantity, name }),
   /** Above the listing's maximum quantity. */
   maximum: (name: string, maxQuantity: number): string =>
     t("public.ticket.maximum_per_booking", { maximum: maxQuantity, name }),
+  /** Below the listing's minimum quantity. */
+  minimum: (name: string, minQuantity: number): string =>
+    t("public.ticket.minimum_per_booking", { minimum: minQuantity, name }),
   /** Above one package's bundle limit for the page. */
   packageMaximum: (name: string, maxPackages: number): string =>
     t("public.package_maximum_per_booking", { maximum: maxPackages, name }),
-  /** Above one add-on's quantity ceiling. */
-  addOnMaximum: (name: string, maxQuantity: number): string =>
-    t("public.addon_maximum", { maximum: maxQuantity, name }),
   /** The payment provider wouldn't open a checkout session. */
   paymentSessionFailed: "Failed to create payment session",
   /** Out of capacity on a named listing. */

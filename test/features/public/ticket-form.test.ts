@@ -24,15 +24,18 @@ const question = (
   id: number,
   display_type: QuestionWithAnswers["display_type"],
 ): QuestionWithAnswers => ({
-  answers: display_type === "free_text" ? [] : [
-    {
-      active: true,
-      id: id * 10,
-      question_id: id,
-      sort_order: 0,
-      text: "Answer",
-    },
-  ],
+  answers:
+    display_type === "free_text"
+      ? []
+      : [
+          {
+            active: true,
+            id: id * 10,
+            question_id: id,
+            sort_order: 0,
+            text: "Answer",
+          },
+        ],
   display_type,
   id,
   text: `Question ${id}`,
