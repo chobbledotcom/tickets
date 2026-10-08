@@ -110,17 +110,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
       );
 
-    const schemaMigrationsTableExists = async (): Promise<boolean> => {
-      const result = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
-      );
-      return result.rows.length > 0;
-    };
-
-    /** Put the database in the "site upgrading from an older release" state:
-     * the stored marker is that release's, and `migrationId` has not run.
-     * The marker must differ from the current one — a matching marker would
-     * read as up_to_date and the upgrade scenario couldn't arise. */
+    /** "Site upgrading from an older release": the stored marker is that
+     * release's, `migrationId` has not run, and both differ from current. */
     const simulateUpgradeFromRelease = async (
       previousMarker: string,
       migrationId: string,
@@ -177,7 +168,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await initDb();
 
-      expect(await schemaMigrationsTableExists()).toBe(true);
+      expect(await tableExists("schema_migrations")).toBe(true);
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
@@ -217,16 +208,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("runs a schema-hash-neutral data migration on a site upgrading from the previous release", async () => {
-      // Reproduces the upgrade path for a data-only migration (one whose
-      // `requires` is empty, so SCHEMA_HASH is unchanged). A site last migrated
-      // at the previous release carries that release's `latest_db_update` marker
-      // and every migration EXCEPT the newly appended one. If LATEST_UPDATE were
-      // not bumped alongside the migration, the stored marker would still equal
-      // the code's, so getDbState() returns "up_to_date" and
-      // baselineCurrentSchemaIfNeeded() marks the migration applied WITHOUT
-      // running its up() — the {{listing}} → {{listings}} rewrite would silently
-      // never happen on real upgrades. Bumping LATEST_UPDATE flips the state to
-      // "needs_migration" so the migration actually runs.
+      // A data-only migration leaves SCHEMA_HASH unchanged. Without a
+      // LATEST_UPDATE bump beside it, a site last migrated at the previous
+      // release reads up_to_date and baselines the migration id WITHOUT
+      // running its up(); the bump flips the state to needs_migration.
       await getDb().execute({
         args: ["{{name}}, {{listing}}, {{email}}"],
         sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ?)",
@@ -251,10 +236,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("runs the broken-image cleanup on a site upgrading from the previous release", async () => {
-      // The same trap as the data-migration test above: without the
-      // LATEST_UPDATE bump shipped alongside remove_broken_image_records, an
-      // already-up-to-date site would read as up_to_date and baseline the new
-      // migration id WITHOUT deleting the broken image records.
+      // Same trap: without the bump beside remove_broken_image_records, an
+      // up-to-date site baselines the migration id WITHOUT the cleanup.
       await insertBrokenImage();
       await simulateUpgradeFromRelease(
         "Index processed_payments by attendee for roster, export, and refund lookups.",
@@ -269,6 +252,34 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // ...the migration is recorded, and the marker is the current release's.
       expect(await appliedMigrationIds()).toContain(
         "2026-07-12_remove_broken_image_records",
+      );
+      expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
+    });
+
+    test("runs the holiday date padding on a site upgrading from the previous release", async () => {
+      // Without a LATEST_UPDATE bump beside holiday_date_padding, a site last
+      // migrated at the previous release reads up_to_date and baselines the
+      // migration id WITHOUT padding the stored holiday dates.
+      await getDb().execute({
+        args: ["Upgrade Party", "2027-6-1", "2027-6-2"],
+        sql: "INSERT INTO holidays (name, start_date, end_date) VALUES (?, ?, ?)",
+      });
+      await simulateUpgradeFromRelease(
+        "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.",
+        "2026-10-07_holiday_date_padding",
+      );
+
+      await initDb();
+
+      const party = await getDb().execute(
+        "SELECT start_date, end_date FROM holidays WHERE name = 'Upgrade Party'",
+      );
+      expect(party.rows[0]).toMatchObject({
+        end_date: "2027-06-02",
+        start_date: "2027-06-01",
+      });
+      expect(await appliedMigrationIds()).toContain(
+        "2026-10-07_holiday_date_padding",
       );
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
@@ -344,17 +355,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await initDb();
 
-      const result = await getDb().execute(
-        "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
-      );
-      expect(result.rows.map((row) => [row.key, row.value])).toEqual([
-        ["db_schema_hash", SCHEMA_HASH],
-        ["latest_db_update", LATEST_UPDATE],
-      ]);
-      const lock = await getDb().execute(
-        "SELECT 1 FROM settings WHERE key = 'migration_lock'",
-      );
-      expect(lock.rows.length).toBe(0);
+      expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
+      expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
+      expect(await settingsValueOrNull("migration_lock")).toBeNull();
     });
 
     test("recovers when the system errors partway through the pending migrations", async () => {
@@ -372,8 +375,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await markMigrationsForRerun();
 
       // Simulate a crash between migrations: a migration halfway through the
-      // sequence throws, so the ones before it are recorded but it and the ones
-      // after it never run.
+      // sequence throws, so the ones before it are recorded but it and the
+      // ones after it never run.
       const crashIndex = Math.floor(MIGRATIONS.length / 2);
       const crashing = MIGRATIONS[crashIndex]!;
       const upStub = stub(crashing, "up", () => {
@@ -385,23 +388,19 @@ describeWithEnv("db > migrations", { db: true }, () => {
           "simulated crash between migrations",
         );
 
-        // Partial progress: some migrations recorded, the crashing one and the
-        // rest are not, and the schema markers still say "not up to date" so the
-        // next boot knows to resume.
+        // Partial progress, markers still "not up to date", lock freed.
         const partial = await appliedMigrationIds();
         expect(partial.length).toBeGreaterThan(0);
         expect(partial.length).toBeLessThan(MIGRATION_IDS.length);
         expect(partial).not.toContain(crashing.id);
         expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
-        // The advisory lock is freed on the error path, so a retry isn't blocked.
         expect(await settingsValueOrNull("migration_lock")).toBeNull();
       } finally {
         // Always un-stub: a leaked stub would break every later test's migrations.
         upStub.restore();
       }
 
-      // The next boot resumes: it re-runs the remaining migrations idempotently
-      // and finishes the upgrade.
+      // The next boot resumes and finishes the upgrade.
       invalidateInitDbCache();
       await initDb();
 
@@ -417,8 +416,6 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("initDb fails without rewriting markers when the schema does not match and no migration is pending", async () => {
-      // A SCHEMA change deployed without a named migration: the hash is
-      // stale, nothing is pending, and verification finds the mismatch.
       await getDb().execute("DROP INDEX idx_listings_slug_index");
       await getDb().execute(
         "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -429,14 +426,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "must ship with a new entry in MIGRATIONS",
       );
 
-      const result = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
-      );
-      expect(result.rows[0]?.value).toBe("stale");
-      const lock = await getDb().execute(
-        "SELECT 1 FROM settings WHERE key = 'migration_lock'",
-      );
-      expect(lock.rows.length).toBe(0);
+      expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
+      expect(await settingsValueOrNull("migration_lock")).toBeNull();
     });
 
     test("initDb can be called multiple times safely", async () => {
@@ -551,21 +542,27 @@ describeWithEnv("db > migrations", { db: true }, () => {
       createSql: string,
     ): Promise<void> => {
       await getDb().execute(createSql);
-      const before = await getDb().execute({
-        args: [type, name],
-        sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
-      });
-      expect(before.rows.length).toBe(1);
+      expect(
+        (
+          await getDb().execute({
+            args: [type, name],
+            sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+          })
+        ).rows.length,
+      ).toBe(1);
       await getDb().execute(
         "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
       );
       await markCurrentSchemaMigrationPending();
       await initDb();
-      const after = await getDb().execute({
-        args: [type, name],
-        sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
-      });
-      expect(after.rows.length).toBe(0);
+      expect(
+        (
+          await getDb().execute({
+            args: [type, name],
+            sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+          })
+        ).rows.length,
+      ).toBe(0);
     };
 
     test("named legacy migration drops legacy indexes not in declarative schema", () =>

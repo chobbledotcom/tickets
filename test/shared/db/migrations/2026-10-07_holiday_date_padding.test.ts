@@ -5,6 +5,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import holidayDatePaddingMigration from "#db/migrations/2026-10-07_holiday_date_padding.ts";
+import {
+  BUNNY_SUBREQUEST_LIMIT,
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -101,5 +106,27 @@ describeWithEnv("holiday date padding migration", { db: true }, () => {
     ).rejects.toThrow(
       "the holiday end_date does not hold a usable date: also-not-a-date",
     );
+  });
+
+  test("pads twenty rows inside one request's migration budget", async () => {
+    for (let i = 0; i < 20; i++) {
+      await insertHoliday(`Crowd ${i}`, "2027-6-1", "2027-6-2");
+    }
+
+    await runWithSubrequestBudget(() =>
+      withSubrequestAllowance(
+        {
+          database: 45,
+          external: BUNNY_SUBREQUEST_LIMIT,
+          total: 45,
+        },
+        () => holidayDatePaddingMigration(buildMigrationContext()).up(),
+      ),
+    );
+
+    const rows = await holidayRows();
+    expect(rows).toHaveLength(20);
+    expect(rows.every((row) => row.start_date === "2027-06-01")).toBe(true);
+    expect(rows.every((row) => row.end_date === "2027-06-02")).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.";
+  "Pad the stored holiday dates the pre-2476 mapper wrote unpadded.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

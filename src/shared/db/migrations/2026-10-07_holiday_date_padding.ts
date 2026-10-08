@@ -1,4 +1,7 @@
-import { queryAllPrimary, withTransaction } from "#db/client.ts";
+import {
+  executeBatchWithoutCacheInvalidation,
+  queryAllPrimary,
+} from "#db/client.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { bareSchemaMigration } from "./define.ts";
 
@@ -26,7 +29,10 @@ export default bareSchemaMigration(
       args: [],
       sql: "SELECT id, start_date, end_date FROM holidays",
     });
-    for (const row of rows) {
+    // Validate every row before writing anything, then write the repairs as
+    // one batch: one transaction per row costs three round-trips each, which
+    // a twenty-row table cannot fit in one request's migration budget.
+    const updates = rows.flatMap((row) => {
       // An unpadded value pads; an already-padded value stays as it is; the
       // strict rule then decides, and a value it refuses stops the run.
       const startDate = parseDateStringOrThrow(
@@ -37,13 +43,14 @@ export default bareSchemaMigration(
         padLegacyDateParts(row.end_date) ?? row.end_date,
         "the holiday end_date",
       );
-      if (startDate === row.start_date && endDate === row.end_date) continue;
-      await withTransaction(async (tx) => {
-        await tx.execute({
+      if (startDate === row.start_date && endDate === row.end_date) return [];
+      return [
+        {
           args: [startDate, endDate, row.id],
           sql: "UPDATE holidays SET start_date = ?, end_date = ? WHERE id = ?",
-        });
-      });
-    }
+        },
+      ];
+    });
+    await executeBatchWithoutCacheInvalidation(updates);
   },
 );
