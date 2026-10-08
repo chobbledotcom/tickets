@@ -161,12 +161,7 @@ export class CompactTapReporter {
       return;
     }
 
-    if (this.#pendingFailure && trimmed === "---") {
-      this.#diagnosticLines = [];
-      return;
-    }
-
-    if (trimmed === "---" || trimmed === "...") return;
+    if (this.#readDiagnosticBlockStart(trimmed)) return;
 
     // A TAP comment is stream structure — file names, subtest echoes — not
     // the child's own voice; keeping it would bury the real cause.
@@ -178,6 +173,19 @@ export class CompactTapReporter {
       return;
     }
 
+    this.#consumeResult(result, line);
+  }
+
+  /** A `---` marker under a failed result opens its diagnostic block, which
+   * the diagnostic collector ends at `...`. Outside a failure both markers
+   * are stream structure and nothing reads them. */
+  #readDiagnosticBlockStart(trimmed: string): boolean {
+    if (trimmed !== "---" && trimmed !== "...") return false;
+    if (trimmed === "---" && this.#pendingFailure) this.#diagnosticLines = [];
+    return true;
+  }
+
+  #consumeResult(result: RegExpMatchArray, line: string): void {
     this.#sawTap = true;
     this.#consumedResults++;
     this.#flushPendingFailure();
