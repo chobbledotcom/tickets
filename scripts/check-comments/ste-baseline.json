@@ -2053,9 +2053,9 @@
   "src/shared/rest/crud-api-types.ts": {
     "banned-modal": 2,
     "present-perfect": 1,
-    "wordy": 8,
-    "semicolon": 3,
-    "long-sentence": 5
+    "wordy": 7,
+    "long-sentence": 5,
+    "semicolon": 2
   },
   "src/shared/rest/crud-api.ts": {
     "long-sentence": 3,

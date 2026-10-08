@@ -24,6 +24,11 @@ import type {
   CreateListingBody,
   UpdateListingBody,
 } from "#routes/admin/api-listing-body.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiResource,
+  adminApiIdParam,
+} from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
@@ -241,14 +246,31 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
 const LISTING_DEFAULT_DAYS_AFTER =
   listingCatalogFields.maximumDaysAfter[1].default!();
 
-/** The five standard admin-CRUD doc entries for a resource. Descriptions are
- *  passed in (they carry per-resource wording, such as the holiday's owner-only
- *  note), so this shares only the method/path/request/response
- *  shape every resource repeats. `desc` is [list, get, create, update, delete]. */
+/** The documented path of one attribute-option route: the parent's id param
+ *  and the child segment both come from the resource table. */
+const attributeOptionBase = (): string => {
+  const entry = ADMIN_API_RESOURCES.attributes;
+  const child = entry.children.options;
+  return `/api/admin/${entry.path}/:${adminApiIdParam(entry.label)}/${child.path}`;
+};
+
+/** The documented path of one listing custom route. */
+const listingCustom = (
+  customKey: keyof typeof ADMIN_API_RESOURCES.listings.custom,
+): string => {
+  const custom = ADMIN_API_RESOURCES.listings.custom[customKey];
+  return `/api/admin/${ADMIN_API_RESOURCES.listings.path}/${custom.subpath}`;
+};
+
+/** The five standard admin-CRUD doc entries for a resource. The paths and the
+ *  id param come from the resource table, so the docs cannot disagree with
+ *  the server about them. Descriptions are passed in (they carry
+ *  per-resource wording, such as the holiday's owner-only note), so this
+ *  shares only the method/path/request/response shape every resource
+ *  repeats. `desc` is [list, get, create, update, delete]. */
 const crudDocs = (c: {
   singular: string;
-  plural: string;
-  idParam: string;
+  entry: AdminApiResource;
   example: unknown;
   listResponse: unknown;
   createBody: unknown;
@@ -262,8 +284,8 @@ const crudDocs = (c: {
    * silent, for fields whose default differs from the example record. */
   newRecordDefaults?: Record<string, unknown>;
 }): EndpointDoc[] => {
-  const base = `/api/admin/${c.plural}`;
-  const byId = `${base}/:${c.idParam}`;
+  const base = `/api/admin/${c.entry.path}`;
+  const byId = `${base}/:${adminApiIdParam(c.entry.label)}`;
   const answerWith = (...changes: unknown[]): string =>
     json({ [c.singular]: Object.assign({}, c.example, ...changes) });
   const one = answerWith();
@@ -320,13 +342,12 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Update an attribute (owner only, all fields optional)",
       "Delete an attribute (owner only, requires name confirmation)",
     ],
+    entry: ADMIN_API_RESOURCES.attributes,
     example: ADMIN_API_EXAMPLE_ATTRIBUTE,
-    idParam: "attributeId",
     listResponse: { attributes: [ADMIN_API_EXAMPLE_ATTRIBUTE] },
     // A brand-new attribute has no options yet, whatever the example record
     // shows for the get/list answers.
     newRecordDefaults: { options: [] },
-    plural: "attributes",
     singular: "attribute",
     updateBody: ADMIN_API_ATTRIBUTE_UPDATE_BODY,
   }),
@@ -334,7 +355,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "Add an option to an attribute (owner only). The answer shows the attribute with its full option list, new option last.",
     method: "POST",
-    path: "/api/admin/attributes/:attributeId/options",
+    path: attributeOptionBase(),
     request: json(ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY),
     response: json({
       attribute: ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM,
@@ -344,7 +365,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "Rename an attribute option (owner only). The answer shows the attribute with its full option list.",
     method: "PUT",
-    path: "/api/admin/attributes/:attributeId/options/:optionId",
+    path: `${attributeOptionBase()}/:optionId`,
     request: json(ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY),
     response: json({
       attribute: ADMIN_API_EXAMPLE_OPTION_RENAMED,
@@ -354,7 +375,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "Delete an attribute option (owner only, requires the option text as confirmation).",
     method: "DELETE",
-    path: "/api/admin/attributes/:attributeId/options/:optionId",
+    path: `${attributeOptionBase()}/:optionId`,
     request: json(ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY),
     response: json({ status: "ok" }),
   },
@@ -368,11 +389,11 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Update a listing (all fields optional)",
       "Delete a listing (requires name confirmation)",
     ],
+    entry: ADMIN_API_RESOURCES.listings,
     example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
     freshRecord: Object.fromEntries(
       BOOKING_TOTAL_FIELDS.map((field) => [field, 0]),
     ),
-    idParam: "listingId",
     listResponse: {
       admin_level: "owner",
       listings: [ADMIN_API_EXAMPLE_ADMIN_LISTING],
@@ -383,14 +404,13 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       bookable_days: [...VALID_DAY_NAMES],
       maximum_days_after: LISTING_DEFAULT_DAYS_AFTER,
     },
-    plural: "listings",
     singular: "listing",
     updateBody: ADMIN_API_UPDATE_BODY,
   }),
   {
     description: "Deactivate a listing",
     method: "POST",
-    path: "/api/admin/listings/:listingId/deactivate",
+    path: listingCustom("deactivate"),
     response: json({
       listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: false },
     }),
@@ -398,7 +418,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   {
     description: "Reactivate a deactivated listing",
     method: "POST",
-    path: "/api/admin/listings/:listingId/reactivate",
+    path: listingCustom("reactivate"),
     response: json({
       listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: true },
     }),
@@ -407,7 +427,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "List the attendees booked on a listing. checked_in counts the tickets on each line that the doors admitted, from 0 up to quantity.",
     method: "GET",
-    path: "/api/admin/listings/:listingId/attendees",
+    path: listingCustom("attendees"),
     response: json({ attendees: [ADMIN_API_EXAMPLE_ATTENDEE] }),
   },
   ...crudDocs({
@@ -420,10 +440,9 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Update a group (all fields optional)",
       "Delete a group (requires name confirmation)",
     ],
+    entry: ADMIN_API_RESOURCES.groups,
     example: ADMIN_API_EXAMPLE_GROUP,
-    idParam: "groupId",
     listResponse: { groups: [ADMIN_API_EXAMPLE_GROUP] },
-    plural: "groups",
     singular: "group",
     updateBody: ADMIN_API_GROUP_UPDATE_BODY,
   }),
@@ -437,10 +456,9 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Update a holiday (owner only, all fields optional)",
       "Delete a holiday (owner only, requires name confirmation)",
     ],
+    entry: ADMIN_API_RESOURCES.holidays,
     example: ADMIN_API_EXAMPLE_HOLIDAY,
-    idParam: "holidayId",
     listResponse: { holidays: [ADMIN_API_EXAMPLE_HOLIDAY] },
-    plural: "holidays",
     singular: "holiday",
     updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
   }),

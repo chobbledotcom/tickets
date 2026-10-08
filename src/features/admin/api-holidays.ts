@@ -6,6 +6,7 @@ import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { holidayInput, readDates } from "#routes/admin/holiday-input.ts";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
+import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { invalidApiValueField } from "#shared/catalog-fields/definition.ts";
 import { holidayFields } from "#shared/catalog-fields/fields.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
@@ -56,15 +57,17 @@ const holidayInputFrom = (
   return okResult(holidayInput(name.value, dates.value));
 };
 
-export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
+export const holidayApiRoutes = defineCrudApi<
+  typeof ADMIN_API_RESOURCES.holidays,
+  Holiday,
+  HolidayInput
+>(ADMIN_API_RESOURCES.holidays, {
   getAll: holidays.getAll,
-  name: "holidays",
   nameField: "name",
   // The dashboard's holiday routes are owner-only, because that is what
   // `holidays` declares. The JSON API matches, so a manager cannot mutate a
   // holiday through the API either.
   policy: OWNER_API,
-  singular: "Holiday",
   table: holidays.table,
 
   toCreateInput: (body) => holidayInputFrom(body, null),

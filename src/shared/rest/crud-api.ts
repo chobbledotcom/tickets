@@ -26,7 +26,17 @@ import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 
-import type { CrudApiConfig } from "#shared/rest/crud-api-types.ts";
+import {
+  type AdminApiChild,
+  type AdminApiCustomRoute,
+  type AdminApiResource,
+  adminApiIdParam,
+} from "#shared/admin-api-resources.ts";
+import type {
+  CrudApiConfig,
+  CrudApiHandlers,
+  CrudChildHandlers,
+} from "#shared/rest/crud-api-types.ts";
 
 /** Strip internal keys from a row before sending in the response */
 const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
@@ -37,27 +47,46 @@ const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
 };
 
 /**
- * Define CRUD API routes for a resource.
- *
- * Generates:
- *   GET    /api/admin/{name}          — list all
- *   GET    /api/admin/{name}/:id      — get one
- *   POST   /api/admin/{name}          — create
- *   PUT    /api/admin/{name}/:id      — update
- *   DELETE /api/admin/{name}/:id      — delete (with confirm_identifier)
+ * Define CRUD API routes for a resource. The resource's path, envelope keys,
+ * and id param name come from the admin API resource table. The server cannot
+ * disagree with the CLI, the tests, or the docs about them. Generates the
+ * five standard verbs plus the child surfaces and the custom routes the table
+ * declares for it.
  */
+
+/** The write routes one child surface answers to: the parent's id segment,
+ *  then the child's own id for update and delete. The handler record is typed
+ *  against the entry's declared child keys with every verb required, so each
+ *  child the table declares finds all three handlers. */
+const addChildRoutes = (
+  routes: Record<string, RouteHandlerFn>,
+  name: string,
+  paramName: string,
+  child: AdminApiChild,
+  childApi: CrudChildHandlers,
+): void => {
+  const base = `/api/admin/${name}/:${paramName}/${child.path}`;
+  routes[`POST ${base}`] = childApi.create;
+  routes[`PUT ${base}/:${child.idParam}`] = childApi.update;
+  routes[`DELETE ${base}/:${child.idParam}`] = childApi.delete;
+};
+
 export const defineCrudApi = <
+  Entry extends AdminApiResource,
   Row extends { id: number; name: string },
   Input,
   FullRow extends Row = Row,
   Prepared = void,
   State = never,
 >(
-  config: CrudApiConfig<Row, Input, FullRow, Prepared, State>,
+  entry: Entry,
+  config: Omit<
+    CrudApiConfig<Row, Input, FullRow, Prepared, State>,
+    "name" | "singular"
+  > &
+    CrudApiHandlers<Entry>,
 ): Record<string, RouteHandlerFn> => {
   const {
-    name,
-    singular,
     table,
     getAll,
     nameField,
@@ -65,6 +94,8 @@ export const defineCrudApi = <
     policy,
     deletePolicy = policy,
   } = config;
+  const name = entry.path;
+  const singular = entry.label;
   const responseKey = singular.toLowerCase();
   const listKey = name;
   const lookup: (id: number) => Promise<FullRow | null> =
@@ -74,9 +105,9 @@ export const defineCrudApi = <
             byPrimaryKey(table, id),
           ) as unknown as Promise<FullRow | null>
       : config.lookup;
-  // Reading a row back right after committing its write must hit the primary, or
-  // a lagging replica can return null and the create/update path crashes on
-  // `.id`. Defaults to the primary-pinned base-row read; a resource whose
+  // Reading a row back right after committing its write must hit the primary.
+  // A lagging replica can return null, and the create/update path crashes on
+  // `.id`. The default is the primary-pinned base-row read. A resource whose
   // `lookup` joins extra columns passes its own primary equivalent.
   const lookupAfterWrite: (id: number) => Promise<FullRow | null> =
     config.lookupAfterWrite === undefined
@@ -249,8 +280,8 @@ export const defineCrudApi = <
       ),
     );
 
-  // Build the route param name from the singular (e.g. "Holiday" → "holidayId")
-  const paramName = `${singular.toLowerCase()}Id`;
+  // Build the route param name from the label (e.g. "Holiday" → "holidayId")
+  const paramName = adminApiIdParam(singular);
 
   /** Route handler that extracts the entity ID and loads the full row, delegating to handler */
   const entityRoute = (
@@ -318,13 +349,42 @@ export const defineCrudApi = <
     return jsonResponse({ status: "ok" });
   }, deletePolicy);
 
-  const extraRoutes = config.extraRoutes;
+  /** The extra route entries a resource declares beyond the five standard
+   *  verbs: nested child writes, then the server-side custom routes. */
+  const declaredRoutes = (): Record<string, RouteHandlerFn> => {
+    const routes: Record<string, RouteHandlerFn> = {};
+    // The handler records are typed against the entry's declared keys, so
+    // every child and custom route the table declares finds its handler; the
+    // loops read them back with the key the table declares, and the
+    // non-null assertions only restate what CrudApiHandlers proves at each
+    // call site.
+    for (const [childKey, child] of Object.entries(entry.children ?? {}) as [
+      keyof NonNullable<Entry["children"]> & string,
+      AdminApiChild,
+    ][]) {
+      addChildRoutes(
+        routes,
+        name,
+        paramName,
+        child,
+        config.childHandlers![childKey],
+      );
+    }
+    for (const [customKey, custom] of Object.entries(entry.custom ?? {}) as [
+      keyof NonNullable<Entry["custom"]> & string,
+      AdminApiCustomRoute,
+    ][]) {
+      routes[`${custom.method} /api/admin/${name}/${custom.subpath}`] =
+        config.customHandlers![customKey];
+    }
+    return routes;
+  };
   return {
     [`GET /api/admin/${name}`]: handleList,
     [`GET /api/admin/${name}/:${paramName}`]: handleGet,
     [`POST /api/admin/${name}`]: handleCreate,
     [`PUT /api/admin/${name}/:${paramName}`]: handleUpdate,
     [`DELETE /api/admin/${name}/:${paramName}`]: handleDelete,
-    ...(extraRoutes === undefined ? {} : extraRoutes),
+    ...declaredRoutes(),
   };
 };

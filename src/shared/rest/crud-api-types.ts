@@ -6,6 +6,11 @@ import type { TransactionStateReader, TxScope } from "#db/client.ts";
 import type { Table } from "#db/table.ts";
 import type { AuthPolicy } from "#routes/auth.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import type {
+  AdminApiChild,
+  AdminApiCustomRoute,
+  AdminApiResource,
+} from "#shared/admin-api-resources.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
@@ -72,7 +77,7 @@ export type CheckTxHook<Input> = (
 /** Convert a resource's JSON body to its typed input. `existing` is null on
  *  create and the stored row on update. The session rides along so a
  *  field-level gate (an owner-only field) can refuse per actor. Production
- *  routes always pass it; a direct call without one counts as non-owner
+ *  routes always pass it. A direct call without one counts as non-owner
  *  for any gated field. */
 export type InputParser<Input, Existing> = (
   body: Record<string, unknown>,
@@ -80,7 +85,39 @@ export type InputParser<Input, Existing> = (
   session?: AdminSession,
 ) => Result<Input> | Promise<Result<Input>>;
 
-/** Configuration for defineCrudApi */
+/** The handlers a resource supplies for one declared child surface. The keys
+ *  of the generated routes come from the resource table. The handler record
+ *  is typed against the entry's declared child keys. Every declared verb is
+ *  required: a child without all three handlers is a compile error. */
+export interface CrudChildHandlers {
+  create: RouteHandlerFn;
+  delete: RouteHandlerFn;
+  update: RouteHandlerFn;
+}
+
+/** The handler records a resource's config must carry: one child-handler
+ *  entry per child surface the table declares, one handler per custom route
+ *  the table declares. A resource without the surface carries neither key. */
+export type CrudApiHandlers<Entry extends AdminApiResource> =
+  (Entry["children"] extends Record<string, AdminApiChild>
+    ? {
+        childHandlers: {
+          [K in keyof NonNullable<Entry["children"]> &
+            string]: CrudChildHandlers;
+        };
+      }
+    : { childHandlers?: never }) &
+    (Entry["custom"] extends Record<string, AdminApiCustomRoute>
+      ? {
+          customHandlers: {
+            [K in keyof NonNullable<Entry["custom"]> & string]: RouteHandlerFn;
+          };
+        }
+      : { customHandlers?: never });
+
+/** Configuration for defineCrudApi. The child and custom handler records are
+ *  not part of this interface: defineCrudApi intersects it with
+ *  {@link CrudApiHandlers}, which keys them to the entry the caller passes. */
 export interface CrudApiConfig<
   Row,
   Input,
@@ -101,8 +138,6 @@ export interface CrudApiConfig<
    *  more restricted than its edit (e.g. groups: editors edit, only staff
    *  delete). Defaults to `policy`. */
   deletePolicy?: AuthPolicy<"json">;
-  /** Extra route entries to merge in (can also override generated routes) */
-  extraRoutes?: Record<string, RouteHandlerFn>;
   /** Every row, from cache. May carry more than the table, such as counts. */
   getAll: () => Promise<FullRow[]>;
   /** Optionally hydrate response rows in one batched call, keyed by row id. A
@@ -124,8 +159,6 @@ export interface CrudApiConfig<
    *  columns (e.g. listings' counts) must pass a primary-pinned equivalent so the
    *  write response still carries those columns. */
   lookupAfterWrite?: (id: number) => Promise<FullRow | null>;
-  /** Resource name (lowercase plural, used in routes and log messages) */
-  name: string;
   /** Field on Row that holds the display name (for delete confirmation) */
   nameField: keyof FullRow & string;
   /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
@@ -150,8 +183,6 @@ export interface CrudApiConfig<
    *  the value its `validate` carries forward to its `persist`, inferred per
    *  resource. */
   sideEffect?: CrudSideEffect<Input, FullRow, Prepared, State>;
-  /** Singular display name for activity log (e.g. "Holiday") */
-  singular: string;
   /** Keys to strip from response (e.g. "slug_index") */
   stripKeys?: string[];
   /** Table with CRUD operations */
