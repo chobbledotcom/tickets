@@ -21,6 +21,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
 import {
   bookableStartDates,
   createDailyTestListing,
@@ -64,14 +65,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
     });
 
     test("refuses a package count above the live limit and books nothing", async () => {
-      const group = await createHiddenPackageGroup("Mystery Box");
-      const member = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 5,
-        maxQuantity: 5,
-        name: "Secret Contents",
-      });
-      const ctx = await ticketContext([member.id], group);
+      const { ctx, group, member } = await hiddenPackageWithMember();
       const form = quantityForm({}, { [group.id]: 6 });
 
       const result = await prepareOrder(ctx, form);

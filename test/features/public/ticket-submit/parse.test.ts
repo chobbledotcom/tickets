@@ -31,10 +31,11 @@ import { FormParams } from "#shared/form-data.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
-import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
+import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 import {
   quantityForm,
   ticketContext,
@@ -117,15 +118,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
     });
 
     test("refuses a package count above the bundles the page can sell", async () => {
-      const group = await createHiddenPackageGroup("Mystery Box");
-      const member = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 5,
-        maxQuantity: 5,
-        name: "Secret Contents",
-      });
-      const ctx = await ticketContext([member.id], group);
-      const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+      const { ctx, group, tree } = await hiddenPackageWithMember();
 
       expect(
         validateFormState(quantityForm({}, { [group.id]: 6 }), ctx, tree),
@@ -424,13 +417,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
 
     /** A hidden package and one member it can book. */
     const mysteryBoxMember = async () => {
-      const group = await createHiddenPackageGroup("Mystery Box");
-      const member = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 5,
-        maxQuantity: 5,
-        name: "Secret Contents",
-      });
+      const { ctx, group, member } = await hiddenPackageWithMember();
       return {
         form: (count: string) => {
           const form = new FormParams();
@@ -439,6 +426,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         },
         group,
         member,
+        ctx,
       };
     };
 
