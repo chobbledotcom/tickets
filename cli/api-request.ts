@@ -1,4 +1,4 @@
-import type { CurlOptions } from "./curl.ts";
+import type { AdminApiRequest } from "#shared/admin-api-client.ts";
 import { parseResource, resourcePath } from "./resources.ts";
 
 /** Parse an optional JSON body argument; an absent/empty value means no body. */
@@ -22,10 +22,14 @@ export const buildRequest = (
   resourceRawValue: string,
   idOrBody?: string,
   maybeBody?: string,
-): CurlOptions | null => {
+): AdminApiRequest | null => {
   const resource = parseResource(resourceRawValue);
-  if (command === "list") return { path: resourcePath(resource) };
-  if (command === "get") return { path: resourcePath(resource, idOrBody) };
+  if (command === "list") {
+    return { method: "GET", path: resourcePath(resource) };
+  }
+  if (command === "get") {
+    return { method: "GET", path: resourcePath(resource, idOrBody) };
+  }
   if (command === "create") {
     const nested = idOrBody !== undefined && maybeBody !== undefined;
     return {

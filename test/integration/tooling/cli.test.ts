@@ -128,7 +128,7 @@ describe("CLI curl", () => {
     expect(
       buildCurlArgs(
         { apiHostname: "https://tickets.example.com", apiKey: "key" },
-        { path: "api/admin/listings" },
+        { method: "GET", path: "api/admin/listings" },
       ),
     ).toEqual([
       "--silent",
@@ -157,7 +157,7 @@ describe("CLI curl", () => {
     await expect(
       curlJson(
         { apiHostname: "http://127.0.0.1:9", apiKey: "key" },
-        { path: "/api/admin/listings" },
+        { method: "GET", path: "/api/admin/listings" },
       ),
     ).rejects.toThrow();
   });
@@ -226,12 +226,14 @@ describe("CLI api-request", () => {
 
   test("builds a bodyless list request", () => {
     expect(buildRequest("list", "listings")).toEqual({
+      method: "GET",
       path: "/api/admin/listings",
     });
   });
 
   test("builds a get request addressing a single entity", () => {
     expect(buildRequest("get", "listings", "5")).toEqual({
+      method: "GET",
       path: "/api/admin/listings/5",
     });
   });

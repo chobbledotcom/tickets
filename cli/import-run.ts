@@ -1,6 +1,16 @@
 import { normalizeEntityName } from "#db/name-registry.ts";
+import {
+  type AdminApiTransport,
+  adminApiChildCreate,
+  adminApiList,
+  adminApiWrite,
+} from "#shared/admin-api-client.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiAttribute,
+  type AdminApiGroup,
+} from "#shared/admin-api-resources.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type { CurlOptions } from "./curl.ts";
 import { writeOut } from "./io.ts";
 import type { CatalogProduct } from "./product-catalog/parse.ts";
 import {
@@ -30,16 +40,6 @@ import {
   withTicketsMeta,
 } from "./product-plan.ts";
 
-type ApiClient = <T>(options: CurlOptions) => Promise<T>;
-
-type ApiAttribute = {
-  id: number;
-  name: string;
-  options: { id: number; text: string }[];
-};
-
-type ApiNamed = { id: number; name: string; slug: string };
-
 type Report = {
   conflicts: number;
   created: {
@@ -56,10 +56,10 @@ type Report = {
 /** One attribute's values: reuse the stored options, create the missing ones
  * (or, in plan mode, only say what would happen). */
 const syncAttributeOptions = async (
-  api: ApiClient,
+  transport: AdminApiTransport,
   name: string,
   values: readonly string[],
-  attribute: ApiAttribute | undefined,
+  attribute: AdminApiAttribute | undefined,
   plan: boolean,
   report: Report,
   optionIds: Map<string, number>,
@@ -84,11 +84,13 @@ const syncAttributeOptions = async (
       await writeOut(`would create attribute ${name}: ${value}\n`);
       continue;
     }
-    const created = await api<{ attribute: ApiAttribute }>({
-      body: { text: value },
-      method: "POST",
-      path: `/api/admin/attributes/${attribute.id}/options`,
-    });
+    const created = await adminApiChildCreate(
+      transport,
+      ADMIN_API_RESOURCES.attributes,
+      "options",
+      attribute.id,
+      { text: value },
+    );
     const newOption = created.attribute.options.find(
       (item) => item.text === value,
     );
@@ -103,15 +105,13 @@ const syncAttributeOptions = async (
  * value. Existing attributes and options are matched by name and reused, so a
  * rerun never duplicates them. */
 const syncAttributes = async (
-  api: ApiClient,
+  transport: AdminApiTransport,
   planned: readonly PlannedAttribute[],
   plan: boolean,
   report: Report,
 ): Promise<Map<string, number>> => {
   const existing = (
-    await api<{ attributes: ApiAttribute[] }>({
-      path: "/api/admin/attributes",
-    })
+    await adminApiList(transport, ADMIN_API_RESOURCES.attributes)
   ).attributes;
   const optionIds = new Map<string, number>();
   for (const { name, values } of planned) {
@@ -128,17 +128,19 @@ const syncAttributes = async (
     }
     let attribute = matches[0];
     if (!attribute && !plan) {
-      const created = await api<{ attribute: ApiAttribute }>({
-        body: { name },
-        method: "POST",
-        path: "/api/admin/attributes",
-      });
+      const created = await adminApiWrite(
+        transport,
+        ADMIN_API_RESOURCES.attributes,
+        "create",
+        undefined,
+        { name },
+      );
       attribute = created.attribute;
       report.created.attributes += 1;
       await writeOut(`created attribute ${name}\n`);
     }
     await syncAttributeOptions(
-      api,
+      transport,
       name,
       values,
       attribute,
@@ -154,8 +156,8 @@ const syncAttributes = async (
  * category names arrive preflighted, so no file is read here, and the group
  * list arrives from the same snapshot the namespace preflight read. */
 const syncGroups = async (
-  api: ApiClient,
-  existing: readonly (ApiNamed & { is_package: boolean })[],
+  transport: AdminApiTransport,
+  existing: readonly AdminApiGroup[],
   entries: readonly CategoryEntry[],
   plan: boolean,
   report: Report,
@@ -188,11 +190,16 @@ const syncGroups = async (
       await writeOut(`would create group ${name}\n`);
       continue;
     }
-    const created = await api<{ group: ApiNamed }>({
-      body: { description: `Hire products for ${name} events.`, name },
-      method: "POST",
-      path: "/api/admin/groups",
-    });
+    const created = await adminApiWrite(
+      transport,
+      ADMIN_API_RESOURCES.groups,
+      "create",
+      undefined,
+      {
+        description: `Hire products for ${name} events.`,
+        name,
+      },
+    );
     idsBySlug.set(slug, created.group.id);
     report.created.groups += 1;
     await writeOut(`created group ${name}\n`);
@@ -205,7 +212,7 @@ const syncGroups = async (
  * so a file an editor touches mid-run is stamped from the same content the
  * listing was written from. */
 const importProduct = async (
-  api: ApiClient,
+  transport: AdminApiTransport,
   product: CatalogProduct,
   text: string,
   plan: ImportPlan,
@@ -252,15 +259,28 @@ const importProduct = async (
       ),
     ),
   );
-  const saved = await api<{ listing: ApiNamed }>(
+  const saved =
     plan.action === "update"
-      ? { body, method: "PUT", path: `/api/admin/listings/${plan.listingId}` }
-      : { body, method: "POST", path: "/api/admin/listings" },
-  );
+      ? await adminApiWrite(
+          transport,
+          ADMIN_API_RESOURCES.listings,
+          "update",
+          plan.listingId,
+          body,
+        )
+      : await adminApiWrite(
+          transport,
+          ADMIN_API_RESOURCES.listings,
+          "create",
+          undefined,
+          body,
+        );
   if (plan.action === "update") report.updated += 1;
   else report.created.listings += 1;
   await writeOut(
-    `${plan.action === "update" ? "updated" : "created"} listing ${product.title} -> id ${saved.listing.id}\n`,
+    `${
+      plan.action === "update" ? "updated" : "created"
+    } listing ${product.title} -> id ${saved.listing.id}\n`,
   );
   refuseChangedFile(
     file,
@@ -283,7 +303,7 @@ const importProduct = async (
  *  client. */
 export const runImport = async (
   flags: ImportFlags & { dir: string },
-  api: ApiClient,
+  transport: AdminApiTransport,
 ): Promise<Report> => {
   const files = await catalogFiles(flags.dir);
   const catalog = await readProducts(files, `${flags.dir}/src/products`);
@@ -296,15 +316,10 @@ export const runImport = async (
     `${flags.dir}/src/categories`,
     catalog.flatMap(({ product }) => product.categories),
   );
-  const existing = (
-    await api<{ listings: ApiNamed[] }>({
-      path: "/api/admin/listings",
-    })
-  ).listings;
+  const existing = (await adminApiList(transport, ADMIN_API_RESOURCES.listings))
+    .listings;
   const existingGroups = (
-    await api<{ groups: (ApiNamed & { is_package: boolean })[] }>({
-      path: "/api/admin/groups",
-    })
+    await adminApiList(transport, ADMIN_API_RESOURCES.groups)
   ).groups;
   // Every plan is decided before the first write: only products that will be
   // created or updated drive the attribute, option, and group syncs, so a
@@ -358,13 +373,13 @@ export const runImport = async (
   );
   ensureConsistentAttributeSpellings(active.map(({ product }) => product));
   const optionIds = await syncAttributes(
-    api,
+    transport,
     attributeVocabulary(active.map(({ product }) => product)),
     flags.plan,
     report,
   );
   const groupIdsBySlug = await syncGroups(
-    api,
+    transport,
     existingGroups,
     categoryEntries,
     flags.plan,
@@ -372,7 +387,7 @@ export const runImport = async (
   );
   for (const { product, text } of catalog) {
     await importProduct(
-      api,
+      transport,
       product,
       text,
       plans.get(product.filename)!,

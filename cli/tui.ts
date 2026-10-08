@@ -1,20 +1,19 @@
 #!/usr/bin/env -S deno run --allow-env --allow-read --allow-run
+import type { AdminApiRequest } from "#shared/admin-api-client.ts";
+import type { AdminApiResourceName } from "#shared/admin-api-resources.ts";
 import { loadConfig } from "./config.ts";
-import { type CurlOptions, curlJson } from "./curl.ts";
+import { curlJson } from "./curl.ts";
 import { clearScreen, writeOut } from "./io.ts";
-import {
-  parseResource,
-  type ResourceName,
-  resourcePath,
-  resources,
-} from "./resources.ts";
+import { parseResource, resourcePath, resources } from "./resources.ts";
 
-type State = { resource: ResourceName; last: unknown };
+type State = { resource: AdminApiResourceName; last: unknown };
 
 const config = await loadConfig(Deno.cwd());
 const state: State = { last: null, resource: "listings" };
 
-const helpText = `\nTickets CLI (Rezi-style Deno TUI, curl-backed)\nCommands:\n  resource <${resources.join("|")}>\n  list\n  get <id>\n  create <json>\n  update <id> <json>\n  delete <id> <json-confirmation>\n  help\n  quit\n`;
+const helpText = `\nTickets CLI (Rezi-style Deno TUI, curl-backed)\nCommands:\n  resource <${resources.join(
+  "|",
+)}>\n  list\n  get <id>\n  create <json>\n  update <id> <json>\n  delete <id> <json-confirmation>\n  help\n  quit\n`;
 
 const render = async () => {
   await clearScreen();
@@ -25,7 +24,7 @@ const render = async () => {
   );
 };
 
-const requestFor = (line: string): CurlOptions | "quit" | null => {
+const requestFor = (line: string): AdminApiRequest | "quit" | null => {
   const [command = "", first = "", ...rest] = line.trim().split(/\s+/);
   if (["quit", "q", "exit"].includes(command)) return "quit";
   if (command === "help" || command === "") return null;
@@ -33,8 +32,12 @@ const requestFor = (line: string): CurlOptions | "quit" | null => {
     state.resource = parseResource(first);
     return null;
   }
-  if (command === "list") return { path: resourcePath(state.resource) };
-  if (command === "get") return { path: resourcePath(state.resource, first) };
+  if (command === "list") {
+    return { method: "GET", path: resourcePath(state.resource) };
+  }
+  if (command === "get") {
+    return { method: "GET", path: resourcePath(state.resource, first) };
+  }
   if (command === "create") {
     return {
       body: JSON.parse([first, ...rest].join(" ")),
