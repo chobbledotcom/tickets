@@ -168,6 +168,10 @@ export class CompactTapReporter {
 
     if (trimmed === "---" || trimmed === "...") return;
 
+    // A TAP comment is stream structure — file names, subtest echoes — not
+    // the child's own voice; keeping it would bury the real cause.
+    if (trimmed.startsWith("#")) return;
+
     const result = line.match(TEST_RESULT_RE);
     if (!result) {
       this.#drop(line);
