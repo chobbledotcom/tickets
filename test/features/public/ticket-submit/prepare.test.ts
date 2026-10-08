@@ -47,6 +47,41 @@ const sorted = (ids: Iterable<number>): number[] =>
 
 describeWithEnv("prepareOrder", { db: true }, () => {
   describe("refusing a form it cannot price", () => {
+    test("refuses a standalone count above the live limit and books nothing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        maxQuantity: 3,
+      });
+      const ctx = await ticketContext([listing.id]);
+
+      const result = await prepareOrder(ctx, quantityForm({ [listing.id]: 4 }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toBe(
+        bookingError.maximum(listing.name, 3),
+      );
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    });
+
+    test("refuses a package count above the live limit and books nothing", async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        name: "Secret Contents",
+      });
+      const ctx = await ticketContext([member.id], group);
+      const form = new FormParams();
+      form.set(packageQuantityFieldName(group.id), "6");
+
+      const result = await prepareOrder(ctx, form);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toBe(bookingError.packageMaximum("Mystery Box", 5));
+      expect((await getAttendeesRaw(member.id)).length).toBe(0);
+    });
+
     test("refuses an order that selected no tickets", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id]);

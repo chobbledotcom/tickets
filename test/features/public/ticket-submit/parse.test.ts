@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#booking/build-tree.ts";
+import { bookingError } from "#booking/form.ts";
 import { buildTicketListing } from "#booking/model.ts";
 import {
   customPriceFieldName,
@@ -99,6 +100,38 @@ const answerInfo = (
 
 describeWithEnv("ticket-submit parse", { db: true }, () => {
   describe("validateFormState", () => {
+    test("refuses a standalone quantity above what the listing can sell", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        maxQuantity: 3,
+      });
+      const ctx = await ticketContext([listing.id]);
+
+      expect(validateFormState(quantityForm({ [listing.id]: 4 }), ctx)).toBe(
+        bookingError.maximum(listing.name, 3),
+      );
+      expect(validateFormState(quantityForm({ [listing.id]: 3 }), ctx)).toBeNull();
+    });
+
+    test("refuses a package count above the bundles the page can sell", async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        name: "Secret Contents",
+      });
+      const ctx = await ticketContext([member.id], group);
+      const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+
+      expect(
+        validateFormState(quantityForm({}, { [group.id]: 6 }), ctx, tree),
+      ).toBe(bookingError.packageMaximum("Mystery Box", 5));
+      expect(
+        validateFormState(quantityForm({}, { [group.id]: 5 }), ctx, tree),
+      ).toBeNull();
+    });
+
     test("refuses a form that skipped the terms box", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = { ...(await ticketContext([listing.id])), terms: "/terms" };
