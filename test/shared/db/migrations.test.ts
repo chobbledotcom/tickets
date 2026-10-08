@@ -145,17 +145,11 @@ describeWithEnv("db > migrations", { db: true }, () => {
     };
 
     test("initDb stores latest_db_update in settings", async () => {
-      const result = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'latest_db_update'",
-      );
-      expect(result.rows[0]?.value).toBe(LATEST_UPDATE);
+      expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
     test("initDb stores db_schema_hash in settings", async () => {
-      const result = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
-      );
-      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+      expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
     });
 
     test("initDb stores named migration history", async () => {
@@ -246,10 +240,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await initDb();
 
-      // The cleanup ran: the broken record is gone...
+      // The cleanup ran: the broken record is gone, the migration is recorded,
+      // and the marker is the current release's.
       const images = await getDb().execute("SELECT id FROM images");
       expect(images.rows.map((row) => row.id)).toEqual([]);
-      // ...the migration is recorded, and the marker is the current release's.
       expect(await appliedMigrationIds()).toContain(
         "2026-07-12_remove_broken_image_records",
       );

@@ -52,7 +52,7 @@
   "test/shared/db/client.test.ts": 579,
   "test/shared/db/groups.test.ts": 801,
   "test/shared/db/logistics-run-sheet.test.ts": 660,
-  "test/shared/db/migrations.test.ts": 645,
+  "test/shared/db/migrations.test.ts": 643,
   "test/shared/db/settings.test.ts": 566,
   "test/shared/email.test.ts": 510,
   "test/shared/maintenance/runner.test.ts": 561,
