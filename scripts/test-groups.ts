@@ -111,10 +111,19 @@ export const collectTestFiles = async (root: string): Promise<string[]> => {
 /**
  * How many groups to shard into: a few per test worker, so `--parallel`
  * (which runs one entry per worker at a time) always has entries queued and
- * an unlucky heavy shard cannot dominate the tail.
+ * an unlucky heavy shard cannot dominate the tail. A group entry shares one
+ * isolate, whose coverage buffers and module graph grow with its file count,
+ * so the count also rises with the file count to keep every group's isolate
+ * inside the memory budget the coverage gate runs under.
  */
-export const defaultGroupCount = (workers: number): number =>
-  Math.max(8, workers * 4);
+export const defaultGroupCount = (
+  workers: number,
+  fileCount?: number,
+): number => {
+  const byWorkers = Math.max(8, workers * 4);
+  if (fileCount === undefined) return byWorkers;
+  return Math.max(byWorkers, Math.ceil(fileCount / 40));
+};
 
 const testWorkerCount = (): number =>
   parseWorkerCount(Deno.env.get("DENO_JOBS"), navigator.hardwareConcurrency);
@@ -184,10 +193,13 @@ export type WrittenTestGroups = {
  */
 export const writeTestGroups = async (
   root: string,
-  groupCount: number = defaultGroupCount(testWorkerCount()),
+  groupCount?: number,
 ): Promise<WrittenTestGroups> => {
   const paths = await collectTestFiles(root);
-  const plan = planTestGroups(await classifyRunAlone(paths), groupCount);
+  const plan = planTestGroups(
+    await classifyRunAlone(paths),
+    groupCount ?? defaultGroupCount(testWorkerCount(), paths.length),
+  );
 
   const entries = await writeGroupEntries(
     root,
