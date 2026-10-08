@@ -39,8 +39,8 @@ import { packageGroups } from "#shared/package-membership.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   parseOptionalArray,
-  parseUpdateName,
   parseUpdateSlug,
+  requireEntityName,
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
 import {
@@ -191,7 +191,7 @@ const toGroupInput = async (
   existing: Group | null,
 ): Promise<Result<GroupInput>> => {
   const name = existing
-    ? parseUpdateName(body, existing.name)
+    ? requireEntityName(body, existing.name)
     : requireStrings(body, ["name"]);
   if (!name.ok) return name;
   const invalid = invalidApiValueField(groupCatalogFields, body);

@@ -17,7 +17,8 @@ import {
   resolveStatusId,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
-import { addDays, formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { addDays } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";

@@ -9,12 +9,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  addMonthsIso,
   bookedRangeLabel,
-  bookedSpanDays,
   calendarGridDates,
-  dateRange,
   formatDateLabel,
+} from "#shared/date-labels.ts";
+import {
+  addMonthsIso,
+  bookedSpanDays,
+  dateRange,
   getBookableStartDates,
   startOfHour,
   widestDatedEntry,

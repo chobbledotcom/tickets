@@ -27,7 +27,7 @@ const oneColumn = col.withDefault(() => 1);
 
 /** The holiday's body and form fields. The name rides the form mask only: the
  *  JSON create reads it through requireStrings, the update through
- *  parseUpdateName. The name rules live with the name parser, not here. */
+ *  requireEntityName. The name rules live with the name parser, not here. */
 export const holidayFields = {
   endDate: ["end_date", col.simple<string>(), "string", CATALOG_API_FORM],
   name: ["name", undefined, "string", CATALOG_FORM],

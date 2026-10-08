@@ -37,7 +37,8 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { addDays, formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";

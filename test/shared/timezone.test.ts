@@ -13,7 +13,7 @@ import {
   utcToLocalInput,
 } from "#shared/timezone.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 
 describe("timezone", () => {
   describe("DEFAULT_TIMEZONE", () => {

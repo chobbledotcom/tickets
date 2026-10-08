@@ -10,7 +10,7 @@
 import * as v from "valibot";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { IsoDateSchema } from "#shared/validation/date.ts";
+import { IsoDateSchema } from "#shared/validation/date-string.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 

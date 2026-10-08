@@ -113,6 +113,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-09-30_checked_in_count",
         "2026-10-01_square_link_ends",
         "2026-10-05_listing_min_quantity",
+        "2026-10-07_holiday_date_padding",
       ],
       schemaHash: "1h8mi7d",
     });
@@ -129,7 +130,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.",
+        "Pad the stored holiday dates the pre-2476 mapper wrote unpadded.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

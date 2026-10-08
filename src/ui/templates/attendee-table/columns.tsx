@@ -1,7 +1,8 @@
 import { isServicing } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
-import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { formatDatetimeShort } from "#shared/dates.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { TableColumn } from "#shared/tables/column.ts";

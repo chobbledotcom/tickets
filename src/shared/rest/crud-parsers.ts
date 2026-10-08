@@ -9,6 +9,11 @@ import {
   parseOptionalResult,
   type Result,
 } from "#shared/result.ts";
+import {
+  type DateString,
+  parseDateString,
+  parseDateStringOrThrow,
+} from "#shared/validation/date-string.ts";
 import type { AdminSession } from "#types";
 
 /** JSON body for confirmed delete endpoints */
@@ -57,6 +62,124 @@ export const requireStrings = <K extends string>(
     ? okResult(Object.fromEntries(parsed.value) as Record<K, string>)
     : parsed;
 };
+
+/** Parse one cleaned-or-refused date value, naming the field. */
+const dateStringResult = (key: string, raw: string): Result<DateString> => {
+  const parsed = parseDateString(raw);
+  return parsed === null
+    ? errorResult(`${key} has an invalid value`)
+    : okResult(parsed);
+};
+
+/** Parse one present date text: a non-string and an unusable text both
+ *  answer the field-named message. */
+const presentDateString = (key: string, raw: unknown): Result<DateString> => {
+  if (typeof raw !== "string") {
+    return errorResult(`${key} has an invalid value`);
+  }
+  return dateStringResult(key, raw);
+};
+
+/** Read one date field's raw body value. `absent` answers an absent key
+ *  with its rejection or fallback, or null when the value is present. A
+ *  present value parses through the shared date rule. */
+const readDateField = (
+  body: Record<string, unknown>,
+  key: string,
+  absent: (raw: unknown) => Result<DateString> | null,
+): Result<DateString> => {
+  const refusal = absent(body[key]);
+  if (refusal !== null) {
+    return refusal;
+  }
+  return presentDateString(key, body[key]);
+};
+
+/** The required read's absence answer: a missing or blank key is required. */
+const requiredDateAbsent =
+  (key: string) =>
+  (raw: unknown): Result<DateString> | null =>
+    raw === undefined || (typeof raw === "string" && raw.trim() === "")
+      ? errorResult(`${key} is required`)
+      : null;
+
+/** The optional read's absence answer: a missing key parses the stored
+ *  fallback. */
+const optionalDateAbsent =
+  (key: string, fallback: string) =>
+  (raw: unknown): Result<DateString> | null => {
+    if (raw !== undefined) {
+      return null;
+    }
+    return okResult(parseDateStringOrThrow(fallback, `${key} fallback`));
+  };
+
+/**
+ * Read one required real-calendar-date field from a JSON body. The value is
+ * trimmed and validated at this boundary, so the mapped input carries a
+ * `DateString` no comparison can mis-order. Absent or empty answers the
+ * same rejection shape as {@link requireStrings}.
+ */
+export const requireDateString = (
+  body: Record<string, unknown>,
+  key: string,
+): Result<DateString> => readDateField(body, key, requiredDateAbsent(key));
+
+/** The refusal a boundary guard answers when a body fails its field rule. */
+export type FieldRefusal = (
+  body: Record<string, unknown>,
+) => Result<never> | null;
+
+/** Refuse a supplied non-string name with the field-named message. */
+const refuseNonStringName: FieldRefusal = (body) => {
+  if (body.name === undefined || typeof body.name === "string") return null;
+  return errorResult("name must be a string");
+};
+
+/** Read the required name for one entity write. A supplied name must be a
+ *  string: anything else is refused with the field-named message instead of
+ *  coerced into stored text. An update without a supplied name keeps the
+ *  stored one, and the resolved name must be non-empty. */
+export const requireEntityName = (
+  body: Record<string, unknown>,
+  existing: string | null,
+): Result<string> => {
+  const refusal = refuseNonStringName(body);
+  if (refusal) return refusal;
+  if (existing !== null) {
+    // The non-string refusal above has run, so a present name is a string.
+    const supplied = typeof body.name === "string" ? body.name : undefined;
+    const name = supplied === undefined ? existing : supplied.trim();
+    return name === "" ? errorResult("name cannot be empty") : okResult(name);
+  }
+  const name = requireStrings(body, ["name"]);
+  return name.ok ? okResult(name.value.name) : name;
+};
+
+/** Combine the two date results of one range in field order: the start date
+ *  reports first, then the end date. */
+export const dateRange = (
+  startDate: Result<DateString>,
+  endDate: Result<DateString>,
+): Result<{ endDate: DateString; startDate: DateString }> => {
+  if (!startDate.ok) return startDate;
+  if (!endDate.ok) return endDate;
+  return okResult({ endDate: endDate.value, startDate: startDate.value });
+};
+
+/**
+ * Read one optional real-calendar-date field from a JSON body. An absent key
+ * keeps the fallback. A present-but-unusable value is refused with the
+ * field-named message. The fallback is a stored date, so it parses through
+ * the same rule before it travels as branded. A stored value the rule
+ * refuses is an impossible state and stops the request loudly.
+ */
+export const optionalDateString = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): Result<DateString> =>
+  readDateField(body, key, optionalDateAbsent(key, fallback));
 
 /**
  * Read an optional number from a JSON body, falling back to `fallback` when the
@@ -125,23 +248,6 @@ export const parseUpdateSlug = async <Index extends string>(
     ? normalize(String(body.slug))
     : existing;
   return { slug, slugIndex: await computeIndex(slug) };
-};
-
-/**
- * Parse a name field from a JSON body for update operations. A supplied name
- * must be a string: anything else is refused with the field-named message.
- * An absent name keeps the stored one, and the resolved name — stored or
- * supplied — must be non-empty.
- */
-export const parseUpdateName = (
-  body: Record<string, unknown>,
-  existing: string,
-): Result<string> => {
-  if (body.name !== undefined && typeof body.name !== "string") {
-    return errorResult("name must be a string");
-  }
-  const name = body.name === undefined ? existing : body.name.trim();
-  return name === "" ? errorResult("name cannot be empty") : okResult(name);
 };
 
 /** Callback receiving an entity row plus auth context */

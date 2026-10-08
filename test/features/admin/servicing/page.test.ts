@@ -8,7 +8,7 @@ import {
   renderServicingPage,
 } from "#routes/admin/servicing/page.tsx";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { servicingEventDateLabel } from "#templates/admin/servicing-events.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

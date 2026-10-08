@@ -1,4 +1,4 @@
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import type { ListingWithCount } from "#types";
 

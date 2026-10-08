@@ -5,7 +5,7 @@ import type {
   AttendeeFormLine,
   ParsedAttendeeForm,
 } from "#routes/admin/attendee-form-model.ts";
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";

@@ -571,8 +571,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         buildTicketListing(listing, false, undefined),
       ]);
       expect(items).toHaveLength(1);
-      // The last day in the 3-day window can't fit a 5-day span, yet it's still
-      // offered as a start because availability is computed for a single day.
+      // The day can't fit a 5-day span, yet it's offered as a start.
       expect(items[0]).toMatchObject({
         dates: expect.arrayContaining([addDays(todayInTz("UTC"), 3)]),
         id: listing.id,

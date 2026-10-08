@@ -7,7 +7,7 @@
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
 import { t } from "#i18n";
 import { adminPath } from "#shared/admin-surface.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { openSection } from "#templates/components/open-section.tsx";
 

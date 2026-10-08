@@ -73,8 +73,9 @@ describeWithEnv(
       // note-entities migration rebuilds system_notes around its new
       // entity_type/entity_id pair, owning no additive objects to drop and
       // restore; it has its own migration test. The checked_in count migration
-      // is data-only and covered by its own migration test.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 24);
+      // is data-only and covered by its own migration test. The holiday date
+      // padding migration is data-only and covered by its own migration test.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 25);
     });
 
     test("restores triggers attached to a dropped table", async () => {

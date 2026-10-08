@@ -9,14 +9,13 @@ import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import { holidayFields } from "#shared/catalog-fields/fields.ts";
 import {
   HOLIDAY_DEMO_FIELDS,
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineResource } from "#shared/rest/resource.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import {
   adminHolidaysPage,
   getHolidayPages,
@@ -26,12 +25,20 @@ import { holidayPage } from "./holiday-page.ts";
 
 /* jscpd:ignore-end */
 
-/** Extract holiday input from validated form values. The mapping rides the
- *  shared holiday field set, the same fields the JSON API declares. */
+/** Extract holiday input from validated form values */
 type HolidayFormValues = FormValues<ReturnType<typeof getHolidayForm>>;
 
-const extractHolidayInput = (values: HolidayFormValues): HolidayInput =>
-  projectCatalogFields(holidayFields, "form", values);
+const extractHolidayInput = (values: HolidayFormValues): HolidayInput => ({
+  endDate: parseDateStringOrThrow(
+    values.end_date,
+    "the holiday form's end date",
+  ),
+  name: values.name,
+  startDate: parseDateStringOrThrow(
+    values.start_date,
+    "the holiday form's start date",
+  ),
+});
 
 /** Validate end_date >= start_date */
 export const validateDateRange = (

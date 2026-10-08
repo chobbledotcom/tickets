@@ -8,8 +8,8 @@ import {
 } from "#db/attendees/pii.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { formatDateLabel } from "#shared/dates.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   BULK_COMPOSE_COPY,

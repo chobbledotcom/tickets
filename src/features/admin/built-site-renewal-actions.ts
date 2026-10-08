@@ -12,7 +12,7 @@ import {
   renewalUrlFor,
   syncReadOnlyFrom,
 } from "#shared/site-renewal.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { parseDateString } from "#shared/validation/date-string.ts";
 import {
   type BuiltSitePost,
   builtSiteAction,
@@ -48,8 +48,12 @@ const readClampedMonths = (form: {
   return Math.min(months, MAX_RENEWAL_MONTHS);
 };
 
-const parseDeadlineDate = (dateStr: string): string | null =>
-  isIsoDate(dateStr) ? `${dateStr}T23:59:59Z` : null;
+const parseDeadlineDate = (dateStr: string): string | null => {
+  const day = parseDateString(dateStr);
+  // The deadline is the end of the chosen day, UTC — the site's renewal
+  // window closes after that day runs out.
+  return day === null ? null : `${day}T23:59:59Z`;
+};
 
 /** A reserved-but-unconfirmed token means the renewal URL never reached the
  * site: no deadline change can proceed while the retry path is the provision

@@ -9,8 +9,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 import {
   apiPostAs,
+  expectNonStringNameRefused,
   ownerApiPost,
-  ownerApiPut,
   ownerPagePost,
   pagePostAs,
 } from "./helpers.ts";
@@ -50,21 +50,9 @@ describeWithEnv("Attribute parity pins", { db: true }, () => {
   // The attributes API answers a non-string name with the field-named 400
   // before the shared parser runs (issue #2476 records the shared defect).
   test("api update rejects a non-string name with 400", async () => {
-    const created = await assertJson<{ attribute: { id: number } }>(
-      ownerApiPost("/api/admin/attributes", {
-        name: "Pinned Guard Attribute",
-      }),
-      201,
-    );
-    await assertJson(
-      ownerApiPut(`/api/admin/attributes/${created.attribute.id}`, {
-        name: 123,
-      }),
-      400,
-      (body) => {
-        expect(body.error).toBe("name must be a string");
-      },
-    );
+    await expectNonStringNameRefused("attributes", "attribute", {
+      name: "Pinned Guard Attribute",
+    });
   });
 
   test("a manager is refused on both surfaces", async () => {

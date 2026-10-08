@@ -8,9 +8,11 @@ import { it as test } from "@std/testing/bdd";
 import { ADMIN_API } from "#routes/auth.ts";
 import {
   bodyNumber,
+  optionalDateString,
   parseOptionalArray,
-  parseUpdateName,
   parseUpdateSlug,
+  requireDateString,
+  requireEntityName,
   requireStrings,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
@@ -23,6 +25,60 @@ test("requireStrings trims and extracts the named keys", () => {
     ok: true,
     value: { name: "mutated" },
   });
+});
+
+test("requireStrings names the first missing key", () => {
+  expect(requireStrings({}, ["name", "start_date"])).toEqual({
+    error: "name is required",
+    ok: false,
+  });
+});
+
+test("requireDateString trims and validates a real calendar day", () => {
+  expect(
+    requireDateString({ start_date: " 2027-06-01 " }, "start_date"),
+  ).toEqual({ ok: true, value: "2027-06-01" });
+  expect(requireDateString({ start_date: "2027-6-1" }, "start_date")).toEqual({
+    error: "start_date has an invalid value",
+    ok: false,
+  });
+  expect(requireDateString({ start_date: 42 }, "start_date")).toEqual({
+    error: "start_date has an invalid value",
+    ok: false,
+  });
+  expect(requireDateString({}, "start_date")).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+});
+
+test("optionalDateString keeps the fallback when the key is absent", () => {
+  expect(optionalDateString({}, "start_date", "2026-01-01")).toEqual({
+    ok: true,
+    value: "2026-01-01",
+  });
+  expect(
+    optionalDateString({ start_date: 42 }, "start_date", "2026-01-01"),
+  ).toEqual({ error: "start_date has an invalid value", ok: false });
+  expect(
+    optionalDateString({ start_date: " 2027-06-01 " }, "start_date", "x"),
+  ).toEqual({ ok: true, value: "2027-06-01" });
+});
+
+test("optionalDateString cleans a stored fallback date", () => {
+  expect(optionalDateString({}, "start_date", " 2027-06-01 ")).toEqual({
+    ok: true,
+    value: "2027-06-01",
+  });
+});
+
+test("optionalDateString stops loudly on an unusable stored fallback", () => {
+  expect(() => optionalDateString({}, "start_date", "2027-6-1")).toThrow(
+    "fallback does not hold a usable date: 2027-6-1",
+  );
+  expect(() => optionalDateString({}, "start_date", "not-a-date")).toThrow(
+    "fallback does not hold a usable date: not-a-date",
+  );
 });
 
 test("parseOptionalArray maps each entry through the parser", () => {
@@ -53,33 +109,33 @@ test("parseUpdateSlug keeps the existing slug when none is submitted", async () 
   ).toEqual({ slug: "old-slug", slugIndex: "index:old-slug" });
 });
 
-test("parseUpdateName trims the submitted name", () => {
-  expect(parseUpdateName({ name: " Updated " }, "Original")).toEqual({
+test("requireEntityName trims the submitted name", () => {
+  expect(requireEntityName({ name: " Updated " }, "Original")).toEqual({
     ok: true,
     value: "Updated",
   });
 });
 
-test("parseUpdateName falls back to the existing name when omitted", () => {
-  expect(parseUpdateName({}, "Original")).toEqual({
+test("requireEntityName falls back to the existing name when omitted", () => {
+  expect(requireEntityName({}, "Original")).toEqual({
     ok: true,
     value: "Original",
   });
 });
 
-test("parseUpdateName rejects an empty name", () => {
-  expect(parseUpdateName({ name: "" }, "Original")).toEqual({
+test("requireEntityName rejects an empty name", () => {
+  expect(requireEntityName({ name: "" }, "Original")).toEqual({
     error: "name cannot be empty",
     ok: false,
   });
 });
 
-test("parseUpdateName rejects a non-string name", () => {
-  expect(parseUpdateName({ name: 123 }, "Original")).toEqual({
+test("requireEntityName rejects a non-string name", () => {
+  expect(requireEntityName({ name: 123 }, "Original")).toEqual({
     error: "name must be a string",
     ok: false,
   });
-  expect(parseUpdateName({ name: null }, "Original")).toEqual({
+  expect(requireEntityName({ name: null }, "Original")).toEqual({
     error: "name must be a string",
     ok: false,
   });

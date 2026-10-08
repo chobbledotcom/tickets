@@ -105,6 +105,51 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
+    // The shared date parser runs at the JSON boundary: every unusable shape
+    // the parser refuses answers the field-named message.
+    test("refuses unusable date shapes with the field message", async () => {
+      const cases: Record<string, unknown>[] = [
+        { end_date: "2026-08-31", name: "Unpadded", start_date: "2026-7-1" },
+        {
+          end_date: "2026-08-31",
+          name: "Rollover",
+          start_date: "2026-02-30",
+        },
+        {
+          end_date: "2026-08-31",
+          name: "Datetime",
+          start_date: "2026-07-01T00:00",
+        },
+        { end_date: "2026-08-31", name: "Wording", start_date: "soon" },
+      ];
+      for (const body of cases) {
+        await assertJson(
+          apiRequest("/api/admin/holidays", { body, method: "POST" }),
+          400,
+          (error) => {
+            expect(error.error).toBe("start_date has an invalid value");
+          },
+        );
+      }
+    });
+
+    test("trims a padded date and stores the clean value", async () => {
+      await assertJson(
+        apiRequest("/api/admin/holidays", {
+          body: {
+            end_date: "2026-08-31",
+            name: "Padded Create",
+            start_date: "  2026-07-01  ",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.holiday.start_date).toBe("2026-07-01");
+        },
+      );
+    });
+
     test("returns error when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays", {
@@ -181,6 +226,27 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
+    test("keeps the stored dates when none are supplied", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Stored Dates",
+        startDate: "2026-01-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { name: "Renamed Only" },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.holiday.name).toBe("Renamed Only");
+          expect(body.holiday.start_date).toBe("2026-01-01");
+          expect(body.holiday.end_date).toBe("2026-01-02");
+        },
+      );
+    });
+
     test("updates dates only", async () => {
       const holiday = await createTestHoliday({
         endDate: "2026-01-02",
@@ -202,9 +268,46 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
     });
 
-    // The stored dates carry no stray whitespace: a leading space breaks the
-    // string comparison the date-range check runs (a space sorts before any
-    // digit). Both mappers share the trim, so update cannot drift from create.
+    // The update mapper runs the same shared date readers: a stored fallback
+    // applies to an absent field, and a supplied unusable date is refused.
+    test("refuses an unusable supplied date on update", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Padded Update",
+        startDate: "2026-01-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { start_date: "2027-02-30" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("start_date has an invalid value");
+        },
+      );
+    });
+
+    test("refuses a non-string date on update", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Typed Update",
+        startDate: "2026-01-01",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { start_date: 42 },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("start_date has an invalid value");
+        },
+      );
+    });
+
     test("trims a padded date on update", async () => {
       const holiday = await createTestHoliday({
         endDate: "2027-06-30",

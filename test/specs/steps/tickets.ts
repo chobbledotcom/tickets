@@ -4,7 +4,7 @@ import { type DataTable, Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import {
   customerBuysBundles,
   organiserSellsAsBundle,

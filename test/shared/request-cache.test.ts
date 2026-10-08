@@ -4,6 +4,7 @@ import { holidays } from "#db/holidays.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -196,9 +197,15 @@ describe("requestCache", () => {
 describeWithEnv("caching integration", { db: true }, () => {
   test("caches holidays within a request and serves fresh data across requests", async () => {
     await holidays.table.insert({
-      endDate: "2026-07-31",
+      endDate: parseDateStringOrThrow(
+        "2026-07-31",
+        "the request-cache holiday end date",
+      ),
       name: "Summer Break",
-      startDate: "2026-07-01",
+      startDate: parseDateStringOrThrow(
+        "2026-07-01",
+        "the request-cache holiday start date",
+      ),
     });
 
     // Within a request, same data is returned (cached reference)
@@ -216,9 +223,15 @@ describeWithEnv("caching integration", { db: true }, () => {
     expect(first).toHaveLength(0);
 
     await holidays.table.insert({
-      endDate: "2026-12-31",
+      endDate: parseDateStringOrThrow(
+        "2026-12-31",
+        "the request-cache holiday end date",
+      ),
       name: "Winter Break",
-      startDate: "2026-12-20",
+      startDate: parseDateStringOrThrow(
+        "2026-12-20",
+        "the request-cache holiday start date",
+      ),
     });
 
     const second = await withRequestContext(() => holidays.getAll());

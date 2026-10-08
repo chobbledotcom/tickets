@@ -17,7 +17,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import type { ListingWithCount } from "#types";
 
 export type ServicingCreateInput = {

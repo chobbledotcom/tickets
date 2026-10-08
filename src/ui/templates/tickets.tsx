@@ -8,13 +8,10 @@ import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-/* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
-import {
-  bookedRangeLabel,
-  formatDatetimeLabel,
-  widestDatedEntry,
-} from "#shared/dates.ts";
+/* jscpd:ignore-end */
+import { bookedRangeLabel } from "#shared/date-labels.ts";
+import { formatDatetimeLabel, widestDatedEntry } from "#shared/dates.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";

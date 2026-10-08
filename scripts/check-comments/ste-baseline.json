@@ -720,11 +720,11 @@
     "semicolon": 1
   },
   "src/shared/dates.ts": {
-    "wordy": 9,
-    "long-sentence": 6,
+    "wordy": 4,
+    "long-sentence": 3,
     "semicolon": 3,
     "contraction": 1,
-    "banned-modal": 2
+    "banned-modal": 1
   },
   "src/shared/day-names.ts": {
     "long-sentence": 1
@@ -2403,11 +2403,7 @@
     "wordy": 1
   },
   "src/shared/validation/date.ts": {
-    "long-sentence": 3,
-    "semicolon": 1,
-    "contraction": 1,
-    "wordy": 1,
-    "banned-modal": 2
+    "long-sentence": 1
   },
   "src/shared/validation/email.ts": {
     "long-sentence": 3,

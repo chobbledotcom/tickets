@@ -17,12 +17,15 @@ import {
   generateUniqueListingSlug,
   parseUpdatedListingSlug,
 } from "#shared/listings-actions.ts";
+// jscpd:ignore-start
 import {
   bodyNumber,
   parseOptionalArray,
-  parseUpdateName,
+  requireEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+// jscpd:ignore-end
+import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /** JSON body accepted by POST /api/admin/listings. */
@@ -80,6 +83,16 @@ const withoutEditorLockedFields = (
   );
 };
 
+const INSTANT_OR_NULL = v.union([
+  v.null(),
+  v.pipe(v.string(), v.check(isUtcInstantOfRealDay)),
+]);
+
+/** The listing date accepts "" beside the usual instants. An undated
+ *  listing stores "" and the GET reads it back as "", so the update
+ *  boundary accepts the sentinel and keeps the round trip. */
+const DATE_OR_EMPTY = v.union([INSTANT_OR_NULL, v.literal("")]);
+
 const API_BODY_FIELD_RULES = [
   [
     "bookable_days",
@@ -91,6 +104,12 @@ const API_BODY_FIELD_RULES = [
     v.pipe(v.number(), v.safeInteger()),
     "duration_days must be a safe integer",
   ],
+  [
+    "closes_at",
+    INSTANT_OR_NULL,
+    "closes_at must be a UTC instant of a real calendar day",
+  ],
+  ["date", DATE_OR_EMPTY, "date must be a UTC instant of a real calendar day"],
   [
     "day_prices",
     v.pipe(
@@ -230,7 +249,7 @@ export const bodyToUpdateInput = async (
 ): Promise<Result<ListingInput>> => {
   const stored = await getStoredListingWithCount(resolved.id);
   const existing = stored === null ? resolved : stored;
-  const parsedName = parseUpdateName(body, existing.name);
+  const parsedName = requireEntityName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
   return withParsedJoinIds(session, body, async (joinIds) => {

@@ -3,7 +3,7 @@ import { filter } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import {
   bookingConflictLabel,
   hasBookingConflicts,

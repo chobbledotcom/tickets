@@ -9,17 +9,17 @@
  * so it works equally for bookings, availability, or any other rule.
  */
 
-/* jscpd:ignore-start -- imports */
 import { compact, map } from "#fp";
 import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
+/* jscpd:ignore-start -- imports */
 import {
   calendarGridDates,
   formatDateLabel,
   formatMonthLabel,
   monthsAround,
   shiftMonth,
-} from "#shared/dates.ts";
+} from "#shared/date-labels.ts";
 /* jscpd:ignore-end */
 
 /** A single date offered by the picker. */

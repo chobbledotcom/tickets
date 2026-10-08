@@ -10,7 +10,8 @@ import type { Liquid } from "liquidjs";
 import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { lazyRef, map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
-import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
+import { bookedRangeLabel } from "#shared/date-labels.ts";
+import { widestDatedEntry } from "#shared/dates.ts";
 import {
   type AnswerLine,
   eachAnswerOnce,

@@ -24,7 +24,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { DAY_MS } from "#shared/now.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate } from "#shared/validation/date-string.ts";
 import {
   validateAddress,
   validateEmail,

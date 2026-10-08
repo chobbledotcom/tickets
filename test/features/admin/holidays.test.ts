@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
 import { validateDateRange } from "#routes/admin/holidays.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
@@ -72,9 +73,15 @@ describeWithEnv("holidays", { db: true }, () => {
 describeWithEnv("the holiday date rule", { db: true }, () => {
   test("rejects an end date before the start date", async () => {
     const error = await validateDateRange({
-      endDate: "2026-01-01",
+      endDate: parseDateStringOrThrow(
+        "2026-01-01",
+        "the backwards-range holiday end date",
+      ),
       name: "Backwards",
-      startDate: "2026-06-01",
+      startDate: parseDateStringOrThrow(
+        "2026-06-01",
+        "the backwards-range holiday start date",
+      ),
     });
 
     expect(error).toBe("End date must be on or after the start date");
@@ -82,9 +89,15 @@ describeWithEnv("the holiday date rule", { db: true }, () => {
 
   test("accepts a single day, where the two dates are equal", async () => {
     const error = await validateDateRange({
-      endDate: "2026-06-01",
+      endDate: parseDateStringOrThrow(
+        "2026-06-01",
+        "the one-day holiday end date",
+      ),
       name: "One day",
-      startDate: "2026-06-01",
+      startDate: parseDateStringOrThrow(
+        "2026-06-01",
+        "the one-day holiday start date",
+      ),
     });
 
     expect(error).toBe(null);
