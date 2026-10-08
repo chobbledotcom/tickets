@@ -130,7 +130,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.",
+        "Pad the stored holiday dates the pre-2476 mapper wrote unpadded.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
