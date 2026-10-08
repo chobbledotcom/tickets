@@ -12,7 +12,7 @@ import {
 import {
   type DateString,
   parseDateString,
-  parseStoredDateString,
+  parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
 import type { AdminSession } from "#types";
 
@@ -111,7 +111,7 @@ const optionalDateAbsent =
     if (raw !== undefined) {
       return null;
     }
-    return okResult(parseStoredDateString(fallback, `${key} fallback`));
+    return okResult(parseDateStringOrThrow(fallback, `${key} fallback`));
   };
 
 /**

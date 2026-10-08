@@ -7,9 +7,6 @@ import * as v from "valibot";
  * and a day from `01` to `31`. The real-day check below additionally rejects
  * rollover typos that share the format but do not name real days. An example
  * is `2026-02-30`, which `Date` silently rolls forward to March 2.
- *
- * Mirrors the schema + isValidXxx shape of validation/email.ts as the rest of
- * the app's validation migrates to valibot.
  */
 
 /** Whether a `YYYY-MM-DD` string round-trips through a UTC `Date` as the same
@@ -36,11 +33,10 @@ export const isIsoDate = (value: string): boolean => v.is(IsoDateSchema, value);
 declare const dateBrand: unique symbol;
 
 /** A `YYYY-MM-DD` string that passed the real-calendar-day check. The brand
- *  is the compile-level half of the cleanup. Today it guards the holiday
+ *  is the compile-level half of the cleanup. It guards the holiday
  *  boundary: `HolidayInput.startDate` and `.endDate` carry it, and the
  *  readers that produce it are `parseDateString`, `parseDateStringOrThrow`,
- *  `dateRange`, `requireDateString`, and `optionalDateString`. The consumers
- *  in `src/shared/dates.ts` still take plain strings. */
+ *  `dateRange`, `requireDateString`, and `optionalDateString`. */
 export type DateString = string & { readonly [dateBrand]: "DateString" };
 
 /** Clean one raw date value at a boundary: trim the whitespace around it,
@@ -65,12 +61,6 @@ export const parseDateStringOrThrow = (
   }
   return parsed;
 };
-
-/** Parse a stored date. The stored holiday dates are repaired once by the
- *  holiday-date-padding migration. A stored value the rule refuses is an
- *  impossible state and stops the request loudly: the read must not guess. */
-export const parseStoredDateString = (raw: string, what: string): DateString =>
-  parseDateStringOrThrow(raw, what);
 
 /** Whether a value is a UTC instant of a real calendar day — the shape the
  *  listing datetime columns store. The whole value must match. The date half

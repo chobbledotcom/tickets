@@ -11,7 +11,6 @@ import {
   isUtcInstantOfRealDay,
   parseDateString,
   parseDateStringOrThrow,
-  parseStoredDateString,
 } from "#shared/validation/date-string.ts";
 
 describe("isRealCalendarDay", () => {
@@ -82,26 +81,6 @@ describe("parseDateStringOrThrow", () => {
     );
     expect(() => parseDateStringOrThrow("soon", "the test date")).toThrow(
       "the test date does not hold a usable date: soon",
-    );
-  });
-});
-
-describe("parseStoredDateString", () => {
-  test("parses a stored date that already meets the strict rule", () => {
-    expect(parseStoredDateString("2027-06-01", "the stored date")).toBe(
-      "2027-06-01",
-    );
-  });
-
-  test("stops loudly on a stored date no migration could have padded", () => {
-    expect(() => parseStoredDateString("2027-6-1", "the stored date")).toThrow(
-      "the stored date does not hold a usable date: 2027-6-1",
-    );
-    expect(() =>
-      parseStoredDateString("2026-02-30", "the stored date"),
-    ).toThrow("the stored date does not hold a usable date: 2026-02-30");
-    expect(() => parseStoredDateString("soon", "the stored date")).toThrow(
-      "the stored date does not hold a usable date: soon",
     );
   });
 });
