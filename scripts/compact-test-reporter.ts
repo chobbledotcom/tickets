@@ -38,6 +38,9 @@ export type CompactTapSummary = {
   fileEstimate: number;
   /** The name of the last result line the output carried. */
   lastResultName?: string | undefined;
+  /** Stdout lines the TAP stream carried beside the results — the only place
+   * a dying child's own error text can appear. */
+  droppedLines: string[];
 };
 
 type CompactTapReporterOptions = {
@@ -49,6 +52,9 @@ type CompactTapReporterOptions = {
 };
 
 const PROGRESS_WIDTH = 24;
+/** The dying child's own lines land at the end of its output, so the last
+ * ones are the cause; the cap keeps a chatty run from flooding the summary. */
+const DROPPED_LINE_CAP = 50;
 const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
 const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
 const stripTapDirective = (name: string): string =>
@@ -118,6 +124,7 @@ export class CompactTapReporter {
   #sawTap = false;
   #lastResultName?: string | undefined;
   #consumedResults = 0;
+  #dropped: string[] = [];
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
@@ -162,7 +169,13 @@ export class CompactTapReporter {
     if (trimmed === "---" || trimmed === "...") return;
 
     const result = line.match(TEST_RESULT_RE);
-    if (!result) return;
+    if (!result) {
+      // A line the TAP grammar does not define is the child's own voice: an
+      // error, a panic, or a leak report. Keep the last ones for the summary.
+      this.#dropped.push(line);
+      if (this.#dropped.length > DROPPED_LINE_CAP) this.#dropped.shift();
+      return;
+    }
 
     this.#sawTap = true;
     this.#consumedResults++;
@@ -183,6 +196,7 @@ export class CompactTapReporter {
   finish(): CompactTapSummary {
     this.#flushPendingFailure();
     return {
+      droppedLines: [...this.#dropped],
       failed: this.#failed,
       failures: [...this.#failures],
       fileEstimate: this.#fileEstimate,
@@ -278,10 +292,34 @@ const usefulStderr = (stderr: string): string =>
     .join("\n")
     .trim();
 
+/** The test files deno's JUnit report marks with error entries. Deno's TAP
+ * reporter drops the text of an uncaught error, but its JUnit report still
+ * names the file it aborted, so the summary can point at the entry that was
+ * running. */
+export const junitErrorFiles = (junit: string): string[] => {
+  const names = new Set<string>();
+  const suite = /<testsuite\b[^>]*>/g;
+  for (const tag of junit.matchAll(suite)) {
+    const name = tag[0].match(/\bname="([^"]+)"/)?.[1];
+    const errors = tag[0].match(/\berrors="([1-9]\d*)"/)?.[1];
+    if (name && errors) names.add(name);
+  }
+  return [...names];
+};
+
+const describeStatus = (status: {
+  code: number;
+  signal?: string | null;
+}): string =>
+  status.signal
+    ? `deno exited with code ${status.code}, killed by ${status.signal}`
+    : `deno exited with code ${status.code}`;
+
 export const printCompactSummary = (
   summary: CompactTapSummary,
-  exitCode: number,
+  status: { code: number; signal?: string | null },
   stderrText: string,
+  junitErrorFiles: string[] = [],
 ): void => {
   const extra = usefulStderr(stderrText);
   // The shortfall counts results that never arrived. A dropped parent
@@ -296,36 +334,38 @@ export const printCompactSummary = (
   // The declaration count runs both sides of the real result count (it reads
   // fixture strings as declarations and misses loop-generated tests), so it
   // cannot prove a loss on a run the test runner itself called successful.
-  if (summary.failed === 0 && exitCode === 0) {
+  if (summary.failed === 0 && status.code === 0) {
     console.log(`\nPASS ${summary.passed} passed`);
     return;
   }
 
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
 
-  if (summary.failed === 0 && extra === "") {
-    // Zero counted failures on a non-zero exit, with nothing reported on
-    // stderr, is the shape a dead worker leaves; a load error would stand
-    // on stderr instead. The TAP stream names no worker, so the last
-    // result is the closest marker the output holds.
-    if (missing > 0) {
+  if (summary.failed === 0) {
+    console.error(describeStatus(status));
+    if (junitErrorFiles.length > 0) {
       console.error(
-        "\nA test worker probably died, and the tests it still held did not report.",
+        "\ndeno's JUnit report marks these files with uncaught errors:",
       );
-      console.error(
-        `The declaration estimate is ${missing} above the results the output reported.`,
-      );
-    } else {
-      console.error("\nThe run exited with an error, but no test failed.");
-      console.error("A test worker can die before its tests report.");
+      for (const file of junitErrorFiles) console.error(`  ${file}`);
+    }
+    if (summary.droppedLines.length > 0) {
+      console.error("\nStdout lines deno printed beside the TAP results:");
+      for (const line of summary.droppedLines) console.error(line);
+    }
+    if (
+      extra === "" &&
+      summary.droppedLines.length === 0 &&
+      junitErrorFiles.length === 0
+    ) {
+      console.error("\ndeno printed no cause for this exit on either stream.");
     }
     const last =
       summary.lastResultName === undefined ? "(none)" : summary.lastResultName;
     console.error(`The last result shown was: ${last}`);
-    console.error(
-      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
-    );
-  } else if (missing > 0) {
+  }
+
+  if (missing > 0 && !(summary.failed === 0 && extra !== "")) {
     console.error(
       `The declaration estimate is ${missing} above the results the output reported.`,
     );
@@ -353,6 +393,7 @@ export const runCompactDenoTest = async (
     cwd: string;
     env: Record<string, string>;
     estimatedTotal?: number;
+    junitPath?: string;
   },
 ): Promise<number> => {
   console.log("Running tests...");
@@ -380,6 +421,15 @@ export const runCompactDenoTest = async (
   await stdoutTask;
   const stderrText = await stderrTask;
   const summary = reporter.finish();
-  printCompactSummary(summary, status.code, stderrText);
+  const junit =
+    options.junitPath === undefined
+      ? ""
+      : await Deno.readTextFile(options.junitPath).catch(() => "");
+  printCompactSummary(
+    summary,
+    { code: status.code, signal: status.signal },
+    stderrText,
+    junitErrorFiles(junit),
+  );
   return status.code;
 };

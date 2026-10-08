@@ -116,6 +116,7 @@ export const runTests = async (
         cwd: projectRoot,
         env,
         ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
+        ...(junitPath === undefined ? {} : { junitPath }),
       },
     );
   }
