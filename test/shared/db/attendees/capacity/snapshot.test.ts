@@ -16,6 +16,7 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { addDays } from "#shared/dates.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testDate } from "#test-utils/dates.ts";
@@ -30,7 +31,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import type { ListingWithCount } from "#types";
 
 /** A start date comfortably inside every test listing's booking window. */
-const startDate = (): string => addDays(testDate(todayInTz("UTC")), 2);
+const startDate = (): DateString => addDays(testDate(todayInTz("UTC")), 2);
 
 /** Enough for the snapshot's fixed reads, far below one read per length. */
 const SNAPSHOT_CALL_LIMIT = 10;
@@ -84,8 +85,9 @@ describeWithEnv(
       const nine = await listingsOfLengths("Many", [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
       const calls = (listings: ListingWithCount[]): Promise<number> =>
-        countDatabaseCalls(SNAPSHOT_CALL_LIMIT, () =>
-          remainingPerOwnLength(listings, date),
+        countDatabaseCalls(
+          SNAPSHOT_CALL_LIMIT,
+          () => remainingPerOwnLength(listings, date),
         );
 
       expect(await calls(nine)).toBe(await calls(one));
@@ -241,11 +243,13 @@ describeWithEnv(
         listings.map((listing) => listing.id),
       );
 
-      const withLookup = await countDatabaseCalls(SNAPSHOT_CALL_LIMIT, () =>
-        loadCapacitySnapshot(listings, date, 2),
+      const withLookup = await countDatabaseCalls(
+        SNAPSHOT_CALL_LIMIT,
+        () => loadCapacitySnapshot(listings, date, 2),
       );
-      const withKnown = await countDatabaseCalls(SNAPSHOT_CALL_LIMIT, () =>
-        loadCapacitySnapshot(listings, date, 2, membership),
+      const withKnown = await countDatabaseCalls(
+        SNAPSHOT_CALL_LIMIT,
+        () => loadCapacitySnapshot(listings, date, 2, membership),
       );
 
       expect(withKnown).toBe(withLookup - 1);
