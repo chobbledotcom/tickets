@@ -4,15 +4,24 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttributeWithOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
+import {
+  AdminApiError,
+  adminApiChildCreate,
+} from "#shared/admin-api-client.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiAttribute,
+} from "#shared/admin-api-resources.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
+import { adminApiTestTransport } from "#test-utils/admin-api-transport.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { apiRequest } from "#test-utils/session.ts";
+
+const { attributes } = ADMIN_API_RESOURCES;
 
 describeWithEnv("Admin API - Attribute options", { db: true }, () => {
   describe("POST /api/admin/attributes/:attributeId/options", () => {
@@ -20,18 +29,17 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
       const attribute = await createTestAttribute("Game Length");
       await createTestAttributeOption(attribute.id, "15-20 minutes", 0);
 
-      await assertJson(
-        apiRequest(`/api/admin/attributes/${attribute.id}/options`, {
-          body: { text: "20-30 minutes" },
-          method: "POST",
-        }),
-        201,
-        (body) => {
-          expect(
-            body.attribute.options.map((o: { text: string }) => o.text),
-          ).toEqual(["15-20 minutes", "20-30 minutes"]);
-        },
+      const answered = await adminApiChildCreate(
+        adminApiTestTransport,
+        attributes,
+        "options",
+        attribute.id,
+        { text: "20-30 minutes" },
       );
+      expect(answered.attribute.options.map((option) => option.text)).toEqual([
+        "15-20 minutes",
+        "20-30 minutes",
+      ]);
       expect(await activityMessages()).toContain(
         "Attribute option '20-30 minutes' added to Game Length",
       );
@@ -57,18 +65,16 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
         },
       );
       try {
-        await assertJson(
-          apiRequest(`/api/admin/attributes/${attribute.id}/options`, {
-            body: { text: "20-200 guests" },
-            method: "POST",
-          }),
-          201,
-          (body) => {
-            expect(
-              body.attribute.options.map((o: { text: string }) => o.text),
-            ).toContain("20-200 guests");
-          },
+        const answered = await adminApiChildCreate(
+          adminApiTestTransport,
+          attributes,
+          "options",
+          attribute.id,
+          { text: "20-200 guests" },
         );
+        expect(
+          answered.attribute.options.map((option) => option.text),
+        ).toContain("20-200 guests");
       } finally {
         batchStub.restore();
       }
@@ -87,28 +93,28 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
     test("returns error when text is missing", async () => {
       const attribute = await createTestAttribute("No Text");
 
-      await assertJson(
-        apiRequest(`/api/admin/attributes/${attribute.id}/options`, {
-          body: {},
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("text is required");
-        },
-      );
+      const failure = await adminApiChildCreate(
+        adminApiTestTransport,
+        attributes,
+        "options",
+        attribute.id,
+        {},
+      ).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AdminApiError);
+      expect((failure as Error).message).toBe("text is required (status 400)");
     });
 
     test("returns 404 for a non-existent attribute", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attributes/99999/options", {
-          body: { text: "Nope" },
-          method: "POST",
-        }),
-        404,
-        (body) => {
-          expect(body.error).toBe("Attribute not found");
-        },
+      const failure = await adminApiChildCreate(
+        adminApiTestTransport,
+        attributes,
+        "options",
+        99999,
+        { text: "Nope" },
+      ).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AdminApiError);
+      expect((failure as Error).message).toBe(
+        "Attribute not found (status 404)",
       );
     });
   });
@@ -122,39 +128,34 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
         0,
       );
 
-      await assertJson(
-        apiRequest(
-          `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-          { body: { text: "2-4 players" }, method: "PUT" },
-        ),
-        200,
-        (body) => {
-          expect(body.attribute.options).toEqual([
-            {
-              attribute_id: attribute.id,
-              id: option.id,
-              sort_order: 0,
-              text: "2-4 players",
-            },
-          ]);
+      const answered = await adminApiTestTransport({
+        body: { text: "2-4 players" },
+        method: "PUT",
+        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
+      });
+      expect(answered.status).toBe(200);
+      const renamed = (answered.data as { attribute: AdminApiAttribute })
+        .attribute;
+      expect(renamed.options).toEqual([
+        {
+          attribute_id: attribute.id,
+          id: option.id,
+          sort_order: 0,
+          text: "2-4 players",
         },
-      );
+      ]);
       expect(await activityMessages()).toContain(
         "Attribute option '2-4 players' updated in Player Count",
       );
     });
 
     test("returns 404 for an unknown attribute", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attributes/99999/options/1", {
-          body: { text: "Nope" },
-          method: "PUT",
-        }),
-        404,
-        (body) => {
-          expect(body.error).toBe("Attribute not found");
-        },
-      );
+      const failure = await adminApiTestTransport({
+        method: "PUT",
+        path: "/api/admin/attributes/99999/options/1",
+      });
+      expect(failure.status).toBe(404);
+      expect(failure.data).toEqual({ error: "Attribute not found" });
     });
 
     test("returns 404 for an option under another attribute", async () => {
@@ -162,16 +163,13 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
       const other = await createTestAttribute("Other");
       const option = await createTestAttributeOption(other.id, "Stray", 0);
 
-      await assertJson(
-        apiRequest(
-          `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-          { body: { text: "Hijack" }, method: "PUT" },
-        ),
-        404,
-        (body) => {
-          expect(body.error).toBe("Attribute option not found");
-        },
-      );
+      const failure = await adminApiTestTransport({
+        body: { text: "Hijack" },
+        method: "PUT",
+        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
+      });
+      expect(failure.status).toBe(404);
+      expect(failure.data).toEqual({ error: "Attribute option not found" });
     });
   });
 
@@ -184,10 +182,12 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
         0,
       );
 
-      await assertApiDeleteOk(
-        `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-        "5 minutes",
-      );
+      const answered = await adminApiTestTransport({
+        body: { confirm_identifier: "5 minutes" },
+        method: "DELETE",
+        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
+      });
+      expect(answered.status).toBe(200);
       expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
         [],
       );
@@ -204,18 +204,16 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
         0,
       );
 
-      await assertJson(
-        apiRequest(
-          `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-          { body: { confirm_identifier: "wrong" }, method: "DELETE" },
-        ),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "Option text does not match. Please provide the exact option text in confirm_identifier.",
-          );
-        },
-      );
+      const failure = await adminApiTestTransport({
+        body: { confirm_identifier: "wrong" },
+        method: "DELETE",
+        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
+      });
+      expect(failure.status).toBe(400);
+      expect(failure.data).toEqual({
+        error:
+          "Option text does not match. Please provide the exact option text in confirm_identifier.",
+      });
       expect(
         (await getAttributeWithOptions(attribute.id))?.options.length,
       ).toBe(1);

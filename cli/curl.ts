@@ -1,17 +1,12 @@
+import type { AdminApiRequest } from "#shared/admin-api-client.ts";
 import type { CliConfig } from "./config.ts";
-
-export type CurlOptions = Readonly<{
-  method?: string;
-  path: string;
-  body?: unknown;
-}>;
 
 const buildUrl = (host: string, path: string): string =>
   `${host}${path.startsWith("/") ? path : `/${path}`}`;
 
 export const buildCurlArgs = (
   config: CliConfig,
-  { body, method = "GET", path }: CurlOptions,
+  { body, method, path }: AdminApiRequest,
 ): string[] => {
   const args = [
     "--silent",
@@ -45,7 +40,7 @@ export const curlFailureMessage = (stderr: string, stdout: string): string => {
 
 export const curlJson = async <T>(
   config: CliConfig,
-  options: CurlOptions,
+  options: AdminApiRequest,
 ): Promise<T> => {
   const command = new Deno.Command("curl", {
     args: buildCurlArgs(config, options),

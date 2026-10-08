@@ -17,8 +17,9 @@
  *  deno task cli:import-frontmatter [--plan] [--update] --dir <catalog>
  */
 
+import type { AdminApiTransport } from "#shared/admin-api-client.ts";
 import { loadConfig } from "./config.ts";
-import { type CurlOptions, curlJson } from "./curl.ts";
+import { curlJson } from "./curl.ts";
 import { runImport } from "./import-run.ts";
 import { writeErr } from "./io.ts";
 import { parseImportFlags } from "./product-plan.ts";
@@ -34,9 +35,13 @@ const main = async (): Promise<void> => {
     Deno.exit(2);
   }
   const config = await loadConfig(Deno.cwd());
-  await runImport({ ...flags, dir }, <T>(options: CurlOptions) =>
-    curlJson<T>(config, options),
-  );
+  // The transport seam: curl carries the auth and the HTTP mechanics, and
+  // the client validates every answer. When tickets-6's bindFirst lands,
+  // this binding goes through it.
+  const transport: AdminApiTransport = async (options) => ({
+    data: await curlJson(config, options),
+  });
+  await runImport({ ...flags, dir }, transport);
 };
 
 if (import.meta.main) {

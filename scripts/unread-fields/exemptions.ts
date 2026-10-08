@@ -10,9 +10,28 @@ import {
   exemptFieldsAt,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
+import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import type { SumupCheckoutRequest } from "#shared/sumup/transport.ts";
 import type { WarningDeleteProps } from "#templates/admin/confirm-page.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+
+const adminApiResources = exemptFieldsAt<AdminApiResource>(
+  "src/shared/admin-api-resources.ts",
+  [{ name: "AdminApiResource" }],
+  {
+    evidence:
+      "the client's CreateBody and UpdateBody conditionals read the declared body schemas at compile time; no runtime code needs them",
+    kind: "schema-driven",
+  },
+)({
+  children: "check",
+  createBodySchema: "exempt",
+  label: "check",
+  listSchema: "check",
+  path: "check",
+  singleSchema: "check",
+  updateBodySchema: "exempt",
+});
 
 const publicListings = exemptFieldsAt<PublicListing>(
   "src/features/api/public-listing.ts",
@@ -368,6 +387,7 @@ const listingMinQuantity: FindingExemption = {
 };
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
+  ...adminApiResources,
   ...bodyExemptions,
   ...exactExemptions,
   ...publicListings,

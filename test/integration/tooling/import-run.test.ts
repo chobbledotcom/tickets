@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CurlOptions } from "#cli/curl.ts";
 import { runImport } from "#cli/import-run.ts";
+import type { AdminApiTransport } from "#shared/admin-api-client.ts";
 
 /** A catalog with one product in one category. */
 const PRODUCT_FRONTMATTER = [
@@ -52,21 +52,22 @@ type ApiCall = { body: unknown; method: string; path: string };
 type Routes = Record<string, (body: unknown) => unknown>;
 
 /** An API client stub that answers from `routes` and records every call. The
- *  route key is "METHOD path"; GET omits the method. */
+ *  route key is "METHOD path". The stub wraps each answer in the transport's
+ *  `{ data }` envelope, so the client validates it like a real answer. */
 const scriptedApi = (
   routes: Routes,
-): { api: <T>(options: CurlOptions) => Promise<T>; calls: ApiCall[] } => {
+): { api: AdminApiTransport; calls: ApiCall[] } => {
   const calls: ApiCall[] = [];
-  const api = async <T>(options: CurlOptions): Promise<T> => {
-    const key = `${options.method ?? "GET"} ${options.path}`;
+  const api: AdminApiTransport = async (options) => {
+    const key = `${options.method} ${options.path}`;
     calls.push({
       body: options.body,
-      method: options.method ?? "GET",
+      method: options.method,
       path: options.path,
     });
     const handler = routes[key];
     if (!handler) throw new Error(`unexpected API call: ${key}`);
-    return handler(options.body) as T;
+    return { data: handler(options.body) };
   };
   return { api, calls };
 };
@@ -186,7 +187,7 @@ describe("frontmatter import runner", () => {
       ...snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, []),
       ...attributeOptionRoutes([{ id: 21, text: "50 guests" }]),
       "POST /api/admin/groups": () => ({
-        group: { id: 31, name: "Tarpaulins", slug: "tarpaulins" },
+        group: { id: 31, is_package: false, name: "Tarpaulins" },
       }),
       "POST /api/admin/listings": () => ({ listing: towerHire }),
     });

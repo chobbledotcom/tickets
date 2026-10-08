@@ -6,7 +6,9 @@ import { writeErr, writeOut } from "./io.ts";
 import { resources } from "./resources.ts";
 
 const [command, resourceRaw, idOrBody, maybeBody] = Deno.args;
-const usage = `Usage: deno task cli:api <list|get|create|update|delete> <${resources.join("|")}> [id] [json]\n`;
+const usage = `Usage: deno task cli:api <list|get|create|update|delete> <${resources.join(
+  "|",
+)}> [id] [json]\n`;
 
 if (!command || !resourceRaw) {
   await writeErr(usage);
