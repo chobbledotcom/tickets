@@ -26,6 +26,7 @@ const adminApiResources = exemptFieldsAt<AdminApiResource>(
 )({
   children: "check",
   createBodySchema: "exempt",
+  custom: "check",
   label: "check",
   listSchema: "check",
   path: "check",

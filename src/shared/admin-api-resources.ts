@@ -105,13 +105,30 @@ export type AdminApiUpdateAttributeBody = v.InferOutput<
  *  options. The parent envelope (`responseSchema`) is what the child's write
  *  answers with — an option write answers with the whole attribute. */
 export type AdminApiChild = {
+  /** The child's own id param in its update and delete routes: "optionId". */
+  idParam: string;
   /** The child's URL segment under the parent's id segment: "options". */
   path: string;
   responseSchema: v.GenericSchema;
 };
 
+/** The id param a resource's routes use: the label lowercased plus "Id"
+ *  ("Attribute" answers "attributeId"). */
+export const adminApiIdParam = (label: string): string =>
+  `${label.toLowerCase()}Id`;
+
+/** A server-side custom route declared for the docs and the route keys. */
+export type AdminApiCustomRoute = {
+  method: "DELETE" | "GET" | "POST";
+  /** The URL segment under the resource root, including the id param. */
+  subpath: string;
+};
+
 export type AdminApiResource = {
   children?: Record<string, AdminApiChild>;
+  /** Server-side custom routes. A `DELETE` on the resource's own id segment
+   *  replaces the standard delete handler. */
+  custom?: Record<string, AdminApiCustomRoute>;
   createBodySchema?: v.GenericSchema;
   /** The display name the server logs and confirms with ("Attribute"). The
    *  single-envelope key and the id param name derive from it lowercased. */
@@ -128,6 +145,7 @@ export const ADMIN_API_RESOURCES = {
   attributes: {
     children: {
       options: {
+        idParam: "optionId",
         path: "options",
         responseSchema: attributeEnvelope,
       },
@@ -154,6 +172,24 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: UpdateHolidayBodySchema,
   },
   listings: {
+    custom: {
+      attendees: {
+        method: "GET",
+        subpath: ":listingId/attendees",
+      },
+      deactivate: {
+        method: "POST",
+        subpath: ":listingId/deactivate",
+      },
+      delete: {
+        method: "DELETE",
+        subpath: ":listingId",
+      },
+      reactivate: {
+        method: "POST",
+        subpath: ":listingId/reactivate",
+      },
+    },
     label: "Listing",
     listSchema: v.looseObject({
       listings: v.array(ListingRowSchema),

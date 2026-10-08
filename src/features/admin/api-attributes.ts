@@ -27,6 +27,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { OWNER_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   apiEntityGate,
@@ -79,29 +80,6 @@ const orderAppend = {
     existing: Attribute | null,
   ) => okResult(existing === null),
 };
-
-export const attributeCrudRoutes = defineCrudApi<
-  Attribute,
-  { name: string },
-  AttributeWithOptions,
-  boolean
->({
-  getAll: getAllAttributesWithOptions,
-  lookup: getAttributeWithOptions,
-  // Read-your-writes: the create/update response re-reads the row and its
-  // options from the primary. A lagging replica cannot answer without the
-  // row the write just made.
-  lookupAfterWrite: getAttributeWithOptionsOnPrimary,
-  name: "attributes",
-  nameField: "name",
-  onDelete: (id) => deleteAttribute(Number(id)),
-  policy: OWNER_API,
-  sideEffect: orderAppend,
-  singular: "Attribute",
-  table: attributesTable,
-  toCreateInput: (body) => toAttributeInput(body, null),
-  toUpdateInput: toAttributeInput,
-});
 
 type AttributeOptionParams = { attributeId: number; optionId: number };
 
@@ -198,11 +176,31 @@ const handleOptionDelete: RouteHandlerFn = (request, params) =>
     },
   );
 
-export const attributeApiRoutes = {
-  ...attributeCrudRoutes,
-  "DELETE /api/admin/attributes/:attributeId/options/:optionId":
-    handleOptionDelete,
-  "POST /api/admin/attributes/:attributeId/options": handleOptionCreate,
-  "PUT /api/admin/attributes/:attributeId/options/:optionId":
-    handleOptionUpdate,
-};
+export const attributeApiRoutes = defineCrudApi<
+  typeof ADMIN_API_RESOURCES.attributes,
+  Attribute,
+  { name: string },
+  Attribute,
+  boolean
+>(ADMIN_API_RESOURCES.attributes, {
+  childHandlers: {
+    options: {
+      create: handleOptionCreate,
+      delete: handleOptionDelete,
+      update: handleOptionUpdate,
+    },
+  },
+  getAll: getAllAttributesWithOptions,
+  lookup: getAttributeWithOptions,
+  // Read-your-writes: the create/update response re-reads the row and its
+  // options from the primary. A lagging replica cannot answer without the
+  // row the write just made.
+  lookupAfterWrite: getAttributeWithOptionsOnPrimary,
+  nameField: "name",
+  onDelete: (id) => deleteAttribute(Number(id)),
+  policy: OWNER_API,
+  sideEffect: orderAppend,
+  table: attributesTable,
+  toCreateInput: (body) => toAttributeInput(body, null),
+  toUpdateInput: toAttributeInput,
+});

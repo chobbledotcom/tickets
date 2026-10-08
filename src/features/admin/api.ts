@@ -29,6 +29,7 @@ import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
+import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   performListingDelete,
@@ -39,7 +40,6 @@ import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Attendee, Listing, ListingWithCount } from "#types";
-
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,
@@ -190,33 +190,33 @@ const prepareApiListingJoins = async (
 };
 
 const listingApiRoutes = defineCrudApi<
+  typeof ADMIN_API_RESOURCES.listings,
   Listing,
   ListingInput,
   ListingWithCount,
   PreparedListingJoins
->({
+>(ADMIN_API_RESOURCES.listings, {
   afterCommit: syncListingPrices,
   // The add-on reachability half of the save refuses inside the row write's
   // transaction, so two concurrent page-removing saves cannot both commit.
   checkTx: listingSaveOrphanedAddOnTx,
+  customHandlers: {
+    attendees: handleListingAttendees,
+    deactivate: toggleActiveRoute(false),
+    delete: handleDeleteListing,
+    reactivate: toggleActiveRoute(true),
+  },
   // Role parity with the listing pages: create/edit/duplicate admit content
   // admins (owner, manager, editor — areas-a-l.ts "listings"). The delete,
   // deactivate, and reactivate routes are staff-only. An editor therefore
   // writes through the API exactly as far as the dashboard allows.
   deletePolicy: ADMIN_API,
-  extraRoutes: {
-    "DELETE /api/admin/listings/:listingId": handleDeleteListing,
-    "GET /api/admin/listings/:listingId/attendees": handleListingAttendees,
-    "POST /api/admin/listings/:listingId/deactivate": toggleActiveRoute(false),
-    "POST /api/admin/listings/:listingId/reactivate": toggleActiveRoute(true),
-  },
   getAll: getAllListings,
   hydrate: hydrateListingJoins,
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
   lookup: getListingWithCount,
   lookupAfterWrite: getListingWithCountPrimary,
-  name: "listings",
   nameField: "name",
   policy: CONTENT_API,
   /** The dashboard's editor table is money-free (listing-table.tsx), so the
@@ -240,7 +240,6 @@ const listingApiRoutes = defineCrudApi<
     persist: persistListingJoins,
     validate: prepareApiListingJoins,
   },
-  singular: "Listing",
   stripKeys: ["slug_index"],
   table: listingsTable,
   toCreateInput: bodyToCreateInput,

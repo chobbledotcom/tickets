@@ -5,8 +5,15 @@ import type { Table } from "#db/table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { isNotNullish } from "#fp";
 import { ADMIN_API } from "#routes/auth.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiResource,
+} from "#shared/admin-api-resources.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import type { CrudApiConfig } from "#shared/rest/crud-api-types.ts";
+import type {
+  CrudApiConfig,
+  CrudApiHandlers,
+} from "#shared/rest/crud-api-types.ts";
 import { okResult } from "#shared/result.ts";
 import {
   getAllActivityLog,
@@ -23,24 +30,54 @@ import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
 
 const makeTable = (): Table<Row, Input> => makeIdNameTable("widgets");
 
+/** The widget entry the tests build routes for: the attributes surface with
+ *  its options child, plus an archive custom route. */
+const WIDGET_ENTRY = {
+  ...ADMIN_API_RESOURCES.attributes,
+  custom: {
+    archive: {
+      method: "POST",
+      subpath: ":widgetId/archive",
+    },
+  },
+  label: "Widget",
+  path: "widgets",
+} as const satisfies AdminApiResource;
+
+/** The default handler the tests do not pin: it answers the delete envelope,
+ *  so a route the test does not stub still answers JSON. */
+const ok = () =>
+  Promise.resolve(new Response(JSON.stringify({ status: "ok" })));
+
+const nameInputs = {
+  toCreateInput: (body: Record<string, unknown>) =>
+    okResult({ name: String(body.name) }),
+  toUpdateInput: (body: Record<string, unknown>, existing: Row) =>
+    okResult({
+      name: isNotNullish(body.name) ? String(body.name) : existing.name,
+    }),
+};
+
 const makeRoutes = <State = never>(
   table: Table<Row, Input>,
-  config: Partial<CrudApiConfig<Row, Input, Row, void, State>> = {},
+  config: Partial<CrudApiConfig<Row, Input, Row, void, State>> &
+    Partial<CrudApiHandlers<typeof WIDGET_ENTRY>> = {},
 ): Record<string, unknown> =>
-  defineCrudApi<Row, Input, Row, void, State>({
-    getAll: () => table.read.many(),
-    name: "widgets",
-    nameField: "name",
-    policy: ADMIN_API,
-    singular: "Widget",
-    table,
-    toCreateInput: (body) => okResult({ name: String(body.name) }),
-    toUpdateInput: (body, existing) =>
-      okResult({
-        name: isNotNullish(body.name) ? String(body.name) : existing.name,
-      }),
-    ...config,
-  });
+  defineCrudApi<typeof WIDGET_ENTRY, Row, Input, Row, void, State>(
+    WIDGET_ENTRY,
+    {
+      childHandlers: {
+        options: { create: ok, delete: ok, update: ok },
+      },
+      customHandlers: { archive: ok },
+      getAll: () => table.read.many(),
+      nameField: "name",
+      policy: ADMIN_API,
+      table,
+      ...nameInputs,
+      ...config,
+    },
+  );
 
 const callRoute = async (
   routes: Record<string, unknown>,
@@ -75,14 +112,79 @@ const callRoute = async (
 describeWithEnv("defineCrudApi", { db: true }, () => {
   beforeEach(() => createIdNameTable("widgets"));
 
-  test("includes configured extra routes", () => {
-    const extraRoute = () => Promise.resolve(new Response("archived"));
-    const route = "POST /api/admin/widgets/:widgetId/archive";
+  test("builds the child routes the table declares", () => {
+    const create = () => Promise.resolve(new Response("ok"));
+    const remove = () => Promise.resolve(new Response("ok"));
+    const update = () => Promise.resolve(new Response("ok"));
     const routes = makeRoutes(makeTable(), {
-      extraRoutes: { [route]: extraRoute },
+      childHandlers: {
+        options: { create, delete: remove, update },
+      },
     });
 
-    expect(routes[route]).toBe(extraRoute);
+    expect(routes["POST /api/admin/widgets/:widgetId/options"]).toBe(create);
+    expect(routes["PUT /api/admin/widgets/:widgetId/options/:optionId"]).toBe(
+      update,
+    );
+    expect(
+      routes["DELETE /api/admin/widgets/:widgetId/options/:optionId"],
+    ).toBe(remove);
+  });
+
+  test("includes the custom routes the table declares", () => {
+    const archive = () => Promise.resolve(new Response("archived"));
+    const routes = makeRoutes(makeTable(), {
+      customHandlers: { archive },
+    });
+
+    expect(routes["POST /api/admin/widgets/:widgetId/archive"]).toBe(archive);
+  });
+
+  test("a custom route on the resource's own id segment replaces the standard one", () => {
+    const customDelete = () => Promise.resolve(new Response("ok"));
+    const replaceEntry = {
+      ...WIDGET_ENTRY,
+      custom: {
+        delete: {
+          method: "DELETE",
+          subpath: ":widgetId",
+        },
+      },
+    } as const satisfies AdminApiResource;
+    const routes = defineCrudApi<typeof replaceEntry, Row, Input, Row, void>(
+      replaceEntry,
+      {
+        childHandlers: {
+          options: { create: ok, delete: ok, update: ok },
+        },
+        customHandlers: { delete: customDelete },
+        getAll: () => Promise.resolve([]),
+        nameField: "name",
+        policy: ADMIN_API,
+        table: makeTable(),
+        ...nameInputs,
+      },
+    );
+
+    expect(routes["DELETE /api/admin/widgets/:widgetId"]).toBe(customDelete);
+  });
+
+  test("a config that omits a declared custom handler does not compile", () => {
+    const build = () =>
+      defineCrudApi(WIDGET_ENTRY, {
+        childHandlers: {
+          options: { create: ok, delete: ok, update: ok },
+        },
+        // @ts-expect-error the table declares the archive route, so a config
+        // without its handler is a compile error
+        customHandlers: {},
+        getAll: () => Promise.resolve([]),
+        nameField: "name",
+        policy: ADMIN_API,
+        table: makeTable(),
+        ...nameInputs,
+      });
+    expect(typeof build).toBe("function");
   });
 
   test("creates, strips, hydrates, and logs a row", async () => {

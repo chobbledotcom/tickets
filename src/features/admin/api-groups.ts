@@ -20,6 +20,7 @@ import {
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
 import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
+import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
   type CatalogApiBody,
   invalidApiValueField,
@@ -222,12 +223,13 @@ const toGroupInput = async (
 };
 
 export const groupApiRoutes = defineCrudApi<
+  typeof ADMIN_API_RESOURCES.groups,
   Group,
   GroupInput,
   Group,
-  void,
-  PackageFlags
->({
+  Group,
+  PackageFlags | null
+>(ADMIN_API_RESOURCES.groups, {
   afterWrite: (tx, id, input, flags) =>
     writePackageMembersTx(
       tx,
@@ -267,12 +269,10 @@ export const groupApiRoutes = defineCrudApi<
       }),
     );
   },
-  name: "groups",
   nameField: "name",
   onDelete: deleteGroup,
   policy: CONTENT_API,
   readState: readPackageFlagsTxOrNull,
-  singular: "Group",
   stripKeys: ["slug_index"],
   table: groups.table,
 
