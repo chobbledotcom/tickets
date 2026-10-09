@@ -412,8 +412,20 @@ describe("running deno test with the compact reporter", () => {
       );
       const { errors, value } = await capturingConsole(() =>
         runCompactDenoTest(
-          ["test", "--no-check", "-A", "--reporter=tap", "crashes.test.ts"],
-          { cwd: dir.path, env: { CI: "1" } },
+          [
+            "test",
+            "--no-check",
+            "-A",
+            "--reporter=tap",
+            "--junit-path",
+            `${dir.path}/junit.xml`,
+            "crashes.test.ts",
+          ],
+          {
+            cwd: dir.path,
+            env: { CI: "1" },
+            junitPath: `${dir.path}/junit.xml`,
+          },
         ),
       );
 
