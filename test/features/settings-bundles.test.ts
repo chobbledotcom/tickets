@@ -20,6 +20,12 @@ describe("settings bundles", () => {
     expect(settingsForPath("/admin")).toContain("db_schema_hash");
   });
 
+  test("loads the admin bundle for the welcome-dismiss POST", () => {
+    expect(settingsForPath("/admin/welcome/dismiss")).toContain(
+      CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
+    );
+  });
+
   test("keeps the home page bundle narrower than the full settings list", () => {
     expect(settingsForPath("/")).not.toContain(
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,

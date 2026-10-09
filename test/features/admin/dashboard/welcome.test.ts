@@ -6,6 +6,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { WELCOME_STEPS } from "#templates/admin/welcome-banner.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
@@ -127,6 +128,13 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
       "Make a test booking and check the money and emails arrive",
     );
     expect(html).not.toContain('href="/listings"');
+  });
+
+  test("hides the welcome banner in read-only mode", async () => {
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = await (await adminGet("/admin/")).text();
+    expect(html).not.toContain(BANNER_MARK);
+    expect(html).not.toContain("Got it");
   });
 
   test("points every welcome step at a page the site serves", async () => {

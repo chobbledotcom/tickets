@@ -266,7 +266,7 @@ export const adminDashboardPage = (
     successMessage,
   )(
     <>
-      {showWelcome && <WelcomeBanner />}
+      {showWelcome && !isReadOnly() && <WelcomeBanner />}
 
       {!isReadOnly() && <DashboardQuickActions />}
 
