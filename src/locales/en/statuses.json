@@ -27,5 +27,6 @@
   "statuses.delete_button": "Delete status",
   "statuses.delete_title": "Delete Attendee Status",
   "statuses.delete_confirm": "Type the status name \"{name}\" to confirm deletion:",
-  "statuses.guide_link": "Attendee statuses guide"
+  "statuses.guide_link": "Attendee statuses guide",
+  "statuses.name_label": "Name"
 }

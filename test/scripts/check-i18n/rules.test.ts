@@ -124,6 +124,14 @@ describe("flashLiterals", () => {
     expect(flashLiterals(`errorRedirect(path, 'single quoted');`)).toEqual([
       'L1 flash "single quoted"',
     ]);
+    expect(flashLiterals(`ok("/admin/x", "Already logged in");`)).toEqual([
+      'L1 flash "Already logged in"',
+    ]);
+    expect(flashLiterals(`fail(path, "Ticket token not found.");`)).toEqual([
+      'L1 flash "Ticket token not found."',
+    ]);
+    expect(flashLiterals(`result.ok("x");`)).toEqual([]);
+    expect(flashLiterals(`unit.ok(path, t("a.b"));`)).toEqual([]);
     expect(
       flashLiterals(`redirect("/join", t("join.password_set"), true);`),
     ).toEqual([]);

@@ -188,6 +188,7 @@ const crudConfig = {
   getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
   getRowPath: (g: Group) => entityReturnPath(adminPattern("groups"), g.id),
+  identifierLabel: t("groups.name_label"),
   list: "groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,

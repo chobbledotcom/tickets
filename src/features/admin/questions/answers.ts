@@ -148,7 +148,7 @@ export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
     actionLabel: "deletion",
     auth: OWNER_FORM,
     identifier: ({ answer }) => answer.text,
-    identifierLabel: "Answer text",
+    identifierLabel: t("questions.answer_label"),
     loadContext: loadQuestionAndAnswer,
     mismatchRedirect: (_, { id, answerId }) =>
       `/admin/questions/${id}/answers/${answerId}/delete`,

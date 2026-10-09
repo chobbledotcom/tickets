@@ -97,6 +97,7 @@ const crud = createCrudHandlers({
   getAll: builtSites.getAll,
   getName: (s) => s.name,
   getRowPath: (site) => builtSitePage.path(site.id),
+  identifierLabel: t("built_sites.name_label"),
   list: "builtSites",
   operations: builtSitesResource,
   renderDelete: adminBuiltSiteDeletePage,

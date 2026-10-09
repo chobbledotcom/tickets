@@ -82,6 +82,7 @@ const logisticsAgentEditResource = defineResource({
 const crud = createCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (agent) => agent.name,
+  identifierLabel: t("logistics.name_label"),
   list: "logistics",
   operations: logisticsAgentsResource,
   renderDelete: logisticsAgentPages.deletePage,

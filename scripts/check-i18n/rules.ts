@@ -163,9 +163,10 @@ const templatePropLeftovers = (src: string): string[] =>
     propHit,
   );
 
-/** The response helpers whose second argument is a flash message. */
+/** The response helpers whose second argument is a flash message. ok and
+ * fail wrap redirect in src/shared/response.ts. */
 const FLASH_CALL =
-  /(?<![A-Za-z0-9_$.])(errorRedirect|infoRedirect|redirect)\(/g;
+  /(?<![A-Za-z0-9_$.])(errorRedirect|infoRedirect|redirect|ok|fail)\(/g;
 
 /** A message argument that is exactly one string or template literal. */
 const BARE_LITERAL =

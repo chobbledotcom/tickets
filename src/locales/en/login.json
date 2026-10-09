@@ -43,5 +43,6 @@
   "success.password_changed": "Password changed — please log in again",
   "success.password_set": "Password set successfully",
   "success.logged_in": "Logged in",
-  "success.logged_out": "Logged out"
+  "success.logged_out": "Logged out",
+  "success.already_logged_in": "Already logged in"
 }

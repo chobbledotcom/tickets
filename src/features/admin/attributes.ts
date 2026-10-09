@@ -241,7 +241,7 @@ const handleAddOption = createAuthedFormRoute<
 
 const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
   identifier: (attribute) => attributeNameFlat(attribute.name),
-  identifierLabel: "Attribute name",
+  identifierLabel: () => t("attributes.name_label"),
   load: getAttributeWithOptions,
   onConfirm: confirmDeleteWithLog(
     deleteAttribute,
@@ -311,7 +311,7 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   actionLabel: "deletion",
   auth: OWNER_FORM,
   identifier: ({ option }) => option.text,
-  identifierLabel: "Option text",
+  identifierLabel: () => t("attributes.option_label"),
   loadContext: loadAttributeOption,
   mismatchRedirect: (_context, params) => optionDeletePath(params),
   onConfirm: async ({ context: { attribute, option } }) => {

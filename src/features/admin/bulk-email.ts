@@ -464,7 +464,7 @@ const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
   {
     auth: "owner",
     identifier: (template) => template.subject,
-    identifierLabel: "Template subject",
+    identifierLabel: t("bulk_email.name_label"),
     load: async (id) => {
       const raw = await getRawEmailTemplate(id);
       if (!raw) return null;

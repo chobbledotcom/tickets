@@ -57,5 +57,6 @@
   "bulk_email.template_missing": "That template no longer exists.",
   "bulk_email.template_limit_reached": "You've reached the limit of {max} saved templates.",
   "bulk_email.template_saved_flash": "Template saved.",
-  "bulk_email.template_updated_flash": "Template updated."
+  "bulk_email.template_updated_flash": "Template updated.",
+  "bulk_email.name_label": "Template subject"
 }

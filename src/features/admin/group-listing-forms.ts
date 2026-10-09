@@ -29,6 +29,17 @@ import type { Group, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
+/** The verified-form base for group actions the operator confirms by typing
+ * the group's name: the identifier check, its label, and the group load. */
+export const groupConfirmBase = (
+  mismatchRedirect: (group: Group) => string,
+) => ({
+  identifier: (group: Group) => group.name,
+  identifierLabel: t("groups.name_label"),
+  loadContext: ({ id }: { id: number }) => getGroupById(id),
+  mismatchRedirect,
+});
+
 /** Validate package-only rules that rely on the group settings loaded for the form. */
 const packageListingError = async (
   group: Group,
@@ -113,12 +124,12 @@ export const handleRemoveListingsPost = createVerifiedFormRoute<
 >({
   actionLabel: "removal",
   auth: CONTENT_FORM,
-  identifier: (group) => group.name,
-  identifierLabel: t("groups.name_label"),
-  loadContext: ({ id }) => getGroupById(id),
-  // The mismatch lands the operator back on the group's page: the confirmation
-  // page's state lives in the query string, which an error redirect drops.
-  mismatchRedirect: ({ id }) => groupPathOf(id),
+  ...groupConfirmBase(
+    // The mismatch lands the operator back on the group's page: the
+    // confirmation page's state lives in the query string, which an error
+    // redirect drops.
+    ({ id }) => groupPathOf(id),
+  ),
   onConfirm: async ({ context: group, form }) => {
     const listingIds = listingIdsFrom(form.getAll("listing_ids"));
     const writeError = await removeListingsFromGroup(listingIds, group.id);

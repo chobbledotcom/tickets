@@ -71,5 +71,7 @@
   "success.user_invited": "User invited",
   "success.agents_updated": "Agents updated",
   "success.user_deleted": "User deleted successfully",
-  "success.logged_out_everywhere": "Logged out of all other sessions"
+  "success.logged_out_everywhere": "Logged out of all other sessions",
+  "users.name_label": "Username",
+  "api_keys.name_label": "API key name"
 }

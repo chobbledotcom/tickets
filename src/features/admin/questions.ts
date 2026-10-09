@@ -199,7 +199,7 @@ const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
   // A single-line input cannot carry the raw newlines. Verify against the
   // same flattened form the operator can actually type.
   identifier: (q) => questionTextFlat(q.text),
-  identifierLabel: "Question text",
+  identifierLabel: t("questions.name_label"),
   load: (id) => getQuestionWithAnswers(id),
   onConfirm: confirmDeleteWithLog(deleteQuestion, "Question", (q) => q.text),
   path: "/admin/questions/:id/delete",

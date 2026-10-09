@@ -45,5 +45,7 @@
   "attributes.updated": "Attribute updated",
   "attributes.option_added": "Option added",
   "attributes.option_deleted": "Option deleted",
-  "attributes.option_updated": "Option updated"
+  "attributes.option_updated": "Option updated",
+  "attributes.name_label": "Attribute name",
+  "attributes.option_label": "Option text"
 }

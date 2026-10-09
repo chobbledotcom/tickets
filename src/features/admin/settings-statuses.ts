@@ -124,7 +124,7 @@ const crud = createCrudHandlers({
   getCreatePath: () => LIST_PATH,
   getName: (status) => status.name,
   getRowPath: (status) => attendeeStatusPage.path(status.id),
-  identifierLabel: "Name",
+  identifierLabel: t("statuses.name_label"),
   list: "statuses",
   operations: statusOperations,
   renderDelete: statusPages.deletePage,

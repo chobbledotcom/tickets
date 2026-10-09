@@ -162,5 +162,6 @@
   "built_sites.backup_required": "No backup of this site in the last hour — back it up before updating.",
   "built_sites.secrets_failed": "Secrets could not be set: {error}",
   "built_sites.no_missing_secrets": "No missing secrets — nothing to set",
-  "built_sites.secrets_set": "Set {summary}"
+  "built_sites.secrets_set": "Set {summary}",
+  "built_sites.name_label": "Built site name"
 }

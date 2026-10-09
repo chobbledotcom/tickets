@@ -264,6 +264,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
+  identifierLabel: t("modifiers.name_label"),
   list: "modifiers",
   operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,

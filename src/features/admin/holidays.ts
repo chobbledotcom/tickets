@@ -63,6 +63,7 @@ export const holidaysCrud = createCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   getRowPath: (holiday) => holidayPage.path(holiday.id),
+  identifierLabel: t("holidays.name_label"),
   list: "holidays",
   operations: holidaysResource,
   renderDelete: (...args) => getHolidayPages().deletePage(...args),

@@ -87,7 +87,7 @@ type CrudConfig<Row, Display = Row> = CollectionRenderers<Display[]> & {
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
   activityName?: string;
-  identifierLabel?: string;
+  identifierLabel: string;
   /** Optional delete guard: a returned message blocks the deletion and renders
    * on the confirmation page (see confirmation.ts `guardError`). */
   deleteGuard?: (row: Row, id: number) => Promise<string | null>;
@@ -194,10 +194,7 @@ export const createCrudHandlers = <Row, Display = Row>(
       ? { guardError: (row: Row, id: number) => cfg.deleteGuard!(row, id) }
       : {}),
     identifier: cfg.getName,
-    identifierLabel:
-      cfg.identifierLabel === undefined
-        ? `${cfg.singular} name`
-        : cfg.identifierLabel,
+    identifierLabel: cfg.identifierLabel,
     load: (id) => operations().loadOrNull(id),
     onConfirm: async (row, id, _session, form) => {
       const result = await operations().delete(id, form);

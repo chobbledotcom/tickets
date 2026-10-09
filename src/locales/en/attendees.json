@@ -312,5 +312,6 @@
   "attendees.resend_refused_refunded": "Cannot re-send a notification for a refunded purchase",
   "attendees.merge_source_required": "Source token is required",
   "attendees.merge_source_token_not_found": "Ticket token not found",
-  "attendees.merge_self_refusal": "Cannot merge an attendee with themselves"
+  "attendees.merge_self_refusal": "Cannot merge an attendee with themselves",
+  "attendees.name_label": "Attendee name"
 }

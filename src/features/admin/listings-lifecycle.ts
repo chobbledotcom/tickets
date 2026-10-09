@@ -33,7 +33,7 @@ import type { AdminSession, ListingWithCount } from "#types";
 const listingConfirmBase = {
   auth: "any" as const,
   identifier: (listing: ListingWithCount) => listing.name,
-  identifierLabel: "Listing name",
+  identifierLabel: t("listings_table.name_label"),
   load: (_id: number) => getListingWithCount(_id),
 };
 

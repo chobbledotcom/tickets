@@ -70,5 +70,7 @@
   "questions.answer_added": "Answer added",
   "questions.answer_deleted": "Answer deleted",
   "questions.answer_updated": "Answer updated",
-  "questions.invalid_modifier": "Invalid modifier"
+  "questions.invalid_modifier": "Invalid modifier",
+  "questions.name_label": "Question text",
+  "questions.answer_label": "Answer text"
 }

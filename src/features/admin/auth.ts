@@ -191,7 +191,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 const handleLoginGet = (request: Request): Promise<Response> =>
   withOptionalSession(request, (session) =>
     session
-      ? ok(adminLandingPath(session.adminLevel), "Already logged in")
+      ? ok(adminLandingPath(session.adminLevel), t("success.already_logged_in"))
       : loginResponse(request),
   );
 
