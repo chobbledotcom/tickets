@@ -193,11 +193,12 @@ const childOwnCeilingOnDate = (
 };
 
 /** The parent tickets a parent's children can serve together: the best
- *  feasible date wins. Children that fold on different dates must not sum —
- *  a minimum of three cannot take two units from a Monday-only child and two
- *  from a Tuesday-only child, because no single date carries both. A
- *  non-daily parent has no date selector, so one date-less evaluation
- *  answers. */
+ *  feasible date and day count win. Children that fold on different dates
+ *  must not sum — a minimum of three cannot take two units from a Monday-only
+ *  child and two from a Tuesday-only child, because no single date carries
+ *  both. The same rule binds day counts: the form books one count, so
+ *  children that need different counts must not sum. A non-daily parent has
+ *  no date selector, so one date-less evaluation answers. */
 const combinedChildCapacity = (
   parent: ListingWithCount,
   children: readonly ListingWithCount[],
@@ -220,20 +221,22 @@ const combinedChildCapacity = (
   ]);
   return Math.max(
     0,
-    ...dates.map((date) =>
-      combinedChildCapacityForParent(
-        listingGroups.idsFor(caps.membership, parent.id),
-        facts.map((fact) => ({
-          groupIds: fact.groupIds,
-          ownMax: childOwnCeilingOnDate(
-            parentDates,
-            fact,
-            holidays,
-            dayCounts,
-            date,
-          ),
-        })),
-        datelessRemaining,
+    ...dates.flatMap((date) =>
+      dayCounts.map((days) =>
+        combinedChildCapacityForParent(
+          listingGroups.idsFor(caps.membership, parent.id),
+          facts.map((fact) => ({
+            groupIds: fact.groupIds,
+            ownMax: childOwnCeilingOnDate(
+              parentDates,
+              fact,
+              holidays,
+              [days],
+              date,
+            ),
+          })),
+          datelessRemaining,
+        ),
       ),
     ),
   );

@@ -184,13 +184,20 @@ const roomForChild = (
  *  children walk largest-ceiling first, and the running per-pool spend sits
  *  in `remaining`. `suffix[i]` holds the total ceiling of the children from
  *  `i` on. The floor bound keeps every call's `left` within it, so no call
- *  can owe the tail more than it holds. */
+ *  can owe the tail more than it holds.
+ *
+ *  `memo` remembers each state's answer, keyed by the child index, the lines
+ *  still owed, and every pool's free places. Many include/exclude paths meet
+ *  in the same state, so the walk visits each state once. An unbounded
+ *  catalogue of same-pool children can otherwise retry millions of paths
+ *  for one midpoint. */
 const placeFrom = (
   order: readonly CappedChild[],
   suffix: readonly number[],
   index: number,
   left: number,
   remaining: Map<number, number>,
+  memo: Map<string, boolean>,
 ): boolean => {
   // The caller's floor bound keeps `left` within the tail's total ceiling.
   // The walk therefore lands on an exact zero and never runs past the last
@@ -201,13 +208,18 @@ const placeFrom = (
   // The children after this one can carry at most suffix[index + 1] lines,
   // so this child never sits out more than that.
   const floor = Math.max(0, left - suffix[index + 1]!);
-  for (let units = room; units >= floor; units--) {
+  // Map keys keep their insertion order, so the joined levels name the state.
+  const key = `${index}:${left}:${[...remaining.values()].join(",")}`;
+  const seen = memo.get(key);
+  if (seen !== undefined) return seen;
+  let fits = false;
+  for (let units = room; units >= floor && !fits; units--) {
     spendAcrossPools(remaining, child.pools, -units);
-    const placed = placeFrom(order, suffix, index + 1, left - units, remaining);
+    fits = placeFrom(order, suffix, index + 1, left - units, remaining, memo);
     spendAcrossPools(remaining, child.pools, units);
-    if (placed) return true;
   }
-  return false;
+  memo.set(key, fits);
+  return fits;
 };
 
 /** Move `units` of one child's lines across one pool, in place. The map
@@ -256,7 +268,8 @@ const childLinesFit = (
   for (let index = order.length - 1; index >= 0; index--) {
     suffix[index] = suffix[index + 1]! + order[index]!.ownMax;
   }
-  return placeFrom(order, suffix, 0, need, new Map(residual));
+  // One memo per check: the residual is this check's alone.
+  return placeFrom(order, suffix, 0, need, new Map(residual), new Map());
 };
 
 /** Whether one parent's stored minimum already refuses a date: fewer places

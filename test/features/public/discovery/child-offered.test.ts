@@ -62,10 +62,25 @@ describeWithEnv("childOfferedOnDate", { db: true }, () => {
   });
 
   test("a daily child folds when an offered span books on the date", () => {
-    const child = dailyChild();
-    // The parent offers two- and three-day spans; the two-day one books.
+    // The parent offers two- and three-day spans; the customisable child
+    // prices both, and the two-day one books.
+    const child = dailyChild({
+      customisable_days: true,
+      day_prices: { 2: 1000, 3: 2000 },
+      duration_days: 3,
+    });
     expect(childOfferedOnDate(child, [], [2, 3], [today()], today())).toBe(
       true,
+    );
+  });
+
+  test("a daily child folds on no span it does not serve", () => {
+    // A fixed one-day child serves its own span alone: the fold refuses it
+    // on a two- or three-day booking, so the gate refuses it before the
+    // calendar runs.
+    const child = dailyChild();
+    expect(childOfferedOnDate(child, [], [2, 3], [today()], today())).toBe(
+      false,
     );
   });
 

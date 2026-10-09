@@ -11,7 +11,6 @@ import {
   loadCapacitySnapshot,
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
-import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { loadParentAndChildLinks } from "#db/listing-parents.ts";
 import { uniqueBy } from "#fp";
@@ -56,9 +55,9 @@ export const loadDailyDateAvailability = async (
   const widestSpan = Math.max(...judged.map(cardSpanDays));
   const snapshot = await loadCapacitySnapshot([...judged], date, widestSpan);
   const remaining = remainingFromSnapshot(snapshot, judged, cardSpanDays);
-  const memberships = await listingGroups.getIdsByKeys(
-    judged.map((row) => row.id),
-  );
+  // The snapshot's own membership: the same read the figures were built
+  // from, so the allocation ledger and the capacity figures cannot disagree.
+  const memberships = snapshot.membership;
   const soldOut = new Set<number>();
   for (const listing of rows) {
     if (!getBookableStartDates(listing, [...holidays]).includes(date)) {

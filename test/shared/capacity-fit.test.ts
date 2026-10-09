@@ -372,6 +372,27 @@ describe("combinedChildCapacityForParent", () => {
     ).toBe(3);
   });
 
+  test("answers eight with thirty children on two tight pools without walking every split", () => {
+    // Thirty one-unit children all drawing two child-only pools of eight
+    // places each: the flow bound sums the pools (sixteen) and accepts a
+    // need of fifteen, while every line takes one place in BOTH pools, so
+    // eight is the most the children can serve. The include/exclude walk
+    // retries millions of splits for that midpoint; the memoised walk visits
+    // each (child, owed, pool levels) state once.
+    const children = Array.from({ length: 30 }, () => ({
+      groupIds: [7, 8],
+      ownMax: 1,
+    }));
+    const started = performance.now();
+    expect(
+      combinedChildCapacityForParent([], children, byGroup({ 7: 8, 8: 8 })),
+    ).toBe(8);
+    // The unbounded walk spends seconds on one date-less evaluation; a daily
+    // parent repeats it per offered date, so the bound has to hold with room
+    // for a whole request.
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   test("matches a brute-force allocator on random small graphs", () => {
     // The generator is a fixed-seed LCG so a failure names the same graphs on
     // every run.

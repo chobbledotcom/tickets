@@ -10,6 +10,7 @@
 import {
   childHasDateOrStockForDays,
   childInStock,
+  childSupportsDays,
   fixedParentDays,
   type TicketListing,
 } from "#booking/model.ts";
@@ -36,17 +37,27 @@ export const childStartDates = (
   holidays: readonly Holiday[],
 ): string[] => getBookableStartDates(child.listing, [...holidays]);
 
+/** Whether the child can serve the span one offered day count books. A
+ *  `null` count names a span the buyer has not chosen yet. No served span
+ *  can miss it, and the fold judges the chosen count at submit. */
+const childServesCount = (child: TicketListing, days: number | null): boolean =>
+  days === null || childSupportsDays(child, days);
+
 /** Whether the parent offers any date a child can fold on, before any date
  *  is chosen. The parent's own calendar answers for a daily parent. A
- *  non-daily parent carries no calendar and needs only stock. */
+ *  non-daily parent carries no calendar and needs only stock. A count the
+ *  child cannot serve at the till is not offered. The form books one
+ *  count, and the fold refuses a child whose span misses it. */
 export const childOfferedWithoutDate = (
   child: TicketListing,
   holidays: readonly Holiday[],
   dayCounts: ParentDayCounts,
   parentDates: ReadonlySet<string> | null,
 ): boolean =>
-  dayCounts.some((days) =>
-    childHasDateOrStockForDays([...holidays], days, parentDates)(child),
+  dayCounts.some(
+    (days) =>
+      childServesCount(child, days) &&
+      childHasDateOrStockForDays([...holidays], days, parentDates)(child),
   );
 
 /** Whether the child holds the offered span on one exact date: the booking
@@ -61,9 +72,11 @@ const childBookableForSpan = (
   isBookingRangeValid(child.listing, date, days ?? 1, [...holidays]);
 
 /** Whether the child can fold on one exact date. A non-daily child needs
- *  only stock. A daily child must start that date and hold it for the span
- *  one of the parent's offered day counts books. `starts` is the child's
- *  own bookable start dates, computed once by the caller. */
+ *  only stock. A daily child must start that date and hold the span. The
+ *  span is one of the parent's offered day counts, and the child must serve
+ *  it. The fold books one count and refuses a child whose span misses it.
+ *  `starts` is the child's own bookable start dates, computed once by the
+ *  caller. */
 export const childOfferedOnDate = (
   child: TicketListing,
   holidays: readonly Holiday[],
@@ -73,7 +86,9 @@ export const childOfferedOnDate = (
 ): boolean => {
   if (child.listing.listing_type !== "daily") return childInStock(child);
   if (!starts.includes(date)) return false;
-  return dayCounts.some((days) =>
-    childBookableForSpan(child, date, holidays, days),
+  return dayCounts.some(
+    (days) =>
+      childServesCount(child, days) &&
+      childBookableForSpan(child, date, holidays, days),
   );
 };

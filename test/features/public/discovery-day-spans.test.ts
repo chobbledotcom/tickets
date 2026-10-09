@@ -87,11 +87,42 @@ describeWithEnv(
         await assertSoldOut(parent.slug);
       });
 
-      test("a customisable parent offering only a 2-day span stays bookable when its child serves a 2-day run", async () => {
-        // Same 2-day-only customisable parent, but the child is bookable every
-        // day, so a Mon–Tue 2-day run is valid — the parent keeps its Book link.
+      test("a fixed one-day child under a 2-day-only parent is sold out", async () => {
+        // The parent is CUSTOMISABLE but only prices a 2-day booking, so the
+        // form books one 2-day span. The child is a FIXED one-day daily
+        // listing, and the fold serves a fixed child only its own span —
+        // alone under this parent it cannot fold, and the submit refuses the
+        // booking ("child sold out"). A calendar-only check would advertise:
+        // the child's calendar holds a Mon–Tue 2-day run, but the child
+        // cannot SERVE that span, so discovery must read sold out.
         const { parent } = await makeParent({
           children: [{ daily: true, name: "Any-day add-on" }],
+          parent: {
+            customisableDays: true,
+            daily: true,
+            dayPrices: { 2: 2000 },
+            durationDays: 2,
+            name: "2-day customisable base",
+          },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
+      test("a customisable 2-day parent stays bookable when its child serves the 2-day run", async () => {
+        // Same 2-day-only customisable parent, but the child is a
+        // CUSTOMISABLE daily listing priced for the 2-day span, so the count
+        // the form books is one the child serves and the run its calendar
+        // holds — the parent keeps its Book link.
+        const { parent } = await makeParent({
+          children: [
+            {
+              customisableDays: true,
+              daily: true,
+              dayPrices: { 1: 500, 2: 900 },
+              durationDays: 2,
+              name: "Two-day add-on",
+            },
+          ],
           parent: {
             customisableDays: true,
             daily: true,
@@ -165,6 +196,43 @@ describeWithEnv(
           },
         });
         await assertBookable(parent.slug);
+      });
+
+      test("two children that need different day counts do not sum on one date", async () => {
+        // The parent's form books ONE day count, and the fold serves only the
+        // children that support that exact span. The one-day child holds two
+        // places and the three-day child holds two, so no single day count
+        // serves more than two, and a minimum of three can never be met. The
+        // old check summed the two ceilings across different counts and
+        // advertised a booking every submission fails.
+        const { parent } = await makeParent({
+          children: [
+            {
+              daily: true,
+              durationDays: 1,
+              maxAttendees: 2,
+              maxQuantity: 2,
+              name: "One-day add-on",
+            },
+            {
+              daily: true,
+              durationDays: 3,
+              maxAttendees: 2,
+              maxQuantity: 2,
+              name: "Three-day add-on",
+            },
+          ],
+          parent: {
+            customisableDays: true,
+            daily: true,
+            dayPrices: { 1: 1000, 3: 3000 },
+            durationDays: 3,
+            maxQuantity: 3,
+            minQuantity: 3,
+            name: "Customisable base",
+          },
+        });
+        await assertSoldOut(parent.slug);
       });
 
       test("two children that serve the minimum on different dates do not sum", async () => {
