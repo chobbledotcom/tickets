@@ -75,8 +75,7 @@ scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23estim
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23hideProgress~03zoewn  ?? → ||   # hideProgress is a boolean or undefined, and false falls back to false either way
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23stdout~11exve5  ?? → ||   # the stdout option is a function when present, and functions are always truthy
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor.this%2e%23stderr~0il4lt8  ?? → ||   # the stderr option is a function when present, and functions are always truthy
-scripts/compact-test-reporter.ts::CompactTapReporter.consumeLine~1dqn0ov@2  --- → ""   # a line that trims to nothing has already returned above, so comparing the trimmed line with "" is never true
-scripts/compact-test-reporter.ts::CompactTapReporter.consumeLine~1w2cvti@2  ... → ""   # same line, same reason
+scripts/compact-test-reporter.ts::CompactTapReporter.%23readDiagnosticBlockStart~188ajaz  --- → ""   # the swallow comparison: a --- line still returns true through the second comparison and the block-open check, so every marker lands where it did; the block-open --- occurrence is distinguishable and unrecorded — the JSON-diagnostic test kills it
 scripts/compact-test-reporter.ts::CompactTapReporter.%23recordFailure.location~13av20m  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
 
 # Mutation summary: grouped results are arrays or absent, never falsy-but-set.

@@ -1,245 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import {
-  type CompactTapSummary,
-  printCompactSummary,
-  runCompactDenoTest,
-} from "#scripts/compact-test-reporter.ts";
+import { runCompactDenoTest } from "#scripts/compact-test-reporter.ts";
+import { capturingConsole } from "#test-utils/captured-console.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
-const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
-  failed: 0,
-  failures: [],
-  fileEstimate: 0,
-  passed: 3,
-  sawTap: true,
-  suppressedResults: 0,
-  ...over,
-});
-
-/** Run something with the console captured, keeping each stream apart. */
-const capturingConsole = async <T>(
-  run: () => T | Promise<T>,
-): Promise<{ errors: string[]; logs: string[]; value: T }> => {
-  const logs: string[] = [];
-  const errors: string[] = [];
-  using _log = stub(console, "log", (line?: unknown) => {
-    logs.push(String(line));
-  });
-  using _error = stub(console, "error", (line?: unknown) => {
-    errors.push(String(line));
-  });
-
-  return { errors, logs, value: await run() };
-};
-
-/** Capture what the summary printed to each console stream. */
-const printed = (
-  result: CompactTapSummary,
-  exitCode: number,
-  stderrText: string,
-): Promise<{ errors: string[]; logs: string[] }> =>
-  capturingConsole(() => printCompactSummary(result, exitCode, stderrText));
-
-describe("printing the run summary", () => {
-  test("reports a pass when nothing failed and the run exited cleanly", async () => {
-    const { errors, logs } = await printed(summary(), 0, "");
-
-    expect(logs).toEqual(["\nPASS 3 passed"]);
-    expect(errors).toEqual([]);
-  });
-
-  test("says a worker died when the run exited non-zero without failed tests", async () => {
-    const { errors, logs } = await printed(
-      summary({
-        fileEstimate: 29548,
-        lastResultName: "the last result",
-        passed: 27532,
-      }),
-      137,
-      "",
-    );
-
-    expect(logs).toEqual([]);
-    expect(errors).toEqual([
-      "\nFAILED 27532 passed, 0 failed",
-      "\nA test worker probably died, and the tests it still held did not report.",
-      "The declaration estimate is 2016 above the results the output reported.",
-      "The last result shown was: the last result",
-      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
-    ]);
-  });
-
-  test("names no shortfall when every expected test reported", async () => {
-    const { errors } = await printed(
-      summary({ fileEstimate: 3, lastResultName: "the last result" }),
-      1,
-      "",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 0 failed",
-      "\nThe run exited with an error, but no test failed.",
-      "A test worker can die before its tests report.",
-      "The last result shown was: the last result",
-      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
-    ]);
-  });
-
-  test("says no result was shown when the worker died before one", async () => {
-    const { errors } = await printed(
-      summary({ fileEstimate: 3, passed: 0 }),
-      1,
-      "",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 0 passed, 0 failed",
-      "\nA test worker probably died, and the tests it still held did not report.",
-      "The declaration estimate is 3 above the results the output reported.",
-      "The last result shown was: (none)",
-      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
-    ]);
-  });
-
-  test("reports the shortfall beside the counted failures", async () => {
-    const { errors } = await printed(
-      summary({
-        failed: 2,
-        failures: [{ message: "boom", name: "only" }],
-        fileEstimate: 8,
-        passed: 3,
-      }),
-      1,
-      "",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 2 failed",
-      "The declaration estimate is 3 above the results the output reported.",
-      "\nFailed tests:",
-      "  unknown location - only",
-    ]);
-  });
-
-  test("keeps suppressed parent summaries out of the shortfall", async () => {
-    // A complete BDD run whose child step failed: every TAP result arrived,
-    // and the parent summaries the reporter drops must not read as lost.
-    const { errors } = await printed(
-      summary({
-        failed: 1,
-        failures: [{ message: "boom", name: "child" }],
-        fileEstimate: 3,
-        passed: 1,
-        suppressedResults: 2,
-      }),
-      1,
-      "",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 1 passed, 1 failed",
-      "\nFailed tests:",
-      "  unknown location - child",
-    ]);
-  });
-
-  test("blames the reported error instead of a worker when stderr names one", async () => {
-    const { errors } = await printed(
-      summary(),
-      1,
-      "error: Test failed\nTypeError: Cannot read properties of undefined\n",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 0 failed",
-      "\nDeno output:",
-      "TypeError: Cannot read properties of undefined",
-    ]);
-  });
-
-  test("filters Deno's own failure line even when it carries colour codes", async () => {
-    const { errors } = await printed(
-      summary(),
-      1,
-      "\u001b[0m\u001b[1m\u001b[31merror\u001b[0m: Test failed\n",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 0 failed",
-      "\nThe run exited with an error, but no test failed.",
-      "A test worker can die before its tests report.",
-      "The last result shown was: (none)",
-      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
-    ]);
-  });
-
-  test("lists each failed test with where it failed", async () => {
-    const { errors } = await printed(
-      summary({
-        failed: 2,
-        failures: [
-          {
-            location: { column: 3, file: "test/a.test.ts", line: 7 },
-            message: "boom",
-            name: "first",
-          },
-          { message: "bang", name: "second" },
-        ],
-      }),
-      1,
-      "",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 2 failed",
-      "\nFailed tests:",
-      "  test/a.test.ts:7:3 - first",
-      "  unknown location - second",
-    ]);
-  });
-
-  test("lists a lone failure under the same heading", async () => {
-    const { errors } = await printed(
-      summary({ failed: 1, failures: [{ message: "boom", name: "only" }] }),
-      1,
-      "",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 1 failed",
-      "\nFailed tests:",
-      "  unknown location - only",
-    ]);
-  });
-
-  test("shows the run's own output, minus Deno's own failure line", async () => {
-    const { errors } = await printed(
-      summary({ failed: 1 }),
-      1,
-      "error: Test failed\nTypeError: x is not a function\n    at load\n",
-    );
-
-    expect(errors).toEqual([
-      "\nFAILED 3 passed, 1 failed",
-      "\nDeno output:",
-      "TypeError: x is not a function\n    at load",
-    ]);
-  });
-
-  test("says nothing extra when the run's output was only Deno's failure line", async () => {
-    const { errors } = await printed(
-      summary({ failed: 1 }),
-      1,
-      "error: Test failed",
-    );
-
-    expect(errors).toEqual(["\nFAILED 3 passed, 1 failed"]);
-  });
-});
-
 describe("running deno test with the compact reporter", () => {
+  /** Run the compact reporter over a child with a report at the run path. */
+  const runWithJUnitReport = async (
+    dir: TempPath,
+    args: string[],
+  ): Promise<{ errors: string[]; value: number }> =>
+    capturingConsole(() =>
+      runCompactDenoTest(args, {
+        cwd: dir.path,
+        env: { CI: "1" },
+        junitPath: "junit.xml",
+      }),
+    );
+
   /** Write a one-test file and run the compact reporter over it. */
   const runOver = async (
     body: string,
@@ -277,5 +55,105 @@ describe("running deno test with the compact reporter", () => {
     expect(code).not.toBe(0);
     expect(logs).toContain("\nFAILED 0 passed, 1 failed");
     expect(logs.join("\n")).toContain("nope");
+  });
+
+  test("shows an error line a dying child printed on stdout", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      const { errors, value } = await capturingConsole(() =>
+        runCompactDenoTest(
+          [
+            "eval",
+            'console.log("error: Uncaught boom from the dying child"); Deno.exit(1);',
+          ],
+          { cwd: dir.path, env: { CI: "1" } },
+        ),
+      );
+
+      expect(value).toBe(1);
+      expect(errors.join("\n")).toContain(
+        "error: Uncaught boom from the dying child",
+      );
+      expect(errors.join("\n")).toContain("deno exited with code 1");
+    } finally {
+      dir.dispose();
+    }
+  });
+
+  test("lets a report path failure other than a missing file surface", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      // A filled directory cannot be removed, so the run must surface the
+      // failure instead of treating the path as absent.
+      Deno.writeTextFileSync(`${dir.path}/blocked.xml`, "not a report\n");
+      await expect(
+        runCompactDenoTest(["eval", "Deno.exit(0);"], {
+          cwd: dir.path,
+          env: { CI: "1" },
+          junitPath: dir.path,
+        }),
+      ).rejects.toThrow();
+    } finally {
+      dir.dispose();
+    }
+  });
+
+  test("names the uncaught-error file a failing run's JUnit report holds", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      Deno.writeTextFileSync(
+        `${dir.path}/crashes.test.ts`,
+        [
+          'Deno.test("starts", () => {',
+          '  queueMicrotask(() => { throw new Error("boom-mid-run"); });',
+          "});",
+        ].join("\n"),
+      );
+      const { errors, value } = await runWithJUnitReport(dir, [
+        "test",
+        "--no-check",
+        "-A",
+        "--reporter=tap",
+        "--junit-path",
+        "junit.xml",
+        "crashes.test.ts",
+      ]);
+
+      expect(value).not.toBe(0);
+      expect(errors.join("\n")).toContain(
+        "\ndeno's JUnit report marks these files with uncaught errors:",
+      );
+      expect(errors.join("\n")).toContain("  ./crashes.test.ts");
+    } finally {
+      dir.dispose();
+    }
+  });
+
+  test("does not name the files a stale report at the run's path holds", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      Deno.writeTextFileSync(
+        `${dir.path}/junit.xml`,
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<testsuites name="deno test" tests="1" failures="0" errors="1">',
+          '    <testsuite name="./stale.test.ts" tests="1" errors="1" failures="0">',
+          '        <testcase name="gone" classname="./stale.test.ts">',
+          '            <error message="Cancelled"/>',
+          "        </testcase>",
+          "    </testsuite>",
+          "</testsuites>",
+        ].join("\n"),
+      );
+      const { errors, value } = await runWithJUnitReport(dir, [
+        "eval",
+        'Deno.test("fine", () => {}); Deno.exit(1);',
+      ]);
+
+      expect(value).not.toBe(0);
+      expect(errors.join("\n")).not.toContain("stale.test.ts");
+    } finally {
+      dir.dispose();
+    }
   });
 });

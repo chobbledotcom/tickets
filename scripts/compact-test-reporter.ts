@@ -1,6 +1,6 @@
-import { relative } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { stripAnsi } from "./ansi.ts";
+import { nullIfNotFound, rethrowUnlessNotFound } from "./not-found.ts";
 import { toDisplayPath } from "./project-root.ts";
 import { readStream } from "./stream-lines.ts";
 import {
@@ -8,36 +8,17 @@ import {
   parseTapDiagnosticBlock,
   type TapDiagnostic,
 } from "./tap-diagnostics.ts";
-
-type Location = {
-  file: string;
-  line?: number | undefined;
-  column?: number | undefined;
-};
+import {
+  type CompactFailure,
+  type CompactTapSummary,
+  formatLocation,
+  junitErrorFiles,
+  type Location,
+  printCompactSummary,
+} from "./tap-summary.ts";
 
 type PendingFailure = {
   name: string;
-};
-
-export type CompactFailure = {
-  name: string;
-  message: string;
-  location?: Location | undefined;
-};
-
-export type CompactTapSummary = {
-  passed: number;
-  failed: number;
-  failures: CompactFailure[];
-  sawTap: boolean;
-  /** Parent results the reporter deliberately dropped because a child step
-   * failure already carries the real diagnostic. */
-  suppressedResults: number;
-  /** The pre-run estimate from the test files' declarations, before any
-   * growth the progress bar applied. 0 when the run gave no estimate. */
-  fileEstimate: number;
-  /** The name of the last result line the output carried. */
-  lastResultName?: string | undefined;
 };
 
 type CompactTapReporterOptions = {
@@ -49,17 +30,13 @@ type CompactTapReporterOptions = {
 };
 
 const PROGRESS_WIDTH = 24;
+/** The dying child's own lines land at the end of its output, so the last
+ * ones are the cause; the cap keeps a chatty run from flooding the summary. */
+const DROPPED_LINE_CAP = 50;
 const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
 const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
 const stripTapDirective = (name: string): string =>
   name.replace(/\s+#\s+(?:SKIP|TODO)\b.*$/i, "").trim();
-
-const formatLocation = (location?: Location): string =>
-  location
-    ? `${location.file}${location.line ? `:${location.line}` : ""}${
-        location.column ? `:${location.column}` : ""
-      }`
-    : "unknown location";
 
 const locationFromDiagnostic = (
   cwd: string,
@@ -118,6 +95,7 @@ export class CompactTapReporter {
   #sawTap = false;
   #lastResultName?: string | undefined;
   #consumedResults = 0;
+  #dropped: string[] = [];
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
@@ -154,16 +132,31 @@ export class CompactTapReporter {
       return;
     }
 
-    if (this.#pendingFailure && trimmed === "---") {
-      this.#diagnosticLines = [];
+    if (this.#readDiagnosticBlockStart(trimmed)) return;
+
+    // A TAP comment is stream structure — file names, subtest echoes — not
+    // the child's own voice; keeping it would bury the real cause.
+    if (trimmed.startsWith("#")) return;
+
+    const result = line.match(TEST_RESULT_RE);
+    if (!result) {
+      this.#drop(line);
       return;
     }
 
-    if (trimmed === "---" || trimmed === "...") return;
+    this.#consumeResult(result);
+  }
 
-    const result = line.match(TEST_RESULT_RE);
-    if (!result) return;
+  /** A `---` marker under a failed result opens its diagnostic block, which
+   * the diagnostic collector ends at `...`. Outside a failure both markers
+   * are stream structure and nothing reads them. */
+  #readDiagnosticBlockStart(trimmed: string): boolean {
+    if (trimmed !== "---" && trimmed !== "...") return false;
+    if (trimmed === "---" && this.#pendingFailure) this.#diagnosticLines = [];
+    return true;
+  }
 
+  #consumeResult(result: RegExpMatchArray): void {
     this.#sawTap = true;
     this.#consumedResults++;
     this.#flushPendingFailure();
@@ -180,9 +173,17 @@ export class CompactTapReporter {
     this.#stdout(this.#formatResultLine("ok  ", name));
   }
 
+  /** Keep a line the TAP grammar does not define for the summary: it is the
+   * child's own voice — an error, a panic, or a leak report. */
+  #drop(line: string): void {
+    this.#dropped.push(line);
+    if (this.#dropped.length > DROPPED_LINE_CAP) this.#dropped.shift();
+  }
+
   finish(): CompactTapSummary {
     this.#flushPendingFailure();
     return {
+      droppedLines: [...this.#dropped],
       failed: this.#failed,
       failures: [...this.#failures],
       fileEstimate: this.#fileEstimate,
@@ -269,83 +270,18 @@ export class CompactTapReporter {
   }
 }
 
-/** Strip the escape sequences, then keep every line Deno's own failure line
- *  does not already cover. */
-const usefulStderr = (stderr: string): string =>
-  stripAnsi(stderr)
-    .split(/\r?\n/)
-    .filter((line) => line.trim() !== "error: Test failed")
-    .join("\n")
-    .trim();
-
-export const printCompactSummary = (
-  summary: CompactTapSummary,
-  exitCode: number,
-  stderrText: string,
-): void => {
-  const extra = usefulStderr(stderrText);
-  // The shortfall counts results that never arrived. A dropped parent
-  // summary did arrive — a child step failure already carries the real
-  // diagnostic — so it is subtracted like any other reported result.
-  const missing =
-    summary.fileEstimate -
-    summary.passed -
-    summary.failed -
-    summary.suppressedResults;
-
-  // The declaration count runs both sides of the real result count (it reads
-  // fixture strings as declarations and misses loop-generated tests), so it
-  // cannot prove a loss on a run the test runner itself called successful.
-  if (summary.failed === 0 && exitCode === 0) {
-    console.log(`\nPASS ${summary.passed} passed`);
-    return;
-  }
-
-  console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
-
-  if (summary.failed === 0 && extra === "") {
-    // Zero counted failures on a non-zero exit, with nothing reported on
-    // stderr, is the shape a dead worker leaves; a load error would stand
-    // on stderr instead. The TAP stream names no worker, so the last
-    // result is the closest marker the output holds.
-    if (missing > 0) {
-      console.error(
-        "\nA test worker probably died, and the tests it still held did not report.",
-      );
-      console.error(
-        `The declaration estimate is ${missing} above the results the output reported.`,
-      );
-    } else {
-      console.error("\nThe run exited with an error, but no test failed.");
-      console.error("A test worker can die before its tests report.");
-    }
-    const last =
-      summary.lastResultName === undefined ? "(none)" : summary.lastResultName;
-    console.error(`The last result shown was: ${last}`);
-    console.error(
-      "If this repeats, rerun with fewer workers, for example DENO_JOBS=4.",
-    );
-  } else if (missing > 0) {
-    console.error(
-      `The declaration estimate is ${missing} above the results the output reported.`,
-    );
-  }
-
-  if (summary.failures.length > 0) {
-    console.error("\nFailed tests:");
-    for (const failure of summary.failures) {
-      console.error(`  ${formatLocation(failure.location)} - ${failure.name}`);
-    }
-  }
-
-  // Always surface stderr on a failing run: an uncaught error in a test
-  // module (which aborts that module's remaining tests) is only reported
-  // here, even when unrelated test failures were also counted.
-  if (extra) {
-    console.error("\nDeno output:");
-    console.error(extra);
-  }
-};
+/** The report path as the harness process sees it: the child writes the
+ * report relative to its own working directory, so reads and removals must
+ * resolve the path there, not in the parent's. */
+const reportFileFor = (options: {
+  cwd: string;
+  junitPath?: string;
+}): string | undefined =>
+  options.junitPath === undefined
+    ? undefined
+    : isAbsolute(options.junitPath)
+      ? options.junitPath
+      : join(options.cwd, options.junitPath);
 
 export const runCompactDenoTest = async (
   args: string[],
@@ -353,9 +289,16 @@ export const runCompactDenoTest = async (
     cwd: string;
     env: Record<string, string>;
     estimatedTotal?: number;
+    junitPath?: string;
   },
 ): Promise<number> => {
   console.log("Running tests...");
+  // A report left by a killed prior run must not name this run's dead files:
+  // the child rewrites the report only when it completes.
+  const reportFile = reportFileFor(options);
+  if (reportFile !== undefined) {
+    await Deno.remove(reportFile).catch(rethrowUnlessNotFound);
+  }
   const command = new Deno.Command(Deno.execPath(), {
     args,
     cwd: options.cwd,
@@ -380,6 +323,15 @@ export const runCompactDenoTest = async (
   await stdoutTask;
   const stderrText = await stderrTask;
   const summary = reporter.finish();
-  printCompactSummary(summary, status.code, stderrText);
+  const junit =
+    reportFile === undefined
+      ? ""
+      : ((await nullIfNotFound(Deno.readTextFile(reportFile))) ?? "");
+  printCompactSummary(
+    summary,
+    { code: status.code, signal: status.signal },
+    stderrText,
+    junitErrorFiles(junit),
+  );
   return status.code;
 };

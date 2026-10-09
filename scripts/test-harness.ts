@@ -22,6 +22,7 @@ import {
   COVERAGE_OUTPUT_DIR,
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
+import { junitPathInArgs, junitReportForRun } from "./junit-report-path.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
@@ -83,6 +84,82 @@ const buildDenoTestArgs = (
   return args;
 };
 
+/** The environment a test child runs in: this process's environment plus
+ * the stripe mock endpoints. */
+const testChildEnv = (): Record<string, string> => ({
+  ...Deno.env.toObject(),
+  ...stripeMockEnv(),
+});
+
+/** What both run shapes need: the caller's test arguments, whether the run
+ * feeds the coverage gate, and an optional JUnit report path. */
+type TestRunRequest = {
+  extraArgs: string[];
+  useCoverage: boolean;
+  junitPath?: string | undefined;
+};
+
+/** The focused run: a compact TAP child whose summary reads a JUnit report
+ * and names the cause of a silent exit. The temporary report directory is
+ * removed after the run; a report the caller forwarded keeps their
+ * directory. */
+const runFocusedTest = async (
+  { extraArgs, useCoverage, junitPath }: TestRunRequest,
+  estimateFrom?: string[],
+): Promise<number> => {
+  const forwardedJunitPath = junitPathInArgs(extraArgs);
+  const report = await junitReportForRun(forwardedJunitPath ?? junitPath);
+  const runJunitPath = forwardedJunitPath ?? report.path;
+  // A run that selects a subset or stops at the first failure will not
+  // report every declaration, so the count would name tests the run never
+  // meant to report.
+  const estimatedTotal = skipsDeclaredTests(extraArgs)
+    ? undefined
+    : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
+  try {
+    return await runCompactDenoTest(
+      buildDenoTestArgs(
+        extraArgs,
+        useCoverage,
+        "tap",
+        forwardedJunitPath === undefined ? runJunitPath : undefined,
+      ),
+      {
+        cwd: projectRoot,
+        env: testChildEnv(),
+        ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
+        junitPath: runJunitPath,
+      },
+    );
+  } finally {
+    if (report.dir !== undefined) {
+      await Deno.remove(report.dir, { recursive: true }).catch(
+        rethrowUnlessNotFound,
+      );
+    }
+  }
+};
+
+/** The pass-through run: a caller that chose its own reporter keeps deno's
+ * own output and exit code. */
+const runPlainTest = async ({
+  extraArgs,
+  useCoverage,
+  junitPath,
+}: TestRunRequest): Promise<number> => {
+  console.log("Running tests...");
+  const testCmd = new Deno.Command(Deno.execPath(), {
+    args: buildDenoTestArgs(extraArgs, useCoverage, undefined, junitPath),
+    cwd: projectRoot,
+    env: testChildEnv(),
+    stderr: "inherit",
+    stdin: "inherit",
+    stdout: "inherit",
+  });
+  const result = await testCmd.output();
+  return result.code;
+};
+
 /**
  * Run `deno test` with the standard permission flags. `extraArgs` are appended
  * verbatim — the full runner passes `["test/"]`, the focused runner passes the
@@ -96,41 +173,14 @@ export const runTests = async (
   junitPath?: string,
   estimateFrom?: string[],
 ): Promise<number> => {
-  const env = {
-    ...Deno.env.toObject(),
-    ...stripeMockEnv(),
-  };
-
   if (useCoverage) await removeOldCoverageOutput();
-
   if (!hasReporterArg(extraArgs)) {
-    // A run that selects a subset or stops at the first failure will not
-    // report every declaration, so the count would name tests the run never
-    // meant to report.
-    const estimatedTotal = skipsDeclaredTests(extraArgs)
-      ? undefined
-      : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
-    return await runCompactDenoTest(
-      buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
-      {
-        cwd: projectRoot,
-        env,
-        ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
-      },
+    return await runFocusedTest(
+      { extraArgs, junitPath, useCoverage },
+      estimateFrom,
     );
   }
-
-  console.log("Running tests...");
-  const testCmd = new Deno.Command(Deno.execPath(), {
-    args: buildDenoTestArgs(extraArgs, useCoverage, undefined, junitPath),
-    cwd: projectRoot,
-    env,
-    stderr: "inherit",
-    stdin: "inherit",
-    stdout: "inherit",
-  });
-  const result = await testCmd.output();
-  return result.code;
+  return await runPlainTest({ extraArgs, junitPath, useCoverage });
 };
 
 /**

@@ -220,9 +220,38 @@ Deno.test("compact TAP reporter keeps the file estimate and the last result", ()
   expect(summary.lastResultName).toBe("last reported");
 });
 
+Deno.test("compact TAP reporter drops TAP comments but keeps other stdout lines", () => {
+  const reporter = new CompactTapReporter({
+    cwd: Deno.cwd(),
+    stdout: () => {},
+  });
+
+  consume(reporter, [
+    "TAP version 14",
+    "# Subtest: outer",
+    "# ./test/ui/templates/booking.test.ts",
+    "ok 1 - inside",
+    "error: Uncaught TypeError: boom",
+  ]);
+
+  const summary = reporter.finish();
+  expect(summary.droppedLines).toEqual(["error: Uncaught TypeError: boom"]);
+});
+
 Deno.test("hasReporterArg detects both Deno reporter flag forms", () => {
   expect(hasReporterArg(["test/"])).toBe(false);
   expect(hasReporterArg(["--reporter"])).toBe(true);
   expect(hasReporterArg(["--reporter", "dot", "test/"])).toBe(true);
   expect(hasReporterArg(["--reporter=tap", "test/"])).toBe(true);
+});
+
+Deno.test("compact TAP reporter swallows a stray end marker without a failure", () => {
+  const reporter = new CompactTapReporter({
+    cwd: Deno.cwd(),
+    stdout: () => {},
+  });
+
+  consume(reporter, ["TAP version 14", "ok 1 - only", "...", "1..1"]);
+
+  expect(reporter.finish().droppedLines).toEqual([]);
 });
