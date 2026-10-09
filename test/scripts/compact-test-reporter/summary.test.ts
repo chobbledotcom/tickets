@@ -418,13 +418,13 @@ describe("running deno test with the compact reporter", () => {
             "-A",
             "--reporter=tap",
             "--junit-path",
-            `${dir.path}/junit.xml`,
+            "junit.xml",
             "crashes.test.ts",
           ],
           {
             cwd: dir.path,
             env: { CI: "1" },
-            junitPath: `${dir.path}/junit.xml`,
+            junitPath: "junit.xml",
           },
         ),
       );

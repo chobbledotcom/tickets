@@ -1,4 +1,4 @@
-import { relative } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripAnsi } from "./ansi.ts";
 import { nullIfNotFound } from "./not-found.ts";
@@ -468,10 +468,18 @@ export const runCompactDenoTest = async (
   await stdoutTask;
   const stderrText = await stderrTask;
   const summary = reporter.finish();
-  const junit =
+  // The child writes the report relative to its own working directory; the
+  // read must look there, not in the parent's.
+  const junitPath =
     options.junitPath === undefined
+      ? undefined
+      : isAbsolute(options.junitPath)
+        ? options.junitPath
+        : join(options.cwd, options.junitPath);
+  const junit =
+    junitPath === undefined
       ? ""
-      : ((await nullIfNotFound(Deno.readTextFile(options.junitPath))) ?? "");
+      : ((await nullIfNotFound(Deno.readTextFile(junitPath))) ?? "");
   printCompactSummary(
     summary,
     { code: status.code, signal: status.signal },
