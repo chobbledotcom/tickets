@@ -349,6 +349,19 @@ describe("reading deno's JUnit report for uncaught errors", () => {
 });
 
 describe("running deno test with the compact reporter", () => {
+  /** Run the compact reporter over a child with a report at the run path. */
+  const runWithJUnitReport = async (
+    dir: TempPath,
+    args: string[],
+  ): Promise<{ errors: string[]; value: number }> =>
+    capturingConsole(() =>
+      runCompactDenoTest(args, {
+        cwd: dir.path,
+        env: { CI: "1" },
+        junitPath: "junit.xml",
+      }),
+    );
+
   /** Write a one-test file and run the compact reporter over it. */
   const runOver = async (
     body: string,
@@ -440,24 +453,15 @@ describe("running deno test with the compact reporter", () => {
           "});",
         ].join("\n"),
       );
-      const { errors, value } = await capturingConsole(() =>
-        runCompactDenoTest(
-          [
-            "test",
-            "--no-check",
-            "-A",
-            "--reporter=tap",
-            "--junit-path",
-            "junit.xml",
-            "crashes.test.ts",
-          ],
-          {
-            cwd: dir.path,
-            env: { CI: "1" },
-            junitPath: "junit.xml",
-          },
-        ),
-      );
+      const { errors, value } = await runWithJUnitReport(dir, [
+        "test",
+        "--no-check",
+        "-A",
+        "--reporter=tap",
+        "--junit-path",
+        "junit.xml",
+        "crashes.test.ts",
+      ]);
 
       expect(value).not.toBe(0);
       expect(errors.join("\n")).toContain(
@@ -485,16 +489,10 @@ describe("running deno test with the compact reporter", () => {
           "</testsuites>",
         ].join("\n"),
       );
-      const { errors, value } = await capturingConsole(() =>
-        runCompactDenoTest(
-          ["eval", 'Deno.test("fine", () => {}); Deno.exit(1);'],
-          {
-            cwd: dir.path,
-            env: { CI: "1" },
-            junitPath: "junit.xml",
-          },
-        ),
-      );
+      const { errors, value } = await runWithJUnitReport(dir, [
+        "eval",
+        'Deno.test("fine", () => {}); Deno.exit(1);',
+      ]);
 
       expect(value).not.toBe(0);
       expect(errors.join("\n")).not.toContain("stale.test.ts");
