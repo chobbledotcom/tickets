@@ -2,7 +2,7 @@ import { pathToFileURL } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CompactTapReporter } from "#scripts/compact-test-reporter.ts";
-import { type CompactFailure } from "#scripts/tap-summary.ts";
+import type { CompactFailure } from "#scripts/tap-summary.ts";
 
 const cwd = Deno.cwd();
 

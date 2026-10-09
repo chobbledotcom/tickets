@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { capturingConsole } from "#test-utils/captured-console.ts";
 import {
   type CompactTapSummary,
   junitErrorFiles,
   printCompactSummary,
 } from "#scripts/tap-summary.ts";
+import { capturingConsole } from "#test-utils/captured-console.ts";
 
 const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
   droppedLines: [],
