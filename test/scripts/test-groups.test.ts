@@ -211,8 +211,12 @@ describe("test-groups", () => {
           'import { useSetting } from "#test-utils/settings.ts";\n' +
             'describe("pin", () => {\n  useSetting({ timezone: "UTC" });\n});\n',
         );
+        // The scratch root seeds plain and global-hooks fixtures; the pin
+        // file sorts between them.
         expect(await collectTestFiles(root)).toEqual([
+          `${root}/test/global-hooks.test.ts`,
           `${root}/test/pin.test.ts`,
+          `${root}/test/plain.test.ts`,
         ]);
       });
     });
