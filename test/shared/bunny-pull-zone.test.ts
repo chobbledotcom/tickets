@@ -1,6 +1,7 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -10,22 +11,34 @@ import { expectErrorResult } from "./bunny/fixtures.ts";
 
 /** Build an edge script API response */
 const edgeScriptResponse = (
-  pullZones: {
-    Id: number;
-    PullZoneName: string;
-    DefaultHostname: string;
-  }[] = [],
+  pullZones: { Id: number }[] = [],
   defaultHostname = "mysite.b-cdn.net",
 ) => ({
   DefaultHostname: defaultHostname,
-  Id: 1,
   LinkedPullZones: pullZones,
 });
 
 /** The single linked pull zone most edge-script tests exercise. */
-const SINGLE_PULL_ZONE = [
-  { DefaultHostname: "mysite.b-cdn.net", Id: 222, PullZoneName: "mysite" },
-];
+const SINGLE_PULL_ZONE = [{ Id: 222 }];
+
+/** Call a derived lookup while bunnyCdnApi.getEdgeScript is replaced, and
+ *  expect the replacement's result: the lookups must route through that
+ *  entry, so the fetch stub below stays unused. */
+const viaReplacedEdgeScript = async (
+  call: () => Promise<unknown>,
+  expected: unknown,
+): Promise<void> => {
+  const response = edgeScriptResponse(SINGLE_PULL_ZONE);
+  await withMocks(
+    () => stubFetch(new Response("Blocked", { status: 500 })),
+    async () => {
+      using _stub = stub(bunnyCdnApi, "getEdgeScript", () =>
+        Promise.resolve({ data: response, ok: true }),
+      );
+      expect(await call()).toEqual(expected);
+    },
+  );
+};
 
 describeWithEnv(
   "getEdgeScript",
@@ -115,6 +128,13 @@ describeWithEnv(
         },
       );
     });
+
+    test("goes through the bunnyCdnApi.getEdgeScript entry", async () => {
+      await viaReplacedEdgeScript(() => bunnyCdnApi.findPullZoneId(), {
+        id: 222,
+        ok: true,
+      });
+    });
   },
 );
 
@@ -149,6 +169,13 @@ describeWithEnv(
           });
         },
       );
+    });
+
+    test("goes through the bunnyCdnApi.getEdgeScript entry", async () => {
+      await viaReplacedEdgeScript(() => bunnyCdnApi.getCdnHostname(), {
+        hostname: "mysite.b-cdn.net",
+        ok: true,
+      });
     });
   },
 );

@@ -11,7 +11,7 @@ import {
   parseBunnyError,
   reported,
 } from "#shared/bunny-api.ts";
-import type { getCdnHostnameImpl } from "#shared/bunny-pull-zone.ts";
+import type { CdnHostnameResult } from "#shared/bunny-pull-zone.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   getBunnyDnsZoneId,
@@ -93,13 +93,12 @@ const certRetryDelay = (attempt: number): number => (attempt + 1) * 5000;
 
 /** The cross-resource collaborators registerBunnySubdomain routes through the
  * API seam: availability check, CDN target, hostname validation, cleanup, and
- * the retry delay. The CDN target shape is the one getCdnHostnameImpl
- * returns. */
+ * the retry delay. */
 export type SubdomainRegistrarDeps = {
   checkSubdomainAvailable: (
     subdomain: string,
   ) => Promise<SubdomainAvailability>;
-  getCdnHostname: () => Promise<Awaited<ReturnType<typeof getCdnHostnameImpl>>>;
+  getCdnHostname: () => Promise<CdnHostnameResult>;
   validateCustomDomain: (hostname: string) => Promise<BunnyApiResult>;
   deleteDnsRecord: (
     zoneId: string,

@@ -16,20 +16,27 @@ import { toStableHostname } from "#shared/site-address.ts";
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
 interface EdgeScriptLinkedPullZone {
-  DefaultHostname: string;
   Id: number;
-  PullZoneName: string;
 }
 
 interface EdgeScriptResponse {
   DefaultHostname: string;
-  Id: number;
   LinkedPullZones: EdgeScriptLinkedPullZone[];
 }
 
-type CdnHostnameResult =
-  | { ok: true; hostname: string }
-  | { ok: false; error: string };
+export type CdnHostnameResult = { ok: true; hostname: string } | BunnyApiError;
+
+/** The edge script read result: the response data, or the API error. */
+export type EdgeScriptResult =
+  | { ok: true; data: EdgeScriptResponse }
+  | BunnyApiError;
+
+/** The edge-script read the derived lookups accept, so callers route it
+ *  through the API seam: a replaced bunnyCdnApi.getEdgeScript is the one
+ *  these lookups use. */
+export type EdgeScriptLookup = {
+  getEdgeScript: () => Promise<EdgeScriptResult>;
+};
 
 /**
  * Fetch the edge script details from the Bunny API using BUNNY_SCRIPT_ID.
@@ -43,31 +50,32 @@ export const getEdgeScriptImpl = (): Promise<
     "Get edge script",
   );
 
-/** Map edge script data to a result, returning early on API error. */
+/** Map the edge script's data, or pass the API error through. */
 const withEdgeScript = async <T>(
-  fn: (data: EdgeScriptResponse) => T,
+  getEdgeScript: EdgeScriptLookup["getEdgeScript"],
+  map: (data: EdgeScriptResponse) => T,
 ): Promise<T | BunnyApiError> => {
-  const result = await getEdgeScriptImpl();
+  const result = await getEdgeScript();
   if (!result.ok) return result;
-  return fn(result.data);
+  return map(result.data);
 };
 
 /**
  * Find the pull zone ID via the edge script's linked pull zones.
  */
-export const findPullZoneIdImpl = (): Promise<
-  { ok: true; id: number } | BunnyApiError
-> =>
-  withEdgeScript((data) => {
-    const zone = data.LinkedPullZones[0];
-    if (!zone) {
-      return {
-        error: `Edge script ${getBunnyScriptId()} has no linked pull zones`,
-        ok: false as const,
-      };
-    }
-    return { id: zone.Id, ok: true as const };
-  });
+export const findPullZoneIdImpl =
+  ({ getEdgeScript }: EdgeScriptLookup) =>
+  (): Promise<{ ok: true; id: number } | BunnyApiError> =>
+    withEdgeScript(getEdgeScript, (data) => {
+      const zone = data.LinkedPullZones[0];
+      if (!zone) {
+        return {
+          error: `Edge script ${getBunnyScriptId()} has no linked pull zones`,
+          ok: false,
+        };
+      }
+      return { id: zone.Id, ok: true };
+    });
 
 /**
  * Get the CDN hostname (DefaultHostname) from the edge script.
@@ -76,11 +84,13 @@ export const findPullZoneIdImpl = (): Promise<
 const toCnameTarget = (hostname: string): string =>
   toStableHostname(hostname.replace(/^https?:\/\//, ""));
 
-export const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
-  withEdgeScript((data) => ({
-    hostname: toCnameTarget(data.DefaultHostname),
-    ok: true as const,
-  }));
+export const getCdnHostnameImpl =
+  ({ getEdgeScript }: EdgeScriptLookup) =>
+  (): Promise<CdnHostnameResult> =>
+    withEdgeScript(getEdgeScript, (data) => ({
+      hostname: toCnameTarget(data.DefaultHostname),
+      ok: true,
+    }));
 
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
 const pullZonePost = async (

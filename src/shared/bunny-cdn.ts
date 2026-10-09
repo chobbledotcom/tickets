@@ -19,6 +19,7 @@ import {
   setEdgeScriptSecretImpl,
 } from "#shared/bunny-edge-script.ts";
 import {
+  type EdgeScriptLookup,
   findPullZoneIdImpl,
   getCdnHostnameImpl,
   getEdgeScriptImpl,
@@ -31,6 +32,13 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 const bunnyVoidResult = (result: BunnyApiResult): Result<void> =>
   result.ok ? okResult(undefined) : errorResult(result.error);
+
+/** The edge-script read the derived pull-zone lookups go through: a replaced
+ *  bunnyCdnApi.getEdgeScript is the one they use. The return type is concrete
+ *  because the body references this module's API object. */
+const edgeScriptLookup = (): EdgeScriptLookup => ({
+  getEdgeScript: () => bunnyCdnApi.getEdgeScript(),
+});
 
 /** Stubbable API for testing. Every cross-client route in the impls below goes
  *  back through this object, so a stub on one method reroutes that step. The
@@ -47,8 +55,8 @@ export const bunnyCdnApi = {
   delay,
   deleteDnsRecord: deleteDnsRecordImpl,
   deployScriptCode: deployScriptCodeImpl,
-  findPullZoneId: findPullZoneIdImpl,
-  getCdnHostname: getCdnHostnameImpl,
+  findPullZoneId: findPullZoneIdImpl(edgeScriptLookup()),
+  getCdnHostname: getCdnHostnameImpl(edgeScriptLookup()),
   getDnsZone: getDnsZoneImpl,
   getEdgeScript: getEdgeScriptImpl,
   listEdgeScriptSecrets: listEdgeScriptSecretsImpl,
