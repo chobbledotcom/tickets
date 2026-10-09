@@ -11,6 +11,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   ADMIN_API,
   type AuthSession,
+  CONTENT_API,
   getAuthenticatedApiKey,
   OWNER_API,
   withAuth,
@@ -130,6 +131,17 @@ describeWithEnv("which JSON policies accept a key", { db: true }, () => {
     const apiKey = await createTestApiKeyToken();
 
     const response = await answerRole(OWNER_API)(
+      requestAsApiKey("/api/admin/x", apiKey),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("owner");
+  });
+
+  test("the content API does", async () => {
+    const apiKey = await createTestApiKeyToken();
+
+    const response = await answerRole(CONTENT_API)(
       requestAsApiKey("/api/admin/x", apiKey),
     );
 
