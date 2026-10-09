@@ -187,6 +187,36 @@ describe("test-groups", () => {
       });
     });
 
+    test("collectTestFiles rejects a test file whose top level calls useSetting", async () => {
+      await withScratchRoot(async (root) => {
+        await Deno.writeTextFile(
+          `${root}/test/pin.test.ts`,
+          'import { useSetting } from "#test-utils/settings.ts";\n' +
+            'useSetting({ timezone: "UTC" });\n' +
+            'describe("pin", () => {});\n',
+        );
+        await expect(collectTestFiles(root)).rejects.toThrow(
+          "calls useSetting at the top level",
+        );
+        await expect(collectTestFiles(root)).rejects.toThrow(
+          "Call it inside the describe instead",
+        );
+      });
+    });
+
+    test("collectTestFiles accepts a useSetting call inside a describe", async () => {
+      await withScratchRoot(async (root) => {
+        await Deno.writeTextFile(
+          `${root}/test/pin.test.ts`,
+          'import { useSetting } from "#test-utils/settings.ts";\n' +
+            'describe("pin", () => {\n  useSetting({ timezone: "UTC" });\n});\n',
+        );
+        expect(await collectTestFiles(root)).toEqual([
+          `${root}/test/pin.test.ts`,
+        ]);
+      });
+    });
+
     test("collectTestFiles finds .test.ts and .test.tsx files, sorted", async () => {
       await withScratchRoot(async (root) => {
         await Deno.writeTextFile(

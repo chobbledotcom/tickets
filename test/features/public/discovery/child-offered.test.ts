@@ -13,10 +13,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
-// The calendar rules read the site timezone; pin it so `today()` is the
-// same day the window bounds use.
-useSetting({ timezone: "UTC" });
-
 /** A standalone (non-daily) child whose stock the caller reads directly. */
 const stockChild = (soldOut: boolean): TicketListing =>
   ({

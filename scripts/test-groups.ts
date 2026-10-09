@@ -33,12 +33,33 @@ export const GROUPS_DIR = ".test-groups";
 export const RUN_ALONE_MARKER = "test-groups: run-alone";
 
 // A hook call at column 0 is a *global* BDD hook (inside a describe it is
-// always indented — Biome enforces the formatting).
-const GLOBAL_HOOK_RE = /^(?:beforeAll|beforeEach|afterAll|afterEach)\(/m;
+// always indented — Biome enforces the formatting). A column-0 call to a
+// helper that registers hooks hides the same bug behind an import:
+// useSetting wraps beforeEach and afterEach, so a module-level call pins
+// every test in the isolate under root-scoped hooks. A worker whose
+// isolate carries such hooks dies at shutdown with no failed test and no
+// stderr (found by the bisect behind issue #2508).
+const GLOBAL_HOOK_SOURCES = [
+  /^(?:beforeAll|beforeEach|afterAll|afterEach)\(/m,
+  /^useSetting\(/m,
+];
+
+// A test file with a direct column-0 hook keeps the sanctioned solo escape
+// (mustRunAlone). A module-level useSetting call is refused outright: the
+// hooks it hides reach every test in the isolate, and running the file solo
+// does not contain the damage — its own worker still dies.
+const WRAPPER_HOOK_RE = /^useSetting\(/m;
+
+const registersGlobalHooks = (source: string): boolean => {
+  for (const pattern of GLOBAL_HOOK_SOURCES) {
+    if (pattern.test(source)) return true;
+  }
+  return false;
+};
 
 /** True when a test file must run in its own isolate instead of a group. */
 export const mustRunAlone = (source: string): boolean =>
-  GLOBAL_HOOK_RE.test(source) || source.includes(RUN_ALONE_MARKER);
+  registersGlobalHooks(source) || source.includes(RUN_ALONE_MARKER);
 
 /** Deal `items` round-robin into `groupCount` piles (sorted input stays
  * spread across piles, so no pile ends up with one directory's heavy files). */
@@ -98,10 +119,19 @@ export const planTestGroups = (
 export const collectTestFiles = async (root: string): Promise<string[]> => {
   const sources = await collectFiles(join(root, "test"), isSourcePath);
   for (const helper of sources.filter((path) => !isTestPath(path))) {
-    if (GLOBAL_HOOK_RE.test(await Deno.readTextFile(helper))) {
+    if (registersGlobalHooks(await Deno.readTextFile(helper))) {
       throw new Error(
         `${helper} is a shared test helper but registers a global BDD hook — ` +
           "export a setup function and call it from each test file's own suite instead",
+      );
+    }
+  }
+  for (const file of sources.filter(isTestPath)) {
+    if (WRAPPER_HOOK_RE.test(await Deno.readTextFile(file))) {
+      throw new Error(
+        `${file} calls useSetting at the top level. Call it inside the ` +
+          "describe instead: a module-level call registers root hooks for " +
+          "every test in the shared isolate, and the worker dies at shutdown.",
       );
     }
   }
