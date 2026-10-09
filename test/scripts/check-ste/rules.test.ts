@@ -159,6 +159,47 @@ describe("check-ste rules", () => {
       ]);
     });
 
+    test("present-perfect flags an irregular participle after has, have, or had", () => {
+      expect(rulesOn("Load the other bookings this contact has made.")).toEqual(
+        ["present-perfect"],
+      );
+      expect(rulesOn("The gate has seen no traffic.")).toEqual([
+        "present-perfect",
+      ]);
+      expect(rulesOn("We have done this twice.")).toEqual(["present-perfect"]);
+      expect(rulesOn("She had written the plan.")).toEqual(["present-perfect"]);
+      expect(rulesOn("The site has had downtime.")).toEqual([
+        "present-perfect",
+      ]);
+    });
+
+    test("present-perfect flags a regular -ed participle", () => {
+      expect(rulesOn("The form has completed the run.")).toEqual([
+        "present-perfect",
+      ]);
+      expect(rulesOn("We have finished the list.")).toEqual([
+        "present-perfect",
+      ]);
+      expect(rulesOn("The gate had decided the order.")).toEqual([
+        "present-perfect",
+      ]);
+    });
+
+    test("present-perfect leaves a noun after had alone", () => {
+      expect(rulesOn("The operator had breakfast first.")).toEqual([]);
+      expect(rulesOn("The form had a second field.")).toEqual([]);
+      expect(rulesOn("The plan had two options.")).toEqual([]);
+    });
+
+    test("present-perfect leaves an -ed word that is not a participle", () => {
+      expect(rulesOn("The fix has indeed landed.")).toEqual([]);
+    });
+
+    test("present-perfect leaves a participle that heads a compound", () => {
+      expect(rulesOn("The line has required-child edges.")).toEqual([]);
+      expect(rulesOn("The form has built-in checks.")).toEqual([]);
+    });
+
     test("banned-modal flags the modals the guide bans", () => {
       expect(rulesOn("Run it. It should work and it could fail.")).toEqual([
         "banned-modal",

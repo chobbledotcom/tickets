@@ -6,16 +6,42 @@
   "src/docs/database.ts": {
     "long-sentence": 1
   },
+  "src/features/admin/previous-bookings.ts": {
+    "present-perfect": 1
+  },
+  "src/features/admin/refunds/readiness.ts": {
+    "present-perfect": 1
+  },
+  "src/features/api/folded-booking.ts": {
+    "present-perfect": 1
+  },
+  "src/features/api/payment-callback.ts": {
+    "present-perfect": 1
+  },
+  "src/features/api/payment-processing/cancel.ts": {
+    "present-perfect": 1
+  },
+  "src/features/api/payment-processing/create.ts": {
+    "present-perfect": 1
+  },
+  "src/features/api/payment-processing/index.ts": {
+    "present-perfect": 1
+  },
+  "src/features/api/payment-processing/metadata.ts": {
+    "present-perfect": 1
+  },
   "src/features/api/payment-processing/refunds.ts": {
     "long-sentence": 5,
     "semicolon": 2,
     "banned-modal": 3,
+    "present-perfect": 1,
     "contraction": 2
   },
   "src/features/api/payment-processing/rejected-target.ts": {
     "long-sentence": 2,
     "semicolon": 4,
-    "banned-modal": 2
+    "banned-modal": 2,
+    "present-perfect": 1
   },
   "src/features/api/payment-processing/store-refund.ts": {
     "long-sentence": 6,
@@ -48,7 +74,8 @@
   },
   "src/features/app/routes.ts": {
     "semicolon": 2,
-    "wordy": 1
+    "wordy": 1,
+    "present-perfect": 1
   },
   "src/features/app/rules.ts": {
     "banned-modal": 2
@@ -90,6 +117,7 @@
     "banned-modal": 1
   },
   "src/features/format.ts": {
+    "present-perfect": 1,
     "wordy": 1
   },
   "src/features/images.ts": {
@@ -173,6 +201,7 @@
   },
   "src/features/public/order.ts": {
     "long-sentence": 6,
+    "present-perfect": 1,
     "semicolon": 4,
     "contraction": 3,
     "banned-modal": 2
@@ -220,6 +249,7 @@
     "long-sentence": 17,
     "semicolon": 5,
     "banned-modal": 8,
+    "present-perfect": 2,
     "wordy": 2
   },
   "src/features/public/ticket-submit/parse.ts": {
@@ -240,6 +270,7 @@
   },
   "src/features/public/ticket-submit/pricing.ts": {
     "long-sentence": 4,
+    "present-perfect": 1,
     "contraction": 1
   },
   "src/features/public/types.ts": {
@@ -256,6 +287,7 @@
     "contraction": 1,
     "semicolon": 1,
     "long-sentence": 2,
+    "present-perfect": 1,
     "wordy": 1
   },
   "src/features/router.ts": {
@@ -315,6 +347,7 @@
     "semicolon": 2
   },
   "src/shared/accounting/backfill.ts": {
+    "present-perfect": 1,
     "long-sentence": 5,
     "banned-modal": 1,
     "semicolon": 2,
@@ -342,6 +375,7 @@
   "src/shared/accounting/mappers.ts": {
     "long-sentence": 10,
     "banned-modal": 8,
+    "present-perfect": 1,
     "semicolon": 5,
     "wordy": 2
   },
@@ -435,16 +469,21 @@
   "src/shared/admin-surface/sections.ts": {
     "long-sentence": 1
   },
+  "src/shared/app-forms.ts": {
+    "present-perfect": 1
+  },
   "src/shared/apple-wallet.ts": {
     "wordy": 1,
     "semicolon": 1,
     "banned-modal": 1
   },
   "src/shared/apple-wallet/certificate.ts": {
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 1
   },
   "src/shared/apple-wallet/cms.ts": {
-    "semicolon": 2
+    "semicolon": 2,
+    "present-perfect": 1
   },
   "src/shared/attachment-url.ts": {
     "wordy": 1
@@ -454,7 +493,8 @@
   },
   "src/shared/attendee-list-controls.ts": {
     "long-sentence": 5,
-    "semicolon": 6
+    "semicolon": 6,
+    "present-perfect": 1
   },
   "src/shared/attendee-table-rows.ts": {
     "semicolon": 1,
@@ -478,7 +518,8 @@
   },
   "src/shared/booking-intent.ts": {
     "long-sentence": 9,
-    "banned-modal": 5
+    "banned-modal": 5,
+    "present-perfect": 3
   },
   "src/shared/booking-lines.ts": {
     "banned-modal": 1
@@ -546,6 +587,7 @@
   "src/shared/booking/signed-metadata.ts": {
     "long-sentence": 2,
     "semicolon": 2,
+    "present-perfect": 2,
     "banned-modal": 1
   },
   "src/shared/booking/ticket-moves.ts": {
@@ -634,6 +676,7 @@
   },
   "src/shared/config.ts": {
     "long-sentence": 4,
+    "present-perfect": 1,
     "banned-modal": 1,
     "wordy": 2
   },
@@ -794,6 +837,7 @@
   },
   "src/shared/db/attendees/capacity/snapshot.ts": {
     "long-sentence": 4,
+    "present-perfect": 3,
     "semicolon": 1,
     "banned-modal": 1
   },
@@ -828,7 +872,8 @@
     "contraction": 3,
     "semicolon": 6,
     "wordy": 4,
-    "banned-modal": 2
+    "banned-modal": 2,
+    "present-perfect": 1
   },
   "src/shared/db/attendees/select.ts": {
     "long-sentence": 9,
@@ -881,16 +926,19 @@
   "src/shared/db/built-sites.ts": {
     "long-sentence": 6,
     "banned-modal": 3,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/db/built-sites/claims.ts": {
     "long-sentence": 3,
     "semicolon": 1,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "present-perfect": 1
   },
   "src/shared/db/capacity-batch.ts": {
     "long-sentence": 7,
-    "semicolon": 3
+    "semicolon": 3,
+    "present-perfect": 1
   },
   "src/shared/db/capacity.ts": {
     "long-sentence": 5,
@@ -910,6 +958,7 @@
     "long-sentence": 14,
     "contraction": 2,
     "banned-modal": 10,
+    "present-perfect": 1,
     "wordy": 2
   },
   "src/shared/db/contact-preferences.ts": {
@@ -937,6 +986,7 @@
   "src/shared/db/groups.ts": {
     "long-sentence": 25,
     "banned-modal": 9,
+    "present-perfect": 1,
     "wordy": 2,
     "semicolon": 12,
     "contraction": 9
@@ -944,6 +994,7 @@
   "src/shared/db/groups/candidates.ts": {
     "long-sentence": 2,
     "semicolon": 2,
+    "present-perfect": 1,
     "banned-modal": 1
   },
   "src/shared/db/groups/homogeneity.ts": {
@@ -1018,6 +1069,7 @@
   "src/shared/db/login-attempts.ts": {
     "wordy": 1,
     "contraction": 1,
+    "present-perfect": 1,
     "long-sentence": 2,
     "semicolon": 1
   },
@@ -1040,7 +1092,8 @@
     "contraction": 1,
     "banned-modal": 5,
     "long-sentence": 8,
-    "semicolon": 2
+    "semicolon": 2,
+    "present-perfect": 1
   },
   "src/shared/db/migrations/booking-slot-index.ts": {
     "long-sentence": 3
@@ -1149,7 +1202,8 @@
   },
   "src/shared/db/migrations/verify.ts": {
     "long-sentence": 1,
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 1
   },
   "src/shared/db/modifier-resolve.ts": {
     "semicolon": 11,
@@ -1250,18 +1304,21 @@
   },
   "src/shared/db/payment-references.ts": {
     "long-sentence": 3,
-    "banned-modal": 3
+    "banned-modal": 3,
+    "present-perfect": 1
   },
   "src/shared/db/processed-payments.ts": {
     "long-sentence": 7,
     "contraction": 1,
     "semicolon": 6,
     "wordy": 2,
-    "banned-modal": 2
+    "banned-modal": 2,
+    "present-perfect": 4
   },
   "src/shared/db/prune.ts": {
     "banned-modal": 2,
     "long-sentence": 3,
+    "present-perfect": 1,
     "semicolon": 2
   },
   "src/shared/db/query-log.ts": {
@@ -1278,7 +1335,8 @@
   "src/shared/db/question-types.ts": {
     "semicolon": 1,
     "long-sentence": 1,
-    "contraction": 1
+    "contraction": 1,
+    "present-perfect": 1
   },
   "src/shared/db/questions/aggregates.ts": {
     "banned-modal": 1,
@@ -1291,6 +1349,7 @@
   },
   "src/shared/db/questions/attendee-answers/reads.ts": {
     "long-sentence": 4,
+    "present-perfect": 1,
     "semicolon": 3,
     "contraction": 2
   },
@@ -1327,13 +1386,15 @@
   },
   "src/shared/db/record-target.ts": {
     "banned-modal": 1,
+    "present-perfect": 1,
     "participle": 1
   },
   "src/shared/db/restore-legacy-columns.ts": {
     "banned-modal": 1,
     "wordy": 3,
     "long-sentence": 6,
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 1
   },
   "src/shared/db/schema-anomaly-scan.ts": {
     "long-sentence": 3
@@ -1363,11 +1424,15 @@
   },
   "src/shared/db/settings/cache.ts": {
     "long-sentence": 4,
+    "present-perfect": 1,
     "semicolon": 4,
     "banned-modal": 1
   },
   "src/shared/db/settings/constants.ts": {
     "contraction": 1
+  },
+  "src/shared/db/settings/load.ts": {
+    "present-perfect": 1
   },
   "src/shared/db/settings/mask.ts": {
     "semicolon": 1
@@ -1379,10 +1444,12 @@
     "long-sentence": 1
   },
   "src/shared/db/settings/payment-provider.ts": {
-    "long-sentence": 3
+    "long-sentence": 3,
+    "present-perfect": 1
   },
   "src/shared/db/settings/raw-writes.ts": {
     "long-sentence": 1,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/db/settings/setup.ts": {
@@ -1422,6 +1489,7 @@
   "src/shared/db/square-link-ends.ts": {
     "long-sentence": 2,
     "semicolon": 3,
+    "present-perfect": 1,
     "participle": 1
   },
   "src/shared/db/sumup-checkouts.ts": {
@@ -1430,6 +1498,7 @@
   },
   "src/shared/db/sumup-recovery.ts": {
     "long-sentence": 8,
+    "present-perfect": 4,
     "banned-modal": 3
   },
   "src/shared/db/table-reader.ts": {
@@ -1446,6 +1515,7 @@
   },
   "src/shared/db/token-attempts.ts": {
     "long-sentence": 4,
+    "present-perfect": 1,
     "semicolon": 1,
     "contraction": 1
   },
@@ -1456,7 +1526,8 @@
     "long-sentence": 11,
     "banned-modal": 5,
     "wordy": 2,
-    "semicolon": 2
+    "semicolon": 2,
+    "present-perfect": 3
   },
   "src/shared/db/where-clauses.ts": {
     "semicolon": 2,
@@ -1534,13 +1605,15 @@
   "src/shared/flash-context.ts": {
     "semicolon": 2,
     "long-sentence": 2,
+    "present-perfect": 1,
     "contraction": 3
   },
   "src/shared/form-stash.ts": {
     "wordy": 1,
     "semicolon": 1,
     "contraction": 1,
-    "long-sentence": 1
+    "long-sentence": 1,
+    "present-perfect": 1
   },
   "src/shared/format-units.ts": {
     "long-sentence": 1
@@ -1648,7 +1721,8 @@
     "semicolon": 4,
     "wordy": 1,
     "long-sentence": 2,
-    "banned-modal": 2
+    "banned-modal": 2,
+    "present-perfect": 1
   },
   "src/shared/ledger/validate.ts": {
     "long-sentence": 2,
@@ -1658,7 +1732,8 @@
     "wordy": 1,
     "long-sentence": 14,
     "semicolon": 3,
-    "banned-modal": 10
+    "banned-modal": 10,
+    "present-perfect": 2
   },
   "src/shared/listing-defaults.ts": {
     "semicolon": 3,
@@ -1821,6 +1896,7 @@
   },
   "src/shared/payment/claim.ts": {
     "long-sentence": 2,
+    "present-perfect": 2,
     "banned-modal": 8,
     "wordy": 1
   },
@@ -1829,7 +1905,7 @@
     "banned-modal": 1
   },
   "src/shared/payment/diagnose.ts": {
-    "present-perfect": 2,
+    "present-perfect": 3,
     "semicolon": 1,
     "long-sentence": 3,
     "banned-modal": 2
@@ -1862,8 +1938,12 @@
     "contraction": 1,
     "semicolon": 1
   },
+  "src/shared/payment/provider-resource-read.ts": {
+    "present-perfect": 1
+  },
   "src/shared/payment/refund-attempt.ts": {
     "banned-modal": 2,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/payment/refund-authority-choice.ts": {
@@ -1877,6 +1957,7 @@
   },
   "src/shared/payment/refund-authority.ts": {
     "banned-modal": 2,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/payment/refund-conflict-decision.ts": {
@@ -1885,18 +1966,21 @@
   "src/shared/payment/refund-machine-spec.ts": {
     "semicolon": 4,
     "long-sentence": 4,
-    "banned-modal": 3
+    "banned-modal": 3,
+    "present-perfect": 1
   },
   "src/shared/payment/refund-network.ts": {
     "long-sentence": 2
   },
   "src/shared/payment/refund-provider-authorization.ts": {
-    "long-sentence": 1
+    "long-sentence": 1,
+    "present-perfect": 1
   },
   "src/shared/payment/refund-request-identity.ts": {
     "semicolon": 1
   },
   "src/shared/payment/refund.ts": {
+    "present-perfect": 1,
     "banned-modal": 1,
     "long-sentence": 1
   },
@@ -1904,9 +1988,11 @@
     "banned-modal": 3,
     "wordy": 1,
     "long-sentence": 4,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/payment/review-machine-spec.ts": {
+    "present-perfect": 1,
     "semicolon": 2,
     "long-sentence": 1
   },
@@ -1918,7 +2004,8 @@
   "src/shared/payment/row-state.ts": {
     "long-sentence": 5,
     "banned-modal": 2,
-    "semicolon": 4
+    "semicolon": 4,
+    "present-perfect": 1
   },
   "src/shared/payment/row-transitions.ts": {
     "long-sentence": 4,
@@ -1927,31 +2014,37 @@
   },
   "src/shared/payment/square-link-end-machine-spec.ts": {
     "long-sentence": 6,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/payment/sumup-recovery-machine-spec.ts": {
     "long-sentence": 12,
     "banned-modal": 6,
+    "present-perfect": 2,
     "semicolon": 2,
     "wordy": 1
   },
   "src/shared/payment/transport-error.ts": {
     "banned-modal": 1,
+    "present-perfect": 1,
     "long-sentence": 2,
     "semicolon": 1
   },
   "src/shared/payment/validated-session.ts": {
     "long-sentence": 2,
-    "banned-modal": 2
+    "banned-modal": 2,
+    "present-perfect": 1
   },
   "src/shared/payments.ts": {
     "long-sentence": 8,
     "semicolon": 13,
     "contraction": 3,
     "banned-modal": 3,
-    "wordy": 1
+    "wordy": 1,
+    "present-perfect": 1
   },
   "src/shared/pending-work.ts": {
+    "present-perfect": 1,
     "long-sentence": 2,
     "wordy": 1,
     "banned-modal": 2,
@@ -1967,7 +2060,8 @@
   },
   "src/shared/provider-refunds.ts": {
     "banned-modal": 3,
-    "semicolon": 2
+    "semicolon": 2,
+    "present-perfect": 1
   },
   "src/shared/provider-refunds/budget.ts": {
     "semicolon": 2,
@@ -2006,6 +2100,7 @@
     "banned-modal": 2
   },
   "src/shared/refund-ledger/record.ts": {
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/regexp.ts": {
@@ -2029,7 +2124,8 @@
   "src/shared/request-cache.ts": {
     "long-sentence": 7,
     "banned-modal": 5,
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 2
   },
   "src/shared/request-scoped.ts": {
     "long-sentence": 2
@@ -2050,7 +2146,7 @@
   },
   "src/shared/rest/crud-api-types.ts": {
     "banned-modal": 2,
-    "present-perfect": 1,
+    "present-perfect": 2,
     "wordy": 7,
     "long-sentence": 5,
     "semicolon": 2
@@ -2061,6 +2157,7 @@
     "wordy": 1
   },
   "src/shared/rest/crud-parsers.ts": {
+    "present-perfect": 1,
     "semicolon": 2,
     "contraction": 1
   },
@@ -2099,7 +2196,8 @@
   },
   "src/shared/schema-atlas/sumup-recovery.ts": {
     "long-sentence": 2,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "present-perfect": 1
   },
   "src/shared/schema-atlas/types.ts": {
     "long-sentence": 2,
@@ -2123,7 +2221,8 @@
   },
   "src/shared/sentry.ts": {
     "long-sentence": 2,
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 1
   },
   "src/shared/session-context.ts": {
     "wordy": 1
@@ -2146,8 +2245,12 @@
   },
   "src/shared/site-assignment.ts": {
     "semicolon": 6,
+    "present-perfect": 2,
     "banned-modal": 3,
     "long-sentence": 3
+  },
+  "src/shared/site-build.ts": {
+    "present-perfect": 1
   },
   "src/shared/site-db.ts": {
     "long-sentence": 1,
@@ -2216,10 +2319,10 @@
     "semicolon": 1
   },
   "src/shared/square-provider.ts": {
+    "present-perfect": 3,
     "long-sentence": 5,
     "banned-modal": 5,
-    "semicolon": 1,
-    "present-perfect": 1
+    "semicolon": 1
   },
   "src/shared/square-validation.ts": {
     "long-sentence": 2
@@ -2233,10 +2336,12 @@
     "semicolon": 1
   },
   "src/shared/square/link-end.ts": {
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/shared/square/link-expiry-run.ts": {
     "long-sentence": 3,
+    "present-perfect": 1,
     "semicolon": 1,
     "banned-modal": 1
   },
@@ -2248,7 +2353,8 @@
     "long-sentence": 1
   },
   "src/shared/square/wire.ts": {
-    "long-sentence": 1
+    "long-sentence": 1,
+    "present-perfect": 2
   },
   "src/shared/storage.ts": {
     "long-sentence": 9,
@@ -2295,32 +2401,42 @@
   "src/shared/sumup.ts": {
     "long-sentence": 8,
     "semicolon": 4,
-    "wordy": 1
+    "wordy": 1,
+    "present-perfect": 2
   },
   "src/shared/sumup/checkout-resolution.ts": {
     "long-sentence": 9,
+    "present-perfect": 4,
     "semicolon": 2,
     "banned-modal": 2
   },
   "src/shared/sumup/failures.ts": {
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 1
   },
   "src/shared/sumup/money.ts": {
-    "banned-modal": 1
+    "banned-modal": 1,
+    "present-perfect": 1
   },
   "src/shared/sumup/recovery-run.ts": {
     "long-sentence": 2,
+    "present-perfect": 1,
     "semicolon": 1,
     "banned-modal": 1
   },
   "src/shared/sumup/recovery.ts": {
     "long-sentence": 4,
     "banned-modal": 2,
+    "present-perfect": 1,
     "semicolon": 2
+  },
+  "src/shared/sumup/transaction.ts": {
+    "present-perfect": 1
   },
   "src/shared/sumup/transport.ts": {
     "semicolon": 1,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "present-perfect": 1
   },
   "src/shared/superuser.ts": {
     "present-perfect": 1,
@@ -2381,6 +2497,7 @@
     "long-sentence": 1
   },
   "src/shared/uptime-kuma/matching.ts": {
+    "present-perfect": 1,
     "long-sentence": 4,
     "semicolon": 2,
     "participle": 1
@@ -2405,7 +2522,8 @@
   },
   "src/shared/validation/email.ts": {
     "long-sentence": 3,
-    "semicolon": 1
+    "semicolon": 1,
+    "present-perfect": 1
   },
   "src/shared/validation/guard.ts": {
     "long-sentence": 1
@@ -2520,7 +2638,8 @@
     "long-sentence": 4,
     "banned-modal": 2,
     "contraction": 2,
-    "wordy": 1
+    "wordy": 1,
+    "present-perfect": 1
   },
   "src/ui/client/admin/markdown-preview.ts": {
     "long-sentence": 1,
@@ -2568,10 +2687,12 @@
     "long-sentence": 9,
     "semicolon": 3,
     "contraction": 3,
-    "banned-modal": 4
+    "banned-modal": 4,
+    "present-perfect": 1
   },
   "src/ui/client/scanner.js": {
     "banned-modal": 1,
+    "present-perfect": 1,
     "long-sentence": 1
   },
   "src/ui/templates/admin/activity-log.tsx": {
@@ -2620,6 +2741,7 @@
     "contraction": 1
   },
   "src/ui/templates/admin/attendees.tsx": {
+    "present-perfect": 2,
     "banned-modal": 2,
     "semicolon": 1,
     "long-sentence": 1
@@ -2825,7 +2947,8 @@
   },
   "src/ui/templates/admin/schema-atlas.tsx": {
     "long-sentence": 1,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "present-perfect": 1
   },
   "src/ui/templates/admin/servicing-events.tsx": {
     "long-sentence": 1
@@ -2866,6 +2989,7 @@
   "src/ui/templates/admin/site.tsx": {
     "contraction": 1,
     "participle": 1,
+    "present-perfect": 2,
     "semicolon": 1,
     "banned-modal": 1
   },
@@ -2874,7 +2998,8 @@
   },
   "src/ui/templates/admin/users.tsx": {
     "semicolon": 2,
-    "contraction": 1
+    "contraction": 1,
+    "present-perfect": 1
   },
   "src/ui/templates/admin/writable-only.tsx": {
     "long-sentence": 1
@@ -2883,6 +3008,7 @@
     "long-sentence": 2
   },
   "src/ui/templates/attendee-table/status.tsx": {
+    "present-perfect": 1,
     "long-sentence": 2
   },
   "src/ui/templates/checkin.tsx": {
@@ -2914,6 +3040,7 @@
   },
   "src/ui/templates/components/capacity.tsx": {
     "long-sentence": 1,
+    "present-perfect": 1,
     "contraction": 1
   },
   "src/ui/templates/components/child-props.ts": {
@@ -3085,7 +3212,8 @@
     "long-sentence": 3,
     "banned-modal": 4,
     "semicolon": 1,
-    "participle": 1
+    "participle": 1,
+    "present-perfect": 1
   },
   "src/ui/templates/public/content-page.tsx": {
     "long-sentence": 1
@@ -3192,6 +3320,7 @@
   "src/ui/templates/public/shared.tsx": {
     "banned-modal": 2,
     "long-sentence": 10,
+    "present-perfect": 1,
     "semicolon": 1
   },
   "src/ui/templates/public/site-page.tsx": {

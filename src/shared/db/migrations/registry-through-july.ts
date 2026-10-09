@@ -314,7 +314,7 @@ export const ENTRIES_THROUGH_JULY: MigrationRegistryEntry[] = [
     () => import("./2026-07-12_remove_broken_image_records.ts"),
   ),
   // Replace the old logistics switch with one plain feature-visibility map,
-  // enabling entries that already have saved records.
+  // enabling entries that already hold saved records.
   entry(
     "2026-07-15_enabled_features",
     () => import("./2026-07-15_enabled_features.ts"),
