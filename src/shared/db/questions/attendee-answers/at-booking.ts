@@ -6,7 +6,8 @@
  * compare. The copy holds ciphertext, so the webhook can write it with no key.
  */
 
-import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
 import type { SqlStatement } from "#db/client.ts";

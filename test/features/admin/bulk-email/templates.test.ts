@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import {

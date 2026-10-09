@@ -678,11 +678,9 @@
     "long-sentence": 1
   },
   "src/shared/crypto/keys.ts": {
-    "long-sentence": 6,
+    "long-sentence": 5,
     "semicolon": 1,
-    "contraction": 2,
-    "wordy": 2,
-    "participle": 2
+    "contraction": 1
   },
   "src/shared/crypto/open-each.ts": {
     "long-sentence": 1,

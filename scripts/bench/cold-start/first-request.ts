@@ -81,7 +81,7 @@ const prepareDatabase = async (): Promise<void> => {
   const { initDb } = await import("#db/migrations.ts");
   const { settings } = await import("#db/settings.ts");
   const { setFastPbkdf2ForTest } = await import("#crypto/hashing.ts");
-  const { setRsaKeySizeForTest } = await import("#crypto/keys.ts");
+  const { setRsaKeySizeForTest } = await import("#crypto/hybrid.ts");
   const { setSuppressDebugLogs } = await import("#shared/log-settings.ts");
   const {
     recordScriptVersion,

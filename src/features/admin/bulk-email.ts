@@ -9,7 +9,8 @@ import { defineRoutes } from "#routes/router.ts";
  * keypair.
  */
 
-import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import { logActivity } from "#db/activity-log.ts";
 import {
   getContactCounts,

@@ -1,6 +1,7 @@
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { setFastPbkdf2ForTest } from "#crypto/hashing.ts";
-import { setRsaKeySizeForTest } from "#crypto/keys.ts";
+import { setRsaKeySizeForTest } from "#crypto/hybrid.ts";
+
 import { setSettingsAuditEnabled } from "#db/settings-audit.ts";
 import { lazyRef } from "#fp";
 import {

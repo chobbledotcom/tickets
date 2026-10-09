@@ -7,7 +7,8 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import { openEach } from "#crypto/open-each.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne, type SqlStatement } from "#db/client.ts";

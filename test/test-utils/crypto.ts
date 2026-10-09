@@ -66,7 +66,7 @@ export const getTestDataKey = async (): Promise<CryptoKey> => {
 
 export const getTestPrivateKey = async (): Promise<CryptoKey> => {
   const { decryptWithKey } = await import("#crypto/encryption.ts");
-  const { importPrivateKey } = await import("#crypto/keys.ts");
+  const { importPrivateKey } = await import("#crypto/hybrid.ts");
   const { settings } = await import("#db/settings.ts");
   const { getOwnerDataKey } = await import("#test-utils/owner-key.ts");
 

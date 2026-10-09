@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { encrypt } from "#crypto/encryption.ts";
-import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import { logActivities } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";

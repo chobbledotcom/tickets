@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#crypto/keys.ts";
+import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
+
 import { getAllActivityLog, logActivity } from "#db/activity-log.ts";
 import {
   backfillActivityLogBatch,

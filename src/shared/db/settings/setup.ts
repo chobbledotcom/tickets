@@ -10,11 +10,9 @@
 
 import { encryptWithKey } from "#crypto/encryption.ts";
 import { hashPassword } from "#crypto/hashing.ts";
-import {
-  generateDataKey,
-  generateKeyPair,
-  wrapDataKeyForPassword,
-} from "#crypto/keys.ts";
+import { generateKeyPair } from "#crypto/hybrid.ts";
+import { generateDataKey, wrapDataKeyForPassword } from "#crypto/keys.ts";
+
 import { type SqlStatement, withTransaction } from "#db/client.ts";
 import { bumpSettingsVersion } from "#db/settings/cache.ts";
 import { invalidateCache, loadKeys } from "#db/settings/load.ts";

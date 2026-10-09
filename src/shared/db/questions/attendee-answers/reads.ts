@@ -5,7 +5,8 @@
  * the owner-key-decrypted free-text table cells.
  */
 
-import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll } from "#db/client.ts";

@@ -12,11 +12,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#crypto/encryption.ts";
-import {
-  deriveKEKFromPassword,
-  importPrivateKey,
-  unwrapKey,
-} from "#crypto/keys.ts";
+import { importPrivateKey } from "#crypto/hybrid.ts";
+import { deriveKEKFromPassword, unwrapKey } from "#crypto/keys.ts";
+
 import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import { SetupAlreadyCompleteError } from "#db/settings/setup.ts";

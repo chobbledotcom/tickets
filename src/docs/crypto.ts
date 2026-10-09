@@ -13,6 +13,7 @@
 export * from "#crypto/aes-gcm.ts";
 export * from "#crypto/encryption.ts";
 export * from "#crypto/hashing.ts";
+export * from "#crypto/hybrid.ts";
 export * from "#crypto/keys.ts";
 export * from "#crypto/utils.ts";
 export * from "#shared/csrf.ts";

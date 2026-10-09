@@ -18,7 +18,8 @@ import {
   encryptWithOwnerKey,
   generateKeyPair,
   importPrivateKey,
-} from "#crypto/keys.ts";
+} from "#crypto/hybrid.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { OTHER_TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";

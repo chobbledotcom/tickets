@@ -15,7 +15,8 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
   HYBRID_PREFIX,
-} from "#crypto/keys.ts";
+} from "#crypto/hybrid.ts";
+
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
