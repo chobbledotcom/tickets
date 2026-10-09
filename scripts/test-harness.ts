@@ -84,6 +84,15 @@ const buildDenoTestArgs = (
   return args;
 };
 
+/** The JUnit report a run writes: the caller's path, or a fresh temporary
+ * report for a focused run — the run where a crash gets chased. Named so
+ * the call site stays a one-line read and the fallback stays testable. */
+export const junitPathForRun = async (junitPath?: string): Promise<string> => {
+  if (junitPath !== undefined) return junitPath;
+  const dir = await Deno.makeTempDir({ prefix: "test-junit-" });
+  return join(dir, "junit.xml");
+};
+
 /**
  * Run `deno test` with the standard permission flags. `extraArgs` are appended
  * verbatim — the full runner passes `["test/"]`, the focused runner passes the
@@ -107,8 +116,7 @@ export const runTests = async (
   // A focused run is where a crash gets chased, so it carries the same JUnit
   // evidence as the full suite: a fresh temporary report the summary reads
   // when the child exits without naming a cause.
-  const runJunitPath =
-    junitPath ?? join(await Deno.makeTempDir({ prefix: "test-junit-" }), "junit.xml");
+  const runJunitPath = await junitPathForRun(junitPath);
 
   if (!hasReporterArg(extraArgs)) {
     // A run that selects a subset or stops at the first failure will not
