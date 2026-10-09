@@ -202,27 +202,42 @@ const blocksFrom = (tokens: Token[], source: ProseBlock): ProseBlock[] =>
     BLOCK_READERS[policyOf(token) as keyof typeof BLOCK_READERS](token, locate),
   ).flat();
 
-/** Quoted examples are prose only after Markdown excludes code and
- * destinations. Blank each one, and collapse whitespace, so the block's
- * identity is stable under rewrapping and exempt-span length changes. */
+/** Collapse whitespace, so the block's identity is stable under rewrapping
+ * and exempt-span length changes. */
+/** The rule for a double-quoted span: it is machine-owned only when it
+ * names an error message or code. The text before it decides — the
+ * argument of a thrown error, the words "error" or "message", or a colon.
+ * A quotation behind any other word is prose, and the rules judge it. */
+const ERROR_OR_CODE_QUOTE =
+  /(?:\bnew\s+[A-Za-z]*Error\s*\([^"]*|\b(?:error|message)\s*|:)\s*$/i;
+
 const normalizeInBlock = (source: ProseBlock): ProseBlock => {
   const parts: ProseBlock[] = [];
+  // One prose part at its own source position: a whitespace run becomes one
+  // space, any other text stays whole, and `as` overrides the text whole.
+  const part = (text: string, at: number, as?: string): ProseBlock =>
+    replacement(
+      { columns: [source.columns[at]!], lines: [source.lines[at]!], text },
+      as ?? (/\s/.test(text) ? " " : text),
+    );
   for (const match of source.text.matchAll(/"[^"]*"|\s+|[^\s]/g)) {
     const text = match[0];
-    parts.push(
-      replacement(
-        {
-          columns: [source.columns[match.index]!],
-          lines: [source.lines[match.index]!],
-          text,
-        },
-        text.startsWith('"') && text.length > 1
-          ? "%"
-          : /\s/.test(text)
-            ? " "
-            : text,
-      ),
-    );
+    const at = match.index;
+    if (text.startsWith('"') && text.length > 1) {
+      if (ERROR_OR_CODE_QUOTE.test(source.text.slice(0, at))) {
+        // The quotation is machine-owned: the whole span becomes one
+        // placeholder at the opening quote.
+        parts.push(part(text, at, "%"));
+        continue;
+      }
+      // The quotation is prose: its words stay, each whitespace run as one
+      // space, each part at its own source position.
+      for (const inner of text.matchAll(/\s+|[^\s]/g)) {
+        parts.push(part(inner[0], at + inner.index!));
+      }
+      continue;
+    }
+    parts.push(part(text, at));
   }
   const joined = joinText(parts);
   const start = joined.text.length - joined.text.trimStart().length;

@@ -106,24 +106,29 @@ describe("STE Markdown block contract", () => {
     ).toEqual([]);
   });
 
-  test("excludes quoted examples only within eligible prose", () => {
+  test("judges quoted prose but not a quoted error message", () => {
     expect(
       findIssues('Say "It should\nfail". It could fail.').map(
         ({ problem }) => problem,
       ),
-    ).toEqual(['"could"']);
+    ).toEqual(['"should"', '"could"']);
     expect(findIssues('Say "has `x` been".')).toEqual([]);
+    expect(findIssues('Say the error "has been" now.')).toEqual([]);
   });
 
   test("keeps allowances stable under soft wraps and exempt span lengths", () => {
-    const before = freshEntry('It should use `x` and "bad example" now.');
+    const before = freshEntry(
+      'It should use `x` and the error "bad example" now.',
+    );
     expect(
-      freshEntry('It should\nuse `long code` and "another long example" now.'),
+      freshEntry(
+        'It should\nuse `long code` and the error "another long example" now.',
+      ),
     ).toEqual(before);
     expect(
       countsRose(
         before,
-        freshEntry('It should use `x` and "bad example" elsewhere.'),
+        freshEntry('It should use `x` and the error "bad example" elsewhere.'),
       ),
     ).toBe(true);
   });

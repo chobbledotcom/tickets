@@ -66,12 +66,11 @@ describe("check-ste rules", () => {
       expect(findIssues(content)).toEqual([]);
     });
 
-    test("never reads inline code, quoted words, or link targets", () => {
+    test("never reads inline code or link targets", () => {
       expect(
         proseBlocks("Use `should` now. [See docs](http://x?a=b;c=d)\n")[0]
           ?.text,
       ).toBe("Use % now. See docs");
-      expect(rulesOn('Say "would" here.')).toEqual([]);
       expect(rulesOn("Use `would` here.")).toEqual([]);
     });
 
@@ -82,11 +81,25 @@ describe("check-ste rules", () => {
       expect(rulesOn("Use ` ``should` here.")).toEqual([]);
     });
 
-    test("blanks a quoted span that wraps across lines, keeping line numbers", () => {
-      const content = 'The bad text is "a would;\nhere" and more would.\n';
-      expect(rulesOn(content)).toEqual(["banned-modal"]);
-      const [issue] = findIssues(content);
-      expect(issue?.line).toBe(2);
+    test("reads a quoted span that wraps across lines, keeping line numbers", () => {
+      const content = 'The bad text is "a would\nhere" and more would.\n';
+      expect(rulesOn(content)).toEqual(["banned-modal", "banned-modal"]);
+      expect(findIssues(content).map((issue) => issue.line)).toEqual([1, 2]);
+    });
+
+    test("leaves a quoted span after a colon alone", () => {
+      expect(rulesOn('The write fails: "wasn\'t finalized".')).toEqual([]);
+    });
+
+    test("leaves a quoted span after error or message alone", () => {
+      expect(rulesOn('The error "row locked" repeats.')).toEqual([]);
+      expect(rulesOn('The message "row locked" repeats.')).toEqual([]);
+    });
+
+    test("leaves a quoted span inside a thrown error alone", () => {
+      expect(
+        rulesOn('The call throws new Error("it should not happen").'),
+      ).toEqual([]);
     });
 
     test("keeps the line numbers of every prose line", () => {
@@ -133,6 +146,13 @@ describe("check-ste rules", () => {
   });
 
   describe("each rule", () => {
+    test("judges the words inside a quoted span of prose", () => {
+      expect(rulesOn('The path "should retry" after failure.')).toEqual([
+        "banned-modal",
+      ]);
+      expect(rulesOn('Say "would" here.')).toEqual(["banned-modal"]);
+    });
+
     test("contraction flags pronoun short forms and every n't", () => {
       expect(
         rulesOn("It's fine. It isn't here. You're done. We've got it."),

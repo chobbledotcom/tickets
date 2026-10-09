@@ -46,10 +46,20 @@ describe("comment language rules", () => {
     expect(() => rulesOf("// The marker is `don't ship`.")).toThrow();
   });
 
-  test("leaves a double-quoted message alone", () => {
+  test("leaves a quoted error message alone", () => {
+    expect(() => rulesOf('// The write fails: "wasn\'t finalized".')).toThrow();
     expect(() =>
-      rulesOf('// The write refuses with "wasn\'t finalized".'),
+      rulesOf('// The error "wasn\'t finalized" repeats.').toThrow(),
     ).toThrow();
+    expect(() =>
+      rulesOf('// Throws new Error("it should not happen").').toThrow(),
+    ).toThrow();
+  });
+
+  test("judges quoted prose", () => {
+    expect(rulesOf('// The path "should retry" after failure.')).toContain(
+      "banned-modal",
+    );
   });
 
   test("leaves a camelCase name that starts with a banned modal alone", () => {
