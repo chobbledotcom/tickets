@@ -116,6 +116,12 @@ const answerRowsInsert = <Row extends { attendeeId: number }>(
       ) ${afterValues}`,
 });
 
+/** The join drops a question deleted between checkout and finalize. Without
+ * it, the save inserts an attendee_answers row that points at a deleted
+ * question, and the admin UI can never surface that row. */
+const liveQuestionJoin = (rowAlias: string): string =>
+  `INNER JOIN questions AS question ON question.id = ${rowAlias}.question_id`;
+
 /** The whole save as plain statements: delete the attendees' previous answers,
  * intern the prepared free-text strings, then re-insert the surviving choices
  * and texts. Deleted answers and questions drop out through the SQL joins, so
@@ -163,6 +169,7 @@ const answerSaveStatements = (
           ) AS choice_order
         FROM selected
         INNER JOIN answers AS answer ON answer.id = selected.answer_id
+        ${liveQuestionJoin("answer")}
       )
       INSERT INTO attendee_answers (attendee_id, answer_id, question_id)
       SELECT attendee_id, answer_id, question_id
@@ -208,12 +215,10 @@ const answerSaveStatements = (
               : "?",
           ],
         }),
-        // The questions join drops a question deleted between checkout and
-        // finalize instead of inserting an orphan row.
         `INSERT INTO attendee_answers (attendee_id, question_id, string_id)
         SELECT selected.attendee_id, selected.question_id, selected.string_id
         FROM selected
-        INNER JOIN questions AS question ON question.id = selected.question_id`,
+        ${liveQuestionJoin("selected")}`,
       ),
     );
   }
