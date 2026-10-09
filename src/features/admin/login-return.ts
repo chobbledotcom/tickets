@@ -1,5 +1,6 @@
 /**
- * Where login sends the user: back to the admin page she first asked for.
+ * Where login sends the user: back to the admin page the user first asked
+ * for.
  *
  * A logged-out visit to an admin page carries that page's address to the
  * login flow in a `return_url` value, and a successful login returns there.
