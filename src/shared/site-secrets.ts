@@ -7,12 +7,16 @@
  * a value deliberately.
  *
  * DB_ENCRYPTION_KEY is excluded from the expected set entirely. It is generated
- * per-site and never stored, so it cannot be reproduced, and re-setting it with
- * a fresh key would orphan the site's existing encrypted data.
+ * per-site and never stored, so it cannot be reproduced. Re-setting it with a
+ * fresh key would orphan the site's existing encrypted data.
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { collectHostSecrets, HOST_INFRA_SECRET_KEYS } from "#shared/builder.ts";
+import {
+  collectHostSecrets,
+  HOST_INFRA_SECRET_KEYS,
+  pairSiblingOrNull,
+} from "#shared/builder.ts";
 import type { Result } from "#shared/result.ts";
 import {
   resolveHostingProvider,
@@ -42,6 +46,18 @@ export const expectedSiteSecrets = (site: BuiltSite): [string, string][] => {
 export const hostInfraSecretNames = (names: string[]): string[] =>
   names.filter((name) => HOST_INFRA_SECRET_KEYS.includes(name));
 
+/** The copy names whose pair the site already holds: completing them works
+ * only when the held half matches the host's, which the hosting API cannot
+ * check because it never returns values. */
+export const pairConflictsFor = (
+  expected: string[],
+  present: Set<string>,
+): string[] =>
+  expected.filter((name) => {
+    const sibling = pairSiblingOrNull(name);
+    return sibling !== null && present.has(sibling) && !present.has(name);
+  });
+
 /** Outcome of inspecting a site's live secrets against the expected set. */
 export type SiteSecretsView =
   | {
@@ -50,6 +66,8 @@ export type SiteSecretsView =
       present: string[];
       /** Expected secret names that are not present. */
       missing: string[];
+      /** Missing names whose pair the site already holds. */
+      pairConflicts: string[];
       /** All names we would copy to a fresh build of this site. */
       expected: string[];
     }
@@ -112,6 +130,7 @@ export const loadSiteSecretsStatus = async (
       expected,
       missing: expected.filter((name) => !present.has(name)),
       ok: true as const,
+      pairConflicts: pairConflictsFor(expected, present),
       present: names,
     };
   });
@@ -124,15 +143,33 @@ export type AddMissingSecretsResult =
 /**
  * Re-verify the site's live secrets, then set only the ones still missing from
  * the expected set. Never overwrites a secret that already exists.
+ *
+ * A missing secret whose pair the site already holds completes that pair only
+ * when the held half matches the host, which cannot be checked. Without the
+ * operator's confirmation the pair is left alone and the conflict is named.
  */
 export const addMissingSiteSecrets = (
   site: BuiltSite,
+  confirmPairs: boolean,
 ): Promise<AddMissingSecretsResult> =>
   // Re-verify against the live list in case more secrets exist by now.
   withResolvedSite(site, async ({ present, hostingId }) => {
-    const toAdd = expectedSiteSecrets(site).filter(
-      ([name]) => !present.has(name),
+    const expected = expectedSiteSecrets(site);
+    const toAdd = expected.filter(([name]) => !present.has(name));
+
+    const conflicts = pairConflictsFor(
+      toAdd.map(([name]) => name),
+      present,
     );
+    if (conflicts.length > 0 && !confirmPairs) {
+      return {
+        error:
+          `Copy stopped: the site already holds the other key of ${conflicts.join(", ")}. ` +
+          "The copy cannot check whether the two match. Tick the confirm box on the " +
+          "secrets page to copy anyway, or remove the held key from the site first.",
+        ok: false,
+      };
+    }
 
     if (toAdd.length === 0) return { added: [], ok: true };
 

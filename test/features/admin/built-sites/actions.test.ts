@@ -195,6 +195,71 @@ describeWithEnv(
       }
     });
 
+    /** A site whose live secrets hold every expected key except the Botpoison
+     * secret key, with a recording secret double. Set the host's Botpoison
+     * pair before calling: the expected set follows the environment. */
+    const halfPairSite = async (hostingId: string, name: string) => {
+      const site = await createTestBuiltSite({
+        dbToken: "tok",
+        dbUrl: "libsql://u",
+        hostingId,
+        name,
+      });
+      const present = expectedSiteSecrets(site)
+        .map(([key]) => key)
+        .filter((key) => key !== "BOTPOISON_SECRET_KEY");
+      return { secrets: stubSecrets(present), site };
+    };
+
+    test("stops the copy when the site holds half a pair", async () => {
+      using _env = withEnv({
+        BOTPOISON_PUBLIC_KEY: "pk_live_a1",
+        BOTPOISON_SECRET_KEY: "sk_live_b2",
+      });
+      const { secrets, site } = await halfPairSite("7105", "Half Pair Site");
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/secrets`,
+          expect.stringContaining("Copy stopped"),
+          false,
+        )(response);
+        // Nothing is copied while the conflict stands.
+        expect(secrets.setCalls).toEqual([]);
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    test("completes the pair when the operator confirms", async () => {
+      using _env = withEnv({
+        BOTPOISON_PUBLIC_KEY: "pk_live_a1",
+        BOTPOISON_SECRET_KEY: "sk_live_b2",
+      });
+      const { secrets, site } = await halfPairSite(
+        "7106",
+        "Confirmed Pair Site",
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+          { confirm_pair_secrets: "1" },
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/secrets`,
+          expect.stringContaining("BOTPOISON_SECRET_KEY"),
+        )(response);
+        // Only the missing half is written; the held half is never touched.
+        expect(secrets.setCalls).toEqual([
+          { name: "BOTPOISON_SECRET_KEY", value: "sk_live_b2" },
+        ]);
+      } finally {
+        secrets.restore();
+      }
+    });
+
     test("reports nothing to do when every expected secret is present", async () => {
       const site = await createTestBuiltSite({
         dbToken: "tok",

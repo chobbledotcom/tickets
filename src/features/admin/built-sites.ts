@@ -203,8 +203,11 @@ const handleRotateToken = builtSiteAction(async (site, _form, id) => {
  * still missing. An existing secret is never overwritten: someone changed it
  * for a reason.
  */
-const handleAddSecrets = builtSiteAction(async (site, _form, id) => {
-  const result = await addMissingSiteSecrets(site);
+const handleAddSecrets = builtSiteAction(async (site, form, id) => {
+  const result = await addMissingSiteSecrets(
+    site,
+    form.getFlag("confirm_pair_secrets"),
+  );
   if (!result.ok) {
     return builtSiteTabError(
       id,

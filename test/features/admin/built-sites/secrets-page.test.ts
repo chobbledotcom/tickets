@@ -66,11 +66,20 @@ describeWithEnv(
     });
 
     test("leaves the Botpoison keys out when the host does not have them", async () => {
+      // A developer shell can already define either key. withEnv falls
+      // through to the real value for a key the fixture does not name, so
+      // the fixture clears both keys explicitly.
+      using _host = withEnv({
+        BOTPOISON_PUBLIC_KEY: "pk_shell_leftover",
+        BOTPOISON_SECRET_KEY: "sk_shell_leftover",
+      });
       const site = await createTestBuiltSite({
         hostingId: "8101",
         name: "No Botpoison",
       });
       const html = await secretsPage(site.id, {
+        BOTPOISON_PUBLIC_KEY: undefined,
+        BOTPOISON_SECRET_KEY: undefined,
         BUNNY_API_KEY: "k",
         NTFY_URL: "https://ntfy.example.com/t",
       });

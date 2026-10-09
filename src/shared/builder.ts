@@ -36,12 +36,16 @@ import { fetchLatestRelease } from "#shared/update.ts";
  * `hostInfra: true` tags account-/infrastructure-level credentials (the Bunny
  * account key, shared storage, host email, wallet signing material). They are
  * copied deliberately — built sites are trusted clones on the operator's own
- * infrastructure — but the backfill UI surfaces them distinctly so the operator
+ * infrastructure. The backfill UI surfaces them distinctly so the operator
  * stays aware. Keeping sensitivity here, on the single source list, stops it
  * drifting from a hand-maintained parallel list.
  */
 type HostSecret = {
   name: string;
+  /** The other key of a secret that only works when both change together.
+   * Completing one half from the host can mismatch a half the site already
+   * holds. The hosting API never returns values, so the copy cannot check. */
+  pairWith?: string;
   hostInfra?: boolean;
   bunnyOnly?: boolean;
 };
@@ -49,8 +53,14 @@ type HostSecret = {
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "SENTRY_URL" },
-  { name: "BOTPOISON_PUBLIC_KEY" },
-  { name: "BOTPOISON_SECRET_KEY" },
+  {
+    name: "BOTPOISON_PUBLIC_KEY",
+    pairWith: "BOTPOISON_SECRET_KEY",
+  },
+  {
+    name: "BOTPOISON_SECRET_KEY",
+    pairWith: "BOTPOISON_PUBLIC_KEY",
+  },
   { name: "ADMIN_EMAIL_ADDRESS" },
   { name: "SUPPORT_FORM_NAG_DAYS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
@@ -76,6 +86,12 @@ const HOST_SECRETS: readonly HostSecret[] = [
 export const HOST_INFRA_SECRET_KEYS: readonly string[] = HOST_SECRETS.filter(
   (s) => s.hostInfra,
 ).map((s) => s.name);
+
+/** The other name of a two-key secret, for keys that only work as a pair.
+ * Null for every name that is not one half of a declared pair — absence is
+ * the normal case for a copy list that mostly holds standalone secrets. */
+export const pairSiblingOrNull = (name: string): string | null =>
+  HOST_SECRETS.find((s) => s.name === name)?.pairWith ?? null;
 
 export type BuildSiteInput = {
   siteName: string;

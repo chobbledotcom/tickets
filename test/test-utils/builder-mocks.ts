@@ -173,6 +173,37 @@ export const secretsFrom = (secretStub: {
 }): [string, string][] =>
   secretStub.calls.map((c) => [c.args[1] as string, c.args[2] as string]);
 
+/** Stub the Bunny secret-list read to return the given names. The API never
+ * returns values, so an entry carries its name plus fixed metadata only. */
+export const stubEdgeScriptSecrets = (names: string[]): Stub =>
+  stub(bunnyCdnApi, "listEdgeScriptSecrets", () =>
+    Promise.resolve({
+      ok: true as const,
+      secrets: names.map((Name) => ({
+        Id: 1,
+        LastModified: "2026-01-01T00:00:00Z",
+        Name,
+      })),
+    }),
+  );
+
+/** Stub the edge-secret write to succeed, recording every [name, value]. */
+export const recordingSecretSetter = (): {
+  calls: [string, string][];
+  stub: Stub;
+} => {
+  const calls: [string, string][] = [];
+  const setStub = stub(
+    bunnyCdnApi,
+    "setEdgeScriptSecret",
+    (_id: number, name: string, value: string) => {
+      calls.push([name, value]);
+      return Promise.resolve({ ok: true as const });
+    },
+  );
+  return { calls, stub: setStub };
+};
+
 /** Assert a secret with `name` was set to exactly `value`. */
 export const expectSecret = (
   secrets: [string, string][],
