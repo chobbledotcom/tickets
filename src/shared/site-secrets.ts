@@ -12,6 +12,7 @@
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
+import { t } from "#i18n";
 import {
   collectHostSecrets,
   HOST_INFRA_SECRET_KEYS,
@@ -163,10 +164,9 @@ export const addMissingSiteSecrets = (
     );
     if (conflicts.length > 0 && !confirmPairs) {
       return {
-        error:
-          `Copy stopped: the site already holds the other key of ${conflicts.join(", ")}. ` +
-          "The copy cannot check whether the two match. Tick the confirm box on the " +
-          "secrets page to copy anyway, or remove the held key from the site first.",
+        error: t("built_sites.copy_stopped_pair_conflict", {
+          names: conflicts.join(", "),
+        }),
         ok: false,
       };
     }

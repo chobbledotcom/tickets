@@ -68,25 +68,28 @@ describeWithEnv(
       );
     });
 
-    test("reports a pair conflict when the site holds one key of a pair", async () => {
-      await withMocks(
-        () => stubEdgeScriptSecrets(presentExcept("BOTPOISON_SECRET_KEY")),
-        async () => {
-          const view = await loadSiteSecretsStatus(buildSite());
-          expect(view.ok).toBe(true);
-          if (!view.ok) return;
-          expect(view.missing).toEqual(["BOTPOISON_SECRET_KEY"]);
-          expect(view.pairConflicts).toEqual(["BOTPOISON_SECRET_KEY"]);
-        },
-      );
+    test("reports the pair conflict from either half of the pair", async () => {
+      for (const absent of ["BOTPOISON_SECRET_KEY", "BOTPOISON_PUBLIC_KEY"]) {
+        await withMocks(
+          () => stubEdgeScriptSecrets(presentExcept(absent)),
+          async () => {
+            const view = await loadSiteSecretsStatus(buildSite());
+            expect(view.ok).toBe(true);
+            if (!view.ok) return;
+            expect(view.missing).toEqual([absent]);
+            expect(view.pairConflicts).toEqual([absent]);
+          },
+        );
+      }
     });
 
     test("refuses to complete a pair the site holds half of", async () => {
       const { calls, result } = await backfillHalfPair(false);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error).toContain("Copy stopped");
-        expect(result.error).toContain("BOTPOISON_SECRET_KEY");
+        expect(result.error).toContain("The site already holds");
+        expect(result.error).toContain("the two keys match");
+        expect(result.error).toContain("Tick the confirm box");
       }
       // Nothing is copied while the conflict stands.
       expect(calls).toEqual([]);

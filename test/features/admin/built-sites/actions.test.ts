@@ -223,7 +223,9 @@ describeWithEnv(
         );
         await expectFlashRedirect(
           `/admin/built-sites/${site.id}/secrets`,
-          expect.stringContaining("Copy stopped"),
+          expect.stringContaining(
+            "Secrets could not be set: The site already holds",
+          ),
           false,
         )(response);
         // Nothing is copied while the conflict stands.
