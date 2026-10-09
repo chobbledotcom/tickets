@@ -44,7 +44,8 @@ import {
 } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
-import { deleteListingAttachmentFile } from "#shared/storage.ts";
+import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
+
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,

@@ -15,13 +15,16 @@ import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+/* jscpd:ignore-start -- imports */
 import {
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
-  tryDeleteFile,
   uploadImageTargets,
   validateImage,
 } from "#shared/storage.ts";
+import { tryDeleteFile } from "#shared/storage-cleanup.ts";
+/* jscpd:ignore-end */
+
 import {
   type NonEmptyString,
   nonEmptyString,

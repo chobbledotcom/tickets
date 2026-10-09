@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
-  buildSubdomainRecordName,
   bunnyCdnApi,
   checkSubdomainAvailable,
   registerBunnySubdomain,
 } from "#shared/bunny-cdn.ts";
+import { buildSubdomainRecordName } from "#shared/bunny-dns.ts";
 import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,

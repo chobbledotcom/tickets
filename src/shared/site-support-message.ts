@@ -14,7 +14,7 @@ import {
   bunnyGetJson,
   bunnyJsonRequest,
   parseBunnyError,
-} from "#shared/bunny-cdn.ts";
+} from "#shared/bunny-api.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import type { DenoEnvVar } from "#shared/deno-deploy-schema.ts";
 import { okResult, type Result } from "#shared/result.ts";

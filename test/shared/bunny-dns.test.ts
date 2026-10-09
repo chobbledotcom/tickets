@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { buildSubdomainRecordName, bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { buildSubdomainRecordName } from "#shared/bunny-dns.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";

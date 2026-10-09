@@ -39,7 +39,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     "slugs",
   ]),
   ...identitiesAt([
-    ["src/shared/bunny-cdn.ts", [{ name: "EdgeScriptSecret" }]],
+    ["src/shared/bunny-edge-script.ts", [{ name: "EdgeScriptSecret" }]],
   ])(["Id", "LastModified"]),
   ...identitiesAt([
     ["src/shared/catalog-fields/fields.ts", [{ name: "GroupInput" }]],

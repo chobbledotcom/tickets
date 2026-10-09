@@ -14,14 +14,16 @@ import { errorRedirect } from "#routes/response.ts";
 import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { fail, ok } from "#shared/response.ts";
+/* jscpd:ignore-start -- imports */
 import {
   deleteFile,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
-  tryDeleteFile,
   uploadImageTargets,
   validateImage,
 } from "#shared/storage.ts";
+import { tryDeleteFile } from "#shared/storage-cleanup.ts";
+/* jscpd:ignore-end */
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 export const handleHeaderImagePost = (request: Request): Promise<Response> =>
