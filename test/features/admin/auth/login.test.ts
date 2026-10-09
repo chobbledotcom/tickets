@@ -370,6 +370,21 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       expect(landedAt(response).pathname).toBe("/admin/listings/12");
     });
 
+    test("a successful login keeps an encoded query value", async () => {
+      const response = await handleRequest(
+        await mockAdminLoginRequest({
+          password: TEST_ADMIN_PASSWORD,
+          return_url: "/admin/listings/12?filter=A%26B",
+          username: TEST_ADMIN_USERNAME,
+        }),
+      );
+      const landed = landedAt(response);
+      expect(landed.pathname).toBe("/admin/listings/12");
+      // The filter is one value, A&B — the & the value carries stayed encoded
+      // through the login round trip.
+      expect(landed.searchParams.get("filter")).toBe("A&B");
+    });
+
     test("an attack target lands on the dashboard", async () => {
       for (const attack of [
         "//evil.com",

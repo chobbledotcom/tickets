@@ -9,14 +9,17 @@ import {
 } from "#routes/admin/login-return.ts";
 
 /** The values a return target can take. Each accepted row names the exact
- *  path the login flow can send the user to. */
+ *  path the login flow can send the user to. A query value's encoded
+ *  characters (%26, %25) must survive, so the accepted target is the raw
+ *  text, not its decoded shape. */
 const ACCEPTED: readonly (readonly [string, string])[] = [
   ["/admin/listings/12", "/admin/listings/12"],
   ["/admin/listings/12?tab=notes", "/admin/listings/12?tab=notes"],
   ["/admin/settings/", "/admin/settings/"],
   ["/admin/", "/admin/"],
   ["/admin/café", "/admin/caf%C3%A9"],
-  ["%2Fadmin%2Flistings", "/admin/listings"],
+  ["/admin/listings/12?filter=A%26B", "/admin/listings/12?filter=A%26B"],
+  ["/admin/listings/12?q=100%25", "/admin/listings/12?q=100%25"],
 ];
 
 /** The attack shapes and other values the rule must refuse: addresses for
@@ -33,6 +36,7 @@ const REFUSED: readonly string[] = [
   "javascript:alert(1)",
   "%2F%2Fevil.com",
   "%5Cevil.com",
+  "%2Fadmin%2Flistings",
   "%zz",
   "/admin/listings%zz",
   "/admin%2F%2Fevil.com",
@@ -96,6 +100,23 @@ describe("the admin login return target", () => {
     expect(
       returnPathFromRequest(new Request("http://localhost/admin/listings/12")),
     ).toBe("/admin/listings/12");
+  });
+
+  test("keeps a query value's encoded characters through the login round trip", () => {
+    // The gate hands the raw path to the login page, the page hides it in
+    // the form, and the form's value is checked again on POST. The filter
+    // value A%26B must still parse as one value A&B after login, and a
+    // percent sign in a value must not read as a malformed escape.
+    for (const input of [
+      "/admin/listings/12?filter=A%26B",
+      "/admin/listings/12?q=100%25",
+    ]) {
+      const target = adminReturnPath(input);
+      expect(target, input).toBe(input);
+      const href = adminLoginPageHref(target);
+      const carried = new Request(`http://localhost${href}`);
+      expect(returnPathFromQuery(carried), input).toBe(input);
+    }
   });
 
   test("encodes the target into the login page's address", () => {

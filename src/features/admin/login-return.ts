@@ -26,9 +26,10 @@ const hasControlCharacter = (text: string): boolean =>
   });
 
 /** The safe target a return value names, or null when the value is absent
- *  or unsafe. The input arrives once decoded, from the query or the form.
- *  The rule decodes it once more, so an encoded attack shape cannot survive
- *  as plain text. */
+ *  or unsafe. The check reads the value's decoded shape, so an encoded
+ *  attack shape cannot survive as plain text. The redirect target comes
+ *  from the raw text, so a query value's `%26` or `%25` survives the login
+ *  round trip. */
 export const adminReturnPath = (
   raw: string | null | undefined,
 ): string | null => {
@@ -46,19 +47,32 @@ export const adminReturnPath = (
   if (decoded.includes("//") || decoded.includes("\\")) return null;
   if (hasControlCharacter(decoded)) return null;
   if (!decoded.startsWith(ADMIN_PREFIX)) return null;
-  const target = new URL(decoded, "http://localhost");
+  // The redirect target comes from the raw text, so the query keeps its
+  // encoded delimiters. A value whose decoded shape passes can still name a
+  // non-admin path after URL normalization (a double-encoded path). The raw
+  // pathname must hold the prefix too.
+  const target = new URL(raw, "http://localhost");
   const path = `${target.pathname}${target.search}`;
   if (!path.startsWith(ADMIN_PREFIX)) return null;
-  // A return to the login page loops, and logout after a successful login is
-  // nonsense.
+  // The normalized decoded path must also stay in the admin area, so a
+  // climb like `/admin/..%2F..%2Fpublic` is refused.
+  const normalized = new URL(decoded, "http://localhost");
+  if (!normalized.pathname.startsWith(ADMIN_PREFIX)) return null;
+  // A return to the login page loops, and logout after a successful login
+  // is nonsense. Both shapes are checked: the raw pathname can carry an
+  // encoded form the decoded one does not.
   if (
-    target.pathname === "/admin/login" ||
-    target.pathname === "/admin/logout"
+    isRefusedLoginPage(target.pathname) ||
+    isRefusedLoginPage(normalized.pathname)
   ) {
     return null;
   }
   return path;
 };
+
+/** The login and logout paths the login flow refuses to return to. */
+const isRefusedLoginPage = (pathname: string): boolean =>
+  pathname === "/admin/login" || pathname === "/admin/logout";
 
 /** The return target a page address carries: the `return_url` query value,
  *  or null when it is absent or unsafe. */
