@@ -22,7 +22,7 @@ import {
   COVERAGE_OUTPUT_DIR,
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
-import { junitPathForRun } from "./junit-report-path.ts";
+import { junitPathInArgs, junitReportForRun } from "./junit-report-path.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
@@ -106,8 +106,11 @@ export const runTests = async (
 
   // A focused run is where a crash gets chased, so it carries the same JUnit
   // evidence as the full suite: a fresh temporary report the summary reads
-  // when the child exits without naming a cause.
-  const runJunitPath = await junitPathForRun(junitPath);
+  // when the child exits without naming a cause. A report the caller
+  // forwarded inside the arguments wins, and its directory stays theirs.
+  const forwardedJunitPath = junitPathInArgs(extraArgs);
+  const report = await junitReportForRun(forwardedJunitPath ?? junitPath);
+  const runJunitPath = forwardedJunitPath ?? report.path;
 
   if (!hasReporterArg(extraArgs)) {
     // A run that selects a subset or stops at the first failure will not
@@ -116,15 +119,28 @@ export const runTests = async (
     const estimatedTotal = skipsDeclaredTests(extraArgs)
       ? undefined
       : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
-    return await runCompactDenoTest(
-      buildDenoTestArgs(extraArgs, useCoverage, "tap", runJunitPath),
-      {
-        cwd: projectRoot,
-        env,
-        ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
-        junitPath: runJunitPath,
-      },
-    );
+    try {
+      return await runCompactDenoTest(
+        buildDenoTestArgs(
+          extraArgs,
+          useCoverage,
+          "tap",
+          forwardedJunitPath === undefined ? runJunitPath : undefined,
+        ),
+        {
+          cwd: projectRoot,
+          env,
+          ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
+          junitPath: runJunitPath,
+        },
+      );
+    } finally {
+      if (report.dir !== undefined) {
+        await Deno.remove(report.dir, { recursive: true }).catch(
+          rethrowUnlessNotFound,
+        );
+      }
+    }
   }
 
   console.log("Running tests...");

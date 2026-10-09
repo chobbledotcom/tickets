@@ -353,6 +353,14 @@ const printJunitErrorFiles = (junitErrorFiles: string[]): void => {
   for (const file of junitErrorFiles) console.error(`  ${file}`);
 };
 
+/** The stdout lines deno printed beside the TAP results — a worker or
+ * module that aborted prints its only cause there. */
+const printRetainedStdout = (droppedLines: readonly string[]): void => {
+  if (droppedLines.length === 0) return;
+  console.error("\nStdout lines deno printed beside the TAP results:");
+  for (const line of droppedLines) console.error(line);
+};
+
 const printNoFailedTestFacts = ({
   summary,
   status,
@@ -361,10 +369,6 @@ const printNoFailedTestFacts = ({
 }: ExitFacts): void => {
   console.error(describeStatus(status));
   printJunitErrorFiles(junitErrorFiles);
-  if (summary.droppedLines.length > 0) {
-    console.error("\nStdout lines deno printed beside the TAP results:");
-    for (const line of summary.droppedLines) console.error(line);
-  }
   if (
     extra === "" &&
     summary.droppedLines.length === 0 &&
@@ -410,6 +414,11 @@ export const printCompactSummary = (
   }
 
   console.error(`\nFAILED ${summary.passed} passed, ${summary.failed} failed`);
+
+  // A worker or module that aborted beside counted failures prints its only
+  // cause as plain stdout, so the retained lines carry evidence on every
+  // failing run, not only when no test failure was counted.
+  printRetainedStdout(summary.droppedLines);
 
   if (summary.failed === 0) {
     printNoFailedTestFacts({ extra, junitErrorFiles, status, summary });

@@ -291,6 +291,33 @@ describe("printing the run summary", () => {
     );
     expect(errors).toContain("error: Uncaught TypeError: boom");
   });
+
+  test("shows those lines beside counted test failures too", async () => {
+    const { errors } = await printed(
+      summary({
+        droppedLines: ["error: Uncaught TypeError: boom"],
+        failed: 1,
+        failures: [
+          {
+            location: {
+              column: 3,
+              file: "./src/shared/remembered.ts",
+              line: 9,
+            },
+            message: "Values are not strictly equal.",
+            name: "keeps an undefined answer",
+          },
+        ],
+      }),
+      1,
+      "",
+    );
+
+    expect(errors).toContain(
+      "\nStdout lines deno printed beside the TAP results:",
+    );
+    expect(errors).toContain("error: Uncaught TypeError: boom");
+  });
 });
 
 describe("reading deno's JUnit report for uncaught errors", () => {
