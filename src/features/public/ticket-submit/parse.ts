@@ -85,29 +85,28 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
   return null;
 };
 
+/** The inputs every page-submit step reads: the posted form, the page
+ *  context, and the page's booking tree the bundle-limit refusal reads. */
+type PageSubmitArgs = [
+  form: FormParams,
+  ctx: TicketCtx,
+  tree: ReturnType<typeof buildBookingTree>,
+];
+
+/** One form-state gate over the page submit's inputs. */
+type FormStateCheck = (...args: PageSubmitArgs) => string | null;
+
 /** The package refusal for one posted bundle count, or null. An owner can
  *  raise a member's minimum after the package was saved, so the fold
  *  re-reads the stored fact the same way the webhook does. A count above the
- *  page's bundle limit refuses instead of silently booking fewer bundles.
- *  The limit check needs the page's booking tree. A caller that reads only
- *  the stored minimums can omit it. */
-/** One form-state gate: the submitted form, the page context, and the booking
- *  tree the bundle-limit refusal reads. */
-type FormStateCheck = (
-  form: FormParams,
-  ctx: TicketCtx,
-  tree?: ReturnType<typeof buildBookingTree>,
-) => string | null;
-
+ *  page's bundle limit refuses instead of silently booking fewer bundles. */
 const packageQuantityRefusal: FormStateCheck = (form, ctx, tree) => {
   const listingById = byId(ctx.listings.map((info) => info.listing));
   for (const pkg of ctx.packages) {
     const bundleCount = parsePackageCount(form, pkg.groupId);
-    if (tree) {
-      const limit = ctxPackageLimit(ctx, tree, pkg);
-      if (bundleCount > limit) {
-        return bookingError.packageMaximum(pkg.name, limit);
-      }
+    const limit = ctxPackageLimit(ctx, tree, pkg);
+    if (bundleCount > limit) {
+      return bookingError.packageMaximum(pkg.name, limit);
     }
     const fixedByListingId = new Map(
       pkg.memberListingIds.map((id) => [id, pkg.quantities.get(id) ?? 1]),
@@ -151,8 +150,7 @@ const addOnQuantityRefusal = (
 
 /** Validate page-level form state before deeper parsing. Returns an error
  * message, or null when the form state is acceptable. The package bundle-limit
- * refusal reads the page's booking tree. Production callers pass it. Callers
- * that only exercise the row minimums can omit it. */
+ * refusal reads the page's booking tree. */
 export const validateFormState: FormStateCheck = (form, ctx, tree) => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
@@ -302,9 +300,7 @@ const ctxPackageLimit = (
  * `prepareOrder` as "select at least one ticket".
  */
 export const resolvePageQuantities = (
-  form: FormParams,
-  ctx: TicketCtx,
-  tree: ReturnType<typeof buildBookingTree>,
+  ...[form, ctx, tree]: PageSubmitArgs
 ): { nodeQuantities: Map<string, number>; quantities: Map<number, number> } => {
   // Listings with a standalone node keep their own quantity_<id> input — every
   // non-member, plus any member the cart also added by its own slug.
