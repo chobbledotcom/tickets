@@ -39,7 +39,7 @@ type WalletSecretField = WalletTextField & {
 };
 
 /** What one wallet's settings form is, said as data: its fields, its log lines,
- * and whether it already has saved config to fall back on. */
+ * and whether it already holds saved config to fall back on. */
 type WalletForm = {
   clearedKey: string;
   formId: string;

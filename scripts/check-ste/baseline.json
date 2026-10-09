@@ -1,5 +1,7 @@
 {
-  "AGENTS.md": {},
+  "AGENTS.md": {
+    "present-perfect \"has changed\" in Both runners skip the asset build when nothing it reads has changed.": 1
+  },
   "CLAUDE.md": {},
   "E2E_TESTS.md": {
     "semicolon \";\" in How this repository writes Cucumber acceptance specifications and the direct tests that live alongside them. AGENTS.md covers everything else; this file is the detail for anyone writing, migrating, or reviewing a story.": 1,
@@ -11,17 +13,24 @@
     "semicolon \";\" in Run Scenarios through the bounded Cucumber worker pool. Each worker has its own isolate, and every Scenario gets a fresh database and World. Test environment changes must use % so % and the worker's % stay aligned. Do not add retries; a pass after retry is still a flaky failure.": 1,
     "semicolon \";\" in Reuse the existing golden database, stripe-mock, static assets, encryption, browser, cache reset, and cleanup mechanisms. Extract one hook-free fixture when Cucumber and Deno hooks need the same lifecycle; never maintain two.": 1,
     "semicolon \";\" in Screenshot evidence uses those authored story, rule, and case IDs plus a separate stable capture ID. Its public contract is % with files under %; raw Cucumber Messages stay generated and private.": 1,
+    "present-perfect \"has happened\" in A migration is a replacement, and the risk is always the same: the story reads better than the test it replaced while quietly proving less. This has happened repeatedly, so it is a required step, not advice.": 1,
     "semicolon \";\" in Deliberately dropped, because the claim was about the old test's own scaffolding rather than the product. Say so out loud; do not let it vanish silently.": 1,
+    "present-perfect \"have gone\" in Claims that have gone missing in real migrations here, to show the shape of the problem:": 1,
     "wordy \"simply\" in that a race was settled by capacity rather than by one request simply failing,": 1,
     "semicolon \";\" in every field you are about to send is rendered on the page;": 1,
     "semicolon \";\" in any value chosen from a dropdown is one of the options offered;": 1,
     "semicolon \";\" in % does all of this; use it rather than writing a new check. Two traps it exists because of: matching % misses markup that writes % first, and looking for % anywhere inside a % wrongly rejects a perfectly normal disabled placeholder option.": 1,
     "banned-modal \"would\" in A refusal must leave nothing behind. Prove the row is absent, not just that a later booking still fits. A scenario with a limit of 3 refused a 2-place booking and then probed with 1 place: had the refused booking leaked a row, the probe would still have passed on the one place left over. Assert the refused thing does not exist.": 1,
+    "present-perfect \"have passed\" in A refusal must leave nothing behind. Prove the row is absent, not just that a later booking still fits. A scenario with a limit of 3 refused a 2-place booking and then probed with 1 place: had the refused booking leaked a row, the probe would still have passed on the one place left over. Assert the refused thing does not exist.": 1,
     "banned-modal \"would\" in A % that calls the same production helper that produced the value proves nothing: change the helper and both sides move together. A download's date column was checked with %, the very function that writes it, so changing its exclusive-end arithmetic would have kept the story green. Write the expected value out in the step from the story's own numbers.": 1,
+    "present-perfect \"have kept\" in A % that calls the same production helper that produced the value proves nothing: change the helper and both sides move together. A download's date column was checked with %, the very function that writes it, so changing its exclusive-end arithmetic would have kept the story green. Write the expected value out in the step from the story's own numbers.": 1,
     "banned-modal \"would\" in Two definitions matching one step text is an Ambiguous error, and a generic % step will collide with the literal ones already registered. Before adding a generic step, grep for the literals it would swallow. Merge them only when their assertions are genuinely the same; if a literal asserts more (a conservation check, an extra surface), keep it and word the new step differently.": 1,
     "semicolon \";\" in Two definitions matching one step text is an Ambiguous error, and a generic % step will collide with the literal ones already registered. Before adding a generic step, grep for the literals it would swallow. Merge them only when their assertions are genuinely the same; if a literal asserts more (a conservation check, an extra surface), keep it and word the new step differently.": 1,
     "banned-modal \"would\" in Plain language must still be true. % described a choice that returns nothing to the customer's card — it records credit owed to them. A reader would have learned the opposite of the truth. When naming a money decision, a status, or an outcome, check what the code does before you name it.": 1,
+    "present-perfect \"have learned\" in Plain language must still be true. % described a choice that returns nothing to the customer's card — it records credit owed to them. A reader would have learned the opposite of the truth. When naming a money decision, a status, or an outcome, check what the code does before you name it.": 1,
     "banned-modal \"would\" in The Feature's own prose is a claim. The narrative under % and the paragraph under each % are published in the story catalog as statements about the product, and nothing executes them. A Feature description promising that % survived after the scenario that would have tested it was removed — so the catalog would have published a guarantee the product does not give, with every scenario passing. Describe only what the Rules below actually exercise. When you remove a scenario, re-read the prose above it.": 2,
+    "present-perfect \"have tested\" in The Feature's own prose is a claim. The narrative under % and the paragraph under each % are published in the story catalog as statements about the product, and nothing executes them. A Feature description promising that % survived after the scenario that would have tested it was removed — so the catalog would have published a guarantee the product does not give, with every scenario passing. Describe only what the Rules below actually exercise. When you remove a scenario, re-read the prose above it.": 1,
+    "present-perfect \"have published\" in The Feature's own prose is a claim. The narrative under % and the paragraph under each % are published in the story catalog as statements about the product, and nothing executes them. A Feature description promising that % survived after the scenario that would have tested it was removed — so the catalog would have published a guarantee the product does not give, with every scenario passing. Describe only what the Rules below actually exercise. When you remove a scenario, re-read the prose above it.": 1,
     "banned-modal \"could\" in When the story fails because the product does not do that, do not soften the story. This is the most valuable thing a migration finds, and the temptation is to reword the % until it goes green. Instead: delete the scenario, leave the original test where it is, and write the question up in a GitHub issue with what you expected, what the product does, and the ways it could be settled. Say it in the pull request too. A scenario weakened to match behaviour nobody chose is worse than no scenario — it makes the accident look intended.": 1
   },
   "PR_WORKFLOW.md": {
@@ -35,6 +44,7 @@
     "semicolon \";\" in expected source files and source-line budget;": 1,
     "semicolon \";\" in database and provider call budget;": 1,
     "semicolon \";\" in its place in a stack;": 1,
+    "present-perfect \"has completed\" in After the assigned agent has completed the behavior contract, shared contract, adversarial review, and PR slices, it must stop and present the plan to a human. Do not write tests or implementation code yet.": 1,
     "semicolon \";\" in the current-system value;": 1,
     "semicolon \";\" in trusted facts and observed facts;": 1,
     "semicolon \";\" in valid states and state transitions;": 1,
@@ -108,6 +118,7 @@
   "cli/README.md": {},
   "docs/checkin-count-plan.md": {},
   "docs/cold-start.md": {
+    "present-perfect \"has started\" in The tiny hello file supplies the dynamic-import and path-resolution floor after the benchmark child has started. It is not a process-start measurement. % puts the same app behind a dynamic import in the same file. It estimates where work is paid, not code splitting: about 106 ms remains in file loading and parsing, and the paired runs put about 51 ms of eager evaluation on the first request instead. The full and lazy files are the same 5.51 MB.": 1,
     "semicolon \";\" in import the shared session-key error without evaluating the authentication feature;": 1,
     "semicolon \";\" in load admin API authentication only after its path matches;": 1,
     "semicolon \";\" in load migration execution only for database-backed requests;": 1,
@@ -249,6 +260,7 @@
     "semicolon \";\" in Each of these was found, and most were confirmed, on the rewrite. They are worth reading in full at the commit above before re-attempting the aggregate; in one line each:": 1,
     "semicolon \";\" in One stuck item must never block the queue behind it: a saved owner decision the provider kept refusing halted every checkout, completion and refund; one unredactable payment halted all payment-history redaction and the pruning behind it.": 1,
     "banned-modal \"may\" in Deferred work must run from facts saved when the money moved, not from live rows an owner may have edited since — quantity, currency, recipient, and the booking itself all drifted between capture and completion.": 1,
+    "present-perfect \"have edited\" in Deferred work must run from facts saved when the money moved, not from live rows an owner may have edited since — quantity, currency, recipient, and the booking itself all drifted between capture and completion.": 1,
     "banned-modal \"could\" in Money-adjacent actions must be exact about their targets: a % that could refund, a refund list that included charge-less payments, and a confirmed refund that never reached the ledger all moved or lost money on paper.": 1,
     "semicolon \";\" in Recorded so nobody re-raises them here: SumUp amounts convert once at checkout creation (no stored retry); emails send inline reading the config at send time (no queue to go stale); the attendee merge already fences live payment rows (%); Square's % is already optional in %; the success redirect already clears session tokens, and a revisit renders without them.": 4
   },
