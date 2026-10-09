@@ -21,18 +21,21 @@ import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings, listingNames } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { compact, filter, unique } from "#fp";
+import { t } from "#i18n";
 import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { returnPathFromQuery } from "#routes/admin/login-return.ts";
 import {
   adminLandingPath,
   contentPage,
+  formPost,
+  OWNER_FORM,
   requireSessionOr,
   sessionPage,
   withSession,
 } from "#routes/auth.ts";
 import { flashForPage } from "#routes/flash-for-page.ts";
-import { htmlResponse, redirectResponse } from "#routes/response.ts";
+import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#shared/flash-context.ts";
 import { groupScopeOptions } from "#shared/ledger-scope.ts";
@@ -145,6 +148,9 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           holidays,
           upcomingServicingEvents,
           attributeContext,
+          // The welcome steps are the owner's alone. Managers share the page
+          // without them.
+          session.adminLevel === "owner" && !settings.welcomeDismissed,
         ),
       );
     },
@@ -262,9 +268,18 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   },
 );
 
+/** The owner dismissed the welcome steps: store it for the site, so no later
+ *  login shows the message again. Owner-only, with the form CSRF check in
+ *  `formPost`. */
+const handleWelcomeDismiss = formPost(OWNER_FORM)(async () => {
+  await settings.update.welcomeDismissed(true);
+  return redirect("/admin", t("admin.dashboard.welcome.dismissed"), true);
+});
+
 export const adminHandlers = defineRoutes({
   "GET /admin": handleAdminGet,
   "GET /admin/listings": handleAdminListingsGet,
   "GET /admin/listings/csv": handleListingsCsvExport,
   "GET /admin/log": handleAdminLog,
+  "POST /admin/welcome/dismiss": handleWelcomeDismiss,
 });

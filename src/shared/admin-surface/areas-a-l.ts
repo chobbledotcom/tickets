@@ -149,6 +149,9 @@ export const AREAS_A_L = {
   },
   dashboard: {
     audience: STAFF_ADMIN_LEVELS,
+    // The welcome-dismiss POST renders no page of its own. Its handler gates
+    // the owner role and the CSRF token itself.
+    segments: ["welcome"],
     view: {
       home: "/admin/",
       listings: { audience: CONTENT_ADMIN_LEVELS, pattern: "/admin/listings" },

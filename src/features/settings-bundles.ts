@@ -222,6 +222,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   unsubscribe: [CONFIG_KEYS.WEBSITE_TITLE],
   v1: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
   wallet: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
+  // The welcome dismiss POST only writes, so infra is enough.
+  welcome: [],
 };
 
 /** Settings to pre-load for a path: infra ∪ the prefix's bundle. */

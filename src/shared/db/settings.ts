@@ -346,6 +346,10 @@ const settingsBase = {
     ),
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
+    welcomeDismissed: boolUpdate(
+      CONFIG_KEYS.WELCOME_DISMISSED,
+      "welcome_dismissed",
+    ),
   },
   updateUserPassword,
   /**
@@ -358,6 +362,11 @@ const settingsBase = {
    */
   get version(): number {
     return getCacheState().version;
+  },
+
+  /** True once the owner dismissed the new-owner welcome steps. */
+  get welcomeDismissed(): boolean {
+    return snap("welcome_dismissed");
   },
   withCurrentTask,
 };
