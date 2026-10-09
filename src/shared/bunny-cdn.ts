@@ -2,12 +2,7 @@
  *  (pull zone, DNS, edge script) behind the stubbable `bunnyCdnApi` seam that
  *  tests stub. It also exposes the hosting provider and entry points. */
 
-import {
-  type BunnyApiResult,
-  bunnyGetJson,
-  bunnyJsonRequest,
-  parseBunnyError,
-} from "#shared/bunny-api.ts";
+import type { BunnyApiResult } from "#shared/bunny-api.ts";
 import {
   checkSubdomainAvailableImpl,
   type DomainResult,
@@ -152,6 +147,3 @@ export const deployScriptCode = async (
   bunnyVoidResult(await bunnyCdnApi.deployScriptCode(code, scriptId));
 
 export type { DomainResult };
-// Re-exports for the plumbing callers that read the shared request helpers
-// through this module's public surface.
-export { bunnyGetJson, bunnyJsonRequest, parseBunnyError };
