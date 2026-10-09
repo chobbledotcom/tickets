@@ -1,6 +1,7 @@
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripAnsi } from "./ansi.ts";
+import { nullIfNotFound } from "./not-found.ts";
 import { toDisplayPath } from "./project-root.ts";
 import { readStream } from "./stream-lines.ts";
 import {
@@ -415,6 +416,13 @@ export const printCompactSummary = (
     );
   }
 
+  if (junitErrorFiles.length > 0 && summary.failed > 0) {
+    console.error(
+      "\ndeno's JUnit report marks these files with uncaught errors:",
+    );
+    for (const file of junitErrorFiles) console.error(`  ${file}`);
+  }
+
   printFailures(summary);
 
   // Always surface stderr on a failing run: an uncaught error in a test
@@ -463,7 +471,7 @@ export const runCompactDenoTest = async (
   const junit =
     options.junitPath === undefined
       ? ""
-      : await Deno.readTextFile(options.junitPath).catch(() => "");
+      : (await nullIfNotFound(Deno.readTextFile(options.junitPath))) ?? "";
   printCompactSummary(
     summary,
     { code: status.code, signal: status.signal },

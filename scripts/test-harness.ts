@@ -11,6 +11,7 @@
  * for them.
  */
 
+import { join } from "node:path";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import {
   failAfterCleanups,
@@ -103,6 +104,12 @@ export const runTests = async (
 
   if (useCoverage) await removeOldCoverageOutput();
 
+  // A focused run is where a crash gets chased, so it carries the same JUnit
+  // evidence as the full suite: a fresh temporary report the summary reads
+  // when the child exits without naming a cause.
+  const runJunitPath =
+    junitPath ?? join(await Deno.makeTempDir({ prefix: "test-junit-" }), "junit.xml");
+
   if (!hasReporterArg(extraArgs)) {
     // A run that selects a subset or stops at the first failure will not
     // report every declaration, so the count would name tests the run never
@@ -111,12 +118,12 @@ export const runTests = async (
       ? undefined
       : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
     return await runCompactDenoTest(
-      buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
+      buildDenoTestArgs(extraArgs, useCoverage, "tap", runJunitPath),
       {
         cwd: projectRoot,
         env,
         ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
-        ...(junitPath === undefined ? {} : { junitPath }),
+        junitPath: runJunitPath,
       },
     );
   }

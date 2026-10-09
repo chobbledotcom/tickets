@@ -7,6 +7,7 @@ import {
   printCompactSummary,
   runCompactDenoTest,
 } from "#scripts/compact-test-reporter.ts";
+import { runTests } from "#scripts/test-harness.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
@@ -371,7 +372,7 @@ describe("running deno test with the compact reporter", () => {
             'console.log("error: Uncaught boom from the dying child"); Deno.exit(1);',
           ],
           { cwd: dir.path, env: { CI: "1" } },
-        ),
+        )
       );
 
       expect(value).toBe(1);
@@ -379,6 +380,46 @@ describe("running deno test with the compact reporter", () => {
         "error: Uncaught boom from the dying child",
       );
       expect(errors.join("\n")).toContain("deno exited with code 1");
+    } finally {
+      dir.dispose();
+    }
+  });
+
+  test("lets a JUnit read failure other than a missing file surface", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      await expect(
+        runCompactDenoTest(["eval", "Deno.exit(0);"], {
+          cwd: dir.path,
+          env: { CI: "1" },
+          junitPath: dir.path,
+        }),
+      ).rejects.toThrow();
+    } finally {
+      dir.dispose();
+    }
+  });
+
+  test("names the uncaught-error file a focused run's JUnit report holds", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      Deno.writeTextFileSync(
+        `${dir.path}/crashes.test.ts`,
+        [
+          "Deno.test(\"starts\", () => {",
+          "  queueMicrotask(() => { throw new Error(\"boom-mid-run\"); });",
+          "});",
+        ].join("\n"),
+      );
+      const { errors, value } = await capturingConsole(() =>
+        runTests(["crashes.test.ts"], false)
+      );
+
+      expect(value).not.toBe(0);
+      expect(errors.join("\n")).toContain(
+        "\ndeno's JUnit report marks these files with uncaught errors:",
+      );
+      expect(errors.join("\n")).toContain("  ./crashes.test.ts");
     } finally {
       dir.dispose();
     }

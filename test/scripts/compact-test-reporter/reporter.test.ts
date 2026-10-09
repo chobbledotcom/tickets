@@ -244,3 +244,14 @@ Deno.test("hasReporterArg detects both Deno reporter flag forms", () => {
   expect(hasReporterArg(["--reporter", "dot", "test/"])).toBe(true);
   expect(hasReporterArg(["--reporter=tap", "test/"])).toBe(true);
 });
+
+Deno.test("compact TAP reporter swallows a stray end marker without a failure", () => {
+  const reporter = new CompactTapReporter({
+    cwd: Deno.cwd(),
+    stdout: () => {},
+  });
+
+  consume(reporter, ["TAP version 14", "ok 1 - only", "...", "1..1"]);
+
+  expect(reporter.finish().droppedLines).toEqual([]);
+});
