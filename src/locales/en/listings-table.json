@@ -316,5 +316,6 @@
   "listings_table.file_removal_failed": "{label} removal failed",
   "listings_table.choices_updated": "{label} updated",
   "listings_table.listing_updated": "Listing updated{warning}",
-  "listings_table.name_label": "Listing name"
+  "listings_table.name_label": "Listing name",
+  "listings_table.duration_capacity_warning": " Warning: group capacity exceeded on {overDay}"
 }

@@ -76,7 +76,7 @@ const reconcileDurationChange = async (
     `Duration change caused group capacity overflow on ${overDay}`,
     row,
   );
-  return ` Warning: group capacity exceeded on ${overDay}`;
+  return t("listings_table.duration_capacity_warning", { overDay });
 };
 
 /** Re-render the Edit tab in place at 400 with the submitted error and the

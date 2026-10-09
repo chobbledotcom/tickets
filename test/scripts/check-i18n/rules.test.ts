@@ -124,6 +124,12 @@ describe("flashLiterals", () => {
     expect(flashLiterals(`errorRedirect(path, 'single quoted');`)).toEqual([
       'L1 flash "single quoted"',
     ]);
+    expect(
+      flashLiterals(`redirect (url, "Space before paren", true);`),
+    ).toEqual(['L1 flash "Space before paren"']);
+    expect(
+      flashLiterals(`redirect(url, /* note */ "Commented arg", true);`),
+    ).toEqual(['L1 flash "Commented arg"']);
     expect(flashLiterals(`ok("/admin/x", "Already logged in");`)).toEqual([
       'L1 flash "Already logged in"',
     ]);
@@ -173,6 +179,9 @@ describe("flashLiterals", () => {
       flashLiterals(
         '// redirect("/x", "Commented example stays unflagged");\nredirect("/x", t("a.b"), true);',
       ),
+    ).toEqual([]);
+    expect(
+      flashLiterals(`const x = 1; // redirect(url, "Commented out", true);`),
     ).toEqual([]);
     expect(flashLiterals(`redirect(url, "", true);`)).toEqual([]);
     expect(flashLiterals(`redirect(url, "123", true);`)).toEqual([]);
