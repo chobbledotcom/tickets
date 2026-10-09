@@ -11,7 +11,6 @@
  * for them.
  */
 
-import { join } from "node:path";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import {
   failAfterCleanups,
@@ -23,6 +22,7 @@ import {
   COVERAGE_OUTPUT_DIR,
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
+import { junitPathForRun } from "./junit-report-path.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
@@ -82,15 +82,6 @@ const buildDenoTestArgs = (
   if (junitPath) args.push("--junit-path", junitPath);
   args.push(...extraArgs);
   return args;
-};
-
-/** The JUnit report a run writes: the caller's path, or a fresh temporary
- * report for a focused run — the run where a crash gets chased. Named so
- * the call site stays a one-line read and the fallback stays testable. */
-export const junitPathForRun = async (junitPath?: string): Promise<string> => {
-  if (junitPath !== undefined) return junitPath;
-  const dir = await Deno.makeTempDir({ prefix: "test-junit-" });
-  return join(dir, "junit.xml");
 };
 
 /**
