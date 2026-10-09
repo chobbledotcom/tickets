@@ -266,6 +266,9 @@ const packageBundleEntries = {
       v.check(oneEntryPerSlug),
     ),
   ),
+  // The members' minimums' whole-bundle floor: with `maxPurchasable` it is
+  // the whole valid range, so a caller never posts a count the fold refuses.
+  minimum: AtLeastOne,
   name: NonEmpty,
   slug: Slug,
 };

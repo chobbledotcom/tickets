@@ -415,6 +415,19 @@ export const packageBundleMinimum = (
       ),
   );
 
+/** One package's bundle floor, read from its booking tree beside its
+ *  members' stored minimums. The bookability gate, the page select, and the
+ *  API detail read the same floor, so no surface offers a count the fold
+ *  refuses. */
+export const treePackageBundleMinimum = (
+  tree: BookingTree,
+  members: readonly TicketListing[],
+): number =>
+  packageBundleMinimum(
+    fixedQuantitiesByListingId(tree),
+    new Map(members.map(({ listing }) => [listing.id, listing.min_quantity])),
+  );
+
 /** Whole bundles of ONE page package the buyer may still book, on a page that
  * can sell several bundles alongside other listings: {@link packageBundleLimit}
  * over just that package's member nodes and member listings (`page` carries the

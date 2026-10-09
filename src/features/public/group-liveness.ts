@@ -2,7 +2,11 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildTicketListing, type TicketListing } from "#booking/model.ts";
-import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
+import {
+  packageBundleLimit,
+  packageLimitInfo,
+  treePackageBundleMinimum,
+} from "#booking/package-cap.ts";
 import {
   getDatelessGroupRemaining,
   remainingByListingOverGroups,
@@ -190,6 +194,7 @@ const bookablePackageIds = async (
         slugs: members.map((member) => member.slug),
       });
       return (
+        treePackageBundleMinimum(tree, ticketListings) <=
         packageBundleLimit(
           tree,
           packageLimitInfo(
@@ -198,7 +203,7 @@ const bookablePackageIds = async (
             remaining,
             groupIdsByListingId,
           ),
-        ) >= 1
+        )
       );
     })
     .map((group) => group.id);

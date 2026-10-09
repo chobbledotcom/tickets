@@ -8,7 +8,11 @@ import {
 } from "#booking/min-refusal.ts";
 import { bookableChildIds, pageDayCounts } from "#booking/model.ts";
 import { nodeQuantitiesFor } from "#booking/order-lines.ts";
-import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
+import {
+  packageBundleLimit,
+  packageLimitInfo,
+  treePackageBundleMinimum,
+} from "#booking/package-cap.ts";
 import { packageBundleTotal } from "#booking/price-tree.ts";
 import { type BookingTree, fixedQuantitiesByListingId } from "#booking/tree.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
@@ -66,6 +70,9 @@ type PackageContext = {
   ctx: TicketCtx;
   group: Group;
   limit: number;
+  /** The members' minimums' whole-bundle floor. The bookability gate keeps it
+   *  at or under {@link limit}, so the GET always shows a valid range. */
+  minimum: number;
   tree: BookingTree;
 };
 
@@ -94,7 +101,13 @@ const loadPackageContext = async (
       ctx.packageMemberGroupIds,
     ),
   );
-  return { ctx, group: loaded.group, limit, tree };
+  return {
+    ctx,
+    group: loaded.group,
+    limit,
+    minimum: treePackageBundleMinimum(tree, ctx.listings),
+    tree,
+  };
 };
 
 /** Load a bookable package context by slug, or respond with the
@@ -139,7 +152,7 @@ const packageMergedFields = (ctx: TicketCtx): string =>
  * mix can serve. An empty list means no span is currently bookable. A HIDDEN
  * package omits its members entirely. */
 export const handleGetPackage = withPackageContext(
-  async (_request, { ctx, group, limit, tree }) => {
+  async (_request, { ctx, group, limit, minimum, tree }) => {
     const customisable = ctx.listings.some((e) => e.listing.customisable_days);
     const dayCounts = customisable
       ? pageDayCounts(ctx.listings, ctx.childrenByParentId, true)
@@ -177,6 +190,10 @@ export const handleGetPackage = withPackageContext(
         description: group.description,
         fields: packageMergedFields(ctx),
         maxPurchasable: limit,
+        // The members' joint whole-bundle floor. With maxPurchasable it is
+        // the whole valid range. A concealed package omits its members, so
+        // a client cannot derive the floor itself.
+        minimum,
         name: group.name,
         slug: group.slug,
         ...(ctx.dates.length ? { availableDates: ctx.dates } : {}),
