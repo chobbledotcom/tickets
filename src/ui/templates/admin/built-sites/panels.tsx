@@ -186,6 +186,25 @@ export const SecretsPanel = ({
               })}
             </p>
           )}
+          {view.pairConflicts.length > 0 && (
+            <>
+              <p role="note">
+                <strong>{t("built_sites.pair_conflict_heading")}</strong>{" "}
+                {t("built_sites.pair_conflict_note", {
+                  names: view.pairConflicts.join(", "),
+                })}
+              </p>
+              <label>
+                <input
+                  name="confirm_pair_secrets"
+                  required
+                  type="checkbox"
+                  value="1"
+                />{" "}
+                {t("built_sites.pair_conflict_confirm")}
+              </label>
+            </>
+          )}
           <SubmitButton icon="plus">
             {t("built_sites.set_missing_secrets", {
               count: String(view.missing.length),

@@ -4,7 +4,6 @@ import { stub } from "@std/testing/mock";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { collectHostSecrets } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import type { EdgeScriptSecret } from "#shared/bunny-edge-script.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
 import {
@@ -13,22 +12,13 @@ import {
   hostInfraSecretNames,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
+import {
+  recordingSecretSetter,
+  stubEdgeScriptSecrets,
+} from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-
-/** Build a Bunny secret-list entry (name + metadata; the API never returns values). */
-const secret = (name: string): EdgeScriptSecret => ({
-  Id: 1,
-  LastModified: "2026-01-01T00:00:00Z",
-  Name: name,
-});
-
-/** Stub bunnyCdnApi.listEdgeScriptSecrets to return the given names. */
-const stubList = (names: string[]) =>
-  stub(bunnyCdnApi, "listEdgeScriptSecrets", () =>
-    Promise.resolve({ ok: true as const, secrets: names.map(secret) }),
-  );
 
 const buildSite = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
   testBuiltSite({
@@ -192,7 +182,7 @@ describeWithEnv(
         .filter((n) => n !== "NTFY_URL")
         .concat("DB_ENCRYPTION_KEY");
       await withMocks(
-        () => stubList(present),
+        () => stubEdgeScriptSecrets(present),
         async () => {
           const view = await loadSiteSecretsStatus(site);
           expect(view.ok).toBe(true);
@@ -209,7 +199,7 @@ describeWithEnv(
     test("reports nothing missing when every expected secret is live", async () => {
       const site = buildSite();
       await withMocks(
-        () => stubList(expectedNamesFor(site)),
+        () => stubEdgeScriptSecrets(expectedNamesFor(site)),
         async () => {
           const view = await loadSiteSecretsStatus(site);
           expect(view.ok).toBe(true);
@@ -321,24 +311,17 @@ describeWithEnv(
       const site = buildSite();
       // Everything expected is already live except NTFY_URL.
       const present = expectedNamesFor(site).filter((n) => n !== "NTFY_URL");
-      const setCalls: [string, string][] = [];
+      const set = recordingSecretSetter();
       await withMocks(
         () => ({
-          listStub: stubList(present),
-          setStub: stub(
-            bunnyCdnApi,
-            "setEdgeScriptSecret",
-            (_id: number, name: string, value: string) => {
-              setCalls.push([name, value]);
-              return Promise.resolve({ ok: true as const });
-            },
-          ),
+          listStub: stubEdgeScriptSecrets(present),
+          setStub: set.stub,
         }),
         async () => {
-          const result = await addMissingSiteSecrets(site);
+          const result = await addMissingSiteSecrets(site, false);
           expect(result).toEqual({ added: ["NTFY_URL"], ok: true });
           // Only the missing secret is written; existing ones are left alone.
-          expect(setCalls).toEqual([
+          expect(set.calls).toEqual([
             ["NTFY_URL", "https://ntfy.example.com/t"],
           ]);
         },
@@ -347,20 +330,17 @@ describeWithEnv(
 
     test("re-verifies live secrets first, so it skips ones that now exist", async () => {
       const site = buildSite();
-      const setCalls: string[] = [];
+      const set = recordingSecretSetter();
       await withMocks(
         () => ({
           // The live list already has every expected secret (added meanwhile).
-          listStub: stubList(expectedNamesFor(site)),
-          setStub: stub(bunnyCdnApi, "setEdgeScriptSecret", (_i, n: string) => {
-            setCalls.push(n);
-            return Promise.resolve({ ok: true as const });
-          }),
+          listStub: stubEdgeScriptSecrets(expectedNamesFor(site)),
+          setStub: set.stub,
         }),
         async () => {
-          const result = await addMissingSiteSecrets(site);
+          const result = await addMissingSiteSecrets(site, true);
           expect(result).toEqual({ added: [], ok: true });
-          expect(setCalls).toEqual([]);
+          expect(set.calls).toEqual([]);
         },
       );
     });
@@ -368,7 +348,7 @@ describeWithEnv(
     test("returns the error when a secret fails to set", async () => {
       await withMocks(
         () => ({
-          listStub: stubList([]),
+          listStub: stubEdgeScriptSecrets([]),
           setStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
             Promise.resolve({
               error: "Set secret DB_URL failed (403)",
@@ -377,7 +357,7 @@ describeWithEnv(
           ),
         }),
         async () => {
-          const result = await addMissingSiteSecrets(buildSite());
+          const result = await addMissingSiteSecrets(buildSite(), false);
           expect(result).toEqual({
             error: "Set secret DB_URL failed (403)",
             ok: false,
@@ -396,7 +376,7 @@ describeWithEnv(
             }),
           ),
         async () => {
-          const result = await addMissingSiteSecrets(buildSite());
+          const result = await addMissingSiteSecrets(buildSite(), false);
           expect(result).toEqual({
             error: "List secrets failed (401)",
             ok: false,
@@ -406,7 +386,10 @@ describeWithEnv(
     });
 
     test("refuses a site with no script id", async () => {
-      const result = await addMissingSiteSecrets(buildSite({ hostingId: "" }));
+      const result = await addMissingSiteSecrets(
+        buildSite({ hostingId: "" }),
+        false,
+      );
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toContain("no hosting ID");
     });
@@ -425,7 +408,7 @@ describeWithEnv(
       await withMocks(
         () => stubDenoSecrets(),
         async () => {
-          const result = await addMissingSiteSecrets(site);
+          const result = await addMissingSiteSecrets(site, true);
           expect(result.ok).toBe(true);
         },
       );
@@ -440,7 +423,7 @@ describeWithEnv(
         () =>
           stubDenoSecrets({ error: "patch failed (500)", ok: false as const }),
         async () => {
-          const result = await addMissingSiteSecrets(site);
+          const result = await addMissingSiteSecrets(site, true);
           expect(result.ok).toBe(false);
         },
       );

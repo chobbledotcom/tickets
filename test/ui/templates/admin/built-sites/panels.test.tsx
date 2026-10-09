@@ -145,6 +145,7 @@ describe("secrets panel", () => {
           expected: ["DB_URL", "NTFY_URL", "STORAGE_ZONE_KEY"],
           missing: ["NTFY_URL", "STORAGE_ZONE_KEY"],
           ok: true,
+          pairConflicts: [],
           present: ["DB_URL", "DB_ENCRYPTION_KEY"],
         },
       }),
@@ -167,6 +168,7 @@ describe("secrets panel", () => {
           expected: ["NTFY_URL"],
           missing: ["NTFY_URL"],
           ok: true,
+          pairConflicts: [],
           present: [],
         },
       }),
@@ -183,6 +185,7 @@ describe("secrets panel", () => {
           expected: ["DB_URL", "NTFY_URL"],
           missing: [],
           ok: true,
+          pairConflicts: [],
           present: ["DB_URL", "NTFY_URL"],
         },
       }),
@@ -211,6 +214,25 @@ describe("secrets panel", () => {
     );
   });
 
+  test("asks the operator before completing a half-held pair", () => {
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          expected: ["BOTPOISON_PUBLIC_KEY", "BOTPOISON_SECRET_KEY"],
+          missing: ["BOTPOISON_SECRET_KEY"],
+          ok: true,
+          pairConflicts: ["BOTPOISON_SECRET_KEY"],
+          present: ["BOTPOISON_PUBLIC_KEY"],
+        },
+      }),
+    );
+    expect(html).toContain("Pair warning");
+    expect(html).toContain("rejects every contact form submission");
+    expect(html).toContain('name="confirm_pair_secrets"');
+    expect(html).toContain("required");
+  });
+
   test("separates multiple missing infrastructure secrets", () => {
     const html = String(
       SecretsPanel({
@@ -219,6 +241,7 @@ describe("secrets panel", () => {
           expected: ["STORAGE_ZONE_NAME", "STORAGE_ZONE_KEY"],
           missing: ["STORAGE_ZONE_NAME", "STORAGE_ZONE_KEY"],
           ok: true,
+          pairConflicts: [],
           present: [],
         },
       }),
@@ -236,6 +259,7 @@ describe("secrets panel", () => {
           expected: ["DB_URL"],
           missing: [],
           ok: true,
+          pairConflicts: [],
           present: ["DB_URL"],
         },
       }),

@@ -8,6 +8,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -156,6 +157,106 @@ describeWithEnv(
         )(response);
         // Only the genuinely-missing secret is written.
         expect(secrets.setCalls.map((c) => c.name)).toEqual(["NTFY_URL"]);
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    test("sends the Botpoison keys' values to the site's secret store", async () => {
+      const site = await createTestBuiltSite({
+        dbToken: "tok",
+        dbUrl: "libsql://u",
+        hostingId: "7104",
+        name: "Botpoison Site",
+      });
+      using _env = withEnv({
+        BOTPOISON_PUBLIC_KEY: "pk_live_a1",
+        BOTPOISON_SECRET_KEY: "sk_live_b2",
+      });
+      const secrets = stubSecrets([]); // nothing live yet — everything is missing
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/secrets`,
+          expect.stringContaining("BOTPOISON_SECRET_KEY"),
+        )(response);
+        expect(secrets.setCalls).toContainEqual({
+          name: "BOTPOISON_PUBLIC_KEY",
+          value: "pk_live_a1",
+        });
+        expect(secrets.setCalls).toContainEqual({
+          name: "BOTPOISON_SECRET_KEY",
+          value: "sk_live_b2",
+        });
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    /** A site whose live secrets hold every expected key except the Botpoison
+     * secret key, with a recording secret double. Set the host's Botpoison
+     * pair before calling: the expected set follows the environment. */
+    const halfPairSite = async (hostingId: string, name: string) => {
+      const site = await createTestBuiltSite({
+        dbToken: "tok",
+        dbUrl: "libsql://u",
+        hostingId,
+        name,
+      });
+      const present = expectedSiteSecrets(site)
+        .map(([key]) => key)
+        .filter((key) => key !== "BOTPOISON_SECRET_KEY");
+      return { secrets: stubSecrets(present), site };
+    };
+
+    test("stops the copy when the site holds half a pair", async () => {
+      using _env = withEnv({
+        BOTPOISON_PUBLIC_KEY: "pk_live_a1",
+        BOTPOISON_SECRET_KEY: "sk_live_b2",
+      });
+      const { secrets, site } = await halfPairSite("7105", "Half Pair Site");
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/secrets`,
+          expect.stringContaining(
+            "Secrets could not be set: The site already holds",
+          ),
+          false,
+        )(response);
+        // Nothing is copied while the conflict stands.
+        expect(secrets.setCalls).toEqual([]);
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    test("completes the pair when the operator confirms", async () => {
+      using _env = withEnv({
+        BOTPOISON_PUBLIC_KEY: "pk_live_a1",
+        BOTPOISON_SECRET_KEY: "sk_live_b2",
+      });
+      const { secrets, site } = await halfPairSite(
+        "7106",
+        "Confirmed Pair Site",
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+          { confirm_pair_secrets: "1" },
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/secrets`,
+          expect.stringContaining("BOTPOISON_SECRET_KEY"),
+        )(response);
+        // Only the missing half is written; the held half is never touched.
+        expect(secrets.setCalls).toEqual([
+          { name: "BOTPOISON_SECRET_KEY", value: "sk_live_b2" },
+        ]);
       } finally {
         secrets.restore();
       }
