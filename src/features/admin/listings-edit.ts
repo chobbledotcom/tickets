@@ -20,7 +20,6 @@ import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
-  adminLandingPath,
   CONTENT_MULTIPART,
   contentMultipartRoute,
   requireContentOr,
@@ -29,7 +28,7 @@ import {
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { entityReturnPath } from "#shared/admin-pages.ts";
+import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   dimensionsOf,

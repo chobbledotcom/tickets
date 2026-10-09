@@ -16,6 +16,7 @@ import type {
   AdminDestinationId,
   AdminRecordDestinationId,
 } from "#shared/admin-surface/ids.ts";
+import type { AdminLevel } from "#types";
 
 export type AdminNavEntry = {
   readonly id: AdminDestinationId;
@@ -31,6 +32,11 @@ export type AdminSectionDef = {
   readonly id: string;
   readonly labelKey: string;
   readonly landing: AdminDestinationId;
+  /** The route a named role lands on after sign-in, when that page is a nav
+   * child of this section. The role must be able to open the route it names. */
+  readonly landingFor?: Readonly<
+    Partial<Record<AdminLevel, AdminDestinationId>>
+  >;
   readonly nav: readonly AdminNavEntry[];
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
@@ -66,6 +72,9 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     id: "calendar",
     labelKey: "nav.calendar",
     landing: "calendar",
+    // The run sheet is an agent's only page, so agents sign in to it instead
+    // of the dashboard.
+    landingFor: { agent: "deliveries" },
     nav: [
       { id: "calendar", kind: "landing", labelKey: "nav.calendar" },
       {

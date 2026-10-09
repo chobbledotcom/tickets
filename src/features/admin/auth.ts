@@ -22,7 +22,6 @@ import {
 } from "#routes/admin/login-return.ts";
 import {
   ANY_USER_FORM,
-  adminLandingPath,
   anyUserPage,
   withAuth,
   withOptionalSession,
@@ -31,6 +30,7 @@ import { parseFormData } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { parseCookies } from "#routes/url.ts";
+import { adminLandingPath } from "#shared/admin-pages.ts";
 import {
   buildSessionCookie,
   clearSessionCookie,

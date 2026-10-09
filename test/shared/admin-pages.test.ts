@@ -5,11 +5,16 @@ import {
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
 import {
+  adminLandingPath,
   entityReturnPath,
   readOnlyGetRoutePatterns,
   visibleSections,
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
+import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
+import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import { normalizePath } from "#shared/path.ts";
+import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
@@ -151,5 +156,41 @@ describe("links a section hides", () => {
       .map((link) => link.href);
     // Editors reach the listings pages but not the owner-only settings ones.
     expect(editorLinks).not.toContain("/admin/settings");
+  });
+});
+
+describe("adminLandingPath", () => {
+  /** The route that serves an address a visitor can type. Request paths drop
+   * a trailing slash, so the dashboard serves "/admin" for "/admin/". */
+  const routeServingAt = (path: string): AdminDestinationDef => {
+    const route = Object.values(ADMIN_SURFACE.destinations).find(
+      ({ pattern }) => normalizePath(pattern) === path,
+    );
+    if (!route) throw new Error(`No admin route serves "${path}"`);
+    return route;
+  };
+
+  test("lands every role on a route that role can open", () => {
+    for (const adminLevel of ALL_ADMIN_LEVELS) {
+      expect(routeServingAt(adminLandingPath(adminLevel)).audience).toContain(
+        adminLevel,
+      );
+    }
+  });
+
+  test("keeps each role's landing page", () => {
+    expect(adminLandingPath("agent")).toBe("/admin/deliveries");
+    expect(adminLandingPath("editor")).toBe("/admin/listings");
+    expect(adminLandingPath("scanner")).toBe("/admin/scanner");
+    expect(adminLandingPath("owner")).toBe("/admin");
+    expect(adminLandingPath("manager")).toBe("/admin");
+  });
+
+  test("says which role has no landing", () => {
+    // Reached only past the types, which is how a role the declaration does
+    // not cover shows itself.
+    expect(() => adminLandingPath("spectator" as AdminLevel)).toThrow(
+      'No admin landing is declared for "spectator"',
+    );
   });
 });
