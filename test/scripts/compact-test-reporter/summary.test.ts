@@ -7,7 +7,6 @@ import {
   printCompactSummary,
   runCompactDenoTest,
 } from "#scripts/compact-test-reporter.ts";
-import { runTests } from "#scripts/test-harness.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
@@ -400,7 +399,7 @@ describe("running deno test with the compact reporter", () => {
     }
   });
 
-  test("names the uncaught-error file a focused run's JUnit report holds", async () => {
+  test("names the uncaught-error file a failing run's JUnit report holds", async () => {
     const dir: TempPath = tempDir();
     try {
       Deno.writeTextFileSync(
@@ -412,14 +411,17 @@ describe("running deno test with the compact reporter", () => {
         ].join("\n"),
       );
       const { errors, value } = await capturingConsole(() =>
-        runTests([`${dir.path}/crashes.test.ts`], false),
+        runCompactDenoTest(
+          ["test", "--no-check", "-A", "--reporter=tap", "crashes.test.ts"],
+          { cwd: dir.path, env: { CI: "1" } },
+        ),
       );
 
       expect(value).not.toBe(0);
       expect(errors.join("\n")).toContain(
         "\ndeno's JUnit report marks these files with uncaught errors:",
       );
-      expect(errors.join("\n")).toContain("crashes.test.ts");
+      expect(errors.join("\n")).toContain("  ./crashes.test.ts");
     } finally {
       dir.dispose();
     }
