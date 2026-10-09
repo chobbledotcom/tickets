@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
+import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
@@ -352,7 +353,6 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       initialSiteMonths: 1,
       name: "API Removal Plan",
     });
-    const { setListingGroups } = await import("#db/groups.ts");
     await setListingGroups(plan.id, [group.id]);
 
     await assertJson(
@@ -363,5 +363,61 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       200,
     );
     expect(await listingGroups.getIds(plan.id)).toEqual([]);
+  });
+
+  test("keeps the stored membership when an update omits group_ids", async () => {
+    const group = await createTestGroup({ name: "Omitted Keep Group" });
+    const listing = await createTestListing({
+      groupIds: [group.id],
+      name: "Omitted Keep",
+    });
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${listing.id}`, {
+        body: { description: "Unrelated edit" },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
+  });
+
+  test("replaces the membership when an update submits group_ids", async () => {
+    const first = await createTestGroup({ name: "Replaced Group" });
+    const second = await createTestGroup({ name: "Replacement Group" });
+    const listing = await createTestListing({
+      groupIds: [first.id],
+      name: "Replaced Membership",
+    });
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${listing.id}`, {
+        body: { group_ids: [second.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await listingGroups.getIds(listing.id)).toEqual([second.id]);
+  });
+
+  test("still refuses a pay-more change on a package member whose groups the patch omits", async () => {
+    // The refusal proves validateListingInput still judges the stored groups
+    // when the patch omits group_ids.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Omitted Pay More Package",
+    });
+    const listing = await createTestListing({
+      groupIds: [group.id],
+      name: "Omitted Pay More",
+    });
+
+    await expectListingApiError(
+      `/api/admin/listings/${listing.id}`,
+      "PUT",
+      { can_pay_more: true, max_price: 5_000 },
+      t("error.package_member_pay_more", { name: listing.name }),
+    );
+    expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
   });
 });

@@ -325,12 +325,15 @@ export const listingSaveOrphanedAddOnTx = async (
   existingId: number,
   input: ListingInput,
 ): GuardRefusal => {
-  // Both update entry points resolve the would-be groups: the form from its
-  // checkboxes, the JSON API from the stored set when `group_ids` is absent.
-  const wouldBeGroupIds = requireValue(
-    input.groupIds,
-    `Listing ${existingId} update carries no would-be group ids`,
-  );
+  // Both update entry points resolve the would-be groups. The form sends its
+  // checkboxes. The JSON API folds the stored set into wouldBeGroupIds when
+  // the body omits group_ids.
+  const wouldBeGroupIds =
+    input.wouldBeGroupIds ??
+    requireValue(
+      input.groupIds,
+      `Listing ${existingId} update carries no would-be group ids`,
+    );
   const save: ListingSave = {
     base: once(() => wouldBeBase(new Map([[existingId, wouldBeGroupIds]]), tx)),
     existingId,

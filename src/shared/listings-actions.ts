@@ -123,7 +123,7 @@ const packageMembershipError = async (
 };
 
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
-  const groupIds = input.groupIds ?? [];
+  const groupIds = input.wouldBeGroupIds ?? input.groupIds ?? [];
   if (groupIds.length === 0) return null;
   const planRule = planInGroupError(input.assignBuiltSite, input.name);
   if (planRule) return planRule;

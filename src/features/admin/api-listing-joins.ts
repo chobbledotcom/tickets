@@ -116,7 +116,7 @@ export const prepareChildEdges = async (
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) return { childIds: null };
   if ("error" in submitted) return submitted;
-  const inputGroupIds = input.groupIds === undefined ? [] : input.groupIds;
+  const inputGroupIds = input.wouldBeGroupIds ?? input.groupIds ?? [];
   const packageConflict = await packageChildEdgeConflict(
     submitted.childIds,
     () => anyHiddenPackageGroup(inputGroupIds),

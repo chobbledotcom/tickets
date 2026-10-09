@@ -159,10 +159,16 @@ export interface ListingInput
   /** Transient selected attribute option ids. The listing_attribute_options
    * table stores them. */
   attributeOptionIds?: number[];
-  /** Transient group membership; the group_listings table stores it. */
+  /** Transient group membership the write submits; the group_listings table
+   * stores it. An absent set leaves the stored links untouched. */
   groupIds?: number[];
   maxAttendees: number;
   maxPrice: number;
+  /** The group set every validator judges: the membership as it stands after
+   * the write. The JSON API update sets it — the stored set when the body
+   * omits group_ids. Paths that submit the whole picture (form, create,
+   * import) leave it unset, and validators fall back to groupIds. */
+  wouldBeGroupIds?: number[];
 }
 
 export const groupCatalogFields = {

@@ -9,6 +9,7 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { type SqlStatement, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -19,6 +20,7 @@ import {
   prepareChildEdges,
   prepareListingJoins,
 } from "#routes/admin/api-listing-joins.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -26,6 +28,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 const baseInput = (
   overrides: Parameters<typeof testListingInput>[0] = {},
@@ -56,21 +59,31 @@ const persistAfterRowChange = (
     });
   });
 
+/** Run an unrelated update through the API body parser the way the route
+ * does: an owner session and a body without join fields. Returns the merged
+ * input and the row the update read. */
+const unrelatedUpdateInput = async (
+  listingId: number,
+): Promise<{ input: ListingInput; resolved: ListingWithCount }> => {
+  const resolved = await getListingWithCount(listingId);
+  if (!resolved) throw new Error(`no listing ${listingId} in the database`);
+  const result = await bodyToUpdateInput(
+    { description: "Unrelated edit" },
+    resolved,
+    { adminLevel: "owner" },
+  );
+  if (!result.ok) throw new Error(result.error);
+  return { input: result.value, resolved };
+};
+
 describeWithEnv("api-listing-joins", { db: true }, () => {
   test("an update that omits attribute_option_ids carries undefined, not a stored snapshot", async () => {
     // persistListingJoins skips the link write for an undefined selection, so
     // an unrelated update must carry undefined — never the links re-read and
     // rewritten, which a lagging read would turn into a stale restore.
     const listing = await createTestListing({ name: "Snapshot" });
-    const resolved = await getListingWithCount(listing.id);
-    if (!resolved) throw new Error(`no listing ${listing.id} in the database`);
-    const result = await bodyToUpdateInput(
-      { description: "Unrelated edit" },
-      resolved,
-      { adminLevel: "owner" },
-    );
-    if (!result.ok) throw new Error(result.error);
-    expect(result.value.attributeOptionIds).toBeUndefined();
+    const { input } = await unrelatedUpdateInput(listing.id);
+    expect(input.attributeOptionIds).toBeUndefined();
   });
 
   test("refuses option ids that do not exist when the links are written", async () => {
@@ -89,6 +102,72 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
       ).rejects.toThrow("attribute_option_ids must name existing options");
     });
     expect(await listingAttributeOptions.getIds(listing.id)).toEqual([]);
+  });
+
+  test("an update that omits group_ids carries undefined, not a stored snapshot", async () => {
+    // persistListingJoins skips the link write for an undefined set, so an
+    // unrelated update must carry undefined. A stored snapshot would make the
+    // write rewrite the membership, and a lagging read would restore a stale
+    // set. The validators still need the stored set, so it travels beside the
+    // submitted one as wouldBeGroupIds.
+    const group = await createTestGroup({ name: "Snapshot group" });
+    const listing = await createTestListing({
+      groupIds: [group.id],
+      name: "Group snapshot",
+    });
+    const { input } = await unrelatedUpdateInput(listing.id);
+    expect(input.groupIds).toBeUndefined();
+    expect(input.wouldBeGroupIds).toEqual([group.id]);
+  });
+
+  test("a membership change made after an omitted-group_ids read survives the write", async () => {
+    // The route reads the stored membership while it parses the body and
+    // writes the joins inside the row write's transaction. A membership
+    // change that lands in between must survive an update that omits
+    // group_ids.
+    const group = await createTestGroup({ name: "Early group" });
+    const latecomer = await createTestGroup({ name: "Late group" });
+    const listing = await createTestListing({
+      groupIds: [group.id],
+      name: "Concurrent groups",
+    });
+    const { input } = await unrelatedUpdateInput(listing.id);
+
+    // Another operator's save adds a group after the update read its
+    // membership.
+    await setListingGroups(listing.id, [group.id, latecomer.id]);
+
+    await withTransaction(async (tx) => {
+      await persistListingJoins(tx, listing.id, prepareListingJoins(input));
+    });
+
+    expect(await listingGroups.getIds(listing.id)).toEqual([
+      group.id,
+      latecomer.id,
+    ]);
+  });
+
+  test("child-edge validation still sees the stored groups when group_ids is omitted", async () => {
+    // The hidden-package refusal proves the child-edge check reads the
+    // effective set — the stored groups — not an empty one.
+    const hiddenPackage = await createHiddenPackageGroup("Omitted pkg");
+    const listing = await createTestListing({
+      groupIds: [hiddenPackage.id],
+      name: "Omitted pkg parent",
+    });
+    const child = await createTestListing({ name: "Omitted pkg child" });
+    const { input, resolved } = await unrelatedUpdateInput(listing.id);
+
+    const edges = await prepareChildEdges(
+      { child_listing_ids: [child.id] },
+      input,
+      resolved,
+    );
+
+    expect("error" in edges).toBe(true);
+    if ("error" in edges) {
+      expect(edges.error).toBe(t("error.package_gate_in_hidden"));
+    }
   });
 
   test("returns null child edges when child_listing_ids is omitted", async () => {
