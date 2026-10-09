@@ -12,6 +12,7 @@ import {
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
+import { sumByKey } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start -- import block */
 import {
@@ -29,7 +30,10 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { allocatedChildIds } from "#shared/child-parents.ts";
+import {
+  allocatedChildIds,
+  allocatedQuantityByChildId,
+} from "#shared/child-parents.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
@@ -156,28 +160,33 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
  *  judges the sum, so two sub-limit lines cannot book past the cap together. */
 const quantitiesByListingId = (
   items: BookingIntent["items"],
-): Map<number, number> => {
-  const totals = new Map<number, number>();
-  for (const item of items) {
-    totals.set(item.e, (totals.get(item.e) ?? 0) + item.q);
-  }
-  return totals;
-};
+): Map<number, number> =>
+  sumByKey(
+    (item: BookingIntent["items"][number]) => item.e,
+    (item) => item.q,
+  )(items);
 
 /** The above-maximum refusal for one line's listing at the order's summed
  *  quantity, or null. The owner can lower the maximum while a checkout is
  *  open, and the webhook is the last stop that re-reads the stored fact. A
- *  folded daily child escapes the date-less maximum. foldChild skips that
- *  cap for daily children, and the folded per-date availability is the
- *  authority. */
+ *  folded daily child's allocated share rides the fold's per-date
+ *  availability. The date-less maximum therefore judges the standalone share
+ *  of its line alone. A bookable-alone child beside its member parent books
+ *  one combined line. */
 const aboveMaximumRefusal = (
   listing: ListingWithCount,
   name: string,
   foldedDailyChildIds: ReadonlySet<number>,
-  summedQuantity: number,
+  quantities: ReadonlyMap<number, number>,
+  allocatedByChildId: ReadonlyMap<number, number>,
 ): { error: string; status: number } | null => {
-  if (foldedDailyChildIds.has(listing.id)) return null;
-  if (summedQuantity <= listing.max_quantity) return null;
+  // Both maps cover the judged line: the sum map carries every intent line's
+  // listing, and the allocated map carries every folded child.
+  const summedQuantity = quantities.get(listing.id)!;
+  const judgedQuantity = foldedDailyChildIds.has(listing.id)
+    ? summedQuantity - allocatedByChildId.get(listing.id)!
+    : summedQuantity;
+  if (judgedQuantity <= listing.max_quantity) return null;
   return {
     error: name
       ? t("payment.failure.above_maximum_named", {
@@ -247,6 +256,7 @@ export const validateAllItems = async (
   const listingsById = snapshot.listingsById;
   const nameFor = buyerLineName(intent, snapshot);
   const quantities = quantitiesByListingId(intent.items);
+  const allocatedQuantities = allocatedQuantityByChildId(allocations);
   const dailyFoldedIds = foldedDailyChildIds(foldedChildIds, listingsById);
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
@@ -265,8 +275,8 @@ export const validateAllItems = async (
       listing,
       name,
       dailyFoldedIds,
-      // The sum map is built from this same items list, so the lookup holds.
-      quantities.get(item.e)!,
+      quantities,
+      allocatedQuantities,
     );
     if (maxRefusal) return validationFailure(session, maxRefusal, item.e);
     const itemGroupId = lineGroupId(item);

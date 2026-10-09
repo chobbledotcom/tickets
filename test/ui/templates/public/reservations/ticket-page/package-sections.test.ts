@@ -63,6 +63,62 @@ describe("ticketPage — package sections beside standalone rows", () => {
     expect(html).not.toContain("Sorry, all listings are sold out.");
   });
 
+  test("a fresh page selects the bundle minimum when it sits above one", () => {
+    // The select offers only the members' joint floor upward, so a fresh page
+    // must open with the floor chosen — a default of one would match no
+    // emitted option and the browser would fall back to zero.
+    const html = ticketPage({
+      listings: [
+        ticketListing({
+          id: 1,
+          max_quantity: 10,
+          min_quantity: 3,
+          name: "Kit Tent",
+          slug: "tent1",
+        }),
+        solo(),
+      ],
+      packages: [
+        pagePackage(7, [1], {
+          name: "Party Bundle",
+          quantities: new Map([[1, 1]]),
+        }),
+      ],
+      slugs: ["pkg7s", "lant1"],
+    });
+    expect(html).toContain('<option value="3" selected>');
+    expect(html).toContain('name="package_quantity_7"');
+  });
+
+  test("a bundle whose floor exceeds its cap dims to a label while the rest books", () => {
+    // A raised member minimum can lift the floor past the cap while both stay
+    // positive: four units per bundle from ten spots cap the bundle at two,
+    // and a minimum of nine needs three. The cart still sells the solo row.
+    const html = ticketPage({
+      listings: [
+        ticketListing({
+          id: 1,
+          max_quantity: 10,
+          min_quantity: 9,
+          name: "Kit Tent",
+          slug: "tent1",
+        }),
+        solo(),
+      ],
+      packages: [
+        pagePackage(7, [1], {
+          name: "Party Bundle",
+          quantities: new Map([[1, 4]]),
+        }),
+      ],
+      slugs: ["pkg7s", "lant1"],
+    });
+    expect(html).toContain('class="ticket-package sold-out"');
+    expect(html).toContain("Sold Out");
+    expect(html).not.toContain('name="package_quantity_7"');
+    expect(html).toContain('name="quantity_2"');
+  });
+
   test("a member also added by its own slug gets a standalone row beside its section", () => {
     const html = ticketPage({
       listings: [member(), solo()],

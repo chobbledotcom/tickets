@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { setGroupPackageMembers } from "#db/groups.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { withMessageGroups } from "#i18n";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -14,14 +14,17 @@ import {
   bookingIntent,
   paymentSession,
 } from "#test/features/api/payment-processing/index/helpers.ts";
-import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
+import {
+  bundlePairIntent,
+  validateAllItems,
+} from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
-import { nonStandalonePair } from "./helpers.ts";
+import { listingPair } from "./helpers.ts";
 
 type ValidationResult = Awaited<ReturnType<typeof validateAllItems>>;
 
@@ -64,6 +67,33 @@ const twoPathIntent = async (
     { e: listing.id, p: 200, q: first },
     { e: listing.id, p: 200, q: second },
   ]);
+};
+
+/** A daily bundle whose child rides five folded units, with the child's whole
+ *  line carrying `childQuantity` units — the folded share plus any standalone
+ *  surplus the caller asks for. `bookableAlone` decides whether the child's
+ *  own row may carry that surplus. */
+const dailyFoldIntent = async (
+  bookableAlone: boolean,
+  childQuantity: number,
+): Promise<BookingIntent> => {
+  const group = await createTestGroup({
+    isPackage: true,
+    name: "Daily bundle",
+  });
+  const { child, parent } = await listingPair(
+    { groupId: group.id, unitPrice: 600 },
+    {
+      listingType: "daily",
+      maxQuantity: 1,
+      name: "Side Sale",
+      unitPrice: 200,
+    },
+  );
+  if (!bookableAlone) {
+    await listingsTable.update(child.id, { bookableAlone: false });
+  }
+  return bundlePairIntent(group, { child, parent }, childQuantity, 5);
 };
 
 describeWithEnv("paid item validation — maximums", { db: true }, () => {
@@ -110,24 +140,7 @@ describeWithEnv("paid item validation — maximums", { db: true }, () => {
     // their per-date availability is the authority. The webhook re-reads the
     // stored facts, so it must not refund a booking the fold allowed.
     await setupStripe();
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Daily bundle",
-    });
-    const { child, parent } = await nonStandalonePair(
-      { groupId: group.id, unitPrice: 600 },
-      { listingType: "daily", maxQuantity: 1, unitPrice: 200 },
-    );
-    await setGroupPackageMembers(group.id, [
-      { listingId: parent.id, price: 600 },
-    ]);
-    const intent = bookingIntent(
-      [
-        { e: parent.id, k: "p", p: 600, q: 1, r: group.id },
-        { e: child.id, p: 200 * 5, q: 5 },
-      ],
-      { allocations: [{ childId: child.id, parentId: parent.id, qty: 5 }] },
-    );
+    const intent = await dailyFoldIntent(false, 5);
 
     const result = await withMessageGroups(["payment"], () =>
       validateAllItems(
@@ -136,5 +149,32 @@ describeWithEnv("paid item validation — maximums", { db: true }, () => {
       ),
     );
     expect(validatedQuantities(result)).toEqual([1, 5]);
+  });
+
+  test("judges a folded daily child's standalone surplus against the maximum", async () => {
+    // A bookable-alone daily child bought through its own row AND the bundle
+    // folds into one line whose allocations hold only the folded share. The
+    // fold owns that share's per-date availability; the standalone surplus is
+    // a plain purchase, so the stored maximum still judges it.
+    await setupStripe();
+    const intent = await dailyFoldIntent(true, 7);
+    using refund = stubRefundPayment("re_items_daily_surplus", 2000);
+
+    const result = await withMessageGroups(["payment"], () =>
+      validateAllItems(
+        paymentSession("cs_items_daily_surplus", 2000, intent),
+        intent,
+      ),
+    );
+    expect(failureResult(result)).toEqual({
+      detail: undefined,
+      error: "Sorry, Side Sale sells at most 1 ticket per booking.",
+      refunded: true,
+      status: 410,
+      success: false,
+    });
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequestShape("pi_cs_items_daily_surplus", 2000),
+    ]);
   });
 });

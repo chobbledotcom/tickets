@@ -1,7 +1,7 @@
-/** Per-listing and per-package row rendering for the ticket page: the listing row
- * (image, name, quantity, child block), the package member row and titled
- * package section, and the top-level builder that lays out a single-package
- * page, a multi-package page, or standalone rows beside packages. */
+/** Row rendering for the ticket page: each listing's row, each package's
+ * member row, and each package's titled section. The top-level builder lays
+ * out a single-package page, a multi-package page, or standalone rows beside
+ * packages. */
 
 import type { TicketListing } from "#booking/model.ts";
 import { packageBundleMinimum } from "#booking/package-cap.ts";
@@ -206,12 +206,16 @@ type PackageRenderInput = {
   pkg: PagePackage;
   members: TicketListing[];
   limit: number;
+  /** The members' joint bundle floor: the least count the stored minimums
+   *  accept, and the unavailable mark when it passes the limit. */
+  bundleMinimum: number;
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined;
   attributesByListing: ListingAttributesById;
 };
 
 const renderPackageControls = ({
   attributesByListing,
+  bundleMinimum,
   childCtxFor,
   limit,
   members,
@@ -226,18 +230,15 @@ const renderPackageControls = ({
     .map((e) => `${e.listing.id}:${pkg.quantities.get(e.listing.id) ?? 1}`)
     .join(" ");
   // An owner can raise a member's minimum after the package was saved, so
-  // the select offers none or the members' joint minimum upward.
-  const bundleMinimum = packageBundleMinimum(
-    pkg.quantities,
-    new Map(members.map((e) => [e.listing.id, e.listing.min_quantity])),
-  );
+  // the select offers none or the members' joint minimum upward, and a
+  // fresh page opens with that floor selected.
   const selector = `<label>${t(
     "public.package.quantity",
   )}<select name="${packageQuantityFieldName(
     pkg.groupId,
   )}" data-package-members="${memberIds}">${quantityOptions(
     limit,
-    restoredPackageQuantity(pkg.groupId, limit),
+    restoredPackageQuantity(pkg.groupId, limit, bundleMinimum),
     undefined,
     bundleMinimum,
   )}</select></label>`;
@@ -256,18 +257,19 @@ const renderPackageControls = ({
 
 /** One package as a titled section of a page selling several things: the
  * package's name (and description) above its controls, or a dimmed sold-out
- * card when no whole bundle fits any more — the page stays usable for the
- * other items, matching the order gallery's sold-out cards. */
+ * card when no whole bundle fits any more — a raised member minimum can lift
+ * the floor past a still-positive cap, and the same card covers both. The
+ * page stays usable for the other items, matching the order gallery's
+ * sold-out cards. */
 const renderPackageSection = (input: PackageRenderInput): string => {
-  const { limit, pkg } = input;
+  const { bundleMinimum, limit, pkg } = input;
+  const unavailable = limit < bundleMinimum;
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
-  const body =
-    limit < 1
-      ? soldOutLabel()
-      : renderListingDescription(pkg.description) +
-        renderPackageControls(input);
+  const body = unavailable
+    ? soldOutLabel()
+    : renderListingDescription(pkg.description) + renderPackageControls(input);
   return `<fieldset class="ticket-package${
-    limit < 1 ? " sold-out" : ""
+    unavailable ? " sold-out" : ""
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
@@ -371,13 +373,20 @@ export const buildPageListingRows = (opts: {
   // Bundle one package's render inputs in one place so the single-package and
   // multi-package layouts share the same assembly (a duplicate would silently
   // drift one path's limit or child-ctx wiring from the other's).
-  const packageInput = (pkg: PagePackage): PackageRenderInput => ({
-    attributesByListing,
-    childCtxFor: claimChildCtx,
-    limit: opts.packageLimits.get(pkg.groupId)!,
-    members: membersOf(pkg),
-    pkg,
-  });
+  const packageInput = (pkg: PagePackage): PackageRenderInput => {
+    const members = membersOf(pkg);
+    return {
+      attributesByListing,
+      bundleMinimum: packageBundleMinimum(
+        pkg.quantities,
+        new Map(members.map((e) => [e.listing.id, e.listing.min_quantity])),
+      ),
+      childCtxFor: claimChildCtx,
+      limit: opts.packageLimits.get(pkg.groupId)!,
+      members,
+      pkg,
+    };
+  };
   if (opts.singlePackagePage) {
     // packageLimits carries every page package by construction.
     return renderPackageControls(packageInput(opts.packages[0]!));
