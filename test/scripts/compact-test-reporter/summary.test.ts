@@ -412,14 +412,14 @@ describe("running deno test with the compact reporter", () => {
         ].join("\n"),
       );
       const { errors, value } = await capturingConsole(() =>
-        runTests(["crashes.test.ts"], false)
+        runTests([`${dir.path}/crashes.test.ts`], false)
       );
 
       expect(value).not.toBe(0);
       expect(errors.join("\n")).toContain(
         "\ndeno's JUnit report marks these files with uncaught errors:",
       );
-      expect(errors.join("\n")).toContain("  ./crashes.test.ts");
+      expect(errors.join("\n")).toContain("crashes.test.ts");
     } finally {
       dir.dispose();
     }
