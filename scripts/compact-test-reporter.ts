@@ -443,6 +443,19 @@ export const printCompactSummary = (
   }
 };
 
+/** The report path as the harness process sees it: the child writes the
+ * report relative to its own working directory, so reads and removals must
+ * resolve the path there, not in the parent's. */
+const reportFileFor = (options: {
+  cwd: string;
+  junitPath?: string;
+}): string | undefined =>
+  options.junitPath === undefined
+    ? undefined
+    : isAbsolute(options.junitPath)
+      ? options.junitPath
+      : join(options.cwd, options.junitPath);
+
 export const runCompactDenoTest = async (
   args: string[],
   options: {
@@ -455,11 +468,9 @@ export const runCompactDenoTest = async (
   console.log("Running tests...");
   // A report left by a killed prior run must not name this run's dead files:
   // the child rewrites the report only when it completes.
-  if (options.junitPath !== undefined) {
-    const stale = isAbsolute(options.junitPath)
-      ? options.junitPath
-      : join(options.cwd, options.junitPath);
-    await Deno.remove(stale).catch(rethrowUnlessNotFound);
+  const reportFile = reportFileFor(options);
+  if (reportFile !== undefined) {
+    await Deno.remove(reportFile).catch(rethrowUnlessNotFound);
   }
   const command = new Deno.Command(Deno.execPath(), {
     args,
@@ -485,18 +496,10 @@ export const runCompactDenoTest = async (
   await stdoutTask;
   const stderrText = await stderrTask;
   const summary = reporter.finish();
-  // The child writes the report relative to its own working directory; the
-  // read must look there, not in the parent's.
-  const junitPath =
-    options.junitPath === undefined
-      ? undefined
-      : isAbsolute(options.junitPath)
-        ? options.junitPath
-        : join(options.cwd, options.junitPath);
   const junit =
-    junitPath === undefined
+    reportFile === undefined
       ? ""
-      : ((await nullIfNotFound(Deno.readTextFile(junitPath))) ?? "");
+      : ((await nullIfNotFound(Deno.readTextFile(reportFile))) ?? "");
   printCompactSummary(
     summary,
     { code: status.code, signal: status.signal },
