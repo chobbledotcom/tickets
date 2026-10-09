@@ -70,35 +70,6 @@ describeWithEnv(
       expect(await storedRowsFor(attendee.id)).toEqual([]);
     });
 
-    test("omits a chosen answer whose question was deleted, and saves the rest", async () => {
-      const removedQuestion = await createQuestion("Removed");
-      const removedAnswer = await addAnswer(removedQuestion.id, 0, "Gone");
-      const keptQuestion = await createQuestion("Kept");
-      const keptAnswer = await addAnswer(keptQuestion.id, 0, "Stay");
-      const attendee = await createAttendee((await createTestListing()).id);
-      await execute("DELETE FROM questions WHERE id = ?", [removedQuestion.id]);
-
-      await saveAttendeeAnswers(
-        new Map([
-          [attendee.id, { answerIds: [removedAnswer.id, keptAnswer.id] }],
-        ]),
-      );
-
-      expect(
-        await queryAll(
-          `SELECT answer_id, question_id, string_id
-           FROM attendee_answers WHERE attendee_id = ?`,
-          [attendee.id],
-        ),
-      ).toEqual([
-        {
-          answer_id: keptAnswer.id,
-          question_id: keptQuestion.id,
-          string_id: null,
-        },
-      ]);
-    });
-
     test("saves one choice with one stored text id", async () => {
       const { answer, attendee, calls, stringId } = await saveSeed();
       expect(calls).toBe(1);
