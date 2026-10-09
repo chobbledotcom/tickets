@@ -2,7 +2,7 @@
  * Parsing and validation for a submitted booking form: page state, custom
  * prices, QR overrides, question answers, and the per-node quantities each
  * package count or standalone selector resolves to. Everything here reads the
- * form and the resolved page context; nothing prices or persists.
+ * form and the resolved page context. Nothing here prices or persists.
  */
 
 import type { buildBookingTree } from "#booking/build-tree.ts";
@@ -88,9 +88,9 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
 /** The package refusal for one posted bundle count, or null. An owner can
  *  raise a member's minimum after the package was saved, so the fold
  *  re-reads the stored fact the same way the webhook does. A count above the
- *  page's bundle limit refuses instead of silently booking fewer bundles; the
- *  limit check needs the page's booking tree, so a caller that reads only the
- *  stored minimums may omit it. */
+ *  page's bundle limit refuses instead of silently booking fewer bundles.
+ *  The limit check needs the page's booking tree. A caller that reads only
+ *  the stored minimums can omit it. */
 /** One form-state gate: the submitted form, the page context, and the booking
  *  tree the bundle-limit refusal reads. */
 type FormStateCheck = (
@@ -133,7 +133,7 @@ const packageQuantityRefusal: FormStateCheck = (form, ctx, tree) => {
 
 /** The add-on refusal for one posted count above its ceiling, or null. The
  * number input only hints the ceiling, so a crafted or typoed POST can carry
- * more; refuse instead of silently ordering fewer units than the buyer asked
+ * more. Refuse instead of silently ordering fewer units than the buyer asked
  * for. */
 const addOnQuantityRefusal = (
   form: FormParams,
@@ -151,8 +151,8 @@ const addOnQuantityRefusal = (
 
 /** Validate page-level form state before deeper parsing. Returns an error
  * message, or null when the form state is acceptable. The package bundle-limit
- * refusal reads the page's booking tree; production callers pass it, callers
- * that only exercise the row minimums may omit it. */
+ * refusal reads the page's booking tree. Production callers pass it. Callers
+ * that only exercise the row minimums can omit it. */
 export const validateFormState: FormStateCheck = (form, ctx, tree) => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
