@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   groupCatalogFields,
+  holidayFields,
   listingCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
@@ -65,6 +66,20 @@ describe("catalog fields", () => {
       scan_checks_in_all_listings: false,
       show_hidden_listings: true,
       terms_and_conditions: "",
+    });
+  });
+
+  test("declares every holiday field", () => {
+    const values = {
+      end_date: "2026-08-02",
+      name: "Closed Day",
+      start_date: "2026-08-01",
+    };
+
+    expect(projectCatalogFields(holidayFields, "form", values)).toEqual({
+      endDate: "2026-08-02",
+      name: "Closed Day",
+      startDate: "2026-08-01",
     });
   });
 
