@@ -4,7 +4,7 @@
  * Every refund leg is posted by {@link mapRefund}, which derives the refund
  * event's group as `refundEventGroup(bookingGroup)` from one order's own legs.
  * The derivation is deterministic, so re-computing it here attributes every
- * stored refund leg exactly; anything left over is data no derivation can
+ * stored refund leg exactly. Anything left over is data no derivation can
  * name, and the caller refuses rather than guess.
  *
  * The scan runs in keyset pages on the event-group index, checkpointed into
@@ -29,11 +29,11 @@ type ReversesPair = readonly [refundGroup: string, bookingGroup: string];
 const GROUP_PAGE = 5000;
 
 /** Refund legs are exactly the `refund_`-prefixed kinds (`refundKind` prefixes
- *  every mapped reversal); GLOB keeps `_` literal, unlike LIKE. */
+ *  every mapped reversal). GLOB keeps `_` literal, unlike LIKE. */
 const REFUND_KIND_GLOB = "refund_*";
 
 /** The settings row holding the walk's position. A stopped run leaves it
- *  behind; a finished run leaves {@link CURSOR_COMPLETE} in it. */
+ *  behind. A finished run leaves {@link CURSOR_COMPLETE} in it. */
 const CURSOR_KEY = "backfill_reverses_group_cursor";
 
 /** One page of distinct event groups meeting `condition`, keyed past the
@@ -62,9 +62,9 @@ const cursorAfter = (page: readonly { event_group: string }[]): GroupCursor =>
 
 /** The cursor's terminal value: the walk finished and the final scan found no
  *  orphans. Kept, never deleted, because the migration runner verifies and
- *  marks the migration only after up() returns: a run that deleted the row
- *  here would make an unverified retry re-walk every page, and a request whose
- *  budget ended exactly at the finish would repeat that forever and block the
+ *  marks the migration only after up() returns. A run that deleted the row
+ *  here makes an unverified retry re-walk every page. A request whose
+ *  budget ended exactly at the finish repeats that forever and blocks the
  *  upgrade. The retried up() reads the mark and returns, so verify always runs
  *  with budget. Same shape as the activity-log backfill's terminal mark. */
 const CURSOR_COMPLETE: GroupCursor = cursorOf("complete");
@@ -141,7 +141,7 @@ const saveCursor = (after: GroupCursor): Promise<unknown> =>
   ]);
 
 /** Drop the checkpoint so the next run walks from the start. Only the orphan
- *  refusal runs it; a clean finish writes {@link CURSOR_COMPLETE} instead. */
+ *  refusal runs it. A clean finish writes {@link CURSOR_COMPLETE} instead. */
 const clearCursor = (): Promise<unknown> =>
   executeBatch([
     {
@@ -164,7 +164,7 @@ export const backfillReversesGroup = async (
   pageSize: number = GROUP_PAGE,
 ): Promise<void> => {
   // A zero or negative page size walks nothing yet still writes the terminal
-  // mark, so the walk would stay skipped forever — refuse it before any read.
+  // mark, so the walk stays skipped forever. Refuse it before any read.
   if (!Number.isSafeInteger(pageSize) || pageSize < 1) {
     throw new RangeError(
       `backfillReversesGroup: pageSize must be a positive whole number, got ${pageSize}`,
@@ -191,9 +191,8 @@ export const backfillReversesGroup = async (
   const orphans = await unattributedRefundGroups(pageSize);
   if (orphans.length > 0) {
     // Clear the checkpoint before any refusal: an operator repairs an orphan
-    // by restoring legs that sit BEFORE the walked cursor, so leaving the
-    // checkpoint would make the retried walk skip the repaired region
-    // forever.
+    // by restoring legs that sit BEFORE the walked cursor. Leaving the
+    // checkpoint makes the retried walk skip the repaired region forever.
     await clearCursor();
     throw new Error(
       "refund legs with no booking order they reverse: " +

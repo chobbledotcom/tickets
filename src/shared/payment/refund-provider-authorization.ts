@@ -14,9 +14,9 @@ export type KeyedProvider = {
 export type KeylessProvider = Exclude<PaymentProviderType, KeyedProvider>;
 
 /** Whether this provider refunds without an idempotency key, read from the
- * registry's declared capability and narrowed so the permit type follows: a
- * keyed provider's authorization must carry its key, a keyless one must
- * not. The one way to branch on the capability — never on a provider name. */
+ * registry's declared capability. The permit type follows: a keyed provider's
+ * authorization must carry its key, a keyless one must not. The one way to
+ * branch on the capability — never on a provider name. */
 export const isKeylessProvider = (
   provider: PaymentProviderType,
 ): provider is KeylessProvider =>
@@ -69,7 +69,7 @@ const requireText = (value: string, name: string): void => {
 };
 
 /**
- * Mint the provider-bound permit after the durable authority has armed it.
+ * Mint the provider-bound permit after the durable authority arms it.
  * Production imports are restricted to that authority by a code-quality gate.
  */
 export const authorizeDurableRefundSend = <

@@ -1,12 +1,13 @@
 /**
  * SQL-fragment builders for projecting figures off the `transfers` ledger at
  * read time (income, amount paid, refund status, …). These centralise the
- * transfers-table column names and the integer-id → TEXT cast in one place, so
- * every projection filters accounts identically and a typo in `source_id` /
- * `dest_type` / the `CAST(… AS TEXT)` can't silently skew a single read.
+ * transfers-table column names and the integer-id → TEXT cast in one place.
+ * Every projection then filters accounts identically, and a typo in `source_id`
+ * / `dest_type` / the `CAST(… AS TEXT)` cannot silently skew a single read.
  *
  * They build raw SQL by interpolating caller-supplied column *expressions*
- * (e.g. `listingAttendee.attendee_id`), not bound values — for binding a known account use
+ * (for example `listingAttendee.attendee_id`), not bound values — to bind a
+ * known account use
  * the parameterised `transfersByAccount` in `./queries.ts` instead.
  */
 
@@ -20,7 +21,7 @@ import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 
 /** Account type/id columns for one leg side of a `transfers` row — the single
- *  home for these names, so every projection (the interpolated subqueries here
+ *  home for these names. Every projection (the interpolated subqueries here
  *  AND the parameterised balance reads in `./queries.ts`) refers to them once. */
 export const LEG_COLUMNS = {
   dest: { id: "dest_id", type: "dest_type" },
@@ -30,7 +31,7 @@ export const LEG_COLUMNS = {
 /**
  * A `transfers` account-match predicate for one leg side: `<role>_type = '<type>'
  * AND <role>_id = CAST(<idExpr> AS TEXT)`. `role` picks the source or destination
- * side; `type` is the account type (`'attendee'`, `'revenue'`, …); `idExpr` is
+ * side. `type` is the account type (`'attendee'`, `'revenue'`, …). `idExpr` is
  * the SQL for the account id in the surrounding query. Ledger ids are stored as
  * TEXT, so the id expression is CAST so an integer column still matches.
  */
@@ -48,7 +49,7 @@ export const accountPredicate = (
  * the attendee to the listing's revenue account, scoped to the row's
  * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
  * per-row amount-paid projection (`pricePaidFromLedger`) and the paid-line
- * existence check, so the two can't drift. All three args are SQL column
+ * existence check, so the two cannot drift. All three args are SQL column
  * expressions in the surrounding query (no leading `WHERE`).
  */
 export const saleLegPredicate = (
@@ -64,9 +65,9 @@ export const saleLegPredicate = (
 /**
  * A *bare* scalar subquery (no alias — the caller names it, like
  * {@link accountBalanceSubquery}) for the GROSS credits to an account *minus*
- * only its write-off debits. Income is the gross sum of revenue credits
- * (deliberately NOT `balanceOf`, so an ordinary refund — `revenue:L→attendee` —
- * does not reduce it, matching the legacy `SUM(price_paid)`), but a *manual*
+ * only its write-off debits. Income is the gross sum of revenue credits —
+ * deliberately NOT `balanceOf`, so an ordinary refund (`revenue:L→attendee`)
+ * does not reduce it, matching the legacy `SUM(price_paid)`. A *manual*
  * write-off (`revenue:L→writeoff`, decision 14) must lower it. So this sums the
  * dest-side credits and subtracts the amounts the account paid out specifically
  * to the `writeoff` contra account, ignoring every other source-side leg. With
@@ -89,10 +90,10 @@ export const creditsLessWriteoffDebits = (
 /**
  * The bare signed-sum aggregate every net-balance read shares:
  * amounts matching `plus` add, amounts matching `minus` subtract, zero when no
- * leg matches either. The single home for the ledger's sign convention in SQL —
+ * leg matches either. The single home for the ledger's sign convention in SQL.
  * {@link accountBalanceSubquery}, the parameterised `accountBalance`, and the
  * `ledgerTotals` due/fees columns all render from it, so no two balance reads
- * can disagree on which side credits. Predicates are SQL fragment bodies and may
+ * can disagree on which side credits. Predicates are SQL fragment bodies and can
  * carry `?` placeholders bound by the caller.
  */
 export const signedSumCase = (plus: string, minus: string): string =>
@@ -101,8 +102,8 @@ export const signedSumCase = (plus: string, minus: string): string =>
 
 /**
  * A *bare* scalar subquery (no alias) for an account's net ledger balance: money
- * in as the destination minus money out as the source — the same signed sum the
- * TS-side `balanceOf` computes. The caller names it and chooses the sign: a
+ * in as the destination minus money out as the source. It is the same signed
+ * sum the TS-side `balanceOf` computes. The caller names it and chooses the sign: a
  * revenue/modifier account reads it directly (`balance AS income`), while an
  * "owed" figure negates it (outstanding = `-balance`). Scanning only the
  * account's own legs (`<dest> OR <source>`) keeps it index-backed.
@@ -117,7 +118,7 @@ export const accountBalanceSubquery = (
 };
 
 /** Net cash received from the outside world by one account. Payments into the
- * account add; refunds and reversals back to the world subtract. Other ledger
+ * account add. Refunds and reversals back to the world subtract. Other ledger
  * legs do not represent cash and are ignored. */
 export const externalCashBalanceSubquery = (
   type: string,
@@ -151,7 +152,7 @@ export const reservationSubtotalSubquery = (
 ): string => billedTotalSubquery(type, idExpr, [KIND.sale, KIND.modifier]);
 
 /** Total amount billed to one attendee. Booking fees and later manual charges
- * add to the saved ticket subtotal; payments, refunds and write-offs do not. */
+ * add to the saved ticket subtotal. Payments, refunds and write-offs do not. */
 export const orderTotalSubquery = (type: string, idExpr: string): string =>
   billedTotalSubquery(type, idExpr, [
     KIND.sale,
@@ -164,7 +165,7 @@ export const orderTotalSubquery = (type: string, idExpr: string): string =>
  * The bare subquery for what an attendee still owes: the negation of their net
  * account balance (outstanding = −balance). The single place the "owed equals
  * negative balance" sign convention lives, so the read column, the settle guard,
- * and the finalize guard can't drift apart. Callers alias it
+ * and the finalize guard cannot drift apart. Callers alias it
  * (`… AS remaining_balance`) or compare it in a guard (`… = ?`).
  */
 export const attendeeOwedSubquery = (idExpr: string): string =>

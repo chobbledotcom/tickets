@@ -12,7 +12,7 @@ export type PlaceholderRefund = {
 export type RefundAlert = "payment_session" | "webhook_price_signature";
 
 /** Every reason code, as a schema, so a stored code can be validated on the
- * way back in and the reason table below must stay exhaustive. */
+ * way back in. The reason table below must stay exhaustive. */
 export const RefundCodeSchema = v.picklist([
   "capacity_full",
   "charge_mismatch",

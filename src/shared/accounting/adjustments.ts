@@ -2,8 +2,8 @@
  * Manual money corrections — the shared `writeoff` adjustment poster.
  *
  * Every operator-set money figure (a listing's income, a modifier's revenue, an
- * attendee's outstanding balance) projects from the `transfers` ledger now, so a
- * correction can no longer be a column write. Instead it posts a single
+ * attendee's outstanding balance) projects from the `transfers` ledger now. A
+ * correction can therefore no longer be a column write. Instead it posts a single
  * `adjustment` leg between the figure's account and the `writeoff` contra-revenue
  * account (decision 14), computed as the delta from the current projection. The
  * correction sources/sinks at `writeoff`, never external cash, so cash reports
@@ -28,8 +28,9 @@ import { nowIso } from "#shared/now.ts";
  * edits a figure up, down, then back up posts three distinct adjustments.
  *
  * The `delta` is part of the key because `nowIso()` resolves only to the
- * millisecond. Two opposite corrections in the same millisecond would otherwise
- * share a reference, and `INSERT OR IGNORE` would drop the second.
+ * millisecond. Without the signed `delta` in the key, two opposite corrections
+ * in the same millisecond share a reference, and `INSERT OR IGNORE` drops the
+ * second.
  */
 const writeoffAdjustmentLeg = async (
   account: AccountRef,
@@ -41,8 +42,8 @@ const writeoffAdjustmentLeg = async (
   const parts: RefPart[] = [...keyParts, delta, occurredAt];
   return {
     amount: Math.abs(delta),
-    // Crediting the account sources from writeoff (the figure rises);
-    // debiting it sinks back to writeoff (the figure falls).
+    // Crediting the account sources from writeoff (the figure rises).
+    // Debiting it sinks back to writeoff (the figure falls).
     destination: delta > 0 ? account : WRITEOFF,
     eventGroup: await eventGroup(parts),
     kind: KIND.adjustment,
@@ -56,9 +57,9 @@ const writeoffAdjustmentLeg = async (
  * `delta` is in "credit-the-account" terms: positive credits the account
  * (`WRITEOFF → account`), negative debits it. Zero posts nothing.
  *
- * It runs inside an already-open write transaction, so the correction commits
- * or rolls back with the status write beside it, and the in-transaction read
- * makes a re-submitted correction idempotent.
+ * It runs inside an already-open write transaction. The correction therefore
+ * commits or rolls back with the status write beside it, and the in-transaction
+ * read makes a re-submitted correction idempotent.
  *
  * Corrections are appended, never destructive.
  */
@@ -81,12 +82,12 @@ export type WriteoffAdjustment = {
 
 /**
  * Build the `INSERT OR IGNORE` statements for a set of writeoff adjustments, so a
- * caller can fold them into a wider batch — an attendee merge posts a reversal per
- * discarded booking — instead of posting each through its own in-transaction
- * read-then-write (which held the write lock open per leg, the "Transaction
+ * caller can fold them into a wider batch. An attendee merge posts a reversal per
+ * discarded booking. That avoids posting each through its own in-transaction
+ * read-then-write, which held the write lock open per leg (the "Transaction
  * timed-out" shape). Each adjustment is its own event (a fresh `nowIso`
  * `eventGroup`/`reference`), so idempotency rides the unique `reference` and no
- * pre-write conflict read is needed; a zero delta posts nothing.
+ * pre-write conflict read is needed. A zero delta posts nothing.
  */
 export const writeoffAdjustmentInserts = async (
   adjustments: WriteoffAdjustment[],

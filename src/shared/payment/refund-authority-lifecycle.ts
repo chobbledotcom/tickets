@@ -46,7 +46,7 @@ type LifecycleRules = {
 
 const always = (_state: RefundAuthorityState): boolean => true;
 const never = (_state: RefundAuthorityState): boolean => false;
-// A merge relocates the indexed row that reaches this charge; it does not
+// A merge relocates the indexed row that reaches this charge. It does not
 // destroy or reparent the charge authority itself.
 const refundWorkStops = {
   delete: always,
@@ -107,8 +107,8 @@ const fixedRecovery =
   (_state: RefundAuthorityState): LifecycleRecovery =>
     recovery;
 
-/** A provider-check state always carries inconclusive ("wait") evidence — a
- * settled return, full or partial, is an owner decision instead — so its
+/** A provider-check state always carries inconclusive ("wait") evidence. A
+ * settled return, full or partial, is an owner decision instead, so its
  * recovery is always to check again until the evidence settles one way. */
 const providerCheckRecovery = (
   state: NeedsProviderCheckRefundState,

@@ -104,14 +104,14 @@ const settleOr =
     return out;
   };
 
-/** Settle a fixture state; a fixture that lost its own hold is a bug in
+/** Settle a fixture state. A fixture that lost its own hold is a bug in
  * the fixtures, not a machine refusal. */
 const settle = settleOr("Spec fixture lost its own hold");
 
 const held = (state: PaymentRowState): PaymentRowState =>
   grantClaim(state, SPEC_CLAIM);
 
-/** Every review-bearing shape carries reason A; retiring reason B against
+/** Every review-bearing shape carries reason A. Retiring reason B against
  * them exercises the wrong-reason no-op. */
 const OPEN_A = {
   review: {
@@ -239,7 +239,7 @@ export const ROW_EVENTS: readonly RowMachineEvent[] = [
 ];
 
 /** The declared machine: for each node, the events that must move it and
- * where to. Every other (event × shape) pair must refuse — settlements
+ * where to. Every other (event × shape) pair must refuse. Settlements
  * refuse rows they do not hold, a held or settled row refuses a fresh
  * hold, and a terminal outcome refuses live work. */
 export const EXPECTED_MOVES: MachineMoves<RowNodeId, RowEventId> = {
@@ -289,7 +289,7 @@ export const EXPECTED_MOVES: MachineMoves<RowNodeId, RowEventId> = {
   review_unrecorded: {
     claim_granted: "claim_review_unrecorded",
   },
-  // The conservative-then-final outcome write may replace itself; nothing
+  // The conservative-then-final outcome write can replace itself. Nothing
   // else moves a row that ended.
   settled: {
     write_outcome: "settled",

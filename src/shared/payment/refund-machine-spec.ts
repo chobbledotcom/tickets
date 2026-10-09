@@ -48,7 +48,7 @@ const NOW = 1_750_000_000_000;
 const NEXT = NOW + 60_000;
 const REQUEST_INDEX = "spec-refund-request";
 
-/** One keyed request generation; `replayUntil` is what makes the
+/** One keyed request generation. `replayUntil` is what makes the
  * expired-window exits reachable or not. */
 const keyedRequest = (
   replayUntil: number,
@@ -89,8 +89,8 @@ const WAIT_EVIDENCE: RefundConflictDecision = {
 };
 
 /** The nodes of the map. `completed` splits by whether Money holds the
- * record yet, and an owner choice splits by the evidence it carries, because
- * those differences change which moves are open. */
+ * record yet, and an owner choice splits by the evidence it carries. Those
+ * differences change which moves are open. */
 export type RefundNodeId =
   | "check"
   | "choice_not_sent"
@@ -168,8 +168,8 @@ const family = (
 export type RefundNode = MachineNode<RefundAuthorityState, RefundNodeId>;
 
 /** Every node with the real states behind it — all built by the production
- * constructors, several through multi-step paths, so a representative can
- * never hold a shape the code cannot reach. */
+ * constructors, several through multi-step paths. A representative can
+ * therefore never hold a shape the code cannot reach. */
 export const REFUND_NODES: readonly RefundNode[] = [
   {
     id: "ready",
@@ -177,7 +177,7 @@ export const REFUND_NODES: readonly RefundNode[] = [
       rep("keyed", readyKeyed),
       rep("keyless", readyKeyless),
       // Proof of not-sent can hand back a keyed request whose window has
-      // already closed; the machine must still answer for that shape.
+      // already closed. The machine must still answer for that shape.
       rep("keyed_expired", returnRefundToReady(armedPastWindow, 2, NOW, NEXT)),
     ],
   },
@@ -188,7 +188,7 @@ export const REFUND_NODES: readonly RefundNode[] = [
   },
   {
     // The one node with no owner or system exit: only fresh provider
-    // evidence can settle an inconclusive conflict, so it may wait.
+    // evidence can settle an inconclusive conflict, so it can wait.
     awaits: "provider",
     id: "check",
     reps: family((state) =>
@@ -244,7 +244,7 @@ export const REFUND_NODES: readonly RefundNode[] = [
   },
 ];
 
-/** Fresh evidence only reaches states the engine may replace — a settled
+/** Fresh evidence only reaches states the engine can replace — a settled
  * conflict decision is the owner's alone. */
 const whenEvidenceMayReplace =
   (run: (state: RefundAuthorityState) => RefundAuthorityState) =>
@@ -270,8 +270,8 @@ const whenOwnerChoice =
   };
 
 /** The not-sent owner choice, built the way the resolution route builds it:
- * the NEW generation gets a fresh replay window from the decision time —
- * never the old request's window, which may already have closed. */
+ * the NEW generation gets a fresh replay window from the decision time.
+ * Never the old request's window, which can already be closed. */
 const notSentChoice = (
   state: Extract<RefundAuthorityState, { kind: "needs_owner_choice" }>,
 ): RefundOwnerChoice => {
@@ -459,7 +459,7 @@ const ACTIVE_SENT_MOVES: Readonly<
  *
  * Two recorded wrinkles, kept as-is rather than smoothed over:
  * - `ready × arm` succeeds even for a keyed request past its replay window
- *   (`armRefundSend` does not re-check the window; the engine's send
+ *   (`armRefundSend` does not re-check the window. The engine's send
  *   admission is the gate that does).
  * - `send_armed/observing × expired` fires only for the representative whose
  *   window has actually closed — the split IS the replay-window rule. */
@@ -513,7 +513,7 @@ const OWNER_EVENT_FOR = {
 
 /** The node an owner choice puts the record on, read from the open
  * decision's row of the table. The open decision offers both answers to
- * every shape, so the cell must be a plain one — a split there is a bug
+ * every shape, so the cell must be a plain one. A split there is a bug
  * the resolver refuses loudly. */
 export const refundChoiceTarget = (
   choice: RefundOwnerChoiceName,
@@ -529,6 +529,6 @@ const MONEY_SENDING_NODES: ReadonlySet<RefundNodeId> = new Set(
 
 /** Whether the machine declares any money-sending move out of this node.
  * An owner action that runs the engine in "send" mode from such a node can
- * move real money; pure evidence checks ("observe only") never can. */
+ * move real money. Pure evidence checks ("observe only") never can. */
 export const refundNodeSendsMoney = (node: RefundNodeId): boolean =>
   MONEY_SENDING_NODES.has(node);

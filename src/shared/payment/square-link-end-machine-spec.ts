@@ -1,14 +1,14 @@
 /** The machine that ends an unpaid Square checkout's payment link.
  *
- * A Square payment link stays payable for 180 days unless somebody ends it,
- * so the site stores one cancel handle per unpaid checkout and a task ends
- * each link at its window. The row is the whole machine: it exists exactly
- * while its link can still take payment, and leaves the table the moment
- * Square proves the link ended, was already gone, or was paid.
+ * A Square payment link stays payable for 180 days unless somebody ends it.
+ * The site therefore stores one cancel handle per unpaid checkout, and a task
+ * ends each link at its window. The row is the whole machine: it exists
+ * exactly while its link can still take payment. It leaves the table the
+ * moment Square proves the link ended, was already gone, or was paid.
  *
  * `pending` and `ending` are the stored words. `unwritten` and `gone` are
- * the virtual ends of the map — a row that does not exist yet, and a row
- * that no longer exists — so a stored word this machine does not have is
+ * the virtual ends of the map: a row that does not exist yet, and a row
+ * that no longer exists. A stored word this machine does not have is
  * raised where it is read. */
 
 /* jscpd:ignore-start -- imports */
@@ -31,7 +31,7 @@ export type SquareLinkEndState = v.InferOutput<typeof SquareLinkEndStateSchema>;
 
 /** Read a stored word back as a state, refusing one this machine does not
  * have. A row carrying an unknown word is a database this code cannot reason
- * about, so it is raised where it is read rather than carried inward. */
+ * about. It is raised where it is read, rather than carried inward. */
 export const parseSquareLinkEndState = (word: string): SquareLinkEndState =>
   parseMachineState(SquareLinkEndStateSchema, word, "square_link_ends");
 
@@ -68,7 +68,7 @@ export const LINK_END_NODES: readonly SquareLinkEndNode[] = [
     takesPayment: "yes",
   },
   {
-    // A worker holds the lease and has asked Square to end the link; until
+    // A worker holds the lease and asked Square to end the link. Until
     // Square answers, the page behind it can still be paid.
     id: "ending",
     reps: [rep("lease_held", { state: "ending" })],
@@ -117,7 +117,7 @@ export const squareLinkEndMoveTo = (
   );
 
 /** Runs one event the way the sweep needs it: the real move, over the real
- * row shape, landing on a row the real reader has to accept. */
+ * row shape. It lands on a row the real reader has to accept. */
 const moves =
   (event: SquareLinkEndEventId) =>
   (row: SquareLinkEndRow): SquareLinkEndRow => ({
@@ -137,7 +137,7 @@ const taskEvent = <Id extends SquareLinkEndEventId>(
   run: moves(id),
 });
 
-/** One entry per event id, each value bound to its own key, so an id added to
+/** One entry per event id, each value bound to its own key. An id added to
  * the union alone refuses to compile until its event is declared here. */
 const LINK_END_EVENT_OF: {
   readonly [Id in SquareLinkEndEventId]: SquareLinkEndEvent & {

@@ -8,8 +8,8 @@ import {
   refundMoneyReturned,
 } from "#payment/resources.ts";
 
-/** The provider's own refund, when it has named one. Left out entirely when it
- *  has not, rather than carried as nothing. */
+/** The provider's own refund, when it names one. Left out entirely when it
+ *  does not, rather than carried as nothing. */
 const named = (
   refund: ProviderRefundResource | undefined,
 ): { refund: ProviderRefundResource } | Record<never, never> =>
@@ -69,8 +69,8 @@ export const resolveRefund = (charge: ChargeMoney): RefundResolution => {
   if (returned === charge.captured.amount) {
     return confirmedRefund("completed", charge, completed, returned);
   }
-  // A refund the provider tried and could not finish is answered before money
-  // already back is called a partial refund: the two need different handling,
+  // A refund the provider tried and did not finish is answered before money
+  // already back is called a partial refund. The two need different handling,
   // and a failure hidden behind "partly refunded" is a failure nobody retries.
   const failed = observedRefund(charge.refunds, "failed");
   if (failed !== undefined) {

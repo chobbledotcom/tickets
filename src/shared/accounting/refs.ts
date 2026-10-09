@@ -5,9 +5,9 @@
  * - **Deterministic**, so a retry recomputes the same keys and re-posting is a
  *   no-op.
  * - **Collision-free**, because JSON encoding is injective. A `|`-joined string
- *   would collide `["booking", "a|b"]` with `["booking", "a", "b"]`.
+ *   collides `["booking", "a|b"]` with `["booking", "a", "b"]`.
  * - **Non-reversible**, so a provider payment id fed in as a part cannot be
- *   read back out, and the retained ledger holds no provider ids or PII.
+ *   read back out. The retained ledger holds no provider ids or PII.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
@@ -17,11 +17,11 @@ export type RefPart = string | number;
 
 const digest = (domain: string, parts: RefPart[]): Promise<string> => {
   // A numeric part must be a safe integer. JSON.stringify serialises NaN/Infinity
-  // as `null` (distinct non-finite ids would collide on one key) and silently
+  // as `null`, so distinct non-finite ids collide on one key. It also silently
   // rounds integers past Number.MAX_SAFE_INTEGER (9007199254740993 → ...992, so
-  // two distinct ids would hash alike). Either way unrelated transfers would
-  // share a reference and be wrongly deduped or flagged as conflicts, so reject
-  // rather than hash an ambiguous input — row ids are always safe integers.
+  // two distinct ids hash alike). Either way unrelated transfers then share a
+  // reference and are wrongly deduped or flagged as conflicts. Reject rather
+  // than hash an ambiguous input — row ids are always safe integers.
   for (const part of parts) {
     if (typeof part === "number" && !Number.isSafeInteger(part)) {
       throw new Error(`reference part is not a safe integer: ${part}`);

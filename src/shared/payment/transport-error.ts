@@ -19,7 +19,7 @@ import type { PaymentProviderType } from "#types";
 /** A buyer field a provider can reject with a message safe to show them. */
 export type RejectedBuyerField = "email" | "phone";
 
-/** Why we could not reach a provider at all. */
+/** Why we did not reach a provider at all. */
 export type ProviderConnectionReason = "network_error" | "timeout";
 
 /** What one provider knows about its own failure beyond the shared facts. */
@@ -90,8 +90,8 @@ const providerName = (detail: ProviderErrorDetail): string =>
 export const transportError = {
   /** The provider answered, and its status is the verdict.
    *
-   * `message` is the provider's own wording, and only a provider that has
-   * proved its wording safe to carry passes one: Stripe's endpoint setup
+   * `message` is the provider's own wording, and only a provider that
+   * proved its wording safe to carry passes one. Stripe's endpoint setup
    * reads it back to spot the webhook cap. Square passes none, because its
    * error body quotes the request. */
   answered: (
@@ -121,7 +121,7 @@ export const transportError = {
     ),
 
   /** The provider answered, but its body was not the shape it documents.
-   * `malformed` is set whether or not a status came with it: the read and
+   * `malformed` is set whether or not a status came with it. The read and
    * refund meanings take the status when there is one, while checkout needs
    * to know the answer itself was unreadable. */
   unusable: (
@@ -137,7 +137,7 @@ export const transportError = {
 } as const;
 
 /** The buyer field the provider named, or null when it named none. Only
- * Square reports one today; the rest have nothing to say about the buyer. */
+ * Square reports one today. The rest have nothing to say about the buyer. */
 export const rejectedBuyerFieldOf = (
   error: ProviderTransportError,
 ): RejectedBuyerField | null =>

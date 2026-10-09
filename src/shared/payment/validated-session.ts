@@ -103,8 +103,8 @@ export const isSessionRejection = (
 /** The malformed-charge refusal, refundable only when money was captured AND
  *  the provider named it. The metadata is unpacked first: Square folds its
  *  small fields into one entry, but the price proof is signed over the
- *  unpacked shape, so a packed record would fail its own ownership check and
- *  no Square charge would ever be refunded. */
+ *  unpacked shape. Without the unpacking, a packed record fails its own
+ *  ownership check, and no Square charge is refunded. */
 const malformedChargeRejection = (
   sessionId: string,
   paymentReference: string,
@@ -122,11 +122,11 @@ const malformedChargeRejection = (
 
 /**
  * The one place a provider's raw session becomes a ValidatedPaymentSession, so
- * every callback downstream reads a charge that has already been checked.
+ * every callback downstream reads a charge that was already checked.
  *
- * `metadata` must already have passed hasRequiredSessionMetadata, or come from
+ * `metadata` must already pass hasRequiredSessionMetadata, or come from
  * our own staged checkout row. A charge in a currency other than the site's is
- * NOT refused here: it is built, and the callbacks treat it as a price mismatch,
+ * NOT refused here: it is built. The callbacks treat it as a price mismatch,
  * which is what carries its captured money to the refund path.
  */
 export const validatedPaymentSession = (fields: {

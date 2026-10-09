@@ -85,7 +85,7 @@ const FRESH_EVIDENCE_REPLACES_OWNER_REASON = {
   replay_window_expired: true,
 } as const satisfies Record<RefundOwnerChoiceReason, boolean>;
 
-/** Whether newer provider evidence may replace this exact stored judgment. */
+/** Whether newer provider evidence can replace this exact stored judgment. */
 export const mayReplaceRefundWithFreshEvidence = (
   state: RefundAuthorityState,
 ): boolean =>
@@ -177,12 +177,12 @@ export const refundOwnerChoices = (
     return ["provider_confirmed_not_sent"];
   }
   // A settled return — full or partial — confirms the money that came back
-  // and nothing else: "not sent" would re-arm a send that pays the returned
+  // and nothing else. "Not sent" re-arms a send that pays the returned
   // part a second time.
   return ["provider_confirmed_returned"];
 };
 
-/** Apply one explicit owner answer; there is intentionally no generic clear. */
+/** Apply one explicit owner answer. There is intentionally no generic clear. */
 export const resolveRefundOwnerChoice = (
   state: NeedsOwnerChoiceRefundState,
   choice: RefundOwnerChoice,

@@ -3,8 +3,8 @@
  * charges' refund authority, and its delivery phase. Pure.
  *
  * The declaration is an ILLEGAL list, each entry naming the invariant it
- * breaks. A combination is listed only when no flow can produce it, because a
- * crash window's intermediate state must stay legal for a redelivery to finish
+ * breaks. A combination is listed only when no flow can produce it. A crash
+ * window's intermediate state must stay legal for a redelivery to finish
  * from it. Anything unlisted is legal, and the crash tests tighten the list.
  *
  * The phase collapses into the row fact: any stored row state means
@@ -16,13 +16,13 @@ import { type ROW_NODES, rowNodeOf } from "#payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 
 /** One charge's refund authority as this seam sees it: the authority
- * machine's own stored state name (whether its local recording is done is a
- * separate column and a separate concern), or "absent" when the row's
- * references have no charge at all. */
+ * machine's own stored state name. Whether its local recording is done is a
+ * separate column and a separate concern. "Absent" means the row's
+ * references carry no charge at all. */
 export type AuthorityFact = "absent" | RefundAuthorityStateName;
 
 /** One entry per stored authority name, keyed by the machine's own name
- * type: the machine growing, renaming, or losing a state stops this record
+ * type. The machine growing, renaming, or losing a state stops this record
  * compiling until the seam learns the change. */
 const STORED_AUTHORITY_FACTS: {
   readonly [Name in RefundAuthorityStateName]: Name;
@@ -40,7 +40,7 @@ const AUTHORITY_NAMES: readonly RefundAuthorityStateName[] = Object.values(
 );
 
 /** The authority fact for one stored state name — null means the reference
- * carries no charge. An unknown name throws: it would mean the authority
+ * carries no charge. An unknown name throws: it means the authority
  * machine grew a state this seam has never heard of. */
 export const authorityFactOf = (name: string | null): AuthorityFact => {
   if (name === null) return "absent";
@@ -59,7 +59,7 @@ export type JointRowFact =
   | Exclude<(typeof ROW_NODES)[number]["id"], "free">;
 
 /** Why a combination can never exist. Each reason is one invariant a flow
- * relies on; the entry makes it checkable instead of implicit. */
+ * relies on. The entry makes it checkable instead of implicit. */
 export interface IllegalJointState {
   readonly authority: AuthorityFact;
   readonly reason: string;
@@ -111,7 +111,7 @@ export const ILLEGAL_JOINT_STATES = [
  * `finalized` is the phase axis: true once the session booked (attendee
  * set), false while the reservation is in flight. A stored row carries its
  * pending outcome beside its live work through the whole crash window, so
- * the fact comes from the live work alone — only a row holding nothing but
+ * the fact comes from the live work alone. Only a row holding nothing but
  * an outcome is settled. */
 export const jointRowFactOf = (
   state: PaymentRowState,

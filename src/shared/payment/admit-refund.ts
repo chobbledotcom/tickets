@@ -1,9 +1,9 @@
 /**
- * Whether a refund may be sent, given what the provider says has already
- * happened to the money. Every refund route asks before it calls a provider,
- * so "already back" and "already on its way" stop the call rather than being
- * discovered by making it. Stripe and Square reject a second full refund
- * themselves; SumUp has no idempotency key and would pay twice.
+ * Whether a refund can be sent, given what the provider says already happened
+ * to the money. Every refund route asks before it calls a provider. "Already
+ * back" and "already on its way" stop the call instead of waiting for the call
+ * to find them. Stripe and Square reject a second full refund themselves.
+ * SumUp has no idempotency key, so a second call pays twice.
  */
 
 import type { PaymentConflict } from "#payment/conflict.ts";
@@ -13,7 +13,7 @@ import type { RefundRequest } from "#payment/refund-attempt.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
 
 /** What to do about a refund somebody asked for. Only `send` reaches a
- *  provider; the rest are answers we already have. */
+ *  provider. The rest are answers we already have. */
 export type RefundAdmission =
   | { issue: PaymentConflict; kind: "refused" }
   | { kind: "already_returned" }
@@ -38,7 +38,7 @@ const ADMISSION_BY_OUTCOME = {
 >;
 
 /** Turn what a reading came to into what to do about a refund. A problem the
- *  owner has to look at never sends money: paying into a disagreement between
+ *  owner has to look at never sends money. To pay into a disagreement between
  *  the reading and the booking is how one buyer is paid twice. */
 export const admitRefund = (outcome: ObservationOutcome): RefundAdmission =>
   outcome.kind === "conflict"

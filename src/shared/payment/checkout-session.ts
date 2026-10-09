@@ -18,8 +18,8 @@ type SuccessfulCheckoutResult = Exclude<
 >;
 
 /** Read the created checkout a provider answered with. A checkout the buyer
- * cannot be sent to is an answer we cannot use, so it is refused in the words
- * every other unusable provider answer is refused in. */
+ * cannot be sent to is an answer we cannot use. It is therefore refused in the
+ * words every other unusable provider answer is refused in. */
 const createdCheckout = (
   provider: PaymentProviderType,
   sessionId: string | undefined,
@@ -30,12 +30,12 @@ const createdCheckout = (
 };
 
 /**
- * Build a provider's `createCheckoutSession`: call the provider's own create
+ * Build a provider's `createCheckoutSession`. Call the provider's own create
  * function, read the session id and URL off whatever shape it returns, and map
- * that to a shared CheckoutSessionResult — all inside the standard checkout
- * error guard. Each provider only supplies its create call and how to read the
- * id/url. A null create answer means the provider is not configured; a non-null
- * answer must contain both documented fields.
+ * that to a shared CheckoutSessionResult. All of this runs inside the standard
+ * checkout error guard. Each provider only supplies its create call and how to
+ * read the id/url. A null create answer means the provider is not configured.
+ * A non-null answer must contain both documented fields.
  */
 export const makeCreateCheckoutSession =
   <Result>(
@@ -59,7 +59,7 @@ export const makeCreateCheckoutSession =
       const { id, linkEndsAt, url } = readResult(result);
       const checkout = createdCheckout(provider, id, url);
       // The session id exists only now, so the answers stage beside it after
-      // the provider accepts the checkout — every provider shares this step,
+      // the provider accepts the checkout. Every provider shares this step,
       // whatever its metadata caps allow the checkout itself to carry.
       await stageCheckoutAnswers(
         checkout.sessionId,
