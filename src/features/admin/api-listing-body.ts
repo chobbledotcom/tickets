@@ -280,16 +280,14 @@ export const bodyToUpdateInput = async (
       assignBuiltSite: existing.assign_built_site,
       // An omitted attribute_option_ids leaves the stored links untouched.
       // persistListingJoins skips the link write for an undefined selection.
-      // So an unrelated update never restores a stale one.
+      // So an unrelated update never restores a stale one. group_ids behaves
+      // the same way.
       attributeOptionIds: joinIds.attributeOptionIds,
       dayPrices:
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
           : existing.day_prices,
-      groupIds:
-        joinIds.groupIds === undefined
-          ? await listingGroups.getIds(existing.id)
-          : joinIds.groupIds,
+      groupIds: joinIds.groupIds,
       initialSiteMonths: existing.initial_site_months,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
@@ -298,6 +296,10 @@ export const bodyToUpdateInput = async (
       purchaseOnly: existing.purchase_only,
       slug,
       slugIndex,
+      // The validators judge the membership as it will stand after the write:
+      // the submitted set, or the stored set when the body omits group_ids.
+      wouldBeGroupIds:
+        joinIds.groupIds ?? (await listingGroups.getIds(existing.id)),
     } as ListingInput);
   });
 };

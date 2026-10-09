@@ -153,6 +153,19 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     expect(await listingGroupIdsOf(listing.id)).toEqual([]);
   });
 
+  test("skips the group write when the listing vanished inside the transaction", async () => {
+    // The row write and the join write share one transaction, so a delete
+    // that lands between them leaves the membership validation no listing to
+    // judge. The write returns and lets the row write's own 404 stand.
+    const group = await createTestGroup({ name: "Vanished listing group" });
+
+    await withTransaction(async (tx) => {
+      await setListingGroupsTx(tx, 999_999, [group.id]);
+    });
+
+    expect(await listingGroupIdsOf(999_999)).toEqual([]);
+  });
+
   test("a package join refuses a listing whose minimum exceeds the pick count", async () => {
     // A join grants the default pick count of one; a listing that sells at
     // least two per purchase could never be booked inside the bundle.

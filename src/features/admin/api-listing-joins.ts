@@ -9,6 +9,7 @@ import {
   missingAttributeOptionIds,
 } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
+import { listingGroups } from "#db/groups/table.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,
@@ -116,7 +117,7 @@ export const prepareChildEdges = async (
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) return { childIds: null };
   if ("error" in submitted) return submitted;
-  const inputGroupIds = input.groupIds === undefined ? [] : input.groupIds;
+  const inputGroupIds = input.wouldBeGroupIds ?? input.groupIds ?? [];
   const packageConflict = await packageChildEdgeConflict(
     submitted.childIds,
     () => anyHiddenPackageGroup(inputGroupIds),
@@ -166,14 +167,20 @@ export const persistListingJoins = async (
       value.attributeOptionIds,
     );
   }
-  if (value.groupIds !== undefined) {
-    await setListingGroupsTx(
-      tx,
-      listingId,
-      value.groupIds,
-      value.childEdges === null ? undefined : hasChildEdges(value.childEdges),
-    );
-  }
+  // The group set this write makes effective: the submitted set, or the links
+  // this transaction already holds when the body omitted group_ids. An
+  // omitted set writes nothing, because the diff against the same links is
+  // empty. The links still need their judgment here. Another save can add a
+  // package or a plan group between the parse-time read and this
+  // transaction. This write's fields must not break those rules.
+  const groupIds =
+    value.groupIds ?? (await listingGroups.getIds(listingId, tx));
+  await setListingGroupsTx(
+    tx,
+    listingId,
+    groupIds,
+    value.childEdges === null ? undefined : hasChildEdges(value.childEdges),
+  );
   const childEdges = value.childEdges;
   await writeListingDayCounts(
     tx,

@@ -53,6 +53,22 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
 
+  test("keeps a minimum of one when no maximum is set", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxAttendees: 10, minQuantity: 1, name: "Min One" }),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  test("refuses a minimum above a maximum of zero", async () => {
+    await expect(
+      validateListingInput(
+        inputFor({ maxQuantity: 0, minQuantity: 1, name: "Zero Max" }),
+      ),
+    ).resolves.toBe(t("error.listing_min_quantity_above_max"));
+  });
+
   test("rejects a group id that does not exist", async () => {
     await expect(
       validateListingInput(
