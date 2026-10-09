@@ -213,6 +213,9 @@ describe("check-ste rules", () => {
 
     test("present-perfect leaves an -ed word that is not a participle", () => {
       expect(rulesOn("The fix has indeed landed.")).toEqual([]);
+      expect(rulesOn("The count has hundred entries.")).toEqual([]);
+      expect(rulesOn("The rites have sacred meaning.")).toEqual([]);
+      expect(rulesOn("The rooms had bed spaces.")).toEqual([]);
     });
 
     test("present-perfect leaves a participle that heads a compound", () => {
