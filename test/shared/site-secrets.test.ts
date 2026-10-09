@@ -3,7 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { collectHostSecrets } from "#shared/builder.ts";
-import { bunnyCdnApi, type EdgeScriptSecret } from "#shared/bunny-cdn.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import type { EdgeScriptSecret } from "#shared/bunny-edge-script.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
 import {

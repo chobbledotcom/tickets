@@ -8,7 +8,7 @@
 
 import * as v from "valibot";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
-import { parseBunnyError } from "#shared/bunny-cdn.ts";
+import { parseBunnyError } from "#shared/bunny-api.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { jsonHeaders } from "#shared/fetch.ts";
 import {
