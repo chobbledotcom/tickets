@@ -91,14 +91,20 @@ const testChildEnv = (): Record<string, string> => ({
   ...stripeMockEnv(),
 });
 
+/** What both run shapes need: the caller's test arguments, whether the run
+ * feeds the coverage gate, and an optional JUnit report path. */
+type TestRunRequest = {
+  extraArgs: string[];
+  useCoverage: boolean;
+  junitPath?: string | undefined;
+};
+
 /** The focused run: a compact TAP child whose summary reads a JUnit report
  * and names the cause of a silent exit. The temporary report directory is
  * removed after the run; a report the caller forwarded keeps their
  * directory. */
 const runFocusedTest = async (
-  extraArgs: string[],
-  useCoverage: boolean,
-  junitPath?: string,
+  { extraArgs, useCoverage, junitPath }: TestRunRequest,
   estimateFrom?: string[],
 ): Promise<number> => {
   const forwardedJunitPath = junitPathInArgs(extraArgs);
@@ -136,11 +142,11 @@ const runFocusedTest = async (
 
 /** The pass-through run: a caller that chose its own reporter keeps deno's
  * own output and exit code. */
-const runPlainTest = async (
-  extraArgs: string[],
-  useCoverage: boolean,
-  junitPath?: string,
-): Promise<number> => {
+const runPlainTest = async ({
+  extraArgs,
+  useCoverage,
+  junitPath,
+}: TestRunRequest): Promise<number> => {
   console.log("Running tests...");
   const testCmd = new Deno.Command(Deno.execPath(), {
     args: buildDenoTestArgs(extraArgs, useCoverage, undefined, junitPath),
@@ -170,13 +176,11 @@ export const runTests = async (
   if (useCoverage) await removeOldCoverageOutput();
   if (!hasReporterArg(extraArgs)) {
     return await runFocusedTest(
-      extraArgs,
-      useCoverage,
-      junitPath,
+      { extraArgs, useCoverage, junitPath },
       estimateFrom,
     );
   }
-  return await runPlainTest(extraArgs, useCoverage, junitPath);
+  return await runPlainTest({ extraArgs, useCoverage, junitPath });
 };
 
 /**
