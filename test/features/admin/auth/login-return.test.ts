@@ -22,7 +22,8 @@ const ACCEPTED: readonly (readonly [string, string])[] = [
 /** The attack shapes and other values the rule must refuse: addresses for
  *  another site (direct, protocol-relative, percent-encoded), backslashes,
  *  control characters, climbs out of the admin area, the login and logout
- *  pages themselves, and anything that is not an admin path. */
+ *  pages themselves, malformed escapes, and anything that is not an admin
+ *  path. */
 const REFUSED: readonly string[] = [
   "//evil.com",
   "/\\evil.com",
@@ -32,6 +33,8 @@ const REFUSED: readonly string[] = [
   "javascript:alert(1)",
   "%2F%2Fevil.com",
   "%5Cevil.com",
+  "%zz",
+  "/admin/listings%zz",
   "/admin%2F%2Fevil.com",
   "/admin%5Cevil.com",
   "%0A/admin/listings/12",
