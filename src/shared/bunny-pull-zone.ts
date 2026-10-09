@@ -96,7 +96,7 @@ const pullZonePost = async (
   return okOrError(response, label);
 };
 
-/** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
+/** Request a free ACME certificate for a hostname on a pull zone. */
 const loadFreeCertificate = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {

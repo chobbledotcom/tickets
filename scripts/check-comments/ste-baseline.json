@@ -628,12 +628,6 @@
     "present-perfect": 1,
     "contraction": 3
   },
-  "src/shared/bunny-cdn.ts": {
-    "contraction": 1,
-    "wordy": 2,
-    "banned-modal": 1,
-    "semicolon": 2
-  },
   "src/shared/bunny-db.ts": {
     "long-sentence": 1
   },
@@ -2357,11 +2351,11 @@
     "present-perfect": 2
   },
   "src/shared/storage.ts": {
-    "long-sentence": 9,
+    "long-sentence": 7,
     "contraction": 4,
     "semicolon": 5,
     "wordy": 3,
-    "banned-modal": 3
+    "banned-modal": 2
   },
   "src/shared/stream-chunks.ts": {
     "long-sentence": 1,

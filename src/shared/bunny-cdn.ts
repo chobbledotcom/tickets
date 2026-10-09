@@ -1,6 +1,6 @@
-/** Bunny CDN hosting provider. This module assembles the resource clients —
- *  pull zone, DNS, and edge script — behind the stubbable `bunnyCdnApi` seam
- *  the tests stub, and exposes the hosting provider and thin entry points. */
+/** Bunny CDN hosting provider. This module assembles the resource clients
+ *  (pull zone, DNS, edge script) behind the stubbable `bunnyCdnApi` seam that
+ *  tests stub. It also exposes the hosting provider and entry points. */
 
 import {
   type BunnyApiResult,

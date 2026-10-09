@@ -134,9 +134,9 @@ export const publishEdgeScriptImpl = (
 ): Promise<BunnyApiResult> => publishScript(scriptId, "Publish edge script");
 
 /**
- * Upload new code to a Bunny edge script and publish it. Defaults to this
- * host's own script (self-update); pass `scriptId` to deploy the same release
- * to another edge script, e.g. updating a built site.
+ * Upload new code to a Bunny edge script and publish it. Without `scriptId`
+ * this updates the host's own script. Pass `scriptId` to deploy the same
+ * release to another edge script, for example a built site.
  */
 export const deployScriptCodeImpl = async (
   code: string,

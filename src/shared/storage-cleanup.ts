@@ -58,9 +58,9 @@ const isAlreadyDeleted = (err: unknown): boolean =>
   (err.message.startsWith("File not found:") || err.name === "NotFound");
 
 /**
- * Delete an image's storage files, throwing if any file could not be removed
- * (a file that is already gone counts as success, so retries are safe). Unlike
- * the reason-tagged deletions above, this runs outside a larger transaction.
+ * Delete an image's storage files. Throws when a file stays in place. A file
+ * that is already gone counts as success, so retries are safe. Unlike the
+ * reason-tagged deletions above, this runs outside a larger transaction.
  */
 export const deleteImageStorageFilesStrict = async (
   image: ImageWithStorage,

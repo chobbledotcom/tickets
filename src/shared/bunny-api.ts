@@ -1,6 +1,6 @@
 /** Shared Bunny API plumbing: request helpers, result types, and error
  *  parsing. The resource clients (pull zone, DNS, edge script) all read this
- *  module; it reads none of them. */
+ *  module. It reads none of them. */
 
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { getBunnyApiKey } from "#shared/config.ts";

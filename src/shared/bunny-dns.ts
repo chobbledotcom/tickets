@@ -51,7 +51,7 @@ export const getDnsZoneImpl = async (): Promise<DnsZoneResult> => {
 
 /**
  * Build the full subdomain record name (user choice + suffix).
- * e.g. "mylisting" + ".tickets" → "mylisting.tickets"
+ * For example, "mylisting" + ".tickets" gives "mylisting.tickets".
  */
 export const buildSubdomainRecordName = (subdomain: string): string =>
   `${subdomain}${getBunnyDnsSubdomainSuffix()}`;
@@ -111,9 +111,9 @@ export type SubdomainRegistrarDeps = {
 };
 
 /**
- * Register a bunny subdomain: add a CNAME DNS record pointing to the CDN
- * target, then register the hostname with the CDN pull zone (SSL + force SSL).
- * Retries certificate loading to allow DNS propagation after record creation.
+ * Register a bunny subdomain. Adds a CNAME DNS record that points to the CDN
+ * target, then registers the hostname with the CDN pull zone with force SSL.
+ * Certificate loading retries to allow DNS propagation after the record lands.
  */
 export const registerBunnySubdomainImpl =
   (deps: SubdomainRegistrarDeps) =>
@@ -168,7 +168,8 @@ export const registerBunnySubdomainImpl =
       const parsed = JSON.parse(addResponse.text);
       if (parsed.Id) dnsRecordId = parsed.Id;
     } catch {
-      /* response may not be JSON; cleanup will rely on zone lookup */
+      /* The response is sometimes not JSON. Cleanup then relies on a zone
+       * lookup. */
     }
 
     // 3. Register hostname with pull zone (add hostname + SSL)
