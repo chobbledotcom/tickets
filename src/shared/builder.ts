@@ -49,6 +49,8 @@ type HostSecret = {
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "SENTRY_URL" },
+  { name: "BOTPOISON_PUBLIC_KEY" },
+  { name: "BOTPOISON_SECRET_KEY" },
   { name: "ADMIN_EMAIL_ADDRESS" },
   { name: "SUPPORT_FORM_NAG_DAYS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
