@@ -131,6 +131,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
     test("shows stored-total mismatches on listing detail and edit pages", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
+        maxQuantity: 100,
         name: "Mismatch Listing",
         thankYouUrl: "https://example.com",
       });
@@ -151,7 +152,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         detail,
         200,
         "Running total check",
-        "expected <strong>1</strong>, got",
+        "expected <strong>2</strong>, got",
         "Review and recalculate totals",
       );
 
@@ -160,7 +161,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         edit,
         200,
         "Running totals",
-        "expected <strong>1</strong>, got",
+        "expected <strong>2</strong>, got",
         "Review and recalculate totals",
       );
     });

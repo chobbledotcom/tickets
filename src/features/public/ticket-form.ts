@@ -16,15 +16,13 @@ import { extractContact } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import type { ListingQty, TicketCtx } from "./types.ts";
 
-/** Parse and validate a quantity value from a raw string, capping at max */
-export const parseQuantityValue = (
-  raw: string,
-  max: number,
-  minDefault = 1,
-): number => {
+/** Parse a quantity value from a raw string, lifting a too-small count to
+ * `minDefault`. A count above a surface's ceiling is refused by
+ * `validateFormState`, never clamped here. */
+export const parseQuantityValue = (raw: string, minDefault = 1): number => {
   const quantity = parseNonNegativeInt(raw);
   if (quantity === null || quantity < minDefault) return minDefault;
-  return Math.min(quantity, max);
+  return quantity;
 };
 
 /** The answers a submission gave, with the questions and listings they belong
@@ -148,11 +146,11 @@ export const parseQuantities = (
 ): Map<number, number> => {
   const quantities = new Map<number, number>();
 
-  for (const { listing, isSoldOut, isClosed, maxPurchasable } of listings) {
+  for (const { listing, isSoldOut, isClosed } of listings) {
     if (isSoldOut || isClosed) continue;
 
     const raw = form.get(quantityFieldName(listing.id)) || "0";
-    const quantity = parseQuantityValue(raw, maxPurchasable, 0);
+    const quantity = parseQuantityValue(raw, 0);
     if (quantity > 0) {
       quantities.set(listing.id, quantity);
     }
@@ -184,7 +182,6 @@ export const parseAddOnSelections = (
   for (const addOn of addOns) {
     const quantity = parseQuantityValue(
       form.get(`addon_${addOn.id}`) || "0",
-      addOn.maxQuantity,
       0,
     );
     if (quantity > 0) selections.set(addOn.id, quantity);

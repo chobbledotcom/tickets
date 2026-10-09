@@ -77,15 +77,14 @@ const ticketListingFor = async (listingId: number): Promise<TicketListing> => {
 
 describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
   describe("parseQuantityValue", () => {
-    test("caps valid quantities and defaults malformed input", () => {
-      expect(parseQuantityValue(" 2 ", 5, 0)).toBe(2);
-      expect(parseQuantityValue("0", 5, 0)).toBe(0);
-      expect(parseQuantityValue("7", 5, 0)).toBe(5);
-      expect(parseQuantityValue("2x", 5, 0)).toBe(0);
+    test("defaults malformed input and honours the field minimum", () => {
+      expect(parseQuantityValue(" 2 ", 0)).toBe(2);
+      expect(parseQuantityValue("0", 0)).toBe(0);
+      expect(parseQuantityValue("2x", 0)).toBe(0);
     });
 
     test("uses the minimum default when zero is below the field minimum", () => {
-      expect(parseQuantityValue("0", 5)).toBe(1);
+      expect(parseQuantityValue("0", 5)).toBe(5);
     });
   });
 

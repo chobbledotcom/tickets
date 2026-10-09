@@ -16,7 +16,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { quantityForm, ticketContext } from "#test-utils/ticket-ctx.ts";
+import {
+  pageBookingTree,
+  quantityForm,
+  ticketContext,
+} from "#test-utils/ticket-ctx.ts";
 
 /** The page context with its listings replaced, for the states a real page
  * cannot reach in one shot (sold out by the minimum, or closed). */
@@ -39,27 +43,39 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
-      expect(validateFormState(quantityForm({ [listing.id]: 2 }), ctx)).toBe(
-        bookingError.minimum(listing.name, listing.min_quantity),
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 2 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(bookingError.minimum(listing.name, listing.min_quantity));
     });
 
     test("accepts a quantity of exactly the minimum", async () => {
       const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
-      expect(validateFormState(quantityForm({ [listing.id]: 3 }), ctx)).toBe(
-        null,
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 3 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(null);
     });
 
     test("accepts a quantity of zero", async () => {
       const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
-      expect(validateFormState(quantityForm({ [listing.id]: 0 }), ctx)).toBe(
-        null,
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 0 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(null);
     });
 
     test("a sold-out row's posted quantity is skipped, below or above the minimum", async () => {
@@ -79,12 +95,14 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
         validateFormState(
           quantityForm({ [listing.id]: 5, [spare.id]: 0 }),
           soldOutByMinimum,
+          pageBookingTree(soldOutByMinimum),
         ),
       ).toBe(null);
       expect(
         validateFormState(
           quantityForm({ [listing.id]: 2, [spare.id]: 0 }),
           soldOutByMinimum,
+          pageBookingTree(soldOutByMinimum),
         ),
       ).toBe(null);
     });
@@ -99,7 +117,11 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       ]);
 
       expect(
-        validateFormState(quantityForm({ [listing.id]: 2 }), closedRow),
+        validateFormState(
+          quantityForm({ [listing.id]: 2 }),
+          closedRow,
+          pageBookingTree(closedRow),
+        ),
       ).toBe(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
     });
 
@@ -122,17 +144,20 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       // the package's own name as the stand-in, as every other booking error
       // does.
       const { ctx } = await makePackageContext();
+      const tree = pageBookingTree(ctx);
 
       expect(
         validateFormState(
           quantityForm({}, { [ctx.packages[0]!.groupId]: 1 }),
           ctx,
+          tree,
         ),
       ).toBe("Sorry, Mystery Box sells at least 3 tickets per booking.");
       expect(
         validateFormState(
           quantityForm({}, { [ctx.packages[0]!.groupId]: 3 }),
           ctx,
+          tree,
         ),
       ).toBe(null);
     });
@@ -150,12 +175,13 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       };
       const packageCtx = { ...ctx, packages: [withoutQuantity] };
       const groupId = ctx.packages[0]!.groupId;
+      const tree = pageBookingTree(packageCtx);
 
       expect(
-        validateFormState(quantityForm({}, { [groupId]: 2 }), packageCtx),
+        validateFormState(quantityForm({}, { [groupId]: 2 }), packageCtx, tree),
       ).toBe("Sorry, Mystery Box sells at least 3 tickets per booking.");
       expect(
-        validateFormState(quantityForm({}, { [groupId]: 3 }), packageCtx),
+        validateFormState(quantityForm({}, { [groupId]: 3 }), packageCtx, tree),
       ).toBe(null);
     });
   });

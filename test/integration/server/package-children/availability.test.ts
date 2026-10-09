@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { bookingError } from "#booking/form.ts";
 import { handleRequest } from "#routes";
+import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  expectPackageBookingAccepted,
-  submitPackageBooking,
-} from "#test-utils/packages.ts";
+import { submitPackageBooking } from "#test-utils/packages.ts";
 import {
   bookingRows,
   capAddonsAtThree,
@@ -47,7 +46,7 @@ describeWithEnv("package child availability", { db: true }, () => {
     expect(body).not.toContain('<option value="4">4</option>');
   });
 
-  test("a crafted POST is clamped to the child-capped bundle ceiling", async () => {
+  test("a crafted POST above the bundle ceiling refuses and books nothing", async () => {
     const { child, childB, group, other, parent } = await packageWithChild(
       "Clamp",
       "clamp-pkg",
@@ -66,9 +65,11 @@ describeWithEnv("package child availability", { db: true }, () => {
       name: "Clamp Buyer",
       [`package_quantity_${group.id}`]: "9",
     });
-    await expectPackageBookingAccepted(submit);
-    expect((await bookingRows(parent.id))[0]!.quantity).toBe(3);
-    expect((await bookingRows(other.id))[0]!.quantity).toBe(3);
+    expectFlash(submit, bookingError.packageMaximum("Clamp", 3), false);
+
+    // A refusal books nothing, not a clamped count.
+    expect((await bookingRows(parent.id)).length).toBe(0);
+    expect((await bookingRows(other.id)).length).toBe(0);
   });
 
   test("a package whose required add-ons are exhausted is gated off entirely", async () => {

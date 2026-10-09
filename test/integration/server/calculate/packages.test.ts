@@ -4,6 +4,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { bookingError } from "#booking/form.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
@@ -143,7 +144,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     expect(html).toContain(formatCurrency(6000));
   });
 
-  test("clamps the package count to the tightest member's capacity", async () => {
+  test("refuses a package count above the tightest member's capacity", async () => {
     await setupStripe();
     const group = await createTestGroup({
       isPackage: true,
@@ -162,9 +163,10 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     ]);
 
     // The member caps the package at 2 (max_quantity); a crafted count of 5
-    // clamps to 2 → 2 × 1000 = 2000, never 5 × 1000.
+    // refuses instead of pricing a clamped count the buyer never chose.
     const html = await quotePackage(group, "5");
-    expect(html).toContain(formatCurrency(2000));
+    expect(html).toContain(bookingError.packageMaximum("Capped", 2));
+    expect(html).not.toContain(formatCurrency(2000));
     expect(html).not.toContain(formatCurrency(5000));
   });
 
@@ -196,9 +198,10 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     ]);
 
     // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
-    // package fits. Posting 2 clamps to 1 → 1×1000 + 1×1000 = 2000, not 4000.
+    // package fits. Posting 2 refuses instead of pricing a clamped count.
     const html = await quotePackage(group, "2");
-    expect(html).toContain(formatCurrency(2000));
+    expect(html).toContain(bookingError.packageMaximum("Shared Pool", 1));
+    expect(html).not.toContain(formatCurrency(2000));
     expect(html).not.toContain(formatCurrency(4000));
   });
 

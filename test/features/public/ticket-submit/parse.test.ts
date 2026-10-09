@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildBookingTree } from "#booking/build-tree.ts";
+import { bookingError } from "#booking/form.ts";
 import { buildTicketListing } from "#booking/model.ts";
 import {
   customPriceFieldName,
@@ -15,7 +15,6 @@ import {
 import { questionListings } from "#db/questions/queries.ts";
 import { questionsTable } from "#db/questions/tables.ts";
 import type { AnswerInfo } from "#routes/public/ticket-form.ts";
-import { ctxToBuildTreeInput } from "#routes/public/ticket-payment.ts";
 import {
   applyQrTokenOverride,
   computeListingAnswerMap,
@@ -29,11 +28,14 @@ import type { TicketCtx } from "#routes/public/types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import type { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
+import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 import {
+  pageBookingTree,
   quantityForm,
   ticketContext,
   twoListingContext,
@@ -99,13 +101,66 @@ const answerInfo = (
 
 describeWithEnv("ticket-submit parse", { db: true }, () => {
   describe("validateFormState", () => {
+    test("refuses a standalone quantity above what the listing can sell", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        maxQuantity: 3,
+      });
+      const ctx = await ticketContext([listing.id]);
+
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 4 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(bookingError.maximum(listing.name, 3));
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 3 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBeNull();
+    });
+
+    test("refuses a package count above the bundles the page can sell", async () => {
+      const { ctx, group, tree } = await hiddenPackageWithMember();
+
+      expect(
+        validateFormState(quantityForm({}, { [group.id]: 6 }), ctx, tree),
+      ).toBe(bookingError.packageMaximum("Mystery Box", 5));
+      expect(
+        validateFormState(quantityForm({}, { [group.id]: 5 }), ctx, tree),
+      ).toBeNull();
+    });
+
+    test("refuses an add-on count above its ceiling", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const addOn = await insertModifier({ name: "Parking" });
+      await patchModifier(addOn.id, { trigger: "optional" });
+      const ctx = await ticketContext([listing.id]);
+      const form = quantityForm({ [listing.id]: 1 });
+      form.set(`addon_${addOn.id}`, "99");
+
+      expect(validateFormState(form, ctx, pageBookingTree(ctx))).toBe(
+        bookingError.addOnMaximum("Parking", 20),
+      );
+      form.set(`addon_${addOn.id}`, "20");
+      expect(validateFormState(form, ctx, pageBookingTree(ctx))).toBeNull();
+    });
+
     test("refuses a form that skipped the terms box", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = { ...(await ticketContext([listing.id])), terms: "/terms" };
 
-      expect(validateFormState(quantityForm({ [listing.id]: 1 }), ctx)).toBe(
-        "You must agree to the terms and conditions",
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 1 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe("You must agree to the terms and conditions");
     });
 
     test("accepts the same form with the terms box ticked", async () => {
@@ -114,7 +169,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const form = quantityForm({ [listing.id]: 1 });
       form.set("agree_terms", "1");
 
-      expect(validateFormState(form, ctx)).toBeNull();
+      expect(validateFormState(form, ctx, pageBookingTree(ctx))).toBeNull();
     });
 
     test("says registration closed when every listing is closed", async () => {
@@ -124,9 +179,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         buildTicketListing(ctx.listings[0]!.listing, true, undefined),
       ]);
 
-      expect(validateFormState(quantityForm({}), closed)).toBe(
-        "Sorry, registration closed while you were submitting.",
-      );
+      expect(
+        validateFormState(quantityForm({}), closed, pageBookingTree(closed)),
+      ).toBe("Sorry, registration closed while you were submitting.");
     });
 
     test("says sold out when the page has no spots left", async () => {
@@ -136,9 +191,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         buildTicketListing(ctx.listings[0]!.listing, false, 0),
       ]);
 
-      expect(validateFormState(quantityForm({}), soldOut)).toBe(
-        "Sorry, not enough spots available",
-      );
+      expect(
+        validateFormState(quantityForm({}), soldOut, pageBookingTree(soldOut)),
+      ).toBe("Sorry, not enough spots available");
     });
 
     test("refuses a quantity chosen on a closed listing", async () => {
@@ -149,10 +204,18 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       ]);
 
       expect(
-        validateFormState(quantityForm({ [first.id]: 1 }), halfClosed),
+        validateFormState(
+          quantityForm({ [first.id]: 1 }),
+          halfClosed,
+          pageBookingTree(halfClosed),
+        ),
       ).toBe("Sorry, registration closed while you were submitting.");
       expect(
-        validateFormState(quantityForm({ [second.id]: 1 }), halfClosed),
+        validateFormState(
+          quantityForm({ [second.id]: 1 }),
+          halfClosed,
+          pageBookingTree(halfClosed),
+        ),
       ).toBeNull();
     });
 
@@ -166,7 +229,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const form = quantityForm({});
       form.set(`quantity_${first.id}`, "abc");
 
-      expect(validateFormState(form, halfClosed)).toBeNull();
+      expect(
+        validateFormState(form, halfClosed, pageBookingTree(halfClosed)),
+      ).toBeNull();
     });
   });
 
@@ -354,11 +419,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       group?: Awaited<ReturnType<typeof createHiddenPackageGroup>>,
     ) => {
       const ctx = await ticketContext(listingIds, group);
-      return resolvePageQuantities(
-        form,
-        ctx,
-        buildBookingTree(ctxToBuildTreeInput(ctx)),
-      );
+      return resolvePageQuantities(form, ctx, pageBookingTree(ctx));
     };
 
     test("reads each standalone listing's chosen quantity", async () => {
@@ -371,29 +432,11 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       expect(quantities.get(listing.id)).toBe(2);
     });
 
-    test("clamps a standalone quantity to what the listing can sell", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        maxQuantity: 3,
-      });
-
-      const { quantities } = await resolvedQuantities(
-        [listing.id],
-        quantityForm({ [listing.id]: 9 }),
-      );
-      expect(quantities.get(listing.id)).toBe(3);
-    });
-
     /** A hidden package and one member it can book. */
     const mysteryBoxMember = async () => {
-      const group = await createHiddenPackageGroup("Mystery Box");
-      const member = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 5,
-        maxQuantity: 5,
-        name: "Secret Contents",
-      });
+      const { ctx, group, member } = await hiddenPackageWithMember();
       return {
+        ctx,
         form: (count: string) => {
           const form = new FormParams();
           form.set(packageQuantityFieldName(group.id), count);
