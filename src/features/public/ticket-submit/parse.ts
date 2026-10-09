@@ -91,8 +91,18 @@ const packageQuantityRefusal = (
     const fixedByListingId = new Map(
       pkg.memberListingIds.map((id) => [id, pkg.quantities.get(id) ?? 1]),
     );
+    // A concealed package's member names must not reach the buyer: the
+    // refusal names the package, as every other booking error does.
+    const namesById = pkg.hideListings
+      ? new Map(
+          [...listingById].map(([id, listing]) => [
+            id,
+            { ...listing, name: pkg.name },
+          ]),
+        )
+      : listingById;
     const error = packageBundleMinError(
-      packageBundleMembers(fixedByListingId, listingById),
+      packageBundleMembers(fixedByListingId, namesById),
       parsePackageCount(form, pkg.groupId),
     );
     if (error) return error;

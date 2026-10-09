@@ -117,9 +117,10 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       return { ctx: await ticketContext([member.id], group), group, member };
     };
 
-    test("refuses a package whose member minimum rose above what the bundles serve", async () => {
-      // One bundle books one unit of a member that now sells at least three
-      // per purchase, so the page re-reads the stored fact at submit time.
+    test("names the package, not its member, for a hidden package's minimum", async () => {
+      // A concealed member's name must not reach the buyer: the refusal uses
+      // the package's own name as the stand-in, as every other booking error
+      // does.
       const { ctx } = await makePackageContext();
 
       expect(
@@ -127,7 +128,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
           quantityForm({}, { [ctx.packages[0]!.groupId]: 1 }),
           ctx,
         ),
-      ).toBe("Sorry, Secret Contents sells at least 3 tickets per booking.");
+      ).toBe("Sorry, Mystery Box sells at least 3 tickets per booking.");
       expect(
         validateFormState(
           quantityForm({}, { [ctx.packages[0]!.groupId]: 3 }),
@@ -152,7 +153,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
 
       expect(
         validateFormState(quantityForm({}, { [groupId]: 2 }), packageCtx),
-      ).toBe("Sorry, Secret Contents sells at least 3 tickets per booking.");
+      ).toBe("Sorry, Mystery Box sells at least 3 tickets per booking.");
       expect(
         validateFormState(quantityForm({}, { [groupId]: 3 }), packageCtx),
       ).toBe(null);
