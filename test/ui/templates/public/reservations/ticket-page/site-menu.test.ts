@@ -47,7 +47,7 @@ describe("ticketPage (site menu)", () => {
         nav: navProps(),
         slugs: ["listing"],
       });
-      expect(html).toContain('<body class="iframe">');
+      expect(html).toContain('<body class="iframe" data-page-family="public">');
       expect(html).not.toContain("admin-nav-group");
       expect(html).not.toContain('aria-label="Site menu"');
     });

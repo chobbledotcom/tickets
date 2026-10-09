@@ -8,7 +8,7 @@ export const prosePage =
   (title: string, heading: string) =>
   (prose: Child, afterProse?: Child): string =>
     String(
-      <Layout contentClassName="public-page" title={title}>
+      <Layout contentClassName="public-page" family="public" title={title}>
         <ProseHeading heading={heading}>{prose}</ProseHeading>
         {afterProse}
       </Layout>,

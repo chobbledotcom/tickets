@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
+import { Window } from "happy-dom";
 import { buildTicketListing } from "#booking/model.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   CSS_PATH,
@@ -12,10 +14,14 @@ import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { consumeFlash, setFlashContext } from "#shared/flash-context.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
+import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
+import type { TargetMap } from "#shared/site-pages/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import { type PublicNavProps, publicPage } from "#templates/public/shared.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -25,6 +31,10 @@ import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import {
+  navKey,
+  navPage as page,
+} from "#test-utils/site-pages/nav-fixtures.ts";
 import type { AdminSession } from "#types";
 
 const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
@@ -76,7 +86,9 @@ describe("Layout skip navigation", () => {
   afterEach(resetLayoutTest);
 
   test("renders skip-nav link targeting main-content", () => {
-    const html = String(Layout({ children: "", title: "Test" }));
+    const html = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
     expect(html).toContain('class="skip-nav"');
     expect(html).toContain('href="#main-content"');
     expect(html).toContain("Skip to content");
@@ -90,6 +102,7 @@ describe("Layout skip navigation", () => {
         beforeContent: Raw({ html: '<nav class="example-nav">Menu</nav>' }),
         children: Raw({ html: "<h1>Heading</h1><p>Body</p>" }),
         contentClassName: "example-page",
+        family: "public",
         title: "Test",
       }),
     );
@@ -105,7 +118,9 @@ describe("Layout document shell", () => {
   afterEach(resetLayoutTest);
 
   test("renders the required document metadata and stylesheet contracts", () => {
-    const html = String(Layout({ children: "", title: "Test" }));
+    const html = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
 
     expect(html.slice(0, "<!DOCTYPE html>".length)).toBe("<!DOCTYPE html>");
     expect(html).toContain(
@@ -120,7 +135,12 @@ describe("Layout document shell", () => {
   test("renders head extras as markup", () => {
     const extra = '<meta content="raw" name="test-extra">';
     const html = String(
-      Layout({ children: "", headExtra: extra, title: "Test" }),
+      Layout({
+        children: "",
+        family: "public",
+        headExtra: extra,
+        title: "Test",
+      }),
     );
 
     expect(html).toContain(extra);
@@ -129,19 +149,33 @@ describe("Layout document shell", () => {
 
   test("applies an explicit body class without adding the iframe script", () => {
     const html = String(
-      Layout({ bodyClass: "example-page", children: "", title: "Test" }),
+      Layout({
+        bodyClass: "example-page",
+        children: "",
+        family: "public",
+        title: "Test",
+      }),
     );
 
-    expect(html).toContain('<body class="example-page">');
+    expect(html).toContain(
+      '<body class="example-page" data-page-family="public">',
+    );
     expect(html).not.toContain(IFRAME_RESIZER_CHILD_JS_PATH);
   });
 
   test("adds the iframe script only for an iframe body class", () => {
     const html = String(
-      Layout({ bodyClass: "example iframe", children: "", title: "Test" }),
+      Layout({
+        bodyClass: "example iframe",
+        children: "",
+        family: "public",
+        title: "Test",
+      }),
     );
 
-    expect(html).toContain('<body class="example iframe">');
+    expect(html).toContain(
+      '<body class="example iframe" data-page-family="public">',
+    );
     expect(html).toContain(
       `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`,
     );
@@ -149,7 +183,9 @@ describe("Layout document shell", () => {
 
   test("renders the configured header image with decorative semantics", () => {
     settings.setForTest({ header_image_url: "header.jpg" });
-    const html = String(Layout({ children: "", title: "Test" }));
+    const html = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
 
     expect(html).toContain(
       `<img alt="" class="header-image" src="${getImageProxyUrl(
@@ -162,7 +198,7 @@ describe("Layout document shell", () => {
     settings.setForTest({ header_image_url: "header.jpg" });
     const html = await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
-      return String(Layout({ children: "", title: "Test" }));
+      return String(Layout({ children: "", family: "public", title: "Test" }));
     });
 
     expect(html).not.toContain("header-image");
@@ -170,9 +206,13 @@ describe("Layout document shell", () => {
   });
 
   test("renders the demo banner only in demo mode", () => {
-    const normalHtml = String(Layout({ children: "", title: "Test" }));
+    const normalHtml = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
     setDemoModeForTest(true);
-    const demoHtml = String(Layout({ children: "", title: "Test" }));
+    const demoHtml = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
 
     expect(normalHtml).not.toContain('class="demo-banner"');
     expect(demoHtml).toContain('class="demo-banner"');
@@ -181,7 +221,9 @@ describe("Layout document shell", () => {
   test("renders an unconsumed request flash before the page content", async () => {
     const html = await withRequestContext(() => {
       setFlashContext({ success: "Saved from context" });
-      return String(Layout({ children: "Page body", title: "Test" }));
+      return String(
+        Layout({ children: "Page body", family: "public", title: "Test" }),
+      );
     });
 
     expect(html).toContain(
@@ -193,11 +235,141 @@ describe("Layout document shell", () => {
     const html = await withRequestContext(() => {
       setFlashContext({ error: "Already shown" });
       consumeFlash();
-      return String(Layout({ children: "Page body", title: "Test" }));
+      return String(
+        Layout({ children: "Page body", family: "public", title: "Test" }),
+      );
     });
 
     expect(html).not.toContain("Already shown");
     expect(html).toContain('<div class="page-regions">Page body</div>');
+  });
+});
+
+describe("Page family scope", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+  afterEach(async () => {
+    await Promise.all(
+      parsedWindows.splice(0).map((window) => window.happyDOM.close()),
+    );
+  });
+
+  /** Parsed full-page documents, closed again after each test. */
+  const parsedWindows: Window[] = [];
+
+  /** Parse a rendered page into a happy-dom document for selector matching. */
+  const documentFor = (html: string) => {
+    const window = new Window({
+      settings: {
+        disableCSSFileLoading: true,
+        disableJavaScriptEvaluation: true,
+        disableJavaScriptFileLoading: true,
+      },
+      url: "https://layout.test/",
+    });
+    window.document.write(html);
+    parsedWindows.push(window);
+    return window.document;
+  };
+
+  /** An admin page with the shared navigation. */
+  const adminDocument = () =>
+    documentFor(
+      String(
+        AdminPage({
+          active: "/admin/",
+          children: "",
+          session: OWNER_SESSION,
+          title: "Admin",
+        }),
+      ),
+    );
+
+  /** A public page with the shared navigation. */
+  const publicDocument = () => {
+    const forest = buildForest([page(1)], []);
+    const nav: PublicNavProps = {
+      hasContact: false,
+      hasNews: false,
+      hasOrder: false,
+      hasTerms: true,
+      pages: buildNavModel(forest, new Map() as TargetMap, navKey("page", 1)),
+    };
+    return documentFor(publicPage("Welcome", "", nav)(""));
+  };
+
+  /** The selector of each guide example: the part before its rule block. */
+  const guideExampleSelectors = (): string[] => {
+    const selectors: string[] = [];
+    for (const match of t("guide.a.custom_css").matchAll(
+      /<code>([^<]+)<\/code>/g,
+    )) {
+      const example = match[1];
+      if (
+        example === undefined ||
+        !example.startsWith("body[data-page-family")
+      ) {
+        continue;
+      }
+      const blockStart = example.indexOf("{");
+      selectors.push(
+        blockStart === -1 ? example : example.slice(0, blockStart).trim(),
+      );
+    }
+    return selectors;
+  };
+
+  test("an admin page scopes the shared nav to admin", () => {
+    const document = adminDocument();
+
+    expect(
+      document.querySelector("body")?.getAttribute("data-page-family"),
+    ).toBe("admin");
+    expect(
+      document.querySelector('body[data-page-family="admin"] .admin-nav-group'),
+    ).not.toBeNull();
+    expect(
+      document.querySelector('body[data-page-family="public"]'),
+    ).toBeNull();
+  });
+
+  test("a public page scopes the shared nav to public", () => {
+    const document = publicDocument();
+
+    expect(
+      document.querySelector("body")?.getAttribute("data-page-family"),
+    ).toBe("public");
+    expect(
+      document.querySelector(
+        'body[data-page-family="public"] .admin-nav-group',
+      ),
+    ).not.toBeNull();
+    expect(document.querySelector('body[data-page-family="admin"]')).toBeNull();
+  });
+
+  test("the guide examples each match only their own surface", () => {
+    const admin = adminDocument();
+    const visitor = publicDocument();
+    const selectors = guideExampleSelectors();
+
+    expect(selectors.some((selector) => selector.includes('"admin"'))).toBe(
+      true,
+    );
+    expect(selectors.some((selector) => selector.includes('"public"'))).toBe(
+      true,
+    );
+
+    for (const selector of selectors) {
+      const onAdmin = admin.querySelector(selector) !== null;
+      const onPublic = visitor.querySelector(selector) !== null;
+      if (selector.includes('"admin"')) {
+        expect(onAdmin).toBe(true);
+        expect(onPublic).toBe(false);
+      } else {
+        expect(onPublic).toBe(true);
+        expect(onAdmin).toBe(false);
+      }
+    }
   });
 });
 

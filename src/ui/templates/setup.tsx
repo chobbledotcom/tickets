@@ -82,7 +82,7 @@ export const AuthFormPage = ({
   children: JSX.Element[];
 }): string =>
   String(
-    <Layout title={title}>
+    <Layout family="system" title={title}>
       <CsrfForm action={action}>
         <ProseHeading heading={heading}>
           <p>{intro}</p>

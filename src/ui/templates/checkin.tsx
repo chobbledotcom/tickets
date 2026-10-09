@@ -166,7 +166,7 @@ export const checkinAdminPage = (
     : heading;
 
   return String(
-    <Layout title={t("admin.checkin.title")}>
+    <Layout family="admin" title={t("admin.checkin.title")}>
       {bulkForms}
       <AttendeeTableBlock
         options={{

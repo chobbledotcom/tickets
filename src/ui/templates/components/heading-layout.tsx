@@ -17,7 +17,7 @@ export const HeadingLayout = ({
   heading: string;
   children: Child;
 }): JSX.Element => (
-  <Layout title={title}>
+  <Layout family="public" title={title}>
     <PageHeading heading={heading} />
     {children}
   </Layout>

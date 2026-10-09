@@ -48,10 +48,10 @@ describe("the admin page shell", () => {
     );
   });
 
-  test("leaves the body tag alone unless a class is given", () => {
-    expect(page()).toContain("<body>");
+  test("leaves the body class alone unless a class is given", () => {
+    expect(page()).toContain('<body data-page-family="admin">');
     expect(page({ bodyClass: "ticket-body" })).toContain(
-      '<body class="ticket-body">',
+      '<body class="ticket-body" data-page-family="admin">',
     );
   });
 

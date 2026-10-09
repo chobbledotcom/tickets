@@ -291,6 +291,7 @@ export const ticketPage = ({
       beforeContent={!inIframe && nav ? <PublicNav {...nav} /> : undefined}
       bodyClass={inIframe ? "iframe" : undefined}
       contentClassName="public-page"
+      family="public"
       headExtra={headExtra}
       title={title}
     >

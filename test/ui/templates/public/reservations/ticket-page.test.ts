@@ -100,7 +100,7 @@ describe("ticketPage — packages", () => {
         listings: [ticketListing({ name: "Listing" })],
         slugs: ["group-page"],
       });
-      expect(html).toContain('<body class="iframe">');
+      expect(html).toContain('<body class="iframe" data-page-family="public">');
       expect(html).toContain('class="page-regions public-page"');
       expect(html).not.toContain("<h1>Iframe-only heading</h1>");
     });

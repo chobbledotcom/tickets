@@ -16,6 +16,7 @@ import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { getIframeMode } from "#shared/request-context.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
+import type { PageFamily } from "#templates/page-family.ts";
 import type { Theme } from "#types";
 
 interface LayoutProps {
@@ -26,6 +27,9 @@ interface LayoutProps {
   children?: Child;
   /** Stable page identity/custom-CSS hook added to the content region stack. */
   contentClassName?: string | undefined;
+  /** Which surface the page belongs to. Site-wide Custom CSS targets it
+   * through `body[data-page-family]`. */
+  family: PageFamily;
   headExtra?: string | undefined;
   theme?: Theme;
   title: string;
@@ -41,6 +45,7 @@ export const Layout = ({
   headExtra,
   children,
   contentClassName,
+  family,
   theme,
 }: LayoutProps): SafeHtml => {
   const resolvedTheme = theme ?? settings.theme;
@@ -69,7 +74,7 @@ export const Layout = ({
           <link href={`/custom.css?v=${settings.version}`} rel="stylesheet" />
           {headExtra && <Raw html={headExtra} />}
         </head>
-        <body class={bodyClass || undefined}>
+        <body class={bodyClass || undefined} data-page-family={family}>
           <a class="skip-nav" href="#main-content">
             Skip to content
           </a>

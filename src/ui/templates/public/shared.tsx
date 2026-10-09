@@ -257,6 +257,7 @@ const PublicLayout = ({
   <Layout
     beforeContent={beforeContent}
     contentClassName="public-page"
+    family="public"
     headExtra={headExtra}
     title={title}
   >
@@ -316,9 +317,9 @@ export const PackagesSection = ({
 
 /** Curried public-page helper. The homepage, order-gallery, and basic-pages
  *  all open with
- *    String(<Layout headExtra={feedDiscoveryTags()} title={title}>
- *      {websiteTitle && <h1>{websiteTitle}</h1>}<PublicNav {...nav} />
- *      {body}{showLoginFooter && <LoginFooter />}</Layout>)
+ *    String(<PublicLayout beforeContent={...}>
+ *      {websiteTitle && <h1>{websiteTitle}</h1>}{body}{showLoginFooter &&
+ *      <LoginFooter />}</PublicLayout>)
  *  — this captures that so they only declare their differences (title, body).
  *  The login link is a "you've found the site, here's the door to the admin"
  *  affordance that belongs only on the true homepage — every other public
