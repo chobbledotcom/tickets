@@ -343,11 +343,15 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       );
     });
 
-    test("the gate refuses to carry an unsafe target it was handed", async () => {
+    test("the gate carries the page even when its query holds an attack", async () => {
+      // The query is parameter data for the admin page, so a hostile value
+      // rides along inert; the navigated path stays on the site.
       const response = await awaitTestRequest(
         "/admin/listings/12?return_url=//evil.com",
       );
-      expect(response.headers.get("location")).toBe("/admin");
+      expect(response.headers.get("location")).toBe(
+        "/admin?return_url=%2Fadmin%2Flistings%2F12%3Freturn_url%3D%2F%2Fevil.com",
+      );
     });
 
     test("a successful login returns to the page the visitor asked for", async () => {

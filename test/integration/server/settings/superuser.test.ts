@@ -26,7 +26,6 @@ import { validEmail } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
-import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -123,7 +122,8 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(SUPERUSER_ROUTE, { csrf_token: "fake" }),
     );
-    expectLoginRedirectWithReturn(SUPERUSER_ROUTE)(response);
+    // A POST is not navigable after login, so it carries no return target.
+    expect(response.headers.get("location")).toBe("/admin");
   });
 
   test("POST /admin/settings/superuser requires CSRF token", async () => {

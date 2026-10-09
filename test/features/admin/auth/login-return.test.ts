@@ -20,13 +20,22 @@ const ACCEPTED: readonly (readonly [string, string])[] = [
   ["/admin/café", "/admin/caf%C3%A9"],
   ["/admin/listings/12?filter=A%26B", "/admin/listings/12?filter=A%26B"],
   ["/admin/listings/12?q=100%25", "/admin/listings/12?q=100%25"],
+  [
+    "/admin/listings/12?share=https://x.example",
+    "/admin/listings/12?share=https://x.example",
+  ],
+  [
+    "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
+    "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
+  ],
 ];
 
 /** The attack shapes and other values the rule must refuse: addresses for
  *  another site (direct, protocol-relative, percent-encoded), backslashes,
  *  control characters, climbs out of the admin area, the login and logout
- *  pages themselves, malformed escapes, and anything that is not an admin
- *  path. */
+ *  pages themselves, malformed escapes, and anything whose path is not an
+ *  admin path. The query carries parameter data, so a URL inside a query
+ *  value is not an attack. */
 const REFUSED: readonly string[] = [
   "//evil.com",
   "/\\evil.com",
@@ -52,7 +61,6 @@ const REFUSED: readonly string[] = [
   "/admin",
   "/public/book",
   " /admin/listings/12",
-  "/admin/listings/12?share=https://x.example",
 ];
 
 describe("the admin login return target", () => {
@@ -102,6 +110,21 @@ describe("the admin login return target", () => {
     ).toBe("/admin/listings/12");
   });
 
+  test("hands over a target only for a navigable GET request", () => {
+    // Only a GET is navigable after login: a POST-only path would answer 404
+    // when the browser follows the redirect with GET.
+    const target = "http://localhost/admin/listings/12";
+    expect(returnPathFromRequest(new Request(target))).toBe(
+      "/admin/listings/12",
+    );
+    expect(returnPathFromRequest(new Request(target, { method: "HEAD" }))).toBe(
+      "/admin/listings/12",
+    );
+    expect(returnPathFromRequest(new Request(target, { method: "POST" }))).toBe(
+      null,
+    );
+  });
+
   test("keeps a query value's encoded characters through the login round trip", () => {
     // The gate hands the raw path to the login page, the page hides it in
     // the form, and the form's value is checked again on POST. The filter
@@ -110,6 +133,7 @@ describe("the admin login return target", () => {
     for (const input of [
       "/admin/listings/12?filter=A%26B",
       "/admin/listings/12?q=100%25",
+      "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
     ]) {
       const target = adminReturnPath(input);
       expect(target, input).toBe(input);

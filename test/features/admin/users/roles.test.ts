@@ -17,7 +17,6 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
-import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -160,8 +159,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         new_password_confirm: "newpassword123",
       });
       // If the user is deleted during the request, the password change
-      // redirects to the login flow, carrying the settings page.
-      expectLoginRedirectWithReturn("/admin/settings")(response);
+      // redirects to the login page at /admin. A POST is not navigable after
+      // login, so it carries no return target.
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 
