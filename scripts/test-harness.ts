@@ -176,11 +176,11 @@ export const runTests = async (
   if (useCoverage) await removeOldCoverageOutput();
   if (!hasReporterArg(extraArgs)) {
     return await runFocusedTest(
-      { extraArgs, useCoverage, junitPath },
+      { extraArgs, junitPath, useCoverage },
       estimateFrom,
     );
   }
-  return await runPlainTest({ extraArgs, useCoverage, junitPath });
+  return await runPlainTest({ extraArgs, junitPath, useCoverage });
 };
 
 /**
