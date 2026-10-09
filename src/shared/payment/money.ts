@@ -4,14 +4,15 @@ import { integerAtLeast } from "#shared/validation/number.ts";
 
 /**
  * The money a payment charge moves, in the smallest unit its currency has
- * (pence, cents). A charge carries an amount that is a non-negative safe whole
- * number and a currency that is three uppercase letters — the one shape every
- * provider's wire response is normalised to at the boundary, so the rest of the
- * payment path never handles a half-parsed amount or a missing currency again.
+ * (pence, cents). A charge carries an amount and a currency. The amount is a
+ * non-negative safe whole number, and the currency is three uppercase letters.
+ * This is the one shape every provider's wire response is normalised to at the
+ * boundary. The rest of the payment path never handles a half-parsed amount
+ * or a missing currency again.
  */
 
 /** An ISO 4217 currency code, upper-cased. Providers return mixed case
- *  ("gbp", "GBP"); {@link money} canonicalises before this runs. */
+ *  ("gbp", "GBP"). {@link money} canonicalises before this runs. */
 export const CurrencySchema = v.pipe(
   v.string(),
   v.regex(/^[A-Z]{3}$/u, "Currency must be three uppercase letters"),
@@ -25,8 +26,8 @@ export const isCurrency = (value: unknown): value is Currency =>
   v.is(CurrencySchema, value);
 
 /** Money: a non-negative minor-unit amount paired with its currency. The
- *  amount is already in the smallest unit the currency uses, so two amounts in
- *  the same currency can be compared or summed with no conversion. */
+ *  amount is already in the smallest unit the currency uses. Two amounts in
+ *  the same currency can therefore be compared or summed with no conversion. */
 export const MoneySchema = v.strictObject({
   amount: integerAtLeast(0),
   currency: CurrencySchema,
@@ -36,10 +37,11 @@ export type Money = v.InferOutput<typeof MoneySchema>;
 /**
  * Build a {@link Money}, or `null` if the amount or currency is malformed.
  * Upper-cases first, so a provider's "gbp" is the canonical "GBP" rather than a
- * rejection, and takes the whole numbers some providers send as `bigint` — one
+ * rejection. Takes the whole numbers some providers send as `bigint`: one
  * too large to hold exactly is refused by the safe-integer rule rather than
- * silently rounded. The only producer of a `Money`, so malformed charges are
- * refused once, here, instead of leaking into the callbacks half-parsed.
+ * silently rounded. This is the only producer of a `Money`, so malformed
+ * charges are refused once, here, instead of leaking into the callbacks
+ * half-parsed.
  */
 export const money = (amount: unknown, currency: unknown): Money | null => {
   const result = v.safeParse(MoneySchema, {

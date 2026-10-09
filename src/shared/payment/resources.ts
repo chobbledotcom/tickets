@@ -47,7 +47,7 @@ const positiveMoney = (message: string) =>
 const PositiveMoneySchema = positiveMoney("A paid charge must be positive");
 
 /** A finished or still-going refund must be for some money: a refund of
- *  nothing would read as one still going, for ever. Only a failed refund may
+ *  nothing reads as one still going, for ever. Only a failed refund can
  *  be for nothing, because no money moved at all. */
 const MovedRefundMoneySchema = positiveMoney(
   "A refund that moved money must be positive",
@@ -61,7 +61,7 @@ const refundResult = <
   status: TStatus,
   refund: TRefund,
   // An amount given here replaces the default, for the states that demand more
-  // of it than simply not being negative.
+  // of it than not being negative.
   fields: TFields,
 ) =>
   v.strictObject({
@@ -105,11 +105,11 @@ export type RefundResolution = v.InferOutput<typeof RefundResolutionSchema>;
 
 /**
  * What a provider says about the money on one charge: what it took, what it
- * says has gone back in total, and each refund it names.
+ * says went back in total, and each refund it names.
  *
  * This is everything the money rules read. A refund asked for against a bare
- * provider reference knows this much and no more — it has no checkout to hang
- * the charge off — so the rules take these facts rather than a whole leg.
+ * provider reference knows this much and no more: it has no checkout to hang
+ * the charge off. The rules therefore take these facts rather than a whole leg.
  */
 const ChargeMoneySchema = v.strictObject({
   captured: PositiveMoneySchema,
@@ -158,7 +158,7 @@ const refundMoneyGivenBack = refundMoneyThatIs("completed");
 
 /**
  * Compares money given back with money taken. Two currencies cannot be
- * compared at all, so that is checked here once; which refunds count, and how
+ * compared at all, so that is checked here once. Which refunds count, and how
  * the two totals must compare, is the caller's to say.
  */
 const comparedWithMoneyTaken =
@@ -172,9 +172,9 @@ const comparedWithMoneyTaken =
 
 /**
  * Money already back with the buyer. The cumulative total is meant to hold
- * every refund the provider says it finished, so adding both would count those
- * twice — but the total can also lag behind one it has not caught up with, so
- * whichever is larger is what actually went back. The single answer to "how
+ * every refund the provider says it finished, so adding both counts those
+ * twice. The total can also lag behind a refund it did not catch up with yet,
+ * so whichever is larger is what actually went back. The single answer to "how
  * much came back": no caller can reach a different one and read a finished
  * refund as no refund at all.
  */

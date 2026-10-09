@@ -2,7 +2,7 @@
  * Owner-entered ledger entries.
  *
  * Normal checkout/refund code posts immutable business events through the ledger
- * mappers. This module is the deliberately narrow admin-maintenance surface: it
+ * mappers. This module is the deliberately narrow admin-maintenance surface. It
  * offers only human-scale entry types that make sense for one account at a time,
  * then maps each choice onto a concrete double-entry transfer.
  */
@@ -33,7 +33,7 @@ export const MANUAL_MODIFIER_REDUCTION = "manual_modifier_reduction";
 const MANUAL_LEDGER_REF_PREFIX = "manual-ledger-entry";
 
 /**
- * The single source of truth for the owner-enterable entry types: the TS union,
+ * The single source of truth for the owner-enterable entry types. The TS union,
  * the runtime guard, the options order, and the exhaustiveness of the spec
  * table below all derive from this one picklist.
  */
@@ -87,9 +87,8 @@ const moneyOutOf =
 
 /**
  * One spec per entry type, keyed by the picklist so the Record is exhaustive by
- * construction — a new entry type is a compile error here, never a silent
- * `undefined` lookup (the previous array + `as Record` cast tolerated a
- * forgotten spec).
+ * construction. A new entry type is a compile error here, never a silent
+ * `undefined` lookup.
  */
 export const manualEntrySpecByType: Record<
   ManualLedgerEntryType,
@@ -226,8 +225,8 @@ export const getTransferById = (id: number): Promise<Transfer | null> =>
 
 /**
  * The ledger is append-only except for owner-entered rows, and this module IS
- * the narrow maintenance surface — so the mutators below enforce that boundary
- * themselves rather than trusting every caller to pre-filter. A transfer's
+ * the narrow maintenance surface. The mutators below therefore enforce that
+ * boundary themselves rather than trusting every caller to pre-filter. A transfer's
  * `kind` is immutable (only amount/time are ever updated), so checking the
  * loaded row cannot race a concurrent change.
  */

@@ -1,9 +1,9 @@
 /** The payment-review machine as one executable table.
  *
  * A review slot is the review side of one payment row: no case held, an
- * open case, or a case the owner has seen. The transitions are the real
+ * open case, or a case the owner saw. The transitions are the real
  * review functions plus the one declared retirement rule per reason. The
- * mirror test executes every (node × event × shape) cell against them; a
+ * mirror test executes every (node × event × shape) cell against them. A
  * cell missing from {@link EXPECTED_MOVES} must refuse. */
 
 import {
@@ -71,7 +71,7 @@ export type ReviewEventId =
 
 export type ReviewMachineEvent = MachineEvent<ReviewSlot, ReviewEventId>;
 
-/** A case opens only on a row that holds none; the engine refuses a
+/** A case opens only on a row that holds none. The engine refuses a
  * same-reason reopen, and this guard keeps that refusal in the map. */
 const opensFor =
   (reason: PaymentReviewReason) =>
@@ -137,7 +137,7 @@ export const REVIEW_EVENTS: readonly ReviewMachineEvent[] = [
 ];
 
 /** The declared machine: for each node, the events that must move it and
- * where to. Every other (event × shape) pair must refuse — a held case
+ * where to. Every other (event × shape) pair must refuse. A held case
  * blocks a second open, only its own evidence retires it, and only an
  * unseen case can be acknowledged. */
 /** A held case retires the same way whether or not it was seen: only its

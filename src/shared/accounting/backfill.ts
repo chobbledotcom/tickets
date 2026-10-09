@@ -80,7 +80,7 @@ const paidRowsForAttendees = (ids: number[]): Promise<PaidRow[]> =>
     ids,
   );
 
-/** The ids, among `ids`, whose attendee account already has ledger legs — a
+/** The ids, among `ids`, whose attendee account already holds ledger legs — a
  *  booking the live dual-write path recorded, which the backfill must not
  *  repost. An account appears in the balance map iff it has at least one leg. */
 const alreadyLedgered = async (ids: number[]): Promise<Set<string>> =>
@@ -111,9 +111,9 @@ const attendeeLegs = async (
     occurredAt,
   });
   // A historical refund is a whole-payment provider refund (every booking is
-  // paid in full, refunded in full, or free — no partials), but markRefunded
+  // paid in full, refunded in full, or free — no partials). `markRefunded`
   // flags only the one listing row the admin acted on, so a multi-listing order
-  // may carry the flag on a single line. Treat any flagged line as a full-order
+  // can carry the flag on a single line. Treat any flagged line as a full-order
   // refund and reverse the whole booking rather than under-reversing it.
   if (!rows.some((row) => Number(row.refunded) !== 0)) return bookingLegs;
   const refundLegs = await mapRefund({
@@ -125,9 +125,9 @@ const attendeeLegs = async (
 
 /** The UPDATE that writes an attendee's rows' `ledger_event_group` link — what
  *  the per-row amount-paid projection keys on. `valueSql` is the SQL expression
- *  producing the event group; its bound args come before the attendee id. Only
- *  rows still missing their link are filled, so an attendee who already carries
- *  two orders' stamps (a merge target) keeps each order's rows pointing at
+ *  producing the event group. Its bound args come before the attendee id. Only
+ *  rows still missing their link are filled. An attendee who already carries
+ *  two orders' stamps (a merge target) then keeps each order's rows on
  *  that order's legs. */
 const stampUpdate = (valueSql: string, args: InValue[]): SqlStatement => ({
   args,
@@ -152,10 +152,10 @@ const stampFromExistingStatement = (attendeeId: number): SqlStatement =>
   );
 
 /** The leg-INSERT and row-stamp statements for one not-yet-ledgered attendee.
- *  The stamp uses the order's booking event group (the first leg's, since
- *  booking legs precede any refund legs) so the per-row amount-paid projection
- *  resolves exactly this booking's sale leg; it sits in the same group as the
- *  inserts so the rows and their legs always land in one batch together. */
+ *  The stamp uses the order's booking event group — the first leg's, since
+ *  booking legs precede any refund legs. The per-row amount-paid projection
+ *  then resolves exactly this booking's sale leg. It sits in the same group as
+ *  the inserts, so the rows and their legs always land in one batch together. */
 const attendeeStatements = async (
   attendeeId: number,
   rows: PaidRow[],
@@ -189,8 +189,8 @@ export const backfillTransfers = async (
     const recordedAt = nowIso();
     const statements: SqlStatement[] = [];
     for (const [attendeeId, rows] of groups) {
-      // Already ledgered by the live dual-write path: don't re-post, but still
-      // stamp the row→event link from the existing booking's sale leg so the
+      // Already ledgered by the live dual-write path: do not re-post. Still
+      // stamp the row→event link from the existing booking's sale leg, so the
       // per-row amount-paid projection resolves it. On the shipping path the
       // ledger is empty here, so this branch never runs — it is deploy-order
       // robustness, matching the skip-already-ledgered guard it pairs with.
@@ -200,7 +200,7 @@ export const backfillTransfers = async (
           : await attendeeStatements(attendeeId, rows, recordedAt)),
       );
     }
-    // The whole page in one batch (one round-trip): each attendee's legs and
+    // The whole page in one batch (one round-trip). Each attendee's legs and
     // stamp stay together in a single transaction, and the migration spends
     // O(pages) edge subrequests rather than one per attendee.
     await executeBatch(statements);

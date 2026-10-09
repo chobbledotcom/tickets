@@ -69,8 +69,8 @@ export type RefundConflictDecision = v.InferOutput<
 >;
 
 /** Only evidence that cannot support a decision yet must be checked again.
- * A partial return is a settled provider fact — money that came back and
- * money that did not — so it is an owner decision, never a recheck. */
+ * A partial return is a settled provider fact: money that came back and
+ * money that did not. It is an owner decision, never a recheck. */
 export const refundConflictNeedsProviderCheck = (
   decision: RefundConflictDecision,
 ): boolean => decision.kind === "wait";

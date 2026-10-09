@@ -4,7 +4,7 @@
  * This module is the only place that knows the table's columns and how a stored
  * row maps to a {@link Transfer}. Both the write path ({@link file://./store.ts})
  * and the read queries ({@link file://./queries.ts}) build on the small readers
- * here, so the column list and row mapping live in exactly one place.
+ * here. The column list and row mapping therefore live in exactly one place.
  */
 
 import type { InValue, ResultSet } from "@libsql/client";
@@ -60,7 +60,7 @@ const COLUMNS =
   "reverses_id, reverses_group, posted_by";
 
 /** Turn a database row into the {@link Transfer} the rest of the code uses.
- *  A kindless leg is stored as `kind = ''` (see {@link legColumns}); it maps
+ *  A kindless leg is stored as `kind = ''` (see {@link legColumns}). It maps
  *  back to an *omitted* `kind`, mirroring `reverses_id`, so a stored transfer
  *  and a never-stored {@link TransferInput} agree on what "no kind" looks like. */
 const rowToTransfer = (row: TransferRow): Transfer => ({
@@ -91,7 +91,7 @@ const lit = (col: string, value: InValue): LegColumn => ({
 });
 
 /** Renders one leg side's account id column. The default binds the id as a
- *  literal; the batch booking writer swaps in its in-batch subquery for the
+ *  literal. The batch booking writer swaps in its in-batch subquery for the
  *  attendee side ({@link bookingLegBatchInsert}). */
 type AccountIdColumn = (col: string, acct: AccountRef) => LegColumn;
 
@@ -101,7 +101,7 @@ const literalId: AccountIdColumn = (col, acct) => lit(col, acct.id);
  * The column→value plan for one transfers row, in a fixed order — the single
  * place the table's INSERT columns and defaults live. Every insert variant
  * (plain, `OR IGNORE`, guarded, batch-booking) renders from this one plan via
- * {@link renderInsert}, so a new column — or a changed default — is written
+ * {@link renderInsert}. A new column — or a changed default — is then written
  * exactly once and can never drift between the write paths.
  */
 const legColumns = (
@@ -127,10 +127,10 @@ const legColumns = (
 
 /**
  * Render the INSERT for a column plan. Without a guard it is a plain
- * `VALUES (…)` insert; with one, the values become `SELECT … WHERE <guard>` so
- * the row lands only while the guard still holds — one statement either way,
- * so it can ride in a single batch. Each column keeps its own placeholder (the
- * guard's args are appended after the columns'), so a stray `$`/`?` in the
+ * `VALUES (…)` insert. With one, the values become `SELECT … WHERE <guard>`, so
+ * the row lands only while the guard still holds. One statement either way, so
+ * it can ride in a single batch. Each column keeps its own placeholder (the
+ * guard's args are appended after the columns'). A stray `$`/`?` in the
  * guard SQL can never re-bind a column value.
  */
 const renderInsert = (
@@ -170,11 +170,11 @@ export const guardedInsertStatement = (
 /**
  * Build an idempotent, guarded INSERT for one booking leg, for the single-batch
  * booking writer. `INSERT OR IGNORE` keys idempotency on the unique `reference`
- * (a replay re-derives identical references and is skipped); whichever side
+ * (a replay re-derives identical references and is skipped). Whichever side
  * (source/dest) is the attendee account renders its id via `attendeeIdSql` (the
  * in-batch `MAX(id)` subquery over the just-inserted attendee) instead of a
- * literal, so the leg can be written before the attendee row's id is known; and
- * the row lands only while `guard` holds (the whole booking landed). No
+ * literal. The leg can then be written before the attendee row's id is known.
+ * The row lands only while `guard` holds (the whole booking landed). No
  * interleaved read is needed — the conflict checks the interactive path does
  * inline are unnecessary for a fresh booking whose references are new. */
 export const bookingLegBatchInsert = (
@@ -210,8 +210,8 @@ export type TransferRead = Omit<Read, "columns" | "from">;
 const transferStatement = (query: TransferRead): SqlStatement =>
   readStatement({ ...query, columns: COLUMNS, from: "transfers" });
 
-/** One set of rows for each query, in the order the queries were given, so a
- *  caller can name them by destructuring rather than counting positions. */
+/** One set of rows for each query, in the order the queries were given. A
+ *  caller can then name them by destructuring rather than counting positions. */
 type TransfersPerQuery<Queries extends readonly TransferRead[]> = {
   [Index in keyof Queries]: Transfer[];
 };
@@ -243,8 +243,8 @@ export const selectTransfersMany = async <
       ),
     ]),
   );
-  // Built by mapping the queries, so it is one set per query by construction —
-  // and a query left out of the bundle was one nothing could match.
+  // Built by mapping the queries, so it is one set per query by construction.
+  // A query left out of the bundle is one no input can match.
   return queries.map(
     (_, index) => rowsByQuery.get(index) ?? [],
   ) as TransfersPerQuery<Queries>;

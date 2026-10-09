@@ -2,9 +2,9 @@
  * Posting is idempotent per business event. A re-post must present the exact
  * same legs rather than quietly append to a charge already handled.
  *
- * The post reads the already-stored legs through its own write transaction, so
- * two concurrent posts of the same event take turns on the database write lock:
- * one does the real post, the other replays as a no-op. No half-written event
+ * The post reads the already-stored legs through its own write transaction.
+ * Two concurrent posts of the same event then take turns on the database write
+ * lock. One does the real post, the other replays as a no-op. No half-written event
  * is left behind, so the insert needs no conflict clause.
  *
  * The clock lives here (`recorded_at`). The business time comes from the caller.
@@ -57,7 +57,7 @@ const allReferences = (groups: TransferInput[][]): string[] =>
 const eventGroupOf = (inputs: TransferInput[]): string =>
   requireValue(inputs[0], "Ledger event cannot be empty").eventGroup;
 
-/** Every leg of one event must agree on `label`; name the offending values if not. */
+/** Every leg of one event must agree on `label`. Name the offending values if not. */
 const assertShared = (label: string, values: string[]): void => {
   const distinct = new Set(values);
   if (distinct.size > 1) {
@@ -71,9 +71,9 @@ const assertShared = (label: string, values: string[]): void => {
 
 /**
  * Checks that need no database, run before any DB work so a malformed batch never
- * opens a transaction: every leg is valid on its own, the batch shares one event
- * group, and no reference is repeated (which would silently under-post). Currency
- * needs no check — a site has one, fixed at setup, so every leg shares it.
+ * opens a transaction. Every leg must be valid on its own, the batch must share
+ * one event group, and no reference is repeated — a repeat silently under-posts.
+ * Currency needs no check — a site has one, fixed at setup, so every leg shares it.
  */
 export const assertPostable = (inputs: TransferInput[]): void => {
   for (const input of inputs) {
@@ -114,11 +114,12 @@ export const postTransfersTx = async (
 /**
  * Post the legs of one business event idempotently. Every leg must share one
  * `eventGroup` and carry a distinct `reference`. Delegates to the single-group
- * case of {@link postTransferGroups} so the conflict checks read the ledger
- * *before* the write opens and the legs land in one batch round-trip — never an
- * interactive transaction holding the write lock open across a read-per-leg (the
- * "Transaction timed-out" shape for a many-leg refund). Use {@link postTransfersTx}
- * to post within a wider transaction (e.g. together with a booking).
+ * case of {@link postTransferGroups}. The conflict checks therefore read the
+ * ledger *before* the write opens, and the legs land in one batch round-trip.
+ * Never an interactive transaction holding the write lock open across a
+ * read-per-leg (the "Transaction timed-out" shape for a many-leg refund). Use
+ * {@link postTransfersTx} to post within a wider transaction (for example
+ * together with a booking).
  */
 export const postTransfers = async (
   inputs: TransferInput[],
@@ -130,12 +131,12 @@ export const postTransfers = async (
 
 /**
  * The slice of the ledger a whole batch validates itself against, read up front
- * in a fixed handful of bulk queries (never one-per-group), so posting many
- * events stays well under the N+1 read guard and — crucially — does all its
- * reads *before* the write opens. Holds: the legs already stored for the batch's
- * event groups (idempotent-replay / changed-leg check), every stored leg sharing
- * one of the batch's references (cross-event collision check), and the originals
- * any reversing leg points at.
+ * in a fixed handful of bulk queries (never one-per-group). Posting many events
+ * then stays well under the N+1 read guard and — crucially — does all its
+ * reads *before* the write opens. Holds the legs already stored for the batch's
+ * event groups (idempotent-replay / changed-leg check). Also holds every stored
+ * leg sharing one of the batch's references (cross-event collision check), and
+ * the originals any reversing leg points at.
  */
 type BatchSnapshot = {
   readonly existingByGroup: ReadonlyMap<string, Transfer[]>;
@@ -143,7 +144,7 @@ type BatchSnapshot = {
   readonly originalsById: ReadonlyMap<number, Transfer>;
 };
 
-/** Wants every transfer whose `column` is one of `values`; an empty set asks for
+/** Wants every transfer whose `column` is one of `values`. An empty set asks for
  *  nothing, and is answered without touching the database. `column` is a
  *  trusted constant. */
 const byColumnIn = (
@@ -181,7 +182,7 @@ const loadBatchSnapshot = async (
 
 /**
  * Plan one event group against the snapshot: the INSERT statements to run (empty
- * for an idempotent replay of an already-stored event) and the would-be
+ * for an idempotent replay of an already-stored event) and the resulting
  * {@link PostResult}. Pure — every conflict is detected *here*, before any write,
  * so the batch's transaction body is a plain list of inserts that commits without
  * interleaved reads. A real conflict is a named result: a changed leg on an
@@ -255,14 +256,14 @@ const planGroup = (
 };
 
 /**
- * A write transaction per event contends the single SQLite writer, and a
+ * A write transaction per event contends the single SQLite writer. A
  * read-then-write inside one long interactive transaction lets open result sets
  * block the commit at scale. So a read-only prepare validates every group
  * against a bulk-loaded {@link BatchSnapshot}, then a write-only apply commits.
  *
  * Conflict detection is the snapshot's, so a *later* repost of a changed event
- * is caught while a concurrent race on the same references is absorbed by
- * INSERT OR IGNORE.
+ * is caught. A concurrent race on the same references is absorbed by
+ * `INSERT OR IGNORE`.
  */
 const assertUniqueGroups = (groups: TransferInput[][]): void => {
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
@@ -307,7 +308,7 @@ const planTransferBatch = (
   return { inserts, kind: "posted", results };
 };
 
-/** One outcome for each set posted, in the order the sets were given, so a
+/** One outcome for each set posted, in the order the sets were given. A
  *  caller passing a known number of sets can name them by destructuring. */
 type ResultPerBatch<Batches extends readonly TransferInput[][][]> = {
   [Index in keyof Batches]: PostTransferBatchResult;
@@ -324,7 +325,7 @@ const nothingToPost = (
 
 /**
  * Post several independent sets of event groups from one ledger snapshot and
- * one write. A stored-data conflict rejects only its own set; malformed input
+ * one write. A stored-data conflict rejects only its own set. Malformed input
  * and database failures still reject the whole call.
  */
 export const postTransferGroupBatches = async <

@@ -2,11 +2,11 @@
  * Pure validation of a transfer before it is posted.
  *
  * Deliberately not a valibot schema (see AGENTS.md "Deliberate non-use is fine
- * when the platform is better"): the callers' contract is the typed
+ * when the platform is better"). The callers' contract is the typed
  * {@link LedgerError} code union — exhaustive, comparable, and rendered into
- * conflict/store errors by code — which hand-built checks express directly,
- * where a valibot pipe would collect anonymous issues that then need mapping
- * back onto these exact codes.
+ * conflict/store errors by code. Hand-built checks express that contract
+ * directly. A valibot pipe instead collects anonymous issues that then need
+ * mapping back onto these exact codes.
  */
 
 import { compact } from "#fp";
@@ -22,8 +22,8 @@ const hasReservedChar = (a: AccountRef): boolean =>
   a.id.includes(ACCOUNT_KEY_SEPARATOR);
 
 /** A reversal link, when present, must be a real transfer row id — a positive
- *  safe integer. A fractional or unsafe value would occupy a different slot in
- *  the unique `reverses_id` index than the original id, defeating the
+ *  safe integer. A fractional or unsafe value occupies a different slot in the
+ *  unique `reverses_id` index than the original id, and defeats the
  *  one-void-per-original guard. */
 const hasInvalidReversesId = (t: TransferInput): boolean =>
   t.reversesId !== undefined &&
@@ -80,10 +80,11 @@ export const validateTransfer = (
 };
 
 /**
- * Validate a transfer and throw when it is rejected, naming every error code —
- * the shared boundary guard for write paths that have no structured-error
- * channel (the store's pre-post checks, a manual entry's amount/time update).
- * `context` prefixes the message so the failing operation is identifiable.
+ * Validate a transfer and throw when it is rejected, naming every error code.
+ * This is the shared boundary guard for write paths that have no structured
+ * error channel (the store's pre-post checks, a manual entry's amount/time
+ * update). `context` prefixes the message so the failing operation is
+ * identifiable.
  */
 export const assertValidTransfer = (
   t: TransferInput,

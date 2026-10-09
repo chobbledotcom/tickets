@@ -6,8 +6,8 @@ import type { AccountRef } from "./types.ts";
 /**
  * Separator used to build a canonical map key from an account's (type, id).
  * NUL cannot appear in a sane type/id, and `validateTransfer` rejects it, so the
- * key is unambiguous: `("a", "b c")` and `("a b", "c")` never collide (a plain
- * space would).
+ * key is unambiguous: `("a", "b c")` and `("a b", "c")` never collide. With a
+ * plain space they do.
  */
 export const ACCOUNT_KEY_SEPARATOR = "\u0000";
 

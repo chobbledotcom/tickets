@@ -20,14 +20,14 @@ import { delay } from "#shared/now.ts";
 
 /* jscpd:ignore-end */
 
-/** How long one provider HTTP call may wait before it gives up. A refund
+/** How long one provider HTTP call can wait before it gives up. A refund
  * send is armed before its POST, so a stuck call must become a timeout the
- * failure classifiers can read — never an open hang with no answer. */
+ * failure classifiers can read. Never an open hang with no answer. */
 export const PROVIDER_TIMEOUT_MS = 20_000;
 
 /** How one provider is named when its answer, or the lack of one, is refused.
  *  The answer body is passed in because a provider can name the field it
- *  rejected there, and that is the one fact the buyer can act on. */
+ *  rejected there. That is the one fact the buyer can act on. */
 type ProviderErrorDetailOf = (body: string) => ProviderErrorDetail;
 
 /** One request to a provider. The boundary owns the signal, so no caller can
@@ -111,8 +111,8 @@ const ladderOf = (retries: ProviderRetries): RetryStep[] =>
   );
 
 /** Bind one provider's name to the shared boundary. Every call it then makes
- * runs under the shared timeout, counts against the edge subrequest budget,
- * and tells each way of failing in the shared transport vocabulary. */
+ * runs under the shared timeout and counts against the edge subrequest budget.
+ * Each way of failing is told in the shared transport vocabulary. */
 export const providerCaller = (
   namedBy: ProviderErrorDetailOf,
   retries?: ProviderRetries,

@@ -2,9 +2,9 @@
  * The one shell every payment provider call runs inside.
  *
  * Asking a provider for its records and telling it to move money are the same
- * four steps: check that the provider is configured at all, ask it, read what
- * it answered, and give a failed call its meaning. Only asking and reading the
- * answer differ per call, so only those two are passed in.
+ * four steps. The steps: check that the provider is configured at all, ask it,
+ * read what it answered, and give a failed call its meaning. Only asking and
+ * reading the answer differ per call. Only those two are therefore passed in.
  */
 
 /** What one provider call needs to know beyond the call itself. */

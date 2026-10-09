@@ -1,14 +1,14 @@
 /**
  * What one read of a payment provider's records can come back as. Every read
- * lands in exactly one of four states, so a caller can never confuse "the
- * provider says this does not exist" with "the provider could not answer" or
- * "the answer contradicts our own facts" — three situations that need three
- * different responses (give up, retry, refuse).
+ * lands in exactly one of four states. A caller can therefore never confuse
+ * "the provider says this does not exist" with "the provider did not answer".
+ * Neither of those is "the answer contradicts our own facts". The three
+ * situations need three different responses (give up, retry, refuse).
  *
  * Every payment adapter uses this vocabulary at its provider boundary.
  */
 
-/** Why the provider could not answer at all. Retrying can help. */
+/** Why the provider did not answer at all. Retrying can help. */
 export type ProviderUnavailableReason =
   | "network_error"
   | "not_configured"
@@ -34,7 +34,7 @@ export type ProviderInvalidReason =
   | "unrecorded_child"
   | "unsupported_status";
 
-/** One provider read: the resource, or exactly one reason there isn't one. */
+/** One provider read: the resource, or exactly one reason there is none. */
 export type ProviderRead<Resource> =
   | { status: "found"; resource: Resource }
   | { status: "missing" }
@@ -46,7 +46,7 @@ export type ProviderReader<Resource> = (
 ) => Promise<ProviderRead<Resource>>;
 
 /** Build a reader that turns provider resources into one shared domain shape.
- * Missing, unavailable, and invalid remain exact; the source member is resolved
+ * Missing, unavailable, and invalid remain exact. The source member is resolved
  * inside the callback so test stubs and live credential changes stay visible. */
 export const mapProviderReader =
   <Input, Output>(

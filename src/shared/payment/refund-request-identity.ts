@@ -7,7 +7,7 @@ import { requireRefundGeneration } from "#payment/refund-generation.ts";
 import type { PaymentProviderType } from "#types";
 
 /** Blind identity of one authorised refund generation. The provider-qualified
- * reference prevents cross-provider collisions; the generation makes an
+ * reference prevents cross-provider collisions. The generation makes an
  * owner's newly authorised attempt a different command. */
 export const refundRequestIdentityIndex = (
   reference: TaggedPaymentReference,

@@ -1,8 +1,8 @@
 /**
  * Pure projections over a slice of transfers — the unit-testable heart of the
  * ledger. A site has one currency, fixed at setup and never changed, so every
- * transfer shares it: balances sum amounts directly with no per-row currency to
- * carry or compare.
+ * transfer shares it. Balances sum amounts directly, with no per-row currency
+ * to carry or compare.
  */
 
 import { filter } from "#fp";
@@ -26,7 +26,7 @@ export const allBalances = (transfers: Transfer[]): Map<string, number> => {
 
 /**
  * Net balance of one account: money in (as destination) minus money out (as
- * source). Positive ⇒ the account holds value; negative ⇒ it owes. Reads the
+ * source). Positive ⇒ the account holds value. Negative ⇒ it owes. Reads the
  * one balance algorithm in {@link allBalances}, so a single account is never
  * summed a second, different way.
  */
@@ -52,11 +52,11 @@ const byOccurredThenId = (a: Transfer, b: Transfer): number =>
 /**
  * A running-balance statement for one account, ordered by business time (as a
  * parsed instant, not a string compare, so any precision sorts correctly) then
- * id, so the running total is meaningful regardless of the order rows arrive in.
+ * id. The running total is meaningful regardless of the order rows arrive in.
  *
  * Pass `openingBalance` when `transfers` is a date-ranged slice rather than the
- * account's full history, so the running total continues from the balance before
- * the window instead of restarting at zero.
+ * account's full history. The running total then continues from the balance
+ * before the window instead of restarting at zero.
  */
 export const statementFor =
   (acct: AccountRef, openingBalance = 0) =>

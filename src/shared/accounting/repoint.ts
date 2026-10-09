@@ -1,8 +1,8 @@
 /**
  * Repoint an attendee's ledger rows onto another attendee id — the one
  * sanctioned mutation of stored account ids (the ledger is append-only
- * everywhere else). Used by attendee merge: the source's legs move wholesale
- * onto the target so the financial history follows the person and nothing
+ * everywhere else). Used by attendee merge. The source's legs move wholesale
+ * onto the target, so the financial history follows the person and nothing
  * strands on the deleted source (plan §5.17).
  *
  * Returns statements for the merge's own batch, so the repoint commits or rolls

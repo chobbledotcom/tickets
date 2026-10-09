@@ -3,8 +3,8 @@
  *
  * `Σ balance == 0` is structurally always true for a one-row-balanced ledger, so
  * it proves nothing. Real integrity comes from comparing the ledger to things
- * outside it: a provider's reported balance, and the full set of legs the source
- * records say each event should have.
+ * outside it. It compares a provider's reported balance, and the full set of
+ * legs the source records say each event must have.
  */
 
 import { instantToEpochMs } from "#shared/validation/timestamp.ts";
@@ -22,8 +22,8 @@ export type ReconcileResult = {
 
 /**
  * Reconcile one account's ledger balance against an externally reported figure
- * (e.g. a PSP's reported balance). A non-zero `diff` is real drift — a missed or
- * duplicated event, an unrecorded fee or payout.
+ * (for example a PSP's reported balance). A non-zero `diff` is real drift — a
+ * missed or duplicated event, an unrecorded fee or payout.
  */
 export const reconcileExternal =
   (acct: AccountRef, reported: number) =>
@@ -46,14 +46,14 @@ type LegFacts = {
 };
 
 /**
- * A stable, comparable fingerprint of one leg: its kind, direction (source →
- * destination accounts), amount, currency, business time, and reversal link,
- * JSON-encoded so distinct shapes never collide. Built identically from an
- * expected leg and a stored transfer, so the two sides of a reconciliation
- * compare like-for-like — a leg posted to the wrong account, for the wrong
- * amount, with the wrong `occurredAt` (which moves it into a different reporting
- * period), or with a missing/wrong `reversesId` void link differs even when its
- * kind matches.
+ * A stable, comparable fingerprint of one leg. It covers the kind, the
+ * direction (source → destination accounts), the amount, the currency, the
+ * business time, and the reversal link. It is JSON-encoded so distinct shapes
+ * never collide. The fingerprint is built identically from an expected leg and
+ * a stored transfer, so the two sides of a reconciliation compare
+ * like-for-like. A leg with the wrong account, amount, or `occurredAt` (which
+ * moves it into a different reporting period) differs. So does a leg with a
+ * missing or wrong `reversesId` void link, even when its kind matches.
  */
 export type LegFingerprint = string;
 
@@ -61,8 +61,8 @@ export type LegFingerprint = string;
  * The money-defining facts of a leg, in a fixed order: change any one of them and
  * it is a *different* transfer. Both the reconciliation fingerprint
  * ({@link legFingerprint}) and the replay-equality guard ({@link legIdentityDiff},
- * used by the store's conflict check) derive from this single table, so the two
- * can never disagree on what "the same leg" means — adding a field here updates
+ * used by the store's conflict check) derive from this single table. The two
+ * can never disagree on what "the same leg" means. Adding a field here updates
  * both at once.
  */
 const IDENTITY_FIELDS: ReadonlyArray<
@@ -72,10 +72,11 @@ const IDENTITY_FIELDS: ReadonlyArray<
   ["source", (leg) => accountKey(leg.source)],
   ["destination", (leg) => accountKey(leg.destination)],
   ["amount", (leg) => leg.amount],
-  // Compare the instant, not its string form: the store persists time as
-  // epoch-millis and reads it back canonical, so a replay carrying the same
-  // moment in a different ISO form (no milliseconds, or an offset) must match
-  // the stored leg rather than read as an occurredAt conflict.
+  // Compare the instant, not its string form. The store persists time as
+  // epoch-millis and reads it back canonical. A replay can carry the same
+  // moment in a different ISO form, for example without milliseconds or with
+  // an offset. Such a replay must match the stored leg rather than read as an
+  // occurredAt conflict.
   ["occurredAt", (leg) => instantToEpochMs(leg.occurredAt)],
   ["reversesId", (leg) => leg.reversesId ?? null],
   ["reversesGroup", (leg) => leg.reversesGroup ?? ""],
@@ -95,7 +96,7 @@ export const legIdentityDiff = (a: LegFacts, b: LegFacts): string[] =>
     ([field]) => field,
   );
 
-/** A per-event mismatch between the legs an event should have and those actually
+/** A per-event mismatch between the legs an event must have and those actually
  *  present in the ledger, compared as {@link LegFingerprint}s. */
 export type LegDiscrepancy = {
   readonly eventGroup: string;
@@ -123,12 +124,13 @@ const multisetDiff = (
 
 /**
  * Compare the legs present per event against what the SOURCE records say each
- * event should have. Driven by `expected` — fingerprints built from
- * bookings/refunds via {@link legFingerprint} — comparing full leg fingerprints
- * rather than bare kinds or a count, so a booking that lost its `fee` leg, paid
- * the wrong account, or recorded the wrong amount is caught even when the leg
- * count is unchanged. An event group with no legs reports everything `missing`;
- * one absent from `expected` reports everything `unexpected` (an orphan event).
+ * event must have. The check takes `expected` — fingerprints built from
+ * bookings/refunds via {@link legFingerprint}. It compares full leg
+ * fingerprints rather than bare kinds or a count. A booking that lost its
+ * `fee` leg, paid the wrong account, or recorded the wrong amount is caught
+ * even when the leg count is unchanged. An event group with no legs reports
+ * everything `missing`. An event group absent from `expected` reports
+ * everything `unexpected` (an orphan event).
  */
 export const reconcileLegs =
   (expected: Map<string, LegFingerprint[]>) =>

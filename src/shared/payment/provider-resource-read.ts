@@ -94,7 +94,7 @@ export const judgeThrough =
   };
 
 /** The judging step for an answer that is already the resource, so only the
- *  rungs decide. Use it when the transport has parsed the answer already. */
+ *  rungs decide. Use it when the transport already parsed the answer. */
 export const judgedBy = <Answer>(
   rungs: readonly Rung<Answer>[],
 ): ((answer: Answer) => ProviderRead<Answer>) =>

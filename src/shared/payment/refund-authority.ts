@@ -13,7 +13,7 @@ import {
 export type ActiveSentRefundState = SendArmedRefundState | ObservingRefundState;
 type AutomaticRefundState = ReadyRefundState | ActiveSentRefundState;
 
-/** Require a generation which may already have crossed the provider boundary. */
+/** Require a generation that can already be past the provider boundary. */
 export const requireActiveSentRefund = (
   state: RefundAuthorityState,
   message: string,
@@ -65,7 +65,7 @@ export const readyRefund = (facts: ReadyRefundFacts): ReadyRefundState => {
   }) as ReadyRefundState;
 };
 
-/** Persist that this exact generation may be at the provider boundary. */
+/** Persist that this exact generation can be at the provider boundary. */
 export const armRefundSend = (
   state: RefundAuthorityState,
   armedAt: number,
@@ -153,7 +153,7 @@ export const returnRefundToReady = (
   }) as ReadyRefundState;
 };
 
-/** Provider evidence proves the cash returned; local recording is now due. */
+/** Provider evidence proves the cash returned. Local recording is now due. */
 export const markRefundCompleted = (
   state: RefundAuthorityState,
   completedAt: number,

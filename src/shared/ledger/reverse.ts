@@ -16,7 +16,7 @@ type DirectedAmount = {
 /**
  * True when `leg` exactly undoes `original`: same amount, with source and
  * destination swapped. The store checks a leg carrying a `reversesId` against
- * this before inserting, so a bad link can't void nothing.
+ * this before inserting, so a bad link cannot void nothing.
  */
 export const isInverseOf = (
   leg: DirectedAmount,

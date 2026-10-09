@@ -1,18 +1,18 @@
 /**
  * An inclusive-start / exclusive-end date range over the ledger's `occurred_at`
- * (stored as an INTEGER epoch-ms business time), plus the tiny SQL-fragment
- * helpers that bound a query to it. Kept separate from the projection-sql
+ * (stored as an INTEGER epoch-ms business time). The tiny SQL-fragment
+ * helpers here bound a query to it. Kept separate from the projection-sql
  * builders because a range carries *bound values* (the millisecond bounds),
  * whereas those builders interpolate column expressions only.
  *
- * Either bound may be null, meaning "unbounded on that side" — a fully-null
+ * Either bound can be null, meaning "unbounded on that side" — a fully-null
  * range (the {@link emptyRange} default) selects the whole ledger ("forever").
  */
 
 import type { WhereClause } from "#db/where-clauses.ts";
 
 /** A bounded window over `occurred_at`: `startMs` ≤ occurred_at < `endMs`. A
- *  null bound is open on that side; both null is "forever". */
+ *  null bound is open on that side, and both null is "forever". */
 export type LedgerRange = {
   /** Inclusive lower epoch-ms bound, or null for no lower bound. */
   readonly startMs: number | null;

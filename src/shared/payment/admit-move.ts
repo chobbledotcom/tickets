@@ -1,8 +1,8 @@
 /**
- * Whether an operation that moves or removes payment rows may go ahead. A
- * merge relocates them, a delete destroys them, and either way the rows may be
- * in the middle of something — money a run holds right now, or a decision the
- * owner has not made. Both writers ask here first.
+ * Whether an operation that moves or removes payment rows can go ahead. A
+ * merge relocates them, a delete destroys them, and either way the rows can be
+ * in the middle of something. The something is money a run holds right now, or
+ * a decision the owner has not made. Both writers ask here first.
  *
  * This module is pure: it decides from the records it is shown.
  */
@@ -54,9 +54,9 @@ type LiveWork = RecoveryDeclaration & {
   /** What to tell the operator, naming what to do next. */
   refusal: string;
   /** Where this comes in the order things are said when a row carries more
-   *  than one, lowest first. Declared per entry because the order the fields
-   *  are written in belongs to the formatter, which sorts them alphabetically
-   *  — so a rename could otherwise reorder what an operator is told. */
+   *  than one, lowest first. Declared per entry because the formatter sorts
+   *  them alphabetically. A rename can otherwise reorder what an operator is
+   *  told. */
   saidFirst: number;
   /** The one operator-facing summary of this work. */
   status: Exclude<PaymentWorkStatus, "clear">;
@@ -68,10 +68,10 @@ type LiveWork = RecoveryDeclaration & {
  * What a payment row can be in the middle of, and who each thing stops.
  *
  * A claim stops both writers, fresh or stale. A stale one means a run died
- * holding this money, and its record is the only sign the money may be going
- * back. The other two part company: a merge RELOCATES, so the marker rides the
- * moved row and the work survives, while a delete DESTROYS the row the
- * correction needs.
+ * holding this money, and its record is the only sign the money can be going
+ * back. The other two part company. A merge RELOCATES, so the marker rides the
+ * moved row and the work survives. A delete DESTROYS the row the correction
+ * needs.
  *
  * `saidFirst` orders by urgency: money moving now, then a decision only the
  * owner can make, then a record repairable mechanically.
@@ -134,7 +134,7 @@ export const CLAIM_MIRROR: string = PAYMENT_ROW_LIFECYCLE.claim.mirror;
 export type PaymentLiveWorkField = keyof typeof PAYMENT_ROW_LIFECYCLE;
 
 /** The one SQL form of "this row carries this work", derived from the same
- *  table that decides the stored word, so a renamed mirror can never leave a
+ *  table that decides the stored word. A renamed mirror can then never leave a
  *  query matching nothing. */
 export const rowWorkMirrorSql = (
   prefix: "" | "payment.",

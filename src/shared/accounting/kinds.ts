@@ -1,9 +1,9 @@
 /**
  * Transfer `kind` literals — the single home for every kind the accounting
- * layer posts or filters on, extending the treatment `service_cost` always had
- * ("the single source of truth for the literal, so the reader/writer and the
- * predicates can't drift apart") to the whole family. The core ledger keeps
- * `kind` opaque; the SQL projections, the mappers, the refund logic, and the
+ * layer posts or filters on. It extends the treatment `service_cost` always had
+ * to the whole family: "the single source of truth for the literal, so the
+ * reader/writer and the predicates cannot drift apart". The core ledger keeps
+ * `kind` opaque. The SQL projections, the mappers, the refund logic, and the
  * template's plain-language descriptions all speak these names via this table.
  *
  * The owner-entered `manual_*` kinds live with their spec table in

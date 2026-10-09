@@ -26,8 +26,9 @@ export type RefundUncertaintyReason =
   | ProviderInvalidReason
   | "observed_refund";
 
-/** One refund call's complete answer. `uncertain` means the call may have
- * landed; `not_sent` means it definitely did not leave this process. */
+/** One refund call's complete answer. `uncertain` means nobody knows whether
+ * the call landed on the provider. `not_sent` means it definitely did not
+ * leave this process. */
 export type RefundAttemptResult =
   | { amount: Money; kind: "completed"; proof: RefundProof }
   | { amount: Money; kind: "accepted"; proof: RefundProof }
@@ -38,7 +39,7 @@ export type RefundAttemptResult =
       reason: RefundUncertaintyReason;
     };
 
-/** The facts every adapter receives before it may ask for money to move. */
+/** The facts every adapter receives before it can ask for money to move. */
 export type RefundRequest = {
   charge: ChargeMoney;
   paymentReference: string;

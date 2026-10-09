@@ -8,10 +8,10 @@
  */
 
 /**
- * An account is a (type, id) pair. Both are opaque strings to the ledger; the
+ * An account is a (type, id) pair. Both are opaque strings to the ledger. The
  * host assigns meaning (`revenue:<listingId>`, `attendee:<id>`,
- * `external:world`, …). Row-backed accounts use the stringified row id;
- * singletons use a fixed id.
+ * `external:world`, …). Row-backed accounts use the stringified row id.
+ * Singletons use a fixed id.
  */
 export type AccountRef = { readonly type: string; readonly id: string };
 
@@ -30,7 +30,7 @@ export type MinorUnits = number;
 export type TransferInput = {
   readonly source: AccountRef;
   readonly destination: AccountRef;
-  /** Positive minor units; direction is encoded by source/destination. */
+  /** Positive minor units. Direction is encoded by source/destination. */
   readonly amount: MinorUnits;
   /** ISO timestamp — the business time the money moved. */
   readonly occurredAt: string;
@@ -38,20 +38,21 @@ export type TransferInput = {
   readonly reference: string;
   /** Shared across every leg of one business event (a booking/refund/…). */
   readonly eventGroup: string;
-  /** Host-defined category, opaque to the ledger (e.g. "sale", "refund_cash"). */
+  /** Host-defined category, opaque to the ledger (for example "sale", "refund_cash"). */
   readonly kind?: string;
   /**
    * Optional human-readable reason. Kept PII-free by convention (prefer codes
-   * and ids over names); if free text that could contain PII is stored, the host
-   * MUST encrypt it with the owner key before persisting — the ledger treats it
+   * and ids over names). If the host stores free text that can contain PII, it
+   * MUST encrypt it with the owner key before persisting. The ledger treats it
    * as an opaque string, never parses it, and never logs it.
    */
   readonly memo?: string;
   /** The transfer this one reverses/corrects (admin void/correction only). */
   readonly reversesId?: number;
-  /** The event group of the order this leg's event reverses — set on every
-   *  refund leg, so a read can tell which booking order came back without
-   *  rebuilding the legs it would have written. Undefined on every other leg. */
+  /** The event group of the order this leg's event reverses. It is set on
+   *  every refund leg, so a read can tell which booking order came back
+   *  without rebuilding the legs the original event wrote. Undefined on every
+   *  other leg. */
   readonly reversesGroup?: string;
   /** Actor: "system" or an admin user id. */
   readonly postedBy?: string;

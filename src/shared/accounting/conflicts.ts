@@ -3,7 +3,7 @@
  *
  * Two kinds of guard live here, both describing a {@link LedgerConflictError}:
  * - replay equality — a re-post of an already-stored event must present the exact
- *   same legs, so a mapper or pricing change can't quietly rewrite a charge;
+ *   same legs, so a mapper or pricing change cannot quietly rewrite a charge.
  * - reversal links — a leg that says it reverses another must really be that
  *   original's inverse, so the one-void-per-original slot is never wasted.
  */
@@ -13,8 +13,8 @@ import { isInverseOf } from "#shared/ledger/reverse.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 
 /** Raised when a replayed event differs from what is already stored — a leg
- *  with different money facts, an extra leg, or a missing leg — or when a
- *  reversal link doesn't match its original. Surfaced loudly. */
+ *  with different money facts, an extra leg, or a missing leg. Also raised when
+ *  a reversal link does not match its original. Surfaced loudly. */
 export class LedgerConflictError extends Error {
   constructor(reference: string, detail: string) {
     super(`ledger conflict on reference "${reference}": ${detail}`);
@@ -64,11 +64,11 @@ export const eventMatchConflict = (
 
 /**
  * Check a leg against the already-fetched `original` it claims to reverse. A leg
- * that links to another via `reversesId` must be that original's exact inverse
- * and the original must exist; otherwise the unique `reverses_id` slot is used
- * up without the original money actually being voided, or it points at nothing
- * — either way permanently blocking the correct reversal. Pass the original you
- * loaded (or `null` if none); a leg with no `reversesId` passes trivially. Both
+ * that links to another via `reversesId` must be that original's exact inverse,
+ * and the original must exist. Otherwise the unique `reverses_id` slot is spent
+ * on a leg that does not void the original money. It can also point at nothing —
+ * either way it blocks the correct reversal permanently. Pass the original you
+ * loaded (or `null` if none). A leg with no `reversesId` passes trivially. Both
  * write paths use this against originals the store pre-loaded in bulk, so no
  * per-leg read happens inside a write.
  */

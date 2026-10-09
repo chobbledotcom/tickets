@@ -1,10 +1,10 @@
 /** The only ways one payment row's stored record changes.
  *
- * A row's slot carries up to three pieces of live work — a refund run's
- * claim, an owner review, and returned money the books do not show — plus,
- * on a row with no live work, the terminal outcome of its checkout. These
- * pure functions are the complete set of moves; the database layer only
- * wraps them in the compare-and-swap statement that makes them stick. */
+ * A row's slot carries up to three pieces of live work: a refund claim, an
+ * owner review, and returned money the books do not show. On a row with no
+ * live work it carries the terminal outcome of its checkout. These pure
+ * functions are the complete set of moves. The database layer only wraps them
+ * in the compare-and-swap statement that makes them stick. */
 
 import type { ClaimRequest } from "#payment/claim.ts";
 import {
@@ -28,7 +28,7 @@ export type PaymentReviewChange =
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
 /** Every change one run can make to one exact row. Omitted facts are
- * preserved; no absence silently clears an older repair target. */
+ * preserved. No absence silently clears an older repair target. */
 export type PaymentRowSettlement = {
   readonly books?: PaymentBooksChange;
   readonly claim: "release";
@@ -67,8 +67,8 @@ export const claimHeldBy = (
   claim.phase === held.phase;
 
 /** Put a run's fence on the row. Overwrites an existing claim on purpose:
- * the take path only reaches this after `decideClaim` admits the hold, and
- * an admitted stale hold is resumed by replacing its fence. */
+ * the take path only reaches this after `decideClaim` admits the hold. An
+ * admitted stale hold is resumed by replacing its fence. */
 export const grantClaim = (
   state: PaymentRowState,
   claim: RefundClaim,
@@ -123,9 +123,9 @@ const releaseClaim = (state: PaymentRowState): PaymentRowState => {
 
 /** The full per-row settle a run makes under its hold: the books word, the
  * review decision, then the fence comes off. Null when this settlement does
- * not hold the row — the caller leaves such a row untouched, so a run that
- * stalled past the staleness cutoff cannot strip the live claim off work
- * another run has since resumed. */
+ * not hold the row. The caller leaves such a row untouched. A run that
+ * stalled past the staleness cutoff therefore cannot strip the live claim off
+ * work another run resumed after it. */
 export const settledRowState = (
   state: PaymentRowState,
   change: PaymentRowSettlement,
@@ -142,15 +142,15 @@ export const settledRowState = (
     : null;
 
 /** Whether the row carries live work: a claim, a review, or unrecorded
- * money. A terminal outcome may never share a row with any of these. */
+ * money. A terminal outcome can never share a row with any of these. */
 export const hasLiveRowWork = (state: PaymentRowState): boolean =>
   state.claim !== undefined ||
   state.review !== undefined ||
   state.unrecorded !== undefined;
 
-/** The terminal outcome of a checkout that ended. Throws on any live work —
- * the pure form of the SQL fence that only lets an outcome land on an empty
- * slot, so a settled word can never bury a claim, a review, or unrecorded
+/** The terminal outcome of a checkout that ended. Throws on any live work.
+ * This is the pure form of the SQL fence that only lets an outcome land on an
+ * empty slot. A settled word can never bury a claim, a review, or unrecorded
  * money. */
 export const withOutcome = (
   state: PaymentRowState,

@@ -1,12 +1,12 @@
 /**
  * Read queries over the transfers ledger.
  *
- * The figures that used to be stored on domain rows (an attendee's balance, a
- * listing's income, a modifier's revenue) are worked out from the ledger here.
+ * Figures once stored on domain rows (an attendee's balance, a listing's
+ * income, a modifier's revenue) are worked out from the ledger here.
  * The balance queries add up signed amounts in SQL rather than loading every
- * transfer into memory: each transfer adds its amount to the destination account
- * and subtracts it from the source account, so an account's balance is the sum
- * of those signed rows. The ledger only ever holds one currency (the write path
+ * transfer into memory. Each transfer adds its amount to the destination
+ * account and subtracts it from the source account. An account's balance is
+ * therefore the sum of those signed rows. The ledger only ever holds one currency (the write path
  * enforces it), so adding amounts up is always safe.
  */
 
@@ -49,8 +49,8 @@ import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 const NEWEST_FIRST = "occurred_at DESC, id DESC";
 
 /** A parameterised "this leg's <role> side IS the account" match — two bound `?`
- *  for (type, id), built from the shared transfers column names so every balance
- *  read filters accounts identically. */
+ *  for (type, id). Built from the shared transfers column names, so every
+ *  balance read filters accounts identically. */
 const legMatchesAccount = (role: "source" | "dest"): string =>
   `${LEG_COLUMNS[role].type} = ? AND ${LEG_COLUMNS[role].id} = ?`;
 
@@ -113,33 +113,34 @@ export const transfersByEventGroup = (
 ): Promise<Transfer[]> => selectByEventGroup(queryBatch, eventGroup);
 
 /**
- * True when the ledger already holds at least one leg for this business event —
- * the cheap existence probe a money move runs as a PREFLIGHT before acting. The
- * transfers ledger is the durable record of what already happened (unlike the
- * prunable processed_payments idempotency row), so booking a paid session,
- * settling a balance, or refunding one all consult this first: an event the
- * ledger already records is replayed, never double-posted or refunded again.
+ * True when the ledger already holds at least one leg for this business event.
+ * It is the cheap existence probe a money move runs as a PREFLIGHT before
+ * acting. The transfers ledger is the durable record of what already happened
+ * (unlike the prunable processed_payments idempotency row). Booking a paid
+ * session, settling a balance, or refunding one all consult this first. An
+ * event the ledger already records is replayed, never double-posted or
+ * refunded again.
  */
 export const eventGroupHasLegs = (eventGroup: string): Promise<boolean> =>
   rowExists("SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1", [
     eventGroup,
   ]);
 
-/** The whole ledger. For tests and small reports; scoped reads are preferred on
+/** The whole ledger. For tests and small reports. Scoped reads are preferred on
  *  hot paths. */
 export const allTransfers = (): Promise<Transfer[]> =>
   selectTransfers(queryBatch);
 
 /** The most recent `limit` transfers, newest first (by business time then id, so
  *  ties are stable). The ordering + limit run in SQL so the whole ledger is never
- *  loaded into memory; `occurred_at` is the stored INTEGER epoch, so DESC is
+ *  loaded into memory. `occurred_at` is the stored INTEGER epoch, so DESC is
  *  newest-first. */
 export const recentTransfers = (limit: number): Promise<Transfer[]> =>
   selectTransfers(queryBatch, { limit, order: NEWEST_FIRST });
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
- * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
- * owner-entered manual rows and service cost legs remain visible even when they
+ * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden.
+ * Owner-entered manual rows and service cost legs remain visible even when they
  * record an external cost. */
 const VISIBLE_TRANSFER_SCOPE =
   `(source_type != '${EXTERNAL}' AND dest_type != '${EXTERNAL}'` +
@@ -181,8 +182,8 @@ const listingLegScope = (
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
- * `limit`, hiding routine `external:world` cash legs, bounded to `range`, and
- * optionally scoped to one listing's `revenue` account. Owner-entered manual
+ * `limit`, bounded to `range`, and optionally scoped to one listing's `revenue`
+ * account. It hides routine `external:world` cash legs. Owner-entered manual
  * external rows stay visible. Ordering + limit run in SQL so the whole ledger is
  * never loaded.
  */
@@ -209,7 +210,7 @@ export const transferActivityBounds = async (): Promise<{
   minMs: number;
   maxMs: number;
 } | null> => {
-  // An ungrouped aggregate always yields exactly one row; MIN and MAX are NULL
+  // An ungrouped aggregate always yields exactly one row. MIN and MAX are NULL
   // together iff the table is empty.
   const row = await requireOne<{
     min_ms: number | bigint | null;
@@ -286,7 +287,7 @@ export const ledgerTotals = async (
 type BalanceRow = { id: string; balance: number | bigint };
 
 /** Net balances grouped by account id. Each transfer counts as +amount for its
- *  destination and -amount for its source; `whereDest`/`whereSource` pick which
+ *  destination and -amount for its source. `whereDest`/`whereSource` pick which
  *  accounts to include. This one query backs every balance read below. */
 const groupedBalances = (
   whereDest: string,
@@ -308,7 +309,7 @@ const toBalanceMap = (rows: BalanceRow[]): Map<string, number> =>
 /**
  * Balance of each given account id of one type, in a single query — for a page
  * of attendees/listings rather than the whole type. An empty id list is a no-op
- * (no query); ids absent from the result have balance 0.
+ * (no query). Ids absent from the result have balance 0.
  */
 export const accountBalancesForIds = async (
   type: string,
@@ -326,14 +327,14 @@ export const accountBalancesForIds = async (
 };
 
 /** Balance of one account: money in (as destination) minus money out (as
- *  source), summed in SQL. Zero when the account has no transfers — a direct
- *  scalar read rather than the grouped many-account query, so it shares the same
- *  `legMatchesAccount` filter the rest of this module uses. */
+ *  source), summed in SQL. Zero when the account has no transfers. This is a
+ *  direct scalar read rather than the grouped many-account query, so it shares
+ *  the same `legMatchesAccount` filter the rest of this module uses. */
 export const accountBalance = async (acct: AccountRef): Promise<number> => {
   const asDest = legMatchesAccount("dest");
   const asSource = legMatchesAccount("source");
   // Each predicate binds (type, id) and appears four times — both CASE arms and
-  // both WHERE arms — so the account's pair repeats four times, in that order.
+  // both WHERE arms — so the account's pair repeats in that order.
   const pair: InValue[] = [acct.type, acct.id];
   const row = await requireOne<{ balance: number | bigint }>(
     `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
@@ -345,10 +346,10 @@ export const accountBalance = async (acct: AccountRef): Promise<number> => {
 
 /**
  * Read a single projected money figure (a scalar `transfers` subquery) THROUGH an
- * open write transaction, so the figure reflects this transaction's own
+ * open write transaction. The figure then reflects this transaction's own
  * uncommitted legs and — crucially — is read under the write lock. A correction
  * that recomputes its delta from a freshly-read current figure inside the same
- * transaction it posts into is therefore idempotent: a second submit of the same
+ * transaction it posts into is therefore idempotent. A second submit of the same
  * target reads the first's committed adjustment and computes a zero delta. The
  * subquery interpolates the (numeric, validated) row id as a SQL expression, the
  * same convention the projection-sql builders use, so it carries no bound args.

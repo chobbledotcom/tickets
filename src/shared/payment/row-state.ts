@@ -1,12 +1,12 @@
 /**
  * Everything one payment row remembers besides its own resolution. The
- * `failure_data` slot holds ONE record with a field per concern — the claim a
- * run holds, the marker saying the owner must look, the terminal outcome a
- * later delivery replays — so a writer can change its own field and leave the
- * others exactly as it found them.
+ * `failure_data` slot holds ONE record with a field per concern. The fields
+ * are the claim a run holds, the marker saying the owner must look, and the
+ * terminal outcome a later delivery replays. A writer can change its own
+ * field and leave the others exactly as it found them.
  *
  * This module is pure: it says what the record means and how it reads and
- * writes. Who may change it is the claim's job.
+ * writes. Who can change it is the claim's job.
  */
 
 import * as v from "valibot";
@@ -33,7 +33,7 @@ const refundClaimFields = {
 
 /**
  * One refund command's hold on this row. The attendee ids name the people who
- * initiated this exact reference group. It is only an edit and ledger fence;
+ * initiated this exact reference group. It is only an edit and ledger fence.
  * payment_charges owns every provider-send state.
  */
 export const RefundClaimSchema = v.strictObject({
@@ -43,16 +43,17 @@ export const RefundClaimSchema = v.strictObject({
 export type RefundClaim = v.InferOutput<typeof RefundClaimSchema>;
 export type RefundClaimPhase = RefundClaim["phase"];
 
-/** The handled payment failure a later redirect or webhook retry replays —
- *  message, status, and whether a refund was already issued — without
- *  re-validating the listing or re-attempting the refund. `error` can embed an
- *  encrypted-at-rest listing name, so the whole record is stored encrypted;
- *  keep it free of anything that must not round-trip through that key. */
+/** The handled payment failure a later redirect or webhook retry replays:
+ *  message, status, and whether a refund was already issued. The replay does
+ *  not re-validate the listing and does not re-attempt the refund. `error` can
+ *  embed an encrypted-at-rest listing name, so the whole record is stored
+ *  encrypted. Keep it free of anything that must not round-trip through that
+ *  key. */
 export const StoredPaymentFailureSchema = v.strictObject({
   /** Set when a stored placeholder still owes follow-up money records, so a
    * replayed delivery knows to check them — never part of the answer. The
    * code lets a resume rebuild the exact refund reason for the note and the
-   * ledger label, without guessing it back out of the message text. */
+   * ledger label. The resume does not guess it back out of the message text. */
   completion: v.optional(v.strictObject({ code: RefundCodeSchema })),
   error: v.string(),
   refunded: v.optional(v.boolean()),
@@ -75,10 +76,10 @@ export const sessionAnswerOf = (
 /**
  * Money the provider sent back that our books do not have.
  *
- * Its own field because none of the others means it. A claim says someone is
- * working on this; an outcome says it ended; a review marker says the records
- * disagree. "The money moved and nobody wrote it down" is a fourth thing, and
- * it is the one an operator has to act on — so the row that proves it has to
+ * Its own field because none of the others means it. A claim says someone
+ * works on this. An outcome says it ended. A review marker says the records
+ * disagree. "The money moved and nobody wrote it down" is a fourth thing.
+ * It is the one an operator has to act on, so the row that proves it has to
  * survive until they do.
  */
 export const UnrecordedRefundSchema = v.strictObject({
@@ -86,8 +87,8 @@ export const UnrecordedRefundSchema = v.strictObject({
 });
 export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
 
-/** The whole record. Every field is optional because a row carries only the
- *  concerns it has reached: a claim without an outcome while a run works, an
+/** The whole record. Every field is optional: a row carries only the
+ *  concerns it reached. A claim without an outcome while a run works, an
  *  outcome without a claim once one finishes. */
 const paymentRowStateFields = {
   claim: v.optional(RefundClaimSchema),
@@ -127,7 +128,7 @@ export const writeRowState = (
   context: string,
 ): string => rowStateJson.write(state, context);
 
-/** Whether this record holds nothing at all, and so should be stored as the
+/** Whether this record holds nothing at all, and so must be stored as the
  *  empty slot rather than as an empty JSON object. */
 export const isEmptyRowState = (state: PaymentRowState): boolean =>
   state.claim === undefined &&

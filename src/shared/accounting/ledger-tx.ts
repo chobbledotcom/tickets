@@ -53,12 +53,12 @@ const corrector =
 
 /** Credit to move a figure that IS the account balance onto `target`. */
 const toBalance = (current: number, target: number): number => target - current;
-/** Credit to move what's owed (the account balance's NEGATION) onto `target`. */
+/** Credit to move what is owed (the account balance's NEGATION) onto `target`. */
 const toOwed = (current: number, target: number): number => current - target;
 
 export const ledgerTx = {
   /** Post a manual `writeoff` adjustment moving an account's balance by `delta`
-   *  (in "credit-the-account" terms; a zero delta posts nothing). */
+   *  (in "credit-the-account" terms — a zero delta posts nothing). */
   adjust: postWriteoffAdjustmentTx,
   /** Read-then-adjust corrections that move a projected figure onto a target,
    *  symmetric with {@link ledgerTx.read} (each `read.X` is the figure `correct.X`
@@ -96,8 +96,8 @@ export const ledgerTx = {
 
 /**
  * Adapt an in-transaction correction (`ledgerTx.correct.X`) into a standalone
- * call that opens its own write transaction — for the admin "adjust this figure"
- * forms that correct a single figure outside any larger unit of work.
+ * call that opens its own write transaction. It serves the admin "adjust this
+ * figure" forms that correct a single figure outside any larger unit of work.
  */
 export const inOwnTx =
   (correct: (tx: TxScope, id: number, target: number) => Promise<void>) =>

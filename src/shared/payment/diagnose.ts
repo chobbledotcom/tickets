@@ -12,20 +12,21 @@ import {
   refundMoneyMatchesCapture,
 } from "#payment/resources.ts";
 
-/** What a reading comes to once it has been looked at. Only "conflict" is a
- *  problem for the owner; the rest are where the payment has got to. */
+/** What a reading comes to once it is looked at. Only "conflict" is a
+ *  problem for the owner. The rest are where the payment stands. */
 export type ObservationOutcome =
   | { issue: PaymentConflict; kind: "conflict" }
   | { kind: "fully_refunded" }
   | { kind: "ready" }
   | { kind: "refund_pending" };
 
-/** Any leg where the money back — or on its way — outruns the money taken, or
- *  where the two are not even in the same currency to compare. */
+/** Flags any leg where the money back, or the money on its way, outruns the
+ *  money taken. It also flags two legs that are not in the same currency to
+ *  compare. */
 const refundOverspendsCapture = (charges: readonly ChargeMoney[]): boolean =>
   charges.some((charge) => !refundMoneyMatchesCapture(charge));
 
-/** Money was taken and the reading has been checked, so all that is left is
+/** Money was taken and the reading is checked, so all that is left is
  *  what became of any refunds on it. */
 const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
   const refunds = charges.map(resolveRefund);
@@ -50,10 +51,10 @@ const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
     return { kind: "refund_pending" };
   }
   // Any money back at all parks the booking: the provider is keeping less than
-  // the signed total. Judged on the AMOUNT, not the status, because a refund
-  // the provider could not finish still reports what came back before it
-  // failed — sending again on top of that would pay the buyer twice. A failure
-  // that moved nothing leaves the charge ready for a fresh attempt.
+  // the signed total. Judged on the AMOUNT, not the status. A refund the
+  // provider did not finish still reports what came back before it failed.
+  // Sending again on top of that pays the buyer twice. A failure that moved
+  // nothing leaves the charge ready for a fresh attempt.
   return refunds.some((refund) => refund.amount.amount > 0)
     ? { issue: { kind: "partial_refund" }, kind: "conflict" }
     : { kind: "ready" };
@@ -61,8 +62,8 @@ const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
 
 /** What the money on these charges comes to on its own, with no agreed total
  *  behind it. A reference the site holds no signed price for cannot be judged
- *  on what was owed, so those kinds are not asked here rather than asked
- *  against a stand-in. The comparison that matters before sending money needs
+ *  on what was owed. Those kinds are not asked here rather than asked against
+ *  a stand-in. The comparison that matters before sending money needs
  *  no total anyway: returned is measured against TAKEN. */
 export const refundOutcomeOf = (
   charges: readonly ChargeMoney[],
