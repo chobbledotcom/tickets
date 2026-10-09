@@ -10,7 +10,8 @@
  * Outside a request there is no session, and the accessor FAILS CLOSED.
  */
 
-import { getPrivateKeyFromSession } from "#crypto/keys.ts";
+import { getPrivateKeyFromSession } from "#crypto/hybrid.ts";
+
 import type { WrappedKey } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
 import { namedError } from "#shared/named-error.ts";

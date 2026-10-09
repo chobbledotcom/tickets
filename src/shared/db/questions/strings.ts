@@ -8,7 +8,8 @@
 
 import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
-import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 /* jscpd:ignore-start */
 import {

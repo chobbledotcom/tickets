@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
-import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { openNote, openNotes, sealNote } from "#db/notes/sealing.ts";
 import type { SystemNoteRow } from "#db/notes/types.ts";

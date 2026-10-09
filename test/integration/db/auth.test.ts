@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import {
-  deriveKEKFromPassword,
-  importPrivateKey,
-  unwrapKey,
-} from "#crypto/keys.ts";
+import { importPrivateKey } from "#crypto/hybrid.ts";
+import { deriveKEKFromPassword, unwrapKey } from "#crypto/keys.ts";
+
 import type { KeyEncrypted, PasswordHash } from "#crypto/sealed.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb, insert } from "#db/client.ts";

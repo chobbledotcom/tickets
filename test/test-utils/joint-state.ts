@@ -1,5 +1,6 @@
 import { decrypt } from "#crypto/encryption.ts";
-import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryAll } from "#db/client.ts";
 import { paymentClaimRowsSql } from "#db/payment-claim.ts";

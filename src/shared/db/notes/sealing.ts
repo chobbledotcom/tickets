@@ -7,7 +7,8 @@
 
 /* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import { openEach } from "#crypto/open-each.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 /* jscpd:ignore-end */

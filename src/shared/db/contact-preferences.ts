@@ -10,7 +10,8 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
-import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import {

@@ -1,4 +1,5 @@
-import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import { hashEmail, unsubscribeHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";

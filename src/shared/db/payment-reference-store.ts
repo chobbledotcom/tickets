@@ -5,7 +5,8 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
   HYBRID_PREFIX,
-} from "#crypto/keys.ts";
+} from "#crypto/hybrid.ts";
+
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { inPlaceholders } from "#db/client.ts";
 import { settings } from "#db/settings.ts";

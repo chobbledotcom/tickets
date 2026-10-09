@@ -2,7 +2,8 @@
 
 import { assert } from "@std/assert";
 import { hmacHash } from "#crypto/hashing.ts";
-import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
+
 import { execute, queryOne } from "#db/client.ts";
 import {
   legacyPaymentReferencePage,

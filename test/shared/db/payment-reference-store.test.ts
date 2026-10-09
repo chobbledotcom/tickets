@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#crypto/keys.ts";
+import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
+
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   loadIndexedPaymentReference,
