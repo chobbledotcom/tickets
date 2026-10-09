@@ -11,7 +11,7 @@ import {
   parseBunnyError,
   reported,
 } from "#shared/bunny-api.ts";
-import type { CdnHostnameResult } from "#shared/bunny-pull-zone.ts";
+import type { getCdnHostnameImpl } from "#shared/bunny-pull-zone.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   getBunnyDnsZoneId,
@@ -34,13 +34,13 @@ interface BunnyDnsZone {
 /** Bunny DNS record type for CNAME (0=A, 1=AAAA, 2=CNAME, 3=TXT, 4=MX, 5=Redirect) */
 const DNS_RECORD_TYPE_CNAME = 2;
 
-/**
- * Get a DNS zone by ID, returning the zone domain and records.
- */
-export type DnsZoneResult =
+/** A Bunny DNS zone as the API reports it. Production reads the zone domain
+ *  and the record names. The other fields carry the API shape. */
+type DnsZoneResult =
   | { ok: true; zone: BunnyDnsZone }
   | { ok: false; error: string };
 
+/** Get a DNS zone by ID, returning the zone domain and records. */
 export const getDnsZoneImpl = async (): Promise<DnsZoneResult> => {
   const result = await bunnyGetJson<BunnyDnsZone>(
     `/dnszone/${getBunnyDnsZoneId()}`,
@@ -67,17 +67,14 @@ export type SubdomainAvailability =
   | { ok: true; available: boolean; fullDomain: string }
   | DomainFailure;
 
-/** The zone reads checkSubdomainAvailable needs from the API seam. */
-export type DnsZoneReader = {
-  getDnsZone: () => Promise<DnsZoneResult>;
-};
-
 /**
  * Check whether a subdomain is available in the DNS zone.
- * Looks for any existing record with the same name.
+ * Looks for any existing record with the same name. The zone read comes in as
+ * a parameter, so the zone result type stays module-private like the API
+ * shape it carries.
  */
 export const checkSubdomainAvailableImpl =
-  ({ getDnsZone }: DnsZoneReader) =>
+  ({ getDnsZone }: { getDnsZone: () => Promise<DnsZoneResult> }) =>
   async (subdomain: string): Promise<SubdomainAvailability> => {
     const zoneResult = await getDnsZone();
     if (!zoneResult.ok) return zoneResult;
@@ -96,12 +93,13 @@ const certRetryDelay = (attempt: number): number => (attempt + 1) * 5000;
 
 /** The cross-resource collaborators registerBunnySubdomain routes through the
  * API seam: availability check, CDN target, hostname validation, cleanup, and
- * the retry delay. */
+ * the retry delay. The CDN target shape is the one getCdnHostnameImpl
+ * returns. */
 export type SubdomainRegistrarDeps = {
   checkSubdomainAvailable: (
     subdomain: string,
   ) => Promise<SubdomainAvailability>;
-  getCdnHostname: () => Promise<CdnHostnameResult>;
+  getCdnHostname: () => Promise<Awaited<ReturnType<typeof getCdnHostnameImpl>>>;
   validateCustomDomain: (hostname: string) => Promise<BunnyApiResult>;
   deleteDnsRecord: (
     zoneId: string,

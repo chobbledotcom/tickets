@@ -27,7 +27,7 @@ interface EdgeScriptResponse {
   LinkedPullZones: EdgeScriptLinkedPullZone[];
 }
 
-export type CdnHostnameResult =
+type CdnHostnameResult =
   | { ok: true; hostname: string }
   | { ok: false; error: string };
 

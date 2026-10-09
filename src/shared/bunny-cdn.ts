@@ -24,7 +24,6 @@ import {
   setEdgeScriptSecretImpl,
 } from "#shared/bunny-edge-script.ts";
 import {
-  type CdnHostnameResult,
   findPullZoneIdImpl,
   getCdnHostnameImpl,
   getEdgeScriptImpl,
@@ -140,8 +139,9 @@ export const registerBunnySubdomain = (subdomain: string) =>
   bunnyCdnApi.registerBunnySubdomain(subdomain);
 
 /** Get CDN hostname (delegates to bunnyCdnApi for testability). */
-export const getCdnHostname = (): Promise<CdnHostnameResult> =>
-  bunnyCdnApi.getCdnHostname();
+export const getCdnHostname = (): ReturnType<
+  typeof bunnyCdnApi.getCdnHostname
+> => bunnyCdnApi.getCdnHostname();
 
 /** Upload and publish new script code to a Bunny edge script (defaults to this
  * host's own script when `scriptId` is omitted). */
