@@ -370,7 +370,7 @@ const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
 /** Confirmed-delete handlers for users */
 const userDelete = createConfirmedHandlers<DisplayUser>({
   identifier: (displayUser) => displayUser.username,
-  identifierLabel: "Username",
+  identifierLabel: t("users.name_label"),
   load: async (id) => {
     const user = await getUserById(id);
     if (!user) return null;

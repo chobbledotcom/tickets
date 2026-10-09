@@ -49,7 +49,7 @@
   "modifiers.delete.submit": "Delete Modifier",
   "modifiers.delete.confirm": "Are you sure you want to delete the modifier {name}?",
   "modifiers.delete.confirm_prompt": "Type the modifier name to confirm:",
-  "modifiers.name_label": "Modifier Name",
+  "modifiers.name_label": "Modifier name",
   "modifiers.scope.none": "Nothing available to link yet.",
   "modifiers.scope.save": "Save scope",
   "modifiers.max_per_order.label": "Max times per order (optional)",
@@ -61,5 +61,6 @@
   "modifiers.recalculate.description": "Compare the stored modifier totals with totals counted from attendee records. Select only the stored values you want to replace.",
   "modifiers.guide_link": "Modifiers guide",
   "fields.modifier.total_uses": "Total Uses",
-  "fields.modifier.usage_count": "Total Orders"
+  "fields.modifier.usage_count": "Total Orders",
+  "modifiers.updated": "Modifier updated"
 }

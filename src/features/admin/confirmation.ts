@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { asString } from "#fp";
+import { t } from "#i18n";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -37,6 +38,11 @@ export type FormGuard<TSession> = Guard<[TSession, FormParams]>;
 export const verifyIdentifier = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();
 
+/** The configured label, calling a getter at request time so module scope
+ * never needs the message catalog. */
+const confirmLabel = (label: string | (() => string)): string =>
+  typeof label === "function" ? label() : label;
+
 /** Checks the form's confirm field, returning a redirect when it differs. */
 export const verifyOrRedirect = (
   form: FormParams,
@@ -49,7 +55,11 @@ export const verifyOrRedirect = (
     const suffix = action ? ` ${action}` : "";
     return errorRedirect(
       redirectUrl,
-      `${label} does not match. Please type the exact ${label.toLowerCase()} to confirm${suffix}.`,
+      t("common.confirm_mismatch", {
+        lower: label.toLowerCase(),
+        suffix,
+        thing: label,
+      }),
     );
   }
   return null;
@@ -73,8 +83,10 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
 > & {
   /** The identifier the user must type (for example, the entity name) */
   identifier: (context: TContext, params: TParams) => string | Promise<string>;
-  /** Label for the identifier field (for example, "Listing name") */
-  identifierLabel: string;
+  /** Label for the identifier field (for example, "Listing name"). A getter
+   * defers the catalog read to request time, for a module that loads before
+   * its message group. */
+  identifierLabel: string | (() => string);
   /** Action suffix for the mismatch error (for example, "deletion") */
   actionLabel?: string;
   /** Where to redirect on identifier mismatch */
@@ -92,7 +104,7 @@ export const createVerifiedFormRoute = <TParams, TContext>(
       args.form,
       expected,
       config.mismatchRedirect(args.context, args.params),
-      config.identifierLabel,
+      confirmLabel(config.identifierLabel),
       config.actionLabel,
     );
     if (error) return error;
@@ -135,8 +147,10 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
   ) => Promise<void> | Promise<Response | undefined>;
   successRedirect: string | ((model: T, id: number) => string);
   successMessage: string;
-  /** Human-readable label for the identifier field (for example, "Username") */
-  identifierLabel: string;
+  /** Human-readable label for the identifier field (for example, "Username").
+   * A getter defers the catalog read to request time, for a module that
+   * loads before its message group. */
+  identifierLabel: string | (() => string);
   /** Action label for the verification prompt (default "deletion") */
   actionLabel?: string;
   /** Optional pre-validation before loading (for example, a self-delete check) */
@@ -260,7 +274,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
           form,
           expected,
           confirmPath(id),
-          config.identifierLabel,
+          confirmLabel(config.identifierLabel),
           actionLabel,
         );
         if (error) return error;

@@ -4,6 +4,7 @@
 
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
@@ -213,16 +214,13 @@ const processContactSubmission = async (
       form.getString(BOTPOISON_FIELD),
     );
     if (!verified) {
-      return errorRedirect(
-        "/contact",
-        "Could not verify your submission. Please try again.",
-      );
+      return errorRedirect("/contact", t("public.verification_failed"));
     }
   }
 
   const sent = await sendContactMessage(result.values.email, message);
   if (!sent) return errorRedirect("/contact", MESSAGE_SEND_FAILED);
-  return redirect("/contact", "Message sent", true);
+  return redirect("/contact", t("public.message_sent"), true);
 };
 
 /** Handle POST /contact - contact form submission. 404 when the form is not

@@ -3,5 +3,6 @@
   "support.contact_support": "Contact support",
   "support.last_submitted": "You last submitted this form <strong>{nagLabel}</strong>.",
   "support.missing_text": "Support information has not been added yet.",
-  "support.guide_link": "Getting help guide"
+  "support.guide_link": "Getting help guide",
+  "support.message_sent": "Your message has been sent"
 }

@@ -36,6 +36,7 @@ import {
   sortStrings,
   unique,
 } from "#fp";
+import { t } from "#i18n";
 import {
   csvResponse,
   getDateFilter,
@@ -395,7 +396,11 @@ const handleAdminCalendarGet = (request: Request) =>
 const handleAdminCalendarExport = (request: Request) =>
   withCalendarSession(request, async (_session, dateFilter) => {
     if (!dateFilter) {
-      return redirect("/admin/calendar", "Select a date to export", false);
+      return redirect(
+        "/admin/calendar",
+        t("admin.calendar.select_date_export"),
+        false,
+      );
     }
 
     const privateKey = await requireRequestPrivateKey();

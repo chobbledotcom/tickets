@@ -6,6 +6,7 @@
 import { ticketCount } from "#booking/ticket-moves.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
+import { t } from "#i18n";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -80,7 +81,7 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
       attendeeId,
       listingId,
       form.getString("return_url") || `/admin/listing/${listingId}`,
-      "Cannot check in a no-quantity line",
+      t("admin.checkin.no_quantity_line"),
     );
     if (noLineRedirect) return noLineRedirect;
 
@@ -90,13 +91,17 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
     // damaged form, not a silent admission.
     const direction = form.getString("check_in");
     if (direction !== "true" && direction !== "false") {
-      return redirect(target, "Invalid check-in direction", false, { form });
+      return redirect(target, t("admin.checkin.invalid_direction"), false, {
+        form,
+      });
     }
     // Every form names its count. A roster line that shows only part of the
     // booking (one date, one filter) cannot move the rest.
     const count = parsePositiveInt(form.getString("quantity"));
     if (count === null) {
-      return redirect(target, "Invalid ticket count", false, { form });
+      return redirect(target, t("admin.checkin.invalid_ticket_count"), false, {
+        form,
+      });
     }
 
     const status = direction === "true" ? "in" : "out";
@@ -111,14 +116,21 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
     // Another request moved every ticket first, so this one changed nothing:
     // no activity row, and a flash that says so.
     if (moved === 0) {
-      return redirect(target, "No tickets moved", false);
+      return redirect(target, t("admin.checkin.no_tickets_moved"), false);
     }
 
     const tickets = ticketsWord(moved);
     const flash =
       data.attendee.quantity > 1
-        ? `Checked ${data.attendee.name} ${status} (${tickets})`
-        : `Checked ${data.attendee.name} ${status}`;
+        ? t("admin.checkin.checked_status_tickets", {
+            name: data.attendee.name,
+            status,
+            tickets,
+          })
+        : t("admin.checkin.checked_status", {
+            name: data.attendee.name,
+            status,
+          });
     return redirect(target, flash, true);
   },
 );

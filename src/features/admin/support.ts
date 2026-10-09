@@ -9,6 +9,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import { formPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";
 import {
@@ -58,7 +59,7 @@ const submitSupportMessage = async (form: FormParams): Promise<Response> => {
   const sent = await sendSupportMessage(message);
   if (!sent) return errorRedirect(SUPPORT_PATH, MESSAGE_SEND_FAILED);
   await recordSupportSubmission();
-  return redirect(SUPPORT_PATH, "Your message has been sent", true);
+  return redirect(SUPPORT_PATH, t("support.message_sent"), true);
 };
 
 /** POST /admin/support — owner-only, CSRF-checked support message. */

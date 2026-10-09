@@ -7,6 +7,7 @@ import {
   unsubscribeHash,
 } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { resetI18nForTest, t } from "#i18n";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -15,6 +16,7 @@ import {
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 
 const getUnsubscribe = (query = ""): Promise<Response> =>
@@ -106,7 +108,7 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       const html = await expectHtmlResponse(
         followed,
         200,
-        "You've unsubscribed",
+        t("unsubscribe.unsubscribed_flash"),
       );
       expect(html).toContain('class="info"');
       expect(html).not.toContain('class="success"');
@@ -130,7 +132,7 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       const html = await expectHtmlResponse(
         followed,
         200,
-        "You've resubscribed",
+        t("unsubscribe.resubscribed_flash"),
       );
       expect(html).toContain('class="success"');
       expect(html).not.toContain('class="info"');
@@ -152,7 +154,31 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       const response = await postUnsubscribe({ action: "unsubscribe" });
       expectRedirect(response, "/unsubscribe");
       const followed = await followRedirectWithFlash(response, handleRequest);
-      await expectHtmlResponse(followed, 200, "That link is invalid.");
+      await expectHtmlResponse(
+        followed,
+        200,
+        t("unsubscribe.invalid_link_flash"),
+      );
+    });
+
+    test("an operator rebrand changes the route flash copy", async () => {
+      const hash = await hashEmail("rebrand@example.com");
+      using _env = withEnv({ I18N_REPLACEMENTS: "marketing|newsletter" });
+      resetI18nForTest();
+      try {
+        const response = await postUnsubscribe({
+          action: "unsubscribe",
+          email: hash,
+        });
+        const followed = await followRedirectWithFlash(response, handleRequest);
+        await expectHtmlResponse(
+          followed,
+          200,
+          "You've unsubscribed from our newsletter emails.",
+        );
+      } finally {
+        resetI18nForTest();
+      }
     });
 
     test("rejects an invalid CSRF token", async () => {

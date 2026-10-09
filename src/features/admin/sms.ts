@@ -15,6 +15,7 @@ import { getAttendeeActivityLog, logActivity } from "#db/activity-log.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#db/attendee-phone-index.ts";
 import { hashPhone, recordContacts } from "#db/contact-preferences.ts";
 import { countSmsMessages, recordSmsMessage } from "#db/sms-messages.ts";
+import { t } from "#i18n";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -91,7 +92,9 @@ const sendSms = (
   const listingId = parsePositiveIntId(form.getString("listing"));
   const attendeeId = parsePositiveIntId(form.getString("attendee"));
   if (listingId === null || attendeeId === null) {
-    return Promise.resolve(redirect("/admin/sms", "Invalid SMS target", false));
+    return Promise.resolve(
+      redirect("/admin/sms", t("sms.error.invalid_target"), false),
+    );
   }
   const backUrl = smsUrl(listingId, attendeeId);
 
@@ -101,24 +104,24 @@ const sendSms = (
   )(async (data) => {
     const config = getSmsGatewayConfig();
     if (!config) {
-      return redirect(backUrl, "SMS gateway is not configured", false);
+      return redirect(backUrl, t("sms.error.gateway_not_configured"), false);
     }
 
     const message = form.getString("message").trim();
     if (!message) {
-      return redirect(backUrl, "Message cannot be empty", false);
+      return redirect(backUrl, t("sms.error.message_empty"), false);
     }
     if (message.length > SMS_MESSAGE_MAX_LENGTH) {
       return redirect(
         backUrl,
-        `Message must be ${SMS_MESSAGE_MAX_LENGTH} characters or fewer`,
+        t("sms.error.message_too_long", { max: SMS_MESSAGE_MAX_LENGTH }),
         false,
       );
     }
 
     const phone = data.attendee.phone.trim();
     if (!phone) {
-      return redirect(backUrl, "Attendee has no phone number on file", false);
+      return redirect(backUrl, t("sms.error.no_phone_number"), false);
     }
 
     // Record a blind-index of the number so inbound replies can be matched
@@ -155,7 +158,7 @@ const sendSms = (
         listingId,
         attendeeId,
       );
-      return redirect(backUrl, "Text message queued", true);
+      return redirect(backUrl, t("sms.success.queued"), true);
     } catch (e) {
       await logActivity(
         `${SMS_LOG_PREFIX} to ${data.attendee.name} could not be queued: ${String(
@@ -164,7 +167,7 @@ const sendSms = (
         listingId,
         attendeeId,
       );
-      return redirect(backUrl, "Message could not be queued", false);
+      return redirect(backUrl, t("sms.error.queue_failed"), false);
     }
   });
 };

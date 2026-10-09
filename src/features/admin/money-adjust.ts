@@ -10,6 +10,7 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
+import { t } from "#i18n";
 import { formGuard, OWNER_FORM } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
@@ -41,7 +42,7 @@ export const makeMoneyAdjustHandler = <Entity>(
   )(async (entity, _session, form, _request, { id }) => {
     const target = parseSignedMinorUnits(form.getString(config.field));
     if (target === null) {
-      return errorRedirect(config.editPath(id), "Enter a valid amount");
+      return errorRedirect(config.editPath(id), t("fields.validation.amount"));
     }
     await config.adjust(entity, target);
     await logActivity(config.logMessage(entity));

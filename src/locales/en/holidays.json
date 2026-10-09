@@ -25,5 +25,6 @@
   "fields.holiday.start_date": "Start date",
   "fields.holiday.end_date": "End date",
   "fields.holiday.end_date_hint": "Must be on or after the start date",
-  "error.end_date_before_start": "End date must be on or after the start date"
+  "error.end_date_before_start": "End date must be on or after the start date",
+  "holidays.name_label": "Holiday name"
 }

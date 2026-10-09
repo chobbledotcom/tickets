@@ -183,7 +183,7 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
       // view.
       return redirect(
         `/admin/listing/${params.listingId}/attendees`,
-        `Added ${values.name}`,
+        t("attendee_form.saved_added", { value: values.name }),
         true,
       );
     },
@@ -236,7 +236,7 @@ const resendNotification = async (
     attendeeId,
     data.listing.id,
     actionsTab,
-    "Cannot re-send a notification for a no-quantity line",
+    t("attendees.resend_refused_no_line"),
     { form },
   );
   if (noLineRedirect) return noLineRedirect;
@@ -246,12 +246,9 @@ const resendNotification = async (
   const entries = await scopeEntries(attendeeId, purchaseScope(data));
   const notify = entries.filter((entry) => !entry.attendee.refunded);
   if (notify.length === 0) {
-    return redirect(
-      actionsTab,
-      "Cannot re-send a notification for a refunded purchase",
-      false,
-      { form },
-    );
+    return redirect(actionsTab, t("attendees.resend_refused_refunded"), false, {
+      form,
+    });
   }
 
   // An admin session can spend the owner key. The resend is therefore the

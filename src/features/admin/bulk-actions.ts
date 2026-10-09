@@ -19,7 +19,6 @@ import { groupListings } from "#db/groups/table.ts";
 import {
   cloneGroupMembershipStatement,
   generateUniqueGroupSlug,
-  getGroupById,
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -46,6 +45,7 @@ import {
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import { groupFormPost } from "#routes/admin/group-form-post.ts";
+import { groupConfirmBase } from "#routes/admin/group-listing-forms.ts";
 import { withGroup } from "#routes/admin/groups.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -104,10 +104,7 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
     `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
   return createVerifiedFormRoute<{ id: number }, Group>({
     actionLabel: `${opts.action}ion`,
-    identifier: (group) => group.name,
-    identifierLabel: "Group name",
-    loadContext: ({ id }) => getGroupById(id),
-    mismatchRedirect: pageUrl,
+    ...groupConfirmBase(pageUrl),
     onConfirm: async ({ context: group }) => {
       // A bulk DEACTIVATE marks every group member inactive at once, which can
       // orphan a child-scoped opt-in add-on rescued only by those members'
@@ -136,7 +133,12 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
       );
       return redirect(
         `/admin/groups/${group.id}`,
-        `Group ${opts.action}d (${xCount(affected)} listings)`,
+        t(
+          opts.active
+            ? "bulk_actions.group_reactivated"
+            : "bulk_actions.group_deactivated",
+          { count: xCount(affected) },
+        ),
         true,
       );
     },
@@ -174,11 +176,11 @@ const firstDuplicateNameError = async (
     if (lengthError) return lengthError;
     const key = normalizeEntityName(name);
     if (seen.has(key)) {
-      return `More than one duplicated listing or group would be named "${name}" — set a find/replace so each name is unique.`;
+      return t("fields.validation.duplicate_clone_names", { name });
     }
     seen.add(key);
     if (await isNameTakenAnywhere(name)) {
-      return `A listing or group named "${name}" already exists — choose a different group name, or a find/replace that makes each clone's name unique.`;
+      return t("fields.validation.clone_name_taken", { name });
     }
   }
   return null;
@@ -188,7 +190,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const formUrl = `/admin/groups/${group.id}/bulk-actions/duplicate`;
   const newName = form.getString("new_name").trim();
   if (!newName) {
-    return errorRedirect(formUrl, "New group name is required");
+    return errorRedirect(formUrl, t("bulk_actions.new_name_required"));
   }
 
   const nameFind = form.getString("name_find");

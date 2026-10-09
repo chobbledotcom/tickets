@@ -8,5 +8,9 @@
   "unsubscribe.unsubscribe_button": "Unsubscribe",
   "unsubscribe.forget_heading": "Delete my data",
   "unsubscribe.forget_explainer": "Delete the contact record linked to this page. It contains a one-way code and counts of your bookings and messages. This cannot be undone. Other contact details from past bookings, such as a phone number, have separate records.",
-  "unsubscribe.forget_button": "Delete my data"
+  "unsubscribe.forget_button": "Delete my data",
+  "unsubscribe.unsubscribed_flash": "You've unsubscribed from our marketing emails.",
+  "unsubscribe.resubscribed_flash": "You've resubscribed to our marketing emails.",
+  "unsubscribe.deleted_flash": "Your contact record has been deleted.",
+  "unsubscribe.invalid_link_flash": "That link is invalid."
 }

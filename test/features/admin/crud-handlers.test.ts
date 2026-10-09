@@ -44,6 +44,7 @@ const crudFor = (
   createCrudHandlers({
     getAll: holidays.getAll,
     getName: (row) => row.name,
+    identifierLabel: options.identifierLabel ?? "Name",
     list: "holidays",
     operations,
     renderDelete: () => "delete",

@@ -22,6 +22,7 @@ import {
   insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import {
   createConfirmedHandlers,
@@ -99,7 +100,7 @@ const handleAttributesPost = createAuthedFormRoute({
     );
     return redirect(
       `/admin/attributes/${attributeId}`,
-      "Attribute created",
+      t("attributes.created"),
       true,
     );
   },
@@ -212,7 +213,7 @@ const handleAttributeEdit = createAuthedFormRoute<
       await logActivity(`Attribute '${name}' updated`);
       return redirect(
         `/admin/attributes/${params.id}`,
-        "Attribute updated",
+        t("attributes.updated"),
         true,
       );
     }),
@@ -230,13 +231,17 @@ const handleAddOption = createAuthedFormRoute<
       // One transaction: an option must never exist without its place in the
       // order or its log line.
       await addAttributeOptionWithLog(attribute, text);
-      return redirect(`/admin/attributes/${params.id}`, "Option added", true);
+      return redirect(
+        `/admin/attributes/${params.id}`,
+        t("attributes.option_added"),
+        true,
+      );
     }),
 });
 
 const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
   identifier: (attribute) => attributeNameFlat(attribute.name),
-  identifierLabel: "Attribute name",
+  identifierLabel: () => t("attributes.name_label"),
   load: getAttributeWithOptions,
   onConfirm: confirmDeleteWithLog(
     deleteAttribute,
@@ -306,14 +311,14 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   actionLabel: "deletion",
   auth: OWNER_FORM,
   identifier: ({ option }) => option.text,
-  identifierLabel: "Option text",
+  identifierLabel: () => t("attributes.option_label"),
   loadContext: loadAttributeOption,
   mismatchRedirect: (_context, params) => optionDeletePath(params),
   onConfirm: async ({ context: { attribute, option } }) => {
     await deleteAttributeOptionWithLog(attribute, option);
     return redirect(
       `/admin/attributes/${attribute.id}`,
-      "Option deleted",
+      t("attributes.option_deleted"),
       true,
     );
   },
@@ -335,7 +340,7 @@ const handleEditOptionPost = createAuthedFormRoute<
     await renameAttributeOptionWithLog(attribute, option, text);
     return redirect(
       `/admin/attributes/${attribute.id}`,
-      "Option updated",
+      t("attributes.option_updated"),
       true,
     );
   },

@@ -12,6 +12,7 @@ import {
   type PaymentReviewState,
 } from "#db/payment-review.ts";
 import { requiredMapValue } from "#fp";
+import { t } from "#i18n";
 import type { PaymentRecoveryAction } from "#payment/admit-move.ts";
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
@@ -278,7 +279,7 @@ const scopedAction =
               action,
               form.getString("return_url"),
             ),
-            "Attendee name",
+            t("attendees.name_label"),
             actionLabel,
           );
           if (error) return error;

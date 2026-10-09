@@ -92,7 +92,11 @@ export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
             transaction,
           ),
       );
-      return redirect(`/admin/questions/${params.id}`, "Answer added", true);
+      return redirect(
+        `/admin/questions/${params.id}`,
+        t("questions.answer_added"),
+        true,
+      );
     },
   });
 
@@ -144,7 +148,7 @@ export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
     actionLabel: "deletion",
     auth: OWNER_FORM,
     identifier: ({ answer }) => answer.text,
-    identifierLabel: "Answer text",
+    identifierLabel: t("questions.answer_label"),
     loadContext: loadQuestionAndAnswer,
     mismatchRedirect: (_, { id, answerId }) =>
       `/admin/questions/${id}/answers/${answerId}/delete`,
@@ -155,7 +159,7 @@ export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
       );
       return redirect(
         `/admin/questions/${question.id}`,
-        "Answer deleted",
+        t("questions.answer_deleted"),
         true,
       );
     },
@@ -213,7 +217,10 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
         modifierId !== null &&
         !(await answerTriggerModifiers()).some((m) => m.id === modifierId)
       ) {
-        return errorRedirect(editAnswerPath(params), "Invalid modifier");
+        return errorRedirect(
+          editAnswerPath(params),
+          t("questions.invalid_modifier"),
+        );
       }
       const aggregates = parseEditableAggregateForm<AnswerAggregateValues>(
         form,
@@ -233,7 +240,7 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       await logActivity(`Answer '${text}' updated in question ${question.id}`);
       return redirect(
         `/admin/questions/${question.id}`,
-        "Answer updated",
+        t("questions.answer_updated"),
         true,
       );
     },

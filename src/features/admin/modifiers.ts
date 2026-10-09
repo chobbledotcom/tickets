@@ -264,6 +264,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
+  identifierLabel: t("modifiers.name_label"),
   list: "modifiers",
   operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
@@ -295,7 +296,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
         await modifierAggregates.update(id, aggregates.input);
       }
       await logActivity(`Modifier '${result.row.name}' updated`);
-      return redirect("/admin/modifiers", "Modifier updated", true);
+      return redirect("/admin/modifiers", t("modifiers.updated"), true);
     }
     if ("notFound" in result) return notFoundResponse();
     return modifierPage.renderEditError(id, _session, form, result.error);

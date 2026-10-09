@@ -409,7 +409,7 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
     );
     return redirect(
       `/admin/listing/${id}/edit`,
-      "Required children updated",
+      t("success.required_children_updated"),
       true,
     );
   });

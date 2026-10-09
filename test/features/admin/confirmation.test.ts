@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { resetI18nForTest, t } from "#i18n";
 import {
   type ConfirmedHandlerConfig,
   createConfirmedHandlers,
@@ -19,6 +20,7 @@ import { setFlashContext } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import {
@@ -74,6 +76,26 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         "Listing name does not match. Please type the exact listing name to confirm deletion.",
         false,
       );
+    });
+
+    test("rebrands the confirm label through the catalog", () => {
+      using _env = withEnv({ I18N_REPLACEMENTS: "attendee|guest" });
+      resetI18nForTest();
+      try {
+        const result = verifyOrRedirect(
+          new FormParams({ confirm_identifier: "Wrong" }),
+          "Test Listing",
+          "/admin/test",
+          t("attendees.name_label"),
+        )!;
+        expectFlash(
+          result,
+          "Guest name does not match. Please type the exact guest name to confirm.",
+          false,
+        );
+      } finally {
+        resetI18nForTest();
+      }
     });
   });
 

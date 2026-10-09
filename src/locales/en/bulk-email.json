@@ -53,5 +53,10 @@
   "bulk_email.delete_template_heading": "Delete template",
   "bulk_email.delete_template_intro": "Are you sure you want to delete the saved template with subject:",
   "bulk_email.delete_template_prompt": "Type the template subject to confirm:",
-  "bulk_email.delete_template_submit": "Delete template"
+  "bulk_email.delete_template_submit": "Delete template",
+  "bulk_email.template_missing": "That template no longer exists.",
+  "bulk_email.template_limit_reached": "You've reached the limit of {max} saved templates.",
+  "bulk_email.template_saved_flash": "Template saved.",
+  "bulk_email.template_updated_flash": "Template updated.",
+  "bulk_email.name_label": "Template subject"
 }

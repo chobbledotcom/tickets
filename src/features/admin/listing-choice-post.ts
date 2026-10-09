@@ -1,9 +1,12 @@
 import { logActivity } from "#db/activity-log.ts";
+/* jscpd:ignore-start */
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import { formGuard, OWNER_FORM } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
+/* jscpd:ignore-end */
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { countLabel } from "#shared/format-units.ts";
@@ -46,6 +49,10 @@ export const createListingChoicePost = ({
         )})`,
         listing,
       );
-      return redirect(`/admin/listing/${id}/${tab}`, `${label} updated`, true);
+      return redirect(
+        `/admin/listing/${id}/${tab}`,
+        t("listings_table.choices_updated", { label }),
+        true,
+      );
     },
   );

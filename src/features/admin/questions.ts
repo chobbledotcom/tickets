@@ -22,6 +22,7 @@ import {
 } from "#db/questions/queries.ts";
 import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
+import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { idRouteFor, ownerFormById, ownerGetById } from "#routes/entity.ts";
@@ -107,7 +108,11 @@ const handleQuestionsPost = createAuthedFormRoute({
       null,
       appendWithCreationLog(questionsOrder, "Question", text),
     );
-    return redirect(`/admin/questions/${questionId}`, "Question created", true);
+    return redirect(
+      `/admin/questions/${questionId}`,
+      t("questions.created"),
+      true,
+    );
   },
 });
 
@@ -156,7 +161,11 @@ const handleQuestionEdit = createAuthedFormRoute<
         : requested;
     await questionsTable.update(params.id, { displayType, text });
     await logActivity(`Question '${text}' updated`);
-    return redirect(`/admin/questions/${params.id}`, "Question updated", true);
+    return redirect(
+      `/admin/questions/${params.id}`,
+      t("questions.updated"),
+      true,
+    );
   },
 });
 
@@ -178,7 +187,11 @@ const handleQuestionListings = ownerFormById(async (id, _session, form) => {
           listingIds.length !== 1 ? "s" : ""
         }`,
   );
-  return redirect(`/admin/questions/${id}`, "Listings updated", true);
+  return redirect(
+    `/admin/questions/${id}`,
+    t("questions.listings_updated"),
+    true,
+  );
 });
 
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
@@ -186,7 +199,7 @@ const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
   // A single-line input cannot carry the raw newlines. Verify against the
   // same flattened form the operator can actually type.
   identifier: (q) => questionTextFlat(q.text),
-  identifierLabel: "Question text",
+  identifierLabel: t("questions.name_label"),
   load: (id) => getQuestionWithAnswers(id),
   onConfirm: confirmDeleteWithLog(deleteQuestion, "Question", (q) => q.text),
   path: "/admin/questions/:id/delete",

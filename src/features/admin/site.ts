@@ -8,6 +8,7 @@ import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import {
   settingsHandler,
   settingsToggle,
@@ -87,7 +88,7 @@ const handleSiteHomePost = createAuthedFormRoute({
     await settings.update.websiteTitle(values.website_title);
     await settings.update.homepageText(values.homepage_text);
     await logActivity("Homepage updated");
-    return redirect("/admin/site", "Homepage updated", true);
+    return redirect("/admin/site", t("site.homepage_updated"), true);
   },
 });
 

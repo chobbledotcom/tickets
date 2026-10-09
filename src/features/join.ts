@@ -141,7 +141,7 @@ const setPasswordRoute = (code: string, user: User) =>
       if (!accepted) {
         return errorRedirect(`/join/${code}`, t("error.invite_invalid"));
       }
-      return redirect("/join/complete", "Password set successfully", true);
+      return redirect("/join/complete", t("success.password_set"), true);
     },
   });
 

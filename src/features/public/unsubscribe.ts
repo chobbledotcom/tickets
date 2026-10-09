@@ -12,6 +12,7 @@ import {
   resubscribeHash,
   unsubscribeHash,
 } from "#db/contact-preferences.ts";
+import { t } from "#i18n";
 import { withCsrfForm } from "#routes/csrf.ts";
 import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
@@ -50,28 +51,25 @@ export const handleUnsubscribePost = (request: Request): Promise<Response> =>
     async (form) => {
       const hash = form.getString("email");
       if (!hash) {
-        return redirect("/unsubscribe", "That link is invalid.", false);
+        return redirect(
+          "/unsubscribe",
+          t("unsubscribe.invalid_link_flash"),
+          false,
+        );
       }
       if (form.getString("action") === "resubscribe") {
         await resubscribeHash(hash);
         return redirect(
           pagePath(hash),
-          "You've resubscribed to our marketing emails.",
+          t("unsubscribe.resubscribed_flash"),
           true,
         );
       }
       if (form.getString("action") === "forget") {
         await forgetContact(hash);
-        return redirect(
-          "/unsubscribe",
-          "Your contact record has been deleted.",
-          true,
-        );
+        return redirect("/unsubscribe", t("unsubscribe.deleted_flash"), true);
       }
       await unsubscribeHash(hash);
-      return infoRedirect(
-        pagePath(hash),
-        "You've unsubscribed from our marketing emails.",
-      );
+      return infoRedirect(pagePath(hash), t("unsubscribe.unsubscribed_flash"));
     },
   );

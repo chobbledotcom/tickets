@@ -10,6 +10,7 @@ import { logActivity } from "#db/activity-log.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
+import { t } from "#i18n";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
@@ -127,7 +128,10 @@ export const processUploadsAndRedirect = async (
   if (caveats.length > 0) {
     return redirect(
       redirectUrl,
-      `${successMessage} but: ${caveats.join("; ")}`,
+      t("listings_table.uploaded_with_caveats", {
+        caveats: caveats.join("; "),
+        success: successMessage,
+      }),
       false,
     );
   }
@@ -149,20 +153,27 @@ const handleFileDelete = (
     const url = getUrl(listing);
     if (url) {
       const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
-      if (deleteResult.status === "fulfilled") {
-        await listingsTable.update(id, clearFields);
-        await logActivity(`${label} removed for '${listing.name}'`, listing);
-        return redirect(returnPath, `${label} removed`, true);
+      if (deleteResult.status !== "fulfilled") {
+        const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
+        logError({
+          code: ErrorCode.STORAGE_DELETE,
+          detail,
+          listingId: listing.id,
+        });
+        return redirect(
+          returnPath,
+          t("listings_table.file_removal_failed", { label }),
+          false,
+        );
       }
-      const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
-      logError({
-        code: ErrorCode.STORAGE_DELETE,
-        detail,
-        listingId: listing.id,
-      });
-      return redirect(returnPath, `${label} removal failed`, false);
+      await listingsTable.update(id, clearFields);
+      await logActivity(`${label} removed for '${listing.name}'`, listing);
     }
-    return redirect(returnPath, `${label} removed`, true);
+    return redirect(
+      returnPath,
+      t("listings_table.file_removed", { label }),
+      true,
+    );
   });
 
 /** Handle POST /admin/listing/:id/attachment/delete (delete listing attachment) */

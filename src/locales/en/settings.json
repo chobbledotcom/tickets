@@ -312,5 +312,9 @@
   "success.apple_wallet_updated": "Apple Wallet settings updated",
   "success.google_wallet_cleared": "Google Wallet configuration cleared",
   "success.google_wallet_updated": "Google Wallet settings updated",
-  "success.database_reset": "Database reset"
+  "success.database_reset": "Database reset",
+  "success.secret_unchanged": "{label} unchanged",
+  "success.secret_updated": "{label} updated successfully",
+  "success.superuser_declined": "Superuser recovery declined",
+  "success.superuser_enabled": "Superuser enabled and credentials sent"
 }

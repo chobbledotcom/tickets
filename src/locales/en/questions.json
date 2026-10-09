@@ -63,5 +63,14 @@
   "questions.linked_all_listings": "Linked {type} (all):",
   "questions.save_listings": "Save listings",
   "fields.answer.times_selected": "Times selected",
-  "questions.answers.free_text_no_options": "Free-text questions don't have answer options."
+  "questions.answers.free_text_no_options": "Free-text questions don't have answer options.",
+  "questions.created": "Question created",
+  "questions.updated": "Question updated",
+  "questions.listings_updated": "Listings updated",
+  "questions.answer_added": "Answer added",
+  "questions.answer_deleted": "Answer deleted",
+  "questions.answer_updated": "Answer updated",
+  "questions.invalid_modifier": "Invalid modifier",
+  "questions.name_label": "Question text",
+  "questions.answer_label": "Answer text"
 }

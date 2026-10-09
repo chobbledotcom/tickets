@@ -17,6 +17,7 @@ import {
   type ListingAggregateValues,
   listingAggregates,
 } from "#db/listings/aggregates.ts";
+import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
 import {
   type EditErrorRenderer,
@@ -75,7 +76,7 @@ const reconcileDurationChange = async (
     `Duration change caused group capacity overflow on ${overDay}`,
     row,
   );
-  return ` Warning: group capacity exceeded on ${overDay}`;
+  return t("listings_table.duration_capacity_warning", { overDay });
 };
 
 /** Re-render the Edit tab in place at 400 with the submitted error and the
@@ -113,7 +114,7 @@ export const handleListingEditSuccess = async (
     formData,
     id,
     entityReturnPath("/admin/listings", row.id),
-    `Listing updated${durationWarning}`,
+    t("listings_table.listing_updated", { warning: durationWarning }),
     existing.attachment_url,
   );
 };

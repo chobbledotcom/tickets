@@ -163,6 +163,135 @@ const templatePropLeftovers = (src: string): string[] =>
     propHit,
   );
 
+/** The response helpers whose second argument is a flash message. ok and
+ * fail wrap redirect in src/shared/response.ts. */
+const FLASH_CALL =
+  /(?<![A-Za-z0-9_$.])(errorRedirect|infoRedirect|redirect|ok|fail)\s*\(/g;
+
+/** A message argument that is exactly one string or template literal. */
+const BARE_LITERAL =
+  /^(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.)*)`)$/;
+
+/** One call argument: its text and where the text starts in the source. */
+type CallArg = { start: number; text: string };
+
+/** Quote, bracket, and closer characters, as flat membership sets so the
+ * argument walk stays a short chain of checks. */
+const QUOTES = "\"'`";
+const OPENERS = "([{";
+const CLOSERS = ")]}";
+
+/** The index of the quote that closes the region opening at `open`, or the
+ * source length when the source ends first, so the walk stops on its own. */
+const closeQuoteAt = (src: string, open: number): number => {
+  for (let i = open + 1; i < src.length; i++) {
+    if (src[i] === "\\") i++;
+    else if (src[i] === src[open]) return i;
+  }
+  return src.length;
+};
+
+/** One bracket character's effect on nesting depth: +1, -1, or 0. */
+const depthStep = (ch: string): number =>
+  OPENERS.includes(ch) ? 1 : CLOSERS.includes(ch) ? -1 : 0;
+
+/** The index where the comment starting at `open` ends, or the source length
+ * when it never ends. A line comment ends before its newline; a block comment
+ * ends after its closer. */
+const commentStopAt = (src: string, open: number, block: boolean): number => {
+  const end = src.indexOf(block ? "*/" : "\n", open + 2);
+  if (end === -1) return src.length;
+  return block ? end + 2 : end;
+};
+
+/** Blanks the comment characters from `start` to `stop`, keeping newlines. */
+const blankRange = (
+  out: string[],
+  src: string,
+  start: number,
+  stop: number,
+): void => {
+  for (let j = start; j < stop; j++) {
+    if (src[j] !== "\n") out[j] = " ";
+  }
+};
+
+/** The source with line and block comments blanked to spaces. Lengths and
+ * line breaks stay identical, so match positions keep pointing at the same
+ * characters. A quoted region keeps its comment-like characters: a message
+ * may hold a URL. */
+const blankComments = (src: string): string => {
+  const out = src.split("");
+  let i = 0;
+  while (i < src.length) {
+    if (QUOTES.includes(src[i]!)) {
+      i = closeQuoteAt(src, i) + 1;
+      continue;
+    }
+    const opensComment =
+      src[i] === "/" && (src[i + 1] === "/" || src[i + 1] === "*");
+    if (opensComment) {
+      const stop = commentStopAt(src, i, src[i + 1] === "*");
+      blankRange(out, src, i, stop);
+      i = stop;
+      continue;
+    }
+    i++;
+  }
+  return out.join("");
+};
+
+/** Reads a call's top-level arguments, honouring strings and nesting. Returns
+ * null when the call never closes, so a broken match never reports. */
+const topLevelArgs = (src: string, open: number): CallArg[] | null => {
+  const args: CallArg[] = [];
+  let depth = 0;
+  let start = open + 1;
+  for (let i = open; i < src.length; i++) {
+    const ch = src[i]!;
+    if (QUOTES.includes(ch)) {
+      i = closeQuoteAt(src, i);
+      continue;
+    }
+    depth += depthStep(ch);
+    const closesCall = depth === 0;
+    const splitsArgs = ch === "," && depth === 1;
+    if (closesCall || splitsArgs) {
+      args.push({ start, text: src.slice(start, i) });
+    }
+    if (closesCall) return args;
+    if (splitsArgs) start = i + 1;
+  }
+  return null;
+};
+
+/** The hard-coded flash messages one route source still passes to redirect,
+ * errorRedirect, or infoRedirect. The message is the second argument, so the
+ * scan reads that argument alone: a quoted path in the first argument and a
+ * quoted option value later never count. The argument counts only when it is
+ * exactly one string or template literal, so a t() call, a ternary of t()
+ * calls, and a variable all pass. The scan reads blanked source, so a call
+ * inside a comment never matches and a comment inside a call never hides its
+ * message argument. */
+export const flashLiterals = (source: string): string[] => {
+  const src = blankComments(source);
+  const hits: string[] = [];
+  for (const call of src.matchAll(FLASH_CALL)) {
+    const message = topLevelArgs(src, call.index + call[0].length - 1)?.[1];
+    if (message === undefined) continue;
+    const lead = message.text.length - message.text.trimStart().length;
+    const literal = message.text.trim().match(BARE_LITERAL);
+    if (literal === null) continue;
+    // The match exists, so exactly one quote-style group holds the text.
+    const value = (literal[1] ?? literal[2] ?? literal[3])!.trim();
+    if (!wordy(value)) continue;
+    const at = message.start + lead + literal.index!;
+    const line = src.slice(0, at).split("\n").length;
+    hits.push(`L${line} flash "${value}"`);
+  }
+  return hits;
+};
+
 /** Hard-coded user-facing strings still present in a file's source. */
 export const leftoverLiterals = (src: string, isTs: boolean): string[] => {
   const hits: string[] = [];
