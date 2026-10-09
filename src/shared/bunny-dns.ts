@@ -110,6 +110,108 @@ export type SubdomainRegistrarDeps = {
   delay: (ms: number) => Promise<void>;
 };
 
+/** The write of one CNAME record: the record id the API reports, for the
+ *  cleanup when a later step fails. */
+type CnameWrite =
+  | { ok: true; recordId: number | undefined }
+  | { ok: false; error: string; errorKey?: string | undefined };
+
+/** Add the CNAME record to the DNS zone, and log the full request when the
+ *  write fails. */
+const addCnameRecord = async (
+  zoneId: string,
+  recordName: string,
+  target: string,
+): Promise<CnameWrite> => {
+  const dnsRecordBody = {
+    Name: recordName,
+    Ttl: 300,
+    Type: DNS_RECORD_TYPE_CNAME,
+    Value: target,
+  };
+  const dnsUrl = `https://api.bunny.net/dnszone/${zoneId}/records`;
+  const addResponse = await bunnyJsonRequest(
+    dnsUrl,
+    JSON.stringify(dnsRecordBody),
+    "PUT",
+  );
+
+  if (!addResponse.ok) {
+    const err = parseBunnyError(addResponse, "Add DNS CNAME record");
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(
+        dnsRecordBody,
+      )}`,
+    });
+    return err;
+  }
+
+  // The response is sometimes not JSON. Cleanup then relies on a zone lookup.
+  try {
+    const parsed = JSON.parse(addResponse.text);
+    return { ok: true, recordId: parsed.Id };
+  } catch {
+    return { ok: true, recordId: undefined };
+  }
+};
+
+/** Validate the hostname on the pull zone, waiting between tries so the fresh
+ *  DNS record can propagate. One first try, then CERT_RETRY_COUNT retries. */
+const retryCertificateSetup = async (
+  deps: SubdomainRegistrarDeps,
+  fullDomain: string,
+): Promise<BunnyApiResult> => {
+  let cdnResult = await deps.validateCustomDomain(fullDomain);
+  for (const attempt of range(0, CERT_RETRY_COUNT)) {
+    if (cdnResult.ok) return cdnResult;
+    await deps.delay(certRetryDelay(attempt));
+    cdnResult = await deps.validateCustomDomain(fullDomain);
+  }
+  return cdnResult;
+};
+
+/** The registration flow: availability, CNAME record, hostname validation
+ *  with retries, and cleanup when validation fails. */
+const registerSubdomainFlow = async (
+  deps: SubdomainRegistrarDeps,
+  subdomain: string,
+): Promise<DomainResult> => {
+  // 1. Check availability
+  const availCheck = await deps.checkSubdomainAvailable(subdomain);
+  if (!availCheck.ok) return availCheck;
+  if (!availCheck.available) {
+    return { error: `Subdomain "${subdomain}" is already taken`, ok: false };
+  }
+  const fullDomain = availCheck.fullDomain;
+
+  // Resolve the stable CDN hostname for the CNAME target, never the raw
+  // script host or the custom domain.
+  const cdnHostname = await deps.getCdnHostname();
+  if (!cdnHostname.ok) {
+    return reported(cdnHostname);
+  }
+
+  // 2. Add CNAME record in DNS zone
+  const zoneId = getBunnyDnsZoneId();
+  const record = await addCnameRecord(
+    zoneId,
+    buildSubdomainRecordName(subdomain),
+    cdnHostname.hostname,
+  );
+  if (!record.ok) return record;
+
+  // 3. Register hostname with pull zone (add hostname + SSL)
+  const cdnResult = await retryCertificateSetup(deps, fullDomain);
+  if (cdnResult.ok) return { fullDomain, ok: true };
+
+  // Clean up: remove the DNS record we created since certificate setup failed
+  if (record.recordId !== undefined) {
+    await deps.deleteDnsRecord(zoneId, record.recordId);
+  }
+  return cdnResult;
+};
+
 /**
  * Register a bunny subdomain. Adds a CNAME DNS record that points to the CDN
  * target, then registers the hostname with the CDN pull zone with force SSL.
@@ -117,80 +219,8 @@ export type SubdomainRegistrarDeps = {
  */
 export const registerBunnySubdomainImpl =
   (deps: SubdomainRegistrarDeps) =>
-  async (subdomain: string): Promise<DomainResult> => {
-    // 1. Check availability
-    const availCheck = await deps.checkSubdomainAvailable(subdomain);
-    if (!availCheck.ok) return availCheck;
-    if (!availCheck.available) {
-      return { error: `Subdomain "${subdomain}" is already taken`, ok: false };
-    }
-
-    const recordName = buildSubdomainRecordName(subdomain);
-    const fullDomain = availCheck.fullDomain;
-
-    // Resolve the stable CDN hostname for the CNAME target, never the raw
-    // script host or the custom domain.
-    const cdnHostname = await deps.getCdnHostname();
-    if (!cdnHostname.ok) {
-      return reported(cdnHostname);
-    }
-    const target = cdnHostname.hostname;
-
-    // 2. Add CNAME record in DNS zone
-    const zoneId = getBunnyDnsZoneId();
-    const dnsRecordBody = {
-      Name: recordName,
-      Ttl: 300,
-      Type: DNS_RECORD_TYPE_CNAME,
-      Value: target,
-    };
-    const dnsUrl = `https://api.bunny.net/dnszone/${zoneId}/records`;
-    const addResponse = await bunnyJsonRequest(
-      dnsUrl,
-      JSON.stringify(dnsRecordBody),
-      "PUT",
-    );
-
-    if (!addResponse.ok) {
-      const err = parseBunnyError(addResponse, "Add DNS CNAME record");
-      logError({
-        code: ErrorCode.CDN_REQUEST,
-        detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(
-          dnsRecordBody,
-        )}`,
-      });
-      return err;
-    }
-
-    // Extract record ID from response for cleanup on failure
-    let dnsRecordId: number | undefined;
-    try {
-      const parsed = JSON.parse(addResponse.text);
-      if (parsed.Id) dnsRecordId = parsed.Id;
-    } catch {
-      /* The response is sometimes not JSON. Cleanup then relies on a zone
-       * lookup. */
-    }
-
-    // 3. Register hostname with pull zone (add hostname + SSL)
-    //    Retry to allow DNS propagation after CNAME record creation.
-    let cdnResult = await deps.validateCustomDomain(fullDomain);
-    for (const attempt of range(0, CERT_RETRY_COUNT)) {
-      if (cdnResult.ok) break;
-      await deps.delay(certRetryDelay(attempt));
-      cdnResult = await deps.validateCustomDomain(fullDomain);
-    }
-
-    if (!cdnResult.ok) {
-      // Clean up: remove the DNS record we created since certificate setup failed
-      if (dnsRecordId !== undefined) {
-        await deps.deleteDnsRecord(zoneId, dnsRecordId);
-      }
-      return cdnResult;
-    }
-
-    return { fullDomain, ok: true };
-  };
+  (subdomain: string): Promise<DomainResult> =>
+    registerSubdomainFlow(deps, subdomain);
 
 /**
  * Delete a DNS record by ID. Used to clean up CNAME records when
