@@ -1,7 +1,10 @@
 import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripAnsi } from "./ansi.ts";
-import { nullIfNotFound } from "./not-found.ts";
+import {
+  nullIfNotFound,
+  rethrowUnlessNotFound,
+} from "./not-found.ts";
 import { toDisplayPath } from "./project-root.ts";
 import { readStream } from "./stream-lines.ts";
 import {
@@ -453,6 +456,14 @@ export const runCompactDenoTest = async (
   },
 ): Promise<number> => {
   console.log("Running tests...");
+  // A report left by a killed prior run must not name this run's dead files:
+  // the child rewrites the report only when it completes.
+  if (options.junitPath !== undefined) {
+    const stale = isAbsolute(options.junitPath)
+      ? options.junitPath
+      : join(options.cwd, options.junitPath);
+    await Deno.remove(stale).catch(rethrowUnlessNotFound);
+  }
   const command = new Deno.Command(Deno.execPath(), {
     args,
     cwd: options.cwd,

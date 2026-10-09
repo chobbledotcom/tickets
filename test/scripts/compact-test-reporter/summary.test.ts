@@ -411,9 +411,12 @@ describe("running deno test with the compact reporter", () => {
     }
   });
 
-  test("lets a JUnit read failure other than a missing file surface", async () => {
+  test("lets a report path failure other than a missing file surface", async () => {
     const dir: TempPath = tempDir();
     try {
+      // A filled directory cannot be removed, so the run must surface the
+      // failure instead of treating the path as absent.
+      Deno.writeTextFileSync(`${dir.path}/blocked.xml`, "not a report\n");
       await expect(
         runCompactDenoTest(["eval", "Deno.exit(0);"], {
           cwd: dir.path,
@@ -461,6 +464,40 @@ describe("running deno test with the compact reporter", () => {
         "\ndeno's JUnit report marks these files with uncaught errors:",
       );
       expect(errors.join("\n")).toContain("  ./crashes.test.ts");
+    } finally {
+      dir.dispose();
+    }
+  });
+
+  test("does not name the files a stale report at the run's path holds", async () => {
+    const dir: TempPath = tempDir();
+    try {
+      Deno.writeTextFileSync(
+        `${dir.path}/junit.xml`,
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<testsuites name="deno test" tests="1" failures="0" errors="1">',
+          '    <testsuite name="./stale.test.ts" tests="1" errors="1" failures="0">',
+          '        <testcase name="gone" classname="./stale.test.ts">',
+          '            <error message="Cancelled"/>',
+          "        </testcase>",
+          "    </testsuite>",
+          "</testsuites>",
+        ].join("\n"),
+      );
+      const { errors, value } = await capturingConsole(() =>
+        runCompactDenoTest(
+          ["eval", 'Deno.test("fine", () => {}); Deno.exit(1);'],
+          {
+            cwd: dir.path,
+            env: { CI: "1" },
+            junitPath: "junit.xml",
+          },
+        ),
+      );
+
+      expect(value).not.toBe(0);
+      expect(errors.join("\n")).not.toContain("stale.test.ts");
     } finally {
       dir.dispose();
     }
