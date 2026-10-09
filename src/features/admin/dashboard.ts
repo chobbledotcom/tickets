@@ -23,6 +23,7 @@ import { settings } from "#db/settings.ts";
 import { compact, filter, unique } from "#fp";
 import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
+import { returnPathFromQuery } from "#routes/admin/login-return.ts";
 import {
   adminLandingPath,
   contentPage,
@@ -73,7 +74,10 @@ export const loginResponse = async (
   // success (for example, "Logged out") is rendered by the Layout backstop
   // from context.
   const flash = await flashForPage(request);
-  return htmlResponse(adminLoginPage(flash.error), status);
+  return htmlResponse(
+    adminLoginPage(flash.error, returnPathFromQuery(request)),
+    status,
+  );
 };
 
 const NEWEST_ATTENDEES_LIMIT = 10;

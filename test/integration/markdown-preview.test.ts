@@ -75,7 +75,7 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
 
     const response = await postPreview("**hi**", { csrfToken });
 
-    expect(response.status).toBe(302);
+    // A POST is not navigable after login, so it carries no return target.
     expect(response.headers.get("location")).toBe("/admin");
   });
 

@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   createTestEditorSession,
@@ -38,10 +39,9 @@ describeWithEnv("admin segment dispatch", { db: true }, () => {
     expect(second.status).toBe(200);
   });
 
-  test("a signed-out visitor is sent back to /admin", async () => {
+  test("a signed-out visitor is sent to the login flow with the page asked for", async () => {
     const response = await awaitTestRequest("/admin/settings");
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/admin");
+    expectLoginRedirectWithReturn("/admin/settings")(response);
   });
 
   test("a signed-out visitor still reaches the login pages", async () => {

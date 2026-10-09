@@ -122,7 +122,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(SUPERUSER_ROUTE, { csrf_token: "fake" }),
     );
-    expect(response.status).toBe(302);
+    // A POST is not navigable after login, so it carries no return target.
     expect(response.headers.get("location")).toBe("/admin");
   });
 

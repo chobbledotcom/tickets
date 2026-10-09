@@ -23,6 +23,10 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 import {
+  expectLoginRedirectWithReturn,
+  landedAt,
+} from "#test-utils/login-redirect.ts";
+import {
   awaitTestRequest,
   mockAdminLoginRequest,
   mockFormRequest,
@@ -320,6 +324,112 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       expect(html).toContain("Login");
       expect(html).toContain("Username or password was wrong");
       expect(html).not.toContain("Listing name");
+    });
+  });
+
+  describe("login return target", () => {
+    test("the gate hands the login page the address the visitor asked for", async () => {
+      const response = await awaitTestRequest("/admin/listings/12");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "/admin?return_url=%2Fadmin%2Flistings%2F12",
+      );
+    });
+
+    test("the gate keeps the requested query string", async () => {
+      const response = await awaitTestRequest("/admin/listings/12?tab=notes");
+      expect(response.headers.get("location")).toBe(
+        "/admin?return_url=%2Fadmin%2Flistings%2F12%3Ftab%3Dnotes",
+      );
+    });
+
+    test("the gate carries the page even when its query holds an attack", async () => {
+      // The query is parameter data for the admin page, so a hostile value
+      // rides along inert; the navigated path stays on the site.
+      const response = await awaitTestRequest(
+        "/admin/listings/12?return_url=//evil.com",
+      );
+      expect(response.headers.get("location")).toBe(
+        "/admin?return_url=%2Fadmin%2Flistings%2F12%3Freturn_url%3D%2F%2Fevil.com",
+      );
+    });
+
+    test("a successful login returns to the page the visitor asked for", async () => {
+      // The journey: open a page logged out, log in from the login page the
+      // gate serves, and land back on that page.
+      const gate = await awaitTestRequest("/admin/listings/12");
+      const loginPage = await awaitTestRequest(gate.headers.get("location")!);
+      const html = await loginPage.text();
+      expect(extractInputValue(html, "return_url")).toBe("/admin/listings/12");
+      const response = await handleRequest(
+        await mockAdminLoginRequest(
+          {
+            password: TEST_ADMIN_PASSWORD,
+            return_url: "/admin/listings/12",
+            username: TEST_ADMIN_USERNAME,
+          },
+          extractInputValue(html, "csrf_token") ?? undefined,
+        ),
+      );
+      expect(landedAt(response).pathname).toBe("/admin/listings/12");
+    });
+
+    test("a successful login keeps an encoded query value", async () => {
+      const response = await handleRequest(
+        await mockAdminLoginRequest({
+          password: TEST_ADMIN_PASSWORD,
+          return_url: "/admin/listings/12?filter=A%26B",
+          username: TEST_ADMIN_USERNAME,
+        }),
+      );
+      const landed = landedAt(response);
+      expect(landed.pathname).toBe("/admin/listings/12");
+      // The filter is one value, A&B — the & the value carries stayed encoded
+      // through the login round trip.
+      expect(landed.searchParams.get("filter")).toBe("A&B");
+    });
+
+    test("an attack target lands on the dashboard", async () => {
+      for (const attack of [
+        "//evil.com",
+        "https://evil.com/admin",
+        "%2F%2Fevil.com",
+        "/admin/..%2F..%2Fpublic",
+      ]) {
+        const response = await handleRequest(
+          await mockAdminLoginRequest({
+            password: TEST_ADMIN_PASSWORD,
+            return_url: attack,
+            username: TEST_ADMIN_USERNAME,
+          }),
+        );
+        expect(landedAt(response).pathname, attack).toBe("/admin");
+      }
+    });
+
+    test("a failed login keeps the return target", async () => {
+      const response = await handleRequest(
+        await mockAdminLoginRequest({
+          password: "wrong",
+          return_url: "/admin/listings/12",
+          username: TEST_ADMIN_USERNAME,
+        }),
+      );
+      expectLoginRedirectWithReturn("/admin/listings/12")(response);
+      const page = await followRedirectWithFlash(response, handleRequest);
+      expect(extractInputValue(await page.text(), "return_url")).toBe(
+        "/admin/listings/12",
+      );
+    });
+
+    test("a login without a target lands on the dashboard", async () => {
+      const response = await handleRequest(
+        await mockAdminLoginRequest({
+          password: TEST_ADMIN_PASSWORD,
+          username: TEST_ADMIN_USERNAME,
+        }),
+      );
+      await expectAdminLoginSuccess(response);
     });
   });
 });
