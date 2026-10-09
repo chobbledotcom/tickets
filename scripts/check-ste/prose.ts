@@ -202,8 +202,6 @@ const blocksFrom = (tokens: Token[], source: ProseBlock): ProseBlock[] =>
     BLOCK_READERS[policyOf(token) as keyof typeof BLOCK_READERS](token, locate),
   ).flat();
 
-/** Collapse whitespace, so the block's identity is stable under rewrapping
- * and exempt-span length changes. */
 /** The rule for a double-quoted span: it is machine-owned only when it
  * names an error message or code. The text before it decides — the
  * argument of a thrown error, the words "error" or "message", or a colon.
@@ -211,6 +209,8 @@ const blocksFrom = (tokens: Token[], source: ProseBlock): ProseBlock[] =>
 const ERROR_OR_CODE_QUOTE =
   /(?:\bnew\s+[A-Za-z]*Error\s*\([^"]*|\b(?:error|message)\s*|:)\s*$/i;
 
+/** Collapse whitespace, so the block's identity is stable under rewrapping
+ * and exempt-span length changes. */
 const normalizeInBlock = (source: ProseBlock): ProseBlock => {
   const parts: ProseBlock[] = [];
   // One prose part at its own source position: a whitespace run becomes one

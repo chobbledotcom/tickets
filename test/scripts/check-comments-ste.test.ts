@@ -49,10 +49,10 @@ describe("comment language rules", () => {
   test("leaves a quoted error message alone", () => {
     expect(() => rulesOf('// The write fails: "wasn\'t finalized".')).toThrow();
     expect(() =>
-      rulesOf('// The error "wasn\'t finalized" repeats.').toThrow(),
+      rulesOf('// The error "wasn\'t finalized" repeats.'),
     ).toThrow();
     expect(() =>
-      rulesOf('// Throws new Error("it should not happen").').toThrow(),
+      rulesOf('// Throws new Error("it should not happen").'),
     ).toThrow();
   });
 
