@@ -173,10 +173,10 @@ const aboveMaximumRefusal = (
   listing: ListingWithCount,
   name: string,
   foldedDailyChildIds: ReadonlySet<number>,
-  quantities: ReadonlyMap<number, number>,
+  summedQuantity: number,
 ): { error: string; status: number } | null => {
   if (foldedDailyChildIds.has(listing.id)) return null;
-  if ((quantities.get(listing.id) ?? 0) <= listing.max_quantity) return null;
+  if (summedQuantity <= listing.max_quantity) return null;
   return {
     error: name
       ? t("payment.failure.above_maximum_named", {
@@ -264,7 +264,8 @@ export const validateAllItems = async (
       listing,
       name,
       dailyFoldedIds,
-      quantities,
+      // The sum map is built from this same items list, so the lookup holds.
+      quantities.get(item.e)!,
     );
     if (maxRefusal) return validationFailure(session, maxRefusal, item.e);
     const itemGroupId = lineGroupId(item);
