@@ -16,10 +16,6 @@ export const RETURN_URL_PARAM = "return_url";
  *  of the admin area. */
 const ADMIN_PREFIX = "/admin/";
 
-/** The paths the login flow refuses to return to. A return to the login page
- *  loops, and logout after a successful login is nonsense. */
-const RETURN_FORBIDDEN_PATHS = new Set(["/admin/login", "/admin/logout"]);
-
 /** A control character (C0 or DEL) in a page address is never a real page.
  *  It is invisible in a Location header, and an attacker can use it to inject
  *  a header. */
@@ -53,7 +49,14 @@ export const adminReturnPath = (
   const target = new URL(decoded, "http://localhost");
   const path = `${target.pathname}${target.search}`;
   if (!path.startsWith(ADMIN_PREFIX)) return null;
-  if (RETURN_FORBIDDEN_PATHS.has(target.pathname)) return null;
+  // A return to the login page loops, and logout after a successful login is
+  // nonsense.
+  if (
+    target.pathname === "/admin/login" ||
+    target.pathname === "/admin/logout"
+  ) {
+    return null;
+  }
   return path;
 };
 
