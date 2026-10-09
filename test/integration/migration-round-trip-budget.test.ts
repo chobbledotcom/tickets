@@ -198,6 +198,8 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     const marker = await getDb().execute(
       `SELECT value FROM settings WHERE key = '${LATEST_DB_UPDATE_KEY}'`,
     );
-    expect(marker.rows[0]?.value).toBe(LATEST_UPDATE);
+    // The row list itself: a missing marker row fails by name, not as an
+    // undefined value.
+    expect(marker.rows).toEqual([{ value: LATEST_UPDATE }]);
   });
 });

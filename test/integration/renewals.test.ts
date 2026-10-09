@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -11,6 +11,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import type { Listing } from "#types";
 
@@ -182,8 +183,9 @@ describeWithEnv("renewals", { db: true }, () => {
 
   test(
     "pushReadOnlyFrom is called exactly once with computed cutoff",
-    withRenewalTest({ quantity: 2 }, async ({ secretStub }) => {
-      expectReadOnlyFromPush(secretStub);
+    withRenewalTest({ quantity: 2 }, async ({ baseDate, secretStub }) => {
+      const { secretValue } = expectReadOnlyFromPush(secretStub);
+      expect(secretValue).toBe(addMonthsIso(baseDate, 2));
     }),
   );
 
@@ -197,11 +199,19 @@ describeWithEnv("renewals", { db: true }, () => {
     ),
   );
 
-  test("siteToken present but no matching site logs error, no Bunny call", async () => {
-    await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeRenewalEntry({ id: 1, months_per_unit: 1 }, 1);
-      await applyRenewalsForEntries([entry], "nonexistent-token-xyz");
-      expectNoBunnyCall(secretStub);
+  describe("siteToken present but no matching site", () => {
+    const errors = setupErrorSpy();
+
+    test("logs error, no Bunny call", async () => {
+      await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
+        const entry = makeRenewalEntry({ id: 1, months_per_unit: 1 }, 1);
+        await applyRenewalsForEntries([entry], "nonexistent-token-xyz");
+        // The error names the unknown token index; nothing reaches Bunny.
+        expect(errors.contains("Renewal site not found for token index")).toBe(
+          true,
+        );
+        expectNoBunnyCall(secretStub);
+      });
     });
   });
 
