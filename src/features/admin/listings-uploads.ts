@@ -22,10 +22,11 @@ import {
   deleteFile,
   generateAttachmentFilename,
   isStorageEnabled,
-  tryDeleteFile,
   uploadAttachment,
   validateAttachment,
 } from "#shared/storage.ts";
+import { tryDeleteFile } from "#shared/storage-cleanup.ts";
+
 import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */

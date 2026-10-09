@@ -37,10 +37,9 @@ import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { featureGate } from "#shared/response-steps.ts";
-import {
-  deleteImageStorageFilesStrict,
-  isStorageEnabled,
-} from "#shared/storage.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
+import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
+
 import {
   adminImageDeletePage,
   adminImageEditPage,

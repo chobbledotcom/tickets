@@ -15,11 +15,12 @@ import { clearSessionCookie } from "#shared/cookies.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import {
   deleteAllImageStorageFiles,
   deleteAllListingAttachmentFiles,
-  isStorageEnabled,
-} from "#shared/storage.ts";
+} from "#shared/storage-cleanup.ts";
+
 import {
   demoResetPage,
   RESET_DATABASE_PHRASE,
