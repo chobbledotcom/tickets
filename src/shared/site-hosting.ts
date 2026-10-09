@@ -27,7 +27,7 @@ export type SiteHostingAccess =
 /**
  * A built site can only be reached on its hosting provider when it has a
  * hosting ID and the host holds the provider's API key. `blocked` finishes
- * the error sentence — e.g. "its secrets can't be read".
+ * the error message: "its secrets can't be read".
  */
 export const siteHostingAccess = (
   site: { hostingId: string; hostingProvider: HostingProvider },

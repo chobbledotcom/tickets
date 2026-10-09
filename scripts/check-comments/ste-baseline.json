@@ -2292,9 +2292,7 @@
     "contraction": 1
   },
   "src/shared/site-hosting.ts": {
-    "long-sentence": 1,
-    "wordy": 1,
-    "contraction": 1
+    "long-sentence": 1
   },
   "src/shared/site-pages/core.ts": {
     "semicolon": 8,

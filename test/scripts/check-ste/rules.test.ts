@@ -100,6 +100,21 @@ describe("check-ste rules", () => {
       expect(
         rulesOn('The call throws new Error("it should not happen").'),
       ).toEqual([]);
+      expect(
+        rulesOn('The call throws new Error(read(x), "it should not happen").'),
+      ).toEqual([]);
+    });
+
+    test("judges a quote after a completed error constructor", () => {
+      expect(
+        rulesOn('Use new Error(code) before saying "the path should retry".'),
+      ).toEqual(["banned-modal"]);
+    });
+
+    test("keeps an escaped quote inside an exempt message", () => {
+      expect(
+        rulesOn('The error "The \\"should\\" value failed" repeats.'),
+      ).toEqual([]);
     });
 
     test("keeps the line numbers of every prose line", () => {

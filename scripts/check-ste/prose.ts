@@ -154,12 +154,18 @@ const INLINE_READERS: Record<
       ? replacement(locate(token.raw), "%")
       : readChildren(inlineText, token, locate),
   span: (_token, locate) => replacement(locate(_token.raw), "%"),
-  text: (token, locate) =>
-    escapedText(
+  text: (token, locate) => {
+    if (token.type === "escape" && textOf(token) === '"') {
+      // An escaped double quote opens and closes no quoted span, so it
+      // reads as the machine placeholder.
+      return replacement(locate(token.raw), "%");
+    }
+    return escapedText(
       token.type === "escape"
         ? locateParts(locate(token.raw))(textOf(token))
         : locate(token.raw),
-    ),
+    );
+  },
 };
 
 /** The prose of one run of inline Markdown. */
@@ -202,12 +208,36 @@ const blocksFrom = (tokens: Token[], source: ProseBlock): ProseBlock[] =>
     BLOCK_READERS[policyOf(token) as keyof typeof BLOCK_READERS](token, locate),
   ).flat();
 
+/** Whether a still-open error constructor call holds the end of `before`:
+ * the last `new XError(` in it with every parenthesis it opened still
+ * unclosed. A call the prose already closed owns nothing after it. */
+const insideErrorCall = (before: string): boolean => {
+  const calls = [...before.matchAll(/\bnew\s+[A-Za-z]*Error\s*\(/gi)];
+  if (calls.length === 0) return false;
+  const call = calls[calls.length - 1]!;
+  let depth = 0;
+  for (
+    let index = call.index + call[0].length;
+    index < before.length;
+    index += 1
+  ) {
+    const character = before[index];
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (depth < 0) return false;
+  }
+  return true;
+};
+
 /** The rule for a double-quoted span: it is machine-owned only when it
- * names an error message or code. The text before it decides — the
- * argument of a thrown error, the words "error" or "message", or a colon.
- * A quotation behind any other word is prose, and the rules judge it. */
-const ERROR_OR_CODE_QUOTE =
-  /(?:\bnew\s+[A-Za-z]*Error\s*\([^"]*|\b(?:error|message)\s*|:)\s*$/i;
+ * names an error message or code. The text before it decides — a still
+ * open error constructor call holds it, the words "error" or "message"
+ * sit before it, or a colon does. A quotation behind any other word is
+ * prose, and the rules judge it. */
+const errorOrCodeQuote = (before: string): boolean =>
+  insideErrorCall(before) ||
+  /\b(?:error|message)\s*$/i.test(before) ||
+  /:\s*$/.test(before);
 
 /** Collapse whitespace, so the block's identity is stable under rewrapping
  * and exempt-span length changes. */
@@ -220,11 +250,13 @@ const normalizeInBlock = (source: ProseBlock): ProseBlock => {
       { columns: [source.columns[at]!], lines: [source.lines[at]!], text },
       as ?? (/\s/.test(text) ? " " : text),
     );
-  for (const match of source.text.matchAll(/"[^"]*"|\s+|[^\s]/g)) {
+  for (const match of source.text.matchAll(
+    /"(?:[^"\\]|\\[\s\S])*"|\s+|[^\s]/g,
+  )) {
     const text = match[0];
     const at = match.index;
     if (text.startsWith('"') && text.length > 1) {
-      if (ERROR_OR_CODE_QUOTE.test(source.text.slice(0, at))) {
+      if (errorOrCodeQuote(source.text.slice(0, at))) {
         // The quotation is machine-owned: the whole span becomes one
         // placeholder at the opening quote.
         parts.push(part(text, at, "%"));
