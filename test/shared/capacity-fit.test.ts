@@ -82,20 +82,17 @@ const bruteSplitWorks = (
 };
 
 /** The definition, brute force: the largest quantity whose child lines have a
- *  split that keeps every shared pool within its places. The parent's own
- *  spend binds only the pools it shares with a child that can still serve a
- *  line; pools only the parent sits in belong to the caller's parent
- *  ceiling, and a child's own pools are baked into its ownMax. */
+ *  split that keeps every pool the children draw from within its places. The
+ *  parent's own spend lands only on the pools it belongs to; pools only the
+ *  parent sits in belong to the caller's parent ceiling. */
 const bruteForceCombinedCapacity = (
   parentGroupIds: readonly number[],
   children: readonly BruteChild[],
   remaining: ReadonlyMap<number, number>,
 ): number => {
   const poolsOf = (child: BruteChild): number[] =>
-    parentGroupIds.filter(
-      (groupId) => child.groupIds.includes(groupId) && remaining.has(groupId),
-    );
-  const sharedPools = [
+    child.groupIds.filter((groupId) => remaining.has(groupId));
+  const ledgerPools = [
     ...new Set(
       children
         .filter((child) => child.ownMax > 0)
@@ -103,8 +100,9 @@ const bruteForceCombinedCapacity = (
     ),
   ];
   for (let t = 12; t > 0; t--) {
-    const parentFits = sharedPools.every(
-      (groupId) => (remaining.get(groupId) ?? 0) >= t,
+    const parentFits = ledgerPools.every(
+      (groupId) =>
+        !parentGroupIds.includes(groupId) || (remaining.get(groupId) ?? 0) >= t,
     );
     if (
       parentFits &&
@@ -336,6 +334,42 @@ describe("combinedChildCapacityForParent", () => {
         byGroup({ 7: 5 }),
       ),
     ).toBe(2);
+  });
+
+  test("serves two, not four, when only the children share a pool", () => {
+    // The parent sits outside the capped group, so neither child shares a
+    // pool with it — but both children draw from the same group with two
+    // places left. Each child line takes one of them, so the children can
+    // serve two parent tickets, never the sum of their ceilings (four), and
+    // a minimum of three must read unservable.
+    expect(
+      combinedChildCapacityForParent(
+        [],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [7], ownMax: 2 },
+        ],
+        byGroup({ 7: 2 }),
+      ),
+    ).toBe(2);
+  });
+
+  test("binds a child-only pool and spares it the parent's spend", () => {
+    // Child two draws pool A with the parent AND a child-only pool B with
+    // one place left. B bounds child two to one line, so the children serve
+    // three tickets, not four. B never holds the parent, so the parent's
+    // tickets must not subtract from it — charging the parent there would
+    // answer two.
+    expect(
+      combinedChildCapacityForParent(
+        [7],
+        [
+          { groupIds: [7], ownMax: 2 },
+          { groupIds: [7, 8], ownMax: 2 },
+        ],
+        byGroup({ 7: 10, 8: 1 }),
+      ),
+    ).toBe(3);
   });
 
   test("matches a brute-force allocator on random small graphs", () => {

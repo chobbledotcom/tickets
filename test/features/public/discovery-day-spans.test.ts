@@ -44,6 +44,28 @@ describeWithEnv(
         await assertBookable(parent.slug);
       });
 
+      test("a daily parent + daily child in a 4-cap group below a minimum of three are sold out", async () => {
+        // Both members count per date, so the date-less remaining map carries
+        // no entry for their group and the allocation sees no pool. The static
+        // cap (4) is the date-independent fact the pair check reads, and the
+        // allocation must read it too: four spots hold two parent+child
+        // orders, so a minimum of three can never be met and the parent must
+        // read sold out rather than advertise a booking the submit fold
+        // always rejects. The child sells three, so the old code answered the
+        // child's own ceiling and kept the Book link.
+        const { parent } = await makeParent({
+          children: [{ daily: true, maxQuantity: 3, name: "Daily add-on" }],
+          group: { maxAttendees: 4, name: "Daily pool" },
+          parent: {
+            daily: true,
+            maxQuantity: 3,
+            minQuantity: 3,
+            name: "Daily base unit",
+          },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
       test("a customisable parent offering only a 2-day span is sold out when its child serves no 2-day run", async () => {
         // The parent is CUSTOMISABLE but only prices a 2-day booking, so it has
         // NO one-day option. Its only child is a daily add-on bookable on
