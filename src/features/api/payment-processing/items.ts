@@ -80,23 +80,6 @@ const validateListingForPayment = (
   if (belowMinimum) {
     return { error: belowMinimum, ok: false, status: 410 };
   }
-  // The same staleness runs the other way: the owner can lower the maximum
-  // while a checkout is open. The webhook is the last stop that re-reads
-  // the stored fact.
-  if (quantity > listing.max_quantity) {
-    return {
-      error: name
-        ? t("payment.failure.above_maximum_named", {
-            max_quantity: listing.max_quantity,
-            name,
-          })
-        : t("payment.failure.above_maximum", {
-            max_quantity: listing.max_quantity,
-          }),
-      ok: false,
-      status: 410,
-    };
-  }
   return { listing, ok: true };
 };
 
@@ -167,7 +150,86 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
   };
 };
 
-/** Validate all booking items and return per-item pricing info or a failure result. */
+/** The order's summed quantity per listing. The maximum is a per-booking rule
+ *  on the listing. One order can book the same listing through several paths:
+ *  a package line and its own row, or two overlapping packages. The webhook
+ *  judges the sum, so two sub-limit lines cannot book past the cap together. */
+const quantitiesByListingId = (
+  items: BookingIntent["items"],
+): Map<number, number> => {
+  const totals = new Map<number, number>();
+  for (const item of items) {
+    totals.set(item.e, (totals.get(item.e) ?? 0) + item.q);
+  }
+  return totals;
+};
+
+/** The above-maximum refusal for one line's listing at the order's summed
+ *  quantity, or null. The owner can lower the maximum while a checkout is
+ *  open, and the webhook is the last stop that re-reads the stored fact. A
+ *  folded daily child escapes the date-less maximum. foldChild skips that
+ *  cap for daily children, and the folded per-date availability is the
+ *  authority. */
+const aboveMaximumRefusal = (
+  listing: ListingWithCount,
+  name: string,
+  foldedDailyChildIds: ReadonlySet<number>,
+  quantities: ReadonlyMap<number, number>,
+): { error: string; status: number } | null => {
+  if (foldedDailyChildIds.has(listing.id)) return null;
+  if ((quantities.get(listing.id) ?? 0) <= listing.max_quantity) return null;
+  return {
+    error: name
+      ? t("payment.failure.above_maximum_named", {
+          max_quantity: listing.max_quantity,
+          name,
+        })
+      : t("payment.failure.above_maximum", {
+          max_quantity: listing.max_quantity,
+        }),
+    status: 410,
+  };
+};
+
+/** The folded children whose listings are daily: the only lines that escape
+ *  the date-less maximum. */
+const foldedDailyChildIds = (
+  foldedChildIds: ReadonlySet<number>,
+  listingsById: ReadonlyMap<number, ListingWithCount>,
+): Set<number> =>
+  new Set(
+    [...foldedChildIds].filter(
+      (id) => listingsById.get(id)?.listing_type === "daily",
+    ),
+  );
+
+/** Whether the order carries a non-standalone child whose line outgrows what
+ *  its allocations cover: the per-child surplus the fold never booked. A
+ *  bookable-alone child beside its member parent books one aggregated line.
+ *  The surplus read runs whenever the order carries any standalone line OR
+ *  any folded allocation. Only a pure member-only order skips its read. */
+const hasStaleChildSurplus = (
+  intent: BookingIntent,
+  snapshot: PaidOrderSnapshot,
+  standaloneLineIds: readonly number[],
+  allocations: NonNullable<BookingIntent["allocations"]>,
+): boolean =>
+  (standaloneLineIds.length > 0 || allocations.length > 0) &&
+  hasStaleStandaloneChildFromFacts(
+    intent,
+    new Set(
+      intent.items.flatMap((item) => {
+        const listing = snapshot.listingsById.get(item.e);
+        return listing &&
+          !listing.bookable_alone &&
+          (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
+          ? [item.e]
+          : [];
+      }),
+    ),
+    snapshot.parentsByChildId,
+  );
+
 export const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
@@ -176,31 +238,16 @@ export const validateAllItems = async (
   const { allocations, foldedChildIds, standaloneLineIds } =
     bookingPaths(intent);
   const pricingByGroup = snapshot.notificationPackages.pricingByGroup;
-  // A folded child rides an UNTAGGED line that bundledChildIds removes from
-  // standaloneLineIds wholesale. That line can hold more units than the
-  // package-tagged allocations cover. A bookable-alone child beside its
-  // member parent books one aggregated line. hasStaleStandaloneChild judges
-  // that per-child surplus itself. Consult it whenever the order
-  // carries any standalone line OR any folded allocation — only a pure
-  // member-only order skips its read.
-  const staleNonStandaloneChild =
-    (standaloneLineIds.length > 0 || allocations.length > 0) &&
-    hasStaleStandaloneChildFromFacts(
-      intent,
-      new Set(
-        intent.items.flatMap((item) => {
-          const listing = snapshot.listingsById.get(item.e);
-          return listing &&
-            !listing.bookable_alone &&
-            (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
-            ? [item.e]
-            : [];
-        }),
-      ),
-      snapshot.parentsByChildId,
-    );
+  const staleNonStandaloneChild = hasStaleChildSurplus(
+    intent,
+    snapshot,
+    standaloneLineIds,
+    allocations,
+  );
   const listingsById = snapshot.listingsById;
   const nameFor = buyerLineName(intent, snapshot);
+  const quantities = quantitiesByListingId(intent.items);
+  const dailyFoldedIds = foldedDailyChildIds(foldedChildIds, listingsById);
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const listing = listingsById.get(item.e);
@@ -214,6 +261,13 @@ export const validateAllItems = async (
     const name = nameFor(item, listing);
     const vp = validateListingForPayment(listing, name, item.q);
     if (!vp.ok) return validationFailure(session, vp, item.e);
+    const maxRefusal = aboveMaximumRefusal(
+      listing,
+      name,
+      dailyFoldedIds,
+      quantities,
+    );
+    if (maxRefusal) return validationFailure(session, maxRefusal, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
     // member). It is carried through so the price-mismatch pass refunds it

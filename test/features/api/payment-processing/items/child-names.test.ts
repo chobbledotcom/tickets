@@ -73,6 +73,9 @@ const childOrder = async (
     intent.items.push({ e: parent.e, p: 0, q: 0 });
   }
   if (path === "named-parent" || path === "standalone-parent") {
+    // The two paths sum the parent to two units, so its stored maximum must
+    // hold them; the privacy matrix is not the maximum rule's test.
+    await listingsTable.update(parent.e, { maxQuantity: 2 });
     allocation.qty = 2;
     child.q = 2;
     child.p = 400;

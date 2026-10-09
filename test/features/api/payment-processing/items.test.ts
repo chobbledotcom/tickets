@@ -175,7 +175,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     );
     expect(failureResult(result)).toEqual({
       detail: undefined,
-      error: "Sorry, Lowered ceiling sells at most 1 tickets per booking.",
+      error: "Sorry, Lowered ceiling sells at most 1 ticket per booking.",
       refunded: true,
       status: 410,
       success: false,
@@ -216,7 +216,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     );
     expect(failureResult(result)).toEqual({
       detail: undefined,
-      error: "Sorry, this listing sells at most 1 tickets per booking.",
+      error: "Sorry, this listing sells at most 1 ticket per booking.",
       refunded: true,
       status: 410,
       success: false,
