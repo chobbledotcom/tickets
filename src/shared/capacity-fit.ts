@@ -60,15 +60,20 @@ const poolIdsFor = (capped: readonly CappedChild[]): number[] => [
   ...new Set(capped.flatMap((child) => child.pools)),
 ];
 
-/** The pools' places left after the parent's `t` tickets take theirs. */
+/** The pools' places left at quantity `t`: the parent's tickets take theirs
+ *  only from the pools the parent itself belongs to. */
 const residualByPool = (
   pools: readonly number[],
   remainingOf: (groupId: number) => number,
+  parentGroupIds: ReadonlySet<number>,
   t: number,
 ): Map<number, number> => {
   const residual = new Map<number, number>();
   for (const groupId of pools) {
-    residual.set(groupId, remainingOf(groupId) - t);
+    residual.set(
+      groupId,
+      remainingOf(groupId) - (parentGroupIds.has(groupId) ? t : 0),
+    );
   }
   return residual;
 };
@@ -289,14 +294,17 @@ export const combinedChildCapacityForParent = (
   children: readonly ChildCapacityPart[],
   remainingByGroupId: ReadonlyMap<number, number>,
 ): number => {
-  const poolsOf = (child: ChildCapacityPart): number[] =>
-    sharedCappedGroupIds(parentGroupIds, child.groupIds, remainingByGroupId);
-  // A child that shares no capped pool binds nothing here: the caller's own
-  // ceiling already folded the pools only it sits in.
+  // A child draws from every capped group it belongs to — the pools it
+  // shares with the parent AND the pools only the children sit in. Two
+  // required children drawing one child-only pool contend for it even
+  // though the parent never touches it. A child in no capped group binds
+  // nothing here: its own ceiling is the whole story.
   let free = 0;
   const capped: CappedChild[] = [];
   for (const child of children) {
-    const pools = poolsOf(child);
+    const pools = child.groupIds.filter((groupId) =>
+      remainingByGroupId.has(groupId),
+    );
     if (pools.length === 0) {
       free += child.ownMax;
       continue;
@@ -311,10 +319,16 @@ export const combinedChildCapacityForParent = (
     );
   const ownTotal = free + capped.reduce((sum, child) => sum + child.ownMax, 0);
   const poolIds = poolIdsFor(capped);
-  const tightestParentPool = Math.min(...poolIds.map(remainingOf));
+  const parentGroupSet = new Set(parentGroupIds);
+  const parentLedgerPools = poolIds.filter((groupId) =>
+    parentGroupSet.has(groupId),
+  );
   // The largest quantity that can serve. Monotone feasibility turns the
   // walk down from the ceiling into a binary search over [0, ceiling].
-  const ceiling = Math.min(ownTotal, tightestParentPool);
+  const ceiling = Math.min(
+    ownTotal,
+    Math.min(...parentLedgerPools.map(remainingOf)),
+  );
   let low = 0;
   let high = ceiling;
   while (low < high) {
@@ -322,7 +336,7 @@ export const combinedChildCapacityForParent = (
     if (
       childLinesFit(
         capped,
-        residualByPool(poolIds, remainingOf, mid),
+        residualByPool(poolIds, remainingOf, parentGroupSet, mid),
         mid - free,
       )
     ) {

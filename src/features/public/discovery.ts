@@ -211,6 +211,13 @@ const combinedChildCapacity = (
   const facts = children.map((child) =>
     childFoldFactsFor(parent, child, caps, holidays),
   );
+  // The date-less remaining map omits a group whose every member counts per
+  // date. The static cap is the date-independent fact the pair check reads
+  // when the remaining is unknown, so the allocation reads it too.
+  const datelessRemaining = new Map([
+    ...caps.staticCapByGroupId,
+    ...caps.remainingByGroupId,
+  ]);
   return Math.max(
     0,
     ...dates.map((date) =>
@@ -226,7 +233,7 @@ const combinedChildCapacity = (
             date,
           ),
         })),
-        caps.remainingByGroupId,
+        datelessRemaining,
       ),
     ),
   );
