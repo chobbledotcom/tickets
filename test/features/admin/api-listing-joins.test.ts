@@ -12,7 +12,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import {
@@ -147,6 +147,87 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     ]);
   });
 
+  test("refuses a pay-more change when the preserved membership gained a package", async () => {
+    // The route reads the stored membership while it parses the body. Another
+    // operator's save can add a package in between. This write enables
+    // pay-what-you-want and preserves the membership, so the transaction must
+    // refuse it the way it refuses a submitted set.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Late package",
+    });
+    const listing = await createTestListing({ name: "Late package member" });
+    const resolved = await getListingWithCount(listing.id);
+    if (!resolved) throw new Error(`no listing ${listing.id} in the database`);
+    const result = await bodyToUpdateInput(
+      {
+        can_pay_more: true,
+        description: "Unrelated edit",
+        max_price: 5_000,
+      },
+      resolved,
+      { adminLevel: "owner" },
+    );
+    if (!result.ok) throw new Error(result.error);
+
+    // Another operator's save adds the package after this update read its
+    // membership.
+    await setListingGroups(listing.id, [group.id]);
+
+    await expect(
+      withTransaction(async (tx) => {
+        await tx.execute(
+          await listingsTable.updateStatement!(listing.id, result.value),
+        );
+        await persistListingJoins(
+          tx,
+          listing.id,
+          prepareListingJoins(result.value),
+        );
+      }),
+    ).rejects.toThrow(
+      t("error.package_member_pay_more", { name: listing.name }),
+    );
+
+    expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
+    expect((await getListingWithCount(listing.id))?.can_pay_more).toBe(false);
+  });
+
+  test("refuses child edges when the preserved membership gained a hidden package", async () => {
+    // The same race with child edges: a hidden package must not gain a member
+    // that gates children, whatever order the two saves land in.
+    const hiddenPackage = await createHiddenPackageGroup("Late hidden pkg");
+    const listing = await createTestListing({ name: "Late hidden pkg parent" });
+    const child = await createTestListing({ name: "Late hidden pkg child" });
+    const resolved = await getListingWithCount(listing.id);
+    if (!resolved) throw new Error(`no listing ${listing.id} in the database`);
+    const result = await bodyToUpdateInput(
+      { description: "Unrelated edit" },
+      resolved,
+      { adminLevel: "owner" },
+    );
+    if (!result.ok) throw new Error(result.error);
+
+    await setListingGroups(listing.id, [hiddenPackage.id]);
+
+    await expect(
+      withTransaction(async (tx) => {
+        await tx.execute(
+          await listingsTable.updateStatement!(listing.id, result.value),
+        );
+        await persistListingJoins(tx, listing.id, {
+          ...prepareListingJoins(result.value),
+          childEdges: [child.id],
+        });
+      }),
+    ).rejects.toThrow(
+      t("error.package_member_gates_children_hidden", { name: listing.name }),
+    );
+
+    expect(await listingGroups.getIds(listing.id)).toEqual([hiddenPackage.id]);
+    expect(await listingChildren.getIds(listing.id)).toEqual([]);
+  });
+
   test("child-edge validation still sees the stored groups when group_ids is omitted", async () => {
     // The hidden-package refusal proves the child-edge check reads the
     // effective set — the stored groups — not an empty one.
@@ -260,6 +341,23 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
 
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
     expect(await listingGroups.getIds(parent.id)).toEqual([group.id]);
+  });
+
+  test("persistListingJoins clears the membership when the input submits an empty set", async () => {
+    const listing = await createTestListing({ name: "Clear member" });
+    const group = await createTestGroup({ name: "Clear group" });
+    await setListingGroups(listing.id, [group.id]);
+
+    await withTransaction(async (tx) => {
+      await persistListingJoins(tx, listing.id, {
+        attributeOptionIds: undefined,
+        childEdges: null,
+        dayPrices: undefined,
+        groupIds: [],
+      });
+    });
+
+    expect(await listingGroups.getIds(listing.id)).toEqual([]);
   });
 
   test("persistListingJoins leaves existing edges untouched when childEdges is null", async () => {
