@@ -16,6 +16,11 @@ import {
 import { t } from "#i18n";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
+  adminLoginPageHref,
+  adminReturnPath,
+  RETURN_URL_PARAM,
+} from "#routes/admin/login-return.ts";
+import {
   ANY_USER_FORM,
   adminLandingPath,
   anyUserPage,
@@ -46,8 +51,9 @@ const randomDelay = (): Promise<void> =>
     ? Promise.resolve()
     : new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
 
-/** Create a session and redirect to the user's landing page (delivery agents go
- * to their run sheet, editors to listings, staff to the dashboard). When the
+/** Create a session and redirect to the page login is returning to, or to the
+ * user's landing page when there is no safe target. Delivery agents go to
+ * their run sheet, editors to listings, staff to the dashboard. When the
  * user holds a DATA_KEY, the session wraps it under the session token, so the
  * private key can be derived later. The keyless editor gets a null wrap and so
  * can never derive the private key. */
@@ -55,6 +61,7 @@ const createLoginSession = async (
   dataKey: CryptoKey | null,
   userId: number,
   adminLevel: AdminLevel,
+  returnPath: string | null,
 ): Promise<Response> => {
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
@@ -65,9 +72,14 @@ const createLoginSession = async (
 
   await createSession(token, csrfToken, expires, wrappedDataKey, userId);
 
-  return redirect(adminLandingPath(adminLevel), "Logged in", true, {
-    cookie: buildSessionCookie(token),
-  });
+  return redirect(
+    returnPath ?? adminLandingPath(adminLevel),
+    "Logged in",
+    true,
+    {
+      cookie: buildSessionCookie(token),
+    },
+  );
 };
 
 /**
@@ -81,16 +93,20 @@ const handleAdminLogin = async (
 
   const form = await parseFormData(request);
 
+  // Where a successful login sends the user: the page the login form named,
+  // or the role's landing page. The validator refuses every off-site shape.
+  const returnPath = adminReturnPath(form.getString(RETURN_URL_PARAM));
+
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return fail("/admin", t("error.csrf_invalid"));
+    return fail(adminLoginPageHref(returnPath), t("error.csrf_invalid"));
   }
 
   const clientIp = getRequestClientIp();
 
   if (await loginLimiter.isLimited(clientIp)) {
-    return fail("/admin", t("error.too_many_attempts"));
+    return fail(adminLoginPageHref(returnPath), t("error.too_many_attempts"));
   }
 
   // A failed credential check also logs the user out of any existing
@@ -99,15 +115,19 @@ const handleAdminLogin = async (
   const failedCredentialsRedirect = async (): Promise<Response> => {
     await loginLimiter.record(clientIp);
     if (existingToken) await deleteSession(existingToken);
-    return fail("/admin", "Username or password was wrong", {
-      ...(existingToken ? { cookie: clearSessionCookie() } : {}),
-    });
+    return fail(
+      adminLoginPageHref(returnPath),
+      "Username or password was wrong",
+      {
+        ...(existingToken ? { cookie: clearSessionCookie() } : {}),
+      },
+    );
   };
 
   const validation = getLoginForm().validate(form);
 
   if (!validation.valid) {
-    return fail("/admin", validation.error);
+    return fail(adminLoginPageHref(returnPath), validation.error);
   }
 
   const { username, password } = validation.values;
@@ -129,9 +149,12 @@ const handleAdminLogin = async (
   // password and is genuinely active.
   if (!user.wrapped_data_key) {
     if (adminLevel === "editor") {
-      return createLoginSession(null, user.id, adminLevel);
+      return createLoginSession(null, user.id, adminLevel, returnPath);
     }
-    return fail("/admin", t("error.account_not_activated"));
+    return fail(
+      adminLoginPageHref(returnPath),
+      t("error.account_not_activated"),
+    );
   }
 
   // Unwrap DATA_KEY with the user's KEK scheme. Version 2 derives the KEK
@@ -158,7 +181,7 @@ const handleAdminLogin = async (
     await migrateUserToV2Kek(user.id, dataKey, password, passwordHash);
   }
 
-  return createLoginSession(dataKey, user.id, adminLevel);
+  return createLoginSession(dataKey, user.id, adminLevel, returnPath);
 };
 
 const handleAdminLogout = (request: Request): Promise<Response> =>

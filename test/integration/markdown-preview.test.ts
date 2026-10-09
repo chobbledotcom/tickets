@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
@@ -75,8 +76,7 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
 
     const response = await postPreview("**hi**", { csrfToken });
 
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/admin");
+    expectLoginRedirectWithReturn("/admin/markdown-preview")(response);
   });
 
   test("rejects requests with a missing CSRF token", async () => {

@@ -20,6 +20,7 @@ import { orphanAttendeeBooking } from "#test-utils/db-fault.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
@@ -256,14 +257,14 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       );
     });
 
-    test("redirects to /admin when not authenticated", async () => {
+    test("redirects to the login flow with the page when not authenticated", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const response = await awaitTestRequest(
         `/admin/listing/${listing.id}/scanner`,
       );
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectLoginRedirectWithReturn(`/admin/listing/${listing.id}/scanner`)(
+        response,
+      );
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -588,11 +589,10 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       );
     });
 
-    test("redirects to /admin when not authenticated", async () => {
+    test("redirects to the login flow with the page when not authenticated", async () => {
       const response = await awaitTestRequest("/admin/guide");
 
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectLoginRedirectWithReturn("/admin/guide")(response);
     });
 
     test("documents modifiers and price values", async () => {

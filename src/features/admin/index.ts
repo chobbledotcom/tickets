@@ -70,7 +70,6 @@ export const routeAdmin: PathMethodRoute = async (request, path, method) => {
     : undefined;
   if (!segmentRouter) return null;
 
-  const { authFailure } = await import("#routes/auth-failures.ts");
   const { getAuthenticatedSession } = await import("#routes/auth.ts");
   const session = await getAuthenticatedSession(request);
   if (
@@ -79,7 +78,14 @@ export const routeAdmin: PathMethodRoute = async (request, path, method) => {
     segment !== "" &&
     segment !== "login"
   ) {
-    return authFailure("html", "not-authenticated");
+    // Hand the login page the address the visitor asked for, so a successful
+    // login returns here. An absent or unsafe target keeps the plain
+    // dashboard landing.
+    const { redirectResponse } = await import("#routes/response.ts");
+    const { adminLoginPageHref, returnPathFromRequest } = await import(
+      "#routes/admin/login-return.ts"
+    );
+    return redirectResponse(adminLoginPageHref(returnPathFromRequest(request)));
   }
 
   return await withMessageGroups(segmentRouter.messageGroups, async () => {

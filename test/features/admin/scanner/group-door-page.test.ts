@@ -18,6 +18,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
+import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import {
   createTestEditorSession,
   requestAsSession,
@@ -150,15 +151,16 @@ describeWithEnv("group scanner page", { db: true }, () => {
     expect(body).toContain("No tickets to check in");
   });
 
-  test("redirects to /admin when not authenticated", async () => {
+  test("redirects to the login flow with the door page when not authenticated", async () => {
     const { group } = await groupDoor(1);
     const response = await handleRequest(
       new Request(`http://localhost/admin/groups/${group.id}/scanner`, {
         headers: { host: "localhost" },
       }),
     );
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/admin");
+    expectLoginRedirectWithReturn(`/admin/groups/${group.id}/scanner`)(
+      response,
+    );
   });
 
   test("answers 404 for an unknown group", async () => {
