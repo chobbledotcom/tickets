@@ -70,9 +70,12 @@ export const adminReturnPath = (
   return `${target.pathname}${target.search}`;
 };
 
-/** The login and logout paths the login flow refuses to return to. */
-const isRefusedLoginPage = (pathname: string): boolean =>
-  pathname === "/admin/login" || pathname === "/admin/logout";
+/** The login and logout paths the login flow refuses to return to, with any
+ *  number of trailing slashes: the slash form names the same page. */
+const isRefusedLoginPage = (pathname: string): boolean => {
+  const bare = pathname.replace(/\/+$/, "");
+  return bare === "/admin/login" || bare === "/admin/logout";
+};
 
 /** The return target a page address carries: the `return_url` query value,
  *  or null when it is absent or unsafe. */

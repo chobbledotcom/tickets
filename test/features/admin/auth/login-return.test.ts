@@ -33,9 +33,9 @@ const ACCEPTED: readonly (readonly [string, string])[] = [
 /** The attack shapes and other values the rule must refuse: addresses for
  *  another site (direct, protocol-relative, percent-encoded), backslashes,
  *  control characters, climbs out of the admin area, the login and logout
- *  pages themselves, malformed escapes, and anything whose path is not an
- *  admin path. The query carries parameter data, so a URL inside a query
- *  value is not an attack. */
+ *  pages (with or without trailing slashes), malformed escapes, and anything
+ *  whose path is not an admin path. The query carries parameter data, so a
+ *  URL inside a query value is not an attack. */
 const REFUSED: readonly string[] = [
   "//evil.com",
   "/\\evil.com",
@@ -56,7 +56,9 @@ const REFUSED: readonly string[] = [
   "/admin/../../public",
   "/admin/login",
   "/admin/login?next=/admin/listings",
+  "/admin/login/",
   "/admin/logout",
+  "/admin/logout/",
   "admin/listings/12",
   "/admin",
   "/public/book",
