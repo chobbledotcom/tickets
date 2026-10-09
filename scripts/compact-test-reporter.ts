@@ -1,10 +1,7 @@
 import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripAnsi } from "./ansi.ts";
-import {
-  nullIfNotFound,
-  rethrowUnlessNotFound,
-} from "./not-found.ts";
+import { nullIfNotFound, rethrowUnlessNotFound } from "./not-found.ts";
 import { toDisplayPath } from "./project-root.ts";
 import { readStream } from "./stream-lines.ts";
 import {
