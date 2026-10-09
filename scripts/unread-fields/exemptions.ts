@@ -228,6 +228,10 @@ const dynamicReason = (evidence: string): ExemptionReason => ({
   kind: "dynamic-read",
 });
 
+const settingsSnapshotFields = exactFieldsFrom(
+  "src/shared/db/settings/snapshot.ts",
+);
+
 const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
 const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
 const resourceFields = exactFieldsFrom("src/shared/rest/resource.ts");
@@ -345,6 +349,13 @@ const exactExemptions = exactFieldExemptions([
       ],
       ["notFound"],
       schemaReason("operationResponse reads notFound through OperationFailure"),
+    ),
+  ),
+  settingsSnapshotFields(
+    [{ name: "SettingsData" }],
+    ["welcome_dismissed"],
+    dynamicReason(
+      "the settings namespace getter reads the field through snap()",
     ),
   ),
   stripeFields(

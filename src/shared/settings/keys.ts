@@ -71,6 +71,7 @@ export const CONFIG_KEY_NAMES = [
   "THEME",
   "UNDERLINE_LINKS",
   "WEBSITE_TITLE",
+  "WELCOME_DISMISSED",
   "WRAPPED_PRIVATE_KEY",
 ] as const;
 

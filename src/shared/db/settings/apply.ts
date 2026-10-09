@@ -115,6 +115,7 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
     data.booking_fee = raw ?? "0";
   },
   [CONFIG_KEYS.SQUARE_SANDBOX]: boolApply("square_sandbox"),
+  [CONFIG_KEYS.WELCOME_DISMISSED]: boolApply("welcome_dismissed"),
 };
 
 /** Every config key that maps to a snapshot field, in load order. */

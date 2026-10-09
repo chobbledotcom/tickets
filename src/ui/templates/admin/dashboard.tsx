@@ -46,6 +46,7 @@ import {
   renderListingsTableSection,
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
+import { WelcomeBanner } from "#templates/admin/welcome-banner.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { openSection } from "#templates/components/open-section.tsx";
 import type { AdminSession, DisplayAttendee, ListingWithCount } from "#types";
@@ -222,6 +223,7 @@ export const adminDashboardPage = (
   upcomingHolidays: Holiday[] = [],
   upcomingServicingEvents: ServicingEventSummary[] = [],
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
+  showWelcome = false,
 ): string => {
   const { columnKeys, filters } =
     listingColumnLayout ?? listingTable.layout.defaultLayout;
@@ -264,6 +266,8 @@ export const adminDashboardPage = (
     successMessage,
   )(
     <>
+      {showWelcome && !isReadOnly() && <WelcomeBanner />}
+
       {!isReadOnly() && <DashboardQuickActions />}
 
       <ListingsTableBlock
