@@ -1,5 +1,7 @@
+import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import { hashEmail, unsubscribeHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import {
@@ -75,6 +77,35 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       expect(settings.bulkEmailDraft).toBe("");
       const log = await getAllActivityLog(10);
       expect(log.some((e) => e.message.includes("Sent bulk email"))).toBe(true);
+    });
+
+    test("clears the draft when recording the contacts fails after the send", async () => {
+      useResend();
+      // Alice has a contact history row nothing can read, so recording the
+      // contacts must fail once the send has gone out.
+      await execute(
+        "INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, ?, ?)",
+        [await hashEmail("alice@example.com"), "broken", Date.now()],
+      );
+
+      await assertRejects(() =>
+        sendDraft('{"data":[{"id":"msg_1"},{"id":"msg_2"}]}'),
+      );
+
+      // The provider took both messages, so the draft must already be gone.
+      // A resubmit would send the same email a second time.
+      expect(fetch.callCount()).toBe(1);
+      expect(settings.bulkEmailDraft).toBe("");
+      const { response: resend } = await adminFormPost(
+        "/admin/emails/send",
+        {},
+      );
+      await expectFlashRedirect(
+        "/admin/emails",
+        "There's no email to send.",
+        false,
+      )(resend);
+      expect(fetch.callCount()).toBe(1);
     });
 
     test("relays the provider's reply in the flash and the listing log", async () => {

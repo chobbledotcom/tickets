@@ -384,10 +384,12 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
   }
   const result = await sendBulkEmails(config, payload);
+  // The send is done, so the draft must go now. If a step below fails, the
+  // leftover draft lets a resubmit send the email again.
+  await settings.update.bulkEmailDraft("");
   // Only the people the provider took were contacted, so only they belong
   // in the contact history. A later count cannot recover who really got it.
   await recordContacts(await hashAll(result.taken), draft.subject, privateKey);
-  await settings.update.bulkEmailDraft("");
   const providerSummary = summarizeProviderResponse(result.responses);
   const sent = result.taken.length;
   await logActivity(
