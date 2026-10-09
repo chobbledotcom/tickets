@@ -22,6 +22,7 @@ import {
   insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import {
   createConfirmedHandlers,
@@ -99,7 +100,7 @@ const handleAttributesPost = createAuthedFormRoute({
     );
     return redirect(
       `/admin/attributes/${attributeId}`,
-      "Attribute created",
+      t("attributes.created"),
       true,
     );
   },
@@ -212,7 +213,7 @@ const handleAttributeEdit = createAuthedFormRoute<
       await logActivity(`Attribute '${name}' updated`);
       return redirect(
         `/admin/attributes/${params.id}`,
-        "Attribute updated",
+        t("attributes.updated"),
         true,
       );
     }),
@@ -230,7 +231,11 @@ const handleAddOption = createAuthedFormRoute<
       // One transaction: an option must never exist without its place in the
       // order or its log line.
       await addAttributeOptionWithLog(attribute, text);
-      return redirect(`/admin/attributes/${params.id}`, "Option added", true);
+      return redirect(
+        `/admin/attributes/${params.id}`,
+        t("attributes.option_added"),
+        true,
+      );
     }),
 });
 
@@ -313,7 +318,7 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
     await deleteAttributeOptionWithLog(attribute, option);
     return redirect(
       `/admin/attributes/${attribute.id}`,
-      "Option deleted",
+      t("attributes.option_deleted"),
       true,
     );
   },
@@ -335,7 +340,7 @@ const handleEditOptionPost = createAuthedFormRoute<
     await renameAttributeOptionWithLog(attribute, option, text);
     return redirect(
       `/admin/attributes/${attribute.id}`,
-      "Option updated",
+      t("attributes.option_updated"),
       true,
     );
   },

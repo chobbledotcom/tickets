@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  flashLiterals,
   isI18nScanTarget,
   leftoverBudget,
   leftoverLiterals,
@@ -97,5 +98,77 @@ describe("leftoverBudget", () => {
     expect(leftoverBudget("src/ui/templates/fields/modifier.ts")).toBe(20);
     expect(leftoverBudget("src/ui/templates/public/news.tsx")).toBe(0);
     expect(leftoverBudget("scripts/grade-code/checks.ts")).toBe(0);
+  });
+});
+
+describe("flashLiterals", () => {
+  test("the rule flags a hard-coded message and passes a catalog key", () => {
+    const dollar = String.fromCodePoint(36);
+    const nameExpression = `${dollar}{name}`;
+    expect(
+      flashLiterals(`redirect("/join", "Password set successfully", true);`),
+    ).toEqual(['L1 flash "Password set successfully"']);
+    expect(
+      flashLiterals(
+        'infoRedirect(\n  pagePath(hash),\n  "You\'ve unsubscribed from our marketing emails.",\n);',
+      ),
+    ).toEqual(['L3 flash "You\'ve unsubscribed from our marketing emails."']);
+    expect(
+      flashLiterals(
+        `redirect(url, \`Saved ${nameExpression} attendees\`, true);`,
+      ),
+    ).toEqual([`L1 flash "Saved ${nameExpression} attendees"`]);
+    expect(flashLiterals('redirect(url, "Say \\"hi\\" now", true);')).toEqual([
+      'L1 flash "Say \\"hi\\" now"',
+    ]);
+    expect(flashLiterals(`errorRedirect(path, 'single quoted');`)).toEqual([
+      'L1 flash "single quoted"',
+    ]);
+    expect(
+      flashLiterals(`redirect("/join", t("join.password_set"), true);`),
+    ).toEqual([]);
+    expect(flashLiterals("errorRedirect(path, message, formId);")).toEqual([]);
+  });
+
+  test("the rule passes catalog calls that only look like literals", () => {
+    expect(
+      flashLiterals(
+        'redirect(url, result.confirmation === "current"\n    ? t("success.current")\n    : t("success.refunded"), true);',
+      ),
+    ).toEqual([]);
+    expect(
+      flashLiterals(
+        'redirect(url, t("servicing.success.cost_recorded", { amount: form.getString("amount") }), true);',
+      ),
+    ).toEqual([]);
+    expect(
+      flashLiterals(
+        `redirect(url, t(active ? "error.on" : "error.off"), true);`,
+      ),
+    ).toEqual([]);
+  });
+
+  test("the rule ignores paths, options, and names that are not the helper", () => {
+    expect(
+      flashLiterals(
+        `redirect(target, t("check-in.invalid_direction"), false, { form });`,
+      ),
+    ).toEqual([]);
+    expect(
+      flashLiterals(`redirect(url, "Logged in", true, { level: "info" });`),
+    ).toEqual(['L1 flash "Logged in"']);
+    expect(flashLiterals(`const r = redirectResponse("/x", cookie);`)).toEqual(
+      [],
+    );
+    expect(flashLiterals(`redirectToDetail("/attendees")(args);`)).toEqual([]);
+    expect(
+      flashLiterals(
+        '// redirect("/x", "Commented example stays unflagged");\nredirect("/x", t("a.b"), true);',
+      ),
+    ).toEqual([]);
+    expect(flashLiterals(`redirect(url, "", true);`)).toEqual([]);
+    expect(flashLiterals(`redirect(url, "123", true);`)).toEqual([]);
+    expect(flashLiterals(`redirect("/x");`)).toEqual([]);
+    expect(flashLiterals(`redirect(url, "never closed, true);`)).toEqual([]);
   });
 });

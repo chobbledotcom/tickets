@@ -41,5 +41,11 @@
   "admin.scanner.doors_heading": "Scanner doors",
   "admin.scanner.doors_intro": "Open a door to start scanning.",
   "admin.scanner.doors_empty": "No doors yet. A door appears here when a listing or group can use the scanner.",
-  "admin.scanner.error": "Error"
+  "admin.scanner.error": "Error",
+  "admin.checkin.invalid_direction": "Invalid check-in direction",
+  "admin.checkin.invalid_ticket_count": "Invalid ticket count",
+  "admin.checkin.no_tickets_moved": "No tickets moved",
+  "admin.checkin.no_quantity_line": "Cannot check in a no-quantity line",
+  "admin.checkin.checked_status": "Checked {name} {status}",
+  "admin.checkin.checked_status_tickets": "Checked {name} {status} ({tickets})"
 }

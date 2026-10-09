@@ -54,5 +54,6 @@
   "expected_actual.default_title": "Stored total mismatch",
   "expected_actual.expected": "expected",
   "expected_actual.got": "got",
-  "expected_actual.more": "(+{count} more)"
+  "expected_actual.more": "(+{count} more)",
+  "common.confirm_mismatch": "{thing} does not match. Please type the exact {lower} to confirm{suffix}."
 }

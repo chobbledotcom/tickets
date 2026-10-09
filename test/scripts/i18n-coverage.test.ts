@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import {
   EXTRA_SCAN_FILES,
+  flashLiterals,
   isTsModule,
   LEFTOVER_ALLOWLIST,
   leftoverLiterals,
@@ -152,5 +153,14 @@ describe("i18n coverage", () => {
       }
     }
     expect(stale).toEqual([]);
+  });
+});
+
+describe("flash messages", () => {
+  test("backward: no hard-coded flash messages under src/features/", () => {
+    const offenders = walk("src/features", [".ts", ".tsx"]).flatMap((file) =>
+      flashLiterals(Deno.readTextFileSync(file)),
+    );
+    expect(offenders).toEqual([]);
   });
 });

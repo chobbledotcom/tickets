@@ -74,7 +74,7 @@ const createLoginSession = async (
 
   return redirect(
     returnPath ?? adminLandingPath(adminLevel),
-    "Logged in",
+    t("success.logged_in"),
     true,
     {
       cookie: buildSessionCookie(token),
@@ -115,13 +115,9 @@ const handleAdminLogin = async (
   const failedCredentialsRedirect = async (): Promise<Response> => {
     await loginLimiter.record(clientIp);
     if (existingToken) await deleteSession(existingToken);
-    return fail(
-      adminLoginPageHref(returnPath),
-      "Username or password was wrong",
-      {
-        ...(existingToken ? { cookie: clearSessionCookie() } : {}),
-      },
-    );
+    return fail(adminLoginPageHref(returnPath), t("error.login_failed"), {
+      ...(existingToken ? { cookie: clearSessionCookie() } : {}),
+    });
   };
 
   const validation = getLoginForm().validate(form);
@@ -187,7 +183,7 @@ const handleAdminLogin = async (
 const handleAdminLogout = (request: Request): Promise<Response> =>
   withAuth(request, ANY_USER_FORM, async (session) => {
     await deleteSession(session.token);
-    return ok("/admin", "Logged out", {
+    return ok("/admin", t("success.logged_out"), {
       cookie: clearSessionCookie(),
     });
   });

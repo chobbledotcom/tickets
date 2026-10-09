@@ -309,5 +309,11 @@
   "error.listing_min_quantity_whole": "Min tickets per purchase must be a whole number of 1 or more.",
   "error.listing_min_quantity_above_max": "Min tickets per purchase must not be more than Max tickets per purchase.",
   "success.listing_created": "Listing created",
-  "success.listing_deleted": "Listing deleted"
+  "success.listing_deleted": "Listing deleted",
+  "success.required_children_updated": "Required children updated",
+  "listings_table.uploaded_with_caveats": "{success} but: {caveats}",
+  "listings_table.file_removed": "{label} removed",
+  "listings_table.file_removal_failed": "{label} removal failed",
+  "listings_table.choices_updated": "{label} updated",
+  "listings_table.listing_updated": "Listing updated{warning}"
 }

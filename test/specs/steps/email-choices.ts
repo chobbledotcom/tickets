@@ -86,14 +86,11 @@ When(
   },
 );
 
-// The words the site says back are pinned from the route's own flash
-// messages (src/features/public/unsubscribe.ts), which live outside the
-// message catalog.
 Then(
   "they are told they have unsubscribed",
   function (this: TicketsWorld): void {
     expect(whatTheyWereTold(this, READER)).toContain(
-      "You've unsubscribed from our marketing emails.",
+      t("unsubscribe.unsubscribed_flash"),
     );
   },
 );
@@ -132,7 +129,7 @@ Then(
   "they are told they have resubscribed",
   function (this: TicketsWorld): void {
     expect(whatTheyWereTold(this, READER)).toContain(
-      "You've resubscribed to our marketing emails.",
+      t("unsubscribe.resubscribed_flash"),
     );
   },
 );
@@ -155,7 +152,7 @@ Then(
   "they are told their record was deleted",
   function (this: TicketsWorld): void {
     expect(whatTheyWereTold(this, READER)).toContain(
-      "Your contact record has been deleted.",
+      t("unsubscribe.deleted_flash"),
     );
   },
 );

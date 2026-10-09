@@ -427,22 +427,30 @@ const handleTemplateSavePost = validatedEmailPost(
       if (!existing) {
         return errorRedirect(
           `${COMPOSE_PATH}${targetQuery(target)}`,
-          "That template no longer exists.",
+          t("bulk_email.template_missing"),
         );
       }
       await updateEmailTemplate(templateId, encSubject, encBody);
-      return templateSavedResponse(target, templateId, "Template updated.");
+      return templateSavedResponse(
+        target,
+        templateId,
+        t("bulk_email.template_updated_flash"),
+      );
     }
 
     const count = await countEmailTemplates();
     if (count >= MAX_EMAIL_TEMPLATES) {
       return errorRedirect(
         `${COMPOSE_PATH}${targetQuery(target)}`,
-        `You've reached the limit of ${MAX_EMAIL_TEMPLATES} saved templates.`,
+        t("bulk_email.template_limit_reached", { max: MAX_EMAIL_TEMPLATES }),
       );
     }
     const newId = await insertEmailTemplate(encSubject, encBody);
-    return templateSavedResponse(target, newId, "Template saved.");
+    return templateSavedResponse(
+      target,
+      newId,
+      t("bulk_email.template_saved_flash"),
+    );
   },
 );
 

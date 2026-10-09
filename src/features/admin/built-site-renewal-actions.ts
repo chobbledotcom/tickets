@@ -4,6 +4,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
+import { t } from "#i18n";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
 import {
@@ -21,9 +22,8 @@ import {
   builtSiteTabSuccess,
 } from "./built-site-action.ts";
 
-const renewalPushResult = builtSiteTabResult(
-  "renewal",
-  (error) => `Deadline could not be pushed to the site: ${error}`,
+const renewalPushResult = builtSiteTabResult("renewal", (error) =>
+  t("built_sites.deadline_push_failed", { error }),
 );
 
 /** The renewal tab result for a mutation, keyed on whether its push landed. */
@@ -60,11 +60,7 @@ const parseDeadlineDate = (dateStr: string): string | null => {
  * route. Returns the tab error to return, or undefined to continue. */
 const reservedRenewalError = (site: BuiltSite, id: number) =>
   isReservedRenewal(site)
-    ? builtSiteTabError(
-        id,
-        "renewal",
-        "Renewal is not provisioned for this site",
-      )
+    ? builtSiteTabError(id, "renewal", t("built_sites.renewal_not_provisioned"))
     : undefined;
 
 /** Run the action only when the site's renewal URL is not reserved-unconfirmed. */
@@ -87,7 +83,7 @@ export const handleBumpDeadline = builtSiteAction(
         `Admin bumped '${site.name}' deadline by ${months} month(s)`,
       );
     }
-    return renewalPushResult("Deadline bumped")(id, result);
+    return renewalPushResult(t("built_sites.deadline_bumped"))(id, result);
   }),
 );
 
@@ -95,11 +91,19 @@ export const handleOverrideDeadline = builtSiteAction(
   whenProvisioned(async (site, form, id) => {
     const dateStr = form.getString("date");
     if (!dateStr) {
-      return builtSiteTabError(id, "renewal", "Choose a deadline date");
+      return builtSiteTabError(
+        id,
+        "renewal",
+        t("built_sites.choose_deadline_date"),
+      );
     }
     const cutoffIso = parseDeadlineDate(dateStr);
     if (!cutoffIso) {
-      return builtSiteTabError(id, "renewal", "Choose a valid deadline date");
+      return builtSiteTabError(
+        id,
+        "renewal",
+        t("built_sites.choose_valid_deadline_date"),
+      );
     }
     const result = await syncReadOnlyFrom(site, cutoffIso);
     if (result.ok) {
@@ -107,13 +111,17 @@ export const handleOverrideDeadline = builtSiteAction(
         `Admin overrode '${site.name}' deadline to ${cutoffIso}`,
       );
     }
-    return renewalPushResult("Deadline updated")(id, result);
+    return renewalPushResult(t("built_sites.deadline_updated"))(id, result);
   }),
 );
 
 export const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   if (!site.readOnlyFrom) {
-    return builtSiteTabError(id, "renewal", "No deadline to re-sync");
+    return builtSiteTabError(
+      id,
+      "renewal",
+      t("built_sites.no_deadline_to_resync"),
+    );
   }
   const renewalUrl =
     isProvisioned(site) && site.renewalToken
@@ -123,7 +131,7 @@ export const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   if (result.ok) {
     await logActivity(`Admin re-synced deadline for '${site.name}'`);
   }
-  return renewalPushResult("Deadline re-synced")(id, result);
+  return renewalPushResult(t("built_sites.deadline_resynced"))(id, result);
 });
 
 /** Gates on the existence of at least one qualifying renewal tier listing.
@@ -138,7 +146,7 @@ export const handleProvisionRenewal = builtSiteAction(
       return builtSiteTabError(
         id,
         "renewal",
-        "Renewal is already provisioned for this site",
+        t("built_sites.renewal_already_provisioned"),
       );
     }
     const tier = await pickTierListing();
@@ -146,7 +154,7 @@ export const handleProvisionRenewal = builtSiteAction(
       return builtSiteTabError(
         id,
         "renewal",
-        "Create a qualifying renewal tier listing before provisioning",
+        t("built_sites.renewal_needs_tier"),
       );
     }
     const months = readClampedMonths(form);
@@ -163,8 +171,8 @@ export const handleProvisionRenewal = builtSiteAction(
     return editPushOk(
       id,
       pushed,
-      "Renewal provisioned",
-      "Renewal could not be pushed to the site",
+      t("built_sites.renewal_provisioned"),
+      t("built_sites.renewal_push_failed"),
     );
   },
 );

@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 
+import { t } from "#i18n";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { type IdRouteHandler, ownerFormById } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -98,7 +99,7 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
       result,
       async ({ row }) => {
         await logActivity(`Logistics agent '${row.name}' updated`);
-        return redirect("/admin/logistics", "Logistics agent updated", true);
+        return redirect("/admin/logistics", t("logistics.agent_updated"), true);
       },
       (error) => logisticsAgentPage.renderEditError(id, session, form, error),
     );

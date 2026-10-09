@@ -140,11 +140,7 @@ const runSiteUpdate = async (
   deploy: () => Promise<{ tagName: string; name: string }>,
 ): Promise<EditResult> => {
   if (!(await hasRecentBackup(undefined, dbName(site.dbUrl)))) {
-    return builtSiteTabError(
-      id,
-      "update",
-      "No backup of this site in the last hour — back it up before updating.",
-    );
+    return builtSiteTabError(id, "update", t("built_sites.backup_required"));
   }
   return deployAndReport({
     deploy,
@@ -179,7 +175,7 @@ const handleRotateToken = builtSiteAction(async (site, _form, id) => {
     return builtSiteTabError(
       id,
       "renewal",
-      "Renewal is not provisioned for this site",
+      t("built_sites.renewal_not_provisioned"),
     );
   }
   const pushed = await rotateRenewalToken(
@@ -192,8 +188,8 @@ const handleRotateToken = builtSiteAction(async (site, _form, id) => {
   return editPushOk(
     id,
     pushed,
-    "Renewal token rotated",
-    "Renewal token could not be pushed to the site",
+    t("built_sites.token_rotated"),
+    t("built_sites.token_push_failed"),
   );
 });
 
@@ -209,21 +205,25 @@ const handleAddSecrets = builtSiteAction(async (site, _form, id) => {
     return builtSiteTabError(
       id,
       "secrets",
-      `Secrets could not be set: ${result.error}`,
+      t("built_sites.secrets_failed", { error: result.error }),
     );
   }
   if (result.added.length === 0) {
     return builtSiteTabSuccess(
       id,
       "secrets",
-      "No missing secrets — nothing to set",
+      t("built_sites.no_missing_secrets"),
     );
   }
   const summary = `${result.added.length} missing secret(s): ${result.added.join(
     ", ",
   )}`;
   await logActivity(`Set ${summary} on '${site.name}'`);
-  return builtSiteTabSuccess(id, "secrets", `Set ${summary}`);
+  return builtSiteTabSuccess(
+    id,
+    "secrets",
+    t("built_sites.secrets_set", { summary }),
+  );
 });
 
 /** Overrides the CRUD list to render the renewal-tier summary beside the

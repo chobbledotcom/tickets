@@ -8,5 +8,8 @@
   "builder.table_url": "URL",
   "builder.table_built": "Built",
   "builder.site_builder_title": "Site builder",
-  "builder.built_sites_title": "Built sites"
+  "builder.built_sites_title": "Built sites",
+  "builder.db_connection_failed": "Database connection failed: {error}",
+  "builder.deno_deploy_not_configured": "Deno Deploy is not configured",
+  "builder.site_created": "Site \"{name}\" created successfully at {url}"
 }

@@ -12,6 +12,7 @@
 import { logActivity } from "#db/activity-log.ts";
 import { isMaskSentinel } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import {
   type AuthPolicy,
@@ -321,7 +322,12 @@ const secretFieldHandler = validatedSettings<SecretFieldConfig>(
     const formOpts = { formId: cfg.formId };
 
     if (field.action === "unchanged") {
-      return redirect(to, `${cfg.label} unchanged`, true, formOpts);
+      return redirect(
+        to,
+        t("success.secret_unchanged", { label: cfg.label }),
+        true,
+        formOpts,
+      );
     }
 
     if (field.action === "cleared") {
@@ -338,7 +344,7 @@ const secretFieldHandler = validatedSettings<SecretFieldConfig>(
         await logActivity(`${cfg.label} configured`);
         return redirect(
           to,
-          `${cfg.label} updated successfully`,
+          t("success.secret_updated", { label: cfg.label }),
           true,
           formOpts,
         );

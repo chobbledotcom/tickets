@@ -7,6 +7,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 import { hashSessionToken } from "#crypto/hashing.ts";
 import { deleteOtherSessions, getAllSessions } from "#db/sessions.ts";
+import { t } from "#i18n";
 import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
@@ -28,7 +29,7 @@ const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> =
  */
 const handleAdminSessionsPost = gatedPost(OWNER_FORM)(async (session) => {
   await deleteOtherSessions(session.token);
-  return redirect("/admin/sessions", "Logged out of all other sessions", true);
+  return redirect("/admin/sessions", t("success.logged_out_everywhere"), true);
 });
 
 /** Session management routes */

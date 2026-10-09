@@ -163,6 +163,87 @@ const templatePropLeftovers = (src: string): string[] =>
     propHit,
   );
 
+/** The response helpers whose second argument is a flash message. */
+const FLASH_CALL =
+  /(?<![A-Za-z0-9_$.])(errorRedirect|infoRedirect|redirect)\(/g;
+
+/** A message argument that is exactly one string or template literal. */
+const BARE_LITERAL =
+  /^(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.)*)`)$/;
+
+/** One call argument: its text and where the text starts in the source. */
+type CallArg = { start: number; text: string };
+
+/** Quote, bracket, and closer characters, as flat membership sets so the
+ * argument walk stays a short chain of checks. */
+const QUOTES = "\"'`";
+const OPENERS = "([{";
+const CLOSERS = ")]}";
+
+/** The index of the quote that closes the region opening at `open`, or the
+ * source length when the source ends first, so the walk stops on its own. */
+const closeQuoteAt = (src: string, open: number): number => {
+  for (let i = open + 1; i < src.length; i++) {
+    if (src[i] === "\\") i++;
+    else if (src[i] === src[open]) return i;
+  }
+  return src.length;
+};
+
+/** One bracket character's effect on nesting depth: +1, -1, or 0. */
+const depthStep = (ch: string): number =>
+  OPENERS.includes(ch) ? 1 : CLOSERS.includes(ch) ? -1 : 0;
+
+/** Reads a call's top-level arguments, honouring strings and nesting. Returns
+ * null when the call never closes, so a broken match never reports. */
+const topLevelArgs = (src: string, open: number): CallArg[] | null => {
+  const args: CallArg[] = [];
+  let depth = 0;
+  let start = open + 1;
+  for (let i = open; i < src.length; i++) {
+    const ch = src[i]!;
+    if (QUOTES.includes(ch)) {
+      i = closeQuoteAt(src, i);
+      continue;
+    }
+    depth += depthStep(ch);
+    const closesCall = depth === 0;
+    const splitsArgs = ch === "," && depth === 1;
+    if (closesCall || splitsArgs) {
+      args.push({ start, text: src.slice(start, i) });
+    }
+    if (closesCall) return args;
+    if (splitsArgs) start = i + 1;
+  }
+  return null;
+};
+
+/** The hard-coded flash messages one route source still passes to redirect,
+ * errorRedirect, or infoRedirect. The message is the second argument, so the
+ * scan reads that argument alone: a quoted path in the first argument and a
+ * quoted option value later never count. The argument counts only when it is
+ * exactly one string or template literal, so a t() call, a ternary of t()
+ * calls, and a variable all pass. */
+export const flashLiterals = (src: string): string[] => {
+  const hits: string[] = [];
+  for (const call of src.matchAll(FLASH_CALL)) {
+    const lineStart = src.lastIndexOf("\n", call.index) + 1;
+    if (isCommentLine(src.slice(lineStart, call.index))) continue;
+    const message = topLevelArgs(src, call.index + call[1]!.length)?.[1];
+    if (message === undefined) continue;
+    const lead = message.text.length - message.text.trimStart().length;
+    const literal = message.text.trim().match(BARE_LITERAL);
+    if (literal === null) continue;
+    // The match exists, so exactly one quote-style group holds the text.
+    const value = (literal[1] ?? literal[2] ?? literal[3])!.trim();
+    if (!wordy(value)) continue;
+    const at = message.start + lead + literal.index!;
+    const line = src.slice(0, at).split("\n").length;
+    hits.push(`L${line} flash "${value}"`);
+  }
+  return hits;
+};
+
 /** Hard-coded user-facing strings still present in a file's source. */
 export const leftoverLiterals = (src: string, isTs: boolean): string[] => {
   const hits: string[] = [];

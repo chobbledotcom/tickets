@@ -18,6 +18,7 @@ import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 /* jscpd:ignore-start */
 import { filter, map, pipe, unique } from "#fp";
+import { t } from "#i18n";
 import { AUTH_FORM, formGuard } from "#routes/auth.ts";
 import {
   type AttendeeRouteParams,
@@ -275,7 +276,7 @@ const validateMergePostInput = async (
   if (!sourceToken) {
     return {
       ok: false,
-      response: errorRedirect(actionsTab, "Source token is required"),
+      response: errorRedirect(actionsTab, t("attendees.merge_source_required")),
     };
   }
 
@@ -285,7 +286,7 @@ const validateMergePostInput = async (
       ok: false,
       response: errorRedirect(
         `${actionsTab}?token=${encodeURIComponent(sourceToken)}`,
-        "Ticket token not found",
+        t("attendees.merge_source_token_not_found"),
       ),
     };
   }
@@ -293,10 +294,7 @@ const validateMergePostInput = async (
   if (source.id === attendeeId) {
     return {
       ok: false,
-      response: errorRedirect(
-        actionsTab,
-        "Cannot merge an attendee with themselves",
-      ),
+      response: errorRedirect(actionsTab, t("attendees.merge_self_refusal")),
     };
   }
 

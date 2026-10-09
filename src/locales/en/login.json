@@ -39,5 +39,9 @@
   "error.password_update_failed": "Failed to update password",
   "error.invite_invalid": "This invite link is invalid or has already been used.",
   "error.invite_expired": "This invite link has expired.",
-  "success.password_changed": "Password changed — please log in again"
+  "error.login_failed": "Username or password was wrong",
+  "success.password_changed": "Password changed — please log in again",
+  "success.password_set": "Password set successfully",
+  "success.logged_in": "Logged in",
+  "success.logged_out": "Logged out"
 }

@@ -33,5 +33,6 @@
   "attendee_logistics.col_attendee": "Attendee",
   "attendee_logistics.col_dates": "Dates",
   "attendee_logistics.col_start": "Start",
-  "attendee_logistics.col_end": "End"
+  "attendee_logistics.col_end": "End",
+  "logistics.agent_updated": "Logistics agent updated"
 }

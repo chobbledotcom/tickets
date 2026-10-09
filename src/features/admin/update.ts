@@ -7,6 +7,7 @@ import { defineRoutes } from "#routes/router.ts";
 
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
@@ -61,13 +62,13 @@ const checkForUpdate = async (): Promise<Response> => {
     await settings.update.latestScriptVersionName(release.name);
 
     const message = isNewerVersion(release.tagName)
-      ? `Update available: ${release.name}`
-      : "You are running the latest version";
+      ? t("update.update_available_flash", { version: release.name })
+      : t("update.running_latest_flash");
     return redirect(UPDATE_PATH, message, true);
   } catch (e) {
     return errorRedirect(
       UPDATE_PATH,
-      `Failed to check for updates: ${errorMsg(e)}`,
+      t("update.check_failed", { error: errorMsg(e) }),
     );
   }
 };
@@ -76,15 +77,12 @@ const checkForUpdate = async (): Promise<Response> => {
 const deployUpdate = async (): Promise<Response> => {
   const latestVersion = settings.latestScriptVersion;
   if (!latestVersion || !isNewerVersion(latestVersion)) {
-    return errorRedirect(UPDATE_PATH, "No update available to install");
+    return errorRedirect(UPDATE_PATH, t("update.no_update_to_install"));
   }
   // Migrations no longer back up inline, so refuse to deploy a new version
   // (which migrates on first request) unless a fresh backup already exists.
   if (!(await hasRecentBackup())) {
-    return errorRedirect(
-      UPDATE_PATH,
-      "No database backup in the last hour — run a backup before updating.",
-    );
+    return errorRedirect(UPDATE_PATH, t("update.backup_required"));
   }
 
   return deployAndReport({

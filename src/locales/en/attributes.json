@@ -40,5 +40,10 @@
   "attributes.listing.create_first": "Create attributes",
   "attributes.listing.no_options": "No options for this attribute yet.",
   "attributes.listing.manage": "Manage attributes",
-  "attributes.filter.all": "All"
+  "attributes.filter.all": "All",
+  "attributes.created": "Attribute created",
+  "attributes.updated": "Attribute updated",
+  "attributes.option_added": "Option added",
+  "attributes.option_deleted": "Option deleted",
+  "attributes.option_updated": "Option updated"
 }

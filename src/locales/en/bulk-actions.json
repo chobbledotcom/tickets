@@ -40,5 +40,8 @@
   "bulk_actions.deactivate_confirm_prompt": "To deactivate this group, type its name \"{groupName}\" into the box below:",
   "bulk_actions.reactivate_impact": "Reactivating this group will reactivate {count, plural, one {# listing} other {# listings}} in",
   "bulk_actions.reactivate_benefits": "Their public ticket pages will be accessible and new attendees can register again.",
-  "bulk_actions.reactivate_confirm_prompt": "To reactivate this group, type its name \"{groupName}\" into the box below:"
+  "bulk_actions.reactivate_confirm_prompt": "To reactivate this group, type its name \"{groupName}\" into the box below:",
+  "bulk_actions.group_deactivated": "Group deactivated ({count} listings)",
+  "bulk_actions.group_reactivated": "Group reactivated ({count} listings)",
+  "bulk_actions.new_name_required": "New group name is required"
 }

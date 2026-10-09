@@ -29,5 +29,12 @@
   "sms.contact.history_heading": "Message history",
   "sms.contact.no_messages": "No text messages yet.",
   "sms.contact.col_when": "When",
-  "sms.contact.col_message": "Message"
+  "sms.contact.col_message": "Message",
+  "sms.error.invalid_target": "Invalid SMS target",
+  "sms.error.gateway_not_configured": "SMS gateway is not configured",
+  "sms.error.message_empty": "Message cannot be empty",
+  "sms.error.message_too_long": "A message must be {max} characters or fewer",
+  "sms.error.no_phone_number": "Attendee has no phone number on file",
+  "sms.error.queue_failed": "Message could not be queued",
+  "sms.success.queued": "Text message queued"
 }

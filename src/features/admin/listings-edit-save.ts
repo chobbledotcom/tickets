@@ -17,6 +17,7 @@ import {
   type ListingAggregateValues,
   listingAggregates,
 } from "#db/listings/aggregates.ts";
+import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
 import {
   type EditErrorRenderer,
@@ -113,7 +114,7 @@ export const handleListingEditSuccess = async (
     formData,
     id,
     entityReturnPath("/admin/listings", row.id),
-    `Listing updated${durationWarning}`,
+    t("listings_table.listing_updated", { warning: durationWarning }),
     existing.attachment_url,
   );
 };

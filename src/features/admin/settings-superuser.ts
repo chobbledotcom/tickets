@@ -10,6 +10,7 @@ import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { deleteUser } from "#db/users.ts";
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import {
   type ErrorPageFn,
   settingsRoute,
@@ -73,7 +74,7 @@ export const handleSuperuserPost = settingsRoute(
     if (choice === "self-managed") {
       await settings.update.superuserChoice("self-managed");
       await logActivity("Superuser recovery declined");
-      return ok("/admin/settings", "Superuser recovery declined", {
+      return ok("/admin/settings", t("success.superuser_declined"), {
         formId: "settings-superuser",
       });
     }
@@ -114,7 +115,7 @@ export const handleSuperuserPost = settingsRoute(
 
     await settings.update.superuserChoice("enabled");
     await logActivity(`Superuser '${superuser.username}' enabled`);
-    return ok("/admin/settings", "Superuser enabled and credentials sent", {
+    return ok("/admin/settings", t("success.superuser_enabled"), {
       formId: "settings-superuser",
     });
   },

@@ -14,6 +14,7 @@ import {
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
@@ -89,7 +90,7 @@ const builderPost = createAuthedFormRoute({
       if (!dbTest.ok) {
         return errorRedirect(
           BUILDER_PATH,
-          `Database connection failed: ${dbTest.error}`,
+          t("builder.db_connection_failed", { error: dbTest.error }),
         );
       }
     }
@@ -97,7 +98,10 @@ const builderPost = createAuthedFormRoute({
     const hostingProvider = providerOrBunny(values.hosting_provider, "deno");
 
     if (hostingProvider === "deno" && !isDenoDeployEnabled()) {
-      return errorRedirect(BUILDER_PATH, "Deno Deploy is not configured");
+      return errorRedirect(
+        BUILDER_PATH,
+        t("builder.deno_deploy_not_configured"),
+      );
     }
 
     const dbProviderVal = values.db_provider;
@@ -151,9 +155,10 @@ const builderPost = createAuthedFormRoute({
 
     return redirect(
       BUILDER_PATH,
-      `Site "${values.site_name}" created successfully at ${siteBaseUrl(
-        buildResult.defaultHostname,
-      )}`,
+      t("builder.site_created", {
+        name: values.site_name,
+        url: siteBaseUrl(buildResult.defaultHostname),
+      }),
       true,
     );
   },

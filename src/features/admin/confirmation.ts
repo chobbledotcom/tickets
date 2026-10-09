@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { asString } from "#fp";
+import { t } from "#i18n";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -49,7 +50,11 @@ export const verifyOrRedirect = (
     const suffix = action ? ` ${action}` : "";
     return errorRedirect(
       redirectUrl,
-      `${label} does not match. Please type the exact ${label.toLowerCase()} to confirm${suffix}.`,
+      t("common.confirm_mismatch", {
+        lower: label.toLowerCase(),
+        suffix,
+        thing: label,
+      }),
     );
   }
   return null;
