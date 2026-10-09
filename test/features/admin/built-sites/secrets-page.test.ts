@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyCdnApi, type EdgeScriptSecret } from "#shared/bunny-cdn.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import type { EdgeScriptSecret } from "#shared/bunny-edge-script.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
