@@ -65,6 +65,7 @@ export const AdminPage = ({
     beforeContent={<AdminNav active={active} session={session} />}
     {...(bodyClass !== undefined ? { bodyClass } : {})}
     contentClassName={contentClassName}
+    family="admin"
     {...(theme !== undefined ? { theme } : {})}
     title={title}
   >
@@ -384,6 +385,7 @@ export const staffAdminPage = ({
   String(
     <Layout
       beforeContent={<StaffAdminNav active={active} session={session} />}
+      family="admin"
       title={title}
     >
       {session.adminLevel === "agent" ? (

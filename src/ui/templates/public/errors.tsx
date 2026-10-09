@@ -22,7 +22,7 @@ const errorPage =
   (titleKey: string, headingKey: string, headExtra: string) =>
   (body: Child): string =>
     String(
-      <Layout headExtra={headExtra} title={t(titleKey)}>
+      <Layout family="system" headExtra={headExtra} title={t(titleKey)}>
         <ProseHeading heading={t(headingKey)}>{body}</ProseHeading>
       </Layout>,
     );
@@ -32,7 +32,7 @@ const errorPage =
  */
 export const notFoundPage = (): string =>
   String(
-    <Layout title={t("public.not_found.title")}>
+    <Layout family="system" title={t("public.not_found.title")}>
       <h1>{t("public.not_found.heading")}</h1>
     </Layout>,
   );
@@ -204,7 +204,7 @@ export const siteNotActivatedPage = (): string =>
 export const readOnlyPage = (): string => {
   const renewalUrl = getRenewalUrl();
   return String(
-    <Layout title={t("public.read_only.title")}>
+    <Layout family="public" title={t("public.read_only.title")}>
       <p>
         {t("public.read_only.message")}
         {renewalUrl && (

@@ -76,7 +76,9 @@ describe("Layout skip navigation", () => {
   afterEach(resetLayoutTest);
 
   test("renders skip-nav link targeting main-content", () => {
-    const html = String(Layout({ children: "", title: "Test" }));
+    const html = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
     expect(html).toContain('class="skip-nav"');
     expect(html).toContain('href="#main-content"');
     expect(html).toContain("Skip to content");
@@ -90,6 +92,7 @@ describe("Layout skip navigation", () => {
         beforeContent: Raw({ html: '<nav class="example-nav">Menu</nav>' }),
         children: Raw({ html: "<h1>Heading</h1><p>Body</p>" }),
         contentClassName: "example-page",
+        family: "public",
         title: "Test",
       }),
     );
@@ -105,7 +108,9 @@ describe("Layout document shell", () => {
   afterEach(resetLayoutTest);
 
   test("renders the required document metadata and stylesheet contracts", () => {
-    const html = String(Layout({ children: "", title: "Test" }));
+    const html = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
 
     expect(html.slice(0, "<!DOCTYPE html>".length)).toBe("<!DOCTYPE html>");
     expect(html).toContain(
@@ -120,7 +125,12 @@ describe("Layout document shell", () => {
   test("renders head extras as markup", () => {
     const extra = '<meta content="raw" name="test-extra">';
     const html = String(
-      Layout({ children: "", headExtra: extra, title: "Test" }),
+      Layout({
+        children: "",
+        family: "public",
+        headExtra: extra,
+        title: "Test",
+      }),
     );
 
     expect(html).toContain(extra);
@@ -129,19 +139,33 @@ describe("Layout document shell", () => {
 
   test("applies an explicit body class without adding the iframe script", () => {
     const html = String(
-      Layout({ bodyClass: "example-page", children: "", title: "Test" }),
+      Layout({
+        bodyClass: "example-page",
+        children: "",
+        family: "public",
+        title: "Test",
+      }),
     );
 
-    expect(html).toContain('<body class="example-page">');
+    expect(html).toContain(
+      '<body class="example-page" data-page-family="public">',
+    );
     expect(html).not.toContain(IFRAME_RESIZER_CHILD_JS_PATH);
   });
 
   test("adds the iframe script only for an iframe body class", () => {
     const html = String(
-      Layout({ bodyClass: "example iframe", children: "", title: "Test" }),
+      Layout({
+        bodyClass: "example iframe",
+        children: "",
+        family: "public",
+        title: "Test",
+      }),
     );
 
-    expect(html).toContain('<body class="example iframe">');
+    expect(html).toContain(
+      '<body class="example iframe" data-page-family="public">',
+    );
     expect(html).toContain(
       `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`,
     );
@@ -149,7 +173,9 @@ describe("Layout document shell", () => {
 
   test("renders the configured header image with decorative semantics", () => {
     settings.setForTest({ header_image_url: "header.jpg" });
-    const html = String(Layout({ children: "", title: "Test" }));
+    const html = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
 
     expect(html).toContain(
       `<img alt="" class="header-image" src="${getImageProxyUrl(
@@ -162,7 +188,7 @@ describe("Layout document shell", () => {
     settings.setForTest({ header_image_url: "header.jpg" });
     const html = await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
-      return String(Layout({ children: "", title: "Test" }));
+      return String(Layout({ children: "", family: "public", title: "Test" }));
     });
 
     expect(html).not.toContain("header-image");
@@ -170,9 +196,13 @@ describe("Layout document shell", () => {
   });
 
   test("renders the demo banner only in demo mode", () => {
-    const normalHtml = String(Layout({ children: "", title: "Test" }));
+    const normalHtml = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
     setDemoModeForTest(true);
-    const demoHtml = String(Layout({ children: "", title: "Test" }));
+    const demoHtml = String(
+      Layout({ children: "", family: "public", title: "Test" }),
+    );
 
     expect(normalHtml).not.toContain('class="demo-banner"');
     expect(demoHtml).toContain('class="demo-banner"');
@@ -181,7 +211,9 @@ describe("Layout document shell", () => {
   test("renders an unconsumed request flash before the page content", async () => {
     const html = await withRequestContext(() => {
       setFlashContext({ success: "Saved from context" });
-      return String(Layout({ children: "Page body", title: "Test" }));
+      return String(
+        Layout({ children: "Page body", family: "public", title: "Test" }),
+      );
     });
 
     expect(html).toContain(
@@ -193,7 +225,9 @@ describe("Layout document shell", () => {
     const html = await withRequestContext(() => {
       setFlashContext({ error: "Already shown" });
       consumeFlash();
-      return String(Layout({ children: "Page body", title: "Test" }));
+      return String(
+        Layout({ children: "Page body", family: "public", title: "Test" }),
+      );
     });
 
     expect(html).not.toContain("Already shown");

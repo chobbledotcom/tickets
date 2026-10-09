@@ -88,7 +88,7 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
     ? `${t("unsubscribe.email_preferences")} - ${settings.websiteTitle}`
     : t("unsubscribe.email_preferences");
   return String(
-    <Layout contentClassName="public-page" title={title}>
+    <Layout contentClassName="public-page" family="public" title={title}>
       <h1>{t("unsubscribe.email_preferences")}</h1>
       <Flash {...flashProps(state.error, state.success, state.info)} />
       {!state.hash ? (

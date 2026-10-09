@@ -145,6 +145,7 @@ const scannerShell = (
   String(
     <Layout
       beforeContent={<AdminNav active="/admin/" session={session} />}
+      family="admin"
       headExtra={opts.headExtra}
       title={opts.title}
     >

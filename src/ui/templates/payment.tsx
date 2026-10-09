@@ -24,7 +24,7 @@ export const paymentPage = (
   formattedPrice: string,
 ): string =>
   String(
-    <Layout title={t("payment.title")}>
+    <Layout family="public" title={t("payment.title")}>
       <h1>{t("payment.complete_your_payment")}</h1>
       <aside>
         <LabelledParas
@@ -61,6 +61,7 @@ export const successPage = ({
   return String(
     <Layout
       {...(inIframe ? { bodyClass: "iframe" } : {})}
+      family="public"
       {...(thankYouUrl
         ? {
             headExtra: `<meta http-equiv="refresh" content="3;url=${escapeHtml(
@@ -127,7 +128,7 @@ export const paymentCancelPage = (
   ticketUrl: string | null,
 ): string =>
   String(
-    <Layout title={t("payment.cancel.title")}>
+    <Layout family="public" title={t("payment.cancel.title")}>
       <div data-payment-result="cancel">
         <div class="prose">
           <h1>{t("payment.cancel.heading")}</h1>
@@ -202,6 +203,7 @@ export const paymentWaitingPage = ({
 }): string =>
   String(
     <Layout
+      family="public"
       {...(refreshUrl
         ? {
             headExtra: `<meta http-equiv="refresh" content="${WAITING_PAGE_RELOAD_SECONDS};url=${escapeHtml(
@@ -250,7 +252,7 @@ export const paymentErrorPage = (
  */
 export const checkoutPopupPage = (checkoutUrl: string): string =>
   String(
-    <Layout bodyClass="iframe" title={t("payment.popup.title")}>
+    <Layout bodyClass="iframe" family="public" title={t("payment.popup.title")}>
       <div
         data-checkout-popup={escapeHtml(checkoutUrl)}
         data-scroll-into-view
