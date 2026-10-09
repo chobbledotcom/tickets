@@ -343,6 +343,16 @@ type ExitFacts = {
   extra: string;
 };
 
+/** The files deno's JUnit report blames for uncaught errors — the closest
+ * marker for a worker death and the failing run's own evidence. */
+const printJunitErrorFiles = (junitErrorFiles: string[]): void => {
+  if (junitErrorFiles.length === 0) return;
+  console.error(
+    "\ndeno's JUnit report marks these files with uncaught errors:",
+  );
+  for (const file of junitErrorFiles) console.error(`  ${file}`);
+};
+
 const printNoFailedTestFacts = ({
   summary,
   status,
@@ -350,12 +360,7 @@ const printNoFailedTestFacts = ({
   extra,
 }: ExitFacts): void => {
   console.error(describeStatus(status));
-  if (junitErrorFiles.length > 0) {
-    console.error(
-      "\ndeno's JUnit report marks these files with uncaught errors:",
-    );
-    for (const file of junitErrorFiles) console.error(`  ${file}`);
-  }
+  printJunitErrorFiles(junitErrorFiles);
   if (summary.droppedLines.length > 0) {
     console.error("\nStdout lines deno printed beside the TAP results:");
     for (const line of summary.droppedLines) console.error(line);
@@ -416,12 +421,7 @@ export const printCompactSummary = (
     );
   }
 
-  if (junitErrorFiles.length > 0 && summary.failed > 0) {
-    console.error(
-      "\ndeno's JUnit report marks these files with uncaught errors:",
-    );
-    for (const file of junitErrorFiles) console.error(`  ${file}`);
-  }
+  if (summary.failed > 0) printJunitErrorFiles(junitErrorFiles);
 
   printFailures(summary);
 
