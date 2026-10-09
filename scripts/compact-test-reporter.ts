@@ -471,7 +471,7 @@ export const runCompactDenoTest = async (
   const junit =
     options.junitPath === undefined
       ? ""
-      : (await nullIfNotFound(Deno.readTextFile(options.junitPath))) ?? "";
+      : ((await nullIfNotFound(Deno.readTextFile(options.junitPath))) ?? "");
   printCompactSummary(
     summary,
     { code: status.code, signal: status.signal },

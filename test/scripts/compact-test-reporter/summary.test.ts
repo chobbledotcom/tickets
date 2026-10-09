@@ -372,7 +372,7 @@ describe("running deno test with the compact reporter", () => {
             'console.log("error: Uncaught boom from the dying child"); Deno.exit(1);',
           ],
           { cwd: dir.path, env: { CI: "1" } },
-        )
+        ),
       );
 
       expect(value).toBe(1);
@@ -406,13 +406,13 @@ describe("running deno test with the compact reporter", () => {
       Deno.writeTextFileSync(
         `${dir.path}/crashes.test.ts`,
         [
-          "Deno.test(\"starts\", () => {",
-          "  queueMicrotask(() => { throw new Error(\"boom-mid-run\"); });",
+          'Deno.test("starts", () => {',
+          '  queueMicrotask(() => { throw new Error("boom-mid-run"); });',
           "});",
         ].join("\n"),
       );
       const { errors, value } = await capturingConsole(() =>
-        runTests([`${dir.path}/crashes.test.ts`], false)
+        runTests([`${dir.path}/crashes.test.ts`], false),
       );
 
       expect(value).not.toBe(0);
