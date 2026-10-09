@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -51,6 +53,67 @@ describeWithEnv("API package detail", { db: true }, () => {
       { name: "Fixed Kit A", quantity: 2, slug: expect.any(String) },
       { name: "Fixed Kit B", quantity: 1, slug: expect.any(String) },
     ]);
+  });
+
+  test("GET publishes the bundle floor a raised member minimum sets", async () => {
+    // An owner can raise a member's per-purchase minimum after the package
+    // was saved. One bundle serves A 2 of the 3 units it now demands, so
+    // counts 2–5 are the only valid ones and the GET must say so — a client
+    // that reads only the cap would book a count the fold refuses.
+    const { a, group } = await fixedPackage("Floor Kit", "floor-kit");
+    await listingsTable.update(a.id, { minQuantity: 3 });
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(pkg.minimum).toBe(2);
+    expect(pkg.maxPurchasable).toBe(5);
+
+    // The published floor is the fold's own rule: it books the floor and
+    // refuses one below it.
+    expect(
+      (await apiBookPackage(group.slug, { quantity: 2 })).response.status,
+    ).toBe(200);
+    const below = await apiBookPackage(group.slug, { quantity: 1 });
+    expect(below.response.status).toBe(400);
+    expect(below.body.error).toBe(
+      "Sorry, Floor Kit A sells at least 3 tickets per booking.",
+    );
+  });
+
+  test("GET and POST answer 404 once the raised minimum passes the bundle cap", async () => {
+    // No count survives both refusals: the fold refuses every count below
+    // the member's minimum and the cap refuses every count at or above it.
+    // The bundle is unbookable, so both endpoints answer 404 the way they
+    // already do for a package whose bundle no longer fits. A still sells
+    // alone (its minimum sits under its own cap), so only the bundle rule
+    // refuses.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Locked Kit",
+      slug: "locked-kit",
+    });
+    const a = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Locked Kit A",
+      unitPrice: 1000,
+    });
+    await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      maxQuantity: 50,
+      name: "Locked Kit B",
+      unitPrice: 500,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: null, quantity: 4 },
+    ]);
+    // Four units per bundle from 10 spots cap the bundle at 2; a minimum of
+    // 9 needs ceil(9/4) = 3 bundles — past the cap, under the member's own.
+    await listingsTable.update(a.id, { minQuantity: 9 });
+    expect((await apiGet(`/api/packages/${group.slug}`)).status).toBe(404);
+    expect((await apiBookPackage(group.slug)).response.status).toBe(404);
   });
 
   test("GET prices each offered day count for a customisable bundle, per-day overrides included", async () => {

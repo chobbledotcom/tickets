@@ -99,6 +99,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
           },
           { name: "Firepit", quantity: 1, slug: "firepit" },
         ],
+        minimum: 1,
         priceMinor: 5500,
       },
     }),

@@ -116,6 +116,7 @@ describe("documented public endpoints", () => {
           },
           { name: "Firepit", quantity: 1, slug: "firepit" },
         ],
+        minimum: 1,
         name: "Camping Weekend",
         priceMinor: 5500,
         slug: "camping-weekend",
