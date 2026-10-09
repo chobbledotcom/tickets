@@ -24,6 +24,7 @@ export const SuccessCompletePage = ({
   headingLayoutPage(
     heading,
     title,
+    "system",
   )(
     <>
       <div class="success" role="alert">

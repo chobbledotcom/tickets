@@ -47,4 +47,5 @@ export const joinErrorPage = (message: string): string =>
   simplePublicPage(
     t("join.invalid.title"),
     t("join.invalid.heading"),
+    "system",
   )(<Flash error={message} />);

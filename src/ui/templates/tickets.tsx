@@ -343,6 +343,7 @@ export const ticketViewPage = (
   return headingLayoutPage(
     heading,
     title,
+    "public",
   )(
     <div class="ticket-slider">
       <Raw html={cardHtml} />
