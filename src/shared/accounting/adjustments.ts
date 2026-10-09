@@ -28,8 +28,9 @@ import { nowIso } from "#shared/now.ts";
  * edits a figure up, down, then back up posts three distinct adjustments.
  *
  * The `delta` is part of the key because `nowIso()` resolves only to the
- * millisecond. Two opposite corrections in the same millisecond then share a
- * reference, and `INSERT OR IGNORE` drops the second.
+ * millisecond. Without the signed `delta` in the key, two opposite corrections
+ * in the same millisecond share a reference, and `INSERT OR IGNORE` drops the
+ * second.
  */
 const writeoffAdjustmentLeg = async (
   account: AccountRef,

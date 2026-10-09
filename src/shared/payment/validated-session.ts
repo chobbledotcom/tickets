@@ -103,8 +103,8 @@ export const isSessionRejection = (
 /** The malformed-charge refusal, refundable only when money was captured AND
  *  the provider named it. The metadata is unpacked first: Square folds its
  *  small fields into one entry, but the price proof is signed over the
- *  unpacked shape. A packed record fails its own ownership check, and no
- *  Square charge is ever refunded. */
+ *  unpacked shape. Without the unpacking, a packed record fails its own
+ *  ownership check, and no Square charge is refunded. */
 const malformedChargeRejection = (
   sessionId: string,
   paymentReference: string,

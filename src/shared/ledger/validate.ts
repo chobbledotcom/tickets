@@ -22,8 +22,9 @@ const hasReservedChar = (a: AccountRef): boolean =>
   a.id.includes(ACCOUNT_KEY_SEPARATOR);
 
 /** A reversal link, when present, must be a real transfer row id — a positive
- *  safe integer. A fractional or unsafe value occupies a different slot in the
- *  unique `reverses_id` index than the original id, and defeats the
+ *  safe integer. This check rejects a fractional or unsafe value as
+ *  `invalid_reverses_id`. Without it, such a value occupies a different slot
+ *  in the unique `reverses_id` index than the original id, and defeats the
  *  one-void-per-original guard. */
 const hasInvalidReversesId = (t: TransferInput): boolean =>
   t.reversesId !== undefined &&

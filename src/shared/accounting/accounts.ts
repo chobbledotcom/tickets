@@ -67,11 +67,12 @@ export const WRITEOFF: AccountRef = account(WRITEOFF_TYPE, "default");
 
 /**
  * Build the account constructor for one type of row-backed account. The row id
- * must be a positive safe integer. A zero, negative, fractional, or unsafe id
- * mints a phantom account (`attendee:1.5`) that the ledger accepts — its
- * account ids are only checked for non-emptiness. It silently diverts money
- * from the real row's balance, statements, and refunds. Reject such ids at
- * construction, so every row-backed type validates identically.
+ * must be a positive safe integer. Without this check, a zero, negative,
+ * fractional, or unsafe id mints a phantom account (`attendee:1.5`) that the
+ * ledger accepts. Its account ids are only checked for non-emptiness, and the
+ * phantom account silently diverts money from the real row's balance,
+ * statements, and refunds. This constructor rejects such ids, so every
+ * row-backed type validates identically.
  */
 const rowAccount =
   (kind: string) =>

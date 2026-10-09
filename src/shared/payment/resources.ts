@@ -46,9 +46,9 @@ const positiveMoney = (message: string) =>
 
 const PositiveMoneySchema = positiveMoney("A paid charge must be positive");
 
-/** A finished or still-going refund must be for some money: a refund of
- *  nothing reads as one still going, for ever. Only a failed refund can
- *  be for nothing, because no money moved at all. */
+/** A finished or still-going refund must be for some money. Without this
+ *  check, a refund of nothing reads as one still going, for ever. Only a
+ *  failed refund can be for nothing, because no money moved at all. */
 const MovedRefundMoneySchema = positiveMoney(
   "A refund that moved money must be positive",
 );

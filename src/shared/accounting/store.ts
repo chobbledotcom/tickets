@@ -72,8 +72,9 @@ const assertShared = (label: string, values: string[]): void => {
 /**
  * Checks that need no database, run before any DB work so a malformed batch never
  * opens a transaction. Every leg must be valid on its own, the batch must share
- * one event group, and no reference is repeated — a repeat silently under-posts.
- * Currency needs no check — a site has one, fixed at setup, so every leg shares it.
+ * one event group, and no reference is repeated. Without the reference check, a
+ * repeat silently under-posts. Currency needs no check — a site has one, fixed
+ * at setup, so every leg shares it.
  */
 export const assertPostable = (inputs: TransferInput[]): void => {
   for (const input of inputs) {
