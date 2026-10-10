@@ -72,7 +72,9 @@ describe("the Public URL rows", () => {
     expect((html.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
   });
 
-  test("pressing Embed ticks the hidden toggle", () => {
+  /** The rendered row installed onto the DOM, with its hidden toggle and its
+   * Embed label handed back. */
+  const setupToggle = () => {
     const window = dom.installDom(availableRows());
     const toggle = window.document.getElementById(
       "embed-toggle-7",
@@ -80,9 +82,33 @@ describe("the Public URL rows", () => {
     const embed = window.document.querySelector(
       'label[for="embed-toggle-7"]',
     ) as unknown as HTMLLabelElement;
+    return { embed, toggle, window };
+  };
+
+  test("pressing Embed ticks the hidden toggle", () => {
+    const { embed, toggle } = setupToggle();
     expect(toggle.checked).toBe(false);
     embed.click();
     expect(toggle.checked).toBe(true);
+  });
+
+  test("keyboard focus on the hidden toggle lights up the Embed label", async () => {
+    const { embed, toggle, window } = setupToggle();
+    // The hidden checkbox stays in the tab order, and the label's for=
+    // association is its accessible name.
+    expect(toggle.disabled).toBe(false);
+    expect(Array.from(toggle.labels ?? [])).toContain(embed);
+    toggle.focus();
+    expect(window.document.activeElement).toBe(toggle);
+    // The checkbox itself is visually hidden, so the stylesheet must light
+    // the label up when the toggle takes keyboard focus.
+    const stylesheet = await Deno.readTextFile(
+      "src/ui/static/_public-url-rows.scss",
+    );
+    expect(stylesheet).toContain(
+      ".embed-toggle:focus-visible ~ .public-url-row label",
+    );
+    expect(stylesheet).toContain("outline: 2px solid var(--color-secondary);");
   });
 
   test("hands the copied label to the client through a data attribute", () => {

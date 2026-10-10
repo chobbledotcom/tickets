@@ -42,6 +42,13 @@
   color: var(--color-link);
 }
 
+/* Keyboard focus on the hidden toggle lights up its Embed label: the
+ * checkbox is visually hidden, so the label shows where focus is. */
+.embed-toggle:focus-visible ~ .public-url-row label {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
 /* The embed code rows stay hidden until the Embed action's hidden toggle is
  * ticked. The toggle and the rows live in the same details table. */
 .embed-code-row {
