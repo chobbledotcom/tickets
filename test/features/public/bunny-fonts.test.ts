@@ -97,6 +97,11 @@ const MATCHES: [string, string][] = [
     '@import "https://fonts.b\\75\rnny.net/css";',
   ],
   [
+    "a form feed line continuation in the host",
+    '@import "https://fonts.bu\\\fnny.net/css";',
+  ],
+  ["a backslash in the path at the end", "src: url(https://fonts.bunny.net/\\"],
+  [
     "a division slash that is not a comment",
     "a { font: 12px/1.5 Arial; src: url(https://fonts.bunny.net/aleo.woff2); }",
   ],
@@ -159,6 +164,42 @@ const MISSES: [string, string][] = [
   [
     "a raw newline inside the address string",
     '@import "https://fonts.bunny.net/css\n";',
+  ],
+  [
+    "a form feed inside the address string",
+    'a{background-image:url("https://fonts.bunny.net/a\f")}',
+  ],
+  [
+    "a backslash after the host at the end",
+    "a{background-image:url(https://fonts.bunny.net\\",
+  ],
+  [
+    "a non-printable in an unquoted url() at the end",
+    "a{background-image:url(https://fonts.bunny.net/a\u0007",
+  ],
+  [
+    "a vertical tab in an unquoted url() at the end",
+    "a{background-image:url(https://fonts.bunny.net/a\u000b",
+  ],
+  [
+    "a unit separator in an unquoted url() at the end",
+    "a{background-image:url(https://fonts.bunny.net/a\u001f",
+  ],
+  [
+    "a delete control in an unquoted url() at the end",
+    "a{background-image:url(https://fonts.bunny.net/a\u007f",
+  ],
+  [
+    "a backslash before a newline in an unquoted url()",
+    "src: url(https://fonts.bunny.net/a\\\nb);",
+  ],
+  [
+    "a backslash before a form feed in an unquoted url()",
+    "src: url(https://fonts.bunny.net/a\\\fb);",
+  ],
+  [
+    "a backslash before a carriage return in an unquoted url()",
+    "src: url(https://fonts.bunny.net/a\\\rb);",
   ],
   ["the host in a plain string", 'content: "fonts.bunny.net";'],
   ["an unparseable url", "src: url(https://bad host/aleo.woff2);"],
