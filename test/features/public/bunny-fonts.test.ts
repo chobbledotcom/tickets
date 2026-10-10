@@ -64,6 +64,39 @@ const MATCHES: [string, string][] = [
   ],
   ["a scheme-relative @import string", '@import "//fonts.bunny.net/css";'],
   [
+    "a backslash at the end of an unterminated string",
+    '@import "https://fonts.bunny.net/css\\',
+  ],
+  ["an unterminated address string", '@import "https://fonts.bunny.net/css'],
+  [
+    "an unterminated url() at the end",
+    "src: url(https://fonts.bunny.net/aleo.woff2",
+  ],
+  [
+    "a url() body that ends in whitespace",
+    "src: url(https://fonts.bunny.net/aleo.woff2 ",
+  ],
+  [
+    "a comment after a quoted url() that never closes",
+    'src: url("https://fonts.bunny.net/aleo.woff2"/*never',
+  ],
+  [
+    "a comment between the quoted url() string and its close",
+    '@import url("https://fonts.bunny.net/css"/**/);',
+  ],
+  [
+    "a comment after a quoted font url()",
+    'src: url("https://fonts.bunny.net/aleo.woff2"/*x*/);',
+  ],
+  [
+    "a CRLF after a hex escape",
+    '@import "https://fonts.b\\75\r\nnny.net/css";',
+  ],
+  [
+    "a bare carriage return after a hex escape",
+    '@import "https://fonts.b\\75\rnny.net/css";',
+  ],
+  [
     "a division slash that is not a comment",
     "a { font: 12px/1.5 Arial; src: url(https://fonts.bunny.net/aleo.woff2); }",
   ],
@@ -112,17 +145,8 @@ const MISSES: [string, string][] = [
     "url(/*x*/https://fonts.bunny.net/a)",
   ],
   [
-    "a backslash at the end of an unterminated string",
-    '@import "https://fonts.bunny.net/css\\',
-  ],
-  [
     "a broken url() with no close",
     'background: url("https://fonts.bunny.net/a" junk',
-  ],
-  ["an unterminated address string", '@import "https://fonts.bunny.net/css'],
-  [
-    "an unterminated url() at the end",
-    "src: url(https://fonts.bunny.net/aleo.woff2",
   ],
   [
     "a quote inside an unquoted url()",
@@ -131,6 +155,10 @@ const MISSES: [string, string][] = [
   [
     "a comment that never closes",
     "/* @import url(https://fonts.bunny.net/css)",
+  ],
+  [
+    "a raw newline inside the address string",
+    '@import "https://fonts.bunny.net/css\n";',
   ],
   ["the host in a plain string", 'content: "fonts.bunny.net";'],
   ["an unparseable url", "src: url(https://bad host/aleo.woff2);"],

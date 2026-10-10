@@ -22,30 +22,38 @@ const isIdentChar = (c: string | undefined): boolean =>
 const isWhitespace = (c: string | undefined): boolean =>
   c !== undefined && /[ \t\n\r\f]/.test(c);
 
-/** Append the one character at `i` to `value`. A character that starts a CSS
- * escape decodes the escape: up to six hex digits and one following space,
- * or the literal next character. A newline after the backslash joins the two
- * lines and holds nothing. A value above the highest code point holds the
- * replacement character. */
-const appendChar = (css: string, i: number, value: string): Span => {
-  const rest = css.slice(i + 1, i + 7);
-  if (css[i] !== "\\") return [value + css[i], i + 1];
-  const hex = HEX_ESCAPE.exec(rest);
-  if (hex) {
-    const code = Number.parseInt(hex[0], 16);
-    const after = i + 1 + hex[0].length;
-    return [
-      value + (code > 0x10ffff ? "\u{FFFD}" : String.fromCodePoint(code)),
-      isWhitespace(css[after]) ? after + 1 : after,
-    ];
-  }
-  const c = rest[0];
+/** The value and position after one backslash that starts no hex escape. A
+ * newline after the backslash joins the two lines and holds nothing. Any
+ * other character holds itself. */
+const afterBackslash = (css: string, i: number, value: string): Span => {
+  const c = css[i + 1];
   if (c === undefined) return [value, i + 1];
   if (c === "\n") return [value, i + 2];
   if (c === "\r") {
     return [value, css[i + 2] === "\n" ? i + 3 : i + 2];
   }
   return [value + c, i + 2];
+};
+
+/** Append the one character at `i` to `value`. A character that starts a CSS
+ * escape decodes the escape: up to six hex digits and one following
+ * whitespace, or the literal next character. The whitespace is one newline,
+ * and a newline is one or two characters. A value above the highest code
+ * point holds the replacement character. */
+const appendChar = (css: string, i: number, value: string): Span => {
+  if (css[i] !== "\\") return [value + css[i], i + 1];
+  const hex = HEX_ESCAPE.exec(css.slice(i + 1, i + 7));
+  if (hex) {
+    const code = Number.parseInt(hex[0], 16);
+    let after = i + 1 + hex[0].length;
+    if (css[after] === "\r") after += css[after + 1] === "\n" ? 2 : 1;
+    else if (isWhitespace(css[after])) after += 1;
+    return [
+      value + (code > 0x10ffff ? "\u{FFFD}" : String.fromCodePoint(code)),
+      after,
+    ];
+  }
+  return afterBackslash(css, i, value);
 };
 
 /** One run of characters with escapes decoded. The run ends at the first
@@ -85,14 +93,17 @@ const stopsUrlRun = (c: string | undefined): boolean =>
   c === ")" || c === '"' || c === "'" || c === "(" || isWhitespace(c);
 
 /** One url() body that stopped at whitespace: the value and the position
- * after the close when the close follows. Nothing when the token is
- * broken. */
-const endUrlBody = (css: string, value: string, k: number): Span =>
-  css[k] === ")" ? [value, k + 1] : ["", skipToClose(css, k)];
+ * after the close when the close follows. The end of the text terminates the
+ * token too. Nothing when the token is broken. */
+const endUrlBody = (css: string, value: string, k: number): Span => {
+  if (css[k] === ")") return [value, k + 1];
+  if (css[k] === undefined) return [value, k];
+  return ["", skipToClose(css, k)];
+};
 
-/** One string token: the decoded value between two equal quotes. An
- * unterminated string or a raw newline ends the token and holds nothing. The
- * browser fetches nothing for it. */
+/** One string token: the decoded value between two equal quotes. The end of
+ * the text terminates the string too. A raw newline makes it a bad string
+ * that holds nothing, and the browser fetches nothing for it. */
 const readString = (css: string, i: number, quote = css[i]!): Span => {
   const [value, j] = readRun(
     css,
@@ -100,23 +111,36 @@ const readString = (css: string, i: number, quote = css[i]!): Span => {
     (c) => c === quote || c === "\n" || c === "\r",
   );
   if (css[j] === quote) return [value, j + 1];
+  if (css[j] === undefined) return [value, j];
   return ["", j];
 };
 
 /** The address one url() token holds: a quoted string, or the raw unquoted
- * text to the closing parenthesis, with the surrounding whitespace gone. A
- * quote or a parenthesis before the close makes the token invalid, and an
- * invalid token fetches nothing. */
+ * text to the closing parenthesis, with the surrounding whitespace gone.
+ * The end of the text terminates the token. A quote or a parenthesis before
+ * the close makes the token invalid, and an invalid token fetches
+ * nothing. */
 const readUrlBody = (css: string, i: number): Span => {
   const start = afterWhitespace(css, i);
   const c = css[start];
   if (c === '"' || c === "'") {
     const [value, after] = readString(css, start);
-    return endUrlBody(css, value, afterWhitespace(css, after));
+    // The gap between the string and the close holds whitespace and
+    // comments: the tokenizer reads both between tokens.
+    let k = afterWhitespace(css, after);
+    while (css[k] === "/" && css[k + 1] === "*") {
+      const end = css.indexOf("*/", k + 2);
+      if (end === -1) {
+        k = css.length;
+        break;
+      }
+      k = afterWhitespace(css, end + 2);
+    }
+    return endUrlBody(css, value, k);
   }
   const [raw, stopped] = readRun(css, start, stopsUrlRun);
   if (css[stopped] === ")") return [raw, stopped + 1];
-  if (css[stopped] === undefined) return ["", stopped];
+  if (css[stopped] === undefined) return [raw, stopped];
   if (isWhitespace(css[stopped])) {
     return endUrlBody(css, raw, afterWhitespace(css, stopped));
   }
