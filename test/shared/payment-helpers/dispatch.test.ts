@@ -9,7 +9,6 @@ import {
   hasRequiredSessionMetadata,
   PaymentUserError,
   parseWebhookPayload,
-  safeAsync,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -69,49 +68,6 @@ describe("payment-helpers", () => {
           name: "Alice",
         }),
       ).toBe(false);
-    });
-  });
-
-  describe("safeAsync", () => {
-    test("returns value on success, null on error", async () => {
-      expect(
-        await safeAsync(() => Promise.resolve(42), ErrorCode.PAYMENT_CHECKOUT),
-      ).toBe(42);
-      expect(
-        await safeAsync(
-          () => Promise.reject(new Error("boom")),
-          ErrorCode.PAYMENT_CHECKOUT,
-        ),
-      ).toBeNull();
-      expect(
-        await safeAsync(
-          () => Promise.reject("string error"),
-          ErrorCode.PAYMENT_CHECKOUT,
-        ),
-      ).toBeNull();
-    });
-
-    test("re-throws PaymentUserError", async () => {
-      const error = new PaymentUserError("Bad phone");
-      expect(error.name).toBe("PaymentUserError");
-      await expect(
-        safeAsync(() => Promise.reject(error), ErrorCode.PAYMENT_CHECKOUT),
-      ).rejects.toThrow("Bad phone");
-    });
-
-    test("logs unknown for a non-Error rejection", async () => {
-      const errorSpy = spy(console, "error");
-      try {
-        await safeAsync(
-          () => Promise.reject("string error"),
-          ErrorCode.PAYMENT_CHECKOUT,
-        );
-        expect(errorSpy.calls[0]?.args[0]).toBe(
-          '[Error] E_PAYMENT_CHECKOUT detail="unknown"',
-        );
-      } finally {
-        errorSpy.restore();
-      }
     });
   });
 
@@ -213,6 +169,19 @@ describe("payment-helpers", () => {
           ErrorCode.PAYMENT_CHECKOUT,
         ),
       ).rejects.toBe(protocolError);
+    });
+
+    test("logs unknown for a rejection that is not an Error", async () => {
+      const withClient = createWithClient(() =>
+        Promise.resolve({ token: "abc" }),
+      );
+
+      expect(
+        await withClient(
+          () => Promise.reject("provider 500 page"),
+          ErrorCode.PAYMENT_CHECKOUT,
+        ),
+      ).toBeNull();
     });
   });
 

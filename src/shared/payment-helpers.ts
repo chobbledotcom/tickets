@@ -67,16 +67,8 @@ export type CredentialCheck = {
 };
 
 /** Error subclass for user-facing payment validation errors (e.g. invalid phone number).
- * These propagate through safeAsync so the message can be shown to the user. */
+ * These propagate to the user through the guarded runners. */
 export class PaymentUserError extends namedError("PaymentUserError") {}
-
-/** Run an async operation under an error code, returning its result or null. */
-type GuardedAsync = <T>(
-  fn: () => Promise<T>,
-  errorCode: ErrorCodeType,
-  errorDetail?: (err: unknown) => string,
-  shouldPropagate?: (err: unknown) => boolean,
-) => Promise<T | null>;
 
 interface AsyncErrorHandling {
   errorDetail?: ((err: unknown) => string) | undefined;
@@ -108,19 +100,6 @@ const guardedWithValue =
       return null;
     }
   };
-
-/** Safely execute async operation, returning null on error.
- * Re-throws PaymentUserError so user-facing messages propagate. */
-export const safeAsync: GuardedAsync = (
-  fn,
-  errorCode,
-  errorDetail,
-  shouldPropagate,
-) =>
-  guardedWithValue(() => true, { errorDetail, shouldPropagate })(
-    () => fn(),
-    errorCode,
-  );
 
 /**
  * Cache a provider API client keyed on its config.
