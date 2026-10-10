@@ -6,8 +6,8 @@ import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
 import type { TicketListing } from "#booking/model.ts";
 import {
   type PackageLimitInfo,
-  packageChildTicketLimits,
   pageBundleLimits,
+  rowTicketLimit,
 } from "#booking/package-cap.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
 import {
@@ -39,18 +39,16 @@ export const unavailableMessage = (
  *  nothing, so the whole page reads sold out. */
 const standaloneRowUnavailable = (
   info: TicketListing,
-  childCeilings: ReadonlyMap<number, number>,
-  childrenByParentId: PackageLimitInfo["childrenByParentId"],
+  page: PackageLimitInfo,
 ): boolean => {
   if (info.isSoldOut || info.isClosed) return true;
-  const children = childrenByParentId?.get(info.listing.id);
-  const hasChildren = (children?.length ?? 0) > 0;
-  let childCeiling: number | undefined;
-  if (hasChildren) {
-    childCeiling = childCeilings.get(info.listing.id);
-  }
-  const ceiling = childCeiling ?? info.maxPurchasable;
-  return ceiling < info.listing.min_quantity;
+  return (
+    rowTicketLimit(
+      info,
+      page.childrenByParentId?.get(info.listing.id) ?? [],
+      page,
+    ) < info.listing.min_quantity
+  );
 };
 
 /** Each page package's bundle limit, plus whether the whole page should show as
@@ -63,12 +61,9 @@ export const packagePageAvailability = (
   page: PackageLimitInfo,
 ): { packageLimits: Map<number, number>; soldOut: boolean } => {
   const packageLimits = pageBundleLimits(tree, packages, page);
-  const childCeilings = packageChildTicketLimits(page);
   const standaloneUnavailable = listings
     .filter((info) => standaloneRowIds.has(info.listing.id))
-    .every((e) =>
-      standaloneRowUnavailable(e, childCeilings, page.childrenByParentId),
-    );
+    .every((e) => standaloneRowUnavailable(e, page));
   const packagesUnavailable = [...packageLimits.values()].every(
     (limit) => limit === 0,
   );

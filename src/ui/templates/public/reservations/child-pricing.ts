@@ -6,17 +6,13 @@
 
 import { childDaysFromParent, type TicketListing } from "#booking/model.ts";
 import {
-  packageChildTicketLimits,
-  packageLimitInfo,
+  pageCombinedChildCapacity,
+  rowTicketLimit,
 } from "#booking/package-cap.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start */
 import { filter, flatMap, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
-import {
-  childCapacityPartsFor,
-  combinedChildCapacityForParent,
-} from "#shared/capacity-fit.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 import { answerableQuestion } from "./questions.tsx";
@@ -29,22 +25,14 @@ export const childLimitedMax = (
   childCtx: ChildRenderCtx | undefined,
 ): number => {
   if (!childCtx) return info.maxPurchasable;
-  const limits = packageChildTicketLimits(
-    packageLimitInfo(
-      [info],
-      childCtx.children,
-      childCtx.groupRemainingByGroupId,
-      childCtx.groupIdsByListingId,
-    ),
+  const limit = rowTicketLimit(
+    info,
+    childCtx.children.get(info.listing.id) ?? [],
+    childCtx,
   );
-  const childLimit = limits.get(info.listing.id);
-  const ownMax =
-    childLimit === undefined
-      ? info.maxPurchasable
-      : Math.min(info.maxPurchasable, childLimit);
   // Hold back child tickets the parent selector can already spend.
   const reserved = childCtx.foldReserveByChildId.get(info.listing.id) ?? 0;
-  return Math.max(0, ownMax - reserved);
+  return Math.max(0, limit - reserved);
 };
 
 /** The questions assigned to a child listing, in page order, that have not yet
@@ -153,20 +141,12 @@ export const foldReserveByChildId = (
   groupIdsByListingId: ReadonlyMap<number, number[]>,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
 ): Map<number, number> => {
+  const page = { groupIdsByListingId, groupRemainingByGroupId };
   // Each parent contributes one (childId, reserve) pair per child it folds;
   // summing those pairs gives the total to hold back per child.
   const reserves = flatMap((parent: TicketListing) => {
     const children = childrenByParentId.get(parent.listing.id) ?? [];
-    const combined = combinedChildCapacityForParent(
-      groupIdsByListingId.get(parent.listing.id) ?? [],
-      childCapacityPartsFor(
-        groupIdsByListingId,
-        children,
-        (child) => child.listing.id,
-        (child) => child.maxPurchasable,
-      ),
-      groupRemainingByGroupId,
-    );
+    const combined = pageCombinedChildCapacity(parent, children, page);
     const foldable =
       combined >= parent.listing.min_quantity ? parent.maxPurchasable : 0;
     return children.map((child) => [child.listing.id, foldable] as const);

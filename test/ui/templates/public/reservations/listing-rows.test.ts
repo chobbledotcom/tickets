@@ -114,6 +114,13 @@ const renderRows = ({
 const rowListing = (id: number, name: string, slug: string): TicketListing =>
   tl(id, 10, { name, slug });
 
+/** Render the one minimum-3 bundled parent row over a child context. */
+const bundledRow = (over: Partial<ChildRenderCtx> = {}): string =>
+  renderRows({
+    childCtx: { ...childCtx(), ...over },
+    listings: [tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" })],
+  });
+
 const occurrences = (html: string, needle: string): number =>
   html.split(needle).length - 1;
 
@@ -147,27 +154,43 @@ describe("buildPageListingRows", () => {
   test("a parent whose child-limited ceiling sits below its minimum is sold out", () => {
     // The parent's own capacity is 10, but its required add-on can only serve
     // 2 — below the parent's minimum of 3, so no valid purchase exists.
-    const html = renderRows({
-      childCtx: {
-        ...childCtx(),
-        children: new Map([
-          [7, [tl(10, 2, { name: "Add-on", slug: "add010" })]],
-        ]),
-      },
-      listings: [
-        tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" }),
-      ],
+    const html = bundledRow({
+      children: new Map([[7, [tl(10, 2, { name: "Add-on", slug: "add010" })]]]),
     });
     expect(html).toContain("Sold Out");
     expect(html).not.toContain('name="quantity_7"');
   });
 
   test("a parent at or above its minimum under the same ceiling stays bookable", () => {
-    const html = renderRows({
-      childCtx: childCtx(),
-      listings: [
-        tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" }),
-      ],
+    const html = bundledRow();
+    expect(html).toContain('name="quantity_7"');
+    expect(html).not.toContain("ticket-row sold-out");
+  });
+
+  test("a parent whose split-pool children combine to its minimum stays bookable", () => {
+    // The parent sits in two pools with 6 and 4 places left. One add-on
+    // draws only the 6-place pool, the other draws both. A quantity-3
+    // purchase splits 2+1 across the add-ons, so the row stays bookable; a
+    // per-pool bound answers 2 and sells the row out.
+    const html = bundledRow({
+      children: new Map([
+        [
+          7,
+          [
+            tl(10, 2, { name: "Pool add-on", slug: "add010" }),
+            tl(11, 2, { name: "Both add-on", slug: "add011" }),
+          ],
+        ],
+      ]),
+      groupIdsByListingId: new Map([
+        [7, [1, 2]],
+        [10, [1]],
+        [11, [1, 2]],
+      ]),
+      groupRemainingByGroupId: new Map([
+        [1, 6],
+        [2, 4],
+      ]),
     });
     expect(html).toContain('name="quantity_7"');
     expect(html).not.toContain("ticket-row sold-out");

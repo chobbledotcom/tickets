@@ -24,7 +24,9 @@ const parent = (minimum: number, remaining = 10): TicketListing =>
 
 const pageOf = (
   listings: TicketListing[],
-  childrenByParentId: ReadonlyMap<number, TicketListing[]>,
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number> = new Map(),
+  groupIdsByListingId: ReadonlyMap<number, number[]> = new Map(),
 ) => {
   const { tree } = buildPageTree(
     {
@@ -39,7 +41,12 @@ const pageOf = (
     tree,
     listings,
     new Set(listings.map((info) => info.listing.id)),
-    packageLimitInfo(listings, childrenByParentId, new Map(), new Map()),
+    packageLimitInfo(
+      listings,
+      childrenByParentId,
+      groupRemainingByGroupId,
+      groupIdsByListingId,
+    ),
   );
 };
 
@@ -66,16 +73,27 @@ describe("packagePageAvailability — the minimum and the children", () => {
 
   test("a page with no children map at all reads each listing alone", () => {
     const info = parent(3);
-    const { tree } = buildPageTree(
-      { listings: [info], packages: [], slugs: [info.listing.slug] },
-      0,
-    );
-    const result = packagePageAvailability(
-      [],
-      tree,
-      [info],
-      new Set([info.listing.id]),
-      packageLimitInfo([info], undefined, new Map(), new Map()),
+    const result = pageOf([info], undefined);
+    expect(result.soldOut).toBe(false);
+  });
+
+  test("split-pool children that combine to the minimum keep the page bookable", () => {
+    // The parent sits in two pools with 6 and 4 places left. One child draws
+    // only the 6-place pool, the other draws both. A quantity-3 purchase
+    // splits 2+1 across the children, so the page stays bookable; a
+    // per-pool bound answers 2 and reads the page sold out.
+    const result = pageOf(
+      [parent(3)],
+      new Map([[1, [tl(2, 2), tl(3, 2)]]]),
+      new Map([
+        [1, 6],
+        [2, 4],
+      ]),
+      new Map([
+        [1, [1, 2]],
+        [2, [1]],
+        [3, [1, 2]],
+      ]),
     );
     expect(result.soldOut).toBe(false);
   });
