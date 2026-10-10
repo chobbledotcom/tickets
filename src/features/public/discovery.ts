@@ -4,15 +4,13 @@
  * Children cannot start a booking, so they never get their own public booking
  * link. Parents show as sold out when none of their required children can be
  * booked. The final date-specific check still happens when the buyer submits.
+ *
+ * The capacity and allocation facts the gates read live in
+ * {@link ./discovery/combined-capacity.ts}. This module owns the
+ * classification surfaces.
  */
 
-import {
-  buildTicketListing,
-  childActive,
-  childOpen,
-  parentAndChildFitGroup,
-  type TicketListing,
-} from "#booking/model.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
@@ -26,17 +24,16 @@ import {
 } from "#db/listing-parents.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { combinedChildCapacityForParent } from "#shared/capacity-fit.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
-import { getBookableStartDates } from "#shared/dates.ts";
-import { sharedGroupCapacity } from "#shared/group-capacity.ts";
 import type { ListingWithCount } from "#types";
 import {
-  childOfferedOnDate,
-  childOfferedWithoutDate,
-  childStartDates,
-  parentOfferedDayCounts,
-} from "./discovery/child-offered.ts";
+  type ChildCapacityInfo,
+  childCapacityInfo,
+  childJoinsMinimumBooking,
+  combinedChildCapacity,
+  evaluateParentPairs,
+  type ParentPairEvaluation,
+} from "./discovery/combined-capacity.ts";
 
 /**
  * Four sets, because a child is treated differently by structure, by whether it
@@ -74,172 +71,6 @@ const parentBookable = (
     groupRemaining,
   );
   return !info.isSoldOut && !info.isClosed;
-};
-
-/** A daily parent's own bookable start dates (its booking page's candidate
- * dates), against which a daily child's calendar must overlap. It is `null`
- * for a non-daily parent, which has NO date selector. Such a daily child
- * inherits no parent date, so no overlap applies: the child is judged by its
- * own calendar or fixed day count. */
-const parentDatesOf = (
-  parent: ListingWithCount,
-  holidays: Holiday[],
-): ReadonlySet<string> | null =>
-  parent.listing_type === "daily"
-    ? new Set(getBookableStartDates(parent, holidays))
-    : null;
-
-/** Group facts needed to decide whether a parent can offer a child. */
-export type ChildCapacityInfo = {
-  childOwnRemaining: ReadonlyMap<number, number>;
-  remainingByGroupId: ReadonlyMap<number, number>;
-  staticCapByGroupId: ReadonlyMap<number, number>;
-  membership: ReadonlyMap<number, number[]>;
-};
-
-/** Assemble the child-capacity facts the sold-out projection reads: each
- * child's own per-listing remaining (its sold-out state), the per-group shared
- * capacity/remaining, and group membership (which covers parents and children
- * alike, so it stands in for `childCaps.membership`). */
-export const childCapacityInfo = (
-  childCaps: Awaited<ReturnType<typeof getSharedGroupCapacities>>,
-  childOwnRemaining: ReadonlyMap<number, number>,
-  membership: ReadonlyMap<number, number[]>,
-): ChildCapacityInfo => ({
-  childOwnRemaining,
-  membership,
-  remainingByGroupId: childCaps.remaining,
-  staticCapByGroupId: childCaps.staticCap,
-});
-
-/** The child as the ticket page sees it in this capacity context: the shared
- *  first line of every child gate below. */
-const childInfoFor = (
-  child: ListingWithCount,
-  caps: ChildCapacityInfo,
-): TicketListing =>
-  buildTicketListing(
-    child,
-    isRegistrationClosed(child),
-    caps.childOwnRemaining.get(child.id),
-  );
-
-/** Each child's date-invariant fold facts, computed once per parent: the
- *  child as the ticket page sees it, the pools it draws from, whether the
- *  pair fits its shared group's static cap, the child's own ceiling, and the
- *  child's bookable start dates. The per-date loop reads only what the date
- *  changes. */
-type ChildFoldFacts = {
-  childInfo: TicketListing;
-  groupIds: number[];
-  fitsGroup: boolean;
-  ownMax: number;
-  starts: string[];
-};
-
-const childFoldFactsFor = (
-  parent: ListingWithCount,
-  child: ListingWithCount,
-  caps: ChildCapacityInfo,
-  holidays: Holiday[],
-): ChildFoldFacts => {
-  const childInfo = childInfoFor(child, caps);
-  const shared = sharedGroupCapacity(
-    listingGroups.idsFor(caps.membership, parent.id),
-    listingGroups.idsFor(caps.membership, child.id),
-    caps.staticCapByGroupId,
-    caps.remainingByGroupId,
-  );
-  return {
-    childInfo,
-    fitsGroup: parentAndChildFitGroup(shared),
-    groupIds: listingGroups.idsFor(caps.membership, child.id),
-    ownMax: childInfo.maxPurchasable,
-    starts: childStartDates(childInfo, holidays),
-  };
-};
-
-/** The child's own ceiling when the order starts on `date`, or zero when the
- *  child cannot fold on that date. A `null` date is the date-less gate: the
- *  child must fold on some date the parent offers, because the page carries
- *  no date selector. Children that fold on different dates must not sum: no
- *  single date can carry child units from calendars that never share one. */
-const childOwnCeilingOnDate = (
-  parentDates: ReadonlySet<string> | null,
-  facts: ChildFoldFacts,
-  holidays: Holiday[],
-  dayCounts: (number | null)[],
-  date: string | null,
-): number => {
-  if (!childActive(facts.childInfo) || !childOpen(facts.childInfo)) return 0;
-  if (!facts.fitsGroup) return 0;
-  if (date === null) {
-    const offered = childOfferedWithoutDate(
-      facts.childInfo,
-      holidays,
-      dayCounts,
-      parentDates,
-    );
-    return offered ? facts.ownMax : 0;
-  }
-  const offered = childOfferedOnDate(
-    facts.childInfo,
-    holidays,
-    dayCounts,
-    facts.starts,
-    date,
-  );
-  return offered ? facts.ownMax : 0;
-};
-
-/** The parent tickets a parent's children can serve together: the best
- *  feasible date and day count win. Children that fold on different dates
- *  must not sum — a minimum of three cannot take two units from a Monday-only
- *  child and two from a Tuesday-only child, because no single date carries
- *  both. The same rule binds day counts: the form books one count, so
- *  children that need different counts must not sum. A non-daily parent has
- *  no date selector, so one date-less evaluation answers. */
-const combinedChildCapacity = (
-  parent: ListingWithCount,
-  children: readonly ListingWithCount[],
-  caps: ChildCapacityInfo,
-  holidays: Holiday[],
-): number => {
-  const dayCounts = parentOfferedDayCounts(parent);
-  const parentDates = parentDatesOf(parent, holidays);
-  const dates: (string | null)[] =
-    parentDates === null ? [null] : [...parentDates];
-  const facts = children.map((child) =>
-    childFoldFactsFor(parent, child, caps, holidays),
-  );
-  // The date-less remaining map omits a group whose every member counts per
-  // date. The static cap is the date-independent fact the pair check reads
-  // when the remaining is unknown, so the allocation reads it too.
-  const datelessRemaining = new Map([
-    ...caps.staticCapByGroupId,
-    ...caps.remainingByGroupId,
-  ]);
-  return Math.max(
-    0,
-    ...dates.flatMap((date) =>
-      dayCounts.map((days) =>
-        combinedChildCapacityForParent(
-          listingGroups.idsFor(caps.membership, parent.id),
-          facts.map((fact) => ({
-            groupIds: fact.groupIds,
-            ownMax: childOwnCeilingOnDate(
-              parentDates,
-              fact,
-              holidays,
-              [days],
-              date,
-            ),
-          })),
-          datelessRemaining,
-        ),
-      ),
-    ),
-  );
 };
 
 /**
@@ -291,27 +122,26 @@ export const classifyForDiscovery = async (
     ),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
-  // A child is an add-on only when at least one parent is itself bookable AND can
-  // offer THIS child given the *combined* parent+child group demand. Using only
-  // `parentBookable` (the parent's own row) would mark a child
-  // available while the parent's sold-out projection below (via childCanBeBookedForParent)
-  // reads the parent sold out, leaving the note a dead end (e.g. a child whose only
-  // parent shares a 1-spot capped group with it: one parent+child order needs two
-  // spots). Reuse the same combined-demand check both surfaces use.
-  // The combined capacity answers once per parent: the add-on gate and the
-  // sold-out loop both read it, and each call walks every offered date.
-  const combinedByParentId = new Map<number, number>();
-  const combinedFor = (parent: ListingWithCount): number => {
-    const known = combinedByParentId.get(parent.id);
+  // A child is an add-on only when at least one parent is itself bookable AND
+  // can offer THIS child given the *combined* parent+child group demand. Using
+  // only `parentBookable` (the parent's own row) would mark a child available
+  // while the parent's sold-out projection below reads the parent sold out,
+  // leaving the note a dead end (e.g. a child whose only parent shares a
+  // 1-spot capped group with it: one parent+child order needs two spots).
+  // The evaluations answer once per parent: the add-on gate and the sold-out
+  // loop both read them, and each evaluation walks every offered pair.
+  const evaluationsByParentId = new Map<number, ParentPairEvaluation[]>();
+  const evaluationsFor = (parent: ListingWithCount): ParentPairEvaluation[] => {
+    const known = evaluationsByParentId.get(parent.id);
     if (known !== undefined) return known;
-    const combined = combinedChildCapacity(
-      parent,
-      childrenByParent.get(parent.id) ?? [],
+    const evaluations = evaluateParentPairs({
       caps,
+      children: childrenByParent.get(parent.id) ?? [],
       holidays,
-    );
-    combinedByParentId.set(parent.id, combined);
-    return combined;
+      parent,
+    });
+    evaluationsByParentId.set(parent.id, evaluations);
+    return evaluations;
   };
   const addOnChildIds = childIdsMatching(parentsByChild, (parents, childId) => {
     // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
@@ -323,14 +153,7 @@ export const classifyForDiscovery = async (
     return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
-        combinedFor(p) >= p.min_quantity &&
-        childOwnCeilingOnDate(
-          parentDatesOf(p, holidays),
-          childFoldFactsFor(p, child, caps, holidays),
-          holidays,
-          parentOfferedDayCounts(p),
-          null,
-        ) >= 1,
+        childJoinsMinimumBooking(p, child, caps, holidays, evaluationsFor(p)),
     );
   });
   const soldOutParentIds = new Set<number>();
@@ -339,7 +162,11 @@ export const classifyForDiscovery = async (
     // The parent must also reach its own minimum: children that together serve
     // fewer parent tickets than that minimum sell the parent nothing.
     const anyBookable =
-      parent !== undefined && combinedFor(parent) >= parent.min_quantity;
+      parent !== undefined &&
+      Math.max(
+        0,
+        ...evaluationsFor(parent).map((evaluation) => evaluation.combined),
+      ) >= parent.min_quantity;
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
   return { addOnChildIds, childIds, nonStandaloneChildIds, soldOutParentIds };
@@ -387,12 +214,12 @@ export const applyBookingPageParentSoldOut = (
     const children = childrenByParentId.get(info.listing.id);
     const anyBookable =
       children !== undefined &&
-      combinedChildCapacity(
-        info.listing,
-        children.map((c) => c.listing),
+      combinedChildCapacity({
         caps,
+        children: children.map((c) => c.listing),
         holidays,
-      ) >= 1;
+        parent: info.listing,
+      }) >= 1;
     if (children && children.length > 0 && !anyBookable) {
       return asSoldOut(info);
     }

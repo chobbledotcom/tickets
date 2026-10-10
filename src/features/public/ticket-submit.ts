@@ -48,10 +48,8 @@ import type {
   TicketPrefill,
 } from "#templates/public/reservations/types.ts";
 import type { Group, ListingWithCount } from "#types";
-import {
-  applyBookingPageParentSoldOut,
-  childCapacityInfo,
-} from "./discovery.ts";
+import { childCapacityInfo } from "./discovery/combined-capacity.ts";
+import { applyBookingPageParentSoldOut } from "./discovery.ts";
 import { publicNavProps } from "./site-nav.ts";
 /* jscpd:ignore-start */
 import {

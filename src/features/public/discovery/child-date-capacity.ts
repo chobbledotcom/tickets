@@ -5,6 +5,7 @@
  *  without the site, and the coverage merger sees them exercised from one
  *  isolate. */
 
+/* jscpd:ignore-start */
 import { buildTicketListing, childActive, childOpen } from "#booking/model.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
@@ -12,6 +13,7 @@ import {
   type ChildCapacityPart,
   childCapacityPartsFor,
 } from "#shared/capacity-fit.ts";
+/* jscpd:ignore-end */
 import type { ListingWithCount } from "#types";
 import {
   childOfferedOnDate,

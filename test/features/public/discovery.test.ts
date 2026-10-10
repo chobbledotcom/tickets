@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
+import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -343,6 +344,55 @@ describeWithEnv(
         // can offer the child and the add-on note appears.
         const { child } = await makeTwoSpotPool();
         await assertAddOnNote(child.slug);
+      });
+
+      test("a child offered only where the minimum cannot be met is not labeled add-on", async () => {
+        // The parent sells at least three per purchase and books on Mondays
+        // and Tuesdays. This child folds on Mondays alone and holds one
+        // place; its sibling folds on Tuesdays alone and holds three.
+        // Tuesday serves the minimum, so the parent keeps its Book link, but
+        // no Monday booking reaches three, so this child can never join one.
+        // Two independent existential checks — the parent's combined capacity
+        // on one date, this child's fold check on another — would label the
+        // child a dead end. The classification is asserted per child because
+        // the sibling's own label is correct and would trip a page-wide
+        // string check.
+        const { child, children, parent } = await makeParent({
+          children: [
+            {
+              bookableDays: ["Monday"],
+              daily: true,
+              maxAttendees: 1,
+              maxQuantity: 1,
+              name: "Monday extra",
+            },
+            {
+              bookableDays: ["Tuesday"],
+              daily: true,
+              maxAttendees: 3,
+              maxQuantity: 3,
+              name: "Tuesday bulk",
+            },
+          ],
+          parent: {
+            bookableDays: ["Monday", "Tuesday"],
+            daily: true,
+            maxQuantity: 3,
+            minQuantity: 3,
+            name: "Batched base",
+          },
+        });
+        const [mondayExtra, tuesdayBulk] = children;
+        const { addOnChildIds, soldOutParentIds } = await classifyForDiscovery([
+          parent,
+          ...children,
+        ]);
+        expect(soldOutParentIds.has(parent.id)).toBe(false);
+        expect(addOnChildIds.has(tuesdayBulk!.id)).toBe(true);
+        expect(addOnChildIds.has(mondayExtra!.id)).toBe(false);
+        expect(addOnChildIds.has(child.id)).toBe(false);
+        const body = await publicBody("/listings");
+        expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
     });
   },
