@@ -37,7 +37,8 @@ import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** Judge one already-loaded line against the current listing: gone, closed,
- * below the minimum the owner can have raised, or good to price. */
+ * below a minimum the owner raised after checkout started, or good to
+ * price. */
 const validateListingForPayment = (
   listing: ListingWithCount,
   name: string,
