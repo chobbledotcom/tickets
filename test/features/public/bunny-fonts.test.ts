@@ -113,6 +113,14 @@ const MATCHES: [string, string][] = [
 
 const MISSES: [string, string][] = [
   [
+    "a carriage return and form feed after a backslash",
+    '@import "https://fonts.bu\\\r\fnny.net/css";',
+  ],
+  [
+    "an escaped form feed in the url() name",
+    "a{background-image:u\\\frl(https://fonts.bunny.net/a)}",
+  ],
+  [
     "an address inside a comment",
     "/* @import url(https://fonts.bunny.net/css); */",
   ],
