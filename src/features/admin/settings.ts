@@ -32,6 +32,7 @@ import {
   handlePaymentProviderRecoveryPost,
   handleResetDatabasePost,
   handleShowPublicApiPost,
+  handleSiteFooterPost,
   handleTermsPost,
   handleThemePost,
 } from "#routes/admin/settings-general.ts";
@@ -97,6 +98,7 @@ export const adminHandlers = defineRoutes({
     handlePaymentProviderRecoveryPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,
+  "POST /admin/settings/site-footer": handleSiteFooterPost,
   "POST /admin/settings/sms-gateway": handleSmsGatewayPost,
   "POST /admin/settings/square": squareRoutes.save,
   "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,

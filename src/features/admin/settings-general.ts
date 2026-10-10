@@ -12,7 +12,6 @@ import {
   deleteStorageAndResetDatabase,
   demoResetForm,
 } from "#routes/admin/database-reset.ts";
-/* jscpd:ignore-end */
 import {
   advancedSettingsRoute,
   settingsClearable,
@@ -24,10 +23,13 @@ import { redirect } from "#routes/response.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import {
   applyDemoOverrides,
+  type DemoFieldMap,
+  FOOTER_DEMO_FIELDS,
   TERMS_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import {
   PAYMENT_PROVIDERS,
   providerCurrencyBlock,
@@ -44,6 +46,8 @@ import {
   type Theme,
 } from "#types";
 
+/* jscpd:ignore-end */
+
 type SingleFieldSettingsForm = Exclude<SettingsFormConfig, { kind: "fields" }>;
 
 const formRoute = (definition: SingleFieldSettingsForm) => ({
@@ -57,6 +61,15 @@ const formLocation = (definition: SingleFieldSettingsForm) => {
   const { label: _, ...location } = formRoute(definition);
   return location;
 };
+
+/** A settings extractor that masks the field's submitted value with demo
+ * sample data when demo mode is on. */
+const demoExtract =
+  (fields: DemoFieldMap, fieldName: string) =>
+  (form: FormParams): string => {
+    applyDemoOverrides(form, fields);
+    return form.getString(fieldName);
+  };
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only
@@ -138,13 +151,23 @@ export const handleEmbedHostsPost = settingsHandler({
  */
 export const handleTermsPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.terms),
-  extract: (form) => {
-    applyDemoOverrides(form, TERMS_DEMO_FIELDS);
-    return form.getString(SETTINGS_FORMS.terms.fieldName);
-  },
+  extract: demoExtract(TERMS_DEMO_FIELDS, SETTINGS_FORMS.terms.fieldName),
   log: (v) =>
     v === "" ? t("success.terms_removed") : t("success.terms_updated"),
   save: (v) => settings.update.terms(v),
+});
+
+/**
+ * Handle POST /admin/settings/site-footer - owner only
+ */
+export const handleSiteFooterPost = settingsHandler({
+  ...formLocation(SETTINGS_FORMS.siteFooter),
+  extract: demoExtract(FOOTER_DEMO_FIELDS, SETTINGS_FORMS.siteFooter.fieldName),
+  log: (v) =>
+    v === ""
+      ? t("success.site_footer_removed")
+      : t("success.site_footer_updated"),
+  save: (v) => settings.update.siteFooter(v),
 });
 
 /**

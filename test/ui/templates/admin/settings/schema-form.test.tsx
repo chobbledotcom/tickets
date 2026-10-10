@@ -18,6 +18,7 @@ const state = {
   externalOrderEnabled: true,
   listingColumnOrder: "",
   showPublicApi: true,
+  siteFooter: "",
   termsAndConditions: "Be kind.",
   theme: "light",
   underlineLinks: false,

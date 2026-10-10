@@ -145,6 +145,25 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "termsAndConditions",
   }),
   form({
+    action: "/admin/settings/site-footer",
+    copy: {
+      descriptionKey: "settings.site_footer_hint",
+      labelHint: "formatting",
+      labelKey: "settings.site_footer",
+      submitLabelKey: "settings.save_site_footer",
+      titleKey: "settings.site_footer",
+    },
+    fieldName: "site_footer",
+    formId: "settings-site-footer",
+    key: CONFIG_KEYS.SITE_FOOTER,
+    kind: "textarea",
+    markdownPreview: true,
+    name: "siteFooter",
+    page: "main",
+    routeLabel: "Site footer",
+    stateField: "siteFooter",
+  }),
+  form({
     action: "/admin/settings/embed-hosts",
     copy: {
       descriptionKey: "settings.embed_hosts_hint",

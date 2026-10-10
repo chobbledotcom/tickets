@@ -13,6 +13,7 @@ import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { getIframeMode } from "#shared/request-context.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
@@ -100,6 +101,14 @@ export const Layout = ({
             {beforeContent}
             <PageRegions className={contentClassName}>{children}</PageRegions>
           </main>
+          {/* Admin pages carry the admin footer below. Every other surface
+              shows the operator's site footer. Empty copy renders nothing, and
+              iframe embeds stay bare like the header image above. */}
+          {family !== "admin" && !getIframeMode() && settings.siteFooter && (
+            <footer class="site-footer">
+              <Raw html={renderMarkdown(settings.siteFooter)} />
+            </footer>
+          )}
           {bodyClass?.includes("iframe") && (
             <script src={IFRAME_RESIZER_CHILD_JS_PATH}></script>
           )}

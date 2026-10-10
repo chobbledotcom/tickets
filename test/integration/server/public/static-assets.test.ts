@@ -14,6 +14,53 @@ import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
+/** The compiled stylesheet is one media query per topic, compressed, with flat
+ * rules. Read it the way a print stylesheet resolves: take the `@media print`
+ * block, then the declarations of the rule whose selector group names the
+ * given selector. Throws when no print rule styles it. */
+const printBlockOf = (css: string): string => {
+  const start = css.indexOf("@media print");
+  if (start === -1) throw new Error("No @media print block");
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    else if (css[i] === "}" && --depth === 0) return css.slice(start, i + 1);
+  }
+  throw new Error("Unterminated @media print block");
+};
+
+const printStyleOf = (
+  css: string,
+  selector: string,
+): Record<string, string> => {
+  const block = printBlockOf(css);
+  // Slice off the `@media print {` wrapper; the block's rules are flat.
+  const inner = block.slice(block.indexOf("{") + 1, -1);
+  for (const rule of inner.split("}")) {
+    const brace = rule.indexOf("{");
+    if (brace === -1) continue;
+    const selectors = rule
+      .slice(0, brace)
+      .split(",")
+      .map((s) => s.trim());
+    if (!selectors.includes(selector)) continue;
+    return Object.fromEntries(
+      rule
+        .slice(brace + 1)
+        .split(";")
+        .filter(Boolean)
+        .map((declaration) => {
+          const colon = declaration.indexOf(":");
+          return [
+            declaration.slice(0, colon).trim(),
+            declaration.slice(colon + 1).trim(),
+          ];
+        }),
+    );
+  }
+  throw new Error(`No print rule styles ${selector}`);
+};
+
 describeWithEnv(
   "server public > static assets",
   { db: true, triggers: true },
@@ -141,6 +188,48 @@ describeWithEnv(
           (css) => {
             expect(css).toContain(":root");
             expect(css).toContain("--color-link");
+          },
+        );
+      });
+
+      test("prints without the site footer or the interface chrome", async () => {
+        await expectStaticFile(
+          "/style.css",
+          "text/css; charset=utf-8",
+          (css) => {
+            expect(printStyleOf(css, ".site-footer")).toEqual({
+              display: "none",
+            });
+            expect(printStyleOf(css, ".admin-footer")).toEqual({
+              display: "none",
+            });
+            expect(printStyleOf(css, ".admin-nav-group")).toEqual({
+              display: "none",
+            });
+            expect(
+              printStyleOf(css, "body:has(.admin-nav-group) main"),
+            ).toEqual({ display: "block" });
+            expect(printStyleOf(css, ".ticket-card")["box-shadow"]).toBe(
+              "none",
+            );
+            expect(printStyleOf(css, ".ticket-card-qr img")["max-width"]).toBe(
+              "8rem",
+            );
+          },
+        );
+      });
+
+      test("keeps the print block after the base rules it overrides", async () => {
+        await expectStaticFile(
+          "/style.css",
+          "text/css; charset=utf-8",
+          (css) => {
+            const printBlock = css.indexOf("@media print");
+            // A print rule the base cascade defeats is worse than none: equal
+            // specificity, so whichever rule comes later wins. The base
+            // ticket-card and admin-footer rules must precede the print block.
+            expect(css.indexOf(".ticket-card{")).toBeLessThan(printBlock);
+            expect(css.indexOf(".admin-footer{")).toBeLessThan(printBlock);
           },
         );
       });

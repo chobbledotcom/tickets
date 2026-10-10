@@ -52,6 +52,7 @@ export type SettingsPageState = {
   superuser: SuperuserState;
   calendarFeedsEnabled: boolean;
   calendarFeedsGroupBy: "attendees" | "listings";
+  siteFooter: string;
 };
 
 /**
@@ -78,6 +79,7 @@ export const adminSettingsPage = (
       {s.paymentProvider ? settingsForm(SETTINGS_FORMS.bookingFee, s) : null}
 
       {settingsForm(SETTINGS_FORMS.terms, s)}
+      {settingsForm(SETTINGS_FORMS.siteFooter, s)}
       {settingsForm(SETTINGS_FORMS.embedHosts, s)}
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
