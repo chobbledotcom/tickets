@@ -220,11 +220,19 @@ export const adminDuplicateGroupPage: BulkActionPage = (
   error,
 ) => {
   const tz = settings.timezone;
+  // A failed duplicate restores the submitted replacements into the form.
+  // The preview must open on those same values, not on empty ones.
+  const restored = {
+    dateFind: savedFormValueOrNull("date_find") ?? "",
+    dateReplace: savedFormValueOrNull("date_replace") ?? "",
+    nameFind: savedFormValueOrNull("name_find") ?? "",
+    nameReplace: savedFormValueOrNull("name_replace") ?? "",
+  };
   const initialRows = buildDuplicatePreview(
     listings.map(
       (e): PreviewableListing => ({ date: e.date, id: e.id, name: e.name }),
     ),
-    { dateFind: "", dateReplace: "", nameFind: "", nameReplace: "" },
+    restored,
   );
   const listingsData = listings.map((e) => ({
     date: e.date,
@@ -275,13 +283,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
               name: "name_find",
               placeholder: t("bulk_actions.form_find_placeholder"),
               type: "text",
-              value: savedFormValueOrNull("name_find") ?? "",
+              value: restored.nameFind,
             },
             {
               label: t("bulk_actions.form_replace_with"),
               name: "name_replace",
               type: "text",
-              value: savedFormValueOrNull("name_replace") ?? "",
+              value: restored.nameReplace,
             },
           ]}
         />
@@ -295,13 +303,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
               label: t("bulk_actions.form_reference_date"),
               name: "date_find",
               type: "date",
-              value: savedFormValueOrNull("date_find") ?? "",
+              value: restored.dateFind,
             },
             {
               label: t("bulk_actions.form_target_date"),
               name: "date_replace",
               type: "date",
-              value: savedFormValueOrNull("date_replace") ?? "",
+              value: restored.dateReplace,
             },
           ]}
         />

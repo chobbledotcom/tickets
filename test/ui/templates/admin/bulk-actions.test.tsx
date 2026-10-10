@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { FormParams } from "#shared/form-data.ts";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import {
   adminBulkActionsPage,
   adminDeactivateGroupPage,
@@ -11,6 +13,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 const GROUP = testGroup({ id: 17, name: "Summer <Crew>" });
@@ -149,6 +152,102 @@ describe("admin bulk action templates", () => {
     expect(html).toContain('<tr data-listing-id="9">');
     expect(html).toContain("Afternoon session");
     expect(html).toContain("2026-08-03 14:30");
+  });
+
+  test("renders the restored replacements into the fields and the preview", async () => {
+    // A failed duplicate stashes the submitted values; the follow-up GET
+    // renders them back into the fields AND opens the preview on them.
+    await withRequestContext(async () => {
+      setSavedFormData(
+        new FormParams(
+          "date_find=2026-03-02&date_replace=2026-03-09&name_find=First&name_replace=Second&new_name=Chosen Copy",
+        ),
+      );
+      const listing = testListingWithCount({
+        date: "2026-03-02T18:00:00.000Z",
+        id: 4,
+        name: "First Night",
+      });
+
+      const html = adminDuplicateGroupPage(GROUP, [listing], OWNER_SESSION);
+
+      expect(html).toContain('value="Chosen Copy"');
+      expect(html).toContain('value="First"');
+      expect(html).toContain('value="Second"');
+      expect(html).toContain('value="2026-03-02"');
+      expect(html).toContain('value="2026-03-09"');
+      // The preview opens on the restored replacements, not on empty ones:
+      // the new-name and new-date cells already show the computed result.
+      expect(html).toContain("<td data-preview-new-name>Second Night</td>");
+      expect(html).toContain("<td data-preview-new-date>2026-03-09 18:00</td>");
+      expect(html).toContain("<td data-preview-original-name>First Night</td>");
+      expect(html).toContain(
+        "<td data-preview-original-date>2026-03-02 18:00</td>",
+      );
+    });
+  });
+
+  test("restores a submitted empty new name as empty", async () => {
+    await withRequestContext(async () => {
+      setSavedFormData(new FormParams("new_name="));
+
+      const html = adminDuplicateGroupPage(GROUP, [ACTIVE], OWNER_SESSION);
+
+      // The operator submitted an empty name, so the field comes back empty:
+      // the "<group> (copy)" default must not resurface over that choice.
+      expect(html).not.toContain("(copy)");
+    });
+  });
+
+  test("restores each replacement independently when one is absent", async () => {
+    // A submitted form may carry one field of a pair and not its partner
+    // (the POST stores what it received). The absent side falls back to
+    // empty, so an empty date_find leaves the dates unshifted and an empty
+    // name_replace deletes the find text instead of substituting it.
+    await withRequestContext(async () => {
+      setSavedFormData(
+        new FormParams("date_replace=2026-03-09&name_find=First"),
+      );
+
+      const listing = testListingWithCount({
+        date: "2026-03-02T18:00:00.000Z",
+        id: 4,
+        name: "First Night",
+      });
+
+      const html = adminDuplicateGroupPage(GROUP, [listing], OWNER_SESSION);
+
+      expect(html).toContain('value="2026-03-09"');
+      expect(html).toContain('value="First"');
+      expect(html).toContain("<td data-preview-new-name> Night</td>");
+      expect(html).toContain("<td data-preview-new-date>2026-03-02 18:00</td>");
+    });
+  });
+
+  test("restores the date shift when only the reference date was submitted", async () => {
+    // The mirrored asymmetry: date_find present, date_replace absent. The
+    // absent replace falls back to empty, so the empty replace leaves the
+    // dates unshifted.
+    await withRequestContext(async () => {
+      setSavedFormData(
+        new FormParams(
+          "date_find=2026-03-02&name_find=First&name_replace=Second",
+        ),
+      );
+
+      const listing = testListingWithCount({
+        date: "2026-03-02T18:00:00.000Z",
+        id: 4,
+        name: "First Night",
+      });
+
+      const html = adminDuplicateGroupPage(GROUP, [listing], OWNER_SESSION);
+
+      expect(html).toContain('value="2026-03-02"');
+      expect(html).toContain('value="Second"');
+      expect(html).toContain("<td data-preview-new-name>Second Night</td>");
+      expect(html).toContain("<td data-preview-new-date>2026-03-02 18:00</td>");
+    });
   });
 
   test("neutralises closing tags in embedded listing JSON without changing its data", () => {
