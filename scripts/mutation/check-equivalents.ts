@@ -13,6 +13,7 @@
 
 import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
 import { requiredMapValue } from "#fp";
+import { shortHash } from "#scripts/checksum.ts";
 import { readTextFileOrNull } from "#scripts/not-found.ts";
 import { generateMutants } from "./generate.ts";
 import {
@@ -34,6 +35,8 @@ interface Entry {
   /** The entry's `from → to` as the key format writes it, so a candidate key
    *  carrying the same mutation compares by string equality. */
   mutation: string;
+  /** The written proof, so a paste-ready replacement carries it forward. */
+  reason: string;
   registry: string;
   sourcePath: string;
 }
@@ -71,6 +74,7 @@ const readEntries = async (
       entries.push({
         key: parsed.key,
         mutation: `${parsed.operator}→${parsed.newOperator}`,
+        reason: parsed.reason,
         registry,
         sourcePath: parsed.sourcePath,
       });
@@ -81,7 +85,8 @@ const readEntries = async (
 
 /**
  * Every mutant key a source file can produce, generated exhaustively so an
- * entry for an exhaustive-only replacement still resolves.
+ * entry for an exhaustive-only replacement still resolves, plus the stamp the
+ * file's current text earns.
  *
  * A source the branch deleted or renamed produces none, which reads as stale —
  * the entry naming it is exactly what the author has to remove, and saying so
@@ -90,15 +95,18 @@ const readEntries = async (
 const keysFor = async (
   sourcePath: string,
   root: string,
-): Promise<Set<string>> => {
+): Promise<{ keys: Set<string>; stamp: string | null }> => {
   const file = resolve(root, sourcePath);
   const content = await readTextFileOrNull(file);
-  if (content === null) return new Set();
-  return new Set(
-    generateMutants(content, file, true).map((mutant) =>
-      mutantKeyForPath(sourcePath, mutant),
+  if (content === null) return { keys: new Set(), stamp: null };
+  return {
+    keys: new Set(
+      generateMutants(content, file, true).map((mutant) =>
+        mutantKeyForPath(sourcePath, mutant),
+      ),
     ),
-  );
+    stamp: shortHash(content),
+  };
 };
 
 /** A canonical key's `from → to`: the anchor ends at its first space, and the
@@ -110,10 +118,21 @@ const mutationOfKey = (key: string): string =>
  *  file that still produces the same mutation is offered as the paste-ready
  *  replacement, and when none does the mutation is gone and the entry has to
  *  go — the entry suppresses nothing either way. */
-const staleEntryProblem = (entry: Entry, keys: Set<string>): string => {
-  const fresh = [...keys].filter(
+const staleEntryProblem = (
+  entry: Entry,
+  checked: { keys: Set<string>; stamp: string | null },
+): string => {
+  const fresh = [...checked.keys].filter(
     (key) => mutationOfKey(key) === entry.mutation,
   );
+  // A file with no text has no stamp to offer and no fresh keys either; the
+  // suffix reads empty there.
+  const stamp =
+    checked.stamp === null
+      ? ""
+      : entry.reason === ""
+        ? `  audited:${checked.stamp}`
+        : `  audited:${checked.stamp}   # ${entry.reason}`;
   const [head, ...accepts] =
     fresh.length === 0
       ? [
@@ -121,9 +140,22 @@ const staleEntryProblem = (entry: Entry, keys: Set<string>): string => {
         ]
       : [
           `stale (nothing to suppress — did it move or get renamed?) (${entry.registry}): ${entry.key}`,
-          ...fresh.map((key) => `to accept: ${key}`),
+          ...fresh.map((key) => `to accept: ${key}${stamp}`),
         ];
   return [head, ...accepts].join("\n");
+};
+
+/**
+ * The stamp a new or re-derived entry carries for a source file as the file
+ * stands now: the person re-derives the proof against the current text, then
+ * writes the line with this token.
+ */
+export const stampForSource = async (
+  root: string,
+  sourcePath: string,
+): Promise<string> => {
+  const file = resolve(root, sourcePath);
+  return `audited:${shortHash(await Deno.readTextFile(file))}`;
 };
 
 export const checkEquivalentMutants = async (
@@ -140,7 +172,7 @@ export const checkEquivalentMutants = async (
     return why === null;
   });
 
-  const byPath = new Map<string, Set<string>>();
+  const byPath = new Map<string, { keys: Set<string>; stamp: string | null }>();
   for (const sourcePath of new Set(usable.map((e) => e.sourcePath))) {
     byPath.set(sourcePath, await keysFor(sourcePath, root));
   }
@@ -149,13 +181,13 @@ export const checkEquivalentMutants = async (
       problems.push(`duplicate (${entry.registry}): ${entry.key}`);
     }
     seen.add(entry.key);
-    const keys = requiredMapValue(
+    const checked = requiredMapValue(
       byPath,
       entry.sourcePath,
       `No mutants were generated for ${entry.sourcePath}`,
     );
-    if (!keys.has(entry.key)) {
-      problems.push(staleEntryProblem(entry, keys));
+    if (!checked.keys.has(entry.key)) {
+      problems.push(staleEntryProblem(entry, checked));
     }
   }
   return problems;

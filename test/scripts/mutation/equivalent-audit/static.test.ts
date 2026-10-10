@@ -1,10 +1,18 @@
 import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
+import { shortHash } from "#scripts/checksum.ts";
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
 import { generateMutants } from "#scripts/mutation/generate.ts";
 import { tempDir } from "#test-utils/files.ts";
-import { auditSetup, deps, gate, setup, source } from "./helpers.ts";
+import {
+  type AuditFixture,
+  auditSetup,
+  deps,
+  gate,
+  setup,
+  source,
+} from "./helpers.ts";
 
 describe("equivalent-mutant static audit", () => {
   test("reports a mutant killed by lint without running type-check", async () => {
@@ -25,8 +33,11 @@ describe("equivalent-mutant static audit", () => {
     expect(result).toEqual({
       checked: 1,
       killedByLint: [state.entry.trimEnd()],
+      killedByTests: [],
       killedByTypeCheck: [],
       retained: 0,
+      unconfirmed: [],
+      untested: [],
     });
     expect(calls).toEqual([source, "type-check", source.replace("??", "||")]);
     expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
@@ -68,8 +79,11 @@ describe("equivalent-mutant static audit", () => {
     expect(result).toEqual({
       checked: 1,
       killedByLint: [],
+      killedByTests: [],
       killedByTypeCheck: [],
       retained: 1,
+      unconfirmed: [],
+      untested: [],
     });
     expect(await Deno.readTextFile(state.ignoreFile)).toBe(originalIgnore);
   });
@@ -79,7 +93,7 @@ describe("equivalent-mutant static audit", () => {
     using _dir = state.dir;
     await Deno.writeTextFile(
       state.ignoreFile,
-      "source.ts::noSuchThing ?? → || # stale\n",
+      "source.ts::noSuchThing ?? → ||  audited:0000000 # stale\n",
     );
 
     await expect(auditSetup(state)).rejects.toThrow(
@@ -103,7 +117,7 @@ describe("equivalent-mutant static audit", () => {
     if (!first || !second) throw new Error("Expected two nullish mutants");
     await Deno.writeTextFile(
       ignoreFile,
-      `source.ts::${first.anchor} ?? → || # killed\nsource.ts::${second.anchor} ?? → || # kept\n`,
+      `source.ts::${first.anchor} ?? → ||  audited:${shortHash(twoValues)} # killed\nsource.ts::${second.anchor} ?? → ||  audited:${shortHash(twoValues)} # kept\n`,
     );
 
     await auditEquivalentMutants(
@@ -125,7 +139,7 @@ describe("equivalent-mutant static audit", () => {
     );
 
     expect(await Deno.readTextFile(ignoreFile)).toBe(
-      `source.ts::${second.anchor} ?? → || # kept\n`,
+      `source.ts::${second.anchor} ?? → ||  audited:${shortHash(twoValues)} # kept\n`,
     );
     expect(await Deno.readTextFile(sourceFile)).toBe(twoValues);
   });
@@ -157,8 +171,11 @@ describe("equivalent-mutant static audit", () => {
     expect(await auditSetup(state)).toEqual({
       checked: 0,
       killedByLint: [],
+      killedByTests: [],
       killedByTypeCheck: [],
       retained: 0,
+      unconfirmed: [],
+      untested: [],
     });
   });
 
@@ -212,7 +229,7 @@ describe("equivalent-mutant static audit", () => {
     );
     if (!kept) throw new Error("Expected nullish mutant");
     const secondFile = join(state.dir.path, "second.txt");
-    const keptEntry = `second-source.ts::${kept.anchor} ?? → || # kept\n`;
+    const keptEntry = `second-source.ts::${kept.anchor} ?? → ||  audited:0000000 # kept\n`;
     await Deno.writeTextFile(secondFile, keptEntry);
 
     await auditEquivalentMutants(
@@ -288,8 +305,11 @@ describe("equivalent-mutant static audit", () => {
     expect(result).toEqual({
       checked: 1,
       killedByLint: [],
+      killedByTests: [],
       killedByTypeCheck: [state.entry.trimEnd()],
       retained: 0,
+      unconfirmed: [],
+      untested: [],
     });
   });
 
@@ -317,5 +337,61 @@ describe("equivalent-mutant static audit", () => {
     ).rejects.toThrow("Equivalent-mutant file changed during the audit.");
     expect(await Deno.readTextFile(state.ignoreFile)).toBe("# changed\n");
     expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
+  });
+
+  /** The stamp records the file text the proof was re-derived against. A file
+   * that has changed since leaves the entry unconfirmed: the audit skips it —
+   * no gate check, no prune — and names it for a person to re-derive. */
+  const setupWithStaleStamp = async (): Promise<
+    AuditFixture & { stale: string }
+  > => {
+    const state = await setup();
+    const stale = state.entry.replace(shortHash(source), "0000000");
+    await Deno.writeTextFile(state.ignoreFile, `# kept comment\n\n${stale}`);
+    return { ...state, stale };
+  };
+
+  test("skips an entry whose stamp predates the source text", async () => {
+    const state = await setupWithStaleStamp();
+    using _dir = state.dir;
+    const calls: string[] = [];
+
+    const result = await auditSetup(state, [
+      gate("lint", (file) => {
+        calls.push(file);
+        return Promise.resolve(1);
+      }),
+      gate("type-check", (file) => {
+        calls.push(file);
+        return Promise.resolve(0);
+      }),
+    ]);
+
+    expect(result).toEqual({
+      checked: 1,
+      killedByLint: [],
+      killedByTests: [],
+      killedByTypeCheck: [],
+      retained: 0,
+      unconfirmed: [state.stale.trimEnd()],
+      untested: [],
+    });
+    expect(calls).toEqual([]);
+    expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
+  });
+
+  test("skips an unconfirmed entry even with --write", async () => {
+    const state = await setupWithStaleStamp();
+    using _dir = state.dir;
+
+    const result = await auditEquivalentMutants(
+      { ignoreFiles: [state.ignoreFile], root: state.dir.path, write: true },
+      deps([gate("lint", () => Promise.resolve(0))]),
+    );
+
+    expect(result.unconfirmed).toEqual([state.stale.trimEnd()]);
+    expect(await Deno.readTextFile(state.ignoreFile)).toBe(
+      `# kept comment\n\n${state.stale}`,
+    );
   });
 });

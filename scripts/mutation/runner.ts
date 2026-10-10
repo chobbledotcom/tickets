@@ -12,6 +12,7 @@
  * test actually said, never by how long it took to say it.
  */
 
+import { shortHash } from "#scripts/checksum.ts";
 import { dim, red, yellow } from "#scripts/precommit/colors.ts";
 import { write } from "#scripts/precommit/write.ts";
 import { projectRoot, rel } from "#scripts/project-root.ts";
@@ -21,7 +22,6 @@ import {
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
-import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
 import {
   createStaticGates,
@@ -30,13 +30,18 @@ import {
   testEnv,
 } from "./execution.ts";
 import { generateMutants } from "./generate.ts";
-import { ignoreListProblems, loadIgnoreList, mutantKey } from "./ignore.ts";
+import {
+  ignoreListProblems,
+  loadIgnoreList,
+  mutantKey,
+  unconfirmedEntries,
+} from "./ignore.ts";
 import {
   type FileRunOptions,
   type MutantLoopContext,
   runFileMutants,
 } from "./run-file.ts";
-import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
+import { collectStateBuilderFiles } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
   formatSummaryLines,
@@ -75,7 +80,7 @@ const parsePositiveInt = (value: string | undefined): number | null => {
 
 const hardwareConcurrency = (): number => navigator.hardwareConcurrency || 1;
 
-const defaultBatchJobs = (): number =>
+export const defaultBatchJobs = (): number =>
   parsePositiveInt(Deno.env.get("MUTATION_JOBS")) ??
   Math.max(1, Math.min(4, hardwareConcurrency() - 1));
 
@@ -223,6 +228,7 @@ const reportIgnoreListStaleness = (
   opts: RunMutantsOptions,
   plans: FileMutationPlan[],
   exitCode: number,
+  unconfirmedKeys: ReadonlySet<string>,
 ): number => {
   const possibleKeys = new Set(
     plans.flatMap((plan) =>
@@ -236,6 +242,7 @@ const reportIgnoreListStaleness = (
     opts.results,
     opts.sourceFiles,
     possibleKeys,
+    unconfirmedKeys,
   );
   if (problems.length === 0) return exitCode;
   console.error(
@@ -290,9 +297,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   // Likewise the run-wide test state was built before any mutant existed: a
   // mutant in a file that state was built from must not let its tests seed
   // from the stale snapshot, so those files run without the state env var.
-  const stateBuilderFiles = Deno.env.get(TEST_STATE_DIR_ENV)
-    ? await collectModuleGraphFiles(STATE_BUILDER_ROOT, projectRoot)
-    : null;
+  const stateBuilderFiles = await collectStateBuilderFiles();
   const plans: FileMutationPlan[] = [];
   for (const target of opts.testMap.targets) {
     const plan = await createFilePlan(
@@ -312,6 +317,12 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
   const baseline = await establishBaseline(opts, plans);
   if (baseline !== null) return baseline.code;
+  // The stamps are judged against the same file text the run mutates, so a
+  // proof recorded before the current text is unconfirmed for this run.
+  const unconfirmedKeys = unconfirmedEntries(
+    opts.ignoreList,
+    new Map(plans.map((plan) => [rel(plan.file), shortHash(plan.original)])),
+  );
   const gates = await createStaticGates();
   console.log(
     dim(`Using up to ${opts.staticJobs} concurrent static gate job(s).`),
@@ -333,7 +344,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       const stop = await runOnePlan(
         opts,
         plan,
-        { counts, gates, totalMutants },
+        { counts, gates, totalMutants, unconfirmedKeys },
         plans,
       );
       if (stop !== null) return stop;
@@ -346,7 +357,12 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const early = unfinishedRunExit(opts, results.length, plans);
   if (early !== null) return early;
 
-  return reportIgnoreListStaleness(opts, plans, report(results));
+  return reportIgnoreListStaleness(
+    opts,
+    plans,
+    report(results),
+    unconfirmedKeys,
+  );
 };
 
 const mutate = async (

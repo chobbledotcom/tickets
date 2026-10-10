@@ -3,121 +3,121 @@
 # --- Payment test buttons (src/ui/client/admin/payment-test-buttons.ts) --------
 # The CSRF input's value is a string or undefined and the fallback is the
 # empty string, so the only falsy operand value equals the fallback itself.
-src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer~1dlz3y3  ?? → ||   # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
+src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer~1dlz3y3  ?? → || audited:03oy5t2 # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
 
 # --- External order widget (src/ui/client/order.ts, src/ui/client/cart-dom.ts) --
 # URL matches and catalog entries are either non-empty strings/objects or absent,
 # so these nullish and truthy fallbacks have the same result.
-src/ui/client/order.ts::ticketSlug~1n6h8xd  ?? → ||   # RegExp match group is a non-empty slug or undefined
-src/ui/client/order.ts::resolveEntry~18potx4  ?? → ||   # catalogRecord returns an entry object or undefined
-src/ui/client/order.ts::CartController.reconcile~0ml52tv  ?? → ||   # merged quantities are positive integers, so an existing sum is truthy
-src/ui/client/order.ts::parseAddQuantity~1lqvqq7  0 → 1   # quantity 1 takes the fallback 1 instead of returning 1
+src/ui/client/order.ts::ticketSlug~1n6h8xd  ?? → || audited:189c89x # RegExp match group is a non-empty slug or undefined
+src/ui/client/order.ts::resolveEntry~18potx4  ?? → || audited:189c89x # catalogRecord returns an entry object or undefined
+src/ui/client/order.ts::CartController.reconcile~0ml52tv  ?? → || audited:189c89x # merged quantities are positive integers, so an existing sum is truthy
+src/ui/client/order.ts::parseAddQuantity~1lqvqq7  0 → 1 audited:189c89x # quantity 1 takes the fallback 1 instead of returning 1
 
 # reconcile runs once on a new controller whose notice starts empty. The only
 # production caller of add always passes parseAddQuantity's positive result.
-src/ui/client/order.ts::CartController.reconcile.this%2enotice~1kadcbh  = → +=   # empty notice plus the message equals the message
-src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1 → 0   # add's default is unused; its only caller always supplies quantity
+src/ui/client/order.ts::CartController.reconcile.this%2enotice~1kadcbh  = → += audited:189c89x # empty notice plus the message equals the message
+src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1 → 0 audited:189c89x # add's default is unused; its only caller always supplies quantity
 
 # Every `= → +=` below writes to a newly-created DOM element property whose DOM
 # default is "". Concatenating the assigned text onto "" is exactly assignment.
-src/ui/client/order.ts::CartController.renderBody.heading%2etextContent~1e8gima  = → +=   # fresh heading textContent
-src/ui/client/order.ts::CartController.renderBody.p%2eclassName~0769utr  = → +=   # fresh notice paragraph className
-src/ui/client/order.ts::CartController.renderBody.p%2etextContent~0js9e3o  = → +=   # fresh notice paragraph textContent
-src/ui/client/order.ts::CartController.renderBody.total%2eclassName~13qv4xh  = → +=   # fresh subtotal paragraph className
-src/ui/client/order.ts::CartController.renderBody.total%2etextContent~0iu2k0x  = → +=   # fresh subtotal paragraph textContent
-src/ui/client/order.ts::CartController.renderBody.caveat%2eclassName~16aouo5  = → +=   # fresh caveat paragraph className
-src/ui/client/order.ts::CartController.renderBody.caveat%2etextContent~1w4sxpr  = → +=   # fresh caveat paragraph textContent
-src/ui/client/order.ts::CartController.renderBody.empty%2etextContent~1bt1hfd  = → +=   # fresh empty paragraph textContent
-src/ui/client/order.ts::CartController.renderRow.row%2eclassName~0lyd29l  = → +=   # fresh row className
-src/ui/client/order.ts::CartController.renderRow.name%2eclassName~0h48s6p  = → +=   # fresh name span className
-src/ui/client/order.ts::CartController.renderRow.name%2etextContent~06a60tp  = → +=   # fresh name span textContent
-src/ui/client/order.ts::CartController.renderRow.price%2eclassName~011y5kf  = → +=   # fresh price span className
-src/ui/client/order.ts::CartController.renderRow.price%2etextContent~0riziqk  = → +=   # fresh price span textContent
+src/ui/client/order.ts::CartController.renderBody.heading%2etextContent~1e8gima  = → += audited:189c89x # fresh heading textContent
+src/ui/client/order.ts::CartController.renderBody.p%2eclassName~0769utr  = → += audited:189c89x # fresh notice paragraph className
+src/ui/client/order.ts::CartController.renderBody.p%2etextContent~0js9e3o  = → += audited:189c89x # fresh notice paragraph textContent
+src/ui/client/order.ts::CartController.renderBody.total%2eclassName~13qv4xh  = → += audited:189c89x # fresh subtotal paragraph className
+src/ui/client/order.ts::CartController.renderBody.total%2etextContent~0iu2k0x  = → += audited:189c89x # fresh subtotal paragraph textContent
+src/ui/client/order.ts::CartController.renderBody.caveat%2eclassName~16aouo5  = → += audited:189c89x # fresh caveat paragraph className
+src/ui/client/order.ts::CartController.renderBody.caveat%2etextContent~1w4sxpr  = → += audited:189c89x # fresh caveat paragraph textContent
+src/ui/client/order.ts::CartController.renderBody.empty%2etextContent~1bt1hfd  = → += audited:189c89x # fresh empty paragraph textContent
+src/ui/client/order.ts::CartController.renderRow.row%2eclassName~0lyd29l  = → += audited:189c89x # fresh row className
+src/ui/client/order.ts::CartController.renderRow.name%2eclassName~0h48s6p  = → += audited:189c89x # fresh name span className
+src/ui/client/order.ts::CartController.renderRow.name%2etextContent~06a60tp  = → += audited:189c89x # fresh name span textContent
+src/ui/client/order.ts::CartController.renderRow.price%2eclassName~011y5kf  = → += audited:189c89x # fresh price span className
+src/ui/client/order.ts::CartController.renderRow.price%2etextContent~0riziqk  = → += audited:189c89x # fresh price span textContent
 # The Close, Continue, and Remove labels are all set by one shared helper now,
 # so one record covers the three label assignments the old builders carried.
-src/ui/client/cart-dom.ts::labeledButton.button%2etextContent~0ajsh1y  = → +=   # fresh button textContent
-src/ui/client/cart-dom.ts::buildButton.count%2eclassName~0cxcdrz  = → +=   # fresh count span className
-src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  = → +=   # fresh count span textContent
-src/ui/client/cart-dom.ts::buildButton.label%2etextContent~1w5f3kd  = → +=   # fresh cart label span textContent
-src/ui/client/cart-dom.ts::buildStepperShell.wrap%2eclassName~0fr2ph0  = → +=   # fresh stepper span className
-src/ui/client/cart-dom.ts::buildStepper.dec%2etextContent~0e91dik  = → +=   # fresh decrease button textContent
-src/ui/client/cart-dom.ts::buildStepper.value%2etextContent~1wclfso  = → +=   # fresh quantity span textContent
-src/ui/client/cart-dom.ts::buildStepper.inc%2etextContent~0hr9vid  = → +=   # fresh increase button textContent
-src/ui/client/cart-dom.ts::applyStyles.style%2etextContent~0eh5dyi  = → +=   # fresh style element textContent
+src/ui/client/cart-dom.ts::labeledButton.button%2etextContent~0ajsh1y  = → += audited:1c9un2x # fresh button textContent
+src/ui/client/cart-dom.ts::buildButton.count%2eclassName~0cxcdrz  = → += audited:1c9un2x # fresh count span className
+src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  = → += audited:1c9un2x # fresh count span textContent
+src/ui/client/cart-dom.ts::buildButton.label%2etextContent~1w5f3kd  = → += audited:1c9un2x # fresh cart label span textContent
+src/ui/client/cart-dom.ts::buildStepperShell.wrap%2eclassName~0fr2ph0  = → += audited:1c9un2x # fresh stepper span className
+src/ui/client/cart-dom.ts::buildStepper.dec%2etextContent~0e91dik  = → += audited:1c9un2x # fresh decrease button textContent
+src/ui/client/cart-dom.ts::buildStepper.value%2etextContent~1wclfso  = → += audited:1c9un2x # fresh quantity span textContent
+src/ui/client/cart-dom.ts::buildStepper.inc%2etextContent~0hr9vid  = → += audited:1c9un2x # fresh increase button textContent
+src/ui/client/cart-dom.ts::applyStyles.style%2etextContent~0eh5dyi  = → += audited:1c9un2x # fresh style element textContent
 
 # buildButton's initial values are overwritten by the constructor's render
 # before the button is exposed.
-src/ui/client/cart-dom.ts::buildButton.button%2ehidden~054o62q  true → false   # constructor render immediately sets hidden from the cart count
-src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  0 → ""   # constructor render immediately writes the current numeric count
+src/ui/client/cart-dom.ts::buildButton.button%2ehidden~054o62q  true → false audited:1c9un2x # constructor render immediately sets hidden from the cart count
+src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  0 → "" audited:1c9un2x # constructor render immediately writes the current numeric count
 
 # The widget owns this global registry: before init it is undefined, afterwards
 # it is an object. Both are mapped to the same object by these operators.
-src/ui/client/order.ts::init.registry~1udjxut  ?? → ||   # registry is Record<string, unknown>|undefined
+src/ui/client/order.ts::init.registry~1udjxut  ?? → || audited:189c89x # registry is Record<string, unknown>|undefined
 
 # Dataset values are strings when present. At initial scan the selector requires
 # the attribute; after enhancement, an absent value and either fallback string
 # all fail both resolvers and preserve normal navigation.
-src/ui/client/order.ts::init.enhance.raw~03ascww  ?? → ||   # present dataset string; empty maps to the same empty fallback
-src/ui/client/order.ts::init.enhance.raw~03ascww   → "mutated"   # fallback is unreachable for the matching selector
-src/ui/client/order.ts::init.enhance.current~03ascww  ?? → ||   # present strings are truthy or empty; both operators keep the same value
-src/ui/client/order.ts::init.enhance.current~03ascww   → "mutated"   # absent fallback values resolve to neither listing nor package
-src/shared/site-pages/core.ts::descendantsOf.walk~06ouy8c  ?? → ||   # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
-src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → ||   # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/ui/client/order.ts::init.enhance.raw~03ascww  ?? → || audited:189c89x # present dataset string; empty maps to the same empty fallback
+src/ui/client/order.ts::init.enhance.raw~03ascww   → "mutated" audited:189c89x # fallback is unreachable for the matching selector
+src/ui/client/order.ts::init.enhance.current~03ascww  ?? → || audited:189c89x # present strings are truthy or empty; both operators keep the same value
+src/ui/client/order.ts::init.enhance.current~03ascww   → "mutated" audited:189c89x # absent fallback values resolve to neither listing nor package
+src/shared/site-pages/core.ts::descendantsOf.walk~06ouy8c  ?? → || audited:00febke # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → || audited:00febke # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 
 # --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
 # Browser DOM-construction code, same class of equivalents as order.ts above:
 # `= → +=` on a freshly created element's property whose value before the
 # assignment is "" (className, src), or a boolean IDL attribute whose setter
 # coerces the truthy `false + true === 1` to the same true.
-src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.mount%2eclassName~0tm52y7  = → +=   # mount.className: fresh element, "" before
-src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.toggle%2eclassName~0igtxeq  = → +=   # toggle.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.dom%2eclassName~0ddlu5i  = → +=   # dom.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons.button%2etextContent~0ps90ek  = → +=   # button.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons.button%2etitle~0nv7hz5  = → +=   # button.title: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.mount%2eclassName~0tm52y7  = → += audited:1at0s5n # mount.className: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.toggle%2eclassName~0igtxeq  = → += audited:1at0s5n # toggle.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.dom%2eclassName~0ddlu5i  = → += audited:1u2vbd4 # dom.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons.button%2etextContent~0ps90ek  = → += audited:1u2vbd4 # button.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons.button%2etitle~0nv7hz5  = → += audited:1u2vbd4 # button.title: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
 # tell them apart.
-src/ui/client/admin/markdown-editor-setup.ts::editorInputRules.order~10i2z5p  1 → 0   # Number("N. ") === Number("N") for every ordered-list match
+src/ui/client/admin/markdown-editor-setup.ts::editorInputRules.order~10i2z5p  1 → 0 audited:0s4lage # Number("N. ") === Number("N") for every ordered-list match
 
 # bundle-loader.ts assigns query/style/script values onto freshly-created URLs
 # and elements. Each left-hand value is empty (or false for defer), so `=` and
 # `+=` produce the same final URL/string/boolean after DOM coercion.
-src/ui/client/admin/bundle-loader.ts::bundleUrl.target%2esearch~04ik8af  = → +=   # a sibling URL starts with an empty search
-src/ui/client/admin/bundle-loader.ts::loadBundleWhen.link%2erel~0yyqh8d  = → +=   # fresh link.rel is empty
-src/ui/client/admin/bundle-loader.ts::loadBundleWhen.link%2ehref~05cuojs  = → +=   # fresh link.href is empty
-src/ui/client/admin/bundle-loader.ts::loadBundleWhen.script%2esrc~0zshzaj  = → +=   # fresh script.src is empty
+src/ui/client/admin/bundle-loader.ts::bundleUrl.target%2esearch~04ik8af  = → += audited:19vrbgv # a sibling URL starts with an empty search
+src/ui/client/admin/bundle-loader.ts::loadBundleWhen.link%2erel~0yyqh8d  = → += audited:19vrbgv # fresh link.rel is empty
+src/ui/client/admin/bundle-loader.ts::loadBundleWhen.link%2ehref~05cuojs  = → += audited:19vrbgv # fresh link.href is empty
+src/ui/client/admin/bundle-loader.ts::loadBundleWhen.script%2esrc~0zshzaj  = → += audited:19vrbgv # fresh script.src is empty
 
 # address-lookup client: panelText's "" fallback matches the only falsy dataset
 # value, and freshly created options start with empty value/text.
-src/ui/client/admin/address-lookup.ts::panelText~0c82ro8  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
-src/ui/client/admin/address-lookup.ts::addressOption.option%2evalue~1886fui  = → +=   # a just-created <option>'s value is "", so append equals assign
-src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nflld  = → +=   # a just-created <option>'s textContent is "", so append equals assign
+src/ui/client/admin/address-lookup.ts::panelText~0c82ro8  ?? → || audited:09c3dqm # dataset[key]: string|undefined, only falsy string "" === fallback ""
+src/ui/client/admin/address-lookup.ts::addressOption.option%2evalue~1886fui  = → += audited:09c3dqm # a just-created <option>'s value is "", so append equals assign
+src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nflld  = → += audited:09c3dqm # a just-created <option>'s textContent is "", so append equals assign
 
 # Schema-atlas SVG builder: both texts are set on freshly created elements,
 # whose empty initial value makes assign and append identical.
-src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → +=   # a just-created SVG <text> has empty textContent, so append equals assign
-src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → +=   # same: the <title> is fresh, so append equals assign
+src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → += audited:1lklx5e # a just-created SVG <text> has empty textContent, so append equals assign
+src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → += audited:1lklx5e # same: the <title> is fresh, so append equals assign
 
 # The confirm dialog owns one singleton overlay. A listener the cleanup fails
 # to detach can only fire beside the live dialog's own handler with the same
 # answer: the stale resolve is a no-op on its settled promise, and re-hiding
 # the overlay is idempotent. The buttons answer, the overlay hides, and the
 # next dialog opens exactly as with the removal in place.
-src/ui/client/confirm-dialog.ts::askOverlay.finish~0trf4gl click→""   # a misnamed removal leaves a stale answer listener; a later click on that button reaches the live question too, which answers it and hides the same overlay, so the stale call only repeats the hide
-src/ui/client/confirm-dialog.ts::askOverlay.finish~0lmo3w5 document.removeEventListener("keydown",…→(removed)   # a stale Escape handler only re-hides its own overlay and resolves a promise already resolved, while the live question gets the same key
-src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+=   # a fresh option starts with an empty value, so appending writes the same string
-src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+=   # a fresh option starts with empty text, so appending writes the same string
+src/ui/client/confirm-dialog.ts::askOverlay.finish~0trf4gl click→"" audited:1157i3i # a misnamed removal leaves a stale answer listener; a later click on that button reaches the live question too, which answers it and hides the same overlay, so the stale call only repeats the hide
+src/ui/client/confirm-dialog.ts::askOverlay.finish~0lmo3w5 document.removeEventListener("keydown",…→(removed) audited:1157i3i # a stale Escape handler only re-hides its own overlay and resolves a promise already resolved, while the live question gets the same key
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+= audited:1e7mtm9 # a fresh option starts with an empty value, so appending writes the same string
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+= audited:1e7mtm9 # a fresh option starts with empty text, so appending writes the same string
 
 # The camera page renders data-message-camera-denied with the same words as
 # the script's fallback, and server-rendered markup never sets an empty
 # dataset key, so a broken lookup key lands on the same words either way.
-src/ui/client/scanner.js::init~02xv58k messageCameraDenied→""   # the lookup misses into the identical fallback
+src/ui/client/scanner.js::init~02xv58k messageCameraDenied→"" audited:09espsq # the lookup misses into the identical fallback
 
 # The manual check-in form renders no data-message-verify-id-confirm
 # attribute, and its data-message-skipped copy is the same "Skipped {name}" as
 # the fallback. Server-rendered markup never sets an empty dataset key, so a
 # broken lookup key lands on the same words either way.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→""   # the lookup misses into the fallback copy
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d messageSkipped→""   # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→"" audited:1jdc1my # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d messageSkipped→"" audited:1jdc1my # the lookup misses into the fallback copy
 

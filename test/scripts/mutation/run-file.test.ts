@@ -62,6 +62,7 @@ const context = (
   counts: emptyCounts(),
   gates: [],
   totalMutants: plan.mutants.length,
+  unconfirmedKeys: new Set(),
   ...changes,
 });
 
@@ -189,6 +190,36 @@ describe("mutation file coordinator", () => {
     expect(opts.results.map(({ status }) => status)).toEqual(
       mutants.map(() => "survived"),
     );
+  });
+
+  /** An unconfirmed entry suppresses nothing: its mutant surfaces as the
+   * survivor it is, so the gate reports a real score until the proof is
+   * re-derived or the entry deleted. */
+  test("reports a survivor whose entry is unconfirmed instead of ignoring it", async () => {
+    const key = mutantKey(plan.file, mutants[0]!);
+    const opts = options({
+      ignoreList: {
+        entries: [{ key, sourcePath: "source.ts", stamp: "audited:041pxgm" }],
+        keys: new Set([key]),
+      },
+    });
+    const deps = withStaticSurvivor({
+      evaluateTests: () =>
+        Promise.resolve({
+          detectedBy: null,
+          status: "survived",
+          timings: [],
+        }),
+    });
+
+    await runFileMutants(
+      plan,
+      opts,
+      context({ unconfirmedKeys: new Set([key]) }),
+      deps,
+    );
+
+    expect(opts.results.map(({ status }) => status)).toEqual(["survived"]);
   });
 
   test("stops before test evaluation when the run is aborted", async () => {

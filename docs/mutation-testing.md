@@ -99,16 +99,34 @@ type-check gate kills it first.
 
 ## Known-equivalent survivors
 
+Never record `=== → ==`/`!== → !=` mutants: Biome's `noDoubleEquals` rule is
+configured to reject loose comparisons even against `null`, and the runner
+counts that lint failure as killed before tests run.
+
 Known-equivalent survivors recorded in `scripts/mutation/equivalent-mutants/`
-are suppressed, as with a manual run. Never record `=== → ==`/`!== → !=`
-mutants: Biome's `noDoubleEquals` rule is configured to reject loose comparisons
-even against `null`, and the runner counts that lint failure as killed before
-tests run. Use `deno task mutation:audit-equivalents` to check the whole
-equivalent list with lint and type-check only; pass `--write` to remove entries
-those static gates now kill. The audit never runs tests and refuses to rewrite
-stale or malformed entries. Like `deno task mutation`, it works in a copy of the
-checkout under `.mutation-runs/`, so the live source files are never left
-mutated and a commit made while it runs cannot pick up a mutant. With `--write`,
-the pruned `equivalent-mutants/` registry files are copied back when the run
-ends — unless one was edited meanwhile, which fails the run instead of
-overwriting the edit.
+are suppressed, as with a manual run — but only while the entry is confirmed.
+Each entry carries a re-audit stamp: the hash of the source file's text at the
+moment a person last re-derived the written proof. Every run re-hashes the
+files it mutates. An entry whose stamp no longer matches is **unconfirmed**: it
+suppresses nothing, its mutant runs like any other, and the run fails with a
+problem naming it until someone re-derives the proof against the current file
+and stamps the line again, or deletes the entry and writes the test. A run
+whose mutant died says so. A run whose mutant survived reports a real
+survivor.
+
+Use `deno task mutation:audit-equivalents` to check the whole equivalent list
+with lint and type-check only. The audit skips unconfirmed entries (it never
+re-stamps one — re-deriving a proof is a person's read) and lists them for
+re-derivation. Pass `--tests` to also attempt a distinguishing input for each
+confirmed entry: it runs the entry's mutant against its mapped direct tests —
+the same direct stage a mutation run uses, under the full harness — and drops
+the entries a test kills, because a killed mutant is not equivalent. A survivor
+keeps its entry: only a kill disproves one. Pass `--write` to remove the
+entries the gates or the tests now kill. The audit refuses to rewrite stale or
+malformed entries, and `deno task check:equivalents --stamp <file>` prints the
+token a new or re-recorded line carries. Like `deno task mutation`, the audit
+works in a copy of the checkout under `.mutation-runs/`, so the live source
+files are never left mutated and a commit made while it runs cannot pick up a
+mutant. With `--write`, the pruned `equivalent-mutants/` registry files are
+copied back when the run ends — unless one was edited meanwhile, which fails
+the run instead of overwriting the edit.

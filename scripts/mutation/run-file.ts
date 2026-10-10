@@ -7,7 +7,7 @@ import {
   type MutantEvaluation,
 } from "./evaluate.ts";
 import { type StaticGate, type TestRunConfig, testEnv } from "./execution.ts";
-import { type IgnoreList, isIgnored } from "./ignore.ts";
+import { type IgnoreList, suppresses } from "./ignore.ts";
 import { evaluateStaticMutants, type StaticEvaluation } from "./static.ts";
 import {
   formatProgressLine,
@@ -57,6 +57,9 @@ export interface MutantLoopContext {
   counts: Record<Status, number>;
   gates: StaticGate[];
   totalMutants: number;
+  /** Entries whose proof predates the file's current text: they suppress
+   * nothing, so their mutants surface as the survivors they are. */
+  unconfirmedKeys: Set<string>;
 }
 
 const runTestsForStaticSurvivor = async (
@@ -143,7 +146,7 @@ export const runFileMutants = async (
     if (opts.isAborted() || evaluation.status === "cancelled") break;
     const status: Status =
       evaluation.status === "survived" &&
-      isIgnored(opts.ignoreList, plan.file, mutant)
+      suppresses(opts.ignoreList, ctx.unconfirmedKeys, plan.file, mutant)
         ? "ignored"
         : evaluation.status;
     const result = {

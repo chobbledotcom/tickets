@@ -59,7 +59,7 @@ const asRegistryLine = (key: string): string => {
   const arrow = mutation.indexOf("→");
   const from = mutation.slice(0, arrow);
   const to = mutation.slice(arrow + 1);
-  return `${location}  ${from} → ${to}   # a reason mentioning # and → and spaces`;
+  return `${location}  ${from} → ${to}  audited:041pxgm   # a reason mentioning # and → and spaces`;
 };
 
 describe("a mutant key survives the registry round trip", () => {
