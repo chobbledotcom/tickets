@@ -15,11 +15,15 @@ import { decryptWithKey } from "#crypto/encryption.ts";
 import { importPrivateKey } from "#crypto/hybrid.ts";
 import { deriveKEKFromPassword, unwrapKey } from "#crypto/keys.ts";
 
-import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
+import type { KeyEncrypted, PasswordHash, WrappedKey } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import { SetupAlreadyCompleteError } from "#db/settings/setup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
-import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
+import {
+  createUser,
+  getUserByUsername,
+  verifyUserPassword,
+} from "#db/users.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const emptySite = async (): Promise<void> => {
@@ -123,6 +127,89 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       expect(
         await ownerCanReadSiteData(survivor, passwords.get(survivor)!),
       ).toBe(true);
+    });
+  });
+
+  describe("the first ceremony", () => {
+    test("completeSetup sets all config values and generates key hierarchy", async () => {
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      await settings.setup.complete("setupuser", "mypassword", "US");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+      expect(await settings.setup.isComplete()).toBe(true);
+      const user = await getUserByUsername("setupuser");
+      expect(user).not.toBeNull();
+      const hash = await verifyUserPassword(user!, "mypassword");
+      expect(hash).toBeTruthy();
+      expect(hash).toContain("pbkdf2:");
+      expect(settings.currency).toBe("USD");
+
+      expect(settings.publicKey).toBeTruthy();
+      expect(user!.wrapped_data_key).toBeTruthy();
+      expect(settings.wrappedPrivateKey).toBeTruthy();
+    });
+
+    test("completeSetup clears stale pre-setup settings cache and confirms setup", async () => {
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(settings.wrappedPrivateKey).toBe("");
+      expect(settings.publicKey).toBe("");
+      expect(await settings.setup.isComplete()).toBe(false);
+
+      await settings.setup.complete("setupuser", "mypassword", "US");
+
+      expect(await settings.setup.isComplete()).toBe(true);
+      expect(settings.wrappedPrivateKey).toBe("");
+      expect(settings.publicKey).toBe("");
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(settings.wrappedPrivateKey).toBeTruthy();
+      expect(settings.publicKey).toBeTruthy();
+      expect(settings.country).toBe("US");
+      expect(settings.currency).toBe("USD");
+    });
+
+    test("completeSetup rolls back every write when the owner insert fails", async () => {
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      // Pre-seed a user whose username collides with the owner-to-be, so the
+      // owner INSERT violates the unique username index and aborts the batch.
+      // Hand-crafted stored hash — test fixture cast.
+      await createUser(
+        "ownerdupe",
+        "pbkdf2:seedhash" as PasswordHash,
+        null,
+        "manager",
+      );
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(await settings.setup.isComplete()).toBe(false);
+
+      await expect(
+        settings.setup.complete("ownerdupe", "mypassword", "US"),
+      ).rejects.toThrow();
+
+      // The whole ceremony rolled back: no config keys, no setup flag, and the
+      // colliding owner row was never created (still just the seeded user).
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(await settings.setup.isComplete()).toBe(false);
+      expect(settings.publicKey).toBe("");
+      expect(settings.wrappedPrivateKey).toBe("");
+      const count = await getDb().execute("SELECT COUNT(*) AS n FROM users");
+      expect(Number(count.rows[0]!.n)).toBe(1);
+    });
+
+    test("isComplete reloads cache when it has expired", async () => {
+      settings.invalidateCache();
+      const result = await settings.setup.isComplete();
+      expect(result).toBe(true);
     });
   });
 });
