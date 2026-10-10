@@ -386,6 +386,33 @@ describe("order widget", {
     expect(h.navigations).toEqual([`${ORIGIN}/ticket/open?q_1=1`]);
   });
 
+  test("Continue books a package beside a listing already in the cart", () => {
+    setBody(h, addLink("weekend") + addLink("open"));
+    h.run(
+      makeCatalog(
+        [listing({ id: 11, slug: "open" })],
+        false,
+        [{ name: "Full Weekend", slug: "weekend" }],
+      ),
+    );
+    clickAnchor(h, "weekend");
+    clickAnchor(h, "open");
+    clickIn(openCart(h), ".continue");
+
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/weekend+open?q_11=1`]);
+  });
+
+  test("Continue with only a package books the whole bundle page", () => {
+    setBody(h, addLink("weekend"));
+    h.run(
+      makeCatalog([], false, [{ name: "Full Weekend", slug: "weekend" }]),
+    );
+    clickAnchor(h, "weekend");
+    clickIn(openCart(h), ".continue");
+
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/weekend`]);
+  });
+
   test("Continue with an empty cart does not navigate", () => {
     setBody(h, "");
     h.run(makeCatalog([listing({ id: 1, slug: "open" })], false));
