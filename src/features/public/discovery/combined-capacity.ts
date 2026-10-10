@@ -249,50 +249,56 @@ export const combinedChildCapacity = ({
     ),
   );
 
-/** Whether this child can join a booking that reaches the parent's minimum.
- *  The check runs per offered (date, day count) pair. The pair qualifies when
- *  the child folds on it and the children still serve the minimum with one of
- *  the child's lines counted. One line of the child is charged to its capped
- *  pools first, and its own ceiling drops by one. The allocation then answers
- *  for the rest, so the child's place is part of the allocation. A standard
- *  child folds on every offered pair, so one pair that serves the minimum is
- *  enough for it. */
-export const childJoinsMinimumBooking = (
-  parent: ListingWithCount,
-  child: ListingWithCount,
-  caps: ChildCapacityInfo,
-  holidays: Holiday[],
-  evaluations: readonly ParentPairEvaluation[],
-): boolean => {
-  const minimum = parent.min_quantity;
-  if (child.listing_type !== "daily") {
-    return (
-      Math.max(0, ...evaluations.map((e) => e.combined)) >= minimum &&
-      childOwnCeilingOnDate(
-        parentDatesOf(parent, holidays),
-        childFoldFactsFor({ caps, child, holidays, parent }),
-        holidays,
-        parentOfferedDayCounts(parent),
-        null,
-      ) >= 1
-    );
+/** Removes one reserved line's places from every capped pool the listing
+ *  draws from. A pool the map omits carries no cap. */
+const reserveLineInPools = (
+  charged: Map<number, number>,
+  groupIds: readonly number[],
+): void => {
+  for (const groupId of groupIds) {
+    if (charged.has(groupId)) charged.set(groupId, charged.get(groupId)! - 1);
   }
-  const facts = childFoldFactsFor({ caps, child, holidays, parent });
-  const parentGroupIds = listingGroups.idsFor(caps.membership, parent.id);
-  return evaluations.some(({ combined, ceilings }) => {
-    if (combined < minimum) return false;
-    const own = ceilings.find((c) => c.childId === child.id)!;
-    if (own.part.ownMax < 1) return false;
-    // One line of this child takes its places before the search starts.
+};
+
+/** Whether the parent's capped pools still hold the lines the rest of the
+ *  booking owes once its paired parent line is reserved. */
+const parentPoolsHoldRest = (
+  charged: ReadonlyMap<number, number>,
+  parentGroupIds: readonly number[],
+  minimum: number,
+): boolean => {
+  for (const groupId of parentGroupIds) {
+    const remaining = charged.get(groupId);
+    if (remaining !== undefined && remaining < minimum - 1) return false;
+  }
+  return true;
+};
+
+/** Whether one offered pair still serves the rest of the minimum once this
+ *  child's line and the parent line it folds under are reserved. The reserved
+ *  lines leave their pools first. The solver only reads the pools its capped
+ *  children share, so `parentPoolsHoldRest` bounds the parent's own pools. */
+const restServesAfterReservation =
+  (
+    caps: ChildCapacityInfo,
+    minimum: number,
+    childId: number,
+    childGroupIds: readonly number[],
+    parentGroupIds: readonly number[],
+  ) =>
+  ({ ceilings }: ParentPairEvaluation): boolean => {
+    const own = ceilings.find((c) => c.childId === childId);
+    // A child the pair's evaluation omits folds on no offered pair, so it
+    // cannot join a booking on the pair.
+    if (own === undefined || own.part.ownMax < 1) return false;
     const charged = datelessRemainingFor(caps);
-    for (const groupId of facts.groupIds) {
-      if (charged.has(groupId)) charged.set(groupId, charged.get(groupId)! - 1);
-    }
+    reserveLineInPools(charged, [...childGroupIds, ...parentGroupIds]);
+    if (!parentPoolsHoldRest(charged, parentGroupIds, minimum)) return false;
     return (
       combinedChildCapacityForParent(
         parentGroupIds,
         ceilings.map((c) =>
-          c.childId === child.id
+          c.childId === childId
             ? { groupIds: c.part.groupIds, ownMax: own.part.ownMax - 1 }
             : c.part,
         ),
@@ -300,5 +306,30 @@ export const childJoinsMinimumBooking = (
       ) >=
       minimum - 1
     );
-  });
+  };
+
+/** Whether this child can join a booking that reaches the parent's minimum.
+ *  The check runs per offered (date, day count) pair. The pair qualifies when
+ *  the child folds on it and the children still serve the minimum with one of
+ *  the child's lines counted. The child's reserved line and the parent line
+ *  it folds under both leave their pools before the search starts. The pair
+ *  then answers for a booking that includes the child. A standard child folds
+ *  on every offered pair, so one pair that serves the minimum is enough. */
+export const childJoinsMinimumBooking = (
+  parent: ListingWithCount,
+  child: ListingWithCount,
+  caps: ChildCapacityInfo,
+  holidays: Holiday[],
+  evaluations: readonly ParentPairEvaluation[],
+): boolean => {
+  const facts = childFoldFactsFor({ caps, child, holidays, parent });
+  return evaluations.some(
+    restServesAfterReservation(
+      caps,
+      parent.min_quantity,
+      child.id,
+      facts.groupIds,
+      listingGroups.idsFor(caps.membership, parent.id),
+    ),
+  );
 };
