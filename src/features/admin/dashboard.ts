@@ -26,7 +26,6 @@ import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { returnPathFromQuery } from "#routes/admin/login-return.ts";
 import {
-  adminLandingPath,
   contentPage,
   formPost,
   OWNER_FORM,
@@ -36,6 +35,7 @@ import {
 } from "#routes/auth.ts";
 import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
+import { adminLandingPath } from "#shared/admin-pages.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#shared/flash-context.ts";
 import { groupScopeOptions } from "#shared/ledger-scope.ts";

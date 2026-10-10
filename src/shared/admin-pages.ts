@@ -8,6 +8,8 @@ import {
   adminDestination,
   adminPath,
 } from "#shared/admin-surface.ts";
+import { normalizePath } from "#shared/path.ts";
+import type { AdminLevel } from "#types";
 
 export interface NavLink {
   readonly href: string;
@@ -67,6 +69,24 @@ export const visibleSections = (ctx: AdminSurfaceContext): NavSection[] =>
       labelKey: section.labelKey,
       topHref: landingPattern(section),
     }));
+
+/** Where a role lands after signing in: the page its section names, or the
+ * first section whose landing route admits the role. The declaration writes
+ * the dashboard as "/admin/". The app addresses it as "/admin". */
+export const adminLandingPath = (adminLevel: AdminLevel): string => {
+  const section = ADMIN_SURFACE.sections.find(
+    (candidate) =>
+      candidate.landingFor?.[adminLevel] !== undefined ||
+      adminDestination(candidate.landing).audience.includes(adminLevel),
+  );
+  if (!section) {
+    throw new Error(`No admin landing is declared for "${adminLevel}"`);
+  }
+  return normalizePath(
+    adminDestination(section.landingFor?.[adminLevel] ?? section.landing)
+      .pattern,
+  );
+};
 
 /** Where a reader lands after acting on one of a section's records: the
  * record's own page, or the section's list when it has no record page. The

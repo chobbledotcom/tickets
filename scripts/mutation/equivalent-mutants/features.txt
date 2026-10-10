@@ -331,3 +331,4 @@ src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  
 src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → ""   # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
 src/features/admin/scan-answer.ts::processScan.load~05ldt4k  ?? → ||   # the id lookup's Map.get answers an AttendeeWithBookings object or undefined, and an object is always truthy
 src/features/admin/scan-answer.ts::processScan.load~0zqtkv5  ?? → ||   # the token lookup's array index answers an AttendeeWithBookings object or undefined, and an object is always truthy
+src/features/admin/auth.ts::createLoginSession~11fciup  ?? → ||   # returnPath answers null or a target whose decoded path starts with "/admin/", and that prefix makes every target truthy

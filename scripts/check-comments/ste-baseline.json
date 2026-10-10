@@ -118,9 +118,9 @@
   "src/features/auth.ts": {
     "long-sentence": 10,
     "wordy": 5,
-    "banned-modal": 9,
-    "semicolon": 4,
-    "contraction": 2
+    "semicolon": 3,
+    "contraction": 2,
+    "banned-modal": 6
   },
   "src/features/checkin.ts": {
     "long-sentence": 3,
@@ -547,8 +547,8 @@
     "semicolon": 1
   },
   "src/shared/builder.ts": {
-    "long-sentence": 6,
-    "contraction": 1
+    "contraction": 1,
+    "long-sentence": 6
   },
   "src/shared/bulk-email-targets/listings.ts": {
     "long-sentence": 3,

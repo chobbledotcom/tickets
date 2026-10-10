@@ -134,18 +134,6 @@ export const getAuthenticatedSession = async (
   return result;
 };
 
-/** Where a user should land after authenticating, based on their role.
- * Delivery agents go straight to their run sheet (the only page they may see).
- * Editors go to the listings index; the dashboard shows financials they may
- * not see. Scanner users pick a door from the doors list. Staff go to the
- * dashboard. */
-export const adminLandingPath = (adminLevel: AdminLevel): string => {
-  if (adminLevel === "agent") return "/admin/deliveries";
-  if (adminLevel === "editor") return "/admin/listings";
-  if (adminLevel === "scanner") return "/admin/scanner";
-  return "/admin";
-};
-
 /**
  * Extract Bearer token from Authorization header.
  */
