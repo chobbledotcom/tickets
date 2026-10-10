@@ -104,24 +104,77 @@ const isOpener = (char: string): boolean =>
 const isCloser = (char: string): boolean =>
   char === ")" || char === "]" || char === "}";
 
-/** The arrow-body state after one code character: a depth-zero braceless
- *  arrow opens a body, and the statement's `;` closes it. */
+/** The arrow-body state after one code character: a braceless arrow opens a
+ *  body, and the statement's `;` closes it. */
 const arrowStateAfter = (
-  depth: number,
   char: string,
   next: string,
   inArrowBody: boolean,
-): boolean =>
-  char === ";" ? false : inArrowBody || (depth === 0 && next === ">");
+): boolean => (char === ";" ? false : inArrowBody || next === ">");
+
+/** Whether the brace at `index` opens a function body: the previous code
+ *  character is a signature's `)` or an arrow's `>`. Any other brace is an
+ *  object, block, or class literal whose body still runs at module load. */
+const opensFunctionBody = (source: string, index: number): boolean => {
+  let look = index - 1;
+  while (look >= 0 && /\s/.test(source[look]!)) look -= 1;
+  const char = source[look];
+  return char === ")" || char === ">";
+};
+
+/** One scanner state: the open delimiters (each true when it opened a
+ *  function body), how many of those are function bodies, and whether a
+ *  braceless arrow body is open. */
+type ScanState = {
+  bodies: boolean[];
+  functionDepth: number;
+  inArrowBody: boolean;
+};
+
+/** The state after the code character at `index`: delimiters push and pop
+ *  their scopes, a brace opens a function body when it follows `)` or `=>`,
+ *  and a braceless arrow's body runs to the statement's `;`. */
+const scanStateAfter = (
+  source: string,
+  index: number,
+  state: ScanState,
+): ScanState => {
+  const char = source[index]!;
+  if (isOpener(char)) {
+    const body = char === "{" && opensFunctionBody(source, index);
+    return {
+      bodies: [...state.bodies, body],
+      functionDepth: state.functionDepth + (body ? 1 : 0),
+      inArrowBody: state.inArrowBody,
+    };
+  }
+  if (isCloser(char)) {
+    const closed = state.bodies.at(-1) === true;
+    return {
+      bodies: state.bodies.slice(0, -1),
+      functionDepth: state.functionDepth - (closed ? 1 : 0),
+      inArrowBody: state.inArrowBody,
+    };
+  }
+  return {
+    ...state,
+    inArrowBody: arrowStateAfter(
+      char,
+      source[index + 1] ?? "",
+      state.inArrowBody,
+    ),
+  };
+};
 
 /** Whether `callee` is called at the file's top level. The scan skips
- *  comments and string literals, tracks brace, bracket, and paren depth,
- *  and reads a call at depth zero. A call inside a function body sits
- *  behind an open brace. A braceless arrow's body is one statement: the
- *  scan suppresses calls from the arrow's `=>` to the statement's `;`. */
+ *  comments and string literals and reads a call outside every function
+ *  body. A parenthesised, bracket, or object initialiser runs at module
+ *  load, so a call inside one is a module-level call; only a function body
+ *  suppresses, and a `{` opens one when it follows `)` or `=>`. A braceless
+ *  arrow's body is one statement: the scan suppresses calls from the
+ *  arrow's `=>` to the statement's `;`. */
 const hasModuleScopeCall = (source: string, callee: string): boolean => {
-  let depth = 0;
-  let inArrowBody = false;
+  let state: ScanState = { bodies: [], functionDepth: 0, inArrowBody: false };
   let index = 0;
   while (index < source.length) {
     const past = skipCommentOrString(source, index);
@@ -129,20 +182,12 @@ const hasModuleScopeCall = (source: string, callee: string): boolean => {
       index = past;
       continue;
     }
-    const char = source[index]!;
-    if (isOpener(char)) {
-      depth += 1;
-    } else if (isCloser(char)) {
-      depth -= 1;
-    } else {
-      inArrowBody = arrowStateAfter(
-        depth,
-        char,
-        source[index + 1] ?? "",
-        inArrowBody,
-      );
-    }
-    if (depth === 0 && !inArrowBody && callsCallee(source, index, callee)) {
+    state = scanStateAfter(source, index, state);
+    if (
+      state.functionDepth === 0 &&
+      !state.inArrowBody &&
+      callsCallee(source, index, callee)
+    ) {
       return true;
     }
     index += 1;

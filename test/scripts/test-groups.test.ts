@@ -95,6 +95,42 @@ describe("test-groups", () => {
       expect(mustRunAlone('useSetting\t({ timezone: "UTC" });')).toBe(true);
     });
 
+    test("a useSetting call inside a top-level initialiser forces a solo isolate", () => {
+      // The initialiser runs at module load, so a call inside brackets,
+      // parens, or an object literal executes just the same as a bare
+      // assignment.
+      expect(
+        mustRunAlone(
+          'const state = [useSetting({ timezone: "UTC" })];\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+      expect(
+        mustRunAlone(
+          'const state = { tz: useSetting({ timezone: "UTC" }) };\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+      expect(
+        mustRunAlone(
+          'const state = (useSetting({ timezone: "UTC" }));\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+    });
+
+    test("a useSetting call inside a function body does not force a solo isolate", () => {
+      // A function body only runs when the function is invoked, so a call
+      // behind one is not a module-load execution.
+      expect(
+        mustRunAlone(
+          'function read() { return useSetting({}); }\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+      expect(
+        mustRunAlone(
+          'const read = () => { return useSetting({}); };\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+    });
+
     test("the run-alone marker forces a solo isolate", () => {
       expect(mustRunAlone(`// ${RUN_ALONE_MARKER}\ndescribe("x");`)).toBe(true);
     });
