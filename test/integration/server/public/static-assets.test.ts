@@ -20,6 +20,7 @@ import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
  * given selector. Throws when no print rule styles it. */
 const printBlockOf = (css: string): string => {
   const start = css.indexOf("@media print");
+  if (start === -1) throw new Error("No @media print block");
   let depth = 0;
   for (let i = css.indexOf("{", start); i < css.length; i++) {
     if (css[i] === "{") depth++;
