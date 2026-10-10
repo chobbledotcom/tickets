@@ -75,7 +75,7 @@ type SpecificFields = {
   phone_prefix: string;
   auto_purge_orphans: boolean;
   orphan_purge_retention: string;
-  welcome_dismissed: boolean;
+  welcome_enabled: boolean;
 };
 
 /** Full settings snapshot type. */
@@ -101,7 +101,7 @@ export const data: SettingsData = {
   theme: "light",
   timezone: DEFAULT_TIMEZONE,
   underline_links: false,
-  welcome_dismissed: false,
+  welcome_enabled: false,
   ...stringSettingDefaults,
   superuser_choice: "",
 };

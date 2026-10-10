@@ -17,7 +17,8 @@ export type WelcomeStep = {
   readonly needsSite?: true;
 };
 
-/** The first steps, in the order a new owner meets them. */
+/** The first steps, in the order a new owner meets them. Modifiers are not a
+ *  first step: they exist only after the owner turns them on in settings. */
 export const WELCOME_STEPS: readonly WelcomeStep[] = [
   {
     href: "/admin/listing/new",
@@ -29,16 +30,8 @@ export const WELCOME_STEPS: readonly WelcomeStep[] = [
     needsSite: true,
   },
   {
-    href: "/admin/listings",
-    labelKey: "admin.dashboard.welcome.step_share_link",
-  },
-  {
     href: "/admin/settings-advanced",
     labelKey: "admin.dashboard.welcome.step_address",
-  },
-  {
-    href: "/admin/modifiers",
-    labelKey: "admin.dashboard.welcome.step_modifiers",
   },
 ];
 
@@ -54,15 +47,17 @@ const WelcomeStepLine = ({
     <a href={href}>{t(labelKey)}</a>
   );
 
-/** The welcome message: the steps and the "Got it" dismiss button. Both the
- *  button and the banner gate on the owner role, so a viewer never sees a
- *  control its target refuses. */
+/** The welcome message: the heading, the steps, and the "Got it" dismiss
+ *  button, all inside one form. The page gates the banner on the owner role,
+ *  so a viewer never sees a control its target refuses. */
 export const WelcomeBanner = (): JSX.Element => (
   <section class="welcome-banner">
-    <h2>{t("admin.dashboard.welcome.heading")}</h2>
-    <p>{t("admin.dashboard.welcome.intro")}</p>
-    <ItemList items={WELCOME_STEPS} render={WelcomeStepLine} />
     <CsrfForm action="/admin/welcome/dismiss">
+      <div class="prose">
+        <h2>{t("admin.dashboard.welcome.heading")}</h2>
+        <p>{t("admin.dashboard.welcome.intro")}</p>
+        <ItemList items={WELCOME_STEPS} render={WelcomeStepLine} />
+      </div>
       <button class="btn" type="submit">
         {t("admin.dashboard.welcome.dismiss")}
       </button>

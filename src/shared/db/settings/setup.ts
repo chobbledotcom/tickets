@@ -106,6 +106,8 @@ export const completeSetup = async (
       settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
       settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
       settingUpsert(CONFIG_KEYS.COUNTRY, country),
+      // A new site starts with the dashboard welcome message on.
+      settingUpsert(CONFIG_KEYS.WELCOME_ENABLED, "true"),
       settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, SETUP_DONE_VALUE),
     ]);
   });

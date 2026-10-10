@@ -353,7 +353,7 @@ const exactExemptions = exactFieldExemptions([
   ),
   settingsSnapshotFields(
     [{ name: "SettingsData" }],
-    ["welcome_dismissed"],
+    ["welcome_enabled"],
     dynamicReason(
       "the settings namespace getter reads the field through snap()",
     ),

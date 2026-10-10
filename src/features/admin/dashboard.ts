@@ -150,7 +150,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           attributeContext,
           // The welcome steps are the owner's alone. Managers share the page
           // without them.
-          session.adminLevel === "owner" && !settings.welcomeDismissed,
+          session.adminLevel === "owner" && settings.welcomeEnabled,
         ),
       );
     },
@@ -268,11 +268,11 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   },
 );
 
-/** The owner dismissed the welcome steps: store it for the site, so no later
- *  login shows the message again. Owner-only, with the form CSRF check in
- *  `formPost`. */
+/** The owner chose "Got it": store the welcome flag as off for the site, so no
+ *  later login shows the message again. Owner-only, with the form CSRF check
+ *  in `formPost`. */
 const handleWelcomeDismiss = formPost(OWNER_FORM)(async () => {
-  await settings.update.welcomeDismissed(true);
+  await settings.update.welcomeEnabled(false);
   return redirect("/admin", t("admin.dashboard.welcome.dismissed"), true);
 });
 
