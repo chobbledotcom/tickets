@@ -315,6 +315,35 @@ describe("scanner camera", {
     expect(h.statusEl.className).not.toContain("scanner-status-fade-out");
   });
 
+  test("fades a warning status out after its delay", async () => {
+    const h = fresh();
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    let posts = 0;
+    using _fetch = stubFetch((_url, init) => {
+      posts += 1;
+      void init;
+      return Response.json({
+        listingName: "Standard",
+        name: "Ada",
+        status: "wrong_listing",
+      });
+    });
+
+    await start(h);
+    await scanNext(fakes, "tok12345", 1_150);
+    // The declined override leaves the person skipped with a warning.
+    el(h.document, "scanner-confirm-no").click();
+    await idle(fakes, 1_000);
+    expect(h.statusEl.textContent).toBe("Skipped Ada");
+    expect(h.statusEl.className).toContain("scanner-status-warning");
+
+    // The warning fades on its own after the delay, like a success does.
+    await idle(fakes, 5_000);
+    expect(h.statusEl.className).toContain("scanner-status-fade-out");
+    expect(posts).toBe(1);
+  });
+
   test("releases the camera tracks when the page hides", async () => {
     const h = fresh();
     using fakes = cameraFakes(h);
