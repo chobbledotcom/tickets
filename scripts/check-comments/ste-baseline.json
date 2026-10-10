@@ -1527,7 +1527,7 @@
   "src/shared/external-order.ts": {
     "banned-modal": 2,
     "semicolon": 3,
-    "long-sentence": 4,
+    "long-sentence": 3,
     "contraction": 1
   },
   "src/shared/fetch.ts": {
