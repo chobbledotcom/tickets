@@ -8,6 +8,7 @@ import {
 } from "#routes/public/custom-css.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 const customCss = (): Promise<Response> =>
   handleRequest(mockRequest("/custom.css"));
@@ -73,5 +74,24 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     );
     expect(res.status).toBe(301);
     expect(res.headers.get("location")).toBe("/custom.css?v=1");
+  });
+
+  test("a page's CSP names the fonts origin only once the CSS uses it", async () => {
+    // Every page the layout renders links /custom.css, so the policy must
+    // follow the stylesheet's contents, not the route.
+    await enablePublicSite();
+    await settings.update.customCss("body { color: red; }");
+    const before = await handleRequest(mockRequest("/"));
+    expect(before.headers.get("content-security-policy")).not.toContain(
+      "fonts.bunny.net",
+    );
+
+    await settings.update.customCss(
+      "@import url(https://fonts.bunny.net/css?family=aleo);",
+    );
+    const after = await handleRequest(mockRequest("/"));
+    const csp = after.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("style-src 'self' https://fonts.bunny.net");
+    expect(csp).toContain("font-src 'self' https://fonts.bunny.net");
   });
 });

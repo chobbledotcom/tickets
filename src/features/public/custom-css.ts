@@ -1,8 +1,10 @@
 /**
  * Served with the same long, immutable cache as the static assets, so the CDN
- * answers almost every request. That is why no other route reads `custom_css`.
- * The page `<link>` cache-busts with `?v=<settings version>`, so an edit bumps
- * the version, changes the URL, and is fetched fresh.
+ * answers almost every request. The stylesheet route is the only route that
+ * reads the custom_css value. The CSP builder reads the same cached snapshot
+ * from the standard settings load, never a query of its own, when it names
+ * the stylesheet's fonts. The page `<link>` cache-busts with
+ * `?v=<settings version>`, so an edit bumps the version and is fetched fresh.
  *
  * The response is always `text/css`, even when the setting is blank, so a
  * browser can only ever treat the body as a stylesheet.
