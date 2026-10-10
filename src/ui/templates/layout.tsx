@@ -102,8 +102,9 @@ export const Layout = ({
             <PageRegions className={contentClassName}>{children}</PageRegions>
           </main>
           {/* Admin pages carry the admin footer below. Every other surface
-              shows the operator's site footer. Empty copy renders nothing. */}
-          {family !== "admin" && settings.siteFooter && (
+              shows the operator's site footer. Empty copy renders nothing, and
+              iframe embeds stay bare like the header image above. */}
+          {family !== "admin" && !getIframeMode() && settings.siteFooter && (
             <footer class="site-footer">
               <Raw html={renderMarkdown(settings.siteFooter)} />
             </footer>

@@ -56,6 +56,16 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     expect(html).not.toContain("<script>alert(1)");
   });
 
+  test("keeps the footer off an embedded page", async () => {
+    await enablePublicSite();
+    await settings.update.siteFooter("A visitor-facing note.");
+
+    const embedded = await assertPublicHtml("/listings?iframe=true");
+    expect(embedded).not.toContain(footerTag);
+    const page = await assertPublicHtml("/listings");
+    expect(page).toContain(footerTag);
+  });
+
   test("keeps the footer off admin pages", async () => {
     await enablePublicSite();
     await settings.update.siteFooter("**Admin pages must not show this**");
