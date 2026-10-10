@@ -148,6 +148,18 @@ export const handleTermsPost = settingsHandler({
 });
 
 /**
+ * Handle POST /admin/settings/site-footer - owner only
+ */
+export const handleSiteFooterPost = settingsHandler({
+  ...formLocation(SETTINGS_FORMS.siteFooter),
+  log: (v) =>
+    v === ""
+      ? t("success.site_footer_removed")
+      : t("success.site_footer_updated"),
+  save: (v) => settings.update.siteFooter(v),
+});
+
+/**
  * Handle POST /admin/settings/custom-css - owner only.
  * Stored verbatim and served as a public stylesheet from /custom.css.
  */

@@ -77,6 +77,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   SETTINGS_VERSION
   SETUP_COMPLETE
   SHOW_PUBLIC_API
+  SITE_FOOTER
   SMS_GATEWAY_BASE_URL
   SMS_GATEWAY_PASSPHRASE
   SMS_GATEWAY_PASSWORD
@@ -142,6 +143,7 @@ const EXPECTED_SETTING_ROWS = [
   ["HOMEPAGE_TEXT", "encrypted", "homepageText"],
   ["CONTACT_PAGE_TEXT", "encrypted", "contactPageText"],
   ["ORDER_INTRO_TEXT", "encrypted", "orderIntroText"],
+  ["SITE_FOOTER", "encrypted", "siteFooter"],
   ["STRIPE_SECRET_KEY", "encrypted", null],
   ["STRIPE_WEBHOOK_SECRET", "encrypted", null],
   ["SQUARE_ACCESS_TOKEN", "encrypted", null],

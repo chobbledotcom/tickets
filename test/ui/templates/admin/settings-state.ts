@@ -15,6 +15,7 @@ export const defaultSettingsState = (): SettingsPageState => ({
   paymentProvider: null,
   paymentProviderRecoveryChoices: [],
   shownPaymentProvider: null,
+  siteFooter: "",
   squareWebhookConfigured: false,
   storageEnabled: false,
   superuser: { available: false, reason: "missing-env" },

@@ -96,6 +96,17 @@ const EXPECTED_FORM_ROWS = [
     "termsAndConditions",
   ),
   single(
+    "siteFooter",
+    "main",
+    "SITE_FOOTER",
+    "textarea",
+    "/admin/settings/site-footer",
+    "settings-site-footer",
+    "site_footer",
+    "Site footer",
+    "siteFooter",
+  ),
+  single(
     "embedHosts",
     "main",
     "EMBED_HOSTS",

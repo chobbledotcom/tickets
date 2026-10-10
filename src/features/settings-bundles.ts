@@ -34,6 +34,9 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.THEME,
   CONFIG_KEYS.UNDERLINE_LINKS,
   CONFIG_KEYS.HEADER_IMAGE_URL,
+  // The Layout renders the site footer on every page but admin's, so the key
+  // rides with the other Layout-read settings.
+  CONFIG_KEYS.SITE_FOOTER,
   CONFIG_KEYS.PAYMENT_PROVIDER,
   CONFIG_KEYS.SQUARE_SANDBOX,
   CONFIG_KEYS.AUTO_PURGE_ORPHANS,

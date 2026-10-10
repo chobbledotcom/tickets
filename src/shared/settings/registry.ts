@@ -159,6 +159,11 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.ORDER_INTRO_TEXT,
     storage: "encrypted",
   }),
+  setting({
+    accessor: { name: "siteFooter" },
+    key: CONFIG_KEYS.SITE_FOOTER,
+    storage: "encrypted",
+  }),
   setting({ key: CONFIG_KEYS.STRIPE_SECRET_KEY, storage: "encrypted" }),
   setting({ key: CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, storage: "encrypted" }),
   setting({ key: CONFIG_KEYS.SQUARE_ACCESS_TOKEN, storage: "encrypted" }),

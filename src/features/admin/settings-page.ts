@@ -83,6 +83,7 @@ const getSettingsPageState = async () => {
     shownPaymentProvider: shownPaymentProvider(
       existingPaymentProvider.provider,
     ),
+    siteFooter: settings.siteFooter,
     squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
     storageEnabled: isStorageEnabled(),
     superuser,

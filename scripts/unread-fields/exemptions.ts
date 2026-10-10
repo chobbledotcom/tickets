@@ -160,6 +160,7 @@ const settingsPageStates = exemptFieldsAt<SettingsPageState>(
   paymentProvider: "check",
   paymentProviderRecoveryChoices: "check",
   shownPaymentProvider: "check",
+  siteFooter: "exempt",
   squareWebhookConfigured: "check",
   storageEnabled: "check",
   superuser: "check",
