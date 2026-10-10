@@ -22,12 +22,11 @@ import {
   type OwnerCredentials,
 } from "./config.ts";
 import {
-  incomeLedgerText,
   setSelectOrInput,
-  totalIncomeEarnedMinor,
   waitForAppReturn,
   waitForHostedCheckout,
 } from "./flow.ts";
+import { incomeLedgerText, totalIncomeEarnedMinor } from "./income-ledger.ts";
 import { createListing } from "./listing-flow.ts";
 import { log, step } from "./log.ts";
 
@@ -259,7 +258,16 @@ const assertPerPathEditor = async (
     new RegExp(`name="line_key_${index}"[^>]*value="[^"]+"`).test(editor);
   const linesFor = (listingId: number): number =>
     [...editor.matchAll(/name="line_listing_(\d+)"[^>]*value="(\d+)"/g)].filter(
-      (match) => Number(match[2]) === listingId && isStoredLine(match[1]),
+      (match) => {
+        const pathIndex = match[1];
+        const lineListingId = match[2];
+        return (
+          pathIndex !== undefined &&
+          lineListingId !== undefined &&
+          Number(lineListingId) === listingId &&
+          isStoredLine(pathIndex)
+        );
+      },
     ).length;
   const expectedLines: [string, number, number][] = [
     [`${catalog.memberA} (via the kit + its own row)`, built.memberAId, 2],
