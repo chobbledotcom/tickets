@@ -33,29 +33,126 @@ export const GROUPS_DIR = ".test-groups";
 export const RUN_ALONE_MARKER = "test-groups: run-alone";
 
 // A hook call at column 0 is a *global* BDD hook (inside a describe it is
-// always indented — Biome enforces the formatting). A column-0 call to a
-// helper that registers hooks hides the same bug behind an import:
-// useSetting wraps beforeEach and afterEach, so a module-level call pins
-// every test in the isolate under root-scoped hooks. A worker whose
-// isolate carries such hooks dies at shutdown with no failed test and no
-// stderr (found by the bisect behind issue #2508).
-const GLOBAL_HOOK_SOURCES = [
-  /^(?:beforeAll|beforeEach|afterAll|afterEach)\(/m,
-  /^useSetting\(/m,
-];
+// always indented — Biome enforces the formatting). A module-level
+// useSetting call hides the same bug behind an expression. The helper wraps
+// beforeEach and afterEach, so a top-level call pins every test in the
+// isolate under root-scoped hooks. A worker whose isolate carries such
+// hooks dies at shutdown with no failed test and no stderr (found by the
+// bisect behind issue #2508).
+const GLOBAL_HOOK_SOURCES = [/^(?:beforeAll|beforeEach|afterAll|afterEach)\(/m];
 
-// A test file with a direct column-0 hook keeps the sanctioned solo escape
-// (mustRunAlone). A module-level useSetting call is refused outright: the
-// hooks it hides reach every test in the isolate, and running the file solo
-// does not contain the damage — its own worker still dies.
-const WRAPPER_HOOK_RE = /^useSetting\(/m;
+/** The test-utils helper whose module-level call registers root hooks. */
+const WRAPPER_HOOK = "useSetting";
 
-const registersGlobalHooks = (source: string): boolean => {
-  for (const pattern of GLOBAL_HOOK_SOURCES) {
-    if (pattern.test(source)) return true;
+/** The index past the quoted string or template literal that opens at
+ *  `start`, honouring escapes. The scan reads a template interpolation's
+ *  body as literal text, so its braces never move the depth count. */
+const skipPastQuote = (
+  source: string,
+  start: number,
+  quote: string,
+): number => {
+  let index = start + 1;
+  while (index < source.length) {
+    if (source[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (source[index] === quote) return index + 1;
+    index += 1;
+  }
+  return index;
+};
+
+/** Whether the name at `index` is `callee`, stands alone, and is called: no
+ *  letter, digit, `_`, `$`, or dot before it, and a `(` after any spaces. */
+const callsCallee = (
+  source: string,
+  index: number,
+  callee: string,
+): boolean => {
+  if (!source.startsWith(callee, index)) return false;
+  const before = index === 0 ? "" : source[index - 1]!;
+  if (/[A-Za-z0-9_$.]/.test(before)) return false;
+  let after = index + callee.length;
+  while (source[after] === " " || source[after] === "\t") after += 1;
+  return source[after] === "(";
+};
+
+/** The index past the comment or string literal at `index`, or null when
+ *  the position holds ordinary code. */
+const skipCommentOrString = (source: string, index: number): number | null => {
+  const char = source[index]!;
+  const next = source[index + 1] ?? "";
+  if (char === "/" && next === "/") {
+    const end = source.indexOf("\n", index);
+    return end === -1 ? source.length : end;
+  }
+  if (char === "/" && next === "*") {
+    const end = source.indexOf("*/", index + 2);
+    return end === -1 ? source.length : end + 2;
+  }
+  if (char === '"' || char === "'" || char === "`") {
+    return skipPastQuote(source, index, char);
+  }
+  return null;
+};
+
+const isOpener = (char: string): boolean =>
+  char === "(" || char === "[" || char === "{";
+
+const isCloser = (char: string): boolean =>
+  char === ")" || char === "]" || char === "}";
+
+/** The arrow-body state after one code character: a depth-zero braceless
+ *  arrow opens a body, and the statement's `;` closes it. */
+const arrowStateAfter = (
+  depth: number,
+  char: string,
+  next: string,
+  inArrowBody: boolean,
+): boolean =>
+  char === ";" ? false : inArrowBody || (depth === 0 && next === ">");
+
+/** Whether `callee` is called at the file's top level. The scan skips
+ *  comments and string literals, tracks brace, bracket, and paren depth,
+ *  and reads a call at depth zero. A call inside a function body sits
+ *  behind an open brace. A braceless arrow's body is one statement: the
+ *  scan suppresses calls from the arrow's `=>` to the statement's `;`. */
+const hasModuleScopeCall = (source: string, callee: string): boolean => {
+  let depth = 0;
+  let inArrowBody = false;
+  let index = 0;
+  while (index < source.length) {
+    const past = skipCommentOrString(source, index);
+    if (past !== null) {
+      index = past;
+      continue;
+    }
+    const char = source[index]!;
+    if (isOpener(char)) {
+      depth += 1;
+    } else if (isCloser(char)) {
+      depth -= 1;
+    } else {
+      inArrowBody = arrowStateAfter(
+        depth,
+        char,
+        source[index + 1] ?? "",
+        inArrowBody,
+      );
+    }
+    if (depth === 0 && !inArrowBody && callsCallee(source, index, callee)) {
+      return true;
+    }
+    index += 1;
   }
   return false;
 };
+
+const registersGlobalHooks = (source: string): boolean =>
+  GLOBAL_HOOK_SOURCES.some((pattern) => pattern.test(source)) ||
+  hasModuleScopeCall(source, WRAPPER_HOOK);
 
 /** True when a test file must run in its own isolate instead of a group. */
 export const mustRunAlone = (source: string): boolean =>
@@ -127,7 +224,7 @@ export const collectTestFiles = async (root: string): Promise<string[]> => {
     }
   }
   for (const file of sources.filter(isTestPath)) {
-    if (WRAPPER_HOOK_RE.test(await Deno.readTextFile(file))) {
+    if (hasModuleScopeCall(await Deno.readTextFile(file), WRAPPER_HOOK)) {
       throw new Error(
         `${file} calls useSetting at the top level. Call it inside the ` +
           "describe instead: a module-level call registers root hooks for " +
