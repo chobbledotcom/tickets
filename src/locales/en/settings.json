@@ -81,7 +81,7 @@
   "settings.terms_placeholder": "Enter terms and conditions that attendees must agree to before registering. Leave blank to disable.",
   "settings.save_terms": "Save Terms",
   "settings.site_footer": "Site footer",
-  "settings.site_footer_hint": "This text shows at the bottom of every page of your site. Leave blank for no footer.",
+  "settings.site_footer_hint": "This text shows at the bottom of your site's pages. Leave blank to hide this footer.",
   "settings.save_site_footer": "Save site footer",
   "settings.change_password": "Change Password",
   "settings.change_password_hint": "Changing your password will log you out of all sessions.",
