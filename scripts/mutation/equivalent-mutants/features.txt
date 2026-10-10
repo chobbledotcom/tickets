@@ -329,4 +329,8 @@ src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  
 src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → ""   # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
 src/features/admin/scan-answer.ts::processScan.load~05ldt4k  ?? → ||   # the id lookup's Map.get answers an AttendeeWithBookings object or undefined, and an object is always truthy
 src/features/admin/scan-answer.ts::processScan.load~0zqtkv5  ?? → ||   # the token lookup's array index answers an AttendeeWithBookings object or undefined, and an object is always truthy
+src/features/admin/scan-answer.ts::listingScope.checkInEveryListing~0fgw13m  false → true   # the flag's only reader is scanAdmits; a one-listing scope owes its rows on one listing, so "every group" and "the first group" answer the same one group
+src/features/admin/scan-answer.ts::resolveAttendeeName.fromEntry~1ssznli  0 → 1   # every entry of one token decrypts the same attendee row, and the empty-entries fallback decrypts that same row, so entries[0], entries[1], and the fallback answer one name
+src/features/admin/scan-decision.ts::decideScan.share~1r19kyt  ?? → ||   # count reaches decideScan only through isAdmitCount, a positive safe integer or undefined; the falsy 0 never occurs, so ?? and || agree
+src/features/admin/scanner.ts::optionDetails~079ewsj  ?? → ||   # the operand answers a stored listing name or undefined; "" is the fallback itself, so "" ?? "" === "" || ""
 src/features/admin/auth.ts::createLoginSession~11fciup  ?? → ||   # returnPath answers null or a target whose decoded path starts with "/admin/", and that prefix makes every target truthy
