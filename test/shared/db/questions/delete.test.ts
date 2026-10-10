@@ -30,7 +30,7 @@ const seedAnsweredQuestion = async () => {
   await listingQuestions.setIds(listing.id, [question.id]);
   const attendee = await createAttendee(listing.id);
   await saveAttendeeAnswers(new Map([[attendee.id, [chosen.id]]]));
-  return { chosen, question };
+  return { attendee, chosen, question };
 };
 
 describeWithEnv("db > questions > delete", { db: true }, () => {
@@ -39,6 +39,14 @@ describeWithEnv("db > questions > delete", { db: true }, () => {
       const { question } = await seedAnsweredQuestion();
       await deleteQuestion(question.id);
       expect(await countIn("questions")).toBe(0);
+    });
+
+    test("leaves no answer row, whether saved before or after the delete", async () => {
+      const { attendee, chosen, question } = await seedAnsweredQuestion();
+      await deleteQuestion(question.id);
+      expect(await countIn("attendee_answers")).toBe(0);
+      await saveAttendeeAnswers(new Map([[attendee.id, [chosen.id]]]));
+      expect(await countIn("attendee_answers")).toBe(0);
     });
 
     test("takes its answers, its selections and its listing links with it", async () => {
