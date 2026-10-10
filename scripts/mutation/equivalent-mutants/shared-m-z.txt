@@ -268,7 +268,6 @@ src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0   # `open + 0` = open: sam
 
 # Payment plumbing (main #2020): an ignored success flag, non-empty provider
 # strings, a sort tie-break, and validation messages nothing reads.
-src/shared/payment-helpers.ts::safeAsync~0wej7k3  true → false   # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
 src/shared/stripe-provider.ts::toValidatedSession.paymentReference~17zvm8m  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true   # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
 src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0   # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically

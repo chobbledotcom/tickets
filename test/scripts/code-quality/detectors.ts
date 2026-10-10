@@ -22,6 +22,11 @@ import {
   lexicalSpans,
   skipCommentOrString,
 } from "#scripts/typescript-lex.ts";
+import {
+  codeOnly,
+  codeOnlyCorpus,
+  usageOnly,
+} from "#test/scripts/code-quality/code-only.ts";
 
 /* -------------------------------------------------------------------------- *
  * File discovery                                                             *
@@ -210,38 +215,23 @@ export const extractExports = (content: string): string[] => {
 };
 
 /**
- * Whether `symbolName` is referenced within `content` (beyond its own export
- * definition). Looks for calls (`name(`), property access (`name.`), object
- * shorthand, type position, or as the trailing entry of an object literal.
+ * Whether the code-only text credits `symbolName` with a same-file use
+ * beyond its own declaration line. LazyExport clauses hide: their quoted
+ * names name the remote module and export, never a same-named local export.
  */
 export const isUsedInSameFile = (
   symbolName: string,
   content: string,
 ): boolean => {
-  const lines = content.split("\n");
-  let usageCount = 0;
-
-  for (const line of lines) {
-    // Skip the export definition line
-    if (
-      line.match(
-        new RegExp(
-          `^export\\s+.*(const|let|function|async).*\\b${symbolName}\\b\\s*[=({]`,
-        ),
-      )
-    ) {
-      continue;
-    }
-    // Count usages: function calls, property access, or object shorthand
-    // Matches: name(, name., name, (in objects), name: (with type),
-    // and name } (when symbol is the trailing entry of an object literal)
-    const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:}]`);
-    if (usagePattern.test(line)) {
-      usageCount++;
-    }
+  const declares = new RegExp(
+    `^export\\s+(?:async\\s+)?(?:const|let|function|class)\\s+${symbolName}\\b`,
+  );
+  const usage = new RegExp(`\\b${symbolName}\\b`);
+  for (const line of usageOnly(content).split("\n")) {
+    if (declares.test(line)) continue;
+    if (usage.test(line)) return true;
   }
-
-  return usageCount > 0;
+  return false;
 };
 
 /**
@@ -249,10 +239,9 @@ export const isUsedInSameFile = (
  * static `import { … } from`, a destructured lazy load
  * `const { … } = await import(…)` (how cold-start-sensitive paths defer heavy
  * modules), and the route table's lazyExport entries, which name the export
- * they will read as a quoted string after the thunk. (No inline lazyExport
- * example here on purpose: this scanner reads raw source text, so a matchable
- * example in this very comment would register a phantom imported symbol —
- * see issue #2302 for the fix that makes the scanner read code, not text.)
+ * they will read as a quoted string after the thunk. The clause matchers run
+ * over the code-only text (see {@link codeOnly}), so a clause-shaped example
+ * in a comment or a string registers nothing.
  */
 const IMPORT_CLAUSES =
   /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
@@ -277,12 +266,14 @@ const clauseNames = (clause: RegExpMatchArray): string[] => {
 };
 
 /** Whether `content` imports `symbolName` via a named `import { … }` clause,
- * a destructured `await import(…)`, or a `lazyExport` name. */
+ * a destructured `await import(…)`, or a `lazyExport` name. Reads the
+ * code-only text, so clause-shaped text in a comment or a literal counts
+ * nothing. */
 export const isSymbolImported = (
   symbolName: string,
   content: string,
 ): boolean => {
-  for (const clause of content.matchAll(IMPORT_CLAUSES)) {
+  for (const clause of codeOnly(content).matchAll(IMPORT_CLAUSES)) {
     if (clauseNames(clause).includes(symbolName)) {
       return true;
     }
@@ -296,7 +287,8 @@ export const isSymbolImported = (
  * `isSymbolImported` for every symbol at once — the per-symbol regex scan was
  * O(exports × files) over the whole tree and dominated this suite's runtime.
  * Matching stays identical to {@link isSymbolImported}: the same clause
- * shapes, the same {@link clauseNames} extraction.
+ * shapes, the same {@link clauseNames} extraction, over the same code-only
+ * text.
  *
  * Keyed by the contents Map instance (built once per scan), so the corpus is
  * only tokenized the first time it is queried.
@@ -309,7 +301,7 @@ export const importedSymbolsOf = (
   const cached = importedSymbolsCache.get(contents);
   if (cached) return cached;
   const symbols = new Set<string>();
-  for (const content of contents.values()) {
+  for (const content of codeOnlyCorpus(contents).values()) {
     for (const clause of content.matchAll(IMPORT_CLAUSES)) {
       for (const name of clauseNames(clause)) {
         symbols.add(name);

@@ -101,44 +101,11 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   "shared/crypto/hashing.ts:setFastPbkdf2ForTest",
   // Set RSA key size directly to avoid env var races between parallel tests
   "shared/crypto/keys.ts:setRsaKeySizeForTest",
-  // Settings version bump: used in production by every settings write (same
-  // file, which the export scan doesn't credit) and by tests to simulate
-  // another isolate's write.
-  "shared/db/settings.ts:bumpSettingsVersion",
-  // Settings version probe: used in production within settings.ts (same file);
-  // exported so tests can assert its missing/unparseable/DB-error branches.
-  "shared/db/settings.ts:getCurrentSettingsVersion",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
   // (settings.ts functions now accessed via settings namespace, not individual exports)
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
   "shared/i18n.ts:resetI18nForTest",
-  // DB version/hash constants used in production but test pattern doesn't detect constant comparison
-  "shared/db/migrations.ts:LATEST_UPDATE",
-  "shared/db/migrations.ts:SCHEMA_HASH",
-  // Backup freshness window used in production (same-file) but test pattern doesn't detect same-file usage
-  "shared/db/backup.ts:BACKUP_FRESHNESS_WINDOW_MS",
-  // Attendees page size used in production (same-file) but test pattern doesn't detect same-file usage
-  "shared/db/attendees/queries.ts:ATTENDEES_PAGE_SIZE",
-  // Service-cost replay message thrown in production (same file, by
-  // recordServiceCost) but the pattern doesn't detect same-file usage. Exported
-  // so the test asserts the thrown message rather than hardcoding a copy.
-  "shared/db/attendees/servicing.ts:COST_REPLAY_MISMATCH",
-  // Payments-retention floor guard used in production (same-file: validates
-  // PRUNE_PAYMENTS_RETENTION_DAYS at import) but test pattern doesn't detect same-file usage
-  "shared/limits.ts:assertPaymentsRetentionSafe",
-  // Retention *_DAYS / *_HOURS constants used in production (same-file: derive
-  // the *_MS derivatives that prune.ts imports) but the pattern can't detect
-  // same-file arithmetic (`X * DAY_MS` — `*` isn't in its usage character class).
-  "shared/limits.ts:PRUNE_PAYMENTS_RETENTION_DAYS",
-  "shared/limits.ts:PRUNE_SESSIONS_RETENTION_DAYS",
-  "shared/limits.ts:PRUNE_LOGINS_RETENTION_DAYS",
-  "shared/limits.ts:PRUNE_TOKENS_RETENTION_DAYS",
-  "shared/limits.ts:PRUNE_SUMUP_RETENTION_HOURS",
-  "shared/limits.ts:PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
-  "shared/limits.ts:PRUNE_CONTACTS_RETENTION_DAYS",
-  "shared/limits.ts:ADDRESS_CACHE_DAYS",
-  "shared/limits.ts:PRUNE_INTERVAL_HOURS",
   // Raw attendee fetch for testing encrypted data (production uses batched getListingWithAttendeesRaw)
   "shared/db/attendees/queries.ts:getAttendeesRaw",
   // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)
@@ -149,10 +116,6 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   "shared/csrf.ts:isSignedCsrfToken",
   // Response cookie helper used by auth tests (production sets cookies directly)
   "features/utils.ts:withCookie",
-  // Role guard consumed in production only same-file (by deliveryPage, which
-  // deliveries.ts uses); the scan can't see same-file usage, but the
-  // authorization matrix test asserts it admits exactly its admin levels.
-  "features/auth.ts:requireDeliveryOr",
   // Reset cached effective domain between tests
   "shared/config.ts:resetEffectiveDomain",
   "shared/config.ts:setEffectiveDomainForTest",
@@ -173,8 +136,6 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   "shared/storage.ts:runWithStorageConfig",
   // Suite-level storage config setter for describeWithEnv's `storage` option
   "shared/storage.ts:setStorageConfigForTest",
-  // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
-  "shared/limits.ts:readLimit",
   // Set log suppression directly to avoid env var races between parallel tests
   "shared/logger.ts:setSuppressRequestLogs",
   "shared/log-settings.ts:setSuppressDebugLogs",
@@ -208,11 +169,8 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
   // first upload, never at cold boot — invisible to the static import scanner.
   "shared/images/transcode.ts:transcodeToWebp",
-  // Seconds ladder used in production (same-file: UNIT_FORMATTERS references
-  // it as a value) but the pattern doesn't detect same-file usage.
-  "shared/format-units.ts:formatSeconds",
-  // Move table used in production (same-file: LINK_END_MOVES_READER wraps it
-  // for squareLinkEndMoveTo, which db/square-link-ends.ts imports) but the
-  // pattern doesn't detect same-file usage.
-  "shared/payment/square-link-end-machine-spec.ts:LINK_END_MOVES",
+  // Reached in production through the lazy route table: features/app/routes.ts
+  // dynamically imports the pages module and picks the handler off the
+  // namespace object, which the named-clause scanner cannot see.
+  "features/public/pages.ts:handlePublicContactSubmit",
 ];

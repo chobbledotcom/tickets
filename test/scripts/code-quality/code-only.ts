@@ -1,0 +1,163 @@
+/** The code-only text pass behind the dead-export scanner's matchers: the
+ * text they read after comments, strings, template chunks, and regex
+ * literals are blanked. Split from detectors.ts so the scanner and its
+ * preprocessing each hold one concern. */
+
+import {
+  interpolationEnd,
+  type LexicalSpan,
+  lexicalSpans,
+} from "#scripts/typescript-lex.ts";
+
+/**
+ * One lazyExport clause, anchored where the walk stands. The pass copies a
+ * match through whole by default, so the quoted route name — which lives
+ * inside a string literal the pass blanks — still reaches the clause matcher.
+ */
+const LAZY_EXPORT_CLAUSE =
+  /lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/y;
+
+/** One span blanked to spaces, newlines kept so line offsets stay fixed. */
+const blankRange = (
+  content: string,
+  out: string[],
+  start: number,
+  end: number,
+): void => {
+  for (let k = start; k < end; k++) {
+    out[k] = content[k] === "\n" ? "\n" : " ";
+  }
+};
+
+/** The text of one template span: its literal chunks blanked, the code inside
+ * each top-level interpolation kept through a recursive code-only pass. An
+ * interpolation is executable code, so a name read there is a real use; a
+ * nested template inside an interpolation follows the whole-literal rule. */
+const templateCodeOnly = (content: string, span: LexicalSpan): string => {
+  const out: string[] = [];
+  for (let k = span.start; k < span.end; k++) {
+    out.push(content[k] === "\n" ? "\n" : " ");
+  }
+  let j = span.start + 1;
+  const last = span.end - 1;
+  while (j < last) {
+    if (content[j] === "\\") {
+      // Template text escapes one character: `\${` is text, `\\` is one
+      // backslash. The walk reads the literal the way the lexer's own run
+      // does.
+      j += 2;
+      continue;
+    }
+    if (content[j] === "$" && content[j + 1] === "{") {
+      const close = interpolationEnd(content, j + 2);
+      const code = codeOnlyWalk(content.slice(j, close + 1), true);
+      out.splice(j - span.start, code.length, ...code.split(""));
+      j = close + 1;
+      continue;
+    }
+    j++;
+  }
+  return out.join("");
+};
+
+/** Write one lexical span into `out`: a template keeps its interpolation
+ * code, anything else blanks whole. Returns the index just past the span. */
+const writeSpan = (
+  content: string,
+  out: string[],
+  span: LexicalSpan,
+): number => {
+  if (span.kind === "string" && content[span.start] === "`") {
+    const text = templateCodeOnly(content, span);
+    out.splice(span.start, text.length, ...text.split(""));
+  } else {
+    blankRange(content, out, span.start, span.end);
+  }
+  return span.end;
+};
+
+/** The whole lazyExport clause at a code position, or null when none starts
+ * there or the shape differs from the route table's. */
+const lazyExportClauseAt = (content: string, i: number): string | null => {
+  if (!content.startsWith("lazyExport(", i)) return null;
+  LAZY_EXPORT_CLAUSE.lastIndex = i;
+  const clause = LAZY_EXPORT_CLAUSE.exec(content);
+  return clause === null ? null : clause[0];
+};
+
+/**
+ * The code-only text of `content`: comments, strings, template literal
+ * chunks, and regex literals blanked to spaces, with newlines kept so line
+ * offsets stay fixed. Clause-shaped text in a comment or a literal therefore
+ * registers no import and no usage. The walk reuses the call-site scanner's
+ * lexer spans and {@link interpolationEnd}, so it adds no second lexer. Two
+ * stretches survive blanking: a lazyExport clause (see
+ * {@link LAZY_EXPORT_CLAUSE}), and the executable code inside a template's
+ * interpolations.
+ *
+ * The lazyExport clause's quoted names name the remote module and its export.
+ * The import matchers read them, so {@link codeOnly} keeps the clause; a
+ * usage matcher reads the whole clause as an import declaration and must not
+ * credit those names, so {@link usageOnly} blanks it.
+ */
+const codeOnlyWalk = (content: string, keepClause: boolean): string => {
+  const out: string[] = new Array(content.length);
+  const spans = [...lexicalSpans(content)];
+  let spanIndex = 0;
+  let i = 0;
+  while (i < content.length) {
+    const span = spans[spanIndex];
+    if (span && span.start === i) {
+      spanIndex++;
+      i = writeSpan(content, out, span);
+      continue;
+    }
+    const clause = lazyExportClauseAt(content, i);
+    if (clause) {
+      if (keepClause) {
+        out.splice(i, clause.length, ...clause.split(""));
+      } else {
+        blankRange(content, out, i, i + clause.length);
+      }
+      i += clause.length;
+      // The clause swallowed the string spans inside it; drop them.
+      while (spanIndex < spans.length && spans[spanIndex]!.end <= i) {
+        spanIndex++;
+      }
+      continue;
+    }
+    out[i] = content[i]!;
+    i++;
+  }
+  return out.join("");
+};
+
+/** The code-only text the import matchers read: the lazyExport clause keeps
+ * its quoted module path and export name. */
+export const codeOnly = (content: string): string =>
+  codeOnlyWalk(content, true);
+
+/** The code-only text a usage matcher reads: the lazyExport clause blanks,
+ * because naming a remote module and export is no read of this file's own
+ * same-named exports. */
+export const usageOnly = (content: string): string =>
+  codeOnlyWalk(content, false);
+
+/**
+ * The code-only text of every file in the corpus, computed once per corpus.
+ * Keyed by the contents Map instance, so the corpus is only walked the first
+ * time it is queried.
+ */
+const codeOnlyCache = new WeakMap<Map<string, string>, Map<string, string>>();
+
+export const codeOnlyCorpus = (
+  contents: Map<string, string>,
+): Map<string, string> => {
+  const cached = codeOnlyCache.get(contents);
+  if (cached) return cached;
+  const text = new Map(
+    [...contents].map(([file, content]) => [file, codeOnly(content)]),
+  );
+  codeOnlyCache.set(contents, text);
+  return text;
+};

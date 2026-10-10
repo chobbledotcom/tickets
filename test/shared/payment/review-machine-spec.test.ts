@@ -10,18 +10,42 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import {
-  EXPECTED_MOVES,
   REVIEW_EVENTS,
   REVIEW_NODES,
   REVIEW_REASONS,
+  type ReviewEventId,
+  type ReviewNodeId,
   type ReviewSlot,
   reviewNodeOf,
 } from "#payment/review-machine-spec.ts";
+import type { MachineMoves } from "#shared/schema-atlas/machine-spec.ts";
 import {
   registerConformanceSweep,
   registerDrivenExportsCheck,
   registerTableChecks,
 } from "#test-utils/machine-spec.ts";
+
+/** A held case retires the same way whether or not it was seen: only its
+ * own reason's evidence sends it back to the empty slot. */
+const RETIRE_MOVES = {
+  retire_partially_returned_obligation: {
+    perRep: { partially_returned_obligation: "none" },
+  },
+  retire_shared_reference: { perRep: { shared_reference: "none" } },
+} as const;
+
+/** The declared machine: for each node, the events that must move it and
+ * where to. Every other (event × shape) pair must refuse. A held case
+ * blocks a second open, only its own evidence retires it, and only an
+ * unseen case can be acknowledged. */
+const EXPECTED_MOVES: MachineMoves<ReviewNodeId, ReviewEventId> = {
+  none: {
+    open_partially_returned_obligation: "open",
+    open_shared_reference: "open",
+  },
+  open: { acknowledge: "seen", ...RETIRE_MOVES },
+  seen: RETIRE_MOVES,
+};
 
 const REVIEW_SPEC = {
   events: REVIEW_EVENTS,

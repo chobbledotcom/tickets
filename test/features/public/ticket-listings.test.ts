@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getActiveListingsByGroupId } from "#db/groups.ts";
+import { getListingsByGroupIds } from "#db/groups.ts";
+import { requiredMapValue } from "#fp";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -9,6 +10,14 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+
+/** The group's active members, read through the shared one-or-many query. */
+const activeListingsOf = async (groupId: number) =>
+  requiredMapValue(
+    await getListingsByGroupIds([groupId], true),
+    groupId,
+    "Missing group listing membership",
+  );
 
 describeWithEnv("routes > public > ticket-listings", { db: true }, () => {
   describe("buildTicketListingsWithGroupCapacity", () => {
@@ -32,7 +41,7 @@ describeWithEnv("routes > public > ticket-listings", { db: true }, () => {
       });
       await bookAttendee(e1, { email: "x@test.com", name: "X" });
 
-      const listings = await getActiveListingsByGroupId(group.id);
+      const listings = await activeListingsOf(group.id);
       const ticketListings =
         await buildTicketListingsWithGroupCapacity(listings);
       const eb = ticketListings.find((t) => t.listing.id === e2.id)!;
@@ -54,7 +63,7 @@ describeWithEnv("routes > public > ticket-listings", { db: true }, () => {
         name: "daily-a",
       });
 
-      const listings = await getActiveListingsByGroupId(group.id);
+      const listings = await activeListingsOf(group.id);
       const [ticketListing] =
         await buildTicketListingsWithGroupCapacity(listings);
       expect(ticketListing!.maxPurchasable).toBe(5);
@@ -84,7 +93,7 @@ describeWithEnv("routes > public > ticket-listings", { db: true }, () => {
       await bookAttendee(inactive, { email: "q@test.com", name: "Q" });
       await deactivateTestListing(inactive.id);
 
-      const listings = await getActiveListingsByGroupId(group.id);
+      const listings = await activeListingsOf(group.id);
       expect(listings.map((e) => e.id)).toEqual([active.id]);
       const [ticketListing] =
         await buildTicketListingsWithGroupCapacity(listings);

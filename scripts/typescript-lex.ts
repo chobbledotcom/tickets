@@ -339,6 +339,14 @@ export const skipCommentOrString = (content: string, start: number): number => {
   return pastComment === start ? skipString(content, start) : pastComment;
 };
 
+/** The index of the `}` that closes the interpolation opening at `start`,
+ * or the last index when the braces never close. The walk is the scan
+ * `templateStep` runs over the same text, so a regex literal, a comment, or
+ * a nested template inside counts as one stretch and keeps its braces out
+ * of the count. */
+export const interpolationEnd = (content: string, start: number): number =>
+  scanCode(content, start, true, ["="]).end - 1;
+
 /** Every comment, string, template, and regular expression in source order. */
 export function* lexicalSpans(content: string): Generator<LexicalSpan> {
   yield* scanCode(content, 0, false).spans;

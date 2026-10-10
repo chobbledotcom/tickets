@@ -3,8 +3,8 @@
  * A review slot is the review side of one payment row: no case held, an
  * open case, or a case the owner saw. The transitions are the real
  * review functions plus the one declared retirement rule per reason. The
- * mirror test executes every (node × event × shape) cell against them. A
- * cell missing from {@link EXPECTED_MOVES} must refuse. */
+ * mirror test executes every (node × event × shape) cell against them and
+ * holds the declared moves table: a cell it does not name must refuse. */
 
 import {
   acknowledgePaymentReview,
@@ -15,7 +15,6 @@ import {
 } from "#payment/review.ts";
 import {
   type MachineEvent,
-  type MachineMoves,
   type MachineNode,
   machineRep as rep,
 } from "#shared/schema-atlas/machine-spec.ts";
@@ -135,25 +134,3 @@ export const REVIEW_EVENTS: readonly ReviewMachineEvent[] = [
     run: retiresFor("shared_reference"),
   },
 ];
-
-/** The declared machine: for each node, the events that must move it and
- * where to. Every other (event × shape) pair must refuse. A held case
- * blocks a second open, only its own evidence retires it, and only an
- * unseen case can be acknowledged. */
-/** A held case retires the same way whether or not it was seen: only its
- * own reason's evidence sends it back to the empty slot. */
-const RETIRE_MOVES = {
-  retire_partially_returned_obligation: {
-    perRep: { partially_returned_obligation: "none" },
-  },
-  retire_shared_reference: { perRep: { shared_reference: "none" } },
-} as const;
-
-export const EXPECTED_MOVES: MachineMoves<ReviewNodeId, ReviewEventId> = {
-  none: {
-    open_partially_returned_obligation: "open",
-    open_shared_reference: "open",
-  },
-  open: { acknowledge: "seen", ...RETIRE_MOVES },
-  seen: RETIRE_MOVES,
-};

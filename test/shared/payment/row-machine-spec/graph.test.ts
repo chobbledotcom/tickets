@@ -16,14 +16,19 @@ import {
 } from "#payment/admit-move.ts";
 import {
   ROW_EVENTS,
-  ROW_MOVES,
   ROW_NODES,
   type RowEventId,
   type RowNode,
   type RowNodeId,
 } from "#payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
+import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
+import { EXPECTED_MOVES } from "#test/shared/payment/row-machine-spec/expected-moves.ts";
 import { machineGraph } from "#test-utils/machine-graph.ts";
+
+/** The reader over the declared table, built here the way the other graph
+ * suites build theirs. */
+const ROW_MOVES = movesIn(EXPECTED_MOVES);
 
 const graph = machineGraph({
   events: ROW_EVENTS,
