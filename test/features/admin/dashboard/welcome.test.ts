@@ -92,15 +92,15 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
   test("keeps the whole banner inside the dismiss form and the steps in one prose block", async () => {
     const banner = bannerHtml(await (await adminGet("/admin/")).text());
     const formStart = banner.indexOf('action="/admin/welcome/dismiss"');
-    const headingStart = banner.indexOf("<h2>");
     const proseStart = banner.indexOf('<div class="prose">');
+    const headingStart = banner.indexOf("<h2>");
     const introStart = banner.indexOf("Here are the first things to do");
     const stepStart = banner.indexOf("Add a listing");
     const proseEnd = banner.indexOf("</div>", proseStart);
     expect(formStart).toBeGreaterThanOrEqual(0);
-    expect(headingStart).toBeGreaterThan(formStart);
-    expect(proseStart).toBeGreaterThan(headingStart);
-    expect(proseStart).toBeLessThan(introStart);
+    expect(proseStart).toBeGreaterThan(formStart);
+    expect(headingStart).toBeGreaterThan(proseStart);
+    expect(introStart).toBeGreaterThan(headingStart);
     expect(stepStart).toBeGreaterThan(introStart);
     expect(proseEnd).toBeGreaterThan(stepStart);
     expect(banner.indexOf("Got it")).toBeGreaterThan(proseEnd);

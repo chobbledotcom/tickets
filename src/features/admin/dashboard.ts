@@ -149,9 +149,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           upcomingServicingEvents,
           attributeContext,
           // The welcome steps are the owner's alone. Managers share the page
-          // without them. Setup turns the message on for a new site, and the
-          // owner's "Got it" turns it off. An absent stored flag reads as off,
-          // so a site that never stored it never shows the message.
+          // without them.
           session.adminLevel === "owner" && settings.welcomeEnabled,
         ),
       );

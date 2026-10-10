@@ -48,14 +48,13 @@ const WelcomeStepLine = ({
   );
 
 /** The welcome message: the heading, the steps, and the "Got it" dismiss
- *  button, all inside one form so the CSRF token covers the whole banner. The
- *  page gates the banner on the owner role, so a viewer never sees a control
- *  its target refuses. */
+ *  button, all inside one form. The page gates the banner on the owner role,
+ *  so a viewer never sees a control its target refuses. */
 export const WelcomeBanner = (): JSX.Element => (
   <section class="welcome-banner">
     <CsrfForm action="/admin/welcome/dismiss">
-      <h2>{t("admin.dashboard.welcome.heading")}</h2>
       <div class="prose">
+        <h2>{t("admin.dashboard.welcome.heading")}</h2>
         <p>{t("admin.dashboard.welcome.intro")}</p>
         <ItemList items={WELCOME_STEPS} render={WelcomeStepLine} />
       </div>
