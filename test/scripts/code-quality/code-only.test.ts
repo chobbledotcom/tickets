@@ -55,6 +55,24 @@ describe("the matchers read code, not raw text", () => {
     );
   });
 
+  test("a lazyExport clause's quoted names are not same-file usages", () => {
+    const content = [
+      'import { lazyExport } from "#shared/lazy-export.ts";',
+      "export const routeAdmin = () => 1;",
+      "export const admin = () => 2;",
+      "export const routeTable = [",
+      '  lazyExport(() => import("#routes/admin/index.ts"), "routeAdmin"),',
+      "];",
+    ].join("\n");
+    // The clause names the REMOTE module and its export. Neither is a read of
+    // this file's own same-named exports, or a test-only export that only a
+    // route table's lazy import shares a name with looks used.
+    expect(isUsedInSameFile("routeAdmin", content)).toBe(false);
+    expect(isUsedInSameFile("admin", content)).toBe(false);
+    // The clause still pulls the remote export in for the import matchers.
+    expect(isSymbolImported("routeAdmin", content)).toBe(true);
+  });
+
   test("does not credit a lazyExport shape whose name is not double-quoted", () => {
     expectNotImported(
       "lazyExport(() => import(\"#routes/foo.ts\"), 'routeFoo'),",

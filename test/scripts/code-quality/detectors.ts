@@ -25,6 +25,7 @@ import {
 import {
   codeOnly,
   codeOnlyCorpus,
+  usageOnly,
 } from "#test/scripts/code-quality/code-only.ts";
 
 /* -------------------------------------------------------------------------- *
@@ -214,10 +215,9 @@ export const extractExports = (content: string): string[] => {
 };
 
 /**
- * Whether the code-only text credits `symbolName` with a use beyond its own
- * export declaration line: any word-boundary mention counts, so a bare
- * same-file reference (arithmetic, a throw site, a call inside another
- * export's initializer) is a use. The declaration line itself is skipped.
+ * Whether the code-only text credits `symbolName` with a same-file use
+ * beyond its own declaration line. LazyExport clauses hide: their quoted
+ * names name the remote module and export, never a same-named local export.
  */
 export const isUsedInSameFile = (
   symbolName: string,
@@ -227,7 +227,7 @@ export const isUsedInSameFile = (
     `^export\\s+(?:async\\s+)?(?:const|let|function|class)\\s+${symbolName}\\b`,
   );
   const usage = new RegExp(`\\b${symbolName}\\b`);
-  for (const line of codeOnly(content).split("\n")) {
+  for (const line of usageOnly(content).split("\n")) {
     if (declares.test(line)) continue;
     if (usage.test(line)) return true;
   }

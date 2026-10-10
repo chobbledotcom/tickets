@@ -11,8 +11,8 @@ import {
 
 /**
  * One lazyExport clause, anchored where the walk stands. The pass copies a
- * match through whole, so the quoted route name — which lives inside a string
- * literal the pass blanks — still reaches the clause matcher.
+ * match through whole by default, so the quoted route name — which lives
+ * inside a string literal the pass blanks — still reaches the clause matcher.
  */
 const LAZY_EXPORT_CLAUSE =
   /lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/y;
@@ -50,7 +50,7 @@ const templateCodeOnly = (content: string, span: LexicalSpan): string => {
     }
     if (content[j] === "$" && content[j + 1] === "{") {
       const close = interpolationEnd(content, j + 2);
-      const code = codeOnly(content.slice(j, close + 1));
+      const code = codeOnlyWalk(content.slice(j, close + 1), true);
       out.splice(j - span.start, code.length, ...code.split(""));
       j = close + 1;
       continue;
@@ -94,8 +94,13 @@ const lazyExportClauseAt = (content: string, i: number): string | null => {
  * stretches survive blanking: a lazyExport clause (see
  * {@link LAZY_EXPORT_CLAUSE}), and the executable code inside a template's
  * interpolations.
+ *
+ * The lazyExport clause's quoted names name the remote module and its export.
+ * The import matchers read them, so {@link codeOnly} keeps the clause; a
+ * usage matcher reads the whole clause as an import declaration and must not
+ * credit those names, so {@link usageOnly} blanks it.
  */
-export const codeOnly = (content: string): string => {
+const codeOnlyWalk = (content: string, keepClause: boolean): string => {
   const out: string[] = new Array(content.length);
   const spans = [...lexicalSpans(content)];
   let spanIndex = 0;
@@ -109,7 +114,11 @@ export const codeOnly = (content: string): string => {
     }
     const clause = lazyExportClauseAt(content, i);
     if (clause) {
-      out.splice(i, clause.length, ...clause.split(""));
+      if (keepClause) {
+        out.splice(i, clause.length, ...clause.split(""));
+      } else {
+        blankRange(content, out, i, i + clause.length);
+      }
       i += clause.length;
       // The clause swallowed the string spans inside it; drop them.
       while (spanIndex < spans.length && spans[spanIndex]!.end <= i) {
@@ -122,6 +131,17 @@ export const codeOnly = (content: string): string => {
   }
   return out.join("");
 };
+
+/** The code-only text the import matchers read: the lazyExport clause keeps
+ * its quoted module path and export name. */
+export const codeOnly = (content: string): string =>
+  codeOnlyWalk(content, true);
+
+/** The code-only text a usage matcher reads: the lazyExport clause blanks,
+ * because naming a remote module and export is no read of this file's own
+ * same-named exports. */
+export const usageOnly = (content: string): string =>
+  codeOnlyWalk(content, false);
 
 /**
  * The code-only text of every file in the corpus, computed once per corpus.
