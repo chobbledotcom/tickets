@@ -10,6 +10,7 @@ import {
   listingDefaultInputName,
   listingDefaultLabelKey,
   parseListingDefaults,
+  resolveListingDate,
   resolveListingDefaults,
   serializeListingDefaults,
   setListingDefaultFields,
@@ -312,5 +313,34 @@ describe("shared > listing-defaults > LISTING_DEFAULT_FIELDS", () => {
       ),
     );
     expect(missing).toEqual([]);
+  });
+});
+
+describe("shared > listing-defaults > resolveListingDate", () => {
+  test("a daily listing's date reads as empty", () => {
+    const listing = testListing({
+      date: "2020-06-15T18:00:00.000Z",
+      listing_type: "daily",
+    });
+    expect(resolveListingDate(listing).date).toBe("");
+  });
+
+  test("a standard listing keeps its own date", () => {
+    const listing = testListing({
+      date: "2020-06-15T18:00:00.000Z",
+      listing_type: "standard",
+    });
+    expect(resolveListingDate(listing)).toBe(listing);
+  });
+
+  test("a narrow row that never selected a date needs no overlay", () => {
+    const narrow = { id: 1, listing_type: "daily" as const };
+    expect(resolveListingDate(narrow)).toBe(narrow);
+  });
+
+  test("a narrow row selects listing_type beside date or cannot be resolved", () => {
+    expect(() =>
+      resolveListingDate({ date: "2020-06-15T18:00:00.000Z", id: 1 }),
+    ).toThrow("listing_type");
   });
 });

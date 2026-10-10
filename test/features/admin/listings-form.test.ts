@@ -49,7 +49,11 @@ const updateListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
   const form = listingForm({ slug: "kept-slug", ...extra });
-  const result = await buildUpdateListingResource(form).update(id, form);
+  const stored = (await getListingWithCount(id))!;
+  const result = await buildUpdateListingResource(form, stored).update(
+    id,
+    form,
+  );
   if (!result.ok) throw new Error(`update failed: ${result.error}`);
   return result.row;
 };
@@ -355,10 +359,10 @@ describeWithEnv("listings form", { db: true }, () => {
         max_quantity: "2",
         slug: "kept-slug",
       });
-      const result = await buildUpdateListingResource(form).update(
-        created.id,
+      const result = await buildUpdateListingResource(
         form,
-      );
+        (await getListingWithCount(created.id))!,
+      ).update(created.id, form);
 
       expect(result).toEqual({
         error: t("error.package_member_cap", {

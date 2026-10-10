@@ -51,7 +51,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     "attachmentUrl",
     "bookableDays",
     "closesAt",
-    "date",
     "description",
     "fields",
     "location",

@@ -306,7 +306,10 @@ export const handleAdminListingEditPost: TypedRouteHandler<
 
       // Build a resource that includes the slug field. Uniqueness is enforced
       // by validateListingInput when existingId is set.
-      const result = await buildUpdateListingResource(form).update(id, form);
+      const result = await buildUpdateListingResource(form, existing).update(
+        id,
+        form,
+      );
       if (result.ok) {
         return handleListingEditSuccess(
           result.row,

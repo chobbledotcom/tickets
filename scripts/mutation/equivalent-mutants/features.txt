@@ -7,7 +7,7 @@ src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → ||   # Explicit 
 src/features/response.ts::redirect.flash~0r1iimg  ?? → ||   # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
 
 src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1   # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
-src/features/admin/api-listing-body.ts::bodyToUpdateInput.wouldBeGroupIds~1erbpzo  ?? → ||   # joinIds.groupIds is an array or undefined, and arrays are always truthy
+src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~1erbpzo  ?? → ||   # joinIds.groupIds is an array or undefined, and arrays are always truthy
 src/features/admin/api-listing-joins.ts::persistListingJoins.groupIds~0ey19t2  ?? → ||   # value.groupIds is an array or undefined, and arrays are always truthy
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy

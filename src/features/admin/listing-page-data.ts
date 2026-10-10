@@ -52,6 +52,7 @@ import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
+import { resolveListingDate } from "#shared/listing-defaults.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   ListingOverviewPanel,
@@ -84,14 +85,17 @@ export const getListingAndGroups = async (
   listing: ListingWithCount;
   selectedGroupIds: number[];
 } | null> => {
-  const [listing, allGroups, selectedGroupIds] = await Promise.all([
+  const [stored, allGroups, selectedGroupIds] = await Promise.all([
     // The edit form reads the listing's *stored* values, not the resolved
     // view. An edit to an inheriting listing must not bake the current
-    // defaults into its row.
+    // defaults into its row. The type-derived date is the one exception: the
+    // form must not pre-fill the stale date a daily listing still stores. The
+    // save keeps the stored value.
     getStoredListingWithCount(listingId),
     groups.cache.getAll(),
     listingGroups.getIds(listingId),
   ]);
+  const listing = stored === null ? null : resolveListingDate(stored);
   return listing
     ? {
         aggregateRecalculation: await getListingAggregateRecalculation(listing),

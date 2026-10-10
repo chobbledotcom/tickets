@@ -16,7 +16,10 @@ import { slugTakenIn } from "#db/slug-registry.ts";
 /* jscpd:ignore-start */
 import { byId, mapParallel } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { resolveListingDefaults } from "#shared/listing-defaults.ts";
+import {
+  resolveListingDate,
+  resolveListingDefaults,
+} from "#shared/listing-defaults.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
   DayPrices,
@@ -54,12 +57,13 @@ const decryptStoredListingWithCount = async (
   };
 };
 
-/** Convert a projected DB row and overlay the effective listing defaults. */
+/** Convert a projected DB row and overlay the effective listing values: the
+ * type-derived date gate, then the inherited defaults. */
 export const decryptListingWithCount = async (
   row: ListingRecordRow,
 ): Promise<ListingWithCount> =>
   resolveListingDefaults(
-    await decryptStoredListingWithCount(row),
+    resolveListingDate(await decryptStoredListingWithCount(row)),
     settings.listingDefaults,
     settings.features.logistics,
   );

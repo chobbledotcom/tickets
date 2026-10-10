@@ -4,7 +4,10 @@ import { LISTING_ORDER_SQL } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
 import { notInSubquery } from "#db/where-clauses.ts";
-import { resolveListingDefaults } from "#shared/listing-defaults.ts";
+import {
+  resolveListingDate,
+  resolveListingDefaults,
+} from "#shared/listing-defaults.ts";
 import type { SortableListing } from "#types";
 
 /** A candidate listing for the form: enough to sort it, name it, show
@@ -56,7 +59,7 @@ export const getListingsNotInGroup = async (
     // The flag has done its job once the settings are applied; leaving it on the
     // candidate would invite a second, pointless overlay.
     const { use_defaults: _resolved, ...candidate } = resolveListingDefaults(
-      row,
+      resolveListingDate(row),
       settings.listingDefaults,
       settings.features.logistics,
     );
