@@ -9,13 +9,9 @@ import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
-import {
-  EXPECTED_MOVES,
-  ROW_EVENTS,
-  ROW_NODES,
-  rowNodeOf,
-} from "#payment/row-machine-spec.ts";
+import { ROW_EVENTS, ROW_NODES, rowNodeOf } from "#payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
+import { EXPECTED_MOVES } from "#test/shared/payment/row-machine-spec/expected-moves.ts";
 import {
   registerConformanceSweep,
   registerDrivenExportsCheck,

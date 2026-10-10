@@ -103,7 +103,7 @@ src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → ""   # no produ
 # an entry for each requested key before they read rows.
 src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → ||   # Map.get returns a Group object or undefined, and each Group object is truthy
 src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → ||   # entriesByGroup returns an array or undefined, and every array is truthy
-src/shared/db/groups.ts::listingsInGroup~1orw8y7  Missing group listing membership → ""   # getListingsByGroupIds creates an entry for every requested group id, so requiredMapValue cannot raise this message
+src/shared/db/groups.ts::getListingsByGroupId~0qcnvni  Missing group listing membership → ""   # getListingsByGroupIds creates an entry for every requested group id, so requiredMapValue cannot raise this message
 src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → ""   # getIdsByKeys creates an entry for each requested parent id before it reads rows
 src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → ""   # getIdsByKeys gives the reverse side the same complete-map guarantee
 src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → ||   # blocked contains non-empty translated error strings, so both operators return the first error or null

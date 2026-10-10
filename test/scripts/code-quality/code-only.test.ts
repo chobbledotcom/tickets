@@ -113,6 +113,31 @@ describe("isUsedInSameFile credits the file's own body", () => {
     expect(isUsedInSameFile("escapeIcs", content)).toBe(true);
   });
 
+  test("reads past a regex with a brace inside an interpolation", () => {
+    const content = [
+      "export const exportedHelper = (value: string): boolean => true;",
+      "export const check = (value: string): string =>",
+      '  `${/}/.test(value) ? exportedHelper(value) : ""}`;',
+    ].join("\n");
+    expect(isUsedInSameFile("exportedHelper", content)).toBe(true);
+  });
+
+  test("does not count an escaped interpolation marker as a use", () => {
+    const content = [
+      "export const deadExport = 1;",
+      "const hint = `literal \\${deadExport} text`;",
+    ].join("\n");
+    expect(isUsedInSameFile("deadExport", content)).toBe(false);
+  });
+
+  test("still counts a use after an escaped backslash in template text", () => {
+    const content = [
+      "export const escapeIcs = (s: string): string => s;",
+      "export const line = (s: string): string => `\\\\${escapeIcs(s)}`;",
+    ].join("\n");
+    expect(isUsedInSameFile("escapeIcs", content)).toBe(true);
+  });
+
   test("reads past a regex literal that holds quotes", () => {
     const content = [
       "export const extractViewBox = (svg: string): number => 1;",

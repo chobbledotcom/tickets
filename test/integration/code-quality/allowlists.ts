@@ -169,19 +169,6 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
   // first upload, never at cold boot — invisible to the static import scanner.
   "shared/images/transcode.ts:transcodeToWebp",
-  // The mirror test sweeps every (node × event × shape) cell of this raw
-  // table against the real review functions. Production reads the machine
-  // through the schema atlas, which imports only the nodes, events, and node
-  // lookup.
-  "shared/payment/review-machine-spec.ts:EXPECTED_MOVES",
-  // The graph test drives the moves reader (targets/expected/plain).
-  // Production reads the machine through the schema atlas, which imports
-  // only the nodes, events, and node lookup.
-  "shared/payment/row-machine-spec.ts:ROW_MOVES",
-  // Active-group-listings read the public feature tests arrange their
-  // fixtures with. Production uses the sibling getListingsByGroupId, which
-  // sort-listings calls.
-  "shared/db/groups.ts:getActiveListingsByGroupId",
   // Reached in production through the lazy route table: features/app/routes.ts
   // dynamically imports the pages module and picks the handler off the
   // namespace object, which the named-clause scanner cannot see.

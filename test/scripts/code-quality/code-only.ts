@@ -4,9 +4,9 @@
  * preprocessing each hold one concern. */
 
 import {
+  interpolationEnd,
   type LexicalSpan,
   lexicalSpans,
-  skipCommentOrString,
 } from "#scripts/typescript-lex.ts";
 
 /**
@@ -16,34 +16,6 @@ import {
  */
 const LAZY_EXPORT_CLAUSE =
   /lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/y;
-
-/** The matching `}` of the interpolation that opens at `start`, or `limit`
- * when the braces never close. Strings, comments, and nested templates are
- * skipped with the call-site scanner's helpers, so only brace depth at code
- * positions counts. */
-const interpolationEnd = (
-  content: string,
-  start: number,
-  limit: number,
-): number => {
-  let depth = 1;
-  let k = start;
-  while (k < limit) {
-    const skipped = skipCommentOrString(content, k);
-    if (skipped !== k) {
-      k = skipped;
-      continue;
-    }
-    const character = content[k];
-    if (character === "{") depth++;
-    if (character === "}") {
-      depth--;
-      if (depth === 0) return k;
-    }
-    k++;
-  }
-  return limit;
-};
 
 /** One span blanked to spaces, newlines kept so line offsets stay fixed. */
 const blankRange = (
@@ -69,8 +41,15 @@ const templateCodeOnly = (content: string, span: LexicalSpan): string => {
   let j = span.start + 1;
   const last = span.end - 1;
   while (j < last) {
+    if (content[j] === "\\") {
+      // Template text escapes one character: `\${` is text, `\\` is one
+      // backslash. The walk reads the literal the way the lexer's own run
+      // does.
+      j += 2;
+      continue;
+    }
     if (content[j] === "$" && content[j + 1] === "{") {
-      const close = interpolationEnd(content, j + 2, last);
+      const close = interpolationEnd(content, j + 2);
       const code = codeOnly(content.slice(j, close + 1));
       out.splice(j - span.start, code.length, ...code.split(""));
       j = close + 1;
@@ -111,7 +90,7 @@ const lazyExportClauseAt = (content: string, i: number): string | null => {
  * chunks, and regex literals blanked to spaces, with newlines kept so line
  * offsets stay fixed. Clause-shaped text in a comment or a literal therefore
  * registers no import and no usage. The walk reuses the call-site scanner's
- * lexer spans and `skipCommentOrString`, so it adds no second lexer. Two
+ * lexer spans and {@link interpolationEnd}, so it adds no second lexer. Two
  * stretches survive blanking: a lazyExport clause (see
  * {@link LAZY_EXPORT_CLAUSE}), and the executable code inside a template's
  * interpolations.

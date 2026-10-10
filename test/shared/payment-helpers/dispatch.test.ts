@@ -11,7 +11,11 @@ import {
   parseWebhookPayload,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import {
+  debugMessages,
+  useDebugLogSpy,
+  useErrorLogSpy,
+} from "#test-utils/debug-log.ts";
 
 describe("payment-helpers", () => {
   const debugSpy = useDebugLogSpy();
@@ -117,6 +121,8 @@ describe("payment-helpers", () => {
   });
 
   describe("createWithClient", () => {
+    const errorSpy = useErrorLogSpy();
+
     test("returns null when client is null", async () => {
       const withClient = createWithClient(() => Promise.resolve(null));
       const result = await withClient(
@@ -182,6 +188,9 @@ describe("payment-helpers", () => {
           ErrorCode.PAYMENT_CHECKOUT,
         ),
       ).toBeNull();
+      expect(errorSpy().calls[0]?.args[0]).toBe(
+        '[Error] E_PAYMENT_CHECKOUT detail="unknown"',
+      );
     });
   });
 

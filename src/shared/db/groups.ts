@@ -203,30 +203,21 @@ export const readGroupMembersWith = async <Extra>(
   return { members, more };
 };
 
-/** One group's entry from the shared one-or-many membership query. */
-type LoadGroupListings = (groupId: number) => Promise<ListingWithCount[]>;
-
-const listingsInGroup =
-  (activeOnly: boolean) =>
-  async (groupId: number): Promise<ListingWithCount[]> =>
-    requiredMapValue(
-      await getListingsByGroupIds([groupId], activeOnly),
-      groupId,
-      "Missing group listing membership",
-    );
-
-export const getActiveListingsByGroupId: LoadGroupListings =
-  listingsInGroup(true);
+/** One group's members, with attendee counts, inactive ones included: the
+ * one-group reading of the shared one-or-many membership query. */
+export const getListingsByGroupId = async (
+  groupId: number,
+): Promise<ListingWithCount[]> =>
+  requiredMapValue(
+    await getListingsByGroupIds([groupId], false),
+    groupId,
+    "Missing group listing membership",
+  );
 
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
 export const groupExists = (id: number): Promise<boolean> =>
   rowExists("SELECT 1 FROM groups WHERE id = ? LIMIT 1", [id]);
-
-/**
- * Get all listings in a group with attendee counts (including inactive).
- */
-export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */

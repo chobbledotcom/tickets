@@ -17,7 +17,6 @@ import { listingGroups } from "#db/groups/table.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,
-  getActiveListingsByGroupId,
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
@@ -140,40 +139,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(await isGroupSlugTaken(listing.slug)).toBe(true);
     });
 
-    test("getActiveListingsByGroupId returns active listings with attendee counts", async () => {
-      const group = await createTestGroup({
-        name: "Listings Group",
-        slug: "listings-group",
-      });
-
-      const e1 = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "Active In Group",
-      });
-      const e2 = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "Inactive In Group",
-      });
-      await getDb().execute({
-        args: [e2.id],
-        sql: "UPDATE listings SET active = 0 WHERE id = ?",
-      });
-
-      const attendee = await bookAttendee(e1, {
-        email: "a@example.com",
-        name: "A",
-        quantity: 3,
-      });
-      if (!attendee.success) throw new Error("Failed to create attendee");
-
-      const listings = await getActiveListingsByGroupId(group.id);
-      expect(listings.length).toBe(1);
-      expect(listings[0]?.id).toBe(e1.id);
-      expect(listings[0]?.attendee_count).toBe(3);
-    });
-
     test("getListingsByGroupIds batches active members by group id", async () => {
       const populated = await createTestGroup({
         name: "Populated",
@@ -204,6 +169,12 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         args: [inactive.id],
         sql: "UPDATE listings SET active = 0 WHERE id = ?",
       });
+      const attendee = await bookAttendee(active, {
+        email: "batch-a@example.com",
+        name: "A",
+        quantity: 3,
+      });
+      if (!attendee.success) throw new Error("Failed to create attendee");
 
       const byGroup = await getListingsByGroupIds(
         [populated.id, empty.id],
@@ -217,6 +188,11 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
           .sort(),
       ).toEqual([active.id, shared.id].sort((a, b) => a - b));
       expect(byGroup.get(empty.id)?.map((l) => l.id)).toEqual([shared.id]);
+      // The active members come with their booked counts.
+      const activeMember = byGroup
+        .get(populated.id)
+        ?.find((l) => l.id === active.id);
+      expect(activeMember?.attendee_count).toBe(3);
     });
 
     test("getListingsByGroupIds maps a memberless group to an empty list", async () => {
