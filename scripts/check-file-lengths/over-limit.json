@@ -19,7 +19,7 @@
   "src/shared/storage.ts": 543,
   "src/shared/types.ts": 785,
   "src/ui/client/order.ts": 541,
-  "src/ui/static/style.scss": 3362,
+  "src/ui/static/style.scss": 3335,
   "src/ui/templates/admin/questions.tsx": 589,
   "test/features/admin/attendee-form-model.test.ts": 919,
   "test/features/admin/builder/server.test.ts": 585,

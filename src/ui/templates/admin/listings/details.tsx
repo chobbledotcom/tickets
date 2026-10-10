@@ -11,7 +11,11 @@ import {
 } from "#templates/admin/copyable-row.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
-import { PublicTicketLink } from "#templates/admin/share-rows.tsx";
+import {
+  availablePublicUrl,
+  PublicUrlRows,
+  type PublicUrlRowsProps,
+} from "#templates/admin/public-url-rows.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import {
@@ -104,48 +108,6 @@ const DailyScheduleRows = ({ listing }: ListingRowProps): JSX.Element => (
   </>
 );
 
-const PublicUrlRow = ({
-  listing,
-  ticketUrl,
-  publicPage,
-}: {
-  listing: ListingWithCount;
-  ticketUrl: string;
-  publicPage: "available" | "child" | "inactive";
-}): JSX.Element =>
-  publicPage !== "available" ? (
-    <tr>
-      <th>{t("common.public_url")}</th>
-      <td>
-        <em>
-          {publicPage === "child"
-            ? t("listings_table.child_share_suppressed")
-            : t("listings_table.inactive_share_suppressed")}
-        </em>
-      </td>
-    </tr>
-  ) : (
-    <tr>
-      <th>
-        <label for={`embed-toggle-${listing.id}`}>
-          {t("common.public_url")}
-          <span class="embed-toggle-badge">embed</span>
-        </label>
-      </th>
-      <td>
-        <input
-          class="visually-hidden listing-embed-toggle"
-          id={`embed-toggle-${listing.id}`}
-          type="checkbox"
-        />
-        <PublicTicketLink
-          href={ticketUrl}
-          qrHref={`/ticket/${listing.slug}/qr`}
-        />
-      </td>
-    </tr>
-  );
-
 /** A formatted instant followed by its countdown, as both the listing date
  * (linked to the calendar) and the registration deadline show it. */
 const withCountdown = (label: Child, at: string): JSX.Element => (
@@ -159,9 +121,6 @@ const withCountdown = (label: Child, at: string): JSX.Element => (
 
 const buildListingCopyRows = (
   listing: ListingWithCount,
-  embedScriptCode: string,
-  embedIframeCode: string,
-  shareSuppressed: boolean,
 ): CopyableInputRowSpec[] =>
   compact([
     listing.thank_you_url
@@ -178,49 +137,43 @@ const buildListingCopyRows = (
           value: listing.webhook_url,
         }
       : null,
-    !shareSuppressed
-      ? {
-          className: "listing-embed-row",
-          id: `embed-script-${listing.id}`,
-          label: t("common.embed_script"),
-          value: embedScriptCode,
-        }
-      : null,
-    !shareSuppressed
-      ? {
-          className: "listing-embed-row",
-          id: `embed-iframe-${listing.id}`,
-          label: t("common.embed_iframe"),
-          value: embedIframeCode,
-        }
-      : null,
   ]);
+
+/** The Public URL rows for this listing: its live rows, or the note that says
+ * why its public page does not serve. */
+const publicUrlRowsProps = (
+  listing: ListingWithCount,
+  publicPage: "available" | "child" | "inactive",
+  allowedDomain: string,
+): PublicUrlRowsProps => {
+  if (publicPage !== "available") {
+    return {
+      kind: "unavailable",
+      message:
+        publicPage === "child"
+          ? t("listings_table.child_share_suppressed")
+          : t("listings_table.inactive_share_suppressed"),
+    };
+  }
+  return availablePublicUrl(listing.id, listing.slug, allowedDomain);
+};
 
 export const ListingDetailsTable = ({
   listing,
   aggregateRecalculation,
-  ticketUrl,
-  embedScriptCode,
-  embedIframeCode,
+  allowedDomain,
   capacity,
   sharedRows,
   publicPage,
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  ticketUrl: string;
-  embedScriptCode: string;
-  embedIframeCode: string;
+  allowedDomain: string;
   capacity: ListingCapacityRowsProps;
   sharedRows: DetailRow[];
   publicPage: "available" | "child" | "inactive";
 }): JSX.Element => {
-  const copyRows = buildListingCopyRows(
-    listing,
-    embedScriptCode,
-    embedIframeCode,
-    publicPage !== "available",
-  );
+  const copyRows = buildListingCopyRows(listing);
   return (
     <article>
       <DetailTable rows={sharedRows}>
@@ -291,10 +244,8 @@ export const ListingDetailsTable = ({
             )}
           </td>
         </tr>
-        <PublicUrlRow
-          listing={listing}
-          publicPage={publicPage}
-          ticketUrl={ticketUrl}
+        <PublicUrlRows
+          {...publicUrlRowsProps(listing, publicPage, allowedDomain)}
         />
         {copyRows.map(CopyableInputRow)}
         <ListingCapacityRows {...capacity} />

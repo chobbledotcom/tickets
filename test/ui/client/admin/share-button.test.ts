@@ -19,16 +19,16 @@ describe("share buttons", () => {
     }
   });
 
-  /** One share row installed onto the DOM, the script wired, and the button
-   *  handed back. The link shows the full URL, so a manual selection carries
-   *  the whole address. */
+  /** One public URL row installed onto the DOM, the script wired, and the
+   *  button handed back. The link shows the full URL, so a manual selection
+   *  carries the whole address. */
   const setup = () => {
     const window = dom.installDom(`
-      <span class="share-row">
+      <span class="public-url-row">
         <a data-share-link href="https://fair.example/ticket/sunday">
           https://fair.example/ticket/sunday
         </a>
-        <span class="share-actions">
+        <span class="public-url-actions">
           <button data-copied-label="Copied" data-share-url="https://fair.example/ticket/sunday"
                   type="button">Share</button>
         </span>

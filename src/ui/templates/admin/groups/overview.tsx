@@ -4,9 +4,7 @@ import { groupCandidateBlockedError } from "#db/groups/homogeneity.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
-import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
   buildStatDetailRows,
   getCheckedInStats,
@@ -20,9 +18,10 @@ import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
 import { renderListingsTableSection } from "#templates/admin/listing-table.tsx";
 import { MoneySummaryBlock } from "#templates/admin/listings/ledger-section.tsx";
 import {
-  PublicTicketLink,
-  UnavailablePublicUrlRow,
-} from "#templates/admin/share-rows.tsx";
+  availablePublicUrl,
+  PublicUrlRows,
+  type PublicUrlRowsProps,
+} from "#templates/admin/public-url-rows.tsx";
 import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
@@ -114,43 +113,6 @@ const GroupAttendeesRow = ({
   </LabelledRow>
 );
 
-/** Public share rows, or a note when the public group route would not work. */
-const GroupShareRows = ({
-  group,
-  ticketUrl,
-  embedScriptCode,
-  embedIframeCode,
-  shareable,
-}: {
-  group: Group;
-  ticketUrl: string;
-  embedScriptCode: string;
-  embedIframeCode: string;
-  shareable: boolean;
-}): JSX.Element =>
-  shareable ? (
-    <>
-      <LabelledRow label={t("common.public_url")}>
-        <PublicTicketLink
-          href={ticketUrl}
-          qrHref={`/ticket/${group.slug}/qr`}
-        />
-      </LabelledRow>
-      {CopyableInputRow({
-        id: `embed-script-${group.id}`,
-        label: t("common.embed_script"),
-        value: embedScriptCode,
-      })}
-      {CopyableInputRow({
-        id: `embed-iframe-${group.id}`,
-        label: t("common.embed_iframe"),
-        value: embedIframeCode,
-      })}
-    </>
-  ) : (
-    <UnavailablePublicUrlRow message={t("groups.detail.share_unavailable")} />
-  );
-
 /** The checkbox list both membership pick-forms share. */
 const ListingPickCheckboxes = ({
   headingKey,
@@ -170,6 +132,17 @@ const ListingPickCheckboxes = ({
     name="listing_ids"
   />
 );
+
+/** The Public URL rows for this group: its live rows, or the note that says
+ * why its public route would not work. */
+const publicUrlRowsProps = (
+  group: Group,
+  shareable: boolean,
+  allowedDomain: string,
+): PublicUrlRowsProps =>
+  shareable
+    ? availablePublicUrl(group.id, group.slug, allowedDomain)
+    : { kind: "unavailable", message: t("groups.detail.share_unavailable") };
 
 /** The Overview tab's details, money summary, listings, and membership form. */
 export const GroupOverviewPanel = ({
@@ -196,9 +169,6 @@ export const GroupOverviewPanel = ({
   questionData?: AttendeeQuestionData;
 }): JSX.Element => {
   const { columnKeys, filters } = settings.listingColumnLayout;
-  const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
-  const { script: embedScriptCode, iframe: embedIframeCode } =
-    buildEmbedSnippets(ticketUrl);
   const totalCount = totalAttendeeCount(listings);
   const net = money.netBalance - money.servicingCosts;
   const showMoney = hasPaidListing || money.transferCount > 0;
@@ -217,12 +187,8 @@ export const GroupOverviewPanel = ({
           <tr>
             <th colspan="2">{group.name}</th>
           </tr>
-          <GroupShareRows
-            embedIframeCode={embedIframeCode}
-            embedScriptCode={embedScriptCode}
-            group={group}
-            shareable={shareable}
-            ticketUrl={ticketUrl}
+          <PublicUrlRows
+            {...publicUrlRowsProps(group, shareable, allowedDomain)}
           />
           {group.hidden && <HiddenDetailRow />}
           <GroupAttendeesRow attendeeCount={totalCount} group={group} />

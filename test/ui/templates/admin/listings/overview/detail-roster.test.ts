@@ -41,10 +41,11 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain('for="embed-toggle-1"');
-    expect(html).toContain('class="embed-toggle-badge"');
-    expect(html).toContain('class="visually-hidden listing-embed-toggle"');
-    expect(html).toContain('class="listing-embed-row"');
+    expect(html).toContain(
+      '<label class="small-action" for="embed-toggle-1">Embed</label>',
+    );
+    expect(html).toContain('class="visually-hidden embed-toggle"');
+    expect(html).toContain('class="embed-code-row"');
     expect(html).toContain("Embed Script");
     expect(html).toContain("Embed Iframe");
     expect(html).toContain("embed.js");

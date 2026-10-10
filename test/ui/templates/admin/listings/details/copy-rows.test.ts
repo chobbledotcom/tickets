@@ -155,10 +155,10 @@ describe("listing details table copy rows", () => {
   test("the public url row toggles the embed inputs beside the link", () => {
     const rows = detailRows({ id: 30 });
     expect(rows).toContain(
-      '<label for="embed-toggle-30">Public URL<span class="embed-toggle-badge">embed</span></label>',
+      '<label class="small-action" for="embed-toggle-30">Embed</label>',
     );
     expect(rows).toContain(
-      'class="visually-hidden listing-embed-toggle" id="embed-toggle-30" type="checkbox"',
+      'class="visually-hidden embed-toggle" id="embed-toggle-30" type="checkbox"',
     );
     expect(rows).toContain('id="embed-script-30"');
     expect(rows).toContain('id="embed-iframe-30"');
@@ -176,8 +176,8 @@ describe("listing details table copy rows", () => {
     expect(rows).toContain('for="webhook-url-1">Webhook URL</label>');
     expect(rows).toContain('value="https://example.com/hook"');
     // The embed rows carry the class the embed toggle styles live on.
-    expect(rows).toContain('<tr class="listing-embed-row"><th>');
-    expect((rows.match(/class="listing-embed-row"/g) ?? []).length).toBe(2);
+    expect(rows).toContain('<tr class="embed-code-row"><th>');
+    expect((rows.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
   });
 
   test("omitted thank-you and webhook urls leave no empty rows", () => {
