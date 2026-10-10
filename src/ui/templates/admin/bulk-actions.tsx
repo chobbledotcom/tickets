@@ -17,6 +17,7 @@ import {
   formatIsoForPreview,
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
+import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -264,7 +265,7 @@ export const adminDuplicateGroupPage: BulkActionPage = (
           name="new_name"
           required
           type="text"
-          value={`${group.name} (copy)`}
+          value={savedFormValueOrNull("new_name") ?? `${group.name} (copy)`}
         />
         <TextFields
           duplicate
@@ -274,11 +275,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
               name: "name_find",
               placeholder: t("bulk_actions.form_find_placeholder"),
               type: "text",
+              value: savedFormValueOrNull("name_find") ?? "",
             },
             {
               label: t("bulk_actions.form_replace_with"),
               name: "name_replace",
               type: "text",
+              value: savedFormValueOrNull("name_replace") ?? "",
             },
           ]}
         />
@@ -292,11 +295,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
               label: t("bulk_actions.form_reference_date"),
               name: "date_find",
               type: "date",
+              value: savedFormValueOrNull("date_find") ?? "",
             },
             {
               label: t("bulk_actions.form_target_date"),
               name: "date_replace",
               type: "date",
+              value: savedFormValueOrNull("date_replace") ?? "",
             },
           ]}
         />

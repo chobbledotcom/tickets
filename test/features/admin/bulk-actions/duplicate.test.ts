@@ -8,9 +8,14 @@ import {
 } from "#db/groups.ts";
 import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { handleRequest } from "#routes";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
+import {
+  expectErrorFlash,
+  expectFlash,
+  followRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -18,7 +23,11 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { adminFormPost, getBulkActionForm } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  getBulkActionForm,
+  testCookie,
+} from "#test-utils/session.ts";
 
 const getDuplicateForm = getBulkActionForm("duplicate");
 
@@ -371,6 +380,41 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(
         (await groups.cache.getAll()).find((g) => g.name === "Plan Copy"),
       ).toBeUndefined();
+    });
+
+    test("keeps the submitted values when the duplicate fails", async () => {
+      const group = await createTestGroup({ name: "Summer Tour" });
+      await createTestListing({ groupId: group.id, name: "First Night" });
+
+      // The new group name is the source group's own name, so the name
+      // check fails and the owner returns to the form.
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          date_find: "2026-03-02",
+          date_replace: "2026-03-09",
+          name_find: "First",
+          name_replace: "Second",
+          new_name: "Summer Tour",
+        },
+      );
+      expectErrorFlash(response, "already exists");
+
+      const html = await (
+        await followRedirectWithFlash(
+          response,
+          handleRequest,
+          await testCookie(),
+        )
+      ).text();
+
+      // Every field must still show what the owner submitted, so a failed
+      // duplicate costs no retyping.
+      expect(html).toContain('value="Summer Tour"');
+      expect(html).toContain('value="First"');
+      expect(html).toContain('value="Second"');
+      expect(html).toContain('value="2026-03-02"');
+      expect(html).toContain('value="2026-03-09"');
     });
   });
 });
