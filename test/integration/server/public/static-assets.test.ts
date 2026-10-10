@@ -145,6 +145,17 @@ describeWithEnv(
         );
       });
 
+      test("hides the site footer when printing", async () => {
+        await expectStaticFile(
+          "/style.css",
+          "text/css; charset=utf-8",
+          (css) => {
+            const printBlock = css.slice(css.indexOf("@media print"));
+            expect(printBlock).toContain(".site-footer");
+          },
+        );
+      });
+
       test("returns 404 for non-GET requests to /style.css", async () => {
         await expect404ForNonGetStatic("/style.css");
       });

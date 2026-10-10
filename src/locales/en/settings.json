@@ -83,7 +83,7 @@
   "settings.site_footer": "Site footer",
   "settings.site_footer_hint": "This text shows at the bottom of every page of your site. Leave blank for no footer.",
   "settings.site_footer_placeholder": "Thank you for supporting our event!",
-  "settings.save_site_footer": "Save Site Footer",
+  "settings.save_site_footer": "Save site footer",
   "settings.change_password": "Change Password",
   "settings.change_password_hint": "Changing your password will log you out of all sessions.",
   "settings.theme": "Site Theme",

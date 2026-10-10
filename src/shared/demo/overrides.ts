@@ -87,6 +87,11 @@ export const TERMS_DEMO_FIELDS: DemoFieldMap = {
   terms_and_conditions: DEMO_TERMS,
 };
 
+/** Site footer field */
+export const FOOTER_DEMO_FIELDS: DemoFieldMap = {
+  site_footer: DEMO_PAGE_TEXT,
+};
+
 /**
  * Replace form field values with demo data when demo mode is active.
  * Only replaces fields that are present and non-empty in the form.
