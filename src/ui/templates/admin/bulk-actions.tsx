@@ -17,6 +17,7 @@ import {
   formatIsoForPreview,
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
+import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -219,11 +220,19 @@ export const adminDuplicateGroupPage: BulkActionPage = (
   error,
 ) => {
   const tz = settings.timezone;
+  // A failed duplicate restores the submitted replacements into the form.
+  // The preview must open on those same values, not on empty ones.
+  const restored = {
+    dateFind: savedFormValueOrNull("date_find") ?? "",
+    dateReplace: savedFormValueOrNull("date_replace") ?? "",
+    nameFind: savedFormValueOrNull("name_find") ?? "",
+    nameReplace: savedFormValueOrNull("name_replace") ?? "",
+  };
   const initialRows = buildDuplicatePreview(
     listings.map(
       (e): PreviewableListing => ({ date: e.date, id: e.id, name: e.name }),
     ),
-    { dateFind: "", dateReplace: "", nameFind: "", nameReplace: "" },
+    restored,
   );
   const listingsData = listings.map((e) => ({
     date: e.date,
@@ -264,7 +273,7 @@ export const adminDuplicateGroupPage: BulkActionPage = (
           name="new_name"
           required
           type="text"
-          value={`${group.name} (copy)`}
+          value={savedFormValueOrNull("new_name") ?? `${group.name} (copy)`}
         />
         <TextFields
           duplicate
@@ -274,11 +283,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
               name: "name_find",
               placeholder: t("bulk_actions.form_find_placeholder"),
               type: "text",
+              value: restored.nameFind,
             },
             {
               label: t("bulk_actions.form_replace_with"),
               name: "name_replace",
               type: "text",
+              value: restored.nameReplace,
             },
           ]}
         />
@@ -292,11 +303,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
               label: t("bulk_actions.form_reference_date"),
               name: "date_find",
               type: "date",
+              value: restored.dateFind,
             },
             {
               label: t("bulk_actions.form_target_date"),
               name: "date_replace",
               type: "date",
+              value: restored.dateReplace,
             },
           ]}
         />
