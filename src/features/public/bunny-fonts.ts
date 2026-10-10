@@ -22,15 +22,40 @@ const isIdentChar = (c: string | undefined): boolean =>
 const isWhitespace = (c: string | undefined): boolean =>
   c !== undefined && /[ \t\n\r\f]/.test(c);
 
+/** True when the position holds the start of a CSS newline: LF, FF, or CR
+ * (the CR LF and CR FF pairs are one newline). */
+const isNewline = (css: string, i: number): boolean =>
+  css[i] === "\n" || css[i] === "\f" || css[i] === "\r";
+
+/** True when the character is a raw CSS non-printable code point: U+0001 to
+ * U+0008, U+000B, U+000E to U+001F, and U+007F. NUL has its own CSS
+ * preprocessing, so it is not one. */
+const isNonPrintable = (c: string): boolean => {
+  const code = c.charCodeAt(0);
+  return (
+    (code >= 0x1 && code <= 0x8) ||
+    code === 0xb ||
+    (code >= 0xe && code <= 0x1f) ||
+    code === 0x7f
+  );
+};
+
 /** The value and position after one backslash that starts no hex escape. A
- * newline after the backslash joins the two lines and holds nothing. Any
- * other character holds itself. */
-const afterBackslash = (css: string, i: number, value: string): Span => {
+ * newline after the backslash joins the two lines and holds nothing. A
+ * newline is LF, FF, or CR with its LF or FF pair. A backslash at the end of
+ * the text holds `eof`: nothing in a string, and the replacement character
+ * in an unquoted url token. */
+const afterBackslash = (
+  css: string,
+  i: number,
+  value: string,
+  eof: string,
+): Span => {
   const c = css[i + 1];
-  if (c === undefined) return [value, i + 1];
-  if (c === "\n") return [value, i + 2];
+  if (c === undefined) return [value + eof, i + 1];
+  if (c === "\n" || c === "\f") return [value, i + 2];
   if (c === "\r") {
-    return [value, css[i + 2] === "\n" ? i + 3 : i + 2];
+    return [value, css[i + 2] === "\n" || css[i + 2] === "\f" ? i + 3 : i + 2];
   }
   return [value + c, i + 2];
 };
@@ -40,7 +65,7 @@ const afterBackslash = (css: string, i: number, value: string): Span => {
  * whitespace, or the literal next character. The whitespace is one newline,
  * and a newline is one or two characters. A value above the highest code
  * point holds the replacement character. */
-const appendChar = (css: string, i: number, value: string): Span => {
+const appendChar = (css: string, i: number, value: string, eof = ""): Span => {
   if (css[i] !== "\\") return [value + css[i], i + 1];
   const hex = HEX_ESCAPE.exec(css.slice(i + 1, i + 7));
   if (hex) {
@@ -53,21 +78,23 @@ const appendChar = (css: string, i: number, value: string): Span => {
       after,
     ];
   }
-  return afterBackslash(css, i, value);
+  return afterBackslash(css, i, value, eof);
 };
 
 /** One run of characters with escapes decoded. The run ends at the first
- * character `stops` refuses. Returns the value and the position of that
- * character, or the end of the text. */
+ * character `stops` refuses. `eof` holds what a backslash at the end of the
+ * text decodes to. Returns the value and the position of that character, or
+ * the end of the text. */
 const readRun = (
   css: string,
   i: number,
-  stops: (c: string | undefined) => boolean,
+  stops: (c: string, at: number) => boolean,
+  eof = "",
 ): Span => {
   let value = "";
   let j = i;
-  while (j < css.length && !stops(css[j])) {
-    [value, j] = appendChar(css, j, value);
+  while (j < css.length && !stops(css[j]!, j)) {
+    [value, j] = appendChar(css, j, value, eof);
   }
   return [value, j];
 };
@@ -108,7 +135,7 @@ const readString = (css: string, i: number, quote = css[i]!): Span => {
   const [value, j] = readRun(
     css,
     i + 1,
-    (c) => c === quote || c === "\n" || c === "\r",
+    (c) => c === quote || c === "\n" || c === "\r" || c === "\f",
   );
   if (css[j] === quote) return [value, j + 1];
   if (css[j] === undefined) return [value, j];
@@ -138,12 +165,25 @@ const readUrlBody = (css: string, i: number): Span => {
     }
     return endUrlBody(css, value, k);
   }
-  const [raw, stopped] = readRun(css, start, stopsUrlRun);
+  const [raw, stopped] = readRun(
+    css,
+    start,
+    (c, at) =>
+      stopsUrlRun(c) ||
+      isNonPrintable(c) ||
+      (c === "\\" && isNewline(css, at + 1)),
+    // An unquoted url escape at the end of the text holds the replacement
+    // character, so the address matches the one Chromium fetches.
+    "\u{FFFD}",
+  );
   if (css[stopped] === ")") return [raw, stopped + 1];
   if (css[stopped] === undefined) return [raw, stopped];
   if (isWhitespace(css[stopped])) {
     return endUrlBody(css, raw, afterWhitespace(css, stopped));
   }
+  // A raw newline after a backslash, a raw non-printable, a quote, or an
+  // open parenthesis makes a bad url token. A bad url token fetches
+  // nothing.
   return ["", skipToClose(css, stopped)];
 };
 
