@@ -6,7 +6,11 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingChildren } from "#db/listing-parents.ts";
+import { withTransaction } from "#db/client.ts";
+import {
+  listingChildren,
+  setListingChildrenWithPackageCheckTx,
+} from "#db/listing-parents.ts";
 import { handleRequest } from "#routes";
 import { loadDailyDateAvailability } from "#routes/public/listing-date-availability.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
@@ -136,6 +140,45 @@ describeWithEnv(
       );
 
       expect(soldOut).toEqual(new Set([fixed.id]));
+    });
+
+    test("a customisable child is judged over the fixed parent's span", async () => {
+      // The parent books three days from its start date, and the fold
+      // consumes the customisable child on every one of those days. The
+      // child's own card reads one day, so judging it by its card span
+      // lets a date with a short second day advertise a fold every
+      // submission rejects.
+      const parent = await createDailyTestListing({
+        durationDays: 3,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 3,
+        name: "Three Day Bundle",
+      });
+      const child = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        maxAttendees: 4,
+        maxQuantity: 4,
+        name: "Flexible Add-on",
+      });
+      await withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      );
+      const [date, second] = (await bookableStartDates(parent.id)) as [
+        string,
+        string,
+      ];
+      await bookAttendee(child, {
+        date: second,
+        email: "short-second-day@example.com",
+        quantity: 2,
+      });
+
+      const soldOut = await loadDailyDateAvailability([parent], date, []);
+
+      expect(soldOut).toEqual(new Set([parent.id]));
     });
 
     test("a date with places left below the listing's minimum is unavailable", async () => {

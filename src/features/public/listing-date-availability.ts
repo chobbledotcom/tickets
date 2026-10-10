@@ -71,14 +71,19 @@ export const loadDailyDateAvailability = async (
     // Raw remaining lets the date filter advertise a parent the discovery
     // cards read as sold out.
     const dayCounts = parentOfferedDayCounts(listing);
+    const children = links.childrenByParent.get(listing.id) ?? [];
     const childCapacityCtx: ChildDateCapacityCtx = {
       date,
       dayCounts,
       holidays,
-      remaining,
+      // The fold consumes each child over the parent's booked span, so the
+      // child's remaining reads over that span, not the child's own card's.
+      remaining: remainingFromSnapshot(snapshot, children, () =>
+        cardSpanDays(listing),
+      ),
     };
     const parts = childDateCapacityParts(
-      links.childrenByParent.get(listing.id) ?? [],
+      children,
       memberships,
       childCapacityCtx,
     );
