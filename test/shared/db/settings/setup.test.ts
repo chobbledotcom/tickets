@@ -55,6 +55,16 @@ const ownerCanReadSiteData = async (
 };
 
 describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
+  describe("a finished ceremony", () => {
+    test("leaves a new site with the welcome message on", async () => {
+      await emptySite();
+      await settings.setup.complete("owner-one", "firstpassword", "GB");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(settings.welcomeEnabled).toBe(true);
+    });
+  });
+
   describe("a second ceremony", () => {
     test("is refused once the first one finished", async () => {
       await emptySite();

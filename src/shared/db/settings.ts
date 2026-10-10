@@ -346,10 +346,7 @@ const settingsBase = {
     ),
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
-    welcomeDismissed: boolUpdate(
-      CONFIG_KEYS.WELCOME_DISMISSED,
-      "welcome_dismissed",
-    ),
+    welcomeEnabled: boolUpdate(CONFIG_KEYS.WELCOME_ENABLED, "welcome_enabled"),
   },
   updateUserPassword,
   /**
@@ -364,9 +361,11 @@ const settingsBase = {
     return getCacheState().version;
   },
 
-  /** True once the owner dismissed the new-owner welcome steps. */
-  get welcomeDismissed(): boolean {
-    return snap("welcome_dismissed");
+  /** True while the site shows the new-owner welcome steps. Setup turns it on
+   *  and the owner's "Got it" turns it off. An absent stored value reads as
+   *  off, so a site that never stored the flag never shows the message. */
+  get welcomeEnabled(): boolean {
+    return snap("welcome_enabled");
   },
   withCurrentTask,
 };
