@@ -103,6 +103,46 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
   });
 
+  test("a line owing more than one ticket asks how many, then admits the answer", async () => {
+    const door = await groupDoor(1);
+    const attendee = await createMultiBookingAttendee(
+      "Nia",
+      "nia@example.com",
+      [{ listingId: door.members[0]!.id, quantity: 3 }],
+    );
+
+    const ask = await scanAtDoor(door.group.id, {
+      token: attendee.ticket_token,
+    });
+    expect(ask.json.status).toBe("select_quantity");
+
+    const admission = await scanAtDoor(door.group.id, {
+      quantity: 2,
+      token: attendee.ticket_token,
+    });
+    expect(admission.json.status).toBe("checked_in");
+    expect(admission.json.quantity).toBe(2);
+    expect(admission.json.remaining).toBe(1);
+  });
+
+  test("a quantity the door cannot read answers Invalid quantity", async () => {
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Pia",
+      "pia@example.com",
+    );
+
+    for (const quantity of [0, -1, 1.5, "2"]) {
+      const answer = await scanAtDoor(door.group.id, {
+        quantity,
+        token: attendee.ticket_token,
+      });
+      expect(answer.response.status).toBe(400);
+      expect(answer.json.error).toBe("Invalid quantity");
+    }
+  });
+
   test("an orphaned ticket line answers wrong_listing, naming its person", async () => {
     const door = await groupDoor(2);
     const token = await orphanedTokenFrom(door.members[0]!.id);
@@ -115,6 +155,31 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     expect(answer.response.status).toBe(200);
     expect(answer.json.status).toBe("wrong_listing");
     expect(answer.json.name).toBe("Owen");
+  });
+
+  test("a ticket whose every line is a no-quantity sentinel answers Unknown listing", async () => {
+    // The "no quantity" box keeps a line as a quantity-0 sentinel, and a
+    // ticket holding nothing else resolves to no checkable row at all. The
+    // door cannot name a listing, so it says so.
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Ola",
+      "ola@example.com",
+    );
+    const { getDb } = await import("#db/client.ts");
+    await getDb().execute({
+      args: [attendee.id],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+    });
+
+    const answer = await scanAtDoor(door.group.id, {
+      token: attendee.ticket_token,
+    });
+
+    expect(answer.response.status).toBe(200);
+    expect(answer.json.status).toBe("wrong_listing");
+    expect(answer.json.listingName).toBe("Unknown listing");
   });
 
   test("a forced scan of an orphaned ticket line answers not_found", async () => {
