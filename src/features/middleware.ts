@@ -3,6 +3,11 @@
  */
 
 import { settings } from "#db/settings.ts";
+import { compact } from "#fp";
+import {
+  BUNNY_FONTS_ORIGIN,
+  cssUsesBunnyFonts,
+} from "#routes/public/bunny-fonts.ts";
 import { encodeBody } from "#routes/response.ts";
 import { ASSET_CDN_ORIGIN } from "#shared/asset-paths.ts";
 import {
@@ -42,6 +47,7 @@ export const buildCspHeader = (
   payment?: PaymentCspConfig,
   botpoisonEnabled = false,
   assetCdnOrigin: string | null = ASSET_CDN_ORIGIN,
+  bunnyFonts = false,
 ): string => {
   const directives = [
     "default-src 'self'",
@@ -51,10 +57,20 @@ export const buildCspHeader = (
   ];
 
   if (assetCdnOrigin) {
-    directives.push(
-      `script-src 'self' ${assetCdnOrigin}`,
-      `style-src 'self' ${assetCdnOrigin}`,
-    );
+    directives.push(`script-src 'self' ${assetCdnOrigin}`);
+  }
+
+  if (assetCdnOrigin || bunnyFonts) {
+    const styleSources = compact([
+      "'self'",
+      assetCdnOrigin,
+      ...(bunnyFonts ? [BUNNY_FONTS_ORIGIN] : []),
+    ]);
+    directives.push(`style-src ${styleSources.join(" ")}`);
+  }
+
+  if (bunnyFonts) {
+    directives.push(`font-src 'self' ${BUNNY_FONTS_ORIGIN}`);
   }
 
   if (botpoisonEnabled) {
@@ -86,8 +102,10 @@ export const getSecurityHeaders = (
   csp = buildCspHeader(isEmbeddablePath(path)),
 ): Record<string, string> => {
   const embeddable = isEmbeddablePath(path);
-  // The setting read sits behind the path check. A path the public site
-  // never serves (a static asset, an admin page) reads no setting at all.
+  // The indexability read sits behind the path check. A path the public site
+  // never serves (a static asset, an admin page) skips it. The custom-CSS
+  // read in applySecurityHeaders has no such gate: every page the layout
+  // renders links /custom.css, so every routed response needs the same rule.
   const indexable =
     embeddable || (isPublicSitePath(path) && settings.features.site);
   return {
@@ -256,10 +274,15 @@ export const applySecurityHeaders = async (
   const embeddable = isEmbeddablePath(path);
   const provider = settings.paymentProvider;
   const sandbox = provider !== null && paymentProviderUsesSandbox(provider);
+  // Every page the layout renders links /custom.css, so the policy must
+  // follow the stylesheet's contents on every routed response. The read is
+  // the cached snapshot, never a query of its own.
   const baseCsp = buildCspHeader(
     embeddable,
     { provider, sandbox },
     isBotpoisonEnabled(),
+    ASSET_CDN_ORIGIN,
+    cssUsesBunnyFonts(settings.customCss),
   );
   const frameAncestors = embeddable
     ? buildFrameAncestors(await getEmbedHosts())
