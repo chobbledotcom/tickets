@@ -73,15 +73,23 @@ export interface ScannerHarness {
 /** The built bundle's export tail, rewritten as a global stash: esbuild emits
  * each export as `internal as name`, and the pair reads as an object entry —
  * `name: internal` — once the words around `as` swap places. A plain name
- * stays object shorthand for itself. */
+ * stays object shorthand for itself. The one QR read is rewritten onto a
+ * stashed decoder, so a camera test feeds frames without bundling a second
+ * copy of jsQR; with no decoder stashed the read answers no code, which is
+ * what the confirm suites (that never decode) would see anyway. */
 const runBundleOnce = (): void => {
-  const bundle = Deno.readTextFileSync("src/ui/static/scanner.js").replace(
-    /export\s*\{([^}]*)\}\s*;?\s*$/,
-    (_all, list: string) =>
-      `;globalThis.${MODULE_MARKER}={${list
-        .trim()
-        .replace(/(\w+)\s+as\s+(\w+)/g, "$2: $1")}};`,
-  );
+  const bundle = Deno.readTextFileSync("src/ui/static/scanner.js")
+    .replace(
+      /export\s*\{([^}]*)\}\s*;?\s*$/,
+      (_all, list: string) =>
+        `;globalThis.${MODULE_MARKER}={${list
+          .trim()
+          .replace(/(\w+)\s+as\s+(\w+)/g, "$2: $1")}};`,
+    )
+    .replace(
+      /\(0,(\w+)\.default\)\((\w+)\.data,\2\.width,\2\.height\)/,
+      "(0,globalThis.__scannerJsqr||(() => null))($2.data,$2.width,$2.height)",
+    );
   new Function(bundle)();
 };
 
@@ -97,19 +105,19 @@ const SCANNER_PAGE = `
     data-message-id-mismatch="ID does not match {name}"
     data-message-invalid-qr="Invalid QR code"
     data-message-network-error="Network error"
-    data-message-no-door="This ticket has no door to check in at"
+    data-message-no-door="This ticket has no door to check in at."
     data-message-not-found="Ticket not found"
     data-message-refunded="{name} has been refunded"
     data-message-scanning="Scanning..."
     data-message-skipped="Skipped {name}"
     data-message-ticket-count-one="{count} ticket"
     data-message-ticket-count-other="{count} tickets"
-    data-message-verify-id-confirm="Does their ID match {name}?"
-    data-message-wrong-listing-confirm="{name} is registered for {listingName}. Check in anyway?"
+    data-message-verify-id-confirm="Does their ID match &quot;{name}&quot;?"
+    data-message-wrong-listing-confirm="{name} is registered for &quot;{listingName}&quot;, not this listing. Check in anyway?"
     id="scanner-container"
   >
-    <video data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
-    <div id="scanner-status"></div>
+    <video class="hidden" data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
+    <div class="hidden" id="scanner-status"></div>
     <div class="hidden" id="scanner-quantity">
       <p id="scanner-quantity-message"></p>
       <select id="scanner-quantity-select"></select>
@@ -133,6 +141,11 @@ export const el = (document: Window["document"], id: string): HTMLElement => {
   if (!found) throw new Error(`The scanner page carries no ${id}`);
   return found as unknown as HTMLElement;
 };
+
+/** Run the bundle again against the current page, the way a second script
+ * tag would: a page the template did not render whole must not half-wire
+ * the scanner. */
+export const evaluateBundle = (): void => runBundleOnce();
 
 export const useScanner = (): ScannerHarness => {
   const window = new Window({ url: "http://localhost/" });
@@ -232,7 +245,10 @@ export const forcedScan = async (
     h.statusEl,
     h.messages,
   );
-  await whenMessageShows(h, "Ada is registered for Standard. Check in anyway?");
+  await whenMessageShows(
+    h,
+    'Ada is registered for "Standard", not this listing. Check in anyway?',
+  );
   h.confirm.yes.click();
   return { done, fetchStub };
 };
@@ -250,7 +266,7 @@ export const forcedVerifyScan = async (h: ScannerHarness) => {
       status: "checked_in",
     }),
   );
-  await whenMessageShows(h, "Does their ID match Ada?");
+  await whenMessageShows(h, 'Does their ID match "Ada"?');
   return forced;
 };
 
