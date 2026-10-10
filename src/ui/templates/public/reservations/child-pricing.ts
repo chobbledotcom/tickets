@@ -4,7 +4,11 @@
  * parent), and the per-child capacity a parent selector can reserve. Callers
  * fetch. This module computes. */
 
-import { childDaysFromParent, type TicketListing } from "#booking/model.ts";
+import {
+  childCanBeBooked,
+  childDaysFromParent,
+  type TicketListing,
+} from "#booking/model.ts";
 import {
   pageCombinedChildCapacity,
   rowTicketLimit,
@@ -60,7 +64,7 @@ const parentRenderDuration = (parent: ListingWithCount): number | null =>
  * minimum child day price over the spans the parent can ACTUALLY offer (parent's
  * selectable counts ∩ child's priced counts). Using the child's own lowest span
  * ignores the parent's range, so a parent offering only {3} days with a child
- * priced {1:£10, 3:£25} would advertise "from £10" while checkout (inheriting the
+ * priced {1:£10, 3:£25} advertises "from £10" while checkout (inheriting the
  * 3-day span) charges £25. Returns null when the spans don't intersect
  * (such an edge isn't bookable anyway), so the label is omitted. */
 const childFromPrice = (
@@ -143,9 +147,13 @@ export const foldReserveByChildId = (
 ): Map<number, number> => {
   const page = { groupIdsByListingId, groupRemainingByGroupId };
   // Each parent contributes one (childId, reserve) pair per child it folds;
-  // summing those pairs gives the total to hold back per child.
+  // summing those pairs gives the total to hold back per child. A child the
+  // booking would refuse serves no fold, so it neither counts toward the
+  // parent's capacity nor holds a reserve.
   const reserves = flatMap((parent: TicketListing) => {
-    const children = childrenByParentId.get(parent.listing.id) ?? [];
+    const children = (childrenByParentId.get(parent.listing.id) ?? []).filter(
+      childCanBeBooked,
+    );
     const combined = pageCombinedChildCapacity(parent, children, page);
     const foldable =
       combined >= parent.listing.min_quantity ? parent.maxPurchasable : 0;

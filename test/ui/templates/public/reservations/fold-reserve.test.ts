@@ -8,6 +8,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing, type TicketListing } from "#booking/model.ts";
 import { foldReserveByChildId } from "#templates/public/reservations/child-pricing.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 const listing = (
   id: number,
@@ -47,12 +48,35 @@ describe("foldReserveByChildId", () => {
     );
 
   test("reserves nothing for a parent its children cannot serve", () => {
-    // The parent sells at least 3 per purchase, but its only child can serve
+    // The parent sells at least 3 per booking, but its only child can serve
     // 2: no fold through this parent can ever book, so the child's standalone
     // row keeps its whole capacity.
     const parent = listing(1, "Base unit", 3, 10);
     const child = listing(2, "Add-on", 1, 2);
     expect(page(parent, [child], groupIds([1, 2]))).toEqual(new Map([[2, 0]]));
+  });
+
+  test("does not count an unavailable child's places toward the fold", () => {
+    // The active child serves 2 and the parent needs 3: the fold can never
+    // book through this parent, so the active child's standalone row keeps
+    // its whole capacity. The unavailable child's spare places must not
+    // invent a fold the booking would refuse.
+    const parent = listing(1, "Base unit", 3, 10);
+    const active = listing(2, "Active add-on", 1, 2);
+    const inactive = buildTicketListing(
+      testListingWithCount({
+        active: false,
+        id: 3,
+        max_attendees: 9,
+        max_quantity: 9,
+        min_quantity: 1,
+        name: "Retired add-on",
+      }) as ListingWithCount,
+      false,
+      undefined,
+    );
+
+    expect(page(parent, [active, inactive])).toEqual(new Map([[2, 0]]));
   });
 
   test("holds back the parent's ceiling when it can fold", () => {
