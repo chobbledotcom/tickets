@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { REBRANDED_FORM, useManualCheckinPage } from "./fixture.ts";
+import {
+  REBRANDED_FORM,
+  useManualCheckinPage,
+  waitUntilSettled,
+} from "./fixture.ts";
 
 describe("manual check-in under the ticket-to-booking rebrand", () => {
   const { setup, stubScans } = useManualCheckinPage(REBRANDED_FORM);
@@ -23,15 +27,20 @@ describe("manual check-in under the ticket-to-booking rebrand", () => {
     page.form.dispatchEvent(event as unknown as Event);
 
     const overlay = document.getElementById("scanner-quantity")!;
-    for (
-      let turn = 0;
-      turn < 1000 && overlay.classList.contains("hidden");
-      turn++
-    ) {
-      await Promise.resolve();
-    }
+    await waitUntilSettled(
+      () => !overlay.classList.contains("hidden"),
+      "the quantity ask",
+    );
     expect(
       document.getElementById("scanner-quantity-message")!.textContent,
     ).toBe("How many bookings for Ada?");
+
+    // Cancel the ask so its page turn resolves: a pending turn would keep
+    // the next quantity test in this isolate from opening its overlay.
+    document.getElementById("scanner-quantity-cancel")!.click();
+    await waitUntilSettled(
+      () => !page.submitButton.disabled,
+      "the cancelled check-in",
+    );
   });
 });
