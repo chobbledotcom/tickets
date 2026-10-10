@@ -2396,7 +2396,7 @@ button.secondary:hover,
   white-space: pre-wrap;
 }
 
-/* Print styles for ticket pages: see _print.scss. */
+@include print.print-styles;
 
 /* Hide email API key and from address fields when provider is "None" */
 #email_provider:has(option[value=""]:checked) ~ label[for="email_api_key"],
