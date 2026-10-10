@@ -219,15 +219,17 @@ describe("parseAddOnSelections", () => {
   const form = (record: Record<string, string>): FormParams =>
     new FormParams(new URLSearchParams(record));
 
-  test("reads each selected add-on's quantity, clamped to its ceiling", () => {
-    const result = parseAddOnSelections(form({ addon_5: "1", addon_6: "99" }), [
+  test("reads each selected add-on's quantity as posted", () => {
+    // A count above an add-on's ceiling is refused by validateFormState, so
+    // the parser keeps the posted value instead of clamping it.
+    const result = parseAddOnSelections(form({ addon_5: "1", addon_6: "2" }), [
       addOn(5, 10),
       addOn(6, 3),
     ]);
     expect(result).toEqual(
       new Map([
         [5, 1],
-        [6, 3],
+        [6, 2],
       ]),
     );
   });
@@ -291,11 +293,11 @@ describe("parseQuantities", () => {
 });
 
 describe("parseQuantityValue", () => {
-  test("lifts a too-small count to one and clamps a too-large count at the max", () => {
-    expect(parseQuantityValue("0", 5)).toBe(1);
-    expect(parseQuantityValue("", 5)).toBe(1);
-    expect(parseQuantityValue("3", 5)).toBe(3);
-    expect(parseQuantityValue("9", 5)).toBe(5);
+  test("lifts a too-small count to the minimum default and parses plain counts", () => {
+    expect(parseQuantityValue("0")).toBe(1);
+    expect(parseQuantityValue("")).toBe(1);
+    expect(parseQuantityValue("3")).toBe(3);
+    expect(parseQuantityValue("9", 0)).toBe(9);
   });
 });
 

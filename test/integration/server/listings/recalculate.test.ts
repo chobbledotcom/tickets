@@ -40,6 +40,7 @@ describeWithEnv(
       test("shows current and attendee-derived listing totals", async () => {
         const { listing } = await setupListingAndLogin({
           maxAttendees: 100,
+          maxQuantity: 100,
           thankYouUrl: "https://example.com",
         });
         await createTestAttendee(
@@ -65,13 +66,14 @@ describeWithEnv(
           "From attendee data",
           'value="booked_quantity"',
           ">9<",
-          ">1<",
+          ">2<",
         );
       });
 
       test("resets selected listing totals", async () => {
         const { listing } = await setupListingAndLogin({
           maxAttendees: 100,
+          maxQuantity: 100,
           thankYouUrl: "https://example.com",
         });
         const attendee = await createTestAttendee(
@@ -105,7 +107,7 @@ describeWithEnv(
         )(response);
 
         const updated = await getListingWithCount(listing.id);
-        expect(updated?.attendee_count).toBe(1);
+        expect(updated?.attendee_count).toBe(2);
         // Resetting only booked_quantity leaves the ledger-projected income alone.
         expect(updated?.income).toBe(9000);
         expect(updated?.tickets_count).toBe(5);

@@ -75,10 +75,10 @@ export const prepareOrder = async (
   ctx: TicketCtx,
   form: FormParams,
 ): Promise<PrepareResult> => {
-  const stateError = validateFormState(form, ctx);
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const stateError = validateFormState(form, ctx, tree);
   if (stateError) return { error: stateError, ok: false };
 
-  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
   const { nodeQuantities, quantities: pageQuantities } = resolvePageQuantities(
     form,
     ctx,

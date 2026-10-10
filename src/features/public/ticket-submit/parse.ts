@@ -2,11 +2,15 @@
  * Parsing and validation for a submitted booking form: page state, custom
  * prices, QR overrides, question answers, and the per-node quantities each
  * package count or standalone selector resolves to. Everything here reads the
- * form and the resolved page context; nothing prices or persists.
+ * form and the resolved page context. Nothing here prices or persists.
  */
 
 import type { buildBookingTree } from "#booking/build-tree.ts";
 import { bookingError, parseCustomPrice } from "#booking/form.ts";
+import {
+  packageBundleMembers,
+  packageBundleMinError,
+} from "#booking/min-refusal.ts";
 import { quantityBelowMin } from "#booking/model.ts";
 import {
   aggregateNodeQuantities,
@@ -24,6 +28,7 @@ import {
   standaloneListingIds,
 } from "#booking/tree.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { byId } from "#fp";
 import {
   type AnswerInfo,
   listingAnswerMaps,
@@ -70,20 +75,92 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
     ) {
       return bookingError.minimum(listing.name, listing.min_quantity);
     }
+    // A count above the live limit refuses instead of silently booking fewer
+    // places than the buyer asked for. The select cannot send one, so only a
+    // crafted or stale POST carries it.
+    if (maxPurchasable > 0 && selectedQty > maxPurchasable) {
+      return bookingError.maximum(listing.name, maxPurchasable);
+    }
+  }
+  return null;
+};
+
+/** The inputs every page-submit step reads: the posted form, the page
+ *  context, and the page's booking tree the bundle-limit refusal reads. */
+type PageSubmitArgs = [
+  form: FormParams,
+  ctx: TicketCtx,
+  tree: ReturnType<typeof buildBookingTree>,
+];
+
+/** One form-state gate over the page submit's inputs. */
+type FormStateCheck = (...args: PageSubmitArgs) => string | null;
+
+/** The package refusal for one posted bundle count, or null. An owner can
+ *  raise a member's minimum after the package was saved, so the fold
+ *  re-reads the stored fact the same way the webhook does. A count above the
+ *  page's bundle limit refuses instead of silently booking fewer bundles. */
+const packageQuantityRefusal: FormStateCheck = (form, ctx, tree) => {
+  const listingById = byId(ctx.listings.map((info) => info.listing));
+  for (const pkg of ctx.packages) {
+    const bundleCount = parsePackageCount(form, pkg.groupId);
+    const limit = ctxPackageLimit(ctx, tree, pkg);
+    if (bundleCount > limit) {
+      return bookingError.packageMaximum(pkg.name, limit);
+    }
+    const fixedByListingId = new Map(
+      pkg.memberListingIds.map((id) => [id, pkg.quantities.get(id) ?? 1]),
+    );
+    // A concealed package's member names must not reach the buyer: the
+    // refusal names the package, as every other booking error does.
+    const namesById = pkg.hideListings
+      ? new Map(
+          [...listingById].map(([id, listing]) => [
+            id,
+            { ...listing, name: pkg.name },
+          ]),
+        )
+      : listingById;
+    const error = packageBundleMinError(
+      packageBundleMembers(fixedByListingId, namesById),
+      bundleCount,
+    );
+    if (error) return error;
+  }
+  return null;
+};
+
+/** The add-on refusal for one posted count above its ceiling, or null. The
+ * number input only hints the ceiling, so a crafted or typoed POST can carry
+ * more. Refuse instead of silently ordering fewer units than the buyer asked
+ * for. */
+const addOnQuantityRefusal = (
+  form: FormParams,
+  ctx: TicketCtx,
+): string | null => {
+  for (const addOn of ctx.addOns) {
+    const selected =
+      parseNonNegativeInt(form.get(`addon_${addOn.id}`) ?? "") ?? 0;
+    if (selected > addOn.maxQuantity) {
+      return bookingError.addOnMaximum(addOn.name, addOn.maxQuantity);
+    }
   }
   return null;
 };
 
 /** Validate page-level form state before deeper parsing. Returns an error
- * message, or null when the form state is acceptable. */
-export const validateFormState = (
-  form: FormParams,
-  ctx: TicketCtx,
-): string | null => {
+ * message, or null when the form state is acceptable. The package bundle-limit
+ * refusal reads the page's booking tree. */
+export const validateFormState: FormStateCheck = (form, ctx, tree) => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return "You must agree to the terms and conditions";
   }
-  return pageWideRefusal(ctx) ?? quantityRefusal(form, ctx);
+  return (
+    pageWideRefusal(ctx) ??
+    quantityRefusal(form, ctx) ??
+    packageQuantityRefusal(form, ctx, tree) ??
+    addOnQuantityRefusal(form, ctx)
+  );
 };
 
 /** Validate contact fields once the final priced checkout says whether it is paid. */
@@ -217,16 +294,13 @@ const ctxPackageLimit = (
  * books keep their own `quantity_<id>` inputs. For each package the buyer
  * chooses one `package_quantity_<groupId>` count; each member's booked quantity
  * is its fixed per-package quantity × that count (members have no own inputs).
- * Every posted count is clamped to the same per-package capacity ceiling the
- * page renders ({@link pagePackageBundleLimit}) so a crafted POST can't exceed
- * a member's remaining capacity or book a closed/sold-out member (whose
- * `maxPurchasable` — and thus the cap — is 0). All-zero lines are rejected by
+ * A posted count above the page's bundle limit is refused by
+ * `validateFormState` before this runs, so the counts here are already inside
+ * the ceiling. All-zero lines are rejected by
  * `prepareOrder` as "select at least one ticket".
  */
 export const resolvePageQuantities = (
-  form: FormParams,
-  ctx: TicketCtx,
-  tree: ReturnType<typeof buildBookingTree>,
+  ...[form, ctx, tree]: PageSubmitArgs
 ): { nodeQuantities: Map<string, number>; quantities: Map<number, number> } => {
   // Listings with a standalone node keep their own quantity_<id> input — every
   // non-member, plus any member the cart also added by its own slug.
@@ -238,13 +312,7 @@ export const resolvePageQuantities = (
   const packageCounts = new Map(
     ctx.packages.map((pkg) => [
       pkg.groupId,
-      Math.max(
-        0,
-        Math.min(
-          parsePackageCount(form, pkg.groupId),
-          ctxPackageLimit(ctx, tree, pkg),
-        ),
-      ),
+      parsePackageCount(form, pkg.groupId),
     ]),
   );
   const nodeQuantities = nodeQuantitiesFor(

@@ -10,6 +10,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { bookingError } from "#booking/form.ts";
 import { packageQuantityFieldName } from "#booking/tree.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -18,6 +19,7 @@ import {
   singleListingThankYouUrl,
 } from "#routes/public/ticket-submit/prepare.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   bookableStartDates,
@@ -25,6 +27,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
 import {
   prepareTestOrder,
   quantityForm,
@@ -47,6 +50,31 @@ const sorted = (ids: Iterable<number>): number[] =>
 
 describeWithEnv("prepareOrder", { db: true }, () => {
   describe("refusing a form it cannot price", () => {
+    test("refuses a standalone count above the live limit and books nothing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        maxQuantity: 3,
+      });
+      const ctx = await ticketContext([listing.id]);
+
+      const result = await prepareOrder(ctx, quantityForm({ [listing.id]: 4 }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toBe(bookingError.maximum(listing.name, 3));
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    });
+
+    test("refuses a package count above the live limit and books nothing", async () => {
+      const { ctx, group, member } = await hiddenPackageWithMember();
+      const form = quantityForm({}, { [group.id]: 6 });
+
+      const result = await prepareOrder(ctx, form);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toBe(bookingError.packageMaximum("Mystery Box", 5));
+      expect((await getAttendeesRaw(member.id)).length).toBe(0);
+    });
+
     test("refuses an order that selected no tickets", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id]);

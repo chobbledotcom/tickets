@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   childTicketLimit,
   groupCapacityInfo,
+  packageBundleMinimum,
   packageLimitInfo,
 } from "#booking/package-cap.ts";
 import { resolved } from "#test-utils/booking-model-fixtures.ts";
@@ -79,5 +80,40 @@ describe("childTicketLimit", () => {
       ]),
     );
     expect(childTicketLimit(tl(1, 100), tl(2, 3), ctx)).toBe(3);
+  });
+});
+
+describe("packageBundleMinimum", () => {
+  test("lifts the floor to the tightest member minimum over its fixed count", () => {
+    expect(
+      packageBundleMinimum(
+        new Map([
+          [7, 4],
+          [8, 2],
+        ]),
+        new Map([
+          [7, 5],
+          [8, 5],
+        ]),
+      ),
+    ).toBe(3);
+  });
+
+  test("a member with no stored minimum reads as one", () => {
+    // The webhook re-reads the stored minimums the same way; a listing the
+    // caller did not look up counts as no minimum.
+    expect(
+      packageBundleMinimum(
+        new Map([
+          [7, 2],
+          [8, 3],
+        ]),
+        new Map([[7, 5]]),
+      ),
+    ).toBe(3);
+  });
+
+  test("a member with a zero fixed count drops out of the floor", () => {
+    expect(packageBundleMinimum(new Map([[7, 0]]), new Map([[7, 5]]))).toBe(1);
   });
 });

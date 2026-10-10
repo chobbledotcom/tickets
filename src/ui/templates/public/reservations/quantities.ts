@@ -26,8 +26,8 @@ type MonthsListing = Pick<
 >;
 
 /** The months one priced unit buys, or undefined when a count is plain. The
- *  shared resolver decides: one unit of a plan prices its whole initial term;
- *  a renewal page prices the same listings by their months per unit. */
+ *  shared resolver decides. One unit of a plan prices its whole initial term.
+ *  A renewal page prices the same listings by their months per unit. */
 export const pricedMonthsForListing = (
   listing: MonthsListing,
   renewal?: boolean | undefined,
@@ -112,19 +112,24 @@ export const restoredQuantity = (
 };
 
 /** One package's count to pre-select: the value the buyer just submitted
- * (restored when a validation error re-renders the page) clamped to the limit,
- * else 1 (or 0 when nothing can be ordered) — one bundle is also exactly what
- * an order-cart selection means. Without this an error would silently reset a
- * multi-package order to one, risking a wrong-quantity resubmit. */
+ *  (restored when a validation error re-renders the page) clamped to the
+ *  limit, else the members' joint bundle floor (or 0 when nothing can be
+ *  ordered). The select offers none plus the floor upward, so the fresh
+ *  default must be one of its options, and a restored count below the floor —
+ *  the owner raised it while this form was open — snaps to zero, exactly as
+ *  the row restore does for a listing minimum. */
 export const restoredPackageQuantity = (
   groupId: number,
   limit: number,
-): number =>
-  clampSavedQuantity(
+  bundleMinimum = 1,
+): number => {
+  const restored = clampSavedQuantity(
     savedFormValue(packageQuantityFieldName(groupId)),
     limit,
-    Math.min(1, limit),
+    Math.min(bundleMinimum, limit),
   );
+  return quantityBelowMin(restored, bundleMinimum) ? 0 : restored;
+};
 
 /** The per-unit quantity restored for a child select after a validation
  * re-render: the buyer's submitted `child_qty_<parentId>_<childId>`, clamped to

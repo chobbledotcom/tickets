@@ -51,6 +51,35 @@ export const nonStandalonePair = async (
   return pair;
 };
 
+/** The bundle intent for one member parent and its child: the parent's member
+ *  line beside the child's whole line, with the child's folded share recorded
+ *  as its allocation. Prices ride the fixtures' 600/200 split. */
+export const bundlePairIntent = async (
+  group: { id: number },
+  pair: { child: { id: number }; parent: { id: number } },
+  childQuantity: number,
+  foldedQuantity: number,
+): Promise<BookingIntent> => {
+  await setGroupPackageMembers(group.id, [
+    { listingId: pair.parent.id, price: 600 },
+  ]);
+  return bookingIntent(
+    [
+      { e: pair.parent.id, k: "p", p: 600, q: 1, r: group.id },
+      { e: pair.child.id, p: 200 * childQuantity, q: childQuantity },
+    ],
+    {
+      allocations: [
+        {
+          childId: pair.child.id,
+          parentId: pair.parent.id,
+          qty: foldedQuantity,
+        },
+      ],
+    },
+  );
+};
+
 export const packageParentOrder = async (
   childQuantity: number,
 ): Promise<{ intent: BookingIntent }> => {
@@ -60,18 +89,11 @@ export const packageParentOrder = async (
   });
   const { child, parent } = await nonStandalonePair(
     { groupId: group.id, unitPrice: 600 },
-    { unitPrice: 200 },
+    // The surplus cases carry a two-unit child line: one folded unit plus
+    // one standalone unit, inside the child's per-order maximum.
+    { maxQuantity: 2, unitPrice: 200 },
   );
-  await setGroupPackageMembers(group.id, [
-    { listingId: parent.id, price: 600 },
-  ]);
   return {
-    intent: bookingIntent(
-      [
-        { e: parent.id, k: "p", p: 600, q: 1, r: group.id },
-        { e: child.id, p: 200 * childQuantity, q: childQuantity },
-      ],
-      { allocations: [{ childId: child.id, parentId: parent.id, qty: 1 }] },
-    ),
+    intent: await bundlePairIntent(group, { child, parent }, childQuantity, 1),
   };
 };

@@ -7,6 +7,7 @@
  */
 
 import type { ChildAllocation } from "#db/attendee-types.ts";
+import { sumByKey } from "#fp";
 
 /** Collect the child ids whose parent list passes the test. Both the add-on
  * classifier and the package-fold check walk a child→parents map and keep the
@@ -31,3 +32,13 @@ export const allocatedChildIds = (
     (parents) =>
       parents.some((allocation) => parentIds.has(allocation.parentId)),
   );
+
+/** The folded quantity each allocated child rides: one child can ride two
+ *  bundles, and both shares stay inside their folds. */
+export const allocatedQuantityByChildId = (
+  allocations: readonly ChildAllocation[],
+): Map<number, number> =>
+  sumByKey(
+    (allocation: ChildAllocation) => allocation.childId,
+    (allocation) => allocation.qty,
+  )(allocations);

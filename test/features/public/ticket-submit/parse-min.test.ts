@@ -14,8 +14,13 @@ import {
   type TicketCtx,
 } from "#routes/public/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { quantityForm, ticketContext } from "#test-utils/ticket-ctx.ts";
+import {
+  pageBookingTree,
+  quantityForm,
+  ticketContext,
+} from "#test-utils/ticket-ctx.ts";
 
 /** The page context with its listings replaced, for the states a real page
  * cannot reach in one shot (sold out by the minimum, or closed). */
@@ -38,27 +43,39 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
-      expect(validateFormState(quantityForm({ [listing.id]: 2 }), ctx)).toBe(
-        bookingError.minimum(listing.name, listing.min_quantity),
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 2 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(bookingError.minimum(listing.name, listing.min_quantity));
     });
 
     test("accepts a quantity of exactly the minimum", async () => {
       const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
-      expect(validateFormState(quantityForm({ [listing.id]: 3 }), ctx)).toBe(
-        null,
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 3 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(null);
     });
 
     test("accepts a quantity of zero", async () => {
       const listing = await makeMinimumListing();
       const ctx = await ticketContext([listing.id]);
 
-      expect(validateFormState(quantityForm({ [listing.id]: 0 }), ctx)).toBe(
-        null,
-      );
+      expect(
+        validateFormState(
+          quantityForm({ [listing.id]: 0 }),
+          ctx,
+          pageBookingTree(ctx),
+        ),
+      ).toBe(null);
     });
 
     test("a sold-out row's posted quantity is skipped, below or above the minimum", async () => {
@@ -78,12 +95,14 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
         validateFormState(
           quantityForm({ [listing.id]: 5, [spare.id]: 0 }),
           soldOutByMinimum,
+          pageBookingTree(soldOutByMinimum),
         ),
       ).toBe(null);
       expect(
         validateFormState(
           quantityForm({ [listing.id]: 2, [spare.id]: 0 }),
           soldOutByMinimum,
+          pageBookingTree(soldOutByMinimum),
         ),
       ).toBe(null);
     });
@@ -98,8 +117,72 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
       ]);
 
       expect(
-        validateFormState(quantityForm({ [listing.id]: 2 }), closedRow),
+        validateFormState(
+          quantityForm({ [listing.id]: 2 }),
+          closedRow,
+          pageBookingTree(closedRow),
+        ),
       ).toBe(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+    });
+
+    /** A hidden one-member package whose member sells at least three per
+     * purchase, with the form context that offers it. */
+    const makePackageContext = async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 3,
+        name: "Secret Contents",
+      });
+      return { ctx: await ticketContext([member.id], group), group, member };
+    };
+
+    test("names the package, not its member, for a hidden package's minimum", async () => {
+      // A concealed member's name must not reach the buyer: the refusal uses
+      // the package's own name as the stand-in, as every other booking error
+      // does.
+      const { ctx } = await makePackageContext();
+      const tree = pageBookingTree(ctx);
+
+      expect(
+        validateFormState(
+          quantityForm({}, { [ctx.packages[0]!.groupId]: 1 }),
+          ctx,
+          tree,
+        ),
+      ).toBe("Sorry, Mystery Box sells at least 3 tickets per booking.");
+      expect(
+        validateFormState(
+          quantityForm({}, { [ctx.packages[0]!.groupId]: 3 }),
+          ctx,
+          tree,
+        ),
+      ).toBe(null);
+    });
+
+    test("a package member without a stored quantity counts one per package", async () => {
+      // The stored member quantities can lack a member (a member added
+      // before the quantity column existed), so the fold defaults that
+      // member to one unit per package, the same way the page select does.
+      const { ctx } = await makePackageContext();
+      // A member absent from the stored quantity map: build the same shape
+      // the page render tests build, one package whose map misses its member.
+      const withoutQuantity = {
+        ...ctx.packages[0]!,
+        quantities: new Map<number, number>(),
+      };
+      const packageCtx = { ...ctx, packages: [withoutQuantity] };
+      const groupId = ctx.packages[0]!.groupId;
+      const tree = pageBookingTree(packageCtx);
+
+      expect(
+        validateFormState(quantityForm({}, { [groupId]: 2 }), packageCtx, tree),
+      ).toBe("Sorry, Mystery Box sells at least 3 tickets per booking.");
+      expect(
+        validateFormState(quantityForm({}, { [groupId]: 3 }), packageCtx, tree),
+      ).toBe(null);
     });
   });
 });

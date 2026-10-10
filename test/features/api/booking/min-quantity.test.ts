@@ -33,7 +33,21 @@ describePublicApi(() => {
         { quantity: 2 },
       );
       expect(response.status).toBe(400);
-      expect(body.error).toBe("Quantity must be at least 3");
+      expect(body.error).toBe("Quantity must be at least 3.");
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    });
+
+    test("rejects a quantity above the listing's maximum instead of clamping it", async () => {
+      // The form's select never offers a quantity above the maximum, so a
+      // crafted POST is the only client that can send one. It must read a
+      // refusal, not a booking for fewer places than it asked for.
+      const { listing, response, body } = await createAndBook(
+        { maxAttendees: 10, maxQuantity: 4 },
+        { quantity: 5 },
+      );
+      expect(response.status).toBe(400);
+      expect(body.error).toBe("Quantity must be at most 4.");
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
@@ -44,21 +58,6 @@ describePublicApi(() => {
         { quantity: 3 },
       );
       expect(response.status).toBe(200);
-    });
-
-    test("caps a quantity above the listing's maximum", async () => {
-      // The form's select never offers a quantity above the maximum, so a
-      // crafted POST is the only client that can send one. The booking takes
-      // the whole number the listing can serve, not the posted count.
-      const { listing, response } = await createAndBook(
-        { maxAttendees: 10, maxQuantity: 4 },
-        { quantity: 5 },
-      );
-      expect(response.status).toBe(200);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(attendees[0]?.quantity).toBe(4);
     });
   });
 });

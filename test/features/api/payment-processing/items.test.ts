@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { withMessageGroups } from "#i18n";
+import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -150,6 +152,80 @@ describeWithEnv("paid item validation", { db: true }, () => {
     ]);
   });
 
+  test("refunds a paid checkout whose listing maximum dropped below its quantity", async () => {
+    // The buyer opened the checkout at two tickets; the owner then lowered
+    // the stored maximum to one. The webhook is the last stop that re-reads
+    // the stored fact, so the payment refunds instead of booking a quantity
+    // the listing no longer sells.
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      name: "Lowered ceiling",
+      unitPrice: 500,
+    });
+    const { execute } = await import("#db/client.ts");
+    await execute("UPDATE listings SET max_quantity = 1 WHERE id = ?", [
+      listing.id,
+    ]);
+    const intent = bookingIntent([{ e: listing.id, p: 500, q: 2 }]);
+    using refund = stubRefundPayment("re_items_maximum", 500);
+
+    const result = await withMessageGroups(["payment"], () =>
+      validateAllItems(paymentSession("cs_items_maximum", 500, intent), intent),
+    );
+    expect(failureResult(result)).toEqual({
+      detail: undefined,
+      error: "Sorry, Lowered ceiling sells at most 1 ticket per booking.",
+      refunded: true,
+      status: 410,
+      success: false,
+    });
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequestShape("pi_cs_items_maximum", 500),
+    ]);
+  });
+
+  test("refunds a hidden package member whose maximum dropped, without naming it", async () => {
+    // A concealed member's name must not reach the buyer, so the refusal
+    // uses the unnamed copy even though the order carries the member.
+    await setupStripe();
+    const { intent } = await packageParentOrder(1);
+    const [, child] = intent.items;
+    // The folded child line carries two units, and the owner has since
+    // lowered the member's stored maximum to one.
+    const allocation = intent.allocations?.[0];
+    if (allocation) allocation.qty = 2;
+    child!.q = 2;
+    child!.p = 400;
+    const { listingsTable } = await import("#db/listings/records.ts");
+    await listingsTable.update(child!.e, { maxQuantity: 1 });
+    const snapshot = await loadPaidOrderSnapshot(
+      "cs_items_hidden_maximum",
+      intent,
+    );
+    snapshot.notificationPackages.displays = new Map();
+    const amount = intent.items.reduce((total, item) => total + item.p, 0);
+    using refund = stubRefundPayment("re_items_hidden_maximum", amount);
+
+    const result = await withMessageGroups(["payment"], () =>
+      validateSnapshotItems(
+        paymentSession("cs_items_hidden_maximum", amount, intent),
+        intent,
+        snapshot,
+      ),
+    );
+    expect(failureResult(result)).toEqual({
+      detail: undefined,
+      error: "Sorry, this listing sells at most 1 ticket per booking.",
+      refunded: true,
+      status: 410,
+      success: false,
+    });
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequestShape("pi_cs_items_hidden_maximum", amount),
+    ]);
+  });
+
   test("names the listing that closed in a visible multi-listing order", async () => {
     await setupStripe();
     const open = await createTestListing({ maxAttendees: 5, unitPrice: 300 });
@@ -268,8 +344,11 @@ describeWithEnv("paid item validation", { db: true }, () => {
   test("fails a mixed folded and standalone child after its flag is cleared", async () => {
     const { child, parent } = await nonStandalonePair(
       { unitPrice: 600 },
-      { unitPrice: 200 },
+      { maxQuantity: 2, unitPrice: 200 },
     );
+    // One folded allocation plus a two-unit standalone line, inside the
+    // child's per-order maximum: the refusal must come from the mixed flag,
+    // not from a quantity a line cannot carry.
     const intent = bookingIntent(
       [
         { e: parent.id, p: 600, q: 1 },

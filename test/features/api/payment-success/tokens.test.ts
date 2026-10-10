@@ -185,6 +185,9 @@ describeWithEnv("the paid success token page", { db: true }, () => {
       const group = await createHiddenPackageGroup("Mixed paths");
       const member = await paidListing({
         groupId: group.id,
+        // One session can book the member through two paths, so its stored
+        // maximum must hold the sum.
+        maxQuantity: 2,
         thankYouUrl: "https://example.com/mixed-thanks",
       });
       const packageLine = { ...lineFor(member), k: "p", r: group.id };

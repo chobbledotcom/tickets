@@ -234,10 +234,9 @@
     "long-sentence": 2
   },
   "src/features/public/qr-book.ts": {
-    "semicolon": 1,
-    "long-sentence": 4,
     "banned-modal": 3,
     "present-perfect": 1,
+    "long-sentence": 4,
     "contraction": 1
   },
   "src/features/public/renewal.ts": {
@@ -276,10 +275,9 @@
     "wordy": 2
   },
   "src/features/public/ticket-submit/parse.ts": {
-    "long-sentence": 3,
-    "semicolon": 2,
+    "long-sentence": 2,
     "banned-modal": 1,
-    "contraction": 1
+    "semicolon": 1
   },
   "src/features/public/ticket-submit/paths.ts": {
     "semicolon": 3,
@@ -3060,9 +3058,8 @@
   },
   "src/ui/templates/public/reservations/quantities.ts": {
     "contraction": 2,
-    "long-sentence": 3,
-    "semicolon": 3,
-    "banned-modal": 1
+    "semicolon": 2,
+    "long-sentence": 3
   },
   "src/ui/templates/public/reservations/questions.tsx": {
     "semicolon": 1,

@@ -7,8 +7,9 @@ import {
   packageMemberNodeKey,
 } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
-import { mapNotNullish, sumByKey } from "#fp";
+import { mapNotNullish } from "#fp";
 import type { BookingItem } from "#shared/booking-intent.ts";
+import { allocatedQuantityByChildId } from "#shared/child-parents.ts";
 
 /**
  * The tag lets the webhook reconstruct a line's canonical `nodeKey` and re-check
@@ -111,10 +112,7 @@ const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
 export const bookedOutsideParent = (
   allocations: readonly ChildAllocation[],
 ): ((item: BookingItem) => boolean) => {
-  const byChild = sumByKey(
-    (allocation: ChildAllocation) => allocation.childId,
-    (allocation) => allocation.qty,
-  )(allocations);
+  const byChild = allocatedQuantityByChildId(allocations);
   return (item) => item.q > (byChild.get(item.e) ?? 0);
 };
 

@@ -1,10 +1,10 @@
 /**
  * Scan handler for signed booking QR links.
  *
- * Verifies a signed token; on success, either skips straight to Stripe
- * checkout (when the token carries a name + value and the listing requires
- * no extra fields or questions) or renders the normal booking page
- * with the token's values pre-filled.
+ * Verifies a signed token. On success, either skips straight to Stripe
+ * checkout, or renders the normal booking page with the token's values
+ * pre-filled. The skip needs a token with a name + value, and a listing
+ * that requires no extra fields or questions.
  */
 
 import { buildTicketListing, quantityBelowMin } from "#booking/model.ts";
@@ -71,6 +71,9 @@ const canSkipToCheckout = async (
   // listing no longer sells. Never skip to a fixed-price checkout with it —
   // the booking form re-derives the valid choices and lets the buyer pick.
   if (quantityBelowMin(payload.q, listing.min_quantity)) return false;
+  // The same staleness runs the other way: the owner can lower the maximum,
+  // and an older token then carries a quantity the listing no longer sells.
+  if (payload.q > listing.max_quantity) return false;
   // Customisable listings are priced by a chosen day count, so the visitor must
   // pass through the booking form to select it — never skip to a fixed price.
   if (listing.customisable_days) return false;

@@ -1,6 +1,6 @@
 /**
- * Validate every signed line of a paid order against the CURRENT database.
- * Confirm each listing still accepts registrations, and compute its expected
+ * Validate every signed line of a paid order against the CURRENT database:
+ * confirm each listing still accepts registrations, and compute its expected
  * price. Fail the whole order closed to a price_changed refund when the
  * package structure, a required child-edge, or a non-standalone flag drifted
  * mid-checkout.
@@ -12,6 +12,7 @@ import {
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
+import { sumByKey } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start -- import block */
 import {
@@ -29,7 +30,10 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { allocatedChildIds } from "#shared/child-parents.ts";
+import {
+  allocatedChildIds,
+  allocatedQuantityByChildId,
+} from "#shared/child-parents.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
@@ -134,10 +138,10 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
   );
   // Children folded under a tagged member book as part of that bundle.
   const bundledChildIds = allocatedChildIds(allocations, taggedParentIds);
-  // Standalone-ness is judged per LINE, not per listing: an order can book
-  // the same listing through a package AND its own row. The standalone
-  // path must still take the stale checks below, even though a tagged line
-  // shares its listing id.
+  // Standalone-ness is judged per LINE, not per listing. An order can book
+  // the same listing through a package AND its own row. The standalone path
+  // must still take the stale checks below even though a tagged line shares
+  // its listing id.
   const standaloneLineIds = standaloneLineListingIds(intent.items).filter(
     (id) => !bundledChildIds.has(id),
   );
@@ -150,7 +154,91 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
   };
 };
 
-/** Validate all booking items and return per-item pricing info or a failure result. */
+/** The order's summed quantity per listing. The maximum is a per-booking rule
+ *  on the listing. One order can book the same listing through several paths:
+ *  a package line and its own row, or two overlapping packages. The webhook
+ *  judges the sum, so two sub-limit lines cannot book past the cap together. */
+const quantitiesByListingId = (
+  items: BookingIntent["items"],
+): Map<number, number> =>
+  sumByKey(
+    (item: BookingIntent["items"][number]) => item.e,
+    (item) => item.q,
+  )(items);
+
+/** The above-maximum refusal for one line's listing at the order's summed
+ *  quantity, or null. The owner can lower the maximum while a checkout is
+ *  open, and the webhook is the last stop that re-reads the stored fact. A
+ *  folded daily child's allocated share rides the fold's per-date
+ *  availability. The date-less maximum therefore judges the standalone share
+ *  of its line alone. A bookable-alone child beside its member parent books
+ *  one combined line. */
+const aboveMaximumRefusal = (
+  listing: ListingWithCount,
+  name: string,
+  foldedDailyChildIds: ReadonlySet<number>,
+  quantities: ReadonlyMap<number, number>,
+  allocatedByChildId: ReadonlyMap<number, number>,
+): { error: string; status: number } | null => {
+  // Both maps cover the judged line: the sum map carries every intent line's
+  // listing, and the allocated map carries every folded child.
+  const summedQuantity = quantities.get(listing.id)!;
+  const judgedQuantity = foldedDailyChildIds.has(listing.id)
+    ? summedQuantity - allocatedByChildId.get(listing.id)!
+    : summedQuantity;
+  if (judgedQuantity <= listing.max_quantity) return null;
+  return {
+    error: name
+      ? t("payment.failure.above_maximum_named", {
+          max_quantity: listing.max_quantity,
+          name,
+        })
+      : t("payment.failure.above_maximum", {
+          max_quantity: listing.max_quantity,
+        }),
+    status: 410,
+  };
+};
+
+/** The folded children whose listings are daily: the only lines that escape
+ *  the date-less maximum. */
+const foldedDailyChildIds = (
+  foldedChildIds: ReadonlySet<number>,
+  listingsById: ReadonlyMap<number, ListingWithCount>,
+): Set<number> =>
+  new Set(
+    [...foldedChildIds].filter(
+      (id) => listingsById.get(id)?.listing_type === "daily",
+    ),
+  );
+
+/** Whether the order carries a non-standalone child whose line outgrows what
+ *  its allocations cover: the per-child surplus the fold never booked. A
+ *  bookable-alone child beside its member parent books one aggregated line.
+ *  The surplus read runs whenever the order carries any standalone line OR
+ *  any folded allocation. Only a pure member-only order skips its read. */
+const hasStaleChildSurplus = (
+  intent: BookingIntent,
+  snapshot: PaidOrderSnapshot,
+  standaloneLineIds: readonly number[],
+  allocations: NonNullable<BookingIntent["allocations"]>,
+): boolean =>
+  (standaloneLineIds.length > 0 || allocations.length > 0) &&
+  hasStaleStandaloneChildFromFacts(
+    intent,
+    new Set(
+      intent.items.flatMap((item) => {
+        const listing = snapshot.listingsById.get(item.e);
+        return listing &&
+          !listing.bookable_alone &&
+          (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
+          ? [item.e]
+          : [];
+      }),
+    ),
+    snapshot.parentsByChildId,
+  );
+
 export const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
@@ -159,31 +247,17 @@ export const validateAllItems = async (
   const { allocations, foldedChildIds, standaloneLineIds } =
     bookingPaths(intent);
   const pricingByGroup = snapshot.notificationPackages.pricingByGroup;
-  // A folded child rides an UNTAGGED line that bundledChildIds removes from
-  // standaloneLineIds wholesale. Yet that one line can hold more units than
-  // the package-tagged allocations cover. A bookable-alone child bought
-  // beside its member parent books one aggregated line. So
-  // hasStaleStandaloneChild judges that per-child surplus itself: consult it
-  // whenever the order carries any standalone line OR any folded allocation.
-  // Only a pure member-only order skips its read.
-  const staleNonStandaloneChild =
-    (standaloneLineIds.length > 0 || allocations.length > 0) &&
-    hasStaleStandaloneChildFromFacts(
-      intent,
-      new Set(
-        intent.items.flatMap((item) => {
-          const listing = snapshot.listingsById.get(item.e);
-          return listing &&
-            !listing.bookable_alone &&
-            (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
-            ? [item.e]
-            : [];
-        }),
-      ),
-      snapshot.parentsByChildId,
-    );
+  const staleNonStandaloneChild = hasStaleChildSurplus(
+    intent,
+    snapshot,
+    standaloneLineIds,
+    allocations,
+  );
   const listingsById = snapshot.listingsById;
   const nameFor = buyerLineName(intent, snapshot);
+  const quantities = quantitiesByListingId(intent.items);
+  const allocatedQuantities = allocatedQuantityByChildId(allocations);
+  const dailyFoldedIds = foldedDailyChildIds(foldedChildIds, listingsById);
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const listing = listingsById.get(item.e);
@@ -197,9 +271,17 @@ export const validateAllItems = async (
     const name = nameFor(item, listing);
     const vp = validateListingForPayment(listing, name, item.q);
     if (!vp.ok) return validationFailure(session, vp, item.e);
+    const maxRefusal = aboveMaximumRefusal(
+      listing,
+      name,
+      dailyFoldedIds,
+      quantities,
+      allocatedQuantities,
+    );
+    if (maxRefusal) return validationFailure(session, maxRefusal, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
-    // member). It is carried through, so the price-mismatch pass refunds it
+    // member). It is carried through so the price-mismatch pass refunds it
     // via the normal stored-placeholder path.
     validatedItems.push({
       expectedPrice: expectedItemPrice(
@@ -215,10 +297,11 @@ export const validateAllItems = async (
       name,
     });
   }
-  // Order-level package check. Fail every line closed when any bundle's signed
-  // lines no longer match its current membership (member added/removed, or
-  // quantities no longer share one package count). The whole order then takes
-  // the price_changed refund rather than booking a partial/stale bundle.
+  // Order-level package check: if any bundle's signed lines no longer match
+  // its current membership, fail every line closed. Current membership
+  // changes when a member is added or removed, or when quantities no longer
+  // share one package count. The whole order then takes the price_changed
+  // refund rather than booking a partial or stale bundle.
   if (
     staleNonStandaloneChild ||
     anyPackageBundleMismatch(pricingByGroup, intent.items) ||

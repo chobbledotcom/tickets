@@ -1,12 +1,22 @@
 /* jscpd:ignore-start */
 
 import { buildBookingTree } from "#booking/build-tree.ts";
+import { bookingError } from "#booking/form.ts";
+import {
+  packageBundleMembers,
+  packageBundleMinError,
+} from "#booking/min-refusal.ts";
 import { bookableChildIds, pageDayCounts } from "#booking/model.ts";
 import { nodeQuantitiesFor } from "#booking/order-lines.ts";
-import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
+import {
+  packageBundleLimit,
+  packageLimitInfo,
+  treePackageBundleMinimum,
+} from "#booking/package-cap.ts";
 import { packageBundleTotal } from "#booking/price-tree.ts";
 import { type BookingTree, fixedQuantitiesByListingId } from "#booking/tree.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
+import { byId } from "#fp";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
@@ -60,6 +70,9 @@ type PackageContext = {
   ctx: TicketCtx;
   group: Group;
   limit: number;
+  /** The members' minimums' whole-bundle floor. The bookability gate keeps it
+   *  at or under {@link limit}, so the GET always shows a valid range. */
+  minimum: number;
   tree: BookingTree;
 };
 
@@ -88,7 +101,13 @@ const loadPackageContext = async (
       ctx.packageMemberGroupIds,
     ),
   );
-  return { ctx, group: loaded.group, limit, tree };
+  return {
+    ctx,
+    group: loaded.group,
+    limit,
+    minimum: treePackageBundleMinimum(tree, ctx.listings),
+    tree,
+  };
 };
 
 /** Load a bookable package context by slug, or respond with the
@@ -133,7 +152,7 @@ const packageMergedFields = (ctx: TicketCtx): string =>
  * mix can serve. An empty list means no span is currently bookable. A HIDDEN
  * package omits its members entirely. */
 export const handleGetPackage = withPackageContext(
-  async (_request, { ctx, group, limit, tree }) => {
+  async (_request, { ctx, group, limit, minimum, tree }) => {
     const customisable = ctx.listings.some((e) => e.listing.customisable_days);
     const dayCounts = customisable
       ? pageDayCounts(ctx.listings, ctx.childrenByParentId, true)
@@ -171,6 +190,10 @@ export const handleGetPackage = withPackageContext(
         description: group.description,
         fields: packageMergedFields(ctx),
         maxPurchasable: limit,
+        // The members' joint whole-bundle floor. With maxPurchasable it is
+        // the whole valid range. A concealed package omits its members, so
+        // a client cannot derive the floor itself.
+        minimum,
         name: group.name,
         slug: group.slug,
         ...(ctx.dates.length ? { availableDates: ctx.dates } : {}),
@@ -219,8 +242,7 @@ const applyPackageChildSelections = (
 /** Every failed client refusal on a CONCEALED package reads this one generic
  * message. A wrong member slug, a wrong child slug, a bad total, or missing
  * contact fields must be indistinguishable. The errors can otherwise confirm
- * what is inside the package. Named packages keep their specific
- * responses. */
+ * what is inside the package. Named packages keep their specific responses. */
 const PACKAGE_BOOKING_REFUSED =
   "This package cannot be booked with those choices.";
 
@@ -245,17 +267,30 @@ const resolvePackageOrder = async (
       date: string | null;
       dayCount: number;
       form: FormParams;
-      packageQty: number;
+      requestedQty: number;
       quantities: Map<number, number>;
     }
 > => {
   const requestedQty = resolvePositiveQuantity(body);
   if (requestedQty instanceof Response) return requestedQty;
-  const packageQty = Math.min(requestedQty, limit);
+  if (requestedQty > limit) {
+    return apiError(bookingError.aboveMaximumQuantity(limit));
+  }
+  // An owner can raise a member's minimum after the package was saved, so
+  // the fold re-reads the stored fact the same way the webhook does.
+  const fixedByListingId = fixedQuantitiesByListingId(tree);
+  const memberMinError = packageBundleMinError(
+    packageBundleMembers(
+      fixedByListingId,
+      byId(ctx.listings.map((info) => info.listing)),
+    ),
+    requestedQty,
+  );
+  if (memberMinError) return apiError(memberMinError);
   const quantities = new Map(
-    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
+    [...fixedByListingId].map(([listingId, fixed]) => [
       listingId,
-      fixed * packageQty,
+      fixed * requestedQty,
     ]),
   );
 
@@ -278,14 +313,16 @@ const resolvePackageOrder = async (
   if ("error" in dayResult) {
     return apiError(dayResult.error);
   }
-  return { date, dayCount: dayResult.dayCount, form, packageQty, quantities };
+  return { date, dayCount: dayResult.dayCount, form, quantities, requestedQty };
 };
 
 /** POST /api/packages/:slug/book — book whole bundles. The body carries the
  * contact fields plus `quantity` (the package count — required). `date` for a
  * dated package, `dayCount` for a customisable one, and `children` — entries
  * of `{ parent, slug, quantity }` choosing each parent member's add-ons. All
- * of it drives the same walk the web package page submits through. */
+ * of it drives the same fold and pricing walk the web package page submits
+ * through. A bundle count above the bundle limit reads a 400 refusal: the
+ * form's select never offers one, so only a crafted POST can send it. */
 export const handleBookPackage: SlugRouteHandler = async (
   request,
   { slug },
@@ -314,7 +351,7 @@ export const handleBookPackage: SlugRouteHandler = async (
       standIns.byListingId,
     );
     if (order instanceof Response) return order;
-    const { date, dayCount, form, packageQty, quantities } = order;
+    const { date, dayCount, form, requestedQty, quantities } = order;
 
     const selections = parseApiChildSelections(body, PackageChildrenSchema);
     if (selections === null) {
@@ -337,7 +374,7 @@ export const handleBookPackage: SlugRouteHandler = async (
         quantities,
       },
       tree,
-      nodeQuantitiesFor(tree, new Map(), new Map([[group.id, packageQty]])),
+      nodeQuantitiesFor(tree, new Map(), new Map([[group.id, requestedQty]])),
     );
     if (built instanceof Response) return built;
     const { fold } = built;

@@ -121,6 +121,35 @@ describe("restoredPackageQuantity", () => {
   test("stays at zero when nothing can be ordered", () => {
     expect(restoredPackageQuantity(7, 0)).toBe(0);
   });
+
+  test("offers the bundle minimum when no count was submitted", () => {
+    // The select offers only the members' joint floor upward, so a fresh
+    // page must open with the floor selected — a default of one would match
+    // no emitted option and the browser would fall back to zero.
+    expect(restoredPackageQuantity(7, 5, 3)).toBe(3);
+    expect(restoredPackageQuantity(7, 0, 3)).toBe(0);
+  });
+
+  test("keeps an explicitly submitted count over the bundle minimum", async () => {
+    await withSubmittedValues({ package_quantity_7: "4" }, () =>
+      expect(restoredPackageQuantity(7, 5, 3)).toBe(4),
+    );
+  });
+
+  test("keeps an explicitly submitted zero", async () => {
+    await withSubmittedValues({ package_quantity_7: "0" }, () =>
+      expect(restoredPackageQuantity(7, 5, 3)).toBe(0),
+    );
+  });
+
+  test("snaps a stale count below the raised floor to zero", async () => {
+    // The buyer submitted one before the owner raised the floor to three, so
+    // the select no longer offers it — the re-render selects none rather
+    // than a count the fold would refuse.
+    await withSubmittedValues({ package_quantity_7: "1" }, () =>
+      expect(restoredPackageQuantity(7, 5, 3)).toBe(0),
+    );
+  });
 });
 
 describe("restoredQuantity", () => {

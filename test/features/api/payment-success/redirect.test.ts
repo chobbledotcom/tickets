@@ -137,6 +137,7 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
       const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 50,
+        maxQuantity: 2,
         thankYouUrl: "https://example.com/mixed-thanks",
         unitPrice: 500,
       });

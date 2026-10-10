@@ -3,10 +3,14 @@
  * listings, and a form that carries quantity selections.
  */
 
+import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildTicketListing } from "#booking/model.ts";
 import { packageQuantityFieldName, quantityFieldName } from "#booking/tree.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
-import { getTicketContext } from "#routes/public/ticket-payment.ts";
+import {
+  ctxToBuildTreeInput,
+  getTicketContext,
+} from "#routes/public/ticket-payment.ts";
 import {
   type PrepareResult,
   prepareOrder,
@@ -32,6 +36,11 @@ export const ticketContext = async (
     slugs: listings.map((info) => info.listing.slug),
   };
 };
+
+/** The page's booking tree, built the way the submit path builds it. The
+ *  bundle-limit refusal reads it, so every form-state check carries one. */
+export const pageBookingTree = (ctx: TicketCtx) =>
+  buildBookingTree(ctxToBuildTreeInput(ctx));
 
 /** The page context for two fresh listings, for a cart that holds both. */
 export const twoListingContext = async (): Promise<{
