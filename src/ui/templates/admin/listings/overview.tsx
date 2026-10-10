@@ -12,7 +12,7 @@ import { type Attendee, isPaidListing, type ListingWithCount } from "#types";
 import { attendeeStatsForListing } from "./attendees.tsx";
 import { listingCapacityRowsFor } from "./capacity-rows.tsx";
 import { ListingDetailsTable } from "./details.tsx";
-import { attendeeCountLabelSuffix, listingLinksFor } from "./helpers.ts";
+import { attendeeCountLabelSuffix } from "./helpers.ts";
 import { ListingIncomeLedgerSection } from "./ledger-section.tsx";
 import type { ListingOverviewPanelOptions, OverviewStats } from "./types.ts";
 
@@ -85,7 +85,6 @@ export const ListingOverviewPanel = (
     systemNotes = [],
     isOwner,
   } = opts;
-  const links = listingLinksFor(listing, allowedDomain);
   const isDaily = listing.listing_type === "daily";
   const dailySuffix = attendeeCountLabelSuffix(isDaily, null);
   const capacity = listingCapacityRowsFor(
@@ -107,13 +106,11 @@ export const ListingOverviewPanel = (
     <PageRegions>
       <ListingDetailsTable
         aggregateRecalculation={aggregateRecalculation}
+        allowedDomain={allowedDomain}
         capacity={capacity}
-        embedIframeCode={links.embedIframeCode}
-        embedScriptCode={links.embedScriptCode}
         listing={listing}
         publicPage={publicPage}
         sharedRows={sharedRows}
-        ticketUrl={links.ticketUrl}
       />
       {moneyTotals && (
         <ListingIncomeLedgerSection

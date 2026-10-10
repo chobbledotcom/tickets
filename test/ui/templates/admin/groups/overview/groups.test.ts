@@ -282,6 +282,15 @@ describe("group admin panels", () => {
       const shareable = overviewHtml({ group, listings, shareable: true });
       expect(shareable).toContain(`localhost/ticket/${group.slug}`);
       expect(shareable).toContain(`embed-script-${group.id}`);
+      // The Embed action is a label for the hidden toggle, and the embed code
+      // rows start hidden, exactly as on the listing page.
+      expect(shareable).toContain(
+        `<label class="small-action" for="embed-toggle-${group.id}">Embed</label>`,
+      );
+      expect(shareable).toContain(
+        `class="visually-hidden embed-toggle" id="embed-toggle-${group.id}" type="checkbox"`,
+      );
+      expect((shareable.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
 
       const unshareable = overviewHtml({ group, listings, shareable: false });
       expect(unshareable).not.toContain(`localhost/ticket/${group.slug}`);

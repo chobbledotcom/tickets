@@ -59,7 +59,9 @@ const shareUrl = async (url: string): Promise<ShareAnswer> => {
  * right-click. The link shows the full URL, so the copy carries one too.
  * Works where the share sheet and the clipboard both refuse. */
 const selectLink = (button: HTMLButtonElement): void => {
-  const link = button.closest(".share-row")?.querySelector("[data-share-link]");
+  const link = button
+    .closest(".public-url-row")
+    ?.querySelector("[data-share-link]");
   if (!link) return;
   const selection = window.getSelection();
   if (!selection) return;

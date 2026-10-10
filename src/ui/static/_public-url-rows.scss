@@ -1,0 +1,60 @@
+/* The Public URL row: the link, with its three small actions under it. The
+ * actions wrap on narrow screens, so a long URL never pushes them off the
+ * page. The row keeps its cell narrow: the URL text may break, so the actions
+ * wrap at the cell width instead of widening the fit-content table into a
+ * sideways scroll. */
+.public-url-row {
+  display: block;
+  max-width: 100%;
+}
+
+.public-url-row [data-share-link] {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.public-url-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  margin-top: var(--space-s);
+}
+
+/* The one small chip the row's three actions share: Share, QR code, and
+ * Embed. Sized like the embed badge it replaces, with the link colour on
+ * hover. */
+.small-action {
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-block;
+  font: inherit;
+  font-size: 0.75em;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 0.05rem 0.35rem;
+}
+
+.small-action:hover {
+  border-color: var(--color-link);
+  color: var(--color-link);
+}
+
+/* Keyboard focus on the hidden toggle lights up its Embed label: the
+ * checkbox is visually hidden, so the label shows where focus is. */
+.embed-toggle:focus-visible ~ .public-url-row label {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+/* The embed code rows stay hidden until the Embed action's hidden toggle is
+ * ticked. The toggle and the rows live in the same details table. */
+.embed-code-row {
+  display: none;
+}
+
+.listing-details-table:has(.embed-toggle:checked) .embed-code-row {
+  display: table-row;
+}

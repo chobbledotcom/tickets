@@ -113,7 +113,7 @@ describe("edit-checks pipeline", () => {
       "src/ui/static/style.scss",
       "src/ui/static/_field-visibility.scss",
       "src/ui/static/_entity-page.scss",
-      "src/ui/static/_share-rows.scss",
+      "src/ui/static/_public-url-rows.scss",
       "--reporters",
       "ai",
       "--format",
@@ -234,13 +234,13 @@ describe("edit-checks file classification", () => {
         "src/ui/static/style.scss",
         "src/ui/static/_field-visibility.scss",
         "src/ui/static/_entity-page.scss",
-        "src/ui/static/_share-rows.scss",
+        "src/ui/static/_public-url-rows.scss",
       ],
     };
     expect(scansFor("src/ui/static/style.scss")).toEqual([cssScan]);
     expect(scansFor("src/ui/static/_field-visibility.scss")).toEqual([cssScan]);
     expect(scansFor("src/ui/static/_entity-page.scss")).toEqual([cssScan]);
-    expect(scansFor("src/ui/static/_share-rows.scss")).toEqual([cssScan]);
+    expect(scansFor("src/ui/static/_public-url-rows.scss")).toEqual([cssScan]);
   });
 });
 
