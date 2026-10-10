@@ -167,6 +167,26 @@ export const resolveListingDefaults = <T extends ResolvableListing>(
 };
 
 /**
+ * A daily listing has no single date — the attendee picks one per booking — so
+ * its stored `date` reads as empty on every surface. The overlay works at read
+ * time on the values a row selected, like {@link resolveListingDefaults}. The
+ * stored row keeps its date, so switching the type back to standard brings it
+ * back. A row that selects `date` must also select `listing_type`, the value
+ * this rule reads.
+ */
+export const resolveListingDate = <T extends Partial<Listing>>(
+  listing: T,
+): T => {
+  if (!("date" in listing)) return listing;
+  if (!("listing_type" in listing)) {
+    throw new Error(
+      "Cannot resolve the listing date: the row selects it but not listing_type, which its rule reads",
+    );
+  }
+  return listing.listing_type === "daily" ? { ...listing, date: "" } : listing;
+};
+
+/**
  * Parse the stored JSON blob into a {@link ListingDefaults}. The blob is only
  * ever written by {@link serializeListingDefaults}, so its shape is trusted; an
  * absent setting (no defaults configured yet) reads as `{}`.

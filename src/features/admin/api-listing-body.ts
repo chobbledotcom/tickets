@@ -15,6 +15,7 @@ import {
 } from "#shared/catalog-fields/fields.ts";
 import {
   generateUniqueListingSlug,
+  keepDailyListingDate,
   parseUpdatedListingSlug,
 } from "#shared/listings-actions.ts";
 // jscpd:ignore-start
@@ -267,7 +268,7 @@ export const bodyToUpdateInput = async (
       existing.slug,
     );
 
-    return okResult({
+    const input = {
       ...projectCatalogFields(listingCatalogFields, "storedApi", existing),
       ...projectCatalogFields(
         listingCatalogFields,
@@ -300,6 +301,23 @@ export const bodyToUpdateInput = async (
       // the submitted set, or the stored set when the body omits group_ids.
       wouldBeGroupIds:
         joinIds.groupIds ?? (await listingGroups.getIds(existing.id)),
-    } as ListingInput);
+    } as ListingInput;
+    // An absent body date means "the stored value stands", exactly as the
+    // stored fallback projection has always written. A null date is a
+    // submitted empty date: it clears a standard listing's date. A non-string
+    // date is not a submitted date. The field checks reject it.
+    const submittedDate =
+      typeof body.date === "string"
+        ? body.date
+        : body.date === null
+          ? ""
+          : undefined;
+    return okResult({
+      ...input,
+      // A daily listing's date must survive an empty-date update, so the owner
+      // can switch the type back to standard and get it back. The type itself
+      // can flip in this same update.
+      date: keepDailyListingDate(submittedDate, existing, input.listingType),
+    });
   });
 };

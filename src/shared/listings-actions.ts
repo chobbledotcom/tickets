@@ -59,6 +59,26 @@ import {
 export const generateUniqueListingSlug = (excludeListingId?: number) =>
   generateUniqueSlug(hmacHash, (slug) => isSlugTaken(slug, excludeListingId));
 
+/**
+ * The date a save writes. The date box hides whenever the listing is daily,
+ * before or after this save. A hidden box submits an empty value. That empty
+ * value must not wipe the stored date: the owner can still switch the type
+ * back to standard and get the date back. A typed date always writes. An
+ * absent submitted date means "the stored value stands", as the API's stored
+ * fallback has always written.
+ */
+export const keepDailyListingDate = (
+  submitted: string | undefined,
+  stored: Pick<Listing, "date" | "listing_type">,
+  wouldBeType: Listing["listing_type"] | undefined,
+): string => {
+  if (submitted === undefined) return stored.date;
+  if (submitted !== "") return submitted;
+  return stored.listing_type === "daily" || wouldBeType === "daily"
+    ? stored.date
+    : "";
+};
+
 /** Parse an update body's optional slug with the listing slug rules: normalise
  * it and recompute its lookup index. A body without a slug keeps the existing
  * one. */

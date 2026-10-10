@@ -5,7 +5,10 @@ import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import {
+  getListingWithCount,
+  getStoredListingWithCount,
+} from "#db/listings/records.ts";
 import { t } from "#i18n";
 import {
   buildCreateListingResource,
@@ -49,7 +52,14 @@ const updateListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
   const form = listingForm({ slug: "kept-slug", ...extra });
-  const result = await buildUpdateListingResource(form).update(id, form);
+  // The production edit handler passes the stored row, not the effective one:
+  // a daily listing's effective date is already empty, and the save's date
+  // guard must see the value the row still stores.
+  const stored = (await getStoredListingWithCount(id))!;
+  const result = await buildUpdateListingResource(form, stored).update(
+    id,
+    form,
+  );
   if (!result.ok) throw new Error(`update failed: ${result.error}`);
   return result.row;
 };
@@ -300,6 +310,21 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.slug_index).toBe(await hmacHash("new-slug"));
     });
 
+    test("an empty-date save of a daily listing keeps its stored date", async () => {
+      // The form's date box hides while the listing is daily, so the save
+      // submits an empty date. The guard must see the STORED row: fed the
+      // effective row, the date is already empty and the save would wipe it.
+      const created = await createListing({
+        date_date: "2026-06-15",
+        date_time: "10:00",
+        listing_type: "daily",
+      });
+      await updateListing(created.id, {});
+      expect((await getStoredListingWithCount(created.id))!.date).toBe(
+        "2026-06-15T10:00:00.000Z",
+      );
+    });
+
     test("clearing the price on an update stores a real zero", async () => {
       const created = await createListing({ unit_price: "12.34" });
       expect(created.unit_price).toBe(1234);
@@ -355,10 +380,10 @@ describeWithEnv("listings form", { db: true }, () => {
         max_quantity: "2",
         slug: "kept-slug",
       });
-      const result = await buildUpdateListingResource(form).update(
-        created.id,
+      const result = await buildUpdateListingResource(
         form,
-      );
+        (await getStoredListingWithCount(created.id))!,
+      ).update(created.id, form);
 
       expect(result).toEqual({
         error: t("error.package_member_cap", {

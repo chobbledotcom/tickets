@@ -37,6 +37,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import {
   generateUniqueListingSlug,
+  keepDailyListingDate,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";
@@ -53,6 +54,7 @@ import {
   type AdminSession,
   type DayPrices,
   type ListingType,
+  type ListingWithCount,
   parseDayPrices,
 } from "#types";
 import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
@@ -322,8 +324,13 @@ export const buildCreateListingResource = (form: FormParams) =>
     validate: listingValidate(form),
   });
 
-/** Build a per-request listings update resource (includes the slug field). */
-export const buildUpdateListingResource = (form: FormParams) =>
+/** Build a per-request listings update resource (includes the slug field).
+ * `stored` is the row the save must not clobber: a daily listing's hidden date
+ * box submits empty, and that empty date keeps the stored one. */
+export const buildUpdateListingResource = (
+  form: FormParams,
+  stored: ListingWithCount,
+) =>
   defineResource({
     afterCommit: syncListingPrices,
     afterWrite: writeListingJoins,
@@ -332,7 +339,12 @@ export const buildUpdateListingResource = (form: FormParams) =>
     checkTx: listingSaveOrphanedAddOnTx,
     form: getListingEditForm(),
     table: listingsTable,
-    toInput: (values: ListingEditFormValues) =>
-      extractListingUpdateInput(values, form),
+    toInput: async (values: ListingEditFormValues) => {
+      const input = await extractListingUpdateInput(values, form);
+      return {
+        ...input,
+        date: keepDailyListingDate(input.date, stored, input.listingType),
+      };
+    },
     validate: listingValidate(form),
   });
