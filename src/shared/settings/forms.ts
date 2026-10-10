@@ -150,7 +150,6 @@ export const SETTINGS_FORM_DEFINITIONS = [
       descriptionKey: "settings.site_footer_hint",
       labelHint: "formatting",
       labelKey: "settings.site_footer",
-      placeholderKey: "settings.site_footer_placeholder",
       submitLabelKey: "settings.save_site_footer",
       titleKey: "settings.site_footer",
     },
