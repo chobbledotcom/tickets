@@ -18,8 +18,18 @@
 import type {
   Catalog,
   CatalogListing as CatalogEntry,
+  CatalogPackage,
 } from "#shared/external-order.ts";
-import { createButton, forEachMatch } from "./dom.ts";
+import {
+  applyStyles,
+  buildButton,
+  buildCloseButton,
+  buildRemovalOnly,
+  buildStepper,
+  labeledButton,
+  setText,
+} from "./cart-dom.ts";
+import { forEachMatch } from "./dom.ts";
 
 // Injected by the server immediately above this module body.
 declare const CATALOG: Catalog;
@@ -36,6 +46,12 @@ interface CartLine {
   quantity: number;
   slug: string;
 }
+
+/** One cart line with its catalog entry: a priced listing, or a whole package
+ *  whose count and price its own page owns. */
+type ResolvedLine =
+  | { entry: CatalogEntry; kind: "listing"; quantity: number }
+  | { entry: CatalogPackage; kind: "package"; quantity: number };
 
 /** Type guard for a stored cart line — used to reject corrupt/foreign values
  * from the host page's sessionStorage. Hand-rolled rather than valibot: this
@@ -73,15 +89,15 @@ const formatMoney = (minorUnits: number): string =>
     trailingZeroDisplay: "stripIfInteger",
   }).format(minorUnits / 10 ** CATALOG.decimalPlaces);
 
-/** Look up a slug in the catalog with an own-property check, so inherited
+/** Look up a slug in a catalog record with an own-property check, so inherited
  * Object.prototype keys (`constructor`, `__proto__`, …) never resolve to a
  * bogus entry. */
-const catalogEntry = (slug: string): CatalogEntry | undefined =>
-  Object.hasOwn(CATALOG.listings, slug) ? CATALOG.listings[slug] : undefined;
+const catalogRecord = <TEntry>(
+  records: Record<string, TEntry>,
+  slug: string,
+): TEntry | undefined =>
+  Object.hasOwn(records, slug) ? records[slug] : undefined;
 
-/** The `/ticket/<slug>` slug of a single-listing-or-package URL on the tickets
- * origin, or null if `raw` is not such a URL (cross-origin, multi-slug, or
- * malformed — all fall through to the link's normal navigation). */
 /** Parse `raw` as a URL, or null when it is not a valid one. */
 const parseUrl = (raw: string): URL | null => {
   try {
@@ -91,30 +107,34 @@ const parseUrl = (raw: string): URL | null => {
   }
 };
 
+/** The `/ticket/<slug>` slug of a single-listing-or-package URL on the tickets
+ * origin, or null when `raw` is not such a URL. A cross-origin, multi-slug, or
+ * malformed value falls through to the link's normal navigation. */
 const ticketSlug = (raw: string): string | null => {
   const url = parseUrl(raw);
   if (!url || url.origin !== CATALOG.origin) return null;
   return url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1] ?? null;
 };
 
-/** Resolve a `data-add-listing` URL to a catalog LISTING entry (a cart line), or
- * null when it is not an enhanceable single-listing URL. */
-const resolveListing = (raw: string): CatalogEntry | null => {
+/** Resolve a `data-add-listing` URL to an entry of `records`, or null when it
+ * is not an enhanceable single-slug URL on the tickets origin. */
+const resolveEntry = <TEntry>(
+  records: Record<string, TEntry>,
+  raw: string,
+): TEntry | null => {
   const slug = ticketSlug(raw);
-  return slug ? (catalogEntry(slug) ?? null) : null;
+  return slug ? (catalogRecord(records, slug) ?? null) : null;
 };
 
-/** Resolve a `data-add-listing` URL to a PACKAGE group slug, or null. A package
- * is booked as a whole via its own page, so the widget navigates straight there
- * rather than adding a cart line. */
-const resolvePackageSlug = (raw: string): string | null => {
-  const slug = ticketSlug(raw);
-  return slug && Object.hasOwn(CATALOG.packages, slug) ? slug : null;
-};
+/** A package entry carries no listing id: its count and price belong to its
+ * own page, so the cart treats it as one bundle. */
+const isPackageEntry = (
+  entry: CatalogEntry | CatalogPackage,
+): entry is CatalogPackage => !("id" in entry);
 
 /** Explain why a `data-add-listing` value can't be enhanced, so the skip log
  * says WHY rather than just naming the link. Mirrors the checks in
- * `ticketSlug`/`resolveListing`/`resolvePackageSlug`. */
+ * `ticketSlug` and `resolveEntry`. */
 const skipReason = (raw: string): string => {
   if (!raw) return "no data-add-listing value";
   const url = parseUrl(raw);
@@ -202,11 +222,21 @@ class CartController {
     const merged = new Map<string, number>();
     let dropped = false;
     for (const line of lines) {
-      if (catalogEntry(line.slug) === undefined || line.quantity <= 0) {
+      const pkg = catalogRecord(CATALOG.packages, line.slug);
+      const listing =
+        pkg === undefined
+          ? catalogRecord(CATALOG.listings, line.slug)
+          : undefined;
+      if ((listing === undefined && pkg === undefined) || line.quantity <= 0) {
         dropped = true;
         continue;
       }
-      merged.set(line.slug, (merged.get(line.slug) ?? 0) + line.quantity);
+      // A package is one bundle per line, so corrupt or doubled stored lines
+      // never raise its count past one.
+      merged.set(
+        line.slug,
+        pkg ? 1 : (merged.get(line.slug) ?? 0) + line.quantity,
+      );
     }
     if (dropped) {
       this.notice = "Some items are no longer available and were removed.";
@@ -215,12 +245,17 @@ class CartController {
     return [...merged].map(([slug, quantity]) => ({ quantity, slug }));
   }
 
-  add(entry: CatalogEntry, quantity = 1): void {
+  add(entry: CatalogEntry | CatalogPackage, quantity = 1): void {
     const existing = this.lines.find((line) => line.slug === entry.slug);
+    // A package is one bundle per line — its own page owns the count — so its
+    // quantity stays at one however often its link is clicked.
+    const added = isPackageEntry(entry)
+      ? 1
+      : (existing?.quantity ?? 0) + quantity;
     if (existing) {
-      existing.quantity += quantity;
+      existing.quantity = added;
     } else {
-      this.lines.push({ quantity, slug: entry.slug });
+      this.lines.push({ quantity: added, slug: entry.slug });
     }
     this.save();
     this.render();
@@ -237,23 +272,32 @@ class CartController {
     this.render();
   }
 
-  private resolved(): { entry: CatalogEntry; quantity: number }[] {
-    return this.lines.flatMap((line) => {
-      const entry = catalogEntry(line.slug);
-      return entry ? [{ entry, quantity: line.quantity }] : [];
+  private resolved(): ResolvedLine[] {
+    return this.lines.flatMap((line): ResolvedLine[] => {
+      const listing = catalogRecord(CATALOG.listings, line.slug);
+      if (listing) {
+        return [{ entry: listing, kind: "listing", quantity: line.quantity }];
+      }
+      const pkg = catalogRecord(CATALOG.packages, line.slug);
+      return pkg
+        ? [{ entry: pkg, kind: "package", quantity: line.quantity }]
+        : [];
     });
-  }
-
-  private totalQuantity(): number {
-    return this.lines.reduce((sum, line) => sum + line.quantity, 0);
   }
 
   private continueUrl(): string | null {
     const lines = this.resolved();
     if (lines.length === 0) return null;
-    const slugs = lines.map((l) => l.entry.slug).join("+");
-    const query = lines.map((l) => `q_${l.entry.id}=${l.quantity}`).join("&");
-    return `${CATALOG.origin}/ticket/${slugs}?${query}`;
+    const slugs = lines.map((line) => line.entry.slug).join("+");
+    // A package carries no `q_` prefill — its page's count selector already
+    // defaults to one bundle, exactly as the internal /order gallery books it.
+    const query = lines
+      .filter((line) => line.kind === "listing")
+      .map((line) => `q_${line.entry.id}=${line.quantity}`)
+      .join("&");
+    return `${CATALOG.origin}/ticket/${slugs}${
+      query.length > 0 ? `?${query}` : ""
+    }`;
   }
 
   private open(): void {
@@ -274,7 +318,7 @@ class CartController {
 
   /** Rebuild the button label and (if open) the dialog body. */
   private render(): void {
-    const count = this.totalQuantity();
+    const count = this.lines.reduce((sum, line) => sum + line.quantity, 0);
     this.button.hidden = count === 0;
     this.button.setAttribute(
       "aria-label",
@@ -301,10 +345,15 @@ class CartController {
     const lines = this.resolved();
     let subtotal = 0;
     let hasVariable = false;
-    for (const { entry, quantity } of lines) {
-      if (entry.variablePrice) hasVariable = true;
-      else subtotal += entry.unitPrice * quantity;
-      this.bodyEl.appendChild(this.renderRow(entry, quantity));
+    for (const item of lines) {
+      // A package's price is fixed on its own page, so it keeps the subtotal
+      // indicative exactly as a variable-price listing does.
+      if (item.kind === "package" || item.entry.variablePrice) {
+        hasVariable = true;
+      } else {
+        subtotal += item.entry.unitPrice * item.quantity;
+      }
+      this.bodyEl.appendChild(this.renderRow(item));
     }
 
     if (lines.length > 0) {
@@ -329,31 +378,41 @@ class CartController {
     this.bodyEl.appendChild(buildCloseButton(() => this.dialog.close()));
   }
 
-  private renderRow(entry: CatalogEntry, quantity: number): HTMLElement {
+  private renderRow(item: ResolvedLine): HTMLElement {
     const row = document.createElement("div");
     row.className = "row";
     const name = document.createElement("span");
     name.className = "name";
-    name.textContent = entry.name;
+    name.textContent = item.entry.name;
     row.appendChild(name);
 
     const price = document.createElement("span");
     price.className = "price";
-    price.textContent = entry.variablePrice
-      ? "Price set at checkout"
-      : formatMoney(entry.unitPrice * quantity);
+    price.textContent =
+      item.kind === "package" || item.entry.variablePrice
+        ? "Price set at checkout"
+        : formatMoney(item.entry.unitPrice * item.quantity);
     row.appendChild(price);
 
-    row.appendChild(
-      buildStepper(quantity, (next) => this.setQuantity(entry.slug, next)),
-    );
+    if (item.kind === "package") {
+      // The package page owns the bundle count, so the row offers removal
+      // only — no quantity stepper.
+      row.appendChild(
+        buildRemovalOnly(() => this.setQuantity(item.entry.slug, 0)),
+      );
+    } else {
+      row.appendChild(
+        buildStepper(item.quantity, (next) =>
+          this.setQuantity(item.entry.slug, next),
+        ),
+      );
+    }
     return row;
   }
 
   private buildContinue(): HTMLElement {
     const url = this.continueUrl();
-    const button = createButton("continue");
-    button.textContent = "Continue";
+    const button = labeledButton("Continue", "continue");
     button.addEventListener("click", () => {
       debugLog("continue ->", url);
       if (url) globalThis.location.assign(url);
@@ -361,104 +420,6 @@ class CartController {
     return button;
   }
 }
-
-/** Set an element's text content if the element exists (escaping-safe). */
-const setText = (el: Element | null, text: string): void => {
-  if (el) el.textContent = text;
-};
-
-const buildButton = (onOpen: () => void): HTMLButtonElement => {
-  const button = createButton("cart-button");
-  button.hidden = true;
-  const count = document.createElement("span");
-  count.className = "count";
-  count.textContent = "0";
-  const label = document.createElement("span");
-  label.textContent = "Tickets ";
-  button.append(label, count);
-  button.addEventListener("click", onOpen);
-  return button;
-};
-
-const buildCloseButton = (onClose: () => void): HTMLElement => {
-  const button = createButton("close");
-  button.textContent = "Close";
-  button.addEventListener("click", onClose);
-  return button;
-};
-
-const buildStepper = (
-  quantity: number,
-  onChange: (next: number) => void,
-): HTMLElement => {
-  const wrap = document.createElement("span");
-  wrap.className = "stepper";
-  const dec = document.createElement("button");
-  dec.type = "button";
-  dec.textContent = "−";
-  dec.setAttribute("aria-label", "Decrease quantity");
-  dec.addEventListener("click", () => onChange(quantity - 1));
-  const value = document.createElement("span");
-  value.textContent = String(quantity);
-  const inc = document.createElement("button");
-  inc.type = "button";
-  inc.textContent = "+";
-  inc.setAttribute("aria-label", "Increase quantity");
-  inc.addEventListener("click", () => onChange(quantity + 1));
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.textContent = "Remove";
-  remove.addEventListener("click", () => onChange(0));
-  wrap.append(dec, value, inc, remove);
-  return wrap;
-};
-
-/** The cart widget's scoped CSS. Kept as one string so both delivery paths in
- *  {@link applyStyles} use exactly the same rules. */
-const CART_STYLES = `
-    .cart-button { position: fixed; right: 1rem; bottom: 1rem; padding: .75rem 1rem;
-      border: 0; border-radius: 999px; background: #1a1a1a; color: #fff; cursor: pointer; }
-    dialog { border: 0; border-radius: .5rem; box-sizing: border-box; padding: 1.25rem;
-      width: min(calc(100vw - 2rem), 28rem); }
-    .row { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-      gap: .35rem .75rem; align-items: center; padding: .4rem 0; }
-    .name { overflow-wrap: anywhere; }
-    .stepper { grid-column: 1 / -1; display: flex; align-items: center; gap: .35rem; }
-    .stepper button { min-height: 2rem; min-width: 2rem; margin: 0; padding: .3rem .5rem; }
-    .stepper button:last-child { margin-left: auto; }
-    .subtotal { font-weight: 700; }
-    .caveat { font-size: .85em; opacity: .8; }
-    .continue { display: block; width: 100%; margin-top: .75rem; padding: .6rem;
-      border: 0; border-radius: .35rem; background: #1a1a1a; color: #fff; cursor: pointer; }
-    .close { display: block; width: 100%; margin-top: .5rem; padding: .5rem; }
-  `;
-
-/** True when the browser can build a stylesheet in memory (Chrome 73+,
- *  Firefox 101+, Safari 16.4+). An in-memory sheet is pure CSSOM, so a host
- *  page's Content-Security-Policy never blocks it — but an injected `<style>`
- *  element is subject to `style-src` and a strict policy without
- *  `'unsafe-inline'` refuses it. `CSSStyleSheet` also exists as a plain
- *  interface on older Safari where `new CSSStyleSheet()` throws, so we probe for
- *  `replaceSync`, which only the constructable version carries. */
-const canBuildStyleSheet = (): boolean =>
-  typeof CSSStyleSheet === "function" &&
-  typeof CSSStyleSheet.prototype.replaceSync === "function";
-
-/** Attach the cart's scoped styles to its shadow root. Modern browsers adopt an
- *  in-memory stylesheet so a strict host-page CSP can't block it; older ones
- *  fall back to a `<style>` element, which works everywhere except a host page
- *  that sets a strict `style-src`. */
-const applyStyles = (root: ShadowRoot): void => {
-  if (canBuildStyleSheet()) {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(CART_STYLES);
-    root.adoptedStyleSheets = [sheet];
-    return;
-  }
-  const style = document.createElement("style");
-  style.textContent = CART_STYLES;
-  root.appendChild(style);
-};
 
 const init = (): void => {
   // The registry is keyed by tickets origin: duplicate tags for the SAME origin
@@ -485,7 +446,10 @@ const init = (): void => {
   const enhance = (link: HTMLAnchorElement): void => {
     if (link.dataset.chobbleEnhanced) return;
     const raw = link.dataset.addListing ?? "";
-    if (!resolveListing(raw) && !resolvePackageSlug(raw)) {
+    if (
+      !resolveEntry(CATALOG.listings, raw) &&
+      !resolveEntry(CATALOG.packages, raw)
+    ) {
       debugLog(
         "skipped un-enhanceable link",
         link.dataset.addListing,
@@ -500,18 +464,12 @@ const init = (): void => {
       // since enhancement (re-scans skip already-enhanced links). If it now
       // points outside the catalog, fall through to normal navigation.
       const current = link.dataset.addListing ?? "";
-      const entry = resolveListing(current);
+      const entry =
+        resolveEntry(CATALOG.listings, current) ??
+        resolveEntry(CATALOG.packages, current);
       if (entry) {
         event.preventDefault();
         controller.add(entry, parseAddQuantity(link.dataset.addQuantity));
-        return;
-      }
-      // A package books as a whole bundle: navigate straight to its page rather
-      // than adding a cart line it could never combine with other listings.
-      const packageSlug = resolvePackageSlug(current);
-      if (packageSlug) {
-        event.preventDefault();
-        globalThis.location.assign(`${CATALOG.origin}/ticket/${packageSlug}`);
       }
     });
   };

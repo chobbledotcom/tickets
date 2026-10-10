@@ -1525,7 +1525,7 @@
   "src/shared/external-order.ts": {
     "banned-modal": 2,
     "semicolon": 3,
-    "long-sentence": 4,
+    "long-sentence": 3,
     "contraction": 1
   },
   "src/shared/fetch.ts": {
@@ -2439,10 +2439,10 @@
     "semicolon": 1
   },
   "src/ui/client/order.ts": {
-    "long-sentence": 9,
-    "semicolon": 3,
-    "contraction": 3,
-    "banned-modal": 4,
+    "long-sentence": 6,
+    "semicolon": 2,
+    "contraction": 2,
+    "banned-modal": 3,
     "present-perfect": 1
   },
   "src/ui/client/scanner.js": {

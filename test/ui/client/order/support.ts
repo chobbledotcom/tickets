@@ -238,6 +238,15 @@ export const mountOpenListing = (h: Harness, debug = false): void => {
   h.run(makeCatalog([listing({ id: 1, slug: "open" })], debug));
 };
 
+/** The weekend package fixture: one bundle whose page owns count and price. */
+export const weekendPackage = { name: "Full Weekend", slug: "weekend" };
+
+/** Mount a host page whose only add link names the package. */
+export const mountPackageLink = (h: Harness, debug = false): void => {
+  setBody(h, addLink("weekend"));
+  h.run(makeCatalog([], debug, [weekendPackage]));
+};
+
 export const openCartWithOne = (h: Harness): QueryNode => {
   mountOpenListing(h);
   clickAnchor(h, "open");

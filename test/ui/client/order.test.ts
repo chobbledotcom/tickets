@@ -34,6 +34,7 @@ import {
   logHas,
   makeCatalog,
   mountOpenListing,
+  mountPackageLink,
   ORIGIN,
   openCart,
   openCartWithOne,
@@ -44,6 +45,7 @@ import {
   styleEl,
   textOf,
   useOrderHarness,
+  weekendPackage,
 } from "./order/support.ts";
 
 // happy-dom's `Window` starts internal async tasks/timers (its task manager and
@@ -56,6 +58,13 @@ describe("order widget", {
   sanitizeResources: false,
 }, () => {
   const h = useOrderHarness();
+
+  /** The cart after one package join: visible, one line, one bundle stored. */
+  const expectOnePackageLine = (): void => {
+    expect(cartButton(h).hidden).toBe(false);
+    expect(cartButton(h).querySelector(".count")!.textContent).toBe("1");
+    expect(storedCart(h)).toEqual([{ quantity: 1, slug: "weekend" }]);
+  };
 
   test("has no stored cart before the widget starts", () => {
     expect(storedCart(h)).toBeNull();
@@ -384,6 +393,66 @@ describe("order widget", {
     clickIn(openCart(h), ".continue");
 
     expect(h.navigations).toEqual([`${ORIGIN}/ticket/open?q_1=1`]);
+  });
+
+  test("Continue books a package beside a listing already in the cart", () => {
+    setBody(h, addLink("weekend") + addLink("open"));
+    h.run(
+      makeCatalog([listing({ id: 11, slug: "open" })], false, [weekendPackage]),
+    );
+    clickAnchor(h, "weekend");
+    clickAnchor(h, "open");
+    clickIn(openCart(h), ".continue");
+
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/weekend+open?q_11=1`]);
+  });
+
+  test("Continue with only a package books the whole bundle page", () => {
+    mountPackageLink(h);
+    clickAnchor(h, "weekend");
+    clickIn(openCart(h), ".continue");
+
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/weekend`]);
+  });
+
+  test("adding a package reveals the cart with one line", () => {
+    mountPackageLink(h);
+    const prevented = clickAnchor(h, "weekend");
+
+    expect(prevented).toBe(true);
+    expect(h.navigations).toEqual([]);
+    expectOnePackageLine();
+  });
+
+  test("clicking a package link twice keeps the package at one", () => {
+    mountPackageLink(h);
+    clickAnchor(h, "weekend");
+    clickAnchor(h, "weekend");
+
+    expect(cartButton(h).querySelector(".count")!.textContent).toBe("1");
+    expect(storedCart(h)).toEqual([{ quantity: 1, slug: "weekend" }]);
+  });
+
+  test("a package row offers removal only and prices the package at checkout", () => {
+    mountPackageLink(h);
+    clickAnchor(h, "weekend");
+    const dialog = openCart(h);
+
+    expect(textOf(dialog, ".row .name")).toBe("Full Weekend");
+    expect(textOf(dialog, ".price")).toBe("Price set at checkout");
+    expect(stepperButtons(dialog).map((b) => b.textContent)).toEqual([
+      "Remove",
+    ]);
+  });
+
+  test("a stored package line loads with quantity one", () => {
+    h.window.sessionStorage.setItem(
+      `tickets:external-order:v1:${ORIGIN}`,
+      JSON.stringify([{ quantity: 3, slug: "weekend" }]),
+    );
+    h.run(makeCatalog([], false, [weekendPackage]));
+
+    expectOnePackageLine();
   });
 
   test("Continue with an empty cart does not navigate", () => {

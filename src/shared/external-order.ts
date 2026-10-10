@@ -91,9 +91,8 @@ export interface CatalogListing {
 }
 
 /** A package bundle the visitor books as a whole via its own `/ticket/<group>`
- * page. Unlike a listing it never joins the multi-listing cart (a package is
- * all-or-nothing at fixed quantities), so it carries no price — the widget links
- * straight to the package page, where the bundle is priced. */
+ * page. The widget adds it to the cart as one line at quantity one. It carries
+ * no price: the package page owns the count and the price. */
 export interface CatalogPackage {
   name: string;
   slug: string;
@@ -110,8 +109,8 @@ export interface Catalog {
   listings: Record<string, CatalogListing>;
   origin: string;
   /** Bookable package groups keyed by group slug. A `data-add-listing` link to
-   * one of these navigates straight to `/ticket/<slug>` instead of adding a cart
-   * line. Empty when the site has no bookable packages. */
+   * one of these adds one bundle cart line, and Continue books it beside the
+   * listings in the cart. Empty when the site has no bookable packages. */
   packages: Record<string, CatalogPackage>;
 }
 

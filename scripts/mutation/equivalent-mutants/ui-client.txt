@@ -5,11 +5,11 @@
 # empty string, so the only falsy operand value equals the fallback itself.
 src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer~1dlz3y3  ?? → ||   # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
 
-# --- External order widget (src/ui/client/order.ts) ----------------------------
+# --- External order widget (src/ui/client/order.ts, src/ui/client/cart-dom.ts) --
 # URL matches and catalog entries are either non-empty strings/objects or absent,
 # so these nullish and truthy fallbacks have the same result.
 src/ui/client/order.ts::ticketSlug~1n6h8xd  ?? → ||   # RegExp match group is a non-empty slug or undefined
-src/ui/client/order.ts::resolveListing~16cfn2p  ?? → ||   # catalogEntry returns a CatalogEntry object or undefined
+src/ui/client/order.ts::resolveEntry~18potx4  ?? → ||   # catalogRecord returns an entry object or undefined
 src/ui/client/order.ts::CartController.reconcile~0ml52tv  ?? → ||   # merged quantities are positive integers, so an existing sum is truthy
 src/ui/client/order.ts::parseAddQuantity~1lqvqq7  0 → 1   # quantity 1 takes the fallback 1 instead of returning 1
 
@@ -30,25 +30,25 @@ src/ui/client/order.ts::CartController.renderBody.caveat%2etextContent~1w4sxpr  
 src/ui/client/order.ts::CartController.renderBody.empty%2etextContent~1bt1hfd  = → +=   # fresh empty paragraph textContent
 src/ui/client/order.ts::CartController.renderRow.row%2eclassName~0lyd29l  = → +=   # fresh row className
 src/ui/client/order.ts::CartController.renderRow.name%2eclassName~0h48s6p  = → +=   # fresh name span className
-src/ui/client/order.ts::CartController.renderRow.name%2etextContent~0stiinw  = → +=   # fresh name span textContent
+src/ui/client/order.ts::CartController.renderRow.name%2etextContent~06a60tp  = → +=   # fresh name span textContent
 src/ui/client/order.ts::CartController.renderRow.price%2eclassName~011y5kf  = → +=   # fresh price span className
-src/ui/client/order.ts::CartController.renderRow.price%2etextContent~0phsvtz  = → +=   # fresh price span textContent
-src/ui/client/order.ts::CartController.buildContinue.button%2etextContent~1gwymsv  = → +=   # fresh Continue button textContent
-src/ui/client/order.ts::buildButton.count%2eclassName~0cxcdrz  = → +=   # fresh count span className
-src/ui/client/order.ts::buildButton.count%2etextContent~0nqcdm1  = → +=   # fresh count span textContent
-src/ui/client/order.ts::buildButton.label%2etextContent~1w5f3kd  = → +=   # fresh cart label span textContent
-src/ui/client/order.ts::buildCloseButton.button%2etextContent~1xbr2yg  = → +=   # fresh Close button textContent
-src/ui/client/order.ts::buildStepper.wrap%2eclassName~0fr2ph0  = → +=   # fresh stepper span className
-src/ui/client/order.ts::buildStepper.dec%2etextContent~0e91dik  = → +=   # fresh decrease button textContent
-src/ui/client/order.ts::buildStepper.value%2etextContent~1wclfso  = → +=   # fresh quantity span textContent
-src/ui/client/order.ts::buildStepper.inc%2etextContent~0hr9vid  = → +=   # fresh increase button textContent
-src/ui/client/order.ts::buildStepper.remove%2etextContent~01m8w0s  = → +=   # fresh Remove button textContent
-src/ui/client/order.ts::applyStyles.style%2etextContent~0eh5dyi  = → +=   # fresh style element textContent
+src/ui/client/order.ts::CartController.renderRow.price%2etextContent~0riziqk  = → +=   # fresh price span textContent
+# The Close, Continue, and Remove labels are all set by one shared helper now,
+# so one record covers the three label assignments the old builders carried.
+src/ui/client/cart-dom.ts::labeledButton.button%2etextContent~0ajsh1y  = → +=   # fresh button textContent
+src/ui/client/cart-dom.ts::buildButton.count%2eclassName~0cxcdrz  = → +=   # fresh count span className
+src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  = → +=   # fresh count span textContent
+src/ui/client/cart-dom.ts::buildButton.label%2etextContent~1w5f3kd  = → +=   # fresh cart label span textContent
+src/ui/client/cart-dom.ts::buildStepperShell.wrap%2eclassName~0fr2ph0  = → +=   # fresh stepper span className
+src/ui/client/cart-dom.ts::buildStepper.dec%2etextContent~0e91dik  = → +=   # fresh decrease button textContent
+src/ui/client/cart-dom.ts::buildStepper.value%2etextContent~1wclfso  = → +=   # fresh quantity span textContent
+src/ui/client/cart-dom.ts::buildStepper.inc%2etextContent~0hr9vid  = → +=   # fresh increase button textContent
+src/ui/client/cart-dom.ts::applyStyles.style%2etextContent~0eh5dyi  = → +=   # fresh style element textContent
 
 # buildButton's initial values are overwritten by the constructor's render
 # before the button is exposed.
-src/ui/client/order.ts::buildButton.button%2ehidden~054o62q  true → false   # constructor render immediately sets hidden from the cart count
-src/ui/client/order.ts::buildButton.count%2etextContent~0nqcdm1  0 → ""   # constructor render immediately writes the current numeric count
+src/ui/client/cart-dom.ts::buildButton.button%2ehidden~054o62q  true → false   # constructor render immediately sets hidden from the cart count
+src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  0 → ""   # constructor render immediately writes the current numeric count
 
 # The widget owns this global registry: before init it is undefined, afterwards
 # it is an object. Both are mapped to the same object by these operators.

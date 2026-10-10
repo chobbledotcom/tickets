@@ -393,7 +393,7 @@ The controller only enhances a link whose `data-add-listing` URL:
 - is an absolute URL,
 - has the same origin as `CATALOG.origin`,
 - matches `/ticket/<single-slug>` with no `+` multi-listing bundle, and
-- resolves to a slug present in `CATALOG.listings`.
+- resolves to a slug present in `CATALOG.listings` or `CATALOG.packages`.
 
 Links that do not resolve to a catalog slug are left alone — including
 hidden/unlisted listings, which are intentionally absent from the catalog and so
@@ -409,8 +409,9 @@ When a visitor clicks an enhanced link:
    visitor to the ticket page only to learn the same thing. (Live availability,
    e.g. sold-out, is still resolved at checkout; only the stable closed/`active`
    state is intercepted here.)
-3. Otherwise add the listing to the cart, incrementing quantity if already
-   present.
+3. Otherwise add the entry to the cart. A listing increments its quantity when
+   already present. A package is one bundle: it joins at quantity one, and a
+   repeat click keeps that quantity.
 4. Reveal or update the floating cart button.
 5. Briefly animate the cart button to acknowledge the add.
 6. Recompute the indicative subtotal locally if the preview panel is open.
@@ -443,10 +444,11 @@ Preview requirements:
 - Moves focus into the dialog when opened.
 - Restores focus to the cart button when closed.
 - Closes on Escape and on explicit close button.
-- Lists selected items with quantity steppers and remove buttons.
+- Lists selected items with quantity steppers and remove buttons. A package row
+  has the remove button only.
 - Shows each fixed-price item's unit price and line total (quantity ×
   `unitPrice`, formatted client-side per [Embedded Catalog](#embedded-catalog)),
-  and "Price set at checkout" for variable-price listings.
+  and "Price set at checkout" for variable-price listings and for package lines.
 - Shows an indicative subtotal with a clear caveat (see [Pricing](#pricing)).
 - Shows a Continue button only when the cart contains at least one
   catalog-resolved item (after the reconciliation in Browser Behaviour).
@@ -509,8 +511,10 @@ https://tickets.example.com/ticket/workshop+meal?q_12=2&q_13=1
 This is the exact form the existing `/order` gallery handoff produces
 (`bookingUrlFor`, `src/features/public/order.ts`): slugs joined with `+`
 (`parseSlugs`, `src/features/public/types.ts`) and a `q_<listingId>` query param
-per listing. The ticket GET page reads those `q_<id>` params to pre-fill
-quantities (`parseQuantityPrefill`, `src/features/public/ticket-submit.ts`).
+per listing. A package line contributes its slug to the path and no `q_` param,
+because the package page's count selector already defaults to one bundle. The
+ticket GET page reads those `q_<id>` params to pre-fill quantities
+(`parseQuantityPrefill`, `src/features/public/ticket-submit.ts`).
 Note the prefill param is `q_<id>`, deliberately **not** the form's submit field
 `quantity_<listingId>` — keep them distinct. The ticket page then collects
 attendee details, required fields, terms, pay-what-you-want prices, dates, day

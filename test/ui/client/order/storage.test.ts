@@ -239,15 +239,6 @@ describe("order widget storage and lifecycle", {
     expect(cartButton(h).hidden).toBe(true);
   });
 
-  test("opens a package directly and prevents the host link navigation", () => {
-    setBody(h, addLink("bundle"));
-    h.run(makeCatalog([], false, [{ name: "Bundle", slug: "bundle" }]));
-
-    expect(clickAnchor(h, "bundle")).toBe(true);
-    expect(h.navigations).toEqual([`${ORIGIN}/ticket/bundle`]);
-    expect(cartButton(h).hidden).toBe(true);
-  });
-
   test("keeps module-only syntax via the exported marker", () => {
     setBody(h, "");
     h.run(makeCatalog([], false));
