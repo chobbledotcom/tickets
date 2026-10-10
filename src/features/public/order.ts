@@ -303,8 +303,10 @@ const bookingUrlFor = (
           ? null
           : {
               prefill:
-                !info.isSoldOut && !info.isClosed && info.maxPurchasable >= 1
-                  ? `q_${info.listing.id}=1`
+                !info.isSoldOut &&
+                !info.isClosed &&
+                info.maxPurchasable >= info.listing.min_quantity
+                  ? `q_${info.listing.id}=${info.listing.min_quantity}`
                   : null,
               slug: info.listing.slug,
             };

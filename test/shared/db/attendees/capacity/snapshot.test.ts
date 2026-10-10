@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import {
+  groupRemainingForSpan,
   groupRemainingFromSnapshot,
   loadCapacitySnapshot,
   remainingFromSnapshot,
@@ -17,6 +18,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { addDays } from "#shared/dates.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookUnits } from "#test-utils/db-helpers/attendees.ts";
@@ -29,7 +31,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import type { ListingWithCount } from "#types";
 
 /** A start date comfortably inside every test listing's booking window. */
-const startDate = (): string => addDays(testDate(todayInTz("UTC")), 2);
+const startDate = (): DateString => addDays(testDate(todayInTz("UTC")), 2);
 
 /** Enough for the snapshot's fixed reads, far below one read per length. */
 const SNAPSHOT_CALL_LIMIT = 10;
@@ -248,6 +250,29 @@ describeWithEnv(
       );
 
       expect(withKnown).toBe(withLookup - 1);
+    });
+
+    test("reads each capped group's lowest remaining over one span", async () => {
+      const group = await createTestGroup({
+        maxAttendees: 4,
+        name: "Span pool",
+      });
+      const listing = await createDailyTestListing({
+        groupIds: [group.id],
+        maxAttendees: 4,
+        maxQuantity: 4,
+        name: "Span member",
+      });
+      const date = startDate();
+      await bookUnits(listing.id, 1, date);
+      await bookUnits(listing.id, 2, addDays(date, 1));
+
+      // The one-day span reads the date's own group figure; the two-day
+      // span folds both days and reads the lower one.
+      const oneDay = await loadCapacitySnapshot([listing], date, 1);
+      expect(groupRemainingForSpan(oneDay, 1).get(group.id)).toBe(3);
+      const twoDays = await loadCapacitySnapshot([listing], date, 2);
+      expect(groupRemainingForSpan(twoDays, 2).get(group.id)).toBe(2);
     });
   },
 );

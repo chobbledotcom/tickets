@@ -16,13 +16,7 @@ import {
   sharedGroupCapacity,
   sharedGroupRemaining,
 } from "#shared/group-capacity.ts";
-
-/** A per-group map, written the way the callers build one: only capped groups
- * appear, so absence means "this group has no cap". */
-const byGroup = (
-  entries: Record<number, number>,
-): ReadonlyMap<number, number> =>
-  new Map(Object.entries(entries).map(([id, spots]) => [Number(id), spots]));
+import { byGroup } from "#test-utils/by-group-map.ts";
 
 describe("PARENT_CHILD_GROUP_UNITS", () => {
   test("is two: the parent line and its one required child line", () => {

@@ -241,7 +241,10 @@ export const integrationsSections = (): GuideSection[] => [
             required for daily listings (use a date from{" "}
             <code>availableDates</code>). <code>customPrice</code> is for
             pay-more listings only (in major currency units, e.g. 10.00 for
-            &pound;10).
+            &pound;10). <code>quantity</code> is always required: the number of
+            places to book. It must be a whole number of 1 or more, at least the
+            listing's minimum quantity per purchase, and no more than its
+            per-order maximum (larger values are reduced to that maximum).
           </p>
           <ExampleCode
             code={API_BOOK_FREE_EXAMPLE_JSON}

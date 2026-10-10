@@ -1,13 +1,17 @@
-/** Pure child capacity and pricing helpers: the effective max a parent can book
- * once its children are counted, the questions still owed by a child, the
- * per-child price (fixed, inherited, or "from" under a customisable parent), and
- * the per-child capacity a parent selector can reserve. Callers fetch; this
- * module computes. */
+/** Pure child capacity and pricing helpers. They compute the effective max a
+ * parent can book once its children are counted, the questions still owed by a
+ * child, the per-child price (fixed, inherited, or "from" under a customisable
+ * parent), and the per-child capacity a parent selector can reserve. Callers
+ * fetch. This module computes. */
 
-import { childDaysFromParent, type TicketListing } from "#booking/model.ts";
 import {
-  packageChildTicketLimits,
-  packageLimitInfo,
+  childCanBeBooked,
+  childDaysFromParent,
+  type TicketListing,
+} from "#booking/model.ts";
+import {
+  pageCombinedChildCapacity,
+  rowTicketLimit,
 } from "#booking/package-cap.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start */
@@ -25,22 +29,14 @@ export const childLimitedMax = (
   childCtx: ChildRenderCtx | undefined,
 ): number => {
   if (!childCtx) return info.maxPurchasable;
-  const limits = packageChildTicketLimits(
-    packageLimitInfo(
-      [info],
-      childCtx.children,
-      childCtx.groupRemainingByGroupId,
-      childCtx.groupIdsByListingId,
-    ),
+  const limit = rowTicketLimit(
+    info,
+    childCtx.children.get(info.listing.id) ?? [],
+    childCtx,
   );
-  const childLimit = limits.get(info.listing.id);
-  const ownMax =
-    childLimit === undefined
-      ? info.maxPurchasable
-      : Math.min(info.maxPurchasable, childLimit);
   // Hold back child tickets the parent selector can already spend.
   const reserved = childCtx.foldReserveByChildId.get(info.listing.id) ?? 0;
-  return Math.max(0, ownMax - reserved);
+  return Math.max(0, limit - reserved);
 };
 
 /** The questions assigned to a child listing, in page order, that have not yet
@@ -68,7 +64,7 @@ const parentRenderDuration = (parent: ListingWithCount): number | null =>
  * minimum child day price over the spans the parent can ACTUALLY offer (parent's
  * selectable counts ∩ child's priced counts). Using the child's own lowest span
  * ignores the parent's range, so a parent offering only {3} days with a child
- * priced {1:£10, 3:£25} would advertise "from £10" while checkout (inheriting the
+ * priced {1:£10, 3:£25} advertises "from £10" while checkout (inheriting the
  * 3-day span) charges £25. Returns null when the spans don't intersect
  * (such an edge isn't bookable anyway), so the label is omitted. */
 const childFromPrice = (
@@ -137,20 +133,32 @@ export const childPriceLabel = (
 /** For every child that a PAGE parent folds, the capacity to reserve from that
  * child's own standalone row: the sum of each such parent's own `maxPurchasable`.
  * A parent books at most that many units, each folding at most one unit of this
- * child, so holding back the sum guarantees the standalone row plus the parents'
+ * child. Holding back the sum guarantees the standalone row plus the parents'
  * folds can never exceed the child's capacity. Only parents present on the page
- * (they render a selector) reserve; a child with no page parent maps to nothing. */
+ * (they render a selector) reserve. A child with no page parent maps to nothing.
+ * A parent whose minimum exceeds what its children can together serve can never
+ * fold a booking. It reserves nothing, so its phantom demand cannot zero out a
+ * `bookable_alone` child's row. */
 export const foldReserveByChildId = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
 ): Map<number, number> => {
-  // Each parent contributes one (childId, maxPurchasable) pair per child it
-  // folds; summing those pairs gives the total to hold back per child.
-  const reserves = flatMap((parent: TicketListing) =>
-    (childrenByParentId.get(parent.listing.id) ?? []).map(
-      (child) => [child.listing.id, parent.maxPurchasable] as const,
-    ),
-  )(listings);
+  const page = { groupIdsByListingId, groupRemainingByGroupId };
+  // Each parent contributes one (childId, reserve) pair per child it folds;
+  // summing those pairs gives the total to hold back per child. A child the
+  // booking would refuse serves no fold, so it neither counts toward the
+  // parent's capacity nor holds a reserve.
+  const reserves = flatMap((parent: TicketListing) => {
+    const children = (childrenByParentId.get(parent.listing.id) ?? []).filter(
+      childCanBeBooked,
+    );
+    const combined = pageCombinedChildCapacity(parent, children, page);
+    const foldable =
+      combined >= parent.listing.min_quantity ? parent.maxPurchasable : 0;
+    return children.map((child) => [child.listing.id, foldable] as const);
+  })(listings);
   return reduce(
     (acc, [childId, reserve]: readonly [number, number]) =>
       acc.set(childId, (acc.get(childId) ?? 0) + reserve),

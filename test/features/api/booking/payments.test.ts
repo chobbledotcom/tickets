@@ -4,6 +4,7 @@ import * as v from "valibot";
 import {
   bookForToken,
   bookListing,
+  createAndBook,
   createPayMoreListing,
   describePublicApi,
   fetchListingBySlug,
@@ -216,29 +217,16 @@ describePublicApi(() => {
       expect(body.error).toMatch(/price/i);
     });
 
-    test("handles invalid quantity in booking gracefully", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { response, body } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: "abc",
-      });
-      expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
-    });
-
-    test("does not parse a malformed booking quantity prefix", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { response } = await bookListing(listing.slug, {
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: "2x",
-      });
-      expect(response.status).toBe(200);
+    test("rejects a malformed booking quantity prefix", async () => {
+      const { listing, response, body } = await createAndBook(
+        { maxAttendees: 10 },
+        { quantity: "2x" },
+      );
+      expect(response.status).toBe(400);
+      expect(body.error).toBe("Quantity must be a whole number of 1 or more");
 
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees[0]!.quantity).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
     test("handles booking when email not in listing fields", async () => {

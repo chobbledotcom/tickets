@@ -30,9 +30,30 @@ const expectError = async (
 };
 
 describe("resolvePositiveQuantity", () => {
-  test("defaults absent and malformed quantities to one", () => {
-    expect(resolvePositiveQuantity({})).toBe(1);
-    expect(resolvePositiveQuantity({ quantity: "not-a-number" })).toBe(1);
+  test("requires the quantity field", async () => {
+    await expectError(resolvePositiveQuantity({}), 400, "Quantity is required");
+  });
+
+  test("rejects a malformed or fractional quantity", async () => {
+    for (const quantity of ["not-a-number", "abc", "2x", "2.5"]) {
+      await expectError(
+        resolvePositiveQuantity({ quantity }),
+        400,
+        "Quantity must be a whole number of 1 or more",
+      );
+    }
+  });
+
+  test("rejects a null or non-scalar quantity", async () => {
+    // A JSON null stringifies to "null" and an array to its first element,
+    // so neither may reach the numeric parse.
+    for (const quantity of [null, [3], { quantity: 3 }, true]) {
+      await expectError(
+        resolvePositiveQuantity({ quantity }),
+        400,
+        "Quantity must be a whole number of 1 or more",
+      );
+    }
   });
 
   test("returns a positive quantity", () => {

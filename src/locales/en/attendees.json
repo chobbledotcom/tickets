@@ -166,7 +166,7 @@
   "attendee_form.warn_overbooked": "{title} is overbooked — there isn't capacity for {quantity} on these dates.",
   "attendee_form.warn_incomplete_parent": "{title} requires one of its child listings to be booked too ({children}) — public bookings choose one automatically; add it here.",
   "attendee_form.paid_no_quantity_line": "Refund this line's payment before marking it no quantity.",
-  "attendee_form.qty_max": "Quantity must be at most {max}",
+  "attendee_form.qty_max": "Quantity must be at most {max}.",
   "attendee_form.date_required": "A start date is required for the booked daily listings",
   "attendee_form.balance_paid_but_owes": "This attendee is in a paid status but still owes {amount}.",
   "attendee_form.balance_reservation_unpaid": "This reservation has no balance recorded, but {amount} of the order is still unpaid.",

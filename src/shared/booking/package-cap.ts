@@ -14,6 +14,10 @@ import {
   packageSubTree,
 } from "#booking/tree.ts";
 import { sumByKey, sumOf } from "#fp";
+import {
+  childCapacityPartsFor,
+  combinedChildCapacityForParent,
+} from "#shared/capacity-fit.ts";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import {
   PARENT_CHILD_GROUP_UNITS,
@@ -243,6 +247,41 @@ export const packageChildTicketLimits = (
       childrenTicketLimit(ctx, member, children),
     ]),
   );
+
+/** The parent tickets one parent's children can serve together on this page:
+ *  the exact joint allocation over the page's group remaining, not a
+ *  per-pool bound. */
+export const pageCombinedChildCapacity = (
+  parent: TicketListing,
+  children: readonly TicketListing[],
+  ctx: GroupCapacityInfo,
+): number =>
+  combinedChildCapacityForParent(
+    ctx.groupIdsByListingId.get(parent.listing.id) ?? [],
+    childCapacityPartsFor(
+      ctx.groupIdsByListingId,
+      children,
+      (child) => child.listing.id,
+      (child) => child.maxPurchasable,
+    ),
+    ctx.groupRemainingByGroupId,
+  );
+
+/** The most parent tickets one page row can sell: its own ceiling, held to
+ *  what its bookable children can serve together.
+ *  A row with no bookable child sells its own ceiling alone. */
+export const rowTicketLimit = (
+  info: TicketListing,
+  children: readonly TicketListing[],
+  ctx: GroupCapacityInfo,
+): number => {
+  const bookable = children.filter(childCanBeBooked);
+  const childLimit =
+    bookable.length === 0
+      ? info.maxPurchasable
+      : pageCombinedChildCapacity(info, bookable, ctx);
+  return Math.min(info.maxPurchasable, childLimit);
+};
 
 const groupsEveryChildUses = (
   ctx: GroupCapacityInfo,

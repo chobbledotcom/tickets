@@ -126,8 +126,21 @@ const lowestOverDays = (
     ),
   );
 
-/**
- * How many units each listing has left, each judged over its own booking span.
+/** Each capped group's lowest remaining over one span prefix — the pool
+ *  figures a date-aware caller folds into a parent's combined capacity. A
+ *  group the snapshot holds no day-by-day figures for maps to nothing. */
+export const groupRemainingForSpan = (
+  snapshot: CapacitySnapshot,
+  spanDays: number,
+): ReadonlyMap<number, number> =>
+  new Map(
+    [...snapshot.groupByDay].map(([groupId, byDay]) => [
+      groupId,
+      lowestOverDays(byDay, daysOfSpan(snapshot, spanDays)),
+    ]),
+  );
+
+/** How many units each listing has left, each judged over its own booking span.
  * `spanOf` says how many days that listing occupies; a listing not judged day
  * by day reads its running total instead.
  */

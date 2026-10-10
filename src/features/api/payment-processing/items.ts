@@ -6,11 +6,13 @@
  * mid-checkout.
  */
 
+import { belowMinError } from "#booking/min-refusal.ts";
 import {
   bookedOutsideParent,
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start -- import block */
 import {
   anyPackageBundleMismatch,
@@ -34,11 +36,13 @@ import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
-/** Judge one already-loaded line against the current listing: gone, closed, or
- * good to price. */
+/** Judge one already-loaded line against the current listing: gone, closed,
+ * below a minimum the owner raised after checkout started, or good to
+ * price. */
 const validateListingForPayment = (
   listing: ListingWithCount,
   name: string,
+  quantity: number,
 ): ListingValidation => {
   if (!listing.active) {
     return {
@@ -57,6 +61,24 @@ const validateListingForPayment = (
       ok: false,
       status: 410,
     };
+  }
+  // The buyer can open a paid checkout before the owner raises the
+  // minimum. The webhook is the last stop, so it re-reads the stored fact.
+  // The payment route loads this group for every request.
+  const belowMinimum = belowMinError(
+    quantity,
+    listing.min_quantity,
+    name
+      ? t("payment.failure.below_minimum_named", {
+          min_quantity: listing.min_quantity,
+          name,
+        })
+      : t("payment.failure.below_minimum", {
+          min_quantity: listing.min_quantity,
+        }),
+  );
+  if (belowMinimum) {
+    return { error: belowMinimum, ok: false, status: 410 };
   }
   return { listing, ok: true };
 };
@@ -173,7 +195,7 @@ export const validateAllItems = async (
       );
     }
     const name = nameFor(item, listing);
-    const vp = validateListingForPayment(listing, name);
+    const vp = validateListingForPayment(listing, name, item.q);
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package

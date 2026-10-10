@@ -1,32 +1,15 @@
 /** Capacity facts for a parent listing and one of its children that share
- * capped groups: what still fits in the pools the pair contends for. */
+ *  capped groups: what still fits in the pools the pair contends for. The
+ *  exact combined search over a whole set of children lives in
+ *  {@link #shared/capacity-fit.ts}. */
+
+import { minOver, sharedCappedGroupIds } from "#shared/capacity-fit.ts";
 
 /** Units of a shared capped group consumed by one parent+child order. The
  * parent line and its single required child line each take one spot in the
  * group they share (invariants I1, I7). Converts a shared group's remaining
  * spots into how many whole parent+child orders still fit. */
 export const PARENT_CHILD_GROUP_UNITS = 2;
-
-/**
- * The capped groups a parent and one of its children BOTH belong to — the pool(s)
- * the combined parent+child demand actually contends for. A capped
- * group is one present in `byGroup` (uncapped groups are omitted from that map).
- * Empty when they share no capped group.
- */
-const sharedCappedGroupIds = (
-  parentGroupIds: readonly number[],
-  childGroupIds: readonly number[],
-  byGroup: ReadonlyMap<number, number>,
-): number[] =>
-  parentGroupIds.filter((g) => childGroupIds.includes(g) && byGroup.has(g));
-
-/** The tightest value over the shared group ids, or `undefined` when they
- *  share none. Both capacity facts read it, so neither can drift. */
-const minOver = (
-  ids: number[],
-  byGroup: ReadonlyMap<number, number>,
-): number | undefined =>
-  ids.length === 0 ? undefined : Math.min(...ids.map((g) => byGroup.get(g)!));
 
 /**
  * The remaining spots of the capped group a parent and one of its children

@@ -87,8 +87,14 @@ const listingControls = (
       ? `<input type="hidden" name="${fieldName}" value="1" />`
       : `<select name="${fieldName}">${quantityOptions(
           maxPurchasable,
-          restoredQuantity(listing.id, prefill, maxPurchasable),
+          restoredQuantity(
+            listing.id,
+            prefill,
+            maxPurchasable,
+            listing.min_quantity,
+          ),
           monthLabelsForListing(listing, renewal),
+          listing.min_quantity,
         )}</select>`,
     termNote: termNoteFor(listing, hideQuantity, renewal),
   };
@@ -114,7 +120,7 @@ const renderListingRow: RenderListingControls = (
   attributes,
   renewal,
 ): string => {
-  const { listing, isSoldOut, isClosed } = info;
+  const { listing, isClosed } = info;
   const imageHtml = renderListingImage(listing);
   const attributesHtml = renderListingAttributes(attributes);
 
@@ -129,7 +135,11 @@ const renderListingRow: RenderListingControls = (
     `;
   }
 
-  if (isSoldOut) {
+  // Required children can cap the parent below its own capacity. A ceiling
+  // under the minimum is as unsellable as an empty one.
+  const soldOut =
+    info.isSoldOut || childLimitedMax(info, childCtx) < listing.min_quantity;
+  if (soldOut) {
     return `
       <div class="ticket-row sold-out">
         ${imageHtml}

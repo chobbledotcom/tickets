@@ -82,6 +82,7 @@ describePublicApi(() => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug, {
         email: "alice@test.com",
+        name: undefined,
       });
       expect(response.status).toBe(400);
       expect(body.error).toBeDefined();
@@ -93,6 +94,7 @@ describePublicApi(() => {
         maxAttendees: 10,
       });
       const { response, body } = await bookListing(listing.slug, {
+        email: undefined,
         name: "Alice",
       });
       expect(response.status).toBe(400);

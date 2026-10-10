@@ -88,6 +88,7 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
 
     const listing = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "Multi Price Calc",
       unitPrice: 500,
     });
@@ -134,6 +135,7 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
 
     const listing = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "WH Multi Free",
     });
 
@@ -156,6 +158,7 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
 
     const listing = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "WH Single Free",
     });
 

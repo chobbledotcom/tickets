@@ -83,6 +83,7 @@ describePublicApi(() => {
         email: "mallory@example.com",
         listing_id: other.id,
         name: "Mallory",
+        quantity: 1,
       });
       expect(response.status).toBe(200);
 
@@ -112,6 +113,7 @@ describePublicApi(() => {
       const { response } = await bookListing(target.slug, {
         email: "mallory@example.com",
         name: "Mallory",
+        quantity: 1,
         slug: other.slug,
       });
       expect(response.status).toBe(200);

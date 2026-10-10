@@ -291,7 +291,21 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
 
       expect(result).toEqual({
-        error: "max_attendees must be >= 1",
+        error: "max_attendees must be a whole number of at least 1",
+        ok: false,
+      });
+    });
+
+    test("rejects a maximum attendee count beyond the safe integer range", async () => {
+      // Number.isInteger passes 1e100: the stored column could never hold a
+      // capacity whose neighbours JavaScript cannot tell apart.
+      const result = await bodyToUpdateInput(
+        { max_attendees: 1e100 },
+        testListingWithCount({ max_attendees: 10 }),
+      );
+
+      expect(result).toEqual({
+        error: "max_attendees must be a whole number of at least 1",
         ok: false,
       });
     });

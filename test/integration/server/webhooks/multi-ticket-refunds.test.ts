@@ -30,6 +30,7 @@ describeWithEnv(
 
       const listing1 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Multi WH Cap 1",
         unitPrice: 500,
       });
@@ -96,11 +97,13 @@ describeWithEnv(
 
       const listing1 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Multi Mismatch 1",
         unitPrice: 500,
       });
       const listing2 = await createTestListing({
         maxAttendees: 50,
+        maxQuantity: 5,
         name: "Multi Mismatch 2",
         unitPrice: 300,
       });

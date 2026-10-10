@@ -24,11 +24,13 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
 
     const listing1 = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "Webhook Multi 1",
       unitPrice: 500,
     });
     const listing2 = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "Webhook Multi 2",
       unitPrice: 1000,
     });
@@ -107,11 +109,13 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
 
     const listing1 = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "Multi WH OK 1",
       unitPrice: 500,
     });
     const listing2 = await createTestListing({
       maxAttendees: 50,
+      maxQuantity: 5,
       name: "Multi WH OK 2",
       unitPrice: 300,
     });

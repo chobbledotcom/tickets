@@ -106,8 +106,8 @@ export const childPassesAllChecks =
   (child: TicketListing): boolean =>
     checks.every((check) => check(child));
 
-/** Checks a child can still be booked, before any date or day count is chosen
- * (a daily child's date checks come later, once the buyer picks one). */
+/** Checks a child can still be booked, before any date or day count is chosen.
+ * A daily child's date checks come later, once the buyer picks one. */
 export const childCanBeBooked: (child: TicketListing) => boolean =
   childPassesAllChecks([childActive, childOpen, childInStock]);
 
@@ -198,8 +198,9 @@ export const updateForMembersWithChildren = <T>(
   );
 
 /** Builds listing availability for ticket pages before a date is chosen. A
- * listing without the `dateLessCap` rule has no date-less own count — its cap
- * is per-date, checked once a date is known — so no ceiling applies here. */
+ * listing without the `dateLessCap` rule has no date-less booked count — that
+ * is per-date, checked once a date is known — but `max_attendees` bounds every
+ * date, so it still caps the ceiling here. */
 export const buildTicketListing = (
   listing: ListingWithCount,
   closed: boolean,
@@ -207,16 +208,24 @@ export const buildTicketListing = (
 ): TicketListing => {
   const listingRemaining = hasDateLessCap(listing)
     ? listing.max_attendees - listing.attendee_count
-    : Number.POSITIVE_INFINITY;
+    : listing.max_attendees;
   const spotsRemaining =
     groupRemaining === undefined
       ? listingRemaining
       : Math.min(listingRemaining, groupRemaining);
-  const isSoldOut = spotsRemaining <= 0;
+  const isSoldOut = spotsRemaining < listing.min_quantity;
+  // Fewer spots left than the minimum is sold out: 0 is then the only valid
+  // choice, and the row shows no quantity selector at all.
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
   return { isClosed: closed, isSoldOut, listing, maxPurchasable };
 };
+
+/** Whether a submitted quantity is a purchase the listing's minimum refuses:
+ *  any count above none but below the minimum. The one rule every surface
+ *  (public form, JSON API, QR prefill) reads, so the refusals cannot drift. */
+export const quantityBelowMin = (quantity: number, minimum: number): boolean =>
+  quantity > 0 && quantity < minimum;
 
 /** Each customisable listing on the page with the day counts it supports on
  * its own — the booking-length facts the cart conflict rules read. */

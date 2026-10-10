@@ -7,6 +7,7 @@ import type { TicketListing } from "#booking/model.ts";
 import {
   type PackageLimitInfo,
   pageBundleLimits,
+  rowTicketLimit,
 } from "#booking/package-cap.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
 import {
@@ -32,6 +33,24 @@ export const unavailableMessage = (
     : t("public.multi.all_sold_out");
 };
 
+/** Whether one standalone row sells nothing: sold out, closed, held below its
+ *  minimum by its bookable children, or short on its own remaining. A parent
+ *  whose bookable children serve fewer parent tickets than its minimum sells
+ *  nothing, so the whole page reads sold out. */
+const standaloneRowUnavailable = (
+  info: TicketListing,
+  page: PackageLimitInfo,
+): boolean => {
+  if (info.isSoldOut || info.isClosed) return true;
+  return (
+    rowTicketLimit(
+      info,
+      page.childrenByParentId?.get(info.listing.id) ?? [],
+      page,
+    ) < info.listing.min_quantity
+  );
+};
+
 /** Each page package's bundle limit, plus whether the whole page should show as
  * sold out (nothing standalone left AND no package bookable). */
 export const packagePageAvailability = (
@@ -44,7 +63,7 @@ export const packagePageAvailability = (
   const packageLimits = pageBundleLimits(tree, packages, page);
   const standaloneUnavailable = listings
     .filter((info) => standaloneRowIds.has(info.listing.id))
-    .every((e) => e.isSoldOut || e.isClosed);
+    .every((e) => standaloneRowUnavailable(e, page));
   const packagesUnavailable = [...packageLimits.values()].every(
     (limit) => limit === 0,
   );

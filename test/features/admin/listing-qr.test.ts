@@ -189,7 +189,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const body = await response.text();
-      expect(body).toContain("Quantity cannot exceed 2");
+      expect(body).toContain("Quantity must be at most 2.");
       expect(body).not.toContain("/qr-book?t=");
     });
 
@@ -203,7 +203,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         { quantity: "2x" },
       );
       const body = await response.text();
-      expect(body).toContain("Quantity must be at least 1");
+      expect(body).toContain("Enter a whole-number quantity of at least 1.");
     });
 
     test("renders a validation error when daily listing is missing a date", async () => {
@@ -388,7 +388,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         error?: string;
       };
       expect(body.ok).toBe(false);
-      expect(body.error).toContain("Quantity cannot exceed");
+      expect(body.error).toContain("Quantity must be at most 2.");
     });
 
     test("signs a different token each minute (fresh expiry)", async () => {

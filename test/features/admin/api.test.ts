@@ -331,7 +331,28 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("max_attendees must be >= 1");
+          expect(body.error).toBe(
+            "max_attendees must be a whole number of at least 1",
+          );
+        },
+      );
+    });
+
+    test("returns 400 for a fractional max_attendees", async () => {
+      // A stored 2.5 would flow into maxPurchasable as a fractional ceiling,
+      // and the combined-capacity search answers in whole places.
+      const listing = await createTestListing({ name: "Bad Max" });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { max_attendees: 2.5 },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "max_attendees must be a whole number of at least 1",
+          );
         },
       );
     });

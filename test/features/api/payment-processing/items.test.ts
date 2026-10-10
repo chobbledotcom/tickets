@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { withMessageGroups } from "#i18n";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
@@ -114,6 +115,38 @@ describeWithEnv("paid item validation", { db: true }, () => {
     });
     expect(refund.calls[0]?.args).toEqual([
       stripeRefundRequestShape("pi_cs_items_inactive", 500),
+    ]);
+  });
+
+  test("refunds a paid checkout whose listing minimum rose above its quantity", async () => {
+    // The buyer opened the checkout at one ticket; the owner then raised the
+    // stored minimum to three. The webhook is the last minimum check, so the
+    // payment refunds instead of booking a quantity the listing now refuses.
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      name: "Raised floor",
+      unitPrice: 500,
+    });
+    const { execute } = await import("#db/client.ts");
+    await execute("UPDATE listings SET min_quantity = 3 WHERE id = ?", [
+      listing.id,
+    ]);
+    const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
+    using refund = stubRefundPayment("re_items_minimum", 500);
+
+    const result = await withMessageGroups(["payment"], () =>
+      validateAllItems(paymentSession("cs_items_minimum", 500, intent), intent),
+    );
+    expect(failureResult(result)).toEqual({
+      detail: undefined,
+      error: "Sorry, Raised floor sells at least 3 tickets per booking.",
+      refunded: true,
+      status: 410,
+      success: false,
+    });
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequestShape("pi_cs_items_minimum", 500),
     ]);
   });
 

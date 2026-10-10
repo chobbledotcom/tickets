@@ -385,19 +385,6 @@ const exactExemptions = exactFieldExemptions([
   ),
 ]);
 
-const listingMinQuantity: FindingExemption = {
-  identity: {
-    exportedFrom: "src/shared/types.ts",
-    field: "min_quantity",
-    path: [{ name: "Listing" }],
-  },
-  reason: {
-    evidence:
-      "the listings table persists the min_quantity column; the membership listing-states query reads it back by name, and the quantity ceilings read the typed row field",
-    kind: "persisted-format",
-  },
-};
-
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...adminApiResources,
   ...bodyExemptions,
@@ -408,7 +395,6 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...sumupCheckoutRequests,
   groupScanChecksInAllListings,
   groupShowHiddenListings,
-  listingMinQuantity,
   sumupHostedCheckout,
   ...warningDeleteProps,
 ].toSorted((left, right) =>

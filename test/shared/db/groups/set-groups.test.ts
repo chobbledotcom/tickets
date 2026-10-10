@@ -7,7 +7,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction, writeRowInTransaction } from "#db/client.ts";
-import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import {
+  assignListingsToGroup,
+  writePackageMembersTx,
+} from "#db/groups/membership/package-writes.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -195,6 +198,37 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
 
     await expect(
       assignListingsToGroup([member.id], group.id),
+    ).resolves.toBeNull();
+  });
+
+  test("a package join judges an existing member at its stored pick count", async () => {
+    // The member joined when the minimum was one and now sits at a stored
+    // pick count of two; re-adding it beside a new join must judge it at
+    // two, not at the default join count of one.
+    const group = await createHiddenPackageGroup("Stored quantity join");
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 10,
+      minQuantity: 2,
+      name: "Stored Quantity Member",
+    });
+    // The package-member write stores the existing member's pick count of
+    // two, which it judges against the minimum of two.
+    await withTransaction((tx) =>
+      writePackageMembersTx(
+        tx,
+        group.id,
+        { hide_package_listings: false, is_package: true },
+        { isPackage: true },
+        [{ listingId: member.id, price: 0, quantity: 2 }],
+      ),
+    );
+    const newcomer = await createTestListing({
+      name: "Stored Quantity Joiner",
+    });
+
+    await expect(
+      assignListingsToGroup([member.id, newcomer.id], group.id),
     ).resolves.toBeNull();
   });
 

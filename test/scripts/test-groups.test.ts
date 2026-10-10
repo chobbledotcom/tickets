@@ -33,6 +33,104 @@ describe("test-groups", () => {
       ).toBe(false);
     });
 
+    test("a module-level useSetting call in an assignment forces a solo isolate", () => {
+      // The assignment carries the same root-scoped hooks as a bare call, so
+      // the file cannot share an isolate.
+      expect(
+        mustRunAlone(
+          'const settings = useSetting({ timezone: "UTC" });\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+    });
+
+    test("a useSetting call inside a braceless arrow does not force a solo isolate", () => {
+      // The arrow body runs when the caller calls it, not at import time.
+      expect(
+        mustRunAlone(
+          'const pin = (overrides) => useSetting(overrides);\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+    });
+
+    test("a useSetting mention inside a string does not force a solo isolate", () => {
+      expect(
+        mustRunAlone(
+          'const sample = "useSetting({})";\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+    });
+
+    test("a useSetting call inside a comment does not force a solo isolate", () => {
+      expect(mustRunAlone("// useSetting({});")).toBe(false);
+      expect(mustRunAlone("/* useSetting({}); */")).toBe(false);
+      expect(mustRunAlone("/* useSetting({}); */ useSetting({});")).toBe(true);
+    });
+
+    test("an escaped quote ends the string at the real quote", () => {
+      // The scan reads the apostrophe as text, so the statement after the
+      // string still names a module-level call.
+      expect(
+        mustRunAlone(
+          'const s = "it\\\'s"; useSetting({});\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+    });
+
+    test("an unterminated literal or comment reads as text to the file end", () => {
+      expect(mustRunAlone('const s = "unterminated useSetting({});')).toBe(
+        false,
+      );
+      expect(mustRunAlone("/* unterminated useSetting({});")).toBe(false);
+    });
+
+    test("a useSetting call on another object is not a module-level call", () => {
+      expect(
+        mustRunAlone(
+          'const settings = helper.useSetting({ timezone: "UTC" });\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+    });
+
+    test("a tab between the helper name and its call still reads as a call", () => {
+      expect(mustRunAlone('useSetting\t({ timezone: "UTC" });')).toBe(true);
+    });
+
+    test("a useSetting call inside a top-level initialiser forces a solo isolate", () => {
+      // The initialiser runs at module load, so a call inside brackets,
+      // parens, or an object literal executes just the same as a bare
+      // assignment.
+      expect(
+        mustRunAlone(
+          'const state = [useSetting({ timezone: "UTC" })];\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+      expect(
+        mustRunAlone(
+          'const state = { tz: useSetting({ timezone: "UTC" }) };\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+      expect(
+        mustRunAlone(
+          'const state = (useSetting({ timezone: "UTC" }));\ndescribe("x", () => {});',
+        ),
+      ).toBe(true);
+    });
+
+    test("a useSetting call inside a function body does not force a solo isolate", () => {
+      // A function body only runs when the function is invoked, so a call
+      // behind one is not a module-load execution.
+      expect(
+        mustRunAlone(
+          'function read() { return useSetting({}); }\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+      expect(
+        mustRunAlone(
+          'const read = () => { return useSetting({}); };\ndescribe("x", () => {});',
+        ),
+      ).toBe(false);
+    });
+
     test("the run-alone marker forces a solo isolate", () => {
       expect(mustRunAlone(`// ${RUN_ALONE_MARKER}\ndescribe("x");`)).toBe(true);
     });
@@ -184,6 +282,53 @@ describe("test-groups", () => {
           "registers a global BDD hook — export a setup function and call it " +
             "from each test file's own suite instead",
         );
+      });
+    });
+
+    test("collectTestFiles rejects a test file whose top level calls useSetting", async () => {
+      await withScratchRoot(async (root) => {
+        await Deno.writeTextFile(
+          `${root}/test/pin.test.ts`,
+          'import { useSetting } from "#test-utils/settings.ts";\n' +
+            'useSetting({ timezone: "UTC" });\n' +
+            'describe("pin", () => {});\n',
+        );
+        await expect(collectTestFiles(root)).rejects.toThrow(
+          "calls useSetting at the top level",
+        );
+        await expect(collectTestFiles(root)).rejects.toThrow(
+          "Call it inside the describe instead",
+        );
+      });
+    });
+
+    test("collectTestFiles rejects a helper whose module level calls useSetting", async () => {
+      await withScratchRoot(async (root) => {
+        await Deno.writeTextFile(
+          `${root}/test/hooky-helper.ts`,
+          'import { useSetting } from "#test-utils/settings.ts";\n' +
+            'export const settings = useSetting({ timezone: "UTC" });\n',
+        );
+        await expect(collectTestFiles(root)).rejects.toThrow(
+          "registers a global BDD hook",
+        );
+      });
+    });
+
+    test("collectTestFiles accepts a useSetting call inside a describe", async () => {
+      await withScratchRoot(async (root) => {
+        await Deno.writeTextFile(
+          `${root}/test/pin.test.ts`,
+          'import { useSetting } from "#test-utils/settings.ts";\n' +
+            'describe("pin", () => {\n  useSetting({ timezone: "UTC" });\n});\n',
+        );
+        // The scratch root seeds plain and global-hooks fixtures; the pin
+        // file sorts between them.
+        expect(await collectTestFiles(root)).toEqual([
+          `${root}/test/global-hooks.test.ts`,
+          `${root}/test/pin.test.ts`,
+          `${root}/test/plain.test.ts`,
+        ]);
       });
     });
 
