@@ -75,7 +75,7 @@ describe("scanner camera", {
     expect(el(h.document, "scanner-start").className).toContain("hidden");
     expect(h.video.className).not.toContain("hidden");
     expect(h.statusEl.textContent).toBe("Scanning...");
-    expect(h.statusEl.className).toContain("scanner-status");
+    expect(h.statusEl.classList.contains("scanner-status")).toBe(true);
     expect(h.statusEl.className).toContain("scanner-status-success");
     expect(h.statusEl.className).not.toContain("hidden");
 
@@ -230,11 +230,13 @@ describe("scanner camera", {
     // ...an unreadable code at 4000...
     await scanNext(fakes, "not-a-token!", 2000);
     expect(h.statusEl.textContent).toBe("Invalid QR code");
+    expect(h.statusEl.classList.contains("scanner-status-success")).toBe(false);
 
     // ...and a second ticket at 6000: each scan's cooldown counts from its
     // own frame, not from an accumulated total.
     await scanNext(fakes, "other9876", 2000);
     expect(started.posts()).toBe(2);
+    expect(h.statusEl.classList.contains("scanner-status-error")).toBe(false);
     await idle(fakes, 2000);
     expect(fakes.reads.length).toBeGreaterThan(2);
 
@@ -323,11 +325,13 @@ describe("scanner camera", {
     using _fetch = stubFetch((_url, init) => {
       posts += 1;
       void init;
-      return Response.json({
-        listingName: "Standard",
-        name: "Ada",
-        status: "wrong_listing",
-      });
+      return posts === 1
+        ? Response.json({
+            listingName: "Standard",
+            name: "Ada",
+            status: "wrong_listing",
+          })
+        : Response.json(checkedIn(2));
     });
 
     await start(h);
@@ -342,6 +346,10 @@ describe("scanner camera", {
     await idle(fakes, 5_000);
     expect(h.statusEl.className).toContain("scanner-status-fade-out");
     expect(posts).toBe(1);
+
+    // A later admit replaces the warning: its class must go with it.
+    await scanNext(fakes, "other9876", 2_150);
+    expect(h.statusEl.classList.contains("scanner-status-warning")).toBe(false);
   });
 
   test("releases the camera tracks when the page hides", async () => {
