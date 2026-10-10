@@ -32,6 +32,26 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
       await settings.loadKeys(["memo_empty"]);
       expect(settings.getCachedRaw("memo_empty")).toBe("");
     });
+
+    test("getSetting returns null for missing key", () => {
+      const value = settings.getCachedRaw("missing");
+      expect(value).toBeNull();
+    });
+
+    test("setSetting and getSetting work together", async () => {
+      await settings.setRaw("test_key", "test_value");
+      await settings.loadKeys(["test_key"]);
+      const value = settings.getCachedRaw("test_key");
+      expect(value).toBe("test_value");
+    });
+
+    test("setSetting overwrites existing value", async () => {
+      await settings.setRaw("key", "value1");
+      await settings.setRaw("key", "value2");
+      await settings.loadKeys(["key"]);
+      const value = settings.getCachedRaw("key");
+      expect(value).toBe("value2");
+    });
   });
 
   describe("the shared version stamp", () => {
