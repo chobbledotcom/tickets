@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { useManualCheckinPage } from "./fixture.ts";
+import { useManualCheckinPage, waitUntilSettled } from "./fixture.ts";
 
 describe("manual check-in scan answers", () => {
   const { setup, stubScans } = useManualCheckinPage();
@@ -17,17 +17,18 @@ describe("manual check-in scan answers", () => {
   };
 
   /** Let the stubbed fetch answer and the ask appear. */
-  const awaitOverlay = async (): Promise<void> => {
-    const overlay = document.getElementById("scanner-quantity")!;
-    while (overlay.classList.contains("hidden")) await Promise.resolve();
-  };
+  const awaitOverlay = (): Promise<void> =>
+    waitUntilSettled(
+      () =>
+        !document
+          .getElementById("scanner-quantity")!
+          .classList.contains("hidden"),
+      "the quantity ask",
+    );
 
   /** Wait for the submit handler to finish (the button re-enables). */
-  const settle = async (page: {
-    submitButton: HTMLButtonElement;
-  }): Promise<void> => {
-    while (page.submitButton.disabled) await Promise.resolve();
-  };
+  const settle = (page: { submitButton: HTMLButtonElement }): Promise<void> =>
+    waitUntilSettled(() => !page.submitButton.disabled, "the check-in");
 
   test("asks how many when the line owes more than one, then admits the pick", async () => {
     const sent = stubScans([

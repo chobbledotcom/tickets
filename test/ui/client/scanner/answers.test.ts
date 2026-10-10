@@ -19,10 +19,44 @@ import {
   el,
   forcedNoDoorScan,
   forcedVerifyScan,
+  type ScannerHarness,
   useScannerSuite,
   whenMessageShows,
   whenTextShows,
 } from "./fixture.ts";
+
+/** A forced scan waiting at its override prompt: the helper serves the
+ * given answers one per POST, starts the scan, and hands back the running
+ * scan, the request bodies, and the fetch stub (dispose it with `using`). */
+const forcedOverride = (
+  h: ScannerHarness,
+  answers: Record<string, unknown>[],
+): {
+  bodies: unknown[];
+  done: Promise<void>;
+  fetchStub: ReturnType<typeof stubFetch>;
+} => {
+  const bodies: unknown[] = [];
+  const fetchStub = stubFetch((_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return Response.json(answers[bodies.length - 1] ?? { status: "error" });
+  });
+  const done = h.module.admitScan(
+    "/admin/groups/5/scan",
+    "tok",
+    "csrf",
+    h.statusEl,
+    h.messages,
+  );
+  return { bodies, done, fetchStub };
+};
+
+/** The answers one forced scan replays up to the count ask: the wrong
+ * listing, then the ask itself. */
+const quantityAskAnswers: Record<string, unknown>[] = [
+  { listingName: "Standard", name: "Ada", status: "wrong_listing" },
+  { max: 3, name: "Ada", status: "select_quantity" },
+];
 
 describe("scanner confirmations", {
   sanitizeOps: false,
@@ -110,16 +144,59 @@ describe("scanner confirmations", {
     const { done, fetchStub } = await forcedNoDoorScan(h);
     using _fetch = fetchStub;
 
-    await whenTextShows(h.statusEl, "This ticket has no door to check in at");
+    await whenTextShows(h.statusEl, "This ticket has no door to check in at.");
+    expect(h.statusEl.className).toContain("scanner-status-error");
     await done;
     expect(fetchStub.calls.length).toBe(2);
   });
 
+  test("declining the override skips the person with a warning", async () => {
+    const h = fresh();
+    const { bodies, done, fetchStub } = forcedOverride(h, [
+      { listingName: "Standard", name: "Ada", status: "wrong_listing" },
+    ]);
+    using _fetch = fetchStub;
+
+    await whenMessageShows(
+      h,
+      'Ada is registered for "Standard", not this listing. Check in anyway?',
+    );
+    h.confirm.no.click();
+    await done;
+
+    expect(bodies).toEqual([{ token: "tok" }]);
+    expect(h.statusEl.textContent).toBe("Skipped Ada");
+    expect(h.statusEl.className).toContain("scanner-status-warning");
+  });
+
+  test("declining the quantity ask skips the person with a warning", async () => {
+    const h = fresh();
+    const { bodies, done, fetchStub } = forcedOverride(h, [
+      ...quantityAskAnswers,
+    ]);
+    using _fetch = fetchStub;
+
+    await whenMessageShows(
+      h,
+      'Ada is registered for "Standard", not this listing. Check in anyway?',
+    );
+    h.confirm.yes.click();
+    await whenTextShows(
+      el(h.document, "scanner-quantity-message"),
+      "How many tickets for Ada?",
+    );
+    el(h.document, "scanner-quantity-cancel").click();
+    await done;
+
+    expect(bodies).toEqual([{ token: "tok" }, { force: true, token: "tok" }]);
+    expect(h.statusEl.textContent).toBe("Skipped Ada");
+    expect(h.statusEl.className).toContain("scanner-status-warning");
+  });
+
   test("keeps the override on every later ask, so a forced ticket can pick a count", async () => {
     const h = fresh();
-    const answers = [
-      { listingName: "Standard", name: "Ada", status: "wrong_listing" },
-      { max: 3, name: "Ada", status: "select_quantity" },
+    const { bodies, done, fetchStub } = forcedOverride(h, [
+      ...quantityAskAnswers,
       {
         listingName: "Standard",
         name: "Ada",
@@ -127,27 +204,23 @@ describe("scanner confirmations", {
         status: "checked_in",
         total: 2,
       },
-    ];
-    const bodies: unknown[] = [];
-    using _fetch = stubFetch((_url, init) => {
-      bodies.push(JSON.parse(String(init?.body)));
-      return Response.json(answers[bodies.length - 1]);
-    });
+    ]);
+    using _fetch = fetchStub;
 
-    const done = h.module.admitScan(
-      "/scan",
-      "tok",
-      "csrf",
-      h.statusEl,
-      h.messages,
-    );
     await whenMessageShows(
       h,
-      "Ada is registered for Standard. Check in anyway?",
+      'Ada is registered for "Standard", not this listing. Check in anyway?',
     );
     h.confirm.yes.click();
     const quantity = el(h.document, "scanner-quantity");
-    while (quantity.classList.contains("hidden")) await Promise.resolve();
+    for (
+      let hops = 0;
+      hops < 100 && quantity.classList.contains("hidden");
+      hops++
+    ) {
+      await Promise.resolve();
+    }
+    expect(quantity.classList.contains("hidden")).toBe(false);
     (
       el(h.document, "scanner-quantity-select") as unknown as HTMLSelectElement
     ).value = "2";

@@ -153,12 +153,13 @@ describe("scanner bundle", {
       messages,
     );
     expect(h.statusEl.textContent).toBe(
-      "This ticket has no door to check in at",
+      "This ticket has no door to check in at.",
     );
     expect(h.statusEl.className).toContain("scanner-status-error");
 
     handleResult(h.statusEl, { status: "not_found" }, messages);
     expect(h.statusEl.textContent).toBe("Ticket not found");
+    expect(h.statusEl.className).toContain("scanner-status-error");
 
     handleResult(
       h.statusEl,
@@ -166,5 +167,6 @@ describe("scanner bundle", {
       messages,
     );
     expect(h.statusEl.textContent).toBe("Scan failed");
+    expect(h.statusEl.className).toContain("scanner-status-error");
   });
 });
