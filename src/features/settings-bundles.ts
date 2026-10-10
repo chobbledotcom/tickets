@@ -26,6 +26,9 @@ export const getPrefix = (path: string): string => {
 const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LISTING_DEFAULTS,
   CONFIG_KEYS.ENABLED_FEATURES,
+  // The CSP rebuild scans the custom CSS on every routed response to name the
+  // stylesheet's fonts origin (see bunny-fonts.ts).
+  CONFIG_KEYS.CUSTOM_CSS,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,
@@ -162,8 +165,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   ],
   // Contact form submission sends an email to the business address.
   contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY, ...EMAIL_SETTINGS],
-  // The custom stylesheet route reads only the custom_css setting.
-  "custom.css": [CONFIG_KEYS.CUSTOM_CSS],
+  // The custom stylesheet route reads only the custom_css setting, which is
+  // infra: the CSP rebuild reads it on every routed response.
+  "custom.css": [],
   demo: [],
   events: [],
   // --- Feeds (ICS/RSS): website title + country (timezone) ---

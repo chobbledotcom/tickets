@@ -58,6 +58,38 @@ describe("buildCspHeader", () => {
     );
   });
 
+  test("names the fonts origin for styles and fonts when the custom CSS uses it", () => {
+    expect(buildCspHeader(false, undefined, false, null, true)).toBe(
+      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; style-src 'self' https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; form-action 'self'",
+    );
+  });
+
+  test("keeps the baked CDN origin beside the fonts origin", () => {
+    expect(
+      buildCspHeader(
+        false,
+        undefined,
+        false,
+        "https://assets.example.com",
+        true,
+      ),
+    ).toBe(
+      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; style-src 'self' https://assets.example.com https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; form-action 'self'",
+    );
+  });
+
+  test("leaves the fonts origin out when the flag is off", () => {
+    const csp = buildCspHeader(
+      true,
+      undefined,
+      false,
+      "https://assets.example.com",
+      false,
+    );
+    expect(csp).not.toContain("fonts.bunny.net");
+    expect(csp).not.toContain("font-src");
+  });
+
   test("allows Stripe's hosted checkout", () => {
     expect(buildCspHeader(true, { provider: "stripe" })).toContain(
       "form-action 'self' https://checkout.stripe.com",
