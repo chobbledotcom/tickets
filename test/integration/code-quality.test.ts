@@ -1,5 +1,3 @@
-import { dirname, join, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -19,29 +17,28 @@ import {
   findRawDbViolation,
   findRedundantArg,
   findTestOnlyExportViolations,
-  getAllFilesWithExt,
   type NamedTypeShape,
   type Site,
 } from "#test/scripts/code-quality/detectors.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
+import {
+  ensureLoaded,
+  getRelativePath,
+  type ScanContext,
+  scanSourceFiles,
+  scanSourceLines,
+} from "#test/scripts/code-quality/scan-context.ts";
 
 /**
  * Integration guard for the code-quality rules: it scans the real `src/`+`test/`
- * tree and asserts there are zero violations. The detection logic itself lives
- * in `test/scripts/code-quality/detectors.ts` and is proven with crafted fixtures in
- * `test/scripts/code-quality/detectors.test.ts` — this file is only the "is the live
- * codebase clean?" half. The policy allow-lists (which existing files are
- * exempt, which test hooks are intentional) live here, since they describe this
- * codebase rather than the rules.
+ * tree and asserts there are zero violations. The detection logic lives in
+ * `test/scripts/code-quality/detectors.ts` and is proven with crafted fixtures
+ * in `test/scripts/code-quality/detectors.test.ts`; the file-discovery and scan
+ * plumbing lives in `test/scripts/code-quality/scan-context.ts`. This file
+ * holds the live "is the codebase clean?" assertions and the policy
+ * allow-lists, since the allow-lists describe this codebase rather than the
+ * rules.
  */
-
-const currentDir = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(currentDir, "../..");
-const SRC_DIR = join(currentDir, "../../src");
-const TEST_DIR = join(currentDir, "../../test");
-const SCRIPTS_DIR = join(currentDir, "../../scripts");
-const CLI_DIR = join(currentDir, "../../cli");
-const E2E_PAYMENTS_DIR = join(currentDir, "../../e2e-payments");
 
 /**
  * src/ files allowed to hold module-level Map/Set state (the in-memory-state
@@ -79,144 +76,10 @@ const ALLOWED_RAW_DB = [
   "shared/db/migrations/",
 ];
 
-const getAllTsFiles = (dir: string): Promise<string[]> =>
-  getAllFilesWithExt(dir, ".ts");
-
-/** `.js`/`.jsx` files in every in-scope tree (src, test, scripts, cli,
- *  e2e-payments) — hand-written browser source like
- *  `src/ui/client/scanner.js`, distinct from build artifacts. The
- *  parent-import rule scans these so a script entry can't bypass it just by
- *  sitting in a `.js` file. {@link isBuildArtifactPath} filters out the
- *  `src/ui/static/` esbuild output and `dist/` edge bundle. */
-const getAllJsFiles = async (): Promise<string[]> => {
-  const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
-  const exts = [".js", ".jsx"];
-  const perDirExt = await Promise.all(
-    dirs.flatMap((dir) => exts.map((ext) => getAllFilesWithExt(dir, ext))),
-  );
-  return perDirExt.flat().filter((f) => !isBuildArtifactPath(f));
-};
-
-/** `.tsx` files across every in-scope tree. The template-aware rules
- *  (parent-import is the first one) scan these in addition to the `.ts`
- *  lists so a `.tsx` file can't bypass the rule by sitting outside `src/`. */
-const getAllTsxFiles = async (): Promise<string[]> => {
-  const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
-  const perDir = await Promise.all(
-    dirs.map((dir) => getAllFilesWithExt(dir, ".tsx")),
-  );
-  return perDir.flat();
-};
-
-/** Whether `fullPath` is a generated/build-output path (skipped by every
- *  source-scanning rule). `src/ui/static/` holds esbuild's bundled `.js`
- *  output (rebuilt from `.ts` by `scripts/build-static-assets.ts`) and
- *  `dist/` holds the bundled edge script, so neither is source. */
-const isBuildArtifactPath = (fullPath: string): boolean =>
-  fullPath.includes(`${sep}ui${sep}static${sep}`) ||
-  fullPath.includes("/ui/static/") ||
-  fullPath.includes(`${sep}dist${sep}`) ||
-  fullPath.includes("/dist/");
-
-const getRelativePath = (fullPath: string): string =>
-  fullPath.replace(`${SRC_DIR}/`, "");
-
-/**
- * Path relative to the repo root, e.g. "src/foo.ts" or "test/foo.ts". Used by
- * the rules that scan both src and test files (aliasing, module-level let,
- * .then()) so their violation paths are unambiguous.
- */
-const repoRelative = (fullPath: string): string =>
-  fullPath.replace(`${REPO_ROOT}/`, "");
-
-/** Read all files once and cache contents in a Map keyed by path */
-const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
-  const entries = await Promise.all(
-    files.map(async (f) => [f, await Deno.readTextFile(f)] as const),
-  );
-  return new Map(entries);
-};
-
-/**
- * Files that *define* the code-quality patterns (in comments, regexes and
- * fixture strings) and so would flag themselves under the line-level scans.
- * They have no real line-level violations of their own.
- */
-const isCodeQualityFile = (relativePath: string): boolean =>
-  relativePath === "test/integration/code-quality.test.ts" ||
-  relativePath.startsWith("test/scripts/code-quality/");
-
 describe("code quality", () => {
-  /** Cached file lists and contents, populated once on first use */
-  let srcFiles: string[];
-  let srcContents: Map<string, string>;
-  let testFiles: string[];
-  let testContents: Map<string, string>;
-  /** Production `.tsx` templates — the templates the app actually renders.
-   *  Passed to the production-only rules (test-only-exports, redundant-args)
-   *  as additional production source. Stays scoped to `src/` so `.test.tsx`
-   *  files under `test/` are never credited as production use. */
-  let srcTsxFiles: string[];
-  let srcTsxContents: Map<string, string>;
-  /** Every `.tsx` file in every in-scope tree. Used by the parent-import rule
-   *  (and any other rule that wants every template regardless of whether it's
-   *  production code or a test). */
-  let allTsxFiles: string[];
-  let allTsxContents: Map<string, string>;
-  /** Hand-written `.js`/`.jsx` files in every in-scope tree. Scanned by the
-   *  parent-import rule so a script entry in `.js` can't bypass it. */
-  let jsFiles: string[];
-  let jsContents: Map<string, string>;
-  let scriptsFiles: string[];
-  let scriptsContents: Map<string, string>;
-  let cliFiles: string[];
-  let cliContents: Map<string, string>;
-  let e2eFiles: string[];
-  let e2eContents: Map<string, string>;
-
-  const ensureLoaded = async (): Promise<void> => {
-    if (srcContents) return;
-    const [sf, tf, srcTxf, allTxf, jsf, scf, cf, ef] = await Promise.all([
-      getAllTsFiles(SRC_DIR),
-      getAllTsFiles(TEST_DIR),
-      getAllFilesWithExt(SRC_DIR, ".tsx"),
-      getAllTsxFiles(),
-      getAllJsFiles(),
-      getAllTsFiles(SCRIPTS_DIR),
-      getAllTsFiles(CLI_DIR),
-      getAllTsFiles(E2E_PAYMENTS_DIR),
-    ]);
-    srcFiles = sf;
-    testFiles = tf;
-    srcTsxFiles = srcTxf;
-    allTsxFiles = allTxf;
-    jsFiles = jsf;
-    scriptsFiles = scf;
-    cliFiles = cf;
-    e2eFiles = ef;
-    const [sc, tc, srcTxc, allTxc, jsc, scc, cc, ec] = await Promise.all([
-      readAllFiles(srcFiles),
-      readAllFiles(testFiles),
-      readAllFiles(srcTsxFiles),
-      readAllFiles(allTsxFiles),
-      readAllFiles(jsFiles),
-      readAllFiles(scriptsFiles),
-      readAllFiles(cliFiles),
-      readAllFiles(e2eFiles),
-    ]);
-    srcContents = sc;
-    testContents = tc;
-    srcTsxContents = srcTxc;
-    allTsxContents = allTxc;
-    jsContents = jsc;
-    scriptsContents = scc;
-    cliContents = cc;
-    e2eContents = ec;
-  };
-
   describe("no in-memory state", () => {
     test("source files should not use module-level Map or Set for state", async () => {
-      await ensureLoaded();
+      const { srcFiles, srcContents } = await ensureLoaded();
       const violations: string[] = [];
 
       for (const file of srcFiles) {
@@ -236,7 +99,7 @@ describe("code quality", () => {
 
   describe("db writes go through the client", () => {
     test("no source file calls getDb().execute/.batch directly", async () => {
-      await ensureLoaded();
+      const { srcFiles, srcContents } = await ensureLoaded();
       const violations: string[] = [];
 
       for (const file of srcFiles) {
@@ -251,103 +114,6 @@ describe("code quality", () => {
       expect(violations).toEqual([]);
     });
   });
-
-  /** Iterate the in-scope files, skipping the code-quality folder's own
-   *  fixtures (which legitimately use the patterns the rules forbid, e.g.
-   *  `'import "../x.ts"'` as detector input). Each surviving file is handed to
-   *  the caller alongside its repo-relative path and contents. */
-  const forEachScannedFile = (
-    files: string[],
-    contents: Map<string, string>,
-    fn: (file: string, relativePath: string, fileContents: string) => void,
-  ): void => {
-    for (const file of files) {
-      const relativePath = repoRelative(file);
-      if (isCodeQualityFile(relativePath)) continue;
-      fn(file, relativePath, contents.get(file)!);
-    }
-  };
-
-  /**
-   * Scan one file set line by line, collecting violations via a detector.
-   * Skips code-quality's own files so its rule literals never self-flag.
-   */
-  const collectLineViolations = (
-    files: string[],
-    contents: Map<string, string>,
-    detect: (
-      relativePath: string,
-      line: string,
-      lineNum: number,
-    ) => string | null,
-  ): string[] => {
-    const violations: string[] = [];
-    forEachScannedFile(files, contents, (_file, relativePath, fileContents) => {
-      const lines = fileContents.split("\n");
-      let lineNum = 0;
-      for (const line of lines) {
-        lineNum++;
-        const v = detect(relativePath, line, lineNum);
-        if (v) violations.push(v);
-      }
-    });
-    return violations;
-  };
-
-  /**
-   * Scan src and test files line by line, collecting violations via a detector.
-   * Test code is held to the same line-level standards as production code.
-   * Returns the combined violation list.
-   */
-  const scanSourceLines = async (
-    detect: (
-      relativePath: string,
-      line: string,
-      lineNum: number,
-    ) => string | null,
-  ): Promise<string[]> => {
-    await ensureLoaded();
-    return [
-      ...collectLineViolations(srcFiles, srcContents, detect),
-      ...collectLineViolations(testFiles, testContents, detect),
-    ];
-  };
-
-  /** Run a whole-file detector (one call per file, receiving the full
-   *  contents) over every in-scope tree. The detector returns every
-   *  violation it finds in the file, so one call surfaces every form the
-   *  rule forbids — single-line, multi-line, with comments in the gap —
-   *  and a returned empty array means the file is clean. */
-  const collectFileViolations = (
-    files: string[],
-    contents: Map<string, string>,
-    detect: (relativePath: string, contents: string) => string[],
-  ): string[] => {
-    const violations: string[] = [];
-    // Whole-file detectors (like detectRelativeImport) skip comments and
-    // string literals themselves, so code-quality's own files don't need the
-    // blanket skip the line-level detectors use — they can't self-flag.
-    for (const file of files) {
-      const relativePath = repoRelative(file);
-      violations.push(...detect(relativePath, contents.get(file)!));
-    }
-    return violations;
-  };
-
-  const scanSourceFiles = async (
-    detect: (relativePath: string, contents: string) => string[],
-  ): Promise<string[]> => {
-    await ensureLoaded();
-    return [
-      ...collectFileViolations(srcFiles, srcContents, detect),
-      ...collectFileViolations(testFiles, testContents, detect),
-      ...collectFileViolations(allTsxFiles, allTsxContents, detect),
-      ...collectFileViolations(jsFiles, jsContents, detect),
-      ...collectFileViolations(scriptsFiles, scriptsContents, detect),
-      ...collectFileViolations(cliFiles, cliContents, detect),
-      ...collectFileViolations(e2eFiles, e2eContents, detect),
-    ];
-  };
 
   describe("no aliasing", () => {
     test("should not alias functions or variables at module level", async () => {
@@ -404,10 +170,10 @@ describe("code quality", () => {
       AGGREGATION_MODULES.includes(relativePath);
 
     test("exports from src/ should be used in production code, not just tests", async () => {
-      await ensureLoaded();
+      const scan = await ensureLoaded();
       const violations: string[] = [];
 
-      for (const file of srcFiles) {
+      for (const file of scan.srcFiles) {
         const relativePath = getRelativePath(file);
         if (shouldSkipFile(relativePath)) continue;
 
@@ -415,11 +181,11 @@ describe("code quality", () => {
           ...findTestOnlyExportViolations(
             file,
             relativePath,
-            srcContents,
-            srcTsxContents,
-            testContents,
+            scan.srcContents,
+            scan.srcTsxContents,
+            scan.testContents,
             ALLOWED_TEST_HOOKS,
-            [scriptsContents, cliContents, e2eContents],
+            [scan.scriptsContents, scan.cliContents, scan.e2eContents],
           ),
         );
       }
@@ -435,7 +201,12 @@ describe("code quality", () => {
      * flag production functions for constants only tests happen to pass, so it
      * stays src-scoped (like in-memory-state and test-only exports).
      */
-    const collectCallSites = (): Map<string, Site[]> => {
+    const collectCallSites = ({
+      srcFiles,
+      srcContents,
+      srcTsxFiles,
+      srcTsxContents,
+    }: ScanContext): Map<string, Site[]> => {
       const byName = new Map<string, Site[]>();
       const record = (file: string, content: string): void => {
         const relativePath = getRelativePath(file);
@@ -451,9 +222,9 @@ describe("code quality", () => {
     };
 
     test("functions should not always receive the same constant argument", async () => {
-      await ensureLoaded();
+      const scan = await ensureLoaded();
       const violations: string[] = [];
-      for (const [name, sites] of collectCallSites()) {
+      for (const [name, sites] of collectCallSites(scan)) {
         const violation = findRedundantArg(name, sites);
         if (violation) violations.push(violation);
       }
@@ -469,7 +240,12 @@ describe("code quality", () => {
      * differently-named types with identical members should be one shared type.
      * Coincidental cross-domain matches live in ALLOWED_DUPLICATE_TYPE_SHAPES.
      */
-    const collectTypeShapes = (): NamedTypeShape[] => {
+    const collectTypeShapes = ({
+      srcFiles,
+      srcContents,
+      srcTsxFiles,
+      srcTsxContents,
+    }: ScanContext): NamedTypeShape[] => {
       const defs: NamedTypeShape[] = [];
       const record = (file: string, content: string): void => {
         const relativePath = getRelativePath(file);
@@ -483,9 +259,12 @@ describe("code quality", () => {
     };
 
     test("no two types should declare the same object shape", async () => {
-      await ensureLoaded();
+      const scan = await ensureLoaded();
       const allowed = ALLOWED_DUPLICATE_TYPE_SHAPES.map((a) => a.signature);
-      const violations = findDuplicateTypeShapes(collectTypeShapes(), allowed);
+      const violations = findDuplicateTypeShapes(
+        collectTypeShapes(scan),
+        allowed,
+      );
       expect(violations).toEqual([]);
     });
   });
