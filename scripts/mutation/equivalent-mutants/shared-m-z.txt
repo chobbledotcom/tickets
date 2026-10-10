@@ -3,31 +3,31 @@
 # update.ts dry-run: the canned release code feeds only request bodies that the
 # dry-run surface never sends (the Bunny script create and any deploy target
 # reached after it), so its text has no observer in a dry-run environment.
-src/shared/update.ts::downloadReleaseAsset~1gjm973  export {}; // dry-run site build→""   # the code flows into unsent create-script request bodies and no parser, check, or return value reads it
+src/shared/update.ts::downloadReleaseAsset~1gjm973  export {}; // dry-run site build→"" audited:132xt8b # the code flows into unsent create-script request bodies and no parser, check, or return value reads it
 
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
 
 # payment-success.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
 # string|undefined; for "" both ?? "" and || "" yield "".
-src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → || audited:1pu8a2r # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # payment-success.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
-src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
-src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → || audited:1v7nhz0 # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → || audited:1v7nhz0 # getWebhookSignatureHeader → null|truthy; never ""
 
 # Registration delivery is always queued through pending-work. After its fixed
 # incident has been recorded, flushPendingWork intentionally consumes either
 # fulfilment or rejection with Promise.allSettled, so changing the one-error
 # rethrow threshold has no further observable result.
-src/shared/webhook/delivery.ts::sendRegistrationNotifications~0pfucc6@2  0 → 1   # one error is already reported; pending-work consumes the later rejection
-src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1   # the rethrown error's value is unobservable: every caller hands the promise to pending-work, which settles it with allSettled
-src/shared/webhook/delivery.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is undefined or a RegistrationPackageFacts object carrying two Maps; every present object is truthy
-src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  false → true   # the arm's errors array always holds the rejection reason, so errors.length > 0 reports it and the failed flag is never read
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~0pfucc6@2  0 → 1 audited:08h3zqa # one error is already reported; pending-work consumes the later rejection
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1 audited:08h3zqa # the rethrown error's value is unobservable: every caller hands the promise to pending-work, which settles it with allSettled
+src/shared/webhook/delivery.ts::sendRegistrationWebhooks.facts~007uooi  ?? → || audited:08h3zqa # suppliedFacts is undefined or a RegistrationPackageFacts object carrying two Maps; every present object is truthy
+src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  false → true audited:08h3zqa # the arm's errors array always holds the rejection reason, so errors.length > 0 reports it and the failed flag is never read
 # Re-derived against the five delivery suites on this branch. The
 # needsPackageFacts "> → <=" mutant and the packageFacts ternary arm swap died
 # once the budget tests counted exactly (a call past a tight subrequest limit
@@ -39,34 +39,34 @@ src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  fa
 # mutant below survives: when it skips the queue load, sendRegistrationWebhooks
 # performs the same facts read and reports a failed read through the same
 # incident path.
-src/shared/webhook/delivery.ts::queueRegistrationNotifications.needsPackageFacts~0u9opea  0 → 1   # as above: with one webhook URL the mutated gate defers to the send's own fallback load, which is the same read with the same result
-src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
-src/shared/webhook/delivery.ts::logAndNotifyRegistration~0y21tpk  ?? → ||   # priorActivities is undefined or an activity array; an empty array is truthy, so both operators fall back only on undefined
-src/shared/webhook/delivery.ts::logAndNotifyRegistration~18zsvut  ?? → ||   # siteAssignmentEntries is undefined or an EmailEntry array; arrays are always truthy
+src/shared/webhook/delivery.ts::queueRegistrationNotifications.needsPackageFacts~0u9opea  0 → 1 audited:08h3zqa # as above: with one webhook URL the mutated gate defers to the send's own fallback load, which is the same read with the same result
+src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → || audited:08h3zqa # suppliedPackageFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
+src/shared/webhook/delivery.ts::logAndNotifyRegistration~0y21tpk  ?? → || audited:08h3zqa # priorActivities is undefined or an activity array; an empty array is truthy, so both operators fall back only on undefined
+src/shared/webhook/delivery.ts::logAndNotifyRegistration~18zsvut  ?? → || audited:08h3zqa # siteAssignmentEntries is undefined or an EmailEntry array; arrays are always truthy
 
 # public-listing.ts: both ?? fallbacks guard an array-typed value, and every
 # array is truthy, so the ?? and || fallbacks agree — only undefined/null fall
 # through, and both operators treat those the same.
-src/features/api/public-listing.ts::mapParentChildren.children~1owkdwg  ?? → ||   # Map.get → array|undefined; an array is always truthy
-src/features/api/public-listing.ts::buildChildPublicListings~1tkmqom  ?? → ||   # mapParentChildren → array|null; only null falls through either operator
+src/features/api/public-listing.ts::mapParentChildren.children~1owkdwg  ?? → || audited:0wdxjj6 # Map.get → array|undefined; an array is always truthy
+src/features/api/public-listing.ts::buildChildPublicListings~1tkmqom  ?? → || audited:0wdxjj6 # mapParentChildren → array|null; only null falls through either operator
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → ||   # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → &&   # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → ||   # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || audited:0dtnttp # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → && audited:0dtnttp # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → || audited:0dtnttp # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # The SumUp machine has no split move. Representative tags label only the test
 # matrix, and `expected` ignores its tag for every plain or absent cell.
-src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~143s0gl  no_checkout_id → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1li3bw3  live_checkout → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~0om8fcb  never_paid → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~08wuvsv  accounted_for → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1qx9w2z  unaccounted_for → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~143s0gl  no_checkout_id → "" audited:0zyut9s # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1li3bw3  live_checkout → "" audited:0zyut9s # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~0om8fcb  never_paid → "" audited:0zyut9s # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~08wuvsv  accounted_for → "" audited:0zyut9s # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1qx9w2z  unaccounted_for → "" audited:0zyut9s # tag labels one conformance case; production reads only the representative state
 
 # admit-move.ts declares every lifecycle rank in the closed 0/1/2 order.
 # Array.sort observes only the comparator's sign, so subtraction and division
 # give the same ordering for every pair the table can construct.
-src/shared/payment/admit-move.ts::WORST_FIRST~1pf7lh6  - → /   # closed positive ranks 0/1/2 preserve the same comparator sign
+src/shared/payment/admit-move.ts::WORST_FIRST~1pf7lh6  - → / audited:1smgc0l # closed positive ranks 0/1/2 preserve the same comparator sign
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -86,18 +86,18 @@ src/shared/payment/admit-move.ts::WORST_FIRST~1pf7lh6  - → /   # closed positi
 # ignore-list checker cross-checks staleness against the full --exhaustive
 # mutant set regardless of which mode a given run used, so they stay valid
 # (not "stale") even under the default-mode precommit gate.
-src/shared/sort-listings.ts::listingTier~17udsrm  2 → 3   # daily tier constant; only used via tierA-tierB's sign, never compared for equality
-src/shared/sort-listings.ts::listingTier~1jn5qyj  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
-src/shared/sort-listings.ts::listingTier~0xaqhme   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
-src/shared/sort-listings.ts::listingTier~08h9oa2  0 → 1   # same effect as "always 1" above
-src/shared/sort-listings.ts::listingTier~08h9oa2  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
-src/shared/sort-listings.ts::compareListings~05ktsrt  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
+src/shared/sort-listings.ts::listingTier~17udsrm  2 → 3 audited:07onpcs # daily tier constant; only used via tierA-tierB's sign, never compared for equality
+src/shared/sort-listings.ts::listingTier~1jn5qyj  ?: → alternate only audited:07onpcs # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
+src/shared/sort-listings.ts::listingTier~0xaqhme   → "mutated" audited:07onpcs # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
+src/shared/sort-listings.ts::listingTier~08h9oa2  0 → 1 audited:07onpcs # same effect as "always 1" above
+src/shared/sort-listings.ts::listingTier~08h9oa2  0 → -1 audited:07onpcs # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
+src/shared/sort-listings.ts::compareListings~05ktsrt  0 → -1 audited:07onpcs # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
 
 # sort-listings.ts's compareDaily: nextDates.get() is typed string|null, never
 # undefined in practice because every daily listing gets an explicit entry, and
 # getNextBookableDate never returns "". Therefore `?? null` and `|| null` agree.
-src/shared/sort-listings.ts::compareDaily.byDate~0elhh75  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
-src/shared/sort-listings.ts::compareDaily.byDate~17fwox0  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts::compareDaily.byDate~0elhh75  ?? → || audited:07onpcs # nextDates.get(a.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts::compareDaily.byDate~17fwox0  ?? → || audited:07onpcs # nextDates.get(b.id): string|null, never a falsy-non-null string
 
 # sort-listings.ts's compareDaily return-value entries are gone with the fold:
 # compareOptionalDates now supplies the null-last branch they guarded, in
@@ -109,7 +109,7 @@ src/shared/sort-listings.ts::compareDaily.byDate~17fwox0  ?? → ||   # nextDate
 # decimal digit strings ("0","182","365",...) that never start with "0x"/"0o"/
 # "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
 # (confirmed directly), so no input safeValue can ever take distinguishes them.
-src/shared/orphan-retention.ts::orphanRetentionCutoffIso.days~0npvuhc  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
+src/shared/orphan-retention.ts::orphanRetentionCutoffIso.days~0npvuhc  10 → 0 audited:14j8bki # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
 
 # renewal-helpers.ts's formatDeadlineLabel: `diffMs < 0` is only reached when
 # diffDays !== 0 (the line above already returns "today" otherwise), and
@@ -119,9 +119,9 @@ src/shared/orphan-retention.ts::orphanRetentionCutoffIso.days~0npvuhc  10 → 0 
 # reaches this line is already <= -43_200_000 or >= 43_200_000, nowhere near
 # 0, 1, or -1 — comparing it with `<` vs `<=`, or against 0 vs ±1, always
 # picks the same branch.
-src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
-src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
-src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)
+src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  < → <= audited:01tjom7 # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
+src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → 1 audited:01tjom7 # same reachability guarantee; diffMs is never in [0, 1)
+src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1 audited:01tjom7 # same reachability guarantee; diffMs is never in [-1, 0)
 
 # slug.ts's firstIssueMessage: `abortPipeEarly` only changes whether valibot
 # keeps validating later pipe steps after an earlier one fails — it never
@@ -132,7 +132,7 @@ src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1   # same re
 # non-string, empty, uppercase, spaces, symbols, leading/trailing separator,
 # consecutive separators — produces the identical issues[0].message under
 # both true and false.
-src/shared/slug.ts::firstIssueMessage.result.abortPipeEarly~0d98clm  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
+src/shared/slug.ts::firstIssueMessage.result.abortPipeEarly~0d98clm  true → false audited:1sukbqy # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
 
 # url-safety.ts: isInternalHostname and isIpLiteral are private helpers only
 # ever called (via isSafeServerFetchUrl) with `url.hostname` from an already
@@ -148,10 +148,10 @@ src/shared/slug.ts::firstIssueMessage.result.abortPipeEarly~0d98clm  true → fa
 #    is *already* rejected by the separate, independent isDomainHostname
 #    dot-check. Mutating the literal (even to "" or a nonsense string) cannot
 #    change isSafeServerFetchUrl's output for any reachable host.
-src/shared/url-safety.ts::isInternalHostname~0wxtvdh  localhost → ""   # bare "localhost" has no dot; isDomainHostname's dot-check rejects it independently either way
-src/shared/url-safety.ts::isInternalHostname~0wxtvdh  localhost → "localhost mutated"   # same as above
-src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → ""   # bare "local" has no dot; isDomainHostname's dot-check rejects it independently either way
-src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → "local mutated"   # same as above
+src/shared/url-safety.ts::isInternalHostname~0wxtvdh  localhost → "" audited:17s6jj1 # bare "localhost" has no dot; isDomainHostname's dot-check rejects it independently either way
+src/shared/url-safety.ts::isInternalHostname~0wxtvdh  localhost → "localhost mutated" audited:17s6jj1 # same as above
+src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → "" audited:17s6jj1 # bare "local" has no dot; isDomainHostname's dot-check rejects it independently either way
+src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → "local mutated" audited:17s6jj1 # same as above
 #
 # 2. isIpLiteral's bracket-stripping ternary and its `h.includes(":")` check:
 #    the WHATWG URL spec only accepts a bracketed host if it's a syntactically
@@ -169,26 +169,26 @@ src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → "local mutated" 
 #    against isSafeServerFetchUrl (not just isIpLiteral in isolation) across
 #    every bracketed test case already in this suite plus IPv4-mapped and
 #    malformed-bracket variants — all agree with the unmutated function.
-src/shared/url-safety.ts::isIpLiteral.h~1isez7q  ?: → alternate only   # bracket-stripping is unobservable; see block comment above
-src/shared/url-safety.ts::isIpLiteral.h~142r3by  && → ||   # host can never start with "[" without also ending with "]" (URL.canParse rejects the asymmetric case), so && and || agree
-src/shared/url-safety.ts::isIpLiteral.h~142r3by  && → ??   # startsWith("["): plain boolean, never nullish, so ?? reduces to the left operand alone — which agrees with && given the bracket-symmetry invariant above
-src/shared/url-safety.ts::isIpLiteral.h~0ctvt8c  [ → ""   # startsWith("") is always true; combined with the bracket-symmetry invariant this doesn't change which hosts get stripped
-src/shared/url-safety.ts::isIpLiteral.h~0ctvt8c  [ → "[ mutated"   # no reachable host starts with this literal, so stripping never happens — but unobservable either way, see block comment above
-src/shared/url-safety.ts::isIpLiteral.h~06vei2v  ] → ""   # endsWith("") is always true; see block comment above
-src/shared/url-safety.ts::isIpLiteral.h~06vei2v  ] → "] mutated"   # no reachable host ends with this literal, so stripping never happens — but unobservable either way, see block comment above
-src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → 0   # slice(0,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
-src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → 2   # slice(2,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
-src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → -1   # slice(-1,-1) empties h, but the resulting dotless "" is caught by isDomainHostname's dot-check regardless
-src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  - → +   # slice(1,+1) empties h; same isDomainHostname fallback as above
-src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 0   # slice(1,-0)=slice(1,0) empties h; same isDomainHostname fallback as above
-src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 2   # slice(1,-2) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
-src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → -1   # slice(1,1) empties h; same isDomainHostname fallback as above
-src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
-src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
-src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
-src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
+src/shared/url-safety.ts::isIpLiteral.h~1isez7q  ?: → alternate only audited:17s6jj1 # bracket-stripping is unobservable; see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~142r3by  && → || audited:17s6jj1 # host can never start with "[" without also ending with "]" (URL.canParse rejects the asymmetric case), so && and || agree
+src/shared/url-safety.ts::isIpLiteral.h~142r3by  && → ?? audited:17s6jj1 # startsWith("["): plain boolean, never nullish, so ?? reduces to the left operand alone — which agrees with && given the bracket-symmetry invariant above
+src/shared/url-safety.ts::isIpLiteral.h~0ctvt8c  [ → "" audited:17s6jj1 # startsWith("") is always true; combined with the bracket-symmetry invariant this doesn't change which hosts get stripped
+src/shared/url-safety.ts::isIpLiteral.h~0ctvt8c  [ → "[ mutated" audited:17s6jj1 # no reachable host starts with this literal, so stripping never happens — but unobservable either way, see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~06vei2v  ] → "" audited:17s6jj1 # endsWith("") is always true; see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~06vei2v  ] → "] mutated" audited:17s6jj1 # no reachable host ends with this literal, so stripping never happens — but unobservable either way, see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → 0 audited:17s6jj1 # slice(0,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → 2 audited:17s6jj1 # slice(2,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → -1 audited:17s6jj1 # slice(-1,-1) empties h, but the resulting dotless "" is caught by isDomainHostname's dot-check regardless
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  - → + audited:17s6jj1 # slice(1,+1) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 0 audited:17s6jj1 # slice(1,-0)=slice(1,0) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 2 audited:17s6jj1 # slice(1,-2) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → -1 audited:17s6jj1 # slice(1,1) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated" audited:17s6jj1 # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
+src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false audited:17s6jj1 # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
+src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → || audited:0dg2iqg # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → || audited:0dg2iqg # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1f06tx7 # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1f06tx7 # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
@@ -196,13 +196,13 @@ src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated"  
 # value type here is "object" or undefined — an object is always truthy, and
 # undefined falls through to the RHS for both. (Source-side mirror at :245
 # holds the same type.)
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.ta~09unqn1  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sa~1ys4u6l  ?? → ||   # same as :245 — Map<number,object>.get returns undefined or a truthy object
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.questionText~0mw46ge  ?? → ||   # questionTextMap.get returns undefined or a truthy validated question string
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w  ?? → ||   # sa?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → ||   # sa?.answerText is undefined or a non-empty validated answer string
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.ta~09unqn1  ?? → || audited:10i51su # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sa~1ys4u6l  ?? → || audited:10i51su # same as :245 — Map<number,object>.get returns undefined or a truthy object
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.questionText~0mw46ge  ?? → || audited:10i51su # questionTextMap.get returns undefined or a truthy validated question string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w  ?? → || audited:10i51su # sa?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → || audited:10i51su # sa?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → || audited:10i51su # ta?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → || audited:10i51su # ta?.answerText is undefined or a non-empty validated answer string
 
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
@@ -213,7 +213,7 @@ src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7ou
 # is unobservable: the field is computed but never read. (PII itself is
 # re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
 # not from `mergedPii` — so nothing downstream reads it either.)
-src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record%3cstring%2c%20string%3e%29%5bfield%2efield%5d~0ce4on8  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record%3cstring%2c%20string%3e%29%5bfield%2efield%5d~0ce4on8  = → += audited:10i51su # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
 
 # Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
 # prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
@@ -227,102 +227,102 @@ src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record
 # hash change can't surface via an idempotent-replay either; and no test or
 # production code queries the merged attendee's reversal legs by their
 # `event_group` value.
-src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~0ut5xv3  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
-src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-credit → ""   # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~0ut5xv3  merge-unbill → "" audited:10i51su # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-credit → "" audited:10i51su # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
 
 # i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — the equivalent
 # survivors here were provably unobservable: needsIcu routes plain copy
 # through ICU unchanged. The needsIcu entries fell out of this list when
 # direct tests started killing both string mutants, so they are gone.
-src/shared/rebrand.ts::buildReplacer.from~0hbvux2   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/rebrand.ts::buildReplacer.from~0hbvux2   → "mutated" audited:0dvk6sd # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated" audited:1tdq4dz # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # A header part without "=" has no value. Its key cannot affect timestamp or
 # signature state: a timestamp assignment remains undefined and a v1 signature
 # is added only when its value is truthy. These alternate key expressions differ
 # only for that value-less case, so every parsed result is identical.
-src/shared/stripe/runtime.ts::requestConfig.configured~1bwwf56  ?? → ||   # mockConfig returns a config object or undefined; every object is truthy, so both operators pick the same config
-src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
-src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
+src/shared/stripe/runtime.ts::requestConfig.configured~1bwwf56  ?? → || audited:0viu7hk # mockConfig returns a config object or undefined; every object is truthy, so both operators pick the same config
+src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only audited:0y5af7q # with "=", both arms slice the same key; without it, no value can be consumed
+src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2 audited:0y5af7q # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
 
 # Square session retrieval returns either an object or null. Objects are
 # truthy, so null is the only value for which either operator takes "skip".
-src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
+src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → || audited:0ndw3ek # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
 
 # Square's rejected-field reader yields one of two literal words, or nothing.
-src/shared/square/transport.ts::readInvalidField~1u7zvmn  ?? → ||   # find yields RejectedBuyerField | undefined; "email" and "phone" are both truthy, so both operators pick the same field or null
+src/shared/square/transport.ts::readInvalidField~1u7zvmn  ?? → || audited:0x5q2bn # find yields RejectedBuyerField | undefined; "email" and "phone" are both truthy, so both operators pick the same field or null
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished
 # tag) also assigns tagIsCode. So a stale tagIsCode value can never be read.
-src/shared/rebrand.ts::freshScan.tagIsCode~0lmqhnz  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
-src/shared/rebrand.ts::stepTag.closed%2etagIsCode~0zhp0n6  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
+src/shared/rebrand.ts::freshScan.tagIsCode~0lmqhnz  false → true audited:0dvk6sd # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
+src/shared/rebrand.ts::stepTag.closed%2etagIsCode~0zhp0n6  false → true audited:0dvk6sd # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
 # scanTagEnd treats "<" as an inert character (it is neither a quote nor ">"),
 # so starting the scan at the "<" itself instead of one past it visits one
 # extra no-op character and returns the same index with the same quote state.
-src/shared/rebrand.ts::stepProse.end~17odbj7  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
-src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
+src/shared/rebrand.ts::stepProse.end~17odbj7  + → * audited:0dvk6sd # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
+src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0 audited:0dvk6sd # `open + 0` = open: same inert-"<" start, identical result
 
 # Payment plumbing (main #2020): an ignored success flag, non-empty provider
 # strings, a sort tie-break, and validation messages nothing reads.
-src/shared/stripe-provider.ts::toValidatedSession.paymentReference~17zvm8m  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
-src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true   # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
-src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0   # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically
-src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
-src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
+src/shared/stripe-provider.ts::toValidatedSession.paymentReference~17zvm8m  ?? → || audited:187dpw5 # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true audited:0hcedvj # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
+src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0 audited:1t674lb # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically
+src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → "" audited:0isam1l # message text of the currency regex; validation outcome is identical
+src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → "" audited:16vnpf8 # message text of the resource-id regex; validation outcome is identical
 
-src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
+src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → || audited:0vx9zmc # extra.facts is an array when present, and arrays are always truthy
 # row-state.ts: the sorted-ids check's message. Both stored-JSON surfaces
 # discard valibot issue text on purpose (a stored value could carry private
 # data), so no caller, page, or log can ever see this string — no input
 # distinguishes it from "".
-src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → ""   # issue text is discarded by the stored-JSON wrapper; unobservable through any surface
+src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → "" audited:1nuct90 # issue text is discarded by the stored-JSON wrapper; unobservable through any surface
 
 # types.ts: every write path validates day-count keys as whole numbers of
 # 1 or more before they are stored (the DayPriceKeySchema regex [1-9]\d*,
 # parseDayPrices, and the fail-closed admin API parser), so no reachable
 # input carries a day count below 1. The schema's own minimum check agrees
 # with the regex on every string that reaches it.
-src/shared/types.ts::DayPriceKeySchema~0yvxbbw 1 → 0   # the regex already admits only keys >= 1, so >= 1 and >= 0 agree on every string that reaches the check
+src/shared/types.ts::DayPriceKeySchema~0yvxbbw 1 → 0 audited:16rly70 # the regex already admits only keys >= 1, so >= 1 and >= 0 agree on every string that reaches the check
 
 # seeds.ts — two thresholds no seeded value can fall between.
-src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1   # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds
-src/shared/seeds.ts::createSeeds~0ghuowu  0 → 1   # the customisable listing always yields a delete plus one multi-row insert, so the list holds 0 or 2 statements, never 1
+src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1 audited:0oov4uv # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds
+src/shared/seeds.ts::createSeeds~0ghuowu  0 → 1 audited:0oov4uv # the customisable listing always yields a delete plus one multi-row insert, so the list holds 0 or 2 statements, never 1
 
 # superuser.ts — the cache generation's starting number. Only a CHANGE in the
 # generation matters: a lookup snapshots it before its await and compares that
 # snapshot with the current value, so every comparison is between two readings
 # of the same counter. Starting the count anywhere gives the same answers.
-src/shared/superuser.ts::%3cfile%3e~0ljtci5  0 → 1   # the generation is only ever compared against itself across an await, never against a fixed number
+src/shared/superuser.ts::%3cfile%3e~0ljtci5  0 → 1 audited:1tatpqi # the generation is only ever compared against itself across an await, never against a fixed number
 
 # db/modifier-resolve.ts — fallbacks whose left side can never be a
 # falsy-but-present value. Each map holds whole counts, arrays, or objects,
 # and each option is an object or absent.
-src/shared/db/modifier-resolve.ts::stockedQuantity.remaining~06sda3h  ?? → ||   # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::triggerQuantity~04te607  ?? → ||   # the add-on map holds requested whole quantities, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::triggerQuantity.requested~18fvmyz  ?? → ||   # the answer-quantity map holds whole counts, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::answerModifierQuantities.entries~15ao8g3  ?? → ||   # the argument is a record of answer ids or absent, and every record is truthy, the empty one included
-src/shared/db/modifier-resolve.ts::answerModifierQuantities.modifierIds~1y1b3am  ?? → ||   # the map holds arrays of modifier ids, and every array is truthy, the empty one included
-src/shared/db/modifier-resolve.ts::answerModifierQuantities~1ju3gsl  ?? → ||   # the running total is a whole count, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::eligibleCandidates.addOns~0b50snz  ?? → ||   # the option is a Map or absent, and every Map is truthy
-src/shared/db/modifier-resolve.ts::eligibleCandidates.answerQuantities~1uu272f  ?? → ||   # the option is a Map or absent, and every Map is truthy
-src/shared/db/modifier-resolve.ts::eligibleCandidates.ctx~0kgxcim  ?? → ||   # the option is a pricing-context object or absent, and every object is truthy
-src/shared/db/modifier-resolve.ts::oversubscribedAnswerTiers~0f5w5hu  ?? → ||   # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::childOnlyAddOnNameWithScopes~0vgtyif  ?? → ||   # a modifier name is a required non-empty field, so the only falsy result is the missing one the fallback is for
+src/shared/db/modifier-resolve.ts::stockedQuantity.remaining~06sda3h  ?? → || audited:1jzxter # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::triggerQuantity~04te607  ?? → || audited:1jzxter # the add-on map holds requested whole quantities, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::triggerQuantity.requested~18fvmyz  ?? → || audited:1jzxter # the answer-quantity map holds whole counts, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::answerModifierQuantities.entries~15ao8g3  ?? → || audited:1jzxter # the argument is a record of answer ids or absent, and every record is truthy, the empty one included
+src/shared/db/modifier-resolve.ts::answerModifierQuantities.modifierIds~1y1b3am  ?? → || audited:1jzxter # the map holds arrays of modifier ids, and every array is truthy, the empty one included
+src/shared/db/modifier-resolve.ts::answerModifierQuantities~1ju3gsl  ?? → || audited:1jzxter # the running total is a whole count, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::eligibleCandidates.addOns~0b50snz  ?? → || audited:1jzxter # the option is a Map or absent, and every Map is truthy
+src/shared/db/modifier-resolve.ts::eligibleCandidates.answerQuantities~1uu272f  ?? → || audited:1jzxter # the option is a Map or absent, and every Map is truthy
+src/shared/db/modifier-resolve.ts::eligibleCandidates.ctx~0kgxcim  ?? → || audited:1jzxter # the option is a pricing-context object or absent, and every object is truthy
+src/shared/db/modifier-resolve.ts::oversubscribedAnswerTiers~0f5w5hu  ?? → || audited:1jzxter # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::childOnlyAddOnNameWithScopes~0vgtyif  ?? → || audited:1jzxter # a modifier name is a required non-empty field, so the only falsy result is the missing one the fallback is for
 
 # db/modifier-resolve.ts — the early drop of an untriggered modifier. It saves
 # real work on every checkout, because an unmatched promo code yields 0 for
 # every code modifier. It changes no answer, because both readers drop a 0
 # again, and no negative quantity ever reaches it.
-src/shared/db/modifier-resolve.ts::eligibleCandidates~1oaufcv  1 → 0   # resolveModifiers keeps only a stocked quantity of 1 or more, and an oversubscribed tier needs a quantity above the stock left, which 0 never is
+src/shared/db/modifier-resolve.ts::eligibleCandidates~1oaufcv  1 → 0 audited:1jzxter # resolveModifiers keeps only a stocked quantity of 1 or more, and an oversubscribed tier needs a quantity above the stock left, which 0 never is
 
 # payment-provider-status.ts: settings.stripe.keyMode ?? "unknown" — keyModeOf
 # returns "test" | "live" | null, so the only value ?? and || can disagree on,
 # "", is one the type does not allow.
-src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
+src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → || audited:0l52841 # keyMode is "test"|"live"|null; no falsy-non-null value exists
 
 # refund-machine-spec.ts fixtures: the spec runs the machine at one instant
 # (NOW). Every replay-window comparison is strict (refund-authority.ts:54
@@ -330,52 +330,52 @@ src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → ||   
 # behaves as one an hour later; the past-window rep is expired by its
 # request's own closed window, not by when it was armed; and the
 # next-action instant is stored by transitions, never compared.
-src/shared/payment/refund-machine-spec.ts::NEXT~0t2ipiv 60000→0   # stored by transitions, never compared to NOW
-src/shared/payment/refund-machine-spec.ts::KEYED~1io4set 3600000→0   # strict comparisons keep a window at exactly NOW live
-src/shared/payment/refund-machine-spec.ts::armedPastWindow~0fsqlbf 3600000→0   # expiry comes from EXPIRED_KEYED's window, not the armed moment
+src/shared/payment/refund-machine-spec.ts::NEXT~0t2ipiv 60000→0 audited:0jevsrl # stored by transitions, never compared to NOW
+src/shared/payment/refund-machine-spec.ts::KEYED~1io4set 3600000→0 audited:0jevsrl # strict comparisons keep a window at exactly NOW live
+src/shared/payment/refund-machine-spec.ts::armedPastWindow~0fsqlbf 3600000→0 audited:0jevsrl # expiry comes from EXPIRED_KEYED's window, not the armed moment
 
 # refund-machine-spec.ts representative tags on nodes whose cells are all
 # plain: no split names them, so the tag only labels one conformance case;
 # production reads only the representative state. (The tags that split
 # cells DO name sit on send_armed/observing and are killed by the table
 # checks.)
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1wbd2os keyed→""   # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0z99ikg keyless→""   # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~10afzhu keyed_expired→""   # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~122j3pc keyless_possibly_sent→""   # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1nd1r6c keyed_rejected→""   # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0ktfgvw keyed_unreadable→""   # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1hsgkm2 keyed_window_expired→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1wbd2os keyed→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0z99ikg keyless→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~10afzhu keyed_expired→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~122j3pc keyless_possibly_sent→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1nd1r6c keyed_rejected→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0ktfgvw keyed_unreadable→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1hsgkm2 keyed_window_expired→"" audited:0jevsrl # tag labels one conformance case; no split names it
 
 # refund-provider-authorization.ts: the permit is the symbol's identity;
 # the description only names it in debugger output.
-src/shared/payment/refund-provider-authorization.ts::durableRefundPermit~0u81rxu durable refund permit→""   # the permit is checked by symbol identity; the description is diagnostic text
+src/shared/payment/refund-provider-authorization.ts::durableRefundPermit~0u81rxu durable refund permit→"" audited:1rqpini # the permit is checked by symbol identity; the description is diagnostic text
 
 # sumup-observation.ts: a child verdict names a refusal or vouches for the
 # money, and only the accept step reads the vouching. The ladder refuses on any
 # verdict carrying a failure, so the flag on those arms is never read.
-src/shared/sumup-observation.ts::UNRECORDED_CHILD.moneyVouchedFor~1767ixx  false → true   # this verdict always names a failure, so the ladder refuses before the accept step reads the flag
-src/shared/sumup-observation.ts::paidChildVerdict.moneyVouchedFor~1767ixx  false → true   # this arm names a failure, so the ladder refuses before the accept step reads the flag
-src/shared/sumup-observation.ts::paidChildVerdict~0w4963m  ?? → ||   # transaction_id is string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
-src/shared/sumup-observation.ts::toSumupCheckout.transactionId~0w4963m  ?? → ||   # transaction_id is string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
-src/shared/sumup-observation.ts::checkChildren~1hpzcer  ?? → ||   # transactions is an array when present, and every array is truthy
+src/shared/sumup-observation.ts::UNRECORDED_CHILD.moneyVouchedFor~1767ixx  false → true audited:1woqdkh # this verdict always names a failure, so the ladder refuses before the accept step reads the flag
+src/shared/sumup-observation.ts::paidChildVerdict.moneyVouchedFor~1767ixx  false → true audited:1woqdkh # this arm names a failure, so the ladder refuses before the accept step reads the flag
+src/shared/sumup-observation.ts::paidChildVerdict~0w4963m  ?? → || audited:1woqdkh # transaction_id is string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
+src/shared/sumup-observation.ts::toSumupCheckout.transactionId~0w4963m  ?? → || audited:1woqdkh # transaction_id is string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
+src/shared/sumup-observation.ts::checkChildren~1hpzcer  ?? → || audited:1woqdkh # transactions is an array when present, and every array is truthy
 
 # The reference and lifecycle rungs run before the accept step, so requireValue
 # there can never throw and no test can read the message it would carry.
-src/shared/sumup-observation.ts::toSumupCheckout.reference~1wcwgho  The ladder accepted a SumUp checkout with no reference of ours → ""   # the reference rung refuses a null reference first, so this throw is unreachable
-src/shared/sumup-observation.ts::toSumupCheckout.status~1l27hu1  The ladder accepted a SumUp checkout with no known lifecycle → ""   # the lifecycle rung refuses a null status first, so this throw is unreachable
+src/shared/sumup-observation.ts::toSumupCheckout.reference~1wcwgho  The ladder accepted a SumUp checkout with no reference of ours → "" audited:1woqdkh # the reference rung refuses a null reference first, so this throw is unreachable
+src/shared/sumup-observation.ts::toSumupCheckout.status~1l27hu1  The ladder accepted a SumUp checkout with no known lifecycle → "" audited:1woqdkh # the lifecycle rung refuses a null status first, so this throw is unreachable
 
 # sumup-provider.ts: the webhook schema types both fields as optional text.
-src/shared/sumup-provider.ts::sumupWebhookEvent.id~0ma0qwq  ?? → ||   # the schema types id as string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
-src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → ||   # the schema types event_type as string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
+src/shared/sumup-provider.ts::sumupWebhookEvent.id~0ma0qwq  ?? → || audited:0hpmaxl # the schema types id as string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
+src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → || audited:0hpmaxl # the schema types event_type as string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
-src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → ||   # find returns a refund read object or undefined, and every object is truthy
-src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string
+src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → || audited:0k8nuca # find returns a refund read object or undefined, and every object is truthy
+src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → || audited:0ohr026 # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string
 
-src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
-src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → ||   # byChild sums validated quantities of at least 1, so every present value is truthy
-src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → ||   # childrenByParentId.get answers an array or undefined, and every array is truthy
+src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → || audited:0bada57 # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
+src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → || audited:0bada57 # byChild sums validated quantities of at least 1, so every present value is truthy
+src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → || audited:1xmpj4y # childrenByParentId.get answers an array or undefined, and every array is truthy
 
 # link-end.ts's jsonOrNull: its one caller (squareLinkEndEventOf) reads only
 # body.errors and body.cancelled_order_id off the result. JSON.parse never
@@ -383,18 +383,18 @@ src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → ||   # childrenBy
 # boolean) yields undefined without throwing, so returning a cast primitive
 # instead of null is indistinguishable from returning null through that
 # caller; arrays are objects and pass both forms unchanged.
-src/shared/square/link-end.ts::jsonOrNull~06gum1e  && → ||   # JSON.parse yields primitive|object|array; a primitive's property reads give undefined, so the caller reads the same answer either way
+src/shared/square/link-end.ts::jsonOrNull~06gum1e  && → || audited:0icyc17 # JSON.parse yields primitive|object|array; a primitive's property reads give undefined, so the caller reads the same answer either way
 
 # The Square link-end machine has no split move. Representative tags label only
 # the test matrix, and `expected` ignores its tag for every plain or absent cell.
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1jt9shd  row_deleted → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~0g7esyv  lease_held → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1toq277  unclaimed → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1fvh6yn  no_row_yet → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1jt9shd  row_deleted → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~0g7esyv  lease_held → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1toq277  unclaimed → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1fvh6yn  no_row_yet → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
 
 # machine-spec.ts's moveOrRefuse passes "" as the split-shape tag on purpose:
 # a split cell is looked up per rep tag, and every rep tag the machines
 # declare is a non-empty word (they name a conformance case), so "" never
 # matches a split shape — any other non-empty sentinel behaves identically.
 # A machine that declared an "" tag would break its own atlas labeling first.
-src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated"   # perRep[""] and perRep["mutated"] are both undefined for every declared tag, so both refuse
+src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated" audited:035cpor # perRep[""] and perRep["mutated"] are both undefined for every declared tag, so both refuse

@@ -65,7 +65,7 @@ describe("writing a mutant key onto one line", () => {
       "a::b.ts",
     ]) {
       const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
-      const parsed = parseIgnoreLine(`${key}   # a reason`);
+      const parsed = parseIgnoreLine(`${key}  audited:041pxgm   # a reason`);
 
       expect(parsed?.key).toBe(key);
       expect(parsed?.sourcePath).toBe(`src/${name}`);
@@ -126,7 +126,9 @@ describe("writing a mutant key onto one line", () => {
       "see Foo::bar and x::y z",
       "a::b → c::d",
     ]) {
-      expect(parseIgnoreLine(`${key}   # ${reason}`)?.key).toBe(key);
+      expect(
+        parseIgnoreLine(`${key}  audited:041pxgm   # ${reason}`)?.key,
+      ).toBe(key);
     }
   });
 
@@ -139,8 +141,12 @@ describe("writing a mutant key onto one line", () => {
       mutant(1, '"[::1]"', '"[::ffff:1.2.3.4]"'),
     );
 
-    expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
-    expect(parseIgnoreLine(`${key}`)?.sourcePath).toBe("src/example.ts");
+    expect(parseIgnoreLine(`${key}  audited:041pxgm   # a reason`)?.key).toBe(
+      key,
+    );
+    expect(parseIgnoreLine(`${key}  audited:041pxgm`)?.sourcePath).toBe(
+      "src/example.ts",
+    );
   });
 
   test("tells a leading tab from a leading space", () => {
@@ -152,5 +158,47 @@ describe("writing a mutant key onto one line", () => {
     expect(keyFor("applyFlash(request); ok()")).toContain(
       " applyFlash(request); ok()→",
     );
+  });
+
+  /** The stamp rides the line after the mutation and never reaches the key:
+   * suppression keys on the mutant alone, so re-stamping a re-derived proof
+   * never orphans the record. */
+  test("reads a re-audit stamp without putting it in the key", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    const parsed = parseIgnoreLine(`${key}  audited:041pxgm   # a reason`);
+
+    expect(parsed?.key).toBe(key);
+    expect(parsed?.stamp).toBe("audited:041pxgm");
+    expect(parsed?.newOperator).toBe("||");
+    expect(parsed?.reason).toBe("a reason");
+  });
+
+  test("reads a reason that itself mentions a stamp", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    expect(
+      parseIgnoreLine(
+        `${key}  audited:041pxgm   # re-derived; the old stamp was audited:abc1234`,
+      )?.key,
+    ).toBe(key);
+  });
+
+  /** The stamp is the proof's date. A line without one rests on a proof
+   * nothing dates, so it is malformed exactly like a line with no mutation. */
+  test("refuses a line that carries no re-audit stamp", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    expect(parseIgnoreLine(`${key}   # a reason`)).toBe(null);
+    expect(parseIgnoreLine(`${key}`)).toBe(null);
+  });
+
+  test("refuses a line carrying a second stamp or a stamp before another token", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    expect(
+      parseIgnoreLine(`${key}  audited:041pxgm audited:abc1234   # why`),
+    ).toBe(null);
+    expect(parseIgnoreLine(`${key}  audited:041pxgm ||   # why`)).toBe(null);
   });
 });

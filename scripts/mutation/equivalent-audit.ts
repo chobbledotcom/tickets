@@ -1,4 +1,5 @@
 import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
+import { shortHash } from "#scripts/checksum.ts";
 import { createStaticGates, type StaticGate } from "./execution.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import {
@@ -16,15 +17,35 @@ interface PhysicalEntry {
   line: string;
   newOperator: string;
   operator: string;
+  reason: string;
   /** Which registry file the entry lives in, as an index into the file list. */
   registry: number;
   sourcePath: string;
+  stamp: string;
 }
 
-interface ResolvedEntry extends PhysicalEntry {
+/** One entry that resolved to a real mutant in the current source. The
+ * distinguishing-input phase (equivalent-reproof.ts) runs against these. */
+export interface ResolvedEntry extends PhysicalEntry {
   file: string;
   mutant: Mutant;
   original: string;
+}
+
+/** What the audit's distinguishing-input phase needs to run one sweep. */
+export interface ReproveContext {
+  root: string;
+  signal: AbortSignal;
+}
+
+/** The entries a test run killed: their registry chunks, for pruning, and
+ * their lines, for the report. */
+export interface ReproveOutcome {
+  killedChunks: Set<string>;
+  killedLines: string[];
+  /** Entries whose source has no direct test to distinguish with: left
+   * standing, and owed a note in the report. */
+  untested: string[];
 }
 
 interface GateContext {
@@ -62,12 +83,29 @@ export interface EquivalentAuditOptions {
 export interface EquivalentAuditResult {
   checked: number;
   killedByLint: string[];
+  /** Entries the distinguishing-input phase dropped (only with a `reprove`
+   * dep, which the audit command passes for `--tests`). */
+  killedByTests: string[];
   killedByTypeCheck: string[];
+  /** Entries still suppressing: confirmed, gate-passing, and — under a
+   * reprove dep — surviving the direct tests too. */
   retained: number;
+  /** Entries whose stamp predates the source text: skipped, never pruned, and
+   * owed a person's re-derivation. */
+  unconfirmed: string[];
+  /** Entries the reprove phase could not attempt because their source has no
+   * direct test to distinguish with. They keep suppressing. */
+  untested: string[];
 }
 
 export interface EquivalentAuditDeps {
   createGates(): Promise<StaticGate[]>;
+  /** The distinguishing-input phase. Runs each gate-surviving confirmed
+   * entry's mutant against its mapped direct tests and reports the kills. */
+  reprove?(
+    entries: ResolvedEntry[],
+    context: ReproveContext,
+  ): Promise<ReproveOutcome>;
 }
 
 const realDeps: EquivalentAuditDeps = { createGates: createStaticGates };
@@ -202,10 +240,34 @@ const auditEntries = async (
   return {
     checked: entries.length,
     killedByLint,
+    killedByTests: [],
     killedByTypeCheck,
     killedChunks,
     retained: entries.length - killedChunks.size,
+    unconfirmed: [],
+    untested: [],
   };
+};
+
+/**
+ * The stamp dates the proof: it is the source file's text as it stood when a
+ * person last re-derived the reason. A file that has changed since leaves the
+ * entry unconfirmed — the audit skips it (no gate check, no prune; a
+ * re-derived entry gets its gate check then) and hands it to a person.
+ */
+const splitByStamp = (
+  entries: ResolvedEntry[],
+): { confirmed: ResolvedEntry[]; unconfirmed: string[] } => {
+  const confirmed: ResolvedEntry[] = [];
+  const unconfirmed: string[] = [];
+  for (const entry of entries) {
+    if (entry.stamp === `audited:${shortHash(entry.original)}`) {
+      confirmed.push(entry);
+    } else {
+      unconfirmed.push(entry.line);
+    }
+  }
+  return { confirmed, unconfirmed };
 };
 
 const pruneKilledEntries = async (
@@ -226,7 +288,8 @@ const pruneKilledEntries = async (
   }
 };
 
-/** Apply every listed equivalent and run only lint plus type-check. */
+/** Apply every listed equivalent and run only lint plus type-check — plus,
+ * under a `reprove` dep, each confirmed gate-survivor's mapped direct tests. */
 export const auditEquivalentMutants = async (
   options: EquivalentAuditOptions,
   deps: EquivalentAuditDeps = realDeps,
@@ -247,18 +310,38 @@ export const auditEquivalentMutants = async (
   );
   const gates = await deps.createGates();
   const signal = options.signal ?? new AbortController().signal;
-  const result = await auditEntries(entries, {
+  const { confirmed, unconfirmed } = splitByStamp(entries);
+  const staticResult = await auditEntries(confirmed, {
     gates,
     signal,
     workspace: root,
   });
-  if (options.write && result.killedChunks.size > 0) {
-    await pruneKilledEntries(registries, result.killedChunks);
+
+  let killedChunks = staticResult.killedChunks;
+  let killedByTests: string[] = [];
+  let untested: string[] = [];
+  if (deps.reprove) {
+    const survivors = confirmed.filter(
+      (entry) => !killedChunks.has(`${entry.registry}:${entry.index}`),
+    );
+    if (survivors.length > 0) {
+      const reproved = await deps.reprove(survivors, { root, signal });
+      killedChunks = new Set([...killedChunks, ...reproved.killedChunks]);
+      killedByTests = reproved.killedLines;
+      untested = reproved.untested;
+    }
+  }
+
+  if (options.write && killedChunks.size > 0) {
+    await pruneKilledEntries(registries, killedChunks);
   }
   return {
-    checked: result.checked,
-    killedByLint: result.killedByLint,
-    killedByTypeCheck: result.killedByTypeCheck,
-    retained: result.retained,
+    checked: entries.length,
+    killedByLint: staticResult.killedByLint,
+    killedByTests,
+    killedByTypeCheck: staticResult.killedByTypeCheck,
+    retained: entries.length - killedChunks.size - unconfirmed.length,
+    unconfirmed,
+    untested,
   };
 };

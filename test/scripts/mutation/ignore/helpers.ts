@@ -33,14 +33,16 @@ export const result = (
 });
 
 /** An ignore list of entries against `src/example.ts` unless a line names its
- * own path, which is how a neighbouring file's entry is written. */
+ * own path, which is how a neighbouring file's entry is written. Entries read
+ * back with the stamp a line carries; the tests below pass one explicitly when
+ * the stamp matters and take a confirmed-shaped one when they do not. */
 export const ignoreList = (
-  keys: (string | { key: string; sourcePath: string })[],
+  keys: (string | { key: string; sourcePath: string; stamp?: string })[],
 ): IgnoreList => {
   const entries = keys.map((entry) =>
     typeof entry === "string"
-      ? { key: entry, sourcePath: "src/example.ts" }
-      : entry,
+      ? { key: entry, sourcePath: "src/example.ts", stamp: "audited:041pxgm" }
+      : { stamp: "audited:041pxgm", ...entry },
   );
   return { entries, keys: new Set(entries.map((entry) => entry.key)) };
 };

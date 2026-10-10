@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type EvaluationDeps,
   evaluateMutantTests,
+  evaluateOriginalTests,
   type FileMutationPlan,
 } from "#scripts/mutation/evaluate.ts";
 import type { Mutant } from "#scripts/mutation/generate.ts";
@@ -336,5 +337,44 @@ describe("mutant evaluation", () => {
       timings: [{ durationMs: 3, phase: "lint" }],
     });
     expect(state.writes).toEqual([" false ", "true"]);
+  });
+
+  test("runs the original's direct tests with the mutants' direct env", async () => {
+    const state = setup();
+
+    const result = await evaluateOriginalTests(
+      plan(),
+      runConfig,
+      new AbortController().signal,
+      state.deps,
+    );
+
+    expect(result).toEqual({
+      detectedBy: null,
+      status: "survived",
+      timings: [{ durationMs: 1, phase: "direct-tests" }],
+    });
+    // The baseline must not mutate the file, and the prebuilt state's
+    // directory marker goes the same way the mutants' direct stage sends it.
+    expect(state.runs).toEqual([
+      { env: { BASE: "yes" }, files: ["test/shared/example.test.ts"] },
+    ]);
+    expect(state.writes).toEqual([]);
+  });
+
+  test("reports the original's failing direct tests as a kill", async () => {
+    const state = setup();
+    state.deps.runTests = () =>
+      Promise.resolve({ durationMs: 2, outcome: "failed" });
+
+    const result = await evaluateOriginalTests(
+      plan({ rebuildTestState: false }),
+      runConfig,
+      new AbortController().signal,
+      state.deps,
+    );
+
+    expect(result.status).toBe("killed");
+    expect(result.detectedBy).toBe("direct-tests");
   });
 });

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   collectModuleGraphFiles,
+  collectStateBuilderFiles,
   STATE_BUILDER_ROOT,
   staticGraphFiles,
 } from "#scripts/mutation/state-graph.ts";
@@ -67,6 +68,41 @@ describe("mutation > state graph", () => {
     // test-state.ts ever moves, this pins the constant to move with it.
     const stat = await Deno.stat(STATE_BUILDER_ROOT);
     expect(stat.isFile).toBe(true);
+  });
+
+  test("collects no state-builder files when no prebuilt state is exported", async () => {
+    // A run without the harness exports no prebuilt state, so there is
+    // nothing a mutant could seed from.
+    const envWasSet = Deno.env.get("TICKETS_TEST_STATE_DIR");
+    try {
+      Deno.env.delete("TICKETS_TEST_STATE_DIR");
+      expect(await collectStateBuilderFiles()).toBe(null);
+    } finally {
+      if (envWasSet !== undefined) {
+        Deno.env.set("TICKETS_TEST_STATE_DIR", envWasSet);
+      }
+    }
+  });
+
+  test("collects the state-builder graph once the state is exported", async () => {
+    // The exported state's directory is the only thing that changes the
+    // answer; the walk itself is the collected graph over the fixed root.
+    const envWasSet = Deno.env.get("TICKETS_TEST_STATE_DIR");
+    try {
+      Deno.env.set("TICKETS_TEST_STATE_DIR", "/tmp/tickets-test-state");
+      const files = await collectStateBuilderFiles(() =>
+        Promise.resolve(new Set(["/work/test/test-utils/test-state.ts"])),
+      );
+      expect([...files!].sort()).toEqual([
+        "/work/test/test-utils/test-state.ts",
+      ]);
+    } finally {
+      if (envWasSet === undefined) {
+        Deno.env.delete("TICKETS_TEST_STATE_DIR");
+      } else {
+        Deno.env.set("TICKETS_TEST_STATE_DIR", envWasSet);
+      }
+    }
   });
 
   test("staticGraphFiles excludes a dynamic-import-only dep but keeps its static siblings", async () => {

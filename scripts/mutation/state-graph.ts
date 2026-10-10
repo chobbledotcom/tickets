@@ -19,6 +19,8 @@ import {
   readModuleGraph,
   staticReachableSpecifiers,
 } from "#scripts/module-graph.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 /** The module whose import graph produces the prebuilt test state. */
 export const STATE_BUILDER_ROOT = "test/test-utils/test-state.ts";
@@ -45,6 +47,18 @@ const graphFilesFrom =
 export const collectModuleGraphFiles: GraphFiles = graphFilesFrom(
   (graph) => new Set(graph.modules.map((module) => module.specifier)),
 );
+
+/**
+ * The files the run-wide prebuilt test state was built from, or null when no
+ * prebuilt state is exported: a mutant in one of these files must not let its
+ * tests seed from a snapshot the unmutated code produced.
+ */
+export const collectStateBuilderFiles = async (
+  collect: GraphFiles = collectModuleGraphFiles,
+): Promise<Set<string> | null> =>
+  Deno.env.get(TEST_STATE_DIR_ENV) === undefined
+    ? null
+    : await collect(STATE_BUILDER_ROOT, projectRoot);
 
 /** Breadth-first walk of the static-import graph from `graph.roots`. */
 const walkStatic = (graph: ModuleGraph): Set<string> =>

@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { checkEquivalentMutants } from "#scripts/mutation/check-equivalents.ts";
+import { shortHash } from "#scripts/checksum.ts";
+import {
+  checkEquivalentMutants,
+  stampForSource,
+} from "#scripts/mutation/check-equivalents.ts";
 import { generateMutants, type Mutant } from "#scripts/mutation/generate.ts";
 import { mutantKeyForPath } from "#scripts/mutation/ignore.ts";
 import { tempDir } from "#test-utils/files.ts";
@@ -58,7 +62,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     using _dir = state.dir;
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
-      `src/read.ts::${state.anchor}  ?? → ||   # fallback is the only falsy value\n`,
+      `src/read.ts::${state.anchor}  ?? → ||  audited:0000000   # fallback is the only falsy value\n`,
     );
 
     expect(await check(state)).toEqual([]);
@@ -69,7 +73,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     using _dir = state.dir;
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
-      `# a heading\n\nsrc/read.ts::${state.anchor}  ?? → ||\n`,
+      `# a heading\n\nsrc/read.ts::${state.anchor}  ?? → ||  audited:0000000\n`,
     );
 
     expect(await check(state)).toEqual([]);
@@ -84,7 +88,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     await Deno.writeTextFile(join(state.root, "src", "# read.ts"), source);
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
-      `src/%23 read.ts::${state.anchor}  ?? → ||\n`,
+      `src/%23 read.ts::${state.anchor}  ?? → ||  audited:0000000\n`,
     );
 
     expect(await check(state)).toEqual([]);
@@ -95,7 +99,9 @@ describe("checking the equivalent-mutant registry resolves", () => {
    * key, and the author pastes it instead of re-running a mutation run to
    * rediscover it. */
   test("prints the fresh key for a stale entry whose mutation still occurs", async () => {
-    const state = await project(["src/read.ts::noSuchThing~0000000  ?? → ||"]);
+    const state = await project([
+      "src/read.ts::noSuchThing~0000000  ?? → ||  audited:0000000",
+    ]);
     using _dir = state.dir;
 
     const problems = await check(state);
@@ -115,7 +121,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
       "export const a = (x: number | null) => x ?? 0;\n" +
       "export const b = (x: number | null) => x ?? 0;\n";
     const state = await projectWith(
-      ["src/read.ts::noSuchThing~0000000  ?? → ||"],
+      ["src/read.ts::noSuchThing~0000000  ?? → ||  audited:0000000"],
       writtenSource,
     );
     using _dir = state.dir;
@@ -128,16 +134,18 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const acceptLines = problems[0]!
       .split("\n")
       .filter((line) => line.startsWith("to accept: "));
-    expect(acceptLines.map((line) => line.slice("to accept: ".length))).toEqual(
-      candidates.map((m) => freshKeyFor("src/read.ts", m)),
-    );
+    expect(
+      acceptLines.map(
+        (line) => line.slice("to accept: ".length).split("  audited:")[0],
+      ),
+    ).toEqual(candidates.map((m) => freshKeyFor("src/read.ts", m)));
   });
 
   /** A mutation the file no longer produces anywhere suppresses nothing, so
    * the entry has to go — and naming that beats a generic rename question. */
   test("says to delete a stale entry whose mutation no longer occurs", async () => {
     const state = await projectWith(
-      ["src/read.ts::whatever~0000000  ?? → ||"],
+      ["src/read.ts::whatever~0000000  ?? → ||  audited:0000000"],
       "export const read = (x: number | null) => x || 0;\n",
     );
     using _dir = state.dir;
@@ -162,7 +170,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     if (!mutant) throw new Error("Expected an exhaustive number mutant");
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
-      `src/read.ts::${mutant.anchor}  0 → -1\n`,
+      `src/read.ts::${mutant.anchor}  0 → -1  audited:0000000\n`,
     );
 
     expect(await check(state)).toEqual([]);
@@ -171,7 +179,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
   /** A path spelled so its own canonical form is the parent directory escapes
    * the project, so the entry is refused before any file is read. */
   test("refuses a path whose canonical form is the parent directory", async () => {
-    const state = await project(["..::x~0000000  0 → 1"]);
+    const state = await project(["..::x~0000000  0 → 1  audited:0000000"]);
     using _dir = state.dir;
 
     const problems = await check(state);
@@ -186,7 +194,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
   test("prints the fresh key for a stale entry whose path holds spaces", async () => {
     const relPath = "src/a b/c d/read.ts";
     const state = await projectWith(
-      [`${relPath}::noSuchThing~0000000  ?? → ||`],
+      [`${relPath}::noSuchThing~0000000  ?? → ||  audited:0000000`],
       source,
     );
     using _dir = state.dir;
@@ -213,7 +221,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
   // to remove, so a missing file reads as stale rather than killing the run.
   test("reports an entry whose source file is gone", async () => {
     const state = await project([
-      "src/read.ts::gone~0000000  ?? \u2192 ||   # its source was deleted",
+      "src/read.ts::gone~0000000  ?? \u2192 ||  audited:0000000   # its source was deleted",
     ]);
     using _dir = state.dir;
     await Deno.remove(join(state.root, "src", "read.ts"));
@@ -228,7 +236,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
   test("reports the same entry recorded twice", async () => {
     const state = await project([]);
     using _dir = state.dir;
-    const entry = `src/read.ts::${state.anchor}  ?? → ||`;
+    const entry = `src/read.ts::${state.anchor}  ?? → ||  audited:0000000`;
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
       `${entry}\n${entry}\n`,
@@ -251,7 +259,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const outAndBack = `../${state.root.split("/").at(-1)}/src/read.ts`;
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
-      `${outAndBack}::${state.anchor}  ?? → ||\n`,
+      `${outAndBack}::${state.anchor}  ?? → ||  audited:0000000\n`,
     );
 
     const problems = await check(state);
@@ -265,7 +273,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     using _dir = state.dir;
     await Deno.writeTextFile(
       join(state.registryDir, "entries.txt"),
-      `${join(state.root, "src", "read.ts")}::${state.anchor}  ?? → ||\n`,
+      `${join(state.root, "src", "read.ts")}::${state.anchor}  ?? → ||  audited:0000000\n`,
     );
 
     const problems = await check(state);
@@ -275,7 +283,9 @@ describe("checking the equivalent-mutant registry resolves", () => {
   });
 
   test("refuses a path escaping the project", async () => {
-    const state = await project(["../outside.ts::whatever~0000000  ?? → ||"]);
+    const state = await project([
+      "../outside.ts::whatever~0000000  ?? → ||  audited:0000000",
+    ]);
     using _dir = state.dir;
 
     const problems = await check(state);
@@ -290,6 +300,31 @@ describe("checking the equivalent-mutant registry resolves", () => {
 
     await expect(check(state)).rejects.toThrow(
       "Malformed equivalent-mutant entry",
+    );
+  });
+
+  /** A re-recorded line must carry the stamp of the file as it stands now, so
+   * the checker hands over the whole paste-ready line, old reason included. */
+  test("offers the fresh key with the current stamp and the old reason", async () => {
+    const state = await project([
+      "src/read.ts::noSuchThing~0000000  ?? → ||  audited:0000000   # why it was equivalent",
+    ]);
+    using _dir = state.dir;
+
+    const problems = await check(state);
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain(
+      `to accept: ${freshKeyFor("src/read.ts", state.mutant)}  audited:${shortHash(source)}   # why it was equivalent`,
+    );
+  });
+
+  test("stamps a source file for a new or re-derived entry", async () => {
+    const state = await project([]);
+    using _dir = state.dir;
+
+    expect(await stampForSource(state.root, "src/read.ts")).toBe(
+      `audited:${shortHash(source)}`,
     );
   });
 });

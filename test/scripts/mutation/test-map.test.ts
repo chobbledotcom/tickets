@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildMutationTestMap,
+  directTestMapFor,
   requireDirectMutationTests,
   selectMutationTests,
 } from "#scripts/mutation/test-map.ts";
@@ -240,5 +241,14 @@ describe("mutation test map", () => {
     expect(requireDirectMutationTests("src/shared/types.ts", 0, [])).toBe(
       undefined,
     );
+  });
+
+  test("leaves an unrelated test file out of the strict map", () => {
+    const map = directTestMapFor(
+      ["src/shared/a.ts"],
+      ["test/shared/a.test.ts", "test/serve-app.test.ts"],
+    );
+
+    expect(map.get("src/shared/a.ts")).toEqual(["test/shared/a.test.ts"]);
   });
 });

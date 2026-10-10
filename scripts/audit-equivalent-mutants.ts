@@ -2,32 +2,56 @@
 
 import { relative, resolve } from "@std/path";
 import { splitFlagValues } from "#scripts/flag-values.ts";
-import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
+import {
+  auditEquivalentMutants,
+  type ReproveContext,
+  type ReproveOutcome,
+  type ResolvedEntry,
+} from "#scripts/mutation/equivalent-audit.ts";
+import { reproveEntries } from "#scripts/mutation/equivalent-reproof.ts";
+import {
+  createFilePlan,
+  evaluateMutantTests,
+  evaluateOriginalTests,
+} from "#scripts/mutation/evaluate.ts";
+import { createStaticGates, testEnv } from "#scripts/mutation/execution.ts";
 import {
   listRegistryFiles,
   registryFilePath,
 } from "#scripts/mutation/ignore.ts";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
+import { defaultBatchJobs } from "#scripts/mutation/runner.ts";
 import {
   isSnapshotChild,
   runSnapshotChild,
 } from "#scripts/mutation/snapshot-child.ts";
+import { collectStateBuilderFiles } from "#scripts/mutation/state-graph.ts";
+import { directTestMapFor } from "#scripts/mutation/test-map.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+/* jscpd:ignore-start -- imports */
 import {
   offTerminationSignals,
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
+/* jscpd:ignore-end -- imports */
+import { collectTestFiles } from "#scripts/test-groups.ts";
+import { withTestHarness } from "#scripts/test-harness.ts";
 
-const usage = `Usage: deno task mutation:audit-equivalents [--write]
+const usage = `Usage: deno task mutation:audit-equivalents [--tests] [--write]
 
 Runs lint and type-check against every recorded equivalent mutant without
-running tests. Pass --write to remove entries that static checks now kill.`;
+running tests. Pass --tests to also run each confirmed entry's mapped direct
+tests and drop the entries a test kills (a killed mutant is not equivalent).
+Pass --write to remove entries that the static checks or the tests now kill.
+The audit never re-stamps an entry: re-deriving a proof is a person's read of
+the reason against the current file.`;
 
 /** The audit's options. The registry list is internal plumbing: the parent
  * enumerates the shards once and hands the same list to its snapshot child,
  * so the audited files and the copied-back files can never differ. */
 interface AuditOptions {
   registry: string[];
+  tests: boolean;
   write: boolean;
 }
 
@@ -43,10 +67,17 @@ const parseOptions = (args: string[]): AuditOptions => {
     console.log(usage);
     Deno.exit(0);
   }
-  if (rest.length > 1 || (rest.length === 1 && rest[0] !== "--write")) {
+  if (
+    rest.length > 2 ||
+    rest.some((arg) => arg !== "--write" && arg !== "--tests")
+  ) {
     throw new Error(`Unknown arguments: ${rest.join(" ")}\n\n${usage}`);
   }
-  return { registry, write: rest[0] === "--write" };
+  return {
+    registry,
+    tests: rest.includes("--tests"),
+    write: rest.includes("--write"),
+  };
 };
 
 /** Audit inside this checkout, which the snapshot child owns outright. */
@@ -54,12 +85,18 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
   const controller = new AbortController();
   const onSignal = (): void => controller.abort();
   onTerminationSignals(onSignal);
-  const result = await auditEquivalentMutants({
-    ignoreFiles: options.registry.map((path) => resolve(projectRoot, path)),
-    root: projectRoot,
-    signal: controller.signal,
-    write: options.write,
-  })
+  const result = await auditEquivalentMutants(
+    {
+      ignoreFiles: options.registry.map((path) => resolve(projectRoot, path)),
+      root: projectRoot,
+      signal: controller.signal,
+      write: options.write,
+    },
+    {
+      createGates: createStaticGates,
+      ...(options.tests ? { reprove: reproveWithTests } : {}),
+    },
+  )
     .catch((error) => {
       // An interrupt must return through the snapshot child's cleanup, not
       // exit straight past it — an exit here would leave the run's claim
@@ -72,13 +109,77 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
   console.log(`Checked ${result.checked} equivalent mutants.`);
   console.log(`Killed by lint: ${result.killedByLint.length}`);
   console.log(`Killed by type-check: ${result.killedByTypeCheck.length}`);
+  if (options.tests) {
+    console.log(`Killed by a test: ${result.killedByTests.length}`);
+    console.log(
+      `No direct tests to distinguish with: ${result.untested.length}`,
+    );
+  }
+  console.log(`Needs re-derivation: ${result.unconfirmed.length}`);
   console.log(`Still reaches tests: ${result.retained}`);
-  console.log("No tests were run.");
-  for (const line of [...result.killedByLint, ...result.killedByTypeCheck]) {
+  if (!options.tests) console.log("No tests were run.");
+  for (const line of [
+    ...result.killedByLint,
+    ...result.killedByTypeCheck,
+    ...result.killedByTests,
+    ...result.untested,
+    ...result.unconfirmed,
+  ]) {
     console.log(`  ${line}`);
   }
-  return !options.write && result.retained !== result.checked ? 1 : 0;
+  const killed =
+    result.killedByLint.length +
+    result.killedByTypeCheck.length +
+    result.killedByTests.length;
+  const failed =
+    result.unconfirmed.length > 0 || (!options.write && killed > 0);
+  return failed ? 1 : 0;
 };
+
+const reproveWithTests = async (
+  entries: ResolvedEntry[],
+  context: ReproveContext,
+): Promise<ReproveOutcome> =>
+  withTestHarness(async ({ staticAssets }) => {
+    let stateBuilderFiles: Set<string> | null = null;
+    const allTestFiles = await collectTestFiles(projectRoot);
+    const directTestFiles = directTestMapFor(
+      entries.map((entry) => entry.file),
+      allTestFiles,
+    );
+    return reproveEntries(
+      entries,
+      {
+        batchJobs: defaultBatchJobs(),
+        createPlan: async (file, testFiles) => {
+          // The harness exports the prebuilt state's directory only once it is
+          // up, so the state-feeding files are named on the first plan.
+          stateBuilderFiles ??= await collectStateBuilderFiles();
+          return await createFilePlan(
+            staticAssets,
+            stateBuilderFiles,
+            true,
+            file,
+            testFiles,
+          );
+        },
+        directTestFiles: (files) =>
+          Promise.resolve(
+            new Map(
+              files.map((file) => [file, directTestFiles.get(file) ?? []]),
+            ),
+          ),
+        env: testEnv(),
+        evaluate: (plan, mutant, run, signal) =>
+          // Integration tests never run here: only a direct-test kill can
+          // disprove an entry, and survivors stand either way.
+          evaluateMutantTests(plan, mutant, run, [], signal, []),
+        evaluateBaseline: (plan, run, signal) =>
+          evaluateOriginalTests(plan, run, signal),
+      },
+      context.signal,
+    );
+  });
 
 /** Project-relative registry paths, listed before snapshotting so a --write
  * audit can carry each pruned file back to the live checkout. */

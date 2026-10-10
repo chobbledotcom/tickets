@@ -3,121 +3,121 @@
 # builder-dry-run.ts canned release asset: the code text flows only into the
 # unsent create-script request body, so no parser or return value reads it.
 # The same-text branch in update.ts is recorded under shared-m-z.txt.
-src/shared/builder-dry-run.ts::CANNED_BODIES~05ocz8s  export {}; // dry-run site build→""   # the canned code is an answer to the release-asset URL, whose only consumer buildSiteOnProvider forwards unsent
-src/shared/builder-dry-run.ts::CANNED_BODIES.primary_regions.id~10dvhh2  eu-west-1→""   # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
-src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west-1→""   # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
+src/shared/builder-dry-run.ts::CANNED_BODIES~05ocz8s  export {}; // dry-run site build→"" audited:0sa17d1 # the canned code is an answer to the release-asset URL, whose only consumer buildSiteOnProvider forwards unsent
+src/shared/builder-dry-run.ts::CANNED_BODIES.primary_regions.id~10dvhh2  eu-west-1→"" audited:0sa17d1 # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
+src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west-1→"" audited:0sa17d1 # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
 
-src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → ||   # trim returns a string, and its only falsy value is the empty string supplied by the fallback
-src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
-src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
-src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
-src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
-src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
+src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → || audited:18ccc1f # trim returns a string, and its only falsy value is the empty string supplied by the fallback
+src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:0ojezob # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
+src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2 audited:1yx1o3h # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
+src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → || audited:110btoy # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
+src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1 audited:0r62zcl # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
+src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001 audited:1hworfp # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
-src/shared/add-on-reachability.ts::listingSaveOrphanedAddOnTx.wouldBeGroupIds~0vobjmv  ?? → ||   # input.wouldBeGroupIds is an array or undefined, and arrays are always truthy
-src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → ||   # intent.modifiers: an array is always truthy
-src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
-src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt ??→||   # listingAnswerIds is a record object when present, and objects are always truthy
-src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → ||   # raw: string|null, only falsy string "" === fallback ""
-src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::getDebugKey~036uuok  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/qr-token.ts::buildQrBookPayload.d~1ywzxp9  ?? → ||   # input.date?: string, only falsy string "" === fallback ""
-src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → ||   # input.name?: string, only falsy string "" === fallback ""
-src/shared/app-forms.ts::createAuthedHandler~1q900po  ?? → ||   # config.auth is an AuthPolicy object when present, so it is always truthy
-src/shared/site-renewal.ts::renewalDeadlineBaseMs~00cywnq  ?? → ||   # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
-src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~0yvlh8h  ?? → ||   # getEmailConfig(): EmailConfig|null
-src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → ||   # parseEmail(): ValidEmail|null, always truthy or null
-src/shared/site-assignment-failure.ts::reportOutOfStockBuyers.config~0yvlh8h  ?? → ||   # getEmailConfig(): EmailConfig|null, same shape as sendSiteAssignmentEmail.config above
+src/shared/add-on-reachability.ts::listingSaveOrphanedAddOnTx.wouldBeGroupIds~0vobjmv  ?? → || audited:1lop1ee # input.wouldBeGroupIds is an array or undefined, and arrays are always truthy
+src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → || audited:0egssse # intent.modifiers: an array is always truthy
+src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → || audited:0dqe1ps # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
+src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → || audited:1tzhe8e # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
+src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → || audited:1tzhe8e # a listing's text refs are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → || audited:1tzhe8e # a grouped answer set is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → || audited:1tzhe8e # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt ??→|| audited:1tzhe8e # listingAnswerIds is a record object when present, and objects are always truthy
+src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → || audited:18gjwl6 # raw: string|null, only falsy string "" === fallback ""
+src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts::getDebugKey~036uuok  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/qr-token.ts::buildQrBookPayload.d~1ywzxp9  ?? → || audited:1tggeae # input.date?: string, only falsy string "" === fallback ""
+src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → || audited:1tggeae # input.name?: string, only falsy string "" === fallback ""
+src/shared/app-forms.ts::createAuthedHandler~1q900po  ?? → || audited:1i44e8o # config.auth is an AuthPolicy object when present, so it is always truthy
+src/shared/site-renewal.ts::renewalDeadlineBaseMs~00cywnq  ?? → || audited:1kq4bqb # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
+src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~0yvlh8h  ?? → || audited:17snbhm # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → || audited:17snbhm # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/site-assignment-failure.ts::reportOutOfStockBuyers.config~0yvlh8h  ?? → || audited:0v0in80 # getEmailConfig(): EmailConfig|null, same shape as sendSiteAssignmentEmail.config above
 
-src/shared/ledger/project.ts::allBalances.add~0gr4ng6  ?? → ||   # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
-src/shared/ledger/project.ts::balanceOf~128hnl9  ?? → ||   # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
-src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0rfpt43  ?? → ||   # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/ledger/reconcile.ts::multisetDiff~06icm7q  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
-src/shared/ledger/reconcile.ts::multisetDiff.count~06icm7q  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
-src/shared/ledger/reconcile.ts::reconcileLegs.want~1kc2onf  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/ledger/reconcile.ts::reconcileLegs.got~15zy9vn  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → ||   # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
-src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → ||   # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
-src/shared/accounting/store.ts::newLegConflict~1dordwu  ?? → ||   # newLegConflict originalsById.get(id): Transfer|undefined — a Transfer object is always truthy
-src/shared/accounting/store.ts::eventGroupOf~004j2p7  Ledger event cannot be empty → ""   # every caller drops empty groups first (postTransfersTx returns early, assertUniqueGroups and loadBatchSnapshot take nonEmpty, planTransferBatch skips them), so requireValue never throws and no test can read its message
-src/shared/accounting/store.ts::postTransfers~0by69o5  Ledger post omitted its event → ""   # postTransferGroups returns one PostResult per group, so a one-group post always has a [0] and this message is unreachable
-src/shared/accounting/rows.ts::legColumns~1u7xtcf  ?? → ||   # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts::legColumns~12222gj  ?? → ||   # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts::renderInsert.args~06yrdj4  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
-src/shared/accounting/rows.ts::selectById~1v2xab7  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
-src/shared/accounting/rows.ts::selectTransfersMany~0htorzu  ?? → ||   # rowsByQuery.get(index): Transfer[]|undefined — an array is always truthy
-src/shared/accounting/rows.ts::selectTransfersMany.asked~16v286s  ?? → ||   # query.where: WhereClause[]|undefined — an array is always truthy
-src/shared/accounting/manual-entries.ts::assertManualLedgerTransfer.kind~1kt86ag  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
-src/shared/checkout-ledger.ts::bookingFactsFromOrder.bookingFee~0t6vqf5  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
-src/features/settings-bundles.ts::settingsForPath~1at4rp9  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
-src/shared/maintenance/runner.ts::runMaintenance.combinedAllowance~1tymqvs  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
-src/shared/maintenance/runner.ts::runMaintenance.databaseAllowance~0tqknl5  0 → 1   # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
-src/shared/maintenance/runner.ts::runMaintenance.candidates~0ysddhr  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts::getDbCredentials.credentials.dbToken~1tf2xm4  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
-src/shared/builder.ts::getDbCredentials.dbProvider~07qz5jj  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts::getDbCredentials.provider~07qz5jj  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts::buildSite~1ql9xrg  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
-src/features/url.ts::getSearchParam~075toi8  ?? → ||   # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
-src/shared/storage.ts::uploadRaw.contentType~1aiucvn  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
-src/shared/site-build.ts::buildRetainedSite.result.retainedId~1yhgu6i  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
-src/shared/db/built-site-scheduler.ts::ensureBuiltSiteSchedulerKey.updated.key~0z0c2lu  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
-src/shared/deno-deploy-api.ts::revisionOutcome~0hg2lm6  ?? → ||   # failure_reason is null or a non-empty picklist value, so both use the status only for null
-src/shared/deno-deploy-api.ts::denoEnvVarPatch.contexts~0jspgom ?? → ||   # contexts is an optional string array; every array is truthy (even []), so ?? and || pick the same side for every typed value
-src/shared/bunny-edge-script.ts::createEdgeScriptImpl.defaultHostname~14iov21  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
-src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
-src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → ||   # scoped counts is an object when present, and every object is truthy
-src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
-src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
-src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
-src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → ||   # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
-src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → ||   # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
-src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
-src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
-src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
-src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses.source%2etable~0toeppz  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
+src/shared/ledger/project.ts::allBalances.add~0gr4ng6  ?? → || audited:0s83ytm # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts::balanceOf~128hnl9  ?? → || audited:0s83ytm # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0rfpt43  ?? → || audited:03e6lpt # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/ledger/reconcile.ts::multisetDiff~06icm7q  ?? → || audited:03e6lpt # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts::multisetDiff.count~06icm7q  ?? → || audited:03e6lpt # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts::reconcileLegs.want~1kc2onf  ?? → || audited:03e6lpt # expected.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reconcile.ts::reconcileLegs.got~15zy9vn  ?? → || audited:03e6lpt # observed.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → || audited:1qqzkiy # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
+src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → || audited:1qqzkiy # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → || audited:04ew96l # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/store.ts::newLegConflict~1dordwu  ?? → || audited:04ew96l # newLegConflict originalsById.get(id): Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/store.ts::eventGroupOf~004j2p7  Ledger event cannot be empty → "" audited:04ew96l # every caller drops empty groups first (postTransfersTx returns early, assertUniqueGroups and loadBatchSnapshot take nonEmpty, planTransferBatch skips them), so requireValue never throws and no test can read its message
+src/shared/accounting/store.ts::postTransfers~0by69o5  Ledger post omitted its event → "" audited:04ew96l # postTransferGroups returns one PostResult per group, so a one-group post always has a [0] and this message is unreachable
+src/shared/accounting/rows.ts::legColumns~1u7xtcf  ?? → || audited:1q09ha1 # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts::legColumns~12222gj  ?? → || audited:1q09ha1 # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts::renderInsert.args~06yrdj4  ?? → || audited:1q09ha1 # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
+src/shared/accounting/rows.ts::selectById~1v2xab7  ?? → || audited:1q09ha1 # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/rows.ts::selectTransfersMany~0htorzu  ?? → || audited:1q09ha1 # rowsByQuery.get(index): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/rows.ts::selectTransfersMany.asked~16v286s  ?? → || audited:1q09ha1 # query.where: WhereClause[]|undefined — an array is always truthy
+src/shared/accounting/manual-entries.ts::assertManualLedgerTransfer.kind~1kt86ag  ?? → || audited:10ni3kd # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
+src/shared/checkout-ledger.ts::bookingFactsFromOrder.bookingFee~0t6vqf5  ?? → || audited:16z4l1b # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
+src/features/settings-bundles.ts::settingsForPath~1at4rp9  ?? → || audited:08l3lg9 # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/shared/maintenance/runner.ts::runMaintenance.combinedAllowance~1tymqvs  0 → 1 audited:1jrqyev # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
+src/shared/maintenance/runner.ts::runMaintenance.databaseAllowance~0tqknl5  0 → 1 audited:1jrqyev # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
+src/shared/maintenance/runner.ts::runMaintenance.candidates~0ysddhr  ?? → || audited:1jrqyev # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts::getDbCredentials.credentials.dbToken~1tf2xm4  ?? → || audited:0a9ijwm # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
+src/shared/builder.ts::getDbCredentials.dbProvider~07qz5jj  ?? → || audited:0a9ijwm # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts::getDbCredentials.provider~07qz5jj  ?? → || audited:0a9ijwm # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts::buildSite~1ql9xrg  ?? → || audited:0a9ijwm # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/features/url.ts::getSearchParam~075toi8  ?? → || audited:1lc1b4d # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
+src/shared/storage.ts::uploadRaw.contentType~1aiucvn  application/octet-stream → "" audited:1iu8bdh # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
+src/shared/site-build.ts::buildRetainedSite.result.retainedId~1yhgu6i  = → += audited:04b1nhh # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
+src/shared/db/built-site-scheduler.ts::ensureBuiltSiteSchedulerKey.updated.key~0z0c2lu  ?? → || audited:075dffi # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
+src/shared/deno-deploy-api.ts::revisionOutcome~0hg2lm6  ?? → || audited:0k0dsia # failure_reason is null or a non-empty picklist value, so both use the status only for null
+src/shared/deno-deploy-api.ts::denoEnvVarPatch.contexts~0jspgom ?? → || audited:0k0dsia # contexts is an optional string array; every array is truthy (even []), so ?? and || pick the same side for every typed value
+src/shared/bunny-edge-script.ts::createEdgeScriptImpl.defaultHostname~14iov21  ?? → || audited:0z8v32e # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
+src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → || audited:0z8v32e # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → || audited:0zfjs24 # scoped counts is an object when present, and every object is truthy
+src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → && audited:1o7wako # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
+src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:12gdroc # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → || audited:0kyy7de # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → || audited:0kyy7de # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
+src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → || audited:0kyy7de # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
+src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "" audited:07n2pxx # the placeholder key is never stored: a failed condition always aborts on its NULL value
+src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated" audited:07n2pxx # same as above; no successful statement exposes this key
+src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → || audited:07n2pxx # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
+src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses.source%2etable~0toeppz  ?? → || audited:0gybj0s # source.columns is undefined or an array; every array, including [], is truthy
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
 # already-ascending array, so swapping the comparator changes nothing.
-src/shared/checkout-pricing.ts::toLines.lineIdxs~1uom1op  - → /   # toUnits gives ascending lineIdx; a/b is identity on sorted input
+src/shared/checkout-pricing.ts::toLines.lineIdxs~1uom1op  - → / audited:0egssse # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
 # largest-remainder: option hooks are functions when present, so they are
 # truthy; undefined falls through to the same default under `??` and `||`.
-src/shared/largest-remainder.ts::largestRemainderIndexes.canReceive~0hreh6t  ?? → ||   # canReceive?: function|undefined — functions are truthy, undefined→default
-src/shared/largest-remainder.ts::largestRemainderIndexes.tieBreaker~07p6b0t  ?? → ||   # tieBreaker?: function|undefined — functions are truthy, undefined→default
+src/shared/largest-remainder.ts::largestRemainderIndexes.canReceive~0hreh6t  ?? → || audited:13u5y5h # canReceive?: function|undefined — functions are truthy, undefined→default
+src/shared/largest-remainder.ts::largestRemainderIndexes.tieBreaker~07p6b0t  ?? → || audited:13u5y5h # tieBreaker?: function|undefined — functions are truthy, undefined→default
 
 # crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
 # the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
-src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → ||   # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  ?? → || audited:0jjy7kr # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → || audited:0jjy7kr # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
 
 # savedFormValue: form?.getString(name) is string|undefined; the only falsy
 # non-null string is "" which equals the "" fallback, so ?? and || agree.
-src/shared/forms/saved-data.ts::savedFormValue~14nzz2a  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
+src/shared/forms/saved-data.ts::savedFormValue~14nzz2a  ?? → || audited:0b9jkpt # getString(): string|undefined, "" ?? "" === "" || ""
 
 # getSavedFormData: the store slot is undefined outside a request and the
 # fallback is null, so only undefined reaches the fallback either way.
-src/shared/forms/saved-data.ts::getSavedFormData~1k30wtr  ?? → ||
+src/shared/forms/saved-data.ts::getSavedFormData~1k30wtr  ?? → || audited:0b9jkpt
 
 # getSavedFieldValue: readSubmittedFieldValue answers string|null; the only
 # nullish value is null, and "" already equals the "" fallback, so ?? and || agree.
-src/shared/forms/saved-data.ts::getSavedFieldValue~1y12b7e  ?? → ||   # string|null over the fallback "", so "" ?? "" === "" || ""
+src/shared/forms/saved-data.ts::getSavedFieldValue~1y12b7e  ?? → || audited:0b9jkpt # string|null over the fallback "", so "" ?? "" === "" || ""
 
 # resize.ts writes each output pixel's channels exactly once into a freshly
 # zeroed Uint8ClampedArray, so `out[o] = x` and `out[o] += x` are identical
 # (0 + x === x). No input can revisit an index, so no test can distinguish them.
-src/shared/images/resize.ts::areaAveragePixel.pixel%5b0%5d~04yvbjk  = → +=   # pixel[0] starts at 0 and is written once
-src/shared/images/resize.ts::areaAveragePixel.pixel%5b1%5d~1nh4hce  = → +=   # pixel[1] starts at 0 and is written once
-src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → +=   # pixel[2] starts at 0 and is written once
+src/shared/images/resize.ts::areaAveragePixel.pixel%5b0%5d~04yvbjk  = → += audited:0mumpc0 # pixel[0] starts at 0 and is written once
+src/shared/images/resize.ts::areaAveragePixel.pixel%5b1%5d~1nh4hce  = → += audited:0mumpc0 # pixel[1] starts at 0 and is written once
+src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → += audited:0mumpc0 # pixel[2] starts at 0 and is written once
 
 # listing-templates.ts's matchesSignature is a private helper consumed only as
 # an Array.prototype.find() predicate, which coerces its result with
@@ -125,7 +125,7 @@ src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → +=   #
 # `return false` becoming `return undefined` is unobservable through
 # inferTemplate (the only caller) for any input, even though the exhaustive
 # 16-combo dimension table already covers every reachable production case.
-src/shared/listing-templates.ts::inferTemplate~1l4j8xo  ?? → ||   # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
+src/shared/listing-templates.ts::inferTemplate~1l4j8xo  ?? → || audited:09e7b6c # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
 
 # bulk-replace.ts's formatIsoForPreview 24:00→00:00 fix-up: this guards against
 # an ICU/V8 midnight-formatting quirk (`toLocaleString` with hour12:false
@@ -136,38 +136,38 @@ src/shared/listing-templates.ts::inferTemplate~1l4j8xo  ?? → ||   # LISTING_TE
 # replacement string feeds never matches here, so the replacement's own
 # content is unobservable in this test environment. Same class as
 # src/shared/images/codecs.ts's edge-only codec init below.
-src/shared/bulk-replace.ts::formatIsoForPreview~1q55zua  $1 00: → ""   # this runtime's ICU never renders local midnight as "24:00", so the regex this feeds never matches
-src/shared/bulk-replace.ts::formatIsoForPreview~1q55zua  $1 00: → "$1 00: mutated"   # same as above
+src/shared/bulk-replace.ts::formatIsoForPreview~1q55zua  $1 00: → "" audited:0wob30l # this runtime's ICU never renders local midnight as "24:00", so the regex this feeds never matches
+src/shared/bulk-replace.ts::formatIsoForPreview~1q55zua  $1 00: → "$1 00: mutated" audited:0wob30l # same as above
 
 # childHasDateOrStockForDays' `days ?? 1` fallback: normalizeDurationDays
 # (called downstream in isBookingRangeValid) clamps any non-finite or
 # sub-1 value up to 1, so `1`, `0`, and `-1` all normalize identically —
 # and `days || 1` reaches the same clamp for every falsy `days` (null, 0,
 # NaN), agreeing with `days ?? 1` for every value the type permits.
-src/shared/booking/model.ts::childHasDateOrStockForDays~1wnux53  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
-src/shared/booking/model.ts::childHasDateOrStockForDays~1wnux53  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
-src/shared/booking/model.ts::childHasDateOrStockForDays~1wnux53  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
+src/shared/booking/model.ts::childHasDateOrStockForDays~1wnux53  ?? → || audited:1gwkh4a # every falsy days (null/0/NaN) clamps to 1 downstream either way
+src/shared/booking/model.ts::childHasDateOrStockForDays~1wnux53  1 → 0 audited:1gwkh4a # normalizeDurationDays clamps 0 up to 1 anyway
+src/shared/booking/model.ts::childHasDateOrStockForDays~1wnux53  1 → -1 audited:1gwkh4a # normalizeDurationDays clamps negatives up to 1 anyway
 
 # bookableChildIds: `childrenByParentId?.values()` is either undefined or a
 # live MapIterator, and iterator objects are always truthy — never a
 # falsy-but-defined value — so ?? and || agree.
-src/shared/booking/model.ts::bookableChildIds~0tvf0ls  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
+src/shared/booking/model.ts::bookableChildIds~0tvf0ls  ?? → || audited:1gwkh4a # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
 
 # keepDayCountsChildrenSupport: `dayCountsChildSupports(child) ?? current`
 # — dayCountsChildSupports returns number[]|null, and arrays are always
 # truthy in JS even when empty, so ?? and || agree for every possible
 # return value.
-src/shared/booking/model.ts::keepDayCountsChildrenSupport~0a788np  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
+src/shared/booking/model.ts::keepDayCountsChildrenSupport~0a788np  ?? → || audited:1gwkh4a # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
 
 # package-cap.ts's groupIdsFor: `ctx.groupIdsByListingId.get(...) ?? []` — a
 # Map#get() on a ReadonlyMap<number, number[]> is either undefined or a
 # truthy array (even an empty array is truthy), so ?? and || agree.
-src/shared/booking/package-cap.ts::groupIdsFor~1yr1wmb  ?? → ||   # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
+src/shared/booking/package-cap.ts::groupIdsFor~1yr1wmb  ?? → || audited:1cul76c # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
 
 # smallestLimitedGroupFor: `limitedGroupsFor(...).toSorted(...)[0] ?? null`
 # — array-index access yields the element (an object, always truthy) or
 # undefined for an empty array, so ?? and || agree.
-src/shared/booking/package-cap.ts::smallestLimitedGroupFor~1f6pkd5  ?? → ||   # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
+src/shared/booking/package-cap.ts::smallestLimitedGroupFor~1f6pkd5  ?? → || audited:1cul76c # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
 
 # parentGroupChildLimit: `shared.length === 0`, mutated to `=== -1` — array
 # length is never negative, so this condition is always false either way;
@@ -176,12 +176,12 @@ src/shared/booking/package-cap.ts::smallestLimitedGroupFor~1f6pkd5  ?? → ||   
 # Math.min(Infinity,0) is 0) coincidentally reproduces the same `0` the
 # early return gives for a genuinely empty `shared`, so no input can ever
 # distinguish the two paths' output.
-src/shared/booking/package-cap.ts::parentGroupChildLimit~1c6t1l7  0 → -1   # shared.length is never negative; the empty-array fallback path already returns 0 too
+src/shared/booking/package-cap.ts::parentGroupChildLimit~1c6t1l7  0 → -1 audited:1cul76c # shared.length is never negative; the empty-array fallback path already returns 0 too
 
 # registerTableInvalidation: `invalidatorsByTable.get(table) ?? new Set()`
 # — Map#get() is undefined or a Set object, and a Set is always truthy
 # (even when empty), so ?? and || agree.
-src/shared/cache-registry.ts::registerTableInvalidation.set~1vxiav9  ?? → ||   # invalidatorsByTable.get(): Set<Registration>|undefined — a Set is always truthy, even when empty
+src/shared/cache-registry.ts::registerTableInvalidation.set~1vxiav9  ?? → || audited:10gfzwz # invalidatorsByTable.get(): Set<Registration>|undefined — a Set is always truthy, even when empty
 
 # band-name-generator.ts's fixArticles: the "An <consonant> → A <consonant>"
 # correction has no template or pool word that ever produces a literal "An"
@@ -191,145 +191,145 @@ src/shared/cache-registry.ts::registerTableInvalidation.set~1vxiav9  ?? → ||  
 # "A <vowel> → An <vowel>" correction on the next line IS exercised — several
 # BUILDING_STATES/BAND_ADJECTIVES entries start with a vowel — and is covered
 # by dedicated tests instead of being listed here.)
-src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → ""   # no template/pool ever produces a literal "An" token for this correction to act on
-src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated"   # same as above
+src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "" audited:0s41ioh # no template/pool ever produces a literal "An" token for this correction to act on
+src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated" audited:0s41ioh # same as above
 
 # logistics-filter.ts's parseAgentFilter fallback is unobservable through
 # parsePositiveIntId's strict decimal-digit schema.
-src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated"   # parsePositiveIntId's schema rejects any non-digit string identically; the "" fallback and any mutated string both parse to null
+src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated" audited:18gjwl6 # parsePositiveIntId's schema rejects any non-digit string identically; the "" fallback and any mutated string both parse to null
 
 # crypto/utils.ts — the out-of-range code readers. constantTimeCodesEqual seeds
 # its XOR fold with lengthA ^ lengthB and walks the longer sequence, so a reader
 # is only asked past the end of one string when the lengths differ — and that
 # seed already forces "not equal". Whatever the short side reads there cannot
 # change the answer.
-src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1   # only read past the end of the shorter string, where the length XOR has already decided the result
-src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1   # same reader for the other side, reached only when the lengths already differ
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1 audited:0jjy7kr # only read past the end of the shorter string, where the length XOR has already decided the result
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1 audited:0jjy7kr # same reader for the other side, reached only when the lengths already differ
 
 # crypto/der.ts — this value is written into a Uint8Array element. Adding or
 # subtracting 128 produces the same low eight bits, and Uint8Array discards all
 # higher bits.
-src/shared/crypto/der.ts::encodeLength~0ikcwcz  128 → -128   # DER long-length marker: 128+n and -128+n have identical low eight bits
+src/shared/crypto/der.ts::encodeLength~0ikcwcz  128 → -128 audited:0lrbtn5 # DER long-length marker: 128+n and -128+n have identical low eight bits
 
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.
-src/shared/dates.ts::DAYS_IN_MONTH~1fy1u1j  0 → 1   # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
-src/shared/dates.ts::getBookableStartDates~0d9dni6  1 → 0   # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
-src/shared/date-labels.ts::bookedRangeLabel.fallbackDurationDays~166vpj8  1 → 0   # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
-src/shared/dates.ts::widestDatedEntry.widestEnd~0g843sj   → "mutated"   # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
-src/shared/dates.ts::widestDatedEntry.end~0h8upet  ?? → ||   # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
-src/shared/dates.ts::bookedSpanDays~1fp8k5o  1 → 0   # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
-src/shared/date-labels.ts::bookedRangeLabel.lastDay~0xqfu39  1 → 0   # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
+src/shared/dates.ts::DAYS_IN_MONTH~1fy1u1j  0 → 1 audited:0dl6sm1 # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
+src/shared/dates.ts::getBookableStartDates~0d9dni6  1 → 0 audited:0dl6sm1 # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
+src/shared/date-labels.ts::bookedRangeLabel.fallbackDurationDays~166vpj8  1 → 0 audited:1b0fyev # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
+src/shared/dates.ts::widestDatedEntry.widestEnd~0g843sj   → "mutated" audited:0dl6sm1 # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
+src/shared/dates.ts::widestDatedEntry.end~0h8upet  ?? → || audited:0dl6sm1 # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
+src/shared/dates.ts::bookedSpanDays~1fp8k5o  1 → 0 audited:0dl6sm1 # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
+src/shared/date-labels.ts::bookedRangeLabel.lastDay~0xqfu39  1 → 0 audited:1b0fyev # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
 
 # Logger (logger.ts) — a provably-equivalent survivor from the logger suites.
-src/shared/logger.ts::persistErrorToActivityLog~0kl9lpw  ?? → ||   # context.listingId is number|undefined and listing ids are positive autoincrement integers, so the LHS is never a falsy non-null value — ?? and || agree on every input
+src/shared/logger.ts::persistErrorToActivityLog~0kl9lpw  ?? → || audited:0mco9rp # context.listingId is number|undefined and listing ids are positive autoincrement integers, so the LHS is never a falsy non-null value — ?? and || agree on every input
 
 # Listing actions (listings-actions.ts) — validated-input fallbacks whose only
 # falsy left-hand values coincide with the fallback, plus two unreachable arms.
-src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → ||   # input.unitPrice is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → ||   # input.canPayMore is boolean when present; false stays false with either operator
-src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → ""   # getListingsByGroupIds seeds every requested group id with at least an empty array, so the missing-key throw can never fire and its message is unobservable
-src/shared/listings-actions.ts::validateListingGroup.checked.customisable_days~0350hpg  ?? → ||   # input.customisableDays is boolean when present; false stays false with either operator
-src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → ||   # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1   # checkGroupListingSettings never reads the candidate's id — sibling self-exclusion uses the separate excludeListingId argument
-src/shared/listings-actions.ts::validateListingGroup.checked.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
-src/shared/listings-actions.ts::validateListingGroup.checked~1o94tt5  ?? → ||   # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → ||   # input.initialSiteMonths is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@1  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@2  ?? → ||   # same proof, second monthsPerUnit fallback in the dual-role guard
-src/shared/listing-edge.ts::listingInputToEdge.assign_built_site~1lirfge  ?? → ||   # the operand is boolean|undefined: false passes through both operators' non-nullish path, so every input yields the same result
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # input.customisableDays is boolean when present; false stays false with either operator
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → ||   # input.dayPrices is an object when present, and objects are always truthy
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → ||   # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
-src/shared/listing-edge.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
-src/shared/listing-edge.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → ||   # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
+src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → || audited:1ncinuf # input.unitPrice is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → || audited:1ncinuf # input.canPayMore is boolean when present; false stays false with either operator
+src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → "" audited:1ncinuf # getListingsByGroupIds seeds every requested group id with at least an empty array, so the missing-key throw can never fire and its message is unobservable
+src/shared/listings-actions.ts::validateListingGroup.checked.customisable_days~0350hpg  ?? → || audited:1ncinuf # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → || audited:1ncinuf # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1 audited:1ncinuf # checkGroupListingSettings never reads the candidate's id — sibling self-exclusion uses the separate excludeListingId argument
+src/shared/listings-actions.ts::validateListingGroup.checked.listing_type~1lqe3go  ?? → || audited:1ncinuf # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listings-actions.ts::validateListingGroup.checked~1o94tt5  ?? → || audited:1ncinuf # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → || audited:1ncinuf # input.initialSiteMonths is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@1  ?? → || audited:1ncinuf # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@2  ?? → || audited:1ncinuf # same proof, second monthsPerUnit fallback in the dual-role guard
+src/shared/listing-edge.ts::listingInputToEdge.assign_built_site~1lirfge  ?? → || audited:1oetlmc # the operand is boolean|undefined: false passes through both operators' non-nullish path, so every input yields the same result
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → || audited:1oetlmc # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → || audited:1oetlmc # input.dayPrices is an object when present, and objects are always truthy
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → || audited:1oetlmc # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0 audited:1oetlmc # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
+src/shared/listing-edge.ts::listingInputToEdge.listing_type~1lqe3go  ?? → || audited:1oetlmc # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listing-edge.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → || audited:1oetlmc # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → || audited:1b16u45 # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
 # falsy-but-present value that differs from the fallback itself.
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → ||   # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → ||   # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:1qea6ft # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:1qea6ft # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.
-src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
-src/shared/db/client.ts::extractUpdateColumns.stopWhenClosed~0e4p3h6 false→true   # the scan runs over the SET clause alone, cut before WHERE; a base-level closer needs an opener outside the fragment, which valid SQL cannot place there, and an invalid UPDATE never executes so its narrowed column set is never read
-src/shared/db/database-client.ts::errorCode~04fxp8b ??→|| # Every declared error code is non-empty. An unknown name returns undefined.
-src/shared/db/database-client.ts::readPipeline~0nxjq38 ??→|| # Column names are strings or undefined. The only false string is empty, which equals the fallback.
-src/shared/db/database-client.ts::readPipeline~1wahy8v ??→|| # Column declarations are strings or undefined. The only false string is empty, which equals the fallback.
-src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
-src/shared/db/client.ts::queryAll.args~0hs5u5i  ?? → ||   # args is an InValue[] when present, and an array is always truthy
-src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
-src/shared/db/client.ts::queryOnePrimary~0qbwuku  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
+src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1 audited:1ef7jqw # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
+src/shared/db/client.ts::extractUpdateColumns.stopWhenClosed~0e4p3h6 false→true audited:1ef7jqw # the scan runs over the SET clause alone, cut before WHERE; a base-level closer needs an opener outside the fragment, which valid SQL cannot place there, and an invalid UPDATE never executes so its narrowed column set is never read
+src/shared/db/database-client.ts::errorCode~04fxp8b ??→|| audited:0i7tygx # Every declared error code is non-empty. An unknown name returns undefined.
+src/shared/db/database-client.ts::readPipeline~0nxjq38 ??→|| audited:0i7tygx # Column names are strings or undefined. The only false string is empty, which equals the fallback.
+src/shared/db/database-client.ts::readPipeline~1wahy8v ??→|| audited:0i7tygx # Column declarations are strings or undefined. The only false string is empty, which equals the fallback.
+src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → "" audited:1ef7jqw # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
+src/shared/db/client.ts::queryAll.args~0hs5u5i  ?? → || audited:1ef7jqw # args is an InValue[] when present, and an array is always truthy
+src/shared/db/client.ts::queryOne~1hu7rck  ?? → || audited:1ef7jqw # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
+src/shared/db/client.ts::queryOnePrimary~0qbwuku  ?? → || audited:1ef7jqw # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
 
 # crypto/hashing.ts — the explicit radix on the stored round count. The line
 # above it now refuses any count that is not pure decimal digits, and for such a
 # string an inferred radix is decimal too, so naming the radix can no longer
 # change what is read. It stays because the reader should say what base it means.
-src/shared/crypto/hashing.ts::verifyPassword.iterations~10pid9h  10 → 0   # the digit-only guard above rules out every string an inferred radix would read differently
+src/shared/crypto/hashing.ts::verifyPassword.iterations~10pid9h  10 → 0 audited:1k5v2mh # the digit-only guard above rules out every string an inferred radix would read differently
 
 # attendee-failures.ts: refusedOrderItem picks its fallback with .find over an
 # array of order items — objects, always truthy — so ?? and || agree.
-src/shared/attendee-failures.ts::refusedOrderItem.named~1wyyjdl  ?? → ||   # find over item objects → undefined|truthy; never falsy-non-null
-src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated"   # only reached when both stored addresses are falsy, and parseEmail("mutated") === parseEmail("") === null
-src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated"   # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
-src/shared/email.ts::mailgunBody~0u9dcxo  ?? → ||   # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input
-src/shared/email-renderer.ts::buildTemplateData.displays~00l98s9  ?? → ||   # packageDisplays: ReadonlyMap|undefined — a Map is truthy even when empty
-src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date_range_label~0v9023r  ?? → ||   # date_range_label: string, only falsy string "" === fallback ""
-src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date~1xxdsvp  ?? → ||   # date is nullish or a stored YYYY-MM-DD string; only the nullish values reach the null fallback
-src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.HtmlBody~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
-src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.TextBody~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
-src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.html~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
-src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.text~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
-src/shared/bulk-email.ts::resolveRecipientEmails.decrypted~0cin95y  false → true   # paidListing only decides payment_id, and this caller reads nothing but email
-src/shared/bulk-email.ts::buildMailtoLink.to~0u9lgeh  = → +=   # to is still the empty string here, so assigning the address and appending it give the same to
-src/shared/bulk-email.ts::buildMailtoLink~1gzgdij  1 → 0   # the branch above already took every one-address call, so this else-if can only see two or more either way
-src/shared/bulk-email.ts::buildMailtoLink.to~1lrzg1h  = → +=   # to is still the empty string here, so assigning the business email and appending it give the same to
+src/shared/attendee-failures.ts::refusedOrderItem.named~1wyyjdl  ?? → || audited:1ubot7z # find over item objects → undefined|truthy; never falsy-non-null
+src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated" audited:1cinuyc # only reached when both stored addresses are falsy, and parseEmail("mutated") === parseEmail("") === null
+src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → || audited:1cinuyc # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated" audited:1cinuyc # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
+src/shared/email.ts::mailgunBody~0u9dcxo  ?? → || audited:1cinuyc # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input
+src/shared/email-renderer.ts::buildTemplateData.displays~00l98s9  ?? → || audited:0klsbdc # packageDisplays: ReadonlyMap|undefined — a Map is truthy even when empty
+src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date_range_label~0v9023r  ?? → || audited:0klsbdc # date_range_label: string, only falsy string "" === fallback ""
+src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date~1xxdsvp  ?? → || audited:0klsbdc # date is nullish or a stored YYYY-MM-DD string; only the nullish values reach the null fallback
+src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.HtmlBody~1sl4ona  ?? → || audited:14g4mgz # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.TextBody~1sl4ona  ?? → || audited:14g4mgz # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.html~1sl4ona  ?? → || audited:14g4mgz # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.text~1sl4ona  ?? → || audited:14g4mgz # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/bulk-email.ts::resolveRecipientEmails.decrypted~0cin95y  false → true audited:1ef9oup # paidListing only decides payment_id, and this caller reads nothing but email
+src/shared/bulk-email.ts::buildMailtoLink.to~0u9lgeh  = → += audited:1ef9oup # to is still the empty string here, so assigning the address and appending it give the same to
+src/shared/bulk-email.ts::buildMailtoLink~1gzgdij  1 → 0 audited:1ef9oup # the branch above already took every one-address call, so this else-if can only see two or more either way
+src/shared/bulk-email.ts::buildMailtoLink.to~1lrzg1h  = → += audited:1ef9oup # to is still the empty string here, so assigning the business email and appending it give the same to
 
 # local-host.ts — the only bracketed host with its first colon at index 1 is
 # "[::1]", which the caller answers before this helper runs. For any other
 # input at that boundary the slice is empty, parseInt gives NaN, and both
 # range masks fail, so NaN and null land on the same false.
-src/shared/local-host.ts::ipv6FirstGroup~16zpdpl  1 → 0   # at to === 1 the group slice is empty, NaN fails both masks like null does, and every real group sits past index 1
+src/shared/local-host.ts::ipv6FirstGroup~16zpdpl  1 → 0 audited:0aim7p0 # at to === 1 the group slice is empty, NaN fails both masks like null does, and every real group sits past index 1
 
 # compareOptionalDates normalises an optional date string with `?? ""`. For
 # every input the operand can hold — a date string, "", null, undefined —
 # `?? ""` and `|| ""` return the same value, so no test can tell them apart.
-src/shared/attendee-list-controls.ts::compareOptionalDates.firstDate~0yc1a5v  ?? → ||   # "" is falsy, but both operators fall back to the same "" here; a non-empty string is returned by both
-src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?? → ||   # same proof as firstDate
+src/shared/attendee-list-controls.ts::compareOptionalDates.firstDate~0yc1a5v  ?? → || audited:06b8se7 # "" is falsy, but both operators fall back to the same "" here; a non-empty string is returned by both
+src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?? → || audited:06b8se7 # same proof as firstDate
 
 # The refund-order link's write and identity: reverses_group follows the same
 # kind/memo shape — a defined falsy value ("") equals the "" fallback, and any
 # defined value a writer passes is a non-empty event group.
-src/shared/accounting/rows.ts::legColumns~1hsch91  ?? → ||   # insertStatement reverses_group: undefined or a non-empty event group; "" ?? "" === "" || "" on the only falsy case
-src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0pukv95  ?? → ||   # reversesGroup identity: the only falsy-non-null value is "" and "" ?? "" === "" || ""
-src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → ||   # the stored cursor is a string or undefined; "" is the fallback itself, so "" ?? "" === "" || "" either way
+src/shared/accounting/rows.ts::legColumns~1hsch91  ?? → || audited:1q09ha1 # insertStatement reverses_group: undefined or a non-empty event group; "" ?? "" === "" || "" on the only falsy case
+src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0pukv95  ?? → || audited:03e6lpt # reversesGroup identity: the only falsy-non-null value is "" and "" ?? "" === "" || ""
+src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → || audited:1pyxzl5 # the stored cursor is a string or undefined; "" is the fallback itself, so "" ?? "" === "" || "" either way
 
-src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1   # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
+src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1 audited:1qqzkiy # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
 
 # The historical backfill's leg choice is invisible: every backfilled
 # attendee's order posts a sale and a payment leg sharing one event group, so
 # legs[1] carries the same group as legs[0].
-src/shared/accounting/backfill.ts::attendeeStatements~0lgaj8m  0 → 1   # every backfilled attendee's order posts a sale and a payment leg sharing one event group, so legs[1] carries the same group as legs[0]
+src/shared/accounting/backfill.ts::attendeeStatements~0lgaj8m  0 → 1 audited:0bwco6g # every backfilled attendee's order posts a sale and a payment leg sharing one event group, so legs[1] carries the same group as legs[0]
 
-src/shared/booking/order-lines.ts::nodeQuantitiesFor~1w4mmrr  ?? → ||   # the operand is a ReadonlyMap.get() result (number|undefined); undefined falls back to the same 0 both operators supply, and any number — including the falsy 0 — is returned by both
-src/shared/booking/order-lines.ts::nodeQuantitiesFor~1r0yjn6  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/booking/order-lines.ts::aggregateNodeQuantities.booked.quantity~1s0ldgs  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/booking/order-lines.ts::buildOrderLines.pathLines.quantity~1s0ldgs  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  0 → 1   # the emitted map only feeds child-line subtraction, and a listing with emitted lines is never a child, so its folded total equals its emission and its child line skips on 0 or −1 alike; a child listing gets no emission at all, so the fallback is never read for it
-src/shared/booking/order-lines.ts::buildOrderLines.childLines.quantity~1r5rdx3  ?? → ||   # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/listing-parents-rules.ts::describedDayCounts.sorted~1uom1op  - → /   # day counts are positive integers, so a / b is positive for every distinct pair; V8's toSorted with an always-positive comparator returns the input order unchanged (probed on ascending and non-ascending inputs), so the sorted sequence is identical
+src/shared/booking/order-lines.ts::nodeQuantitiesFor~1w4mmrr  ?? → || audited:0upeppu # the operand is a ReadonlyMap.get() result (number|undefined); undefined falls back to the same 0 both operators supply, and any number — including the falsy 0 — is returned by both
+src/shared/booking/order-lines.ts::nodeQuantitiesFor~1r0yjn6  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::aggregateNodeQuantities.booked.quantity~1s0ldgs  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::buildOrderLines.pathLines.quantity~1s0ldgs  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  0 → 1 audited:0upeppu # the emitted map only feeds child-line subtraction, and a listing with emitted lines is never a child, so its folded total equals its emission and its child line skips on 0 or −1 alike; a child listing gets no emission at all, so the fallback is never read for it
+src/shared/booking/order-lines.ts::buildOrderLines.childLines.quantity~1r5rdx3  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
+src/shared/listing-parents-rules.ts::describedDayCounts.sorted~1uom1op  - → / audited:0dddsgg # day counts are positive integers, so a / b is positive for every distinct pair; V8's toSorted with an always-positive comparator returns the input order unchanged (probed on ascending and non-ascending inputs), so the sorted sequence is identical
 
 # firstMatch only yields undefined | null | a target object; null fails both
 # arms of the coalescing the same way, so ?? and || read identically.
-src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → ||  # the awaited value is undefined, null, or an object: ?? and || agree on all three
+src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → || audited:1gb8y05 # the awaited value is undefined, null, or an object: ?? and || agree on all three
 
 # The optional parameters are Record<string, unknown> | undefined: undefined
 # is the only absent value, so ?? and || read identically over the type.
-src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → ||  # newRecordDefaults is undefined or a truthy record object
-src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → ||  # freshRecord is undefined or a truthy record object
-src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → ||   # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
-src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → ||   # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal
+src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → || audited:0h2dj0b # newRecordDefaults is undefined or a truthy record object
+src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → || audited:0h2dj0b # freshRecord is undefined or a truthy record object
+src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
+src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal

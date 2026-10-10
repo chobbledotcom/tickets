@@ -2,11 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   ignoreListProblems,
-  isIgnored,
   listRegistryFiles,
   loadIgnoreList,
   mutantKey,
   registryFilePath,
+  suppresses,
+  unconfirmedEntries,
 } from "#scripts/mutation/ignore.ts";
 import { tempDir, tempFile } from "#test-utils/files.ts";
 import { file, ignoreList, mutant, result } from "./helpers.ts";
@@ -16,11 +17,35 @@ describe("mutation ignore list", () => {
     expect(mutantKey(file, mutant(12))).toBe("src/example.ts::fn12 ??→||");
   });
 
-  test("matches ignored survivors by canonical key", () => {
+  test("suppresses a survivor through a confirmed entry only", () => {
     const ignore = ignoreList([mutantKey(file, mutant(12))]);
+    const key = mutantKey(file, mutant(12));
 
-    expect(isIgnored(ignore, file, mutant(12))).toBe(true);
-    expect(isIgnored(ignore, file, mutant(13))).toBe(false);
+    expect(suppresses(ignore, new Set(), file, mutant(12))).toBe(true);
+    expect(suppresses(ignore, new Set([key]), file, mutant(12))).toBe(false);
+    expect(suppresses(ignore, new Set(), file, mutant(13))).toBe(false);
+  });
+
+  test("judges an entry unconfirmed when its stamp predates the file's text", () => {
+    const ignore = ignoreList([
+      {
+        key: mutantKey(file, mutant(1)),
+        sourcePath: "src/example.ts",
+        stamp: "audited:aaaaaaa",
+      },
+    ]);
+    const key = mutantKey(file, mutant(1));
+
+    expect(
+      unconfirmedEntries(ignore, new Map([["src/example.ts", "bbbbbbb"]])),
+    ).toEqual(new Set([key]));
+    // The stamp matching the current text means the proof was re-derived
+    // against it, so the entry holds.
+    expect(
+      unconfirmedEntries(ignore, new Map([["src/example.ts", "aaaaaaa"]])),
+    ).toEqual(new Set());
+    // A file this run did not read cannot be judged.
+    expect(unconfirmedEntries(ignore, new Map())).toEqual(new Set());
   });
 
   test("loads canonical entries, skipping comments and blanks", async () => {
@@ -30,7 +55,7 @@ describe("mutation ignore list", () => {
       [
         "# known equivalent mutants",
         "",
-        "src/example.ts::readSetting ?? → || # nullish and or equivalent here",
+        "src/example.ts::readSetting ?? → ||  audited:041pxgm # nullish and or equivalent here",
       ].join("\n"),
     );
 
@@ -40,6 +65,7 @@ describe("mutation ignore list", () => {
       {
         key: "src/example.ts::readSetting ??→||",
         sourcePath: "src/example.ts",
+        stamp: "audited:041pxgm",
       },
     ]);
     expect(loaded.keys.has("src/example.ts::readSetting ??→||")).toBe(true);
@@ -63,28 +89,34 @@ describe("mutation ignore list", () => {
     using temp = tempFile({ prefix: "mutation-ignore-" });
     await Deno.writeTextFile(
       temp.path,
-      [`src/example.ts::fn12  → "mutated" # always-empty date sentinel`].join(
-        "\n",
-      ),
+      [
+        `src/example.ts::fn12  → "mutated"  audited:041pxgm # always-empty date sentinel`,
+      ].join("\n"),
     );
 
     const loaded = await loadIgnoreList([temp.path]);
 
     expect(loaded.entries).toEqual([
-      { key: 'src/example.ts::fn12 →"mutated"', sourcePath: "src/example.ts" },
+      {
+        key: 'src/example.ts::fn12 →"mutated"',
+        sourcePath: "src/example.ts",
+        stamp: "audited:041pxgm",
+      },
     ]);
-    expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
+    expect(
+      suppresses(loaded, new Set(), file, mutant(12, "", '"mutated"')),
+    ).toBe(true);
   });
 
   test("merges every registry file in a directory, in name order", async () => {
     using dir = tempDir({ prefix: "mutation-ignore-dir-" });
     await Deno.writeTextFile(
       `${dir.path}/b-late.txt`,
-      "src/example.ts::second ?? → ||\n",
+      "src/example.ts::second ?? → ||  audited:041pxgm\n",
     );
     await Deno.writeTextFile(
       `${dir.path}/a-early.txt`,
-      "src/example.ts::first ?? → ||\n",
+      "src/example.ts::first ?? → ||  audited:041pxgm\n",
     );
     await Deno.writeTextFile(`${dir.path}/notes.md`, "not a registry file\n");
 
@@ -152,6 +184,72 @@ describe("mutation ignore list", () => {
       `stale (no mutant here — did the code move?): ${stale}`,
       `duplicate entry: ${ignored}`,
     ]);
+  });
+
+  /** An unconfirmed entry suppresses nothing, so its mutant ran like any
+   * other. When no test distinguishes it, the entry is a proof to re-read,
+   * not a kill to report. */
+  test("reports an unconfirmed entry whose mutant survived", () => {
+    const unconfirmed = mutantKey(file, mutant(1));
+
+    expect(
+      ignoreListProblems(
+        ignoreList([unconfirmed]),
+        [result("survived", 1)],
+        [file],
+        undefined,
+        new Set([unconfirmed]),
+      ),
+    ).toEqual([
+      `unconfirmed (the file changed after this proof was last re-derived — re-read the reason against the current file, then re-stamp, or delete the entry): ${unconfirmed}`,
+    ]);
+  });
+
+  test("tells the author to delete an unconfirmed entry this run kills", () => {
+    const unconfirmed = mutantKey(file, mutant(2));
+
+    expect(
+      ignoreListProblems(
+        ignoreList([unconfirmed]),
+        [result("killed", 2)],
+        [file],
+        undefined,
+        new Set([unconfirmed]),
+      ),
+    ).toEqual([
+      `unconfirmed, and this run kills the mutant (delete the entry): ${unconfirmed}`,
+    ]);
+  });
+
+  test("leaves an unconfirmed entry for a file this run did not mutate alone", () => {
+    const unconfirmed = {
+      key: "src/other.ts::fn1 ??→||",
+      sourcePath: "src/other.ts",
+    };
+
+    expect(
+      ignoreListProblems(
+        ignoreList([unconfirmed]),
+        [result("survived", 1)],
+        [file],
+        undefined,
+        new Set([unconfirmed.key]),
+      ),
+    ).toEqual([]);
+  });
+
+  test("still names a stale location when the moved code also left the stamp behind", () => {
+    const stale = "src/example.ts::noSuchThing ??→||";
+
+    expect(
+      ignoreListProblems(
+        ignoreList([stale]),
+        [result("survived", 1)],
+        [file],
+        undefined,
+        new Set([stale]),
+      ),
+    ).toEqual([`stale (no mutant here — did the code move?): ${stale}`]);
   });
 
   /** One file's path can begin with another's, so scoping by prefix would pull
