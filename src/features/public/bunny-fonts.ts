@@ -42,9 +42,9 @@ const isNonPrintable = (c: string): boolean => {
 
 /** The value and position after one backslash that starts no hex escape. A
  * newline after the backslash joins the two lines and holds nothing. A
- * newline is LF, FF, or CR with its LF or FF pair. A backslash at the end of
- * the text holds `eof`: nothing in a string, and the replacement character
- * in an unquoted url token. */
+ * newline is LF, FF, CR, or the CR LF pair. A backslash at the end of the
+ * text holds `eof`: nothing in a string, and the replacement character in an
+ * unquoted url token. */
 const afterBackslash = (
   css: string,
   i: number,
@@ -54,9 +54,7 @@ const afterBackslash = (
   const c = css[i + 1];
   if (c === undefined) return [value + eof, i + 1];
   if (c === "\n" || c === "\f") return [value, i + 2];
-  if (c === "\r") {
-    return [value, css[i + 2] === "\n" || css[i + 2] === "\f" ? i + 3 : i + 2];
-  }
+  if (c === "\r") return [value, css[i + 2] === "\n" ? i + 3 : i + 2];
   return [value + c, i + 2];
 };
 
@@ -224,7 +222,12 @@ const takeImportTarget = (scan: Scan): boolean => {
  * stylesheet address, and url() reads an address token. Every other word is
  * plain text. The `at` flag says whether the word follows an @ sign. */
 const scanWord = (css: string, i: number, scan: Scan, at: boolean): number => {
-  const [word, next] = readRun(css, i, (c) => !isIdentChar(c) && c !== "\\");
+  const [word, next] = readRun(
+    css,
+    i,
+    (c, at) =>
+      (c !== "\\" && !isIdentChar(c)) || (c === "\\" && isNewline(css, at + 1)),
+  );
   const keyword = word.toLowerCase();
   if (at && keyword === "import") {
     scan.inImport = true;
