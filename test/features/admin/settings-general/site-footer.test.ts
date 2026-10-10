@@ -9,7 +9,10 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { describeAdminSettings } from "#test-utils/settings.ts";
+import {
+  describeAdminSettings,
+  settingsAsStored,
+} from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -27,9 +30,15 @@ describeAdminSettings(() => {
 
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Site footer updated"));
+      await settingsAsStored();
+      expect(settings.siteFooter).toBe("Thank you for supporting our event!");
     });
 
-    test("rejects a footer exceeding max length", async () => {
+    test("rejects a footer exceeding max length without saving it", async () => {
+      await adminFormPost("/admin/settings/site-footer", {
+        site_footer: "Some footer text",
+      });
+
       const { response } = await adminFormPost("/admin/settings/site-footer", {
         site_footer: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
@@ -40,15 +49,20 @@ describeAdminSettings(() => {
         expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
         false,
       );
+      await settingsAsStored();
+      expect(settings.siteFooter).toBe("Some footer text");
     });
 
     test("accepts a footer at exactly max length", async () => {
+      const atLimit = "x".repeat(MAX_TEXTAREA_LENGTH);
       const { response } = await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "x".repeat(MAX_TEXTAREA_LENGTH),
+        site_footer: atLimit,
       });
 
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Site footer updated"));
+      await settingsAsStored();
+      expect(settings.siteFooter).toBe(atLimit);
     });
 
     test("clears the footer when empty", async () => {
@@ -62,6 +76,7 @@ describeAdminSettings(() => {
 
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Site footer removed"));
+      await settingsAsStored();
       expect(settings.siteFooter).toBe("");
     });
 
