@@ -2441,10 +2441,10 @@
     "semicolon": 1
   },
   "src/ui/client/order.ts": {
-    "long-sentence": 9,
-    "semicolon": 3,
-    "contraction": 3,
-    "banned-modal": 4,
+    "long-sentence": 6,
+    "semicolon": 2,
+    "contraction": 2,
+    "banned-modal": 3,
     "present-perfect": 1
   },
   "src/ui/client/scanner.js": {
