@@ -6,6 +6,7 @@
  * adding packages adds no database round trips.
  */
 
+import { buildTicketListing, childSupportsDays } from "#booking/model.ts";
 import {
   groupRemainingForSpan,
   loadCapacitySnapshot,
@@ -14,14 +15,12 @@ import {
 import type { Holiday } from "#db/holidays.ts";
 import { loadParentAndChildLinks } from "#db/listing-parents.ts";
 import { uniqueBy } from "#fp";
+import { isRegistrationClosed } from "#routes/format.ts";
 import { minimumUnservable } from "#shared/capacity-fit.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
-import {
-  type ChildDateCapacityCtx,
-  childDateCapacityParts,
-} from "./discovery/child-date-capacity.ts";
-import { parentOfferedDayCounts } from "./discovery/child-offered.ts";
+import { childDateCapacityParts } from "./discovery/child-date-capacity.ts";
+import { dailyOfferedDayCounts } from "./discovery/child-offered.ts";
 
 /** The booked span a daily listing's card availability is judged over. A
  *  customisable listing offers per-day starts, so the span is chosen later.
@@ -64,38 +63,39 @@ export const loadDailyDateAvailability = async (
       soldOut.add(listing.id);
       continue;
     }
-    // The child's own ceiling folds its stored minimum and its gates the
-    // same way the public cards do: a child with a minimum of 3 and 10
-    // places left can serve 1 unit, not 10. An inactive child, a closed
-    // child, or a daily child that cannot start on this date serves none.
-    // Raw remaining lets the date filter advertise a parent the discovery
-    // cards read as sold out.
-    const dayCounts = parentOfferedDayCounts(listing);
+    // The fold consumes each child over the span the buyer's day count
+    // books, and a child only rides a count it supports. Each offered count
+    // answers on its own, and the date is available when any one of them
+    // serves the minimum. A count no child supports books no fold at all.
     const children = links.childrenByParent.get(listing.id) ?? [];
-    const childCapacityCtx: ChildDateCapacityCtx = {
-      date,
-      dayCounts,
-      holidays,
-      // The fold consumes each child over the parent's booked span, so the
-      // child's remaining reads over that span, not the child's own card's.
-      remaining: remainingFromSnapshot(snapshot, children, () =>
-        cardSpanDays(listing),
-      ),
-    };
-    const parts = childDateCapacityParts(
-      children,
-      memberships,
-      childCapacityCtx,
+    const dayCounts = dailyOfferedDayCounts(listing);
+    const childInfos = children.map((child) =>
+      buildTicketListing(child, isRegistrationClosed(child), undefined),
     );
-    if (
-      minimumUnservable(
-        remaining.get(listing.id)!,
-        listing.min_quantity,
-        memberships.get(listing.id)!,
-        parts,
-        groupRemainingForSpan(snapshot, cardSpanDays(listing)),
-      )
-    ) {
+    const compatibleCounts = dayCounts.filter((count) =>
+      childInfos.every((info) => childSupportsDays(info, count)),
+    );
+    const spanRemaining = groupRemainingForSpan(
+      snapshot,
+      cardSpanDays(listing),
+    );
+    const unservable =
+      compatibleCounts.length === 0 ||
+      compatibleCounts.every((count) =>
+        minimumUnservable(
+          remaining.get(listing.id)!,
+          listing.min_quantity,
+          memberships.get(listing.id)!,
+          childDateCapacityParts(children, memberships, {
+            date,
+            dayCounts,
+            holidays,
+            remaining: remainingFromSnapshot(snapshot, children, () => count),
+          }),
+          spanRemaining,
+        ),
+      );
+    if (unservable) {
       soldOut.add(listing.id);
     }
   }

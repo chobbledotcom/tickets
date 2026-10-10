@@ -16,7 +16,11 @@ import {
 } from "#booking/model.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
-import { availableDayCounts, type ListingWithCount } from "#types";
+import {
+  availableDayCounts,
+  clampDurationDays,
+  type ListingWithCount,
+} from "#types";
 
 /** Day counts the parent can pass to a daily child: a customisable daily
  *  parent offers every start day, a fixed daily parent offers its duration. */
@@ -29,6 +33,15 @@ export const parentOfferedDayCounts = (
   parent.listing_type === "daily" && parent.customisable_days
     ? availableDayCounts(parent)
     : [fixedParentDays(parent)];
+
+/** The day counts a DAILY parent's fold can book: a fixed parent books its
+ *  duration, a customisable one a count it prices. A daily parent's counts
+ *  are always numbers — the buyer's span is the open choice, never a
+ *  missing one. */
+export const dailyOfferedDayCounts = (parent: ListingWithCount): number[] =>
+  parent.customisable_days
+    ? availableDayCounts(parent)
+    : [clampDurationDays(parent.duration_days)];
 
 /** The child's own bookable start dates, computed once per child: the
  *  per-date gate reads them for every date the parent offers. */

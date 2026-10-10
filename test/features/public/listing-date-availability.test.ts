@@ -24,8 +24,31 @@ import {
 import { mockRequest } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import type { ListingWithCount } from "#types";
 
 const CAPPED_DAILY_PACKAGES = 17;
+
+/** Links `child` under `parent`, books two of its places on the second day
+ *  of `parent`'s span, and answers the parent's availability on the first
+ *  day. The short second day is the fixture the inherited-span tests read. */
+const judgeParentWithShortSecondDay = async (
+  parent: ListingWithCount,
+  child: ListingWithCount,
+): Promise<ReadonlySet<number>> => {
+  await withTransaction((tx) =>
+    setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+  );
+  const [date, second] = (await bookableStartDates(parent.id)) as [
+    string,
+    string,
+  ];
+  await bookAttendee(child, {
+    date: second,
+    email: "short-second-day@example.com",
+    quantity: 2,
+  });
+  return loadDailyDateAvailability([parent], date, []);
+};
 
 /** One visible capped package with one daily member. */
 const makePackage = async (index: number) => {
@@ -163,18 +186,71 @@ describeWithEnv(
         maxQuantity: 4,
         name: "Flexible Add-on",
       });
-      await withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      );
-      const [date, second] = (await bookableStartDates(parent.id)) as [
-        string,
-        string,
-      ];
-      await bookAttendee(child, {
-        date: second,
-        email: "short-second-day@example.com",
-        quantity: 2,
+
+      const soldOut = await judgeParentWithShortSecondDay(parent, child);
+
+      expect(soldOut).toEqual(new Set([parent.id]));
+    });
+
+    test("a fixed child is judged over each compatible day count of a customisable parent", async () => {
+      // The parent's form offers one- and three-day bookings, and its fixed
+      // three-day child can only ride the three-day count. Two of the
+      // child's four places are taken on the span's second day, so the
+      // three-day count cannot serve the parent's minimum of three — the
+      // one-day count the child cannot ride must not answer for it.
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 2500 },
+        durationDays: 3,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 3,
+        name: "Pick A Span",
       });
+      const child = await createDailyTestListing({
+        durationDays: 3,
+        maxAttendees: 4,
+        maxQuantity: 4,
+        name: "Fixed Three Day",
+      });
+
+      const soldOut = await judgeParentWithShortSecondDay(parent, child);
+
+      expect(soldOut).toEqual(new Set([parent.id]));
+    });
+
+    test("a parent whose children share no day count reads sold out", async () => {
+      // The form books one count: the one-day child and the three-day child
+      // cannot ride the same booking, so no offered count serves the fold
+      // and the parent's dates read sold out.
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 2500 },
+        durationDays: 3,
+        maxAttendees: 5,
+        maxQuantity: 5,
+        minQuantity: 1,
+        name: "Mixed Spans",
+      });
+      const oneDay = await createDailyTestListing({
+        durationDays: 1,
+        maxAttendees: 2,
+        maxQuantity: 2,
+        name: "One Day Add-on",
+      });
+      const threeDay = await createDailyTestListing({
+        durationDays: 3,
+        maxAttendees: 2,
+        maxQuantity: 2,
+        name: "Three Day Add-on",
+      });
+      await withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [
+          oneDay.id,
+          threeDay.id,
+        ]),
+      );
+      const [date] = (await bookableStartDates(parent.id)) as [string];
 
       const soldOut = await loadDailyDateAvailability([parent], date, []);
 
