@@ -181,6 +181,28 @@ const runTestStage =
     return runIntegrationTestStage(context, testFiles);
   };
 
+/** Run the plan's direct tests against the original text, with the same env
+ * the mutants' direct stage uses. The reproof sweep runs this once per file
+ * before its mutants: a suite that already fails distinguishes nothing, so a
+ * red baseline must never read as a kill. */
+export const evaluateOriginalTests = async (
+  plan: FileMutationPlan,
+  run: TestRunConfig,
+  signal: AbortSignal,
+  deps: Pick<EvaluationDeps, "runTests"> = realDeps,
+): Promise<MutantEvaluation> =>
+  testStatus(
+    "direct-tests",
+    await deps.runTests(
+      {
+        ...run,
+        env: mutantTestEnv(run.env, plan.rebuildTestState),
+        testFiles: plan.directTestFiles,
+      },
+      signal,
+    ),
+  );
+
 export const evaluateMutantTests = async (
   plan: FileMutationPlan,
   mutant: Mutant,

@@ -138,3 +138,17 @@ export const requireDirectMutationTests = (
       "Move its test to the matching path under test/.",
   );
 };
+
+/** Pair the sweep's sources with the direct tests that mirror them. Only
+ * tests a source mirrors may enter, so an unrelated test file cannot fail
+ * the strict map before the sweep starts. */
+export const directTestMapFor = (
+  sourceFiles: string[],
+  allTestFiles: string[],
+): Map<string, string[]> =>
+  new Map(
+    buildMutationTestMap(
+      sourceFiles,
+      selectMutationTests(sourceFiles, allTestFiles, []),
+    ).targets.map((target) => [target.sourceFile, target.directTestFiles]),
+  );

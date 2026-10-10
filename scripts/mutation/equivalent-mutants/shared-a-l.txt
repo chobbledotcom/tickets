@@ -162,12 +162,12 @@ src/shared/booking/model.ts::keepDayCountsChildrenSupport~0a788np  ?? → || aud
 # package-cap.ts's groupIdsFor: `ctx.groupIdsByListingId.get(...) ?? []` — a
 # Map#get() on a ReadonlyMap<number, number[]> is either undefined or a
 # truthy array (even an empty array is truthy), so ?? and || agree.
-src/shared/booking/package-cap.ts::groupIdsFor~1yr1wmb  ?? → || audited:0ideqhg # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
+src/shared/booking/package-cap.ts::groupIdsFor~1yr1wmb  ?? → || audited:1cul76c # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
 
 # smallestLimitedGroupFor: `limitedGroupsFor(...).toSorted(...)[0] ?? null`
 # — array-index access yields the element (an object, always truthy) or
 # undefined for an empty array, so ?? and || agree.
-src/shared/booking/package-cap.ts::smallestLimitedGroupFor~1f6pkd5  ?? → || audited:0ideqhg # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
+src/shared/booking/package-cap.ts::smallestLimitedGroupFor~1f6pkd5  ?? → || audited:1cul76c # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
 
 # parentGroupChildLimit: `shared.length === 0`, mutated to `=== -1` — array
 # length is never negative, so this condition is always false either way;
@@ -176,7 +176,7 @@ src/shared/booking/package-cap.ts::smallestLimitedGroupFor~1f6pkd5  ?? → || au
 # Math.min(Infinity,0) is 0) coincidentally reproduces the same `0` the
 # early return gives for a genuinely empty `shared`, so no input can ever
 # distinguish the two paths' output.
-src/shared/booking/package-cap.ts::parentGroupChildLimit~1c6t1l7  0 → -1 audited:0ideqhg # shared.length is never negative; the empty-array fallback path already returns 0 too
+src/shared/booking/package-cap.ts::parentGroupChildLimit~1c6t1l7  0 → -1 audited:1cul76c # shared.length is never negative; the empty-array fallback path already returns 0 too
 
 # registerTableInvalidation: `invalidatorsByTable.get(table) ?? new Set()`
 # — Map#get() is undefined or a Set object, and a Set is always truthy

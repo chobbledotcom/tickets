@@ -373,8 +373,8 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → || audited:
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → || audited:0k8nuca # find returns a refund read object or undefined, and every object is truthy
 src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → || audited:0ohr026 # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string
 
-src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → || audited:1wyf3k7 # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
-src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → || audited:1wyf3k7 # byChild sums validated quantities of at least 1, so every present value is truthy
+src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → || audited:0bada57 # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
+src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → || audited:0bada57 # byChild sums validated quantities of at least 1, so every present value is truthy
 src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → || audited:1xmpj4y # childrenByParentId.get answers an array or undefined, and every array is truthy
 
 # link-end.ts's jsonOrNull: its one caller (squareLinkEndEventOf) reads only

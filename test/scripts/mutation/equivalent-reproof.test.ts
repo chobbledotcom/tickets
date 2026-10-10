@@ -66,7 +66,7 @@ const directTestsFor =
     Promise.resolve(new Map(files.map((file) => [file, testsFor(file)])));
 
 /** Deps that map every file to one direct test and let each case decide what
- * the test run says. */
+ * the test run says. The original passes unless a case says otherwise. */
 const deps = (
   evaluate: (file: string) => Promise<MutantEvaluation>,
   changes: Partial<ReproveDeps> = {},
@@ -84,6 +84,7 @@ const deps = (
     void signal;
     return evaluate(plan.file);
   },
+  evaluateBaseline: () => Promise.resolve(evaluation("survived")),
   ...changes,
 });
 
@@ -189,5 +190,74 @@ describe("the audit's distinguishing-input phase", () => {
     ).rejects.toThrow(/abort/i);
 
     expect(runs).toBe(1);
+  });
+
+  test("runs the original once per file before that file's mutants", async () => {
+    const order: string[] = [];
+    const outcome = await reproveEntries(
+      [entryAt("/work/a.ts", 0, 0), entryAt("/work/a.ts", 0, 1)],
+      deps(
+        () => {
+          order.push(`mutant:${order.length}`);
+          return Promise.resolve(evaluation("survived"));
+        },
+        {
+          evaluateBaseline: (_plan, _run, _signal) => {
+            order.push("baseline");
+            return Promise.resolve(evaluation("survived"));
+          },
+        },
+      ),
+      new AbortController().signal,
+    );
+
+    expect(order).toEqual(["baseline", "mutant:1", "mutant:2"]);
+    expect(outcome.killedLines).toEqual([]);
+  });
+
+  test("keeps an entry whose direct tests already fail the original", async () => {
+    // The test fails for the original and for the mutant alike, so the kill
+    // says nothing about the mutant: the sweep must refuse to prune on it.
+    await expect(
+      reproveEntries(
+        [entryAt("/work/a.ts", 0, 3)],
+        deps(() => Promise.resolve(evaluation("killed")), {
+          evaluateBaseline: () => Promise.resolve(evaluation("killed")),
+        }),
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow(/does not pass its direct tests/);
+  });
+
+  test("reports a cancellation that lands on the final entry", async () => {
+    const controller = new AbortController();
+
+    await expect(
+      reproveEntries(
+        [entryAt("/work/a.ts", 0, 0)],
+        deps(() => {
+          controller.abort();
+          return Promise.resolve(evaluation("survived"));
+        }),
+        controller.signal,
+      ),
+    ).rejects.toThrow(/abort/i);
+  });
+
+  test("stops when the baseline's own run is cancelled", async () => {
+    const controller = new AbortController();
+
+    await expect(
+      reproveEntries(
+        [entryAt("/work/a.ts", 0, 0)],
+        deps(() => Promise.resolve(evaluation("survived")), {
+          evaluateBaseline: () => {
+            controller.abort();
+            return Promise.resolve(evaluation("cancelled"));
+          },
+        }),
+        controller.signal,
+      ),
+    ).rejects.toThrow(/abort/i);
   });
 });

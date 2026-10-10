@@ -14,6 +14,7 @@
  * exactly as proved as it was, by the reason a person wrote beside it.
  */
 
+import { rel } from "#scripts/project-root.ts";
 import type { ReproveOutcome, ResolvedEntry } from "./equivalent-audit.ts";
 import type { FileMutationPlan, MutantEvaluation } from "./evaluate.ts";
 import type { TestRunConfig } from "./execution.ts";
@@ -39,7 +40,50 @@ export interface ReproveDeps {
     run: TestRunConfig,
     signal: AbortSignal,
   ): Promise<MutantEvaluation>;
+  /** The original text's direct-test run, taken once per file before its
+   * mutants: a suite that already fails distinguishes nothing. */
+  evaluateBaseline(
+    plan: FileMutationPlan,
+    run: TestRunConfig,
+    signal: AbortSignal,
+  ): Promise<MutantEvaluation>;
 }
+
+/** The test-run configuration one file's direct stage uses. */
+const runConfigFor = (
+  plan: FileMutationPlan,
+  deps: ReproveDeps,
+): TestRunConfig => ({
+  batchJobs: deps.batchJobs,
+  env: deps.env,
+  testFiles: plan.directTestFiles,
+});
+
+/** The file's original-text run, taken once per file. A suite that already
+ * fails distinguishes nothing, so a red baseline stops the sweep: pruning on
+ * it would record a kill the mutant did not cause. */
+const baselineFor = async (
+  plan: FileMutationPlan,
+  baselines: Map<string, MutantEvaluation>,
+  deps: ReproveDeps,
+  signal: AbortSignal,
+): Promise<MutantEvaluation> => {
+  const known = baselines.get(plan.file);
+  if (known) return known;
+  const baseline = await deps.evaluateBaseline(
+    plan,
+    runConfigFor(plan, deps),
+    signal,
+  );
+  baselines.set(plan.file, baseline);
+  if (baseline.status === "cancelled") signal.throwIfAborted();
+  if (baseline.status !== "survived") {
+    throw new Error(
+      `Unmutated ${rel(plan.file)} does not pass its direct tests, so they cannot distinguish anything.`,
+    );
+  }
+  return baseline;
+};
 
 /**
  * Run the distinguishing attempt for every entry, in the order the registry
@@ -65,6 +109,7 @@ export const reproveEntries = async (
     killedLines: [],
     untested: [],
   };
+  const baselines = new Map<string, MutantEvaluation>();
   for (const entry of entries) {
     signal.throwIfAborted();
     const plan = plans.get(entry.file);
@@ -72,19 +117,19 @@ export const reproveEntries = async (
       outcome.untested.push(entry.line);
       continue;
     }
+    await baselineFor(plan, baselines, deps, signal);
     const evaluation = await deps.evaluate(
       plan,
       entry.mutant,
-      {
-        batchJobs: deps.batchJobs,
-        env: deps.env,
-        testFiles: plan.directTestFiles,
-      },
+      runConfigFor(plan, deps),
       signal,
     );
     if (evaluation.status !== "killed") continue;
     outcome.killedChunks.add(`${entry.registry}:${entry.index}`);
     outcome.killedLines.push(entry.line);
   }
+  // An abort that lands on the last entry must not read as a clean run: the
+  // caller prunes on this outcome, and a partial prune survives the copy-back.
+  signal.throwIfAborted();
   return outcome;
 };

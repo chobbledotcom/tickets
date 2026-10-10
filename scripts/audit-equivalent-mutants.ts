@@ -12,6 +12,7 @@ import { reproveEntries } from "#scripts/mutation/equivalent-reproof.ts";
 import {
   createFilePlan,
   evaluateMutantTests,
+  evaluateOriginalTests,
 } from "#scripts/mutation/evaluate.ts";
 import { createStaticGates, testEnv } from "#scripts/mutation/execution.ts";
 import {
@@ -25,7 +26,7 @@ import {
   runSnapshotChild,
 } from "#scripts/mutation/snapshot-child.ts";
 import { collectStateBuilderFiles } from "#scripts/mutation/state-graph.ts";
-import { buildMutationTestMap } from "#scripts/mutation/test-map.ts";
+import { directTestMapFor } from "#scripts/mutation/test-map.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 /* jscpd:ignore-start -- imports */
 import {
@@ -135,11 +136,6 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
   return failed ? 1 : 0;
 };
 
-/**
- * The distinguishing-input phase as the audit command runs it: the full test
- * harness inside the snapshot, then the sweep over the survivors with the
- * runner's own per-mutant evaluation.
- */
 const reproveWithTests = async (
   entries: ResolvedEntry[],
   context: ReproveContext,
@@ -147,11 +143,9 @@ const reproveWithTests = async (
   withTestHarness(async ({ staticAssets }) => {
     let stateBuilderFiles: Set<string> | null = null;
     const allTestFiles = await collectTestFiles(projectRoot);
-    const directTestFiles = new Map(
-      buildMutationTestMap(
-        entries.map((entry) => entry.file),
-        allTestFiles,
-      ).targets.map((target) => [target.sourceFile, target.directTestFiles]),
+    const directTestFiles = directTestMapFor(
+      entries.map((entry) => entry.file),
+      allTestFiles,
     );
     return reproveEntries(
       entries,
@@ -180,6 +174,8 @@ const reproveWithTests = async (
           // Integration tests never run here: only a direct-test kill can
           // disprove an entry, and survivors stand either way.
           evaluateMutantTests(plan, mutant, run, [], signal, []),
+        evaluateBaseline: (plan, run, signal) =>
+          evaluateOriginalTests(plan, run, signal),
       },
       context.signal,
     );
