@@ -173,7 +173,6 @@ src/ui/client/scanner.js::admitScan.ok~1u407zd messageVerifyIdConfirm→""   # t
 src/ui/client/scanner.js::admitScan~0ly9bwc messageIdMismatch→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::admitScan~0ly9bwc ID does not match {name}→""   # the camera page always renders data-message-id-mismatch, so the fallback copy never shows
 src/ui/client/scanner.js::admitScan.count~00jh1rq messageSelectQuantity→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.js::admitScan.count~00jh1rq How many tickets for {name}?→""   # the camera page always renders data-message-select-quantity, so the fallback copy never shows
 src/ui/client/scanner.js::startScanner.scan.processing~1gtvkhn =→+=   # the write runs only after the guard above it passed, so processing is always false there; false + true is 1, which is truthy like the true it replaces
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx messageInvalidQr→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx Invalid QR code→""   # the camera page always renders data-message-invalid-qr, so the fallback copy never shows
