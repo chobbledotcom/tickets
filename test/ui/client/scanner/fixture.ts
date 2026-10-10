@@ -27,6 +27,7 @@ import type { Stub } from "@std/testing/mock";
 import { Window } from "happy-dom";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import { rebrandedPage } from "#test-utils/rebrand-page.ts";
 
 const MODULE_MARKER = "__scannerModule";
 
@@ -100,6 +101,7 @@ const SCANNER_PAGE = `
   <div
     data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
     data-message-checked-in="{name} checked in for {listingName} ({tickets})"
+    data-message-checked-in-partial="{name} checked in for {listingName} ({tickets} of {total} tickets)"
     data-message-camera-denied="Camera access denied"
     data-message-error="Error"
     data-message-id-mismatch="ID does not match {name}"
@@ -109,6 +111,7 @@ const SCANNER_PAGE = `
     data-message-not-found="Ticket not found"
     data-message-refunded="{name} has been refunded"
     data-message-scanning="Scanning..."
+    data-message-select-quantity="How many tickets for {name}?"
     data-message-skipped="Skipped {name}"
     data-message-ticket-count-one="{count} ticket"
     data-message-ticket-count-other="{count} tickets"
@@ -134,6 +137,30 @@ const SCANNER_PAGE = `
   <button id="scanner-start" type="button">Start Camera</button>
 `;
 
+/** The camera page as the operator's ticket-to-booking rebrand renders it:
+ * the rebrand rewrites the rendered catalog copy's prose only, so the
+ * {tickets} holes the client fills keep their spelling. */
+export const REBRANDED_PAGE = rebrandedPage(SCANNER_PAGE, [
+  ["How many tickets for {name}?", "How many bookings for {name}?"],
+  [
+    'data-message-ticket-count-one="{count} ticket"',
+    'data-message-ticket-count-one="{count} booking"',
+  ],
+  [
+    'data-message-ticket-count-other="{count} tickets"',
+    'data-message-ticket-count-other="{count} bookings"',
+  ],
+  ["({tickets} of {total} tickets)", "({tickets} of {total} bookings)"],
+  [
+    "This ticket has no door to check in at.",
+    "This booking has no door to check in at.",
+  ],
+  [
+    'data-message-not-found="Ticket not found"',
+    'data-message-not-found="Booking not found"',
+  ],
+]);
+
 /** One element of the installed scanner page by id — the fixture always
  * carries it, so a miss is a broken page, not an empty answer. */
 export const el = (document: Window["document"], id: string): HTMLElement => {
@@ -147,10 +174,10 @@ export const el = (document: Window["document"], id: string): HTMLElement => {
  * the scanner. */
 export const evaluateBundle = (): void => runBundleOnce();
 
-export const useScanner = (): ScannerHarness => {
+export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
   const window = new Window({ url: "http://localhost/" });
   const document = window.document;
-  document.body.innerHTML = SCANNER_PAGE;
+  document.body.innerHTML = page;
   const stash = createGlobalStash();
   stash.set("document", document);
 
@@ -188,10 +215,12 @@ export const useScanner = (): ScannerHarness => {
 
 /** The wiring both scanner suites share: one fresh page per test, and every
  * page torn down after it. Call inside a describe body. */
-export const useScannerSuite = (): (() => ScannerHarness) => {
+export const useScannerSuite = (
+  page: string = SCANNER_PAGE,
+): (() => ScannerHarness) => {
   const harnesses: ScannerHarness[] = [];
   const fresh = (): ScannerHarness => {
-    const h = useScanner();
+    const h = useScanner(page);
     harnesses.push(h);
     return h;
   };

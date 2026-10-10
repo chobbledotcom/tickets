@@ -6,6 +6,7 @@ import {
   createGlobalStash,
   type DomInstaller,
 } from "#test-utils/happy-dom.ts";
+import { rebrandedPage } from "#test-utils/rebrand-page.ts";
 
 const CHECKIN_FORM = `
   <form
@@ -54,6 +55,22 @@ const CHECKIN_FORM = `
   </div>
 `;
 
+/** The manual form as the operator's ticket-to-booking rebrand renders it:
+ * the rebrand rewrites the rendered catalog copy's prose only, so the
+ * {tickets} holes the client fills keep their spelling. */
+export const REBRANDED_FORM = rebrandedPage(CHECKIN_FORM, [
+  ["How many tickets for {name}?", "How many bookings for {name}?"],
+  ["({tickets} of {total} tickets)", "({tickets} of {total} bookings)"],
+  [
+    'data-message-ticket-count-other="{count} tickets"',
+    'data-message-ticket-count-other="{count} bookings"',
+  ],
+  [
+    'data-message-not-found="No matching ticket"',
+    'data-message-not-found="No matching booking"',
+  ],
+]);
+
 export interface ManualCheckinPage {
   activeId: () => string | null;
   attendeeIdInput: HTMLInputElement;
@@ -82,8 +99,11 @@ export const waitUntilSettled = async (
   throw new Error(`${what} never settled`);
 };
 
-const setupManualCheckin = (dom: DomInstaller): ManualCheckinPage => {
-  const window = dom.installDom(CHECKIN_FORM);
+const setupManualCheckin = (
+  dom: DomInstaller,
+  page = CHECKIN_FORM,
+): ManualCheckinPage => {
+  const window = dom.installDom(page);
   const scrolledIds: string[] = [];
   window.HTMLElement.prototype.scrollIntoView = function () {
     scrolledIds.push((this as unknown as HTMLElement).dataset.attendeeId!);
@@ -142,7 +162,9 @@ export interface ManualCheckinHarness {
 }
 
 /** Install a fresh manual check-in page for each test in the current suite. */
-export const useManualCheckinPage = (): ManualCheckinHarness => {
+export const useManualCheckinPage = (
+  page = CHECKIN_FORM,
+): ManualCheckinHarness => {
   const dom = createDomInstaller();
   const stash = createGlobalStash();
   afterEach(async () => {
@@ -151,7 +173,7 @@ export const useManualCheckinPage = (): ManualCheckinHarness => {
   });
   return {
     dom,
-    setup: () => setupManualCheckin(dom),
+    setup: () => setupManualCheckin(dom, page),
     stubScans: (answers) => {
       const sent: Record<string, unknown>[] = [];
       let served = 0;

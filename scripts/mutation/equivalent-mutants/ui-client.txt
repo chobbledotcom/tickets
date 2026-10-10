@@ -135,26 +135,26 @@ src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etex
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm {name} ({tickets})→""   # the form always renders data-message-ticket-option, so the fallback copy never shows
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.handleCheckedIn~1jsm9lf {name} checked in for {listingName} ({tickets})→""   # the form always renders data-message-checked-in, so the fallback copy never shows
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d Skipped {name}→""   # the form always renders data-message-skipped, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu messageSelectQuantity→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu How many tickets for {name}?→""   # the form always renders data-message-select-quantity, so the fallback copy never shows
 
 # The camera scanner bundle (src/ui/client/scanner.js): the template renders
 # every data-message attribute the bundle reads (sharedScanMessageAttrs on
 # the camera page plus the camera-only messages), and the en copy of each
-# surviving key equals the bundle's fallback word for word — so a missed
-# lookup lands on the same words and a mutated fallback copy never shows.
-# The JSON scan API answers every interpolated hole with a non-empty string
-# or a finite number, so the interpolate and ticket-count fallbacks never
-# fire either.
+# surviving lookup key equals the bundle's fallback word for word — so a
+# missed lookup lands on the same words and a mutated fallback copy never
+# shows. A lookup key whose fallback holds a rebrandable word ("ticket") has
+# no record: the operator's I18N_REPLACEMENTS setting rewrites the rendered
+# attribute but never the bundle's hardcoded fallback, so the rebrand tests'
+# assertions kill that lookup mutant. The JSON scan API answers every
+# interpolated hole with a non-empty string or a finite number, so the
+# interpolate and ticket-count fallbacks never fire either.
 src/ui/client/scanner.js::interpolate~1j841kk ??→||   # every interpolated hole arrives as a non-empty string or a finite number, so no falsy non-null value reaches the fallback
 src/ui/client/scanner.js::interpolate~1j841kk →"mutated"   # the fallback fires only on a hole no reachable scan answer omits
 src/ui/client/scanner.js::getMessage~0dasa24 ??→||   # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
 src/ui/client/scanner.js::formatTicketCount.safeCount~1eg2obm 1→0   # the count comes from the JSON scan API, which cannot carry a non-finite number, so the fallback never fires
-src/ui/client/scanner.js::formatTicketCount.key~1ndam2w messageTicketCountOne→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::formatTicketCount~1vjt9r9 {count} ticket→""   # the page always renders data-message-ticket-count-one, so the fallback copy never shows
 src/ui/client/scanner.js::skipPerson~0xkiv71 messageSkipped→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::skipPerson~0xkiv71 Skipped {name}→""   # the camera page always renders data-message-skipped, so the fallback copy never shows
-src/ui/client/scanner.js::handleResult.checked_in~1n4xdvu messageCheckedInPartial→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::handleResult.checked_in~1n4xdvu {name} checked in for {listingName} ({tickets} of {total} tickets)→""   # the camera page always renders data-message-checked-in-partial, so the fallback copy never shows
 src/ui/client/scanner.js::handleResult.checked_in~1swwesn messageCheckedIn→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::handleResult.checked_in~1swwesn {name} checked in for {listingName} ({tickets})→""   # the camera page always renders data-message-checked-in, so the fallback copy never shows
@@ -163,7 +163,6 @@ src/ui/client/scanner.js::handleResult.already_checked_in~1xcc383 {name} already
 src/ui/client/scanner.js::handleResult.refunded~0efhp7h messageRefunded→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::handleResult.refunded~0efhp7h {name} has been refunded→""   # the camera page always renders data-message-refunded, so the fallback copy never shows
 src/ui/client/scanner.js::handleResult.wrong_listing~0hse91n This ticket has no door to check in at→""   # the camera page always renders data-message-no-door, so the fallback copy never shows
-src/ui/client/scanner.js::handleResult.not_found~0kp32lg messageNotFound→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::handleResult.not_found~0kp32lg Ticket not found→""   # the camera page always renders data-message-not-found, so the fallback copy never shows
 src/ui/client/scanner.js::handleResult.error~0l5b2wp break;→(removed)   # the error case is the switch's last arm, so falling through leaves the switch the same way
 src/ui/client/scanner.js::admitScan.ok~0en6n18 {name} is registered for "{listingName}", not this listing. Check in anyway?→""   # the camera page always renders data-message-wrong-listing-confirm, so the fallback copy never shows
@@ -172,7 +171,6 @@ src/ui/client/scanner.js::admitScan.ok~1u407zd Does their ID match "{name}"?→"
 src/ui/client/scanner.js::admitScan.ok~1u407zd messageVerifyIdConfirm→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::admitScan~0ly9bwc messageIdMismatch→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::admitScan~0ly9bwc ID does not match {name}→""   # the camera page always renders data-message-id-mismatch, so the fallback copy never shows
-src/ui/client/scanner.js::admitScan.count~00jh1rq messageSelectQuantity→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::startScanner.scan.processing~1gtvkhn =→+=   # the write runs only after the guard above it passed, so processing is always false there; false + true is 1, which is truthy like the true it replaces
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx messageInvalidQr→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx Invalid QR code→""   # the camera page always renders data-message-invalid-qr, so the fallback copy never shows
