@@ -73,6 +73,16 @@ const withUploadServer = async (
   }
 };
 
+/** The answer a server sends when it rejects an upload without reading the
+ * whole body. The body is huge, so the client is still busy with it when the
+ * write breaks: the failed write then lands inside the response processing,
+ * which is the order that makes the polyfill's internal task reject. The
+ * message inside stays short. */
+const earlyAnswerBody = JSON.stringify({
+  message: "invalid",
+  pad: "x".repeat(8 * 1024 * 1024),
+});
+
 /** Upload the file at `path` to a server that answers with `handler`, and
  * expect the upload to reject with `match`. */
 const expectUploadRejection = (
@@ -270,13 +280,17 @@ describe("Turso migration file", () => {
    * breaks inside node:http's own internals, and the polyfill also rejects an
    * internal task that nobody awaits. The upload must still end as a normal
    * rejection, and the duplicate internal rejection must never escape as an
-   * unhandled one. The server reads one chunk before it answers. That order
-   * makes the internal task fail on an idle machine. */
+   * unhandled one. One read keeps the socket alive until the answer is on the
+   * wire, and the padded body gives the client more to read while the write
+   * breaks. That order makes the internal task fail on every run: with the
+   * watch removed, this case ends the run the way issue #2314 reports. The
+   * answer never finishes before the connection is gone, so the upload
+   * reports the broken write. */
   test("survives a server that answers before the body is sent", () =>
     withTempDir(async (dir) => {
       const path = join(dir, "database.sqlite");
-      // Big enough that the write cannot finish before the server answers.
-      await Deno.writeFile(path, new Uint8Array(8_000_000));
+      // Big enough that the write cannot finish before the answer arrives.
+      await Deno.writeFile(path, new Uint8Array(32_000_000));
 
       await expectUploadRejection(
         path,
@@ -285,9 +299,9 @@ describe("Turso migration file", () => {
           assertExists(body, "Expected an upload body");
           const reader = body.getReader();
           await reader.read();
-          return new Response("invalid", { status: 400 });
+          return new Response(earlyAnswerBody, { status: 400 });
         },
-        /Upload database failed \(400\): invalid|error writing a body to connection/,
+        "error writing a body to connection",
       );
     }));
 
