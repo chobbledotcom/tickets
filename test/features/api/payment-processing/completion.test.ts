@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
+import { executeBatch, getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { registrationWorkStatements } from "#db/registration-notification-work.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -37,8 +38,19 @@ describeWithEnv(
   () => {
     stubFetchEachTest(() => new Response());
 
+    /** The work row the creation batch births beside every booking: the
+     * completion claims it, so a direct completion call seeds one first. */
+    const seedWork = async (sessionId: string): Promise<void> => {
+      await executeBatch(
+        await registrationWorkStatements(sessionId, {
+          ticketToken: "tok_seeded",
+        }),
+      );
+    };
+
     test("hands back the first line's booking, listing, and tickets", async () => {
       const { attendeeId, entry, listingId } = await bookedLine("First Line");
+      await seedWork("cs_completion_first_line");
 
       expect(
         await completePaidBooking(
@@ -62,6 +74,7 @@ describeWithEnv(
       // The buyer gets one thank-you page, and it is the first line's.
       const first = await bookedLine("Leading Line");
       const second = await bookedLine("Trailing Line");
+      await seedWork("cs_completion_several_lines");
 
       const result = await completePaidBooking(
         [first.entry, second.entry],
@@ -93,6 +106,7 @@ describeWithEnv(
         text: "Peanuts",
       });
       await listingQuestions.setIds(listingId, [question.id]);
+      await seedWork("cs_completion_saves_answers");
 
       await completePaidBooking(
         [entry],
@@ -141,8 +155,10 @@ describeWithEnv(
         },
       ];
 
-      // One write records the answers at booking, one logs the activity.
-      const calls = await countDatabaseCalls(2, () =>
+      await seedWork("cs_completion_promo_code");
+      // One write records the answers at booking, one claims the
+      // notification work, one logs the activity, one marks it delivered.
+      const calls = await countDatabaseCalls(4, () =>
         completePaidBooking(
           [entry],
           bareIntent(),
@@ -154,12 +170,13 @@ describeWithEnv(
         ),
       );
 
-      expect(calls).toBe(2);
+      expect(calls).toBe(4);
       expect(await logMentions("Promo code 'Ten off' used")).toBe(true);
     });
 
     test("writes down no code when the buyer used none", async () => {
       const { entry } = await bookedLine("Codeless Line");
+      await seedWork("cs_completion_no_code");
 
       await completePaidBooking(
         [entry],
@@ -202,7 +219,10 @@ describeWithEnv(
         ]),
       };
 
-      const calls = await countDatabaseCalls(2, () =>
+      await seedWork("cs_completion_package_facts");
+      // One write records the answers at booking, one claims the
+      // notification work, one logs the activity, one marks it delivered.
+      const calls = await countDatabaseCalls(4, () =>
         withRequestContext(() =>
           completePaidBooking(
             [packagedEntry],
@@ -215,7 +235,7 @@ describeWithEnv(
           ),
         ),
       );
-      expect(calls).toBe(2);
+      expect(calls).toBe(4);
     });
   },
 );

@@ -157,6 +157,15 @@ const pruneStatements = (): PruneStatement[] => [
   boundedDelete("square_link_ends", "created_at < ?", [
     isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
   ]),
+  // A delivered notification's work item has no reader left. The completion
+  // marker moved into the delivered stamp, and the buyer's answers live in
+  // their own tables. Pending rows keep their place however old they get,
+  // because a delivery can still claim them.
+  boundedDelete(
+    "registration_notification_work",
+    "delivered_at IS NOT NULL AND delivered_at < ?",
+    [isoBefore(PRUNE_PAYMENTS_RETENTION_MS)],
+  ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),

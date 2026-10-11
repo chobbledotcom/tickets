@@ -9,10 +9,13 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { withRejectedAnswerWrite } from "#test-utils/atomic-booking.ts";
+import {
+  withRejectedAnswerWrite,
+  withRejectedRegistrationLog,
+} from "#test-utils/atomic-booking.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
-import { useFetchStub } from "#test-utils/mocks.ts";
+import { urlFromFetchInput, useFetchStub } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { checkoutWithTypedAnswer } from "./helpers.ts";
@@ -85,137 +88,142 @@ describeWithEnv(
           entry.message === `Attendee registered for '${listingName}'`,
       ).length;
 
-    test("resumes the answers and notification a failed tail left behind", async () => {
-      const id = "cs_replay_tail_conflict";
+    /** The first delivery of the issue: a booked attendee whose tail's
+     * answer save died, so the redelivery owes the whole tail. */
+    const bookedWithFailingTail = async (id: string) => {
       const { answer, data, listing, listingName } = await answeredCheckout(id);
-
       await deliverWithFailingTail(id, data);
       const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
+      return { answer, attendeeId, data, id, listing, listingName };
+    };
+
+    /** The resumed tail's state: the choice and text answers saved, and the
+     * one registration line in the activity log. */
+    const expectResumedAnswers = async (
+      attendeeId: number,
+      listingName: string,
+      answerId: number,
+    ): Promise<void> => {
+      expect(await savedAnswerIds(attendeeId)).toEqual([answerId, null]);
+      expect(await registrationLines(attendeeId, listingName)).toBe(1);
+    };
+
+    /** A redelivery after the notification committed: it queues no email,
+     * and the one registration line stays alone. */
+    const expectNoFurtherDelivery = async (
+      id: string,
+      data: ValidatedSession,
+      attendeeId: number,
+      listingName: string,
+    ): Promise<void> => {
+      const callsBefore = fetch.callCount();
+      await redeliver(id, data);
+      expect(fetch.callCount()).toBe(callsBefore);
+      expect(await registrationLines(attendeeId, listingName)).toBe(1);
+    };
+
+    /** The session's first delivery: it finishes its whole tail, and the
+     * helper returns the attendee it booked. */
+    const deliverOnce = async (
+      id: string,
+      data: ValidatedSession,
+      listingId: number,
+    ): Promise<number> => {
+      await withRequestContext(async () => {
+        expect((await processPaymentSession(id, data)).success).toBe(true);
+      });
+      return (await getAttendeesRaw(listingId))[0]!.id;
+    };
+
+    test("resumes the answers and notification a failed tail left behind", async () => {
+      const { answer, attendeeId, data, id, listingName } =
+        await bookedWithFailingTail("cs_replay_tail_conflict");
+
       // Booked and finalized, but the tail never ran.
       expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
       expect(await savedAnswerIds(attendeeId)).toEqual([]);
       expect(await registrationLines(attendeeId, listingName)).toBe(0);
 
-      // The redelivery resumes the tail instead of answering bare success.
+      // The redelivery claims the notification and finishes the tail.
       await redeliver(id, data);
-      // Choice row first; the taken free text binds its string, so its
-      // answer_id is null.
-      expect(await savedAnswerIds(attendeeId)).toEqual([answer.id, null]);
-      expect(await registrationLines(attendeeId, listingName)).toBe(1);
+      // Choice row first; the free text binds its string, so its answer_id
+      // is null.
+      await expectResumedAnswers(attendeeId, listingName, answer.id);
       // The resumed notification queues the buyer's confirmation.
       expect(fetch.getFetchJsonBody()).toMatchObject({
         to: ["buyer@example.com"],
       });
 
-      // A further redelivery runs the notification once, never again.
-      const callsAfterResume = fetch.callCount();
-      await redeliver(id, data);
-      expect(fetch.callCount()).toBe(callsAfterResume);
-      expect(await registrationLines(attendeeId, listingName)).toBe(1);
+      // A further redelivery finds the notification delivered and runs
+      // nothing again.
+      await expectNoFurtherDelivery(id, data, attendeeId, listingName);
     });
 
-    test("resumes through the durable ledger when the reservation row is lost", async () => {
-      const id = "cs_replay_tail_ledger";
-      const { answer, data, listing, listingName } = await answeredCheckout(id);
-      using errors = spy(console, "error");
-
-      await deliverWithFailingTail(id, data);
-      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
-      // The reservation row is gone the way a pruned one would be, and it
-      // took the session's stored ticket token with it.
+    test("sends the buyer's confirmation through the durable ledger", async () => {
+      const { answer, attendeeId, data, id, listingName } =
+        await bookedWithFailingTail("cs_replay_tail_ledger");
+      // The reservation row is gone the way a pruned one would be. The work
+      // row outlives it, and its sealed payload carries the ticket token the
+      // pruned row held.
       await execute(
         "DELETE FROM processed_payments WHERE payment_session_id = ?",
         [id],
       );
 
       await redeliver(id, data);
-      // The answers are the durable half of the tail, so the resume lands
-      // them: the choice row and the free-text row (its answer_id is null).
-      // The notification defers to the admin re-send, because its
-      // check-in links need the token the pruned row sealed, and it says so
-      // loudly instead of sending an email no scan can open.
-      expect(await savedAnswerIds(attendeeId)).toEqual([answer.id, null]);
-      expect(await registrationLines(attendeeId, listingName)).toBe(0);
-      expect(fetch.callCount()).toBe(0);
-      expect(
-        errors.calls.some((call) =>
-          String(call.args[0]).includes("owes its registration notification"),
-        ),
-      ).toBe(true);
-    });
-
-    test("takes a redelivered checkout's staged answers into its email", async () => {
-      const id = "cs_replay_tail_staged";
-      const { answer, data, listing } = await answeredCheckout(id);
-
-      // The tail dies before the take, so the staged row survives for the
-      // resume, the way the issue's transient failure leaves it.
-      await deliverWithFailingTail(id, data);
-
-      await redeliver(id, data);
-      // The choice answer and the taken free text land as two rows: the
-      // text row binds its interned string, so its answer_id is null.
-      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
-      expect(await savedAnswerIds(attendeeId)).toEqual([answer.id, null]);
-      const body = fetch.getFetchJsonBody();
-      expect(body.text).toContain("Arriving late");
+      // The ledger replay finishes the whole tail: the answers, the
+      // registration line, and the buyer's confirmation with a working
+      // check-in link from the sealed payload.
+      await expectResumedAnswers(attendeeId, listingName, answer.id);
+      expect(fetch.getFetchJsonBody()).toMatchObject({
+        to: ["buyer@example.com"],
+      });
+      expect(fetch.getFetchJsonBody().text).toContain("Arriving late");
     });
 
     test("resumes despite other activity rows for the attendee", async () => {
-      const id = "cs_replay_tail_move_line";
-      const { answer, data, listing, listingName } = await answeredCheckout(id);
+      const { answer, attendeeId, data, id, listing, listingName } =
+        await bookedWithFailingTail("cs_replay_tail_move_line");
 
-      // The tail's answer save died, and a door move logged its own
-      // activity row before the redelivery. The move proves nothing about
-      // the tail, so the resume still runs.
-      await deliverWithFailingTail(id, data);
-      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
+      // A door move logged its own activity row before the redelivery. The
+      // move proves nothing about the notification, so the resume still
+      // runs.
       await logActivities([
         { attendeeId, listing: listing.id, message: "Ticket moved" },
       ]);
 
       await redeliver(id, data);
-      expect(await savedAnswerIds(attendeeId)).toEqual([answer.id, null]);
-      expect(await registrationLines(attendeeId, listingName)).toBe(1);
+      await expectResumedAnswers(attendeeId, listingName, answer.id);
     });
-
-    /** A booking whose tail already ran, with its attendee named. */
-    const completedBooking = async (id: string) => {
-      const { data, listing } = await checkoutWithTypedAnswer(id);
-      const listingName = (await getListingWithCount(listing.id))!.name;
-      await configureTestEmail();
-      await withRequestContext(async () => {
-        expect((await processPaymentSession(id, data)).success).toBe(true);
-      });
-      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
-      return { attendeeId, data, listingName };
-    };
 
     test("re-runs a notification that died beside a committed answer save", async () => {
       const id = "cs_replay_tail_notify_lost";
-      const { attendeeId, data, listingName } = await completedBooking(id);
-      // The durable state of a delivery that died between the answer save
-      // and its log write: the answers sit committed, the activity log
-      // holds nothing. The redelivery finishes the notification.
-      await execute("DELETE FROM activity_log WHERE attendee_id = ?", [
-        attendeeId,
+      const { answer, data, listing, listingName } = await answeredCheckout(id);
+
+      // The answer save commits, then the notification's log write dies.
+      // The delivery releases its lease and answers nothing usable.
+      await withRejectedRegistrationLog(() =>
+        expect(processPaymentSession(id, data)).rejects.toThrow(
+          "unexpected registration log write",
+        ),
+      );
+      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
+      // An unrelated activity row lands before the redelivery.
+      await logActivities([
+        { attendeeId, listing: listing.id, message: "Ticket moved" },
       ]);
-      expect(await registrationLines(attendeeId, listingName)).toBe(0);
 
       await redeliver(id, data);
-      expect(await registrationLines(attendeeId, listingName)).toBe(1);
-      expect(fetch.getFetchJsonBody()).toMatchObject({
-        to: ["buyer@example.com"],
-      });
+      await expectResumedAnswers(attendeeId, listingName, answer.id);
+      expect(fetch.callCount()).toBe(1);
     });
 
     test("defers the notification of a booking whose listing is gone", async () => {
-      const id = "cs_replay_tail_dead_listing";
-      const { data, listing } = await answeredCheckout(id);
-      await configureTestEmail();
+      const { data, id, listing } = await bookedWithFailingTail(
+        "cs_replay_tail_dead_listing",
+      );
       using errors = spy(console, "error");
 
-      await deliverWithFailingTail(id, data);
       await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
 
       await redeliver(id, data);
@@ -227,15 +235,92 @@ describeWithEnv(
       ).toBe(true);
     });
 
-    test("never re-notifies a session whose tail already ran", async () => {
-      const id = "cs_replay_tail_done";
-      const { attendeeId, data, listingName } = await completedBooking(id);
+    test("notifies a question-free booking once across repeated replays", async () => {
+      const id = "cs_replay_tail_no_questions";
+      // No questions on the listing and no typed answers: the answer save
+      // writes no snapshot rows at all, so the completion marker cannot
+      // rest on them.
+      const { data, listing, listingName } = await answeredCheckout(id);
+      await execute("DELETE FROM listing_questions WHERE listing_id = ?", [
+        listing.id,
+      ]);
+      data.intent.listingAnswerIds = {};
+      data.intent.listingTextAnswerIds = undefined;
+      await configureTestEmail();
+
+      const attendeeId = await deliverOnce(id, data, listing.id);
       expect(await registrationLines(attendeeId, listingName)).toBe(1);
 
-      const callsBefore = fetch.callCount();
-      await redeliver(id, data);
-      expect(fetch.callCount()).toBe(callsBefore);
+      await expectNoFurtherDelivery(id, data, attendeeId, listingName);
+      await expectNoFurtherDelivery(id, data, attendeeId, listingName);
+    });
+
+    test("delivers one notification when two deliveries race the tail", async () => {
+      const id = "cs_replay_tail_race";
+      const { data, listing, listingName } = await answeredCheckout(id);
+      await configureTestEmail();
+
+      // The first delivery claims the work and blocks inside its email
+      // send. A second delivery then reaches the same unfinished tail,
+      // fails to claim the held lease, and answers without notifying.
+      // Exactly one confirmation and one registration line exist across
+      // both.
+      let releaseEmail!: () => void;
+      const emailHeld = new Promise<void>((resolve) => {
+        releaseEmail = resolve;
+      });
+      let emailReached!: () => void;
+      const emailReachedP = new Promise<void>((resolve) => {
+        emailReached = resolve;
+      });
+      fetch.restubFetch((input: string | URL | Request) => {
+        if (String(urlFromFetchInput(input)).includes("resend")) {
+          emailReached();
+          return (async () => {
+            await emailHeld;
+            return new Response();
+          })();
+        }
+        return new Response();
+      });
+
+      // The two outcomes settle as data, so neither delivery's rejection can
+      // escape this test as an unhandled rejection.
+      const first = (async () => {
+        try {
+          return { ok: true as const, result: await firstDelivery() };
+        } catch (error) {
+          return { error, ok: false as const };
+        }
+      })();
+      async function firstDelivery() {
+        return withRequestContext(() => processPaymentSession(id, data));
+      }
+      await emailReachedP;
+
+      const second = await withRequestContext(() =>
+        processPaymentSession(id, data),
+      );
+      expect(second.success).toBe(true);
+      // The second delivery notified nothing: the one recorded call is the
+      // first delivery's held send.
+      expect(fetch.callCount()).toBe(1);
+
+      releaseEmail();
+      const firstOutcome = await first;
+      expect(firstOutcome.ok).toBe(true);
+      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
       expect(await registrationLines(attendeeId, listingName)).toBe(1);
+      expect(fetch.callCount()).toBe(1);
+    });
+
+    test("never re-notifies a session whose tail already ran", async () => {
+      const id = "cs_replay_tail_done";
+      const { data, listing, listingName } = await answeredCheckout(id);
+      const attendeeId = await deliverOnce(id, data, listing.id);
+      expect(await registrationLines(attendeeId, listingName)).toBe(1);
+
+      await expectNoFurtherDelivery(id, data, attendeeId, listingName);
     });
   },
 );

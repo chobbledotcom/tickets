@@ -55,6 +55,26 @@ export const withRejectedAnswerWrite = async (
   }
 };
 
+/** Abort activity-log writes so caller tests can observe a real failure of
+ * the notification's activity write while the answers have committed. */
+export const withRejectedRegistrationLog = async (
+  body: () => Promise<void>,
+): Promise<void> => {
+  const db = getDb();
+  await db.execute(
+    `CREATE TRIGGER test_reject_registration_log
+       BEFORE INSERT ON activity_log
+       BEGIN
+         SELECT RAISE(ABORT, 'unexpected registration log write');
+       END`,
+  );
+  try {
+    await body();
+  } finally {
+    await db.execute("DROP TRIGGER test_reject_registration_log");
+  }
+};
+
 /** Make one booking insert affect no rows, matching the capacity-guard outcome
  * after an earlier line has already been written. */
 export const withSkippedBookingWrite = async (

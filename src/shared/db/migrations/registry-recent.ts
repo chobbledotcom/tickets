@@ -73,5 +73,12 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-11_custom_css_bunny_fonts",
     () => import("./2026-10-11_custom_css_bunny_fonts.ts"),
   ),
+  // The durable work item that carries a paid booking's registration
+  // notification, born beside the booking and claimed by whichever delivery
+  // finishes the tail.
+  entry(
+    "2026-10-11_registration_notification_work",
+    () => import("./2026-10-11_registration_notification_work.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

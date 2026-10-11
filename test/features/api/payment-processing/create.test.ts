@@ -7,6 +7,7 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import { logActivities } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
+import { registrationWorkStatements } from "#db/registration-notification-work.ts";
 import {
   alreadyProcessedResult,
   bookingSlot,
@@ -126,7 +127,7 @@ const safeNameFor = (
   listing: ListingWithCount,
 ): string => options.safeName ?? listing.name;
 
-const preparationResult = (options: PreparationOptions) => {
+const preparationResult = async (options: PreparationOptions) => {
   const listing = testListingWithCount({
     id: 1,
     name: options.listingName ?? "Test Listing",
@@ -243,6 +244,9 @@ const preparationResult = (options: PreparationOptions) => {
     "stable-ticket-token",
     1,
     new Map(),
+    await registrationWorkStatements(session.id, {
+      ticketToken: "stable-ticket-token",
+    }),
   );
 };
 

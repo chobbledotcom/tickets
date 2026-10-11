@@ -62,10 +62,12 @@ describeWithEnv(
         2,
       );
       const entries = await committedEntries(
-        attendee.id,
-        "tok_committed",
-        session(),
-        intent(),
+        {
+          attendeeId: attendee.id,
+          intent: intent(),
+          session: session(),
+          ticketToken: "tok_committed",
+        },
         await checkedLine(listing.id),
       );
 
@@ -118,10 +120,12 @@ describeWithEnv(
         "row@example.com",
       );
       const entries = await committedEntries(
-        attendee.id,
-        "tok_contact",
-        session(),
-        intent(),
+        {
+          attendeeId: attendee.id,
+          intent: intent(),
+          session: session(),
+          ticketToken: "tok_contact",
+        },
         await checkedLine(listing.id),
       );
 
@@ -147,10 +151,12 @@ describeWithEnv(
         "paid@example.com",
       );
       const entries = await committedEntries(
-        attendee.id,
-        "tok_payment",
-        session(),
-        intent(),
+        {
+          attendeeId: attendee.id,
+          intent: intent(),
+          session: session(),
+          ticketToken: "tok_payment",
+        },
         await checkedLine(listing.id),
       );
 
@@ -165,10 +171,12 @@ describeWithEnv(
       });
       expect(
         await committedEntries(
-          999999,
-          "tok_none",
-          session(),
-          intent(),
+          {
+            attendeeId: 999999,
+            intent: intent(),
+            session: session(),
+            ticketToken: "tok_none",
+          },
           await checkedLine(listing.id),
         ),
       ).toEqual([]);

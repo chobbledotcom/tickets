@@ -83,10 +83,12 @@ export const recoverOrRefundUnexpectedCreate = async ({
   );
   if (decision.kind === "recover") {
     const entries = await committedEntries(
-      decision.attendeeId,
-      ticketToken,
-      session,
-      intent,
+      {
+        attendeeId: decision.attendeeId,
+        intent,
+        session,
+        ticketToken,
+      },
       validatedItems,
     );
     return complete(entries, [ticketToken]);

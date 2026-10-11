@@ -362,4 +362,31 @@ export const attendeeTables: [name: string, table: Table][] = [
       ],
     },
   ],
+
+  [
+    // The durable work item that carries a paid booking's registration
+    // notification to whichever delivery can finish it. It is born beside
+    // the booking in the creation batch. A committed booking always has its
+    // payload: the ticket token and the typed free texts. The payload is
+    // sealed with DB_ENCRYPTION_KEY and keyed by the HMAC of the session
+    // id. For SumUp the id is the checkout reference, which must never rest
+    // in this database.
+    //
+    // The lease is the atomic ownership boundary. One `claimed_at` stamp
+    // lives per row, and a claimant that goes stale loses it, so two
+    // deliveries cannot both notify. `delivered_at` is the registration
+    // completion marker. No other writer sets it, and it exists for
+    // bookings with no questions at all. Delivered rows prune on the
+    // payments clock.
+    "registration_notification_work",
+    {
+      columns: [
+        ["session_index", "TEXT PRIMARY KEY"],
+        ["sealed", "TEXT NOT NULL"],
+        ["claimed_at", "TEXT"],
+        ["delivered_at", "TEXT"],
+        ["created_at", "TEXT NOT NULL"],
+      ],
+    },
+  ],
 ];

@@ -6,6 +6,7 @@ import {
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
 import { queryAllPrimary } from "#db/client.ts";
+import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import {
   type CreatedEntry,
   listingsById,
@@ -31,6 +32,14 @@ type CommittedBookingRow = {
   ticket_token_index: BlindIndex;
 };
 
+/** The booking whose committed lines the completion rebuilds. */
+export type CommittedEntriesContext = {
+  attendeeId: number;
+  ticketToken: string;
+  session: ValidatedSession["session"];
+  intent: BookingIntent;
+};
+
 /** Rebuild completion entries from the committed primary rows and signed
  * contact data. The callback already holds the exact PII encrypted into the
  * attendee. The ticket token is the caller's: the rows hold only its blind
@@ -39,12 +48,10 @@ type CommittedBookingRow = {
  * since the booking drops loudly: no notification can name a deleted
  * listing, and the live lines still notify. */
 export const committedEntries = async (
-  attendeeId: number,
-  ticketToken: string,
-  session: ValidatedSession["session"],
-  intent: BookingIntent,
+  context: CommittedEntriesContext,
   listings: readonly { listing: ListingWithCount }[],
 ): Promise<CreatedEntry[]> => {
+  const { attendeeId, ticketToken, session, intent } = context;
   const rows = await queryAllPrimary<CommittedBookingRow>({
     args: [attendeeId],
     sql: `SELECT attendee.created,
@@ -109,4 +116,18 @@ export const committedEntries = async (
       },
     ];
   });
+};
+
+/** Rebuild the completion entries for the attendee's booked lines, and keep
+ * the lines whose listing still exists. A gone listing cannot render, and
+ * its line drops where the caller can log it. */
+export const committedLiveEntries = async (
+  listingIds: readonly number[],
+  context: CommittedEntriesContext,
+): Promise<CreatedEntry[]> => {
+  const listings = await getListingsWithCountsByIds([...listingIds]);
+  const live = listings.flatMap((listing) =>
+    listing === null ? [] : [{ listing }],
+  );
+  return committedEntries(context, live);
 };

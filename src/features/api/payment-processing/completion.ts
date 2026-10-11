@@ -1,5 +1,8 @@
-import { hmacHash } from "#crypto/hashing.ts";
-import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import {
+  claimRegistrationWork,
+  deliverRegistrationWork,
+  payloadFreeTexts,
+} from "#db/registration-notification-work.ts";
 import {
   type CreatedEntry,
   promoCodeActivities,
@@ -9,33 +12,9 @@ import {
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
-import type { FreeTextAnswers } from "#shared/email/answers.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
-
-/** Take the checkout's staged free-text answers back. Say loudly when a
- * checkout that carried text answers finds its row gone: the strings table
- * still seals every answer for the admin re-send. The emails this
- * completion queues will show choice answers only. Shared by the fresh
- * completion and a replay's resumed tail. */
-export const takeSessionAnswers = async (
-  sessionId: string,
-  intent: BookingIntent,
-): Promise<FreeTextAnswers | undefined> => {
-  if (!intent.listingTextAnswerIds) return;
-  const freeTexts = await takeCheckoutAnswers(sessionId);
-  if (freeTexts.size === 0) {
-    // The hashed index, not the raw session id: for SumUp the id is the
-    // checkout reference, which must not reach logs or sinks either.
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `A paid checkout carried text answers but its staged row is gone (session index ${await hmacHash(sessionId)}); its emails will show choice answers only`,
-    });
-  }
-  return freeTexts;
-};
 
 export const completePaidBooking = async (
   createdEntries: CreatedEntry[],
@@ -47,11 +26,20 @@ export const completePaidBooking = async (
   notificationPackages: RegistrationPackageFacts | undefined,
   sessionId: string,
 ): Promise<PaymentResult> => {
-  // The answers save before the staged row is taken. A save that fails must
-  // leave the staged plaintext in place, not destroy the only copy the
-  // completion's emails can read.
+  // The answers save before the notification claims its work. A save that
+  // fails leaves the work row unclaimed for the next delivery.
   await saveSessionAnswers(createdEntries, intent);
-  const freeTexts = await takeSessionAnswers(sessionId, intent);
+  const work = await claimRegistrationWork(sessionId);
+  if (work.kind !== "claimed") {
+    // Delivered: the notification already committed. Owned: a live delivery
+    // holds the lease and finishes the tail. Either way this delivery must
+    // not notify again.
+    return sessionSuccess(
+      createdEntries[0]!.attendee.id,
+      createdEntries[0]!.listing.id,
+      ticketTokens,
+    );
+  }
   const firstEntry = createdEntries[0]!;
   const promoActivities =
     codeSpecs.length > 0
@@ -62,12 +50,14 @@ export const completePaidBooking = async (
           firstEntry.attendee.id,
         )
       : [];
-  await logAndNotifyRegistration(createdEntries, {
-    freeTexts,
-    packageFacts: notificationPackages,
-    priorActivities: promoActivities,
-    siteTokenIndex: intent.siteTokenIndex,
-  });
+  await deliverRegistrationWork(sessionId, () =>
+    logAndNotifyRegistration(createdEntries, {
+      freeTexts: payloadFreeTexts(work.payload),
+      packageFacts: notificationPackages,
+      priorActivities: promoActivities,
+      siteTokenIndex: intent.siteTokenIndex,
+    }),
+  );
   return sessionSuccess(
     firstEntry.attendee.id,
     firstEntry.listing.id,

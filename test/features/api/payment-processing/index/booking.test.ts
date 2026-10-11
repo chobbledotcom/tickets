@@ -86,25 +86,26 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toBeNull();
   });
 
-  /** A paid booking costs five database calls, answered or not. The fifth
-   * records the questions the booking asked. */
+  /** A paid booking costs seven database calls, answered or not: the extra
+   * write births the notification work item beside the booking, the claim
+   * and the delivery stamp own the notification. */
   const expectBookedInFiveCalls = async (
     id: string,
     data: Parameters<typeof processPaymentSession>[1],
   ): Promise<void> => {
-    const calls = await countDatabaseCalls(5, async () => {
+    const calls = await countDatabaseCalls(7, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(5);
+    expect(calls).toBe(7);
   };
 
-  test("creates an unanswered paid booking in five database calls", async () => {
+  test("creates an unanswered paid booking in seven database calls", async () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
     await expectBookedInFiveCalls(id, data);
   });
 
-  test("creates and answers a paid booking in five database calls", async () => {
+  test("creates and answers a paid booking in seven database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
     const answer = await createChoiceAnswer(listing.id);

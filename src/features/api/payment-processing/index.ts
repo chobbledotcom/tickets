@@ -9,8 +9,10 @@
  */
 
 import { eventGroupHasLegs } from "#accounting/queries.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   decryptSessionTokens,
   finalizeSessionIfUnresolved,
@@ -20,6 +22,10 @@ import {
   releaseReservation,
   reserveSession,
 } from "#db/processed-payments.ts";
+import {
+  freeTextsRecord,
+  registrationWorkStatements,
+} from "#db/registration-notification-work.ts";
 import { forgetSquareLinkEnd } from "#db/square-link-ends.ts";
 import { t } from "#i18n";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
@@ -58,7 +64,7 @@ import type {
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
-import { logDebug } from "#shared/logger.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
@@ -278,6 +284,28 @@ const processNewBookingSession = async (
   // and refunded only when committed state proves that the batch rolled back.
   const ticketToken = generateTicketToken();
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
+
+  // The typed free texts leave their staging row here, so the notification
+  // work item carries them beside the booking. Whatever fails later, the
+  // payload is already durable, and a replay reads its own copy.
+  const freeTexts = intent.listingTextAnswerIds
+    ? await takeCheckoutAnswers(session.id)
+    : undefined;
+  if (freeTexts?.size === 0) {
+    // The hashed index, not the raw session id: for SumUp the id is the
+    // checkout reference, which must not reach logs or sinks either.
+    logError({
+      code: ErrorCode.DATA_INVALID,
+      detail: `A paid checkout carried text answers but its staged row is gone (session index ${await hmacHash(session.id)}); its emails will show choice answers only`,
+    });
+  }
+  const registrationWork = await registrationWorkStatements(session.id, {
+    ticketToken,
+    ...(freeTexts === undefined
+      ? {}
+      : { freeTexts: freeTextsRecord(freeTexts) }),
+  });
+
   const complete = (
     entries: Parameters<typeof completePaidBooking>[0],
     ticketTokens: string[],
@@ -300,6 +328,7 @@ const processNewBookingSession = async (
     ticketToken,
     snapshot.publicStatusId,
     snapshot.parentsByChildId,
+    registrationWork,
   );
   if (honoured.ok === null) {
     return recoverOrRefundUnexpectedCreate({
