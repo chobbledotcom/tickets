@@ -17,7 +17,7 @@ import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
-  retryWhilePortTaken,
+  withFreshPortWhileTaken,
   withHeldPort,
   withUnusedPort,
 } from "#test-utils/stripe-mock/ports.ts";
@@ -41,35 +41,31 @@ const START_LOCK_NAME = "stripe-mock.start.lock";
  * Ask for three tries at a mock that always fails, with the port settled the
  * given way, and report how many times it was actually started.
  *
- * The port is picked and let go of before the start uses it, so another test
- * can take it in between. A start that finds the port already listening
- * returns without spawning — the only way an attempt skips its spawn — so a
- * stolen port shows up as a count below `wanted`. Ask again on a fresh port
- * rather than reading someone else's port as this test's answer.
+ * A start that finds the port already listening returns without spawning, so
+ * a port taken from outside the run's handouts reads as a count below
+ * `wanted`. Ask again on a fresh port rather than reading that as the answer.
  */
 const triesBeforeGivingUp = async (
   pinPort: (port: number) => StartOptions,
   wanted: number,
 ): Promise<number> => {
   let tries = 0;
-  await retryWhilePortTaken(
-    async () => {
+  await withFreshPortWhileTaken(
+    async (port) => {
       await withTempStripeMockPaths(async (paths) => {
         const count = join(paths.binDir, "starts");
         await writeCountingFailingMock(paths, count, "no good");
 
-        await withUnusedPort(async (port) => {
-          await expect(
-            startStripeMock({
-              budgetMs: 50,
-              choosePort: () => port,
-              delayMs: 1,
-              paths,
-              startAttempts: 3,
-              ...pinPort(port),
-            }),
-          ).rejects.toThrow(STRIPE_MOCK_FAILED_TO_START);
-        });
+        await expect(
+          startStripeMock({
+            budgetMs: 50,
+            choosePort: () => port,
+            delayMs: 1,
+            paths,
+            startAttempts: 3,
+            ...pinPort(port),
+          }),
+        ).rejects.toThrow(STRIPE_MOCK_FAILED_TO_START);
 
         tries = await startCount(count);
       });
@@ -110,8 +106,9 @@ describe("starting stripe-mock", () => {
   test("gives a mock time to shut itself down before killing it", async () => {
     await withTempStripeMockPaths(async (paths) => {
       // Starts our mock on the port, or null when the start reports failure —
-      // our mock lost the port to another test between picking and binding
-      // it, so it died without ever listening. Any other error still throws.
+      // our mock lost the port to something outside the run's handouts
+      // between picking and binding it, so it died without ever listening.
+      // Any other error still throws.
       const startOnPortOrNull = async (port: number) => {
         try {
           return await startStripeMock({
@@ -135,31 +132,27 @@ describe("starting stripe-mock", () => {
       };
 
       let round = 0;
-      await retryWhilePortTaken(async () => {
-        // Fresh notes each round, so a leftover from an earlier stolen-port
-        // round can never speak for this one.
+      await withFreshPortWhileTaken(async (port) => {
+        // Fresh notes each round, so a leftover from an earlier round can
+        // never speak for this one.
         round += 1;
         const note = join(paths.binDir, `stopped-cleanly-${round}`);
         const bound = join(paths.binDir, `bound-${round}`);
         await writeSlowToStopMock(paths, note, bound);
 
-        let portWasTaken = false;
-        await withUnusedPort(async (port) => {
-          const stripeMock = await startOnPortOrNull(port);
-          // No bound note means our mock never got the port: the start found
-          // something else already listening and adopted it. Ask again.
-          if (stripeMock === null || !(await pathExists(bound))) {
-            await stripeMock?.stop();
-            portWasTaken = true;
-            return;
-          }
-          await expectPortOpen(port);
+        const stripeMock = await startOnPortOrNull(port);
+        // No bound note means our mock never got the port: the start found
+        // something else already listening and adopted it. Ask again.
+        if (stripeMock === null || !(await pathExists(bound))) {
+          await stripeMock?.stop();
+          return true;
+        }
+        await expectPortOpen(port);
 
-          await stripeMock.stop();
+        await stripeMock.stop();
 
-          expect(await pathExists(note)).toBe(true);
-        });
-        return portWasTaken;
+        expect(await pathExists(note)).toBe(true);
+        return false;
       });
     });
   });

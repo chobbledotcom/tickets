@@ -20,14 +20,14 @@ import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
-  retryWhilePortTaken,
+  withFreshPortWhileTaken,
   withHeldPort,
   withUnusedPort,
 } from "#test-utils/stripe-mock/ports.ts";
 
 describe("stripe-mock ports and environment", () => {
   test("keeps a reserved port unavailable until release", () =>
-    retryWhilePortTaken(
+    withFreshPortWhileTaken(
       async () => {
         const reserved = reserveAvailablePort();
         let listener: Deno.Listener | undefined;

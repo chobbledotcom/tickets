@@ -1,9 +1,10 @@
 /**
  * Finding a port to run a mock on, and saying what should happen when one is
  * started. Kept apart from the rest of the stripe-mock helpers because ports
- * are their own concern, with their own race to watch for.
+ * are their own concern: a handout holds the port it gives out.
  */
 
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import {
   STRIPE_MOCK_FAILED_TO_START,
@@ -13,22 +14,68 @@ import type { StartOptions } from "#test-utils/stripe-mock/helpers.ts";
 
 type StartedStripeMock = Awaited<ReturnType<typeof startStripeMock>>;
 
-const withPort = async (
+/** How many times a taken port is forgiven before the test is failed. */
+const PORT_STEAL_TRIES = 5;
+
+/**
+ * Lock files name the ports this run has handed out and not seen used yet.
+ * The workers of one test run share the process, so one directory serves the
+ * whole run, and a lock lives exactly as long as its handout.
+ */
+const heldPortDir = join("/tmp", `tickets-held-ports-${Deno.pid}`);
+
+/**
+ * Claim a free localhost port for one handout. Creating the lock file is the
+ * claim: no other handout of this run can create the same name, so no two
+ * handouts receive the same port. The listener keeps the port out of the
+ * kernel's free pool until the claim is made.
+ */
+const claimPort = (
   keepOpen: boolean,
-  body: (port: number) => Promise<void> | void,
-): Promise<void> => {
-  const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
-  const { port } = listener.addr as Deno.NetAddr;
-  if (!keepOpen) listener.close();
+): { port: number; release: () => void } => {
+  Deno.mkdirSync(heldPortDir, { recursive: true });
+  for (let tries = 0; tries < PORT_STEAL_TRIES; tries++) {
+    const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+    const { port } = listener.addr as Deno.NetAddr;
+    const lockPath = join(heldPortDir, `${port}.lock`);
+    try {
+      Deno.openSync(lockPath, { createNew: true, write: true }).close();
+    } catch (error) {
+      listener.close();
+      // A lock already there means another handout of this run was handed
+      // the same number a moment before. Ask the kernel for a fresh port.
+      if (!(error instanceof Deno.errors.AlreadyExists)) throw error;
+      continue;
+    }
+    if (!keepOpen) listener.close();
+    return {
+      port,
+      release: () => {
+        Deno.removeSync(lockPath);
+        if (keepOpen) listener.close();
+      },
+    };
+  }
+  throw new Error(
+    `All ${PORT_STEAL_TRIES} tries landed on a port another handout holds. Locks: ${heldPortDir}`,
+  );
+};
+
+const withPort = async <T>(
+  keepOpen: boolean,
+  body: (port: number) => Promise<T> | T,
+): Promise<T> => {
+  const claimed = claimPort(keepOpen);
   try {
-    await body(port);
+    return await body(claimed.port);
   } finally {
-    if (keepOpen) listener.close();
+    claimed.release();
   }
 };
 
-export const withUnusedPort = (body: (port: number) => Promise<void> | void) =>
-  withPort(false, body);
+export const withUnusedPort = <T>(
+  body: (port: number) => Promise<T> | T,
+): Promise<T> => withPort(false, body);
 
 export const withHeldPort = (body: (port: number) => Promise<void>) =>
   withPort(true, body);
@@ -46,13 +93,10 @@ export const expectPortAvailable = (port: number): void => {
   listener.close();
 };
 
-/** How many times a taken port is forgiven before the test is failed. */
-export const PORT_STEAL_TRIES = 5;
-
 /**
  * Start once and say whether the port was taken by something else. Starting
- * finds anything already listening on the port and calls that a success, which
- * is not the question a failure test is asking.
+ * finds anything already listening on the port and calls that a success,
+ * which is not the question a failure test is asking.
  */
 export const startFailedOrPortTaken = async (
   start: () => Promise<StartedStripeMock>,
@@ -74,7 +118,7 @@ export const startFailedOrPortTaken = async (
 /** Ask again while something else keeps taking the port we were handed.
  * `keptHappening` is read only once every try is spent, so a caller can
  * describe what it actually saw rather than what it expected to see. */
-export const retryWhilePortTaken = async (
+const retryWhilePortTaken = async (
   attempt: () => Promise<boolean>,
   keptHappening: () => string = () => "Starting stripe-mock kept succeeding",
 ): Promise<void> => {
@@ -87,21 +131,30 @@ export const retryWhilePortTaken = async (
 };
 
 /**
- * A free port is picked and let go of before it is used, so another test
- * starting at that moment can take it. Ask again on a fresh port rather than
- * reading that as the failure this test came for.
+ * Run the body on a fresh port, and start over while the body says the port
+ * was taken. The handout holds the port it picks, so another handout of this
+ * run cannot take it in between; the ask-again covers listeners from outside
+ * the run's handouts. `keptHappening` is read only once every try is spent,
+ * so a caller can describe what it actually saw rather than what it expected
+ * to see.
+ */
+export const withFreshPortWhileTaken = (
+  body: (port: number) => Promise<boolean>,
+  keptHappening?: () => string,
+): Promise<void> =>
+  retryWhilePortTaken(() => withUnusedPort(body), keptHappening);
+
+/**
+ * A start that finds anything already listening has not failed for the
+ * reason this test came for, so the answer asks again on a fresh port.
  */
 export const expectStartFailsWith = (
   startOn: (port: number) => Promise<StartedStripeMock>,
   message?: string,
 ): Promise<void> =>
-  retryWhilePortTaken(async () => {
-    let portWasTaken = false;
-    await withUnusedPort(async (port) => {
-      portWasTaken = await startFailedOrPortTaken(() => startOn(port), message);
-    });
-    return portWasTaken;
-  });
+  withFreshPortWhileTaken((port) =>
+    startFailedOrPortTaken(() => startOn(port), message),
+  );
 
 export const expectStartFails = (
   options: StartOptions,
