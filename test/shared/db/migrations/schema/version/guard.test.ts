@@ -114,6 +114,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-10-01_square_link_ends",
         "2026-10-05_listing_min_quantity",
         "2026-10-07_holiday_date_padding",
+        "2026-10-11_custom_css_bunny_fonts",
       ],
       schemaHash: "1h8mi7d",
     });
@@ -130,7 +131,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Pad the stored holiday dates the pre-2476 mapper wrote unpadded.",
+        "Store whether the custom CSS uses Bunny's fonts, scanned from the saved CSS.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

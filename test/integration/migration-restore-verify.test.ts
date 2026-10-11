@@ -75,7 +75,9 @@ describeWithEnv(
       // restore; it has its own migration test. The checked_in count migration
       // is data-only and covered by its own migration test. The holiday date
       // padding migration is data-only and covered by its own migration test.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 25);
+      // The custom CSS Bunny fonts backfill is data-only and covered by its
+      // own migration test.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 26);
     });
 
     test("restores triggers attached to a dropped table", async () => {

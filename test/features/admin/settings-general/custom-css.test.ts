@@ -64,6 +64,24 @@ describeAdminSettings(() => {
       );
     });
 
+    test("stores whether the saved CSS uses Bunny's fonts", async () => {
+      await adminFormPost("/admin/settings/custom-css", {
+        custom_css: "@import url(https://fonts.bunny.net/css?family=aleo);",
+      });
+      expect(settings.customCssBunnyFonts).toBe(true);
+
+      await adminFormPost("/admin/settings/custom-css", {
+        custom_css: "body { color: red; }",
+      });
+      expect(settings.customCssBunnyFonts).toBe(false);
+
+      const { response } = await adminFormPost("/admin/settings/custom-css", {
+        custom_css: "",
+      });
+      expect(response.status).toBe(302);
+      expect(settings.customCssBunnyFonts).toBe(false);
+    });
+
     test("clears custom CSS when empty", async () => {
       await adminFormPost("/admin/settings/custom-css", {
         custom_css: "body { color: red; }",

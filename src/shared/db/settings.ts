@@ -34,6 +34,7 @@ import {
   writeEncrypted,
   writeOrDelete,
   writeRaw,
+  writeRawBatch,
 } from "#db/settings/raw-writes.ts";
 import {
   clearSetupCompleteCache,
@@ -49,6 +50,7 @@ import {
   setSnapshotField,
   snap,
 } from "#db/settings/snapshot.ts";
+import { cssUsesBunnyFonts } from "#routes/public/bunny-fonts.ts";
 import {
   type AddressLookupSetting,
   isAddressLookupSetting,
@@ -157,6 +159,13 @@ const settingsBase = {
   // Derived from country
   get currency(): string {
     return snap("currency");
+  },
+
+  /** Whether the saved custom CSS loads fonts from fonts.bunny.net. Derived
+   *  from custom_css when it is saved, so the CSP builder reads a flag instead
+   *  of scanning the stylesheet on every response. */
+  get customCssBunnyFonts(): boolean {
+    return snap("custom_css_bunny_fonts");
   },
 
   // --- Email ---
@@ -299,6 +308,18 @@ const settingsBase = {
       CONFIG_KEYS.CONTACT_FORM_ENABLED,
       "contact_form_enabled",
     ),
+    /** Save the stylesheet and the fonts flag it derives in one batch. A save
+     *  without a Bunny reference clears the flag. No reader sees the CSS
+     *  without its flag. */
+    customCss: async (v: string): Promise<void> => {
+      const bunnyFonts = cssUsesBunnyFonts(v);
+      await writeRawBatch([
+        [CONFIG_KEYS.CUSTOM_CSS, v],
+        [CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS, bunnyFonts ? "true" : "false"],
+      ]);
+      setSnapshotField(CONFIG_KEYS.CUSTOM_CSS, v);
+      setSnapshotField(CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS, bunnyFonts);
+    },
     customDomainLastValidated: timestampUpdate(
       CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
       "custom_domain_last_validated",

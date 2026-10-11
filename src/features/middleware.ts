@@ -4,10 +4,7 @@
 
 import { settings } from "#db/settings.ts";
 import { compact } from "#fp";
-import {
-  BUNNY_FONTS_ORIGIN,
-  cssUsesBunnyFonts,
-} from "#routes/public/bunny-fonts.ts";
+import { BUNNY_FONTS_ORIGIN } from "#routes/public/bunny-fonts.ts";
 import { encodeBody } from "#routes/response.ts";
 import { ASSET_CDN_ORIGIN } from "#shared/asset-paths.ts";
 import {
@@ -173,9 +170,9 @@ export const isJsonApiPath = (path: string): boolean =>
   WALLET_WEBSERVICE_PATTERN.test(path);
 
 /**
- * Validate Content-Type for POST requests
- * Returns true if the request is valid (not a POST, or has correct Content-Type)
- * Webhook endpoints accept application/json, all others require form-urlencoded
+ * Validate Content-Type for POST requests. A non-POST request is valid. A
+ * POST request is valid when its Content-Type is correct. Webhook endpoints
+ * accept application/json. All other endpoints require form-urlencoded.
  */
 /** The request's Content-Type header, lowercased — HTTP header values are
  * case-insensitive, so every caller matches casings uniformly. */
@@ -275,14 +272,15 @@ export const applySecurityHeaders = async (
   const provider = settings.paymentProvider;
   const sandbox = provider !== null && paymentProviderUsesSandbox(provider);
   // Every page the layout renders links /custom.css, so the policy must
-  // follow the stylesheet's contents on every routed response. The read is
-  // the cached snapshot, never a query of its own.
+  // follow the stylesheet's saved flag (computed when the CSS was saved) on
+  // every routed response. The read is the cached snapshot, never a query of
+  // its own.
   const baseCsp = buildCspHeader(
     embeddable,
     { provider, sandbox },
     isBotpoisonEnabled(),
     ASSET_CDN_ORIGIN,
-    cssUsesBunnyFonts(settings.customCss),
+    settings.customCssBunnyFonts,
   );
   const frameAncestors = embeddable
     ? buildFrameAncestors(await getEmbedHosts())
