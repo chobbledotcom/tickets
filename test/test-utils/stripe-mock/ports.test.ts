@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import {
   expectStartFailsWith,
   startFailedOrPortTaken,
@@ -16,19 +16,24 @@ const startedMock = () =>
     stopNow: () => {},
   });
 
+/** Offers one port for the kernel's port-0 looks, once or on every look, so
+ * a handout is driven against one port number. */
+const offerPort = (port: number, everyLook: boolean): Stub => {
+  const realListen = Deno.listen;
+  let offered = false;
+  return stub(Deno, "listen", ((options: Deno.ListenOptions) => {
+    if (offered && !everyLook) return realListen(options);
+    offered = true;
+    return realListen({ ...options, port });
+  }) as typeof Deno.listen);
+};
+
 describe("handing out ports", () => {
   test("does not hand out a port another handout still holds", async () => {
     await withUnusedPort(async (held) => {
       // The next look at the kernel offers the port the handout above still
       // holds, which is what a raced handout sees.
-      const realListen = Deno.listen;
-      let offered = false;
-      const forcedListen = ((options: Deno.ListenOptions) => {
-        if (offered || options.port !== 0) return realListen(options);
-        offered = true;
-        return realListen({ ...options, port: held });
-      }) as typeof Deno.listen;
-      using _forced = stub(Deno, "listen", forcedListen);
+      using _forced = offerPort(held, false);
 
       await withUnusedPort(async (second) => {
         expect(second).not.toBe(held);
@@ -37,20 +42,11 @@ describe("handing out ports", () => {
   });
 
   test("fails loudly when every try lands on a held port", async () => {
-    const realListen = Deno.listen;
-    const finder = realListen({ hostname: "127.0.0.1", port: 0 });
-    const taken = (finder.addr as Deno.NetAddr).port;
-    finder.close();
-    // Every look at the kernel offers the one port, as if the machine had
-    // nothing else free and another handout kept holding it.
-    const forcedListen = ((options: Deno.ListenOptions) =>
-      options.port === 0
-        ? realListen({ ...options, port: taken })
-        : realListen(options)) as typeof Deno.listen;
-    using _forced = stub(Deno, "listen", forcedListen);
+    await withUnusedPort(async (held) => {
+      // Every look at the kernel offers the port the handout above holds, as
+      // if the machine had nothing else free and it kept being taken.
+      using _forced = offerPort(held, true);
 
-    await withUnusedPort(async (first) => {
-      expect(first).toBe(taken);
       await expect(withUnusedPort(() => {})).rejects.toThrow(
         "landed on a port another handout holds",
       );
@@ -64,6 +60,31 @@ describe("handing out ports", () => {
     using _broken = stub(Deno, "openSync", brokenLocks);
 
     await expect(withUnusedPort(() => {})).rejects.toThrow("no lock folder");
+  });
+
+  test("releases a claim when the isolate exits before the body finished", async () => {
+    // The body never finishes, the way an interrupted test leaves its
+    // handout. Its claim has nobody left to release it but the isolate's
+    // exit, which this test fires by hand.
+    let abandonedPort = 0;
+    withUnusedPort((port) => {
+      abandonedPort = port;
+      return new Promise<void>(() => {});
+    });
+
+    // Every look at the kernel offers the abandoned handout's port, so the
+    // replacement owner below can only receive that port.
+    using _forced = offerPort(abandonedPort, true);
+
+    // An isolate that exits runs its unload listeners. The exit takes the
+    // abandoned claim with it.
+    globalThis.dispatchEvent(new Event("unload"));
+
+    await withUnusedPort(async (claimed) => {
+      // The abandoned claim is gone, so the replacement owner receives the
+      // same port instead of failing on every try.
+      expect(claimed).toBe(abandonedPort);
+    });
   });
 });
 

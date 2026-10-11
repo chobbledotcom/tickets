@@ -24,6 +24,18 @@ const PORT_STEAL_TRIES = 5;
  */
 const heldPortDir = join("/tmp", `tickets-held-ports-${Deno.pid}`);
 
+/** The claims this isolate still holds. An isolate that exits before its
+ * bodies finished cannot run their finally, so the unload below takes the
+ * claims away instead of leaving their ports locked for the rest of the run.
+ * A body still running holds a claim in this set too, but an isolate only
+ * unloads when no body of it is left to finish. */
+const heldLocks = new Set<string>();
+
+globalThis.addEventListener("unload", () => {
+  for (const lockPath of heldLocks) Deno.removeSync(lockPath);
+  heldLocks.clear();
+});
+
 /**
  * Claim a free localhost port for one handout. Creating the lock file is the
  * claim: no other handout of this run can create the same name, so no two
@@ -48,9 +60,11 @@ const claimPort = (
       continue;
     }
     if (!keepOpen) listener.close();
+    heldLocks.add(lockPath);
     return {
       port,
       release: () => {
+        heldLocks.delete(lockPath);
         Deno.removeSync(lockPath);
         if (keepOpen) listener.close();
       },
