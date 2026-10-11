@@ -295,10 +295,10 @@ export const sentinelListingExists = async (): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
-const markAppliedThrough = async (lastAppliedId: string): Promise<void> => {
+export const markAppliedThrough = async (lastId: string): Promise<void> => {
   const applied = MIGRATIONS.slice(
     0,
-    MIGRATIONS.findIndex((migration) => migration.id === lastAppliedId) + 1,
+    MIGRATIONS.findIndex((migration) => migration.id === lastId) + 1,
   );
   await getDb().batch(
     [
@@ -321,7 +321,7 @@ const markAppliedThrough = async (lastAppliedId: string): Promise<void> => {
   invalidateInitDbCache();
 };
 
-const markSchemaMarkersStale = () =>
+export const markSchemaMarkersStale = () =>
   getDb().batch(
     [
       "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",

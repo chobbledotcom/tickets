@@ -19,6 +19,7 @@ import {
   assertColumnsPresent,
   assertLiveTableColumns,
 } from "./schema-assertions.ts";
+import type { SchemaApplyScope } from "./types.ts";
 
 /** Run an idempotent migration — swallows expected "already done" errors */
 export const runMigration = async (sql: string): Promise<void> => {
@@ -71,10 +72,9 @@ export type LiveSchema = {
  * Two SELECTs in one read batch, because an edge request caps outbound
  * subrequests and a per-table probe loop spends dozens of them.
  *
- * Pinned to the primary, not a replica. Every caller runs inside a migration,
- * where the snapshot must reflect DDL applied moments earlier in the same run.
- * A replica that lags reports a just-created table as missing, and fails
- * verify() spuriously.
+ * Pinned to the primary, not a replica: every caller runs inside a migration,
+ * where the snapshot must reflect DDL applied moments earlier. A lagging
+ * replica reports a just-created table as missing and fails verify() spuriously.
  */
 export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
@@ -108,9 +108,8 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   return { indexes, tables, triggers };
 };
 
-/** Build a sync/verify step that first loads its live-schema probe — the whole
- * snapshot or one table's columns — then hands it to the work. Every step
- * below opens with the same read, so the probe lives here once. */
+/** Build a sync/verify step that loads its live-schema probe once, then hands
+ * it to the work. Every step below opens with the same read. */
 const stepUsing =
   <Probe>(loadProbe: () => Promise<Probe>) =>
   (work: (probe: Probe) => Promise<void>) =>
@@ -217,11 +216,6 @@ export const rebuildTableWithColumns = async (
   await executeBatch(noArgStatements(rebuildStatements(params)));
 };
 
-const requiredTriggerColumns = (
-  trigger: Trigger,
-  dependency: string,
-): readonly string[] => trigger.uses[dependency]!;
-
 const triggersDependingOn = (tableName: string) =>
   TRIGGERS.filter((trigger) => tableName in trigger.uses);
 
@@ -247,15 +241,13 @@ const canCreateTrigger = (
     );
     return (
       columns !== undefined &&
-      requiredTriggerColumns(trigger, dependency).every((column) =>
-        columns.has(column),
-      )
+      trigger.uses[dependency]!.every((column) => columns.has(column))
     );
   });
 
 /**
  * The copy, its indexes, and its triggers all run in one interactive
- * transaction. A failure that left a live table without a UNIQUE index would
+ * transaction. A failure that left a live table without a UNIQUE index can
  * open a window for duplicates to land and break it permanently. They go as one
  * structured batch, so a trigger body stays a single statement whose semicolons
  * are not read as separators.
@@ -289,9 +281,9 @@ export const recreateTable = async (tableName: string): Promise<void> => {
       tableName,
     }),
     ...(tableSchema.indexes ?? []).map((idx) => createIndexSql(tableName, idx)),
-    // Triggers on this table were dropped with the old table; triggers on other
-    // tables may also have been dropped because they read this table. Restore
-    // both in the same transaction when their dependencies are present.
+    // The drop removed the triggers on this table, and it can also remove
+    // triggers on other tables that read this one. Restore both in the same
+    // transaction when their dependencies are present.
     ...TRIGGERS.filter(
       (trg) =>
         (trg.table === tableName || liveDependentTriggerNames.has(trg.name)) &&
@@ -312,9 +304,7 @@ const requireColumns = (
   table: string,
   existing: Set<string>,
   required: string[],
-): void => {
-  assertColumnsPresent("legacy", table, existing, required);
-};
+): void => assertColumnsPresent("legacy", table, existing, required);
 
 const backfillListingAttendees = fromAttendeeColumns(
   async (attendeeColumns) => {
@@ -366,10 +356,8 @@ const backfillListingAttendees = fromAttendeeColumns(
 );
 
 /**
- * Drop any legacy columns from attendees that aren't in the current schema
- * (listing_id, date, quantity, and the pre-pii_blob PII columns: name, email,
- * phone, address, payment_id, etc).
- *
+ * Drop any legacy columns from attendees that are not in the current schema
+ * (the columns SCHEMA no longer declares).
  * SQLite can't DROP COLUMN when a FK references the column, so we recreate
  * the table. Idempotent: if every existing column matches the schema, skip.
  */
@@ -422,46 +410,56 @@ export const fullSchemaCreateStatements = (): string[] =>
     ...(table.indexes ?? []).map((index) => createIndexSql(name, index)),
   ]);
 
-const writeStatement = (sql: string): SqlStatement => ({
-  args: [],
-  sql,
-});
+const writeStatement = (sql: string): SqlStatement => ({ args: [], sql });
 
 /** Turn a list of SQL strings into batch statements with no bound arguments. */
 export const noArgStatements = (sqls: string[]): SqlStatement[] =>
   sqls.map(writeStatement);
 
-export const applySchemaChanges: () => Promise<void> = fromLiveSchema(
-  async (live) => {
-    const creates: SqlStatement[] = [];
-    const alters: SqlStatement[] = [];
-    for (const entry of SCHEMA) {
-      const [name, table] = entry;
-      const existing = live.tables.get(name);
-      if (!existing) {
-        // Missing table: one CREATE carries every column, so no ALTERs follow.
-        creates.push({ args: [], sql: createTableSql(entry) });
-        continue;
-      }
-      for (const [col, type] of table.columns) {
-        if (!existing.has(col)) {
-          alters.push({
-            args: [],
-            sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
-          });
-        }
+/** The SCHEMA subset a scoped step can touch. A name outside SCHEMA is
+ * refused. */
+const scopedSchema = (tables: readonly string[]): [string, Table][] => {
+  const wanted = new Set(tables);
+  return SCHEMA.filter(([name]) => {
+    if (!wanted.has(name)) return false;
+    currentSchemaTable(name);
+    return true;
+  });
+};
+
+export const applySchemaChanges = async (
+  scope?: SchemaApplyScope,
+): Promise<void> => {
+  const live = await snapshotLiveSchema();
+  const schema = scope ? scopedSchema(scope.tables) : SCHEMA;
+  const creates: SqlStatement[] = [];
+  const alters: SqlStatement[] = [];
+  for (const entry of schema) {
+    const [name, table] = entry;
+    const existing = live.tables.get(name);
+    if (!existing) {
+      // Missing table: one CREATE carries every column, so no ALTERs follow.
+      creates.push({ args: [], sql: createTableSql(entry) });
+      continue;
+    }
+    for (const [col, type] of table.columns) {
+      if (!existing.has(col)) {
+        alters.push({
+          args: [],
+          sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
+        });
       }
     }
-    // Missing-table CREATEs are idempotent and independent, so one batch keeps a
-    // fresh setup within Bunny's 50-subrequest limit. ALTER ADD COLUMN can race
-    // another isolate after this snapshot; keep those on runMigration so an
-    // already-added column is accepted without hiding real failures.
-    if (creates.length > 0) await executeBatch(creates);
-    for (const statement of alters) {
-      await runMigration(statement.sql);
-    }
-  },
-);
+  }
+  // Missing-table CREATEs are idempotent and independent, so one batch keeps a
+  // fresh setup within Bunny's 50-subrequest limit. ALTER ADD COLUMN can race
+  // another isolate after this snapshot; keep those on runMigration so an
+  // already-added column is accepted without hiding real failures.
+  if (creates.length > 0) await executeBatch(creates);
+  for (const statement of alters) {
+    await runMigration(statement.sql);
+  }
+};
 
 /** Create missing indexes and drop legacy ones */
 export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
@@ -475,15 +473,12 @@ export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 
-  // Only create an index whose table+columns the snapshot already shows. This
-  // gate is load-bearing during an incremental migration: syncIndexes runs over
-  // the WHOLE SCHEMA's declared indexes while only some tables exist yet (a
-  // later migration creates the rest), so an index on a not-yet-created table
-  // must be skipped now and created when that table's migration runs. A table
-  // present on the primary but briefly missing from this snapshot (read-your-
-  // writes lag) is indistinguishable here from one not yet created, so the
-  // lag-induced skip is repaired one layer up — verifyMigrationWithRetry re-runs
-  // the migration, which scopes verify() to its own objects (see migrations.ts).
+  // Only create an index whose table+columns the snapshot already shows, so
+  // an index on a not-yet-created table waits for that table's migration. A
+  // table missing from this snapshot through read-your-writes lag reads the
+  // same way; that skip is repaired one layer up, where
+  // verifyMigrationWithRetry re-runs the migration (verify() scopes itself to
+  // the migration's own objects).
   const creates = declared
     .filter((d) => {
       const columns = live.tables.get(d.tableName);
@@ -566,9 +561,9 @@ export const backfillListingAggregates: () => Promise<void> =
   });
 
 /**
- * Recompute the modifiers aggregate columns from modifier_usages in a single
- * statement. One-time on migration; afterwards the triggers keep them current.
- * Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ * Recompute the modifiers aggregate columns from modifier_usages. One-time on
+ * migration; afterwards the triggers keep them current. Idempotent (absolute
+ * recompute, not a delta), so it's safe to re-run.
  */
 export const backfillModifierAggregates = async (): Promise<void> => {
   await getDb().execute(
@@ -581,9 +576,9 @@ export const backfillModifierAggregates = async (): Promise<void> => {
 };
 
 /**
- * Recompute the answers.times_selected aggregate from attendee_answers in a
- * single statement. One-time on migration; afterwards the triggers keep it
- * current. Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ * Recompute the answers.times_selected aggregate from attendee_answers.
+ * One-time on migration; afterwards the triggers keep it current. Idempotent
+ * (absolute recompute, not a delta), so it's safe to re-run.
  */
 export const backfillAnswerAggregates = async (): Promise<void> => {
   await getDb().execute(
@@ -593,9 +588,8 @@ export const backfillAnswerAggregates = async (): Promise<void> => {
   );
 };
 
-// One snapshot (a single batched round-trip) replaces the per-table
-// tableExists/getExistingColumns/indexExists probes — dozens of subrequests
-// that could alone exceed the edge per-request cap.
+// One batched snapshot replaces the per-table tableExists/getExistingColumns
+// probes — dozens of subrequests that could alone exceed the edge cap.
 export const verifyCurrentAppSchema: () => Promise<void> = fromLiveSchema(
   async (live) => {
     for (const [name, table] of APP_SCHEMA) {
@@ -633,9 +627,8 @@ export const syncCurrentSchema = async (
       "Migration",
       "Step 0: repairing legacy schema renames before schema apply...",
     );
-    // Must run BEFORE applySchemaChanges(): otherwise the declarative apply can
-    // create empty target tables/columns first, leaving legacy data behind under
-    // the old names.
+    // Must run BEFORE applySchemaChanges(): the declarative apply would create
+    // empty target tables and columns first, leaving legacy data behind.
     await repairLegacySchemaRenames();
   }
 

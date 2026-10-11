@@ -101,11 +101,12 @@ export default ((context) =>
       // Order is the whole point of merging this work into one migration.
       // applySchemaChanges reconciles the WHOLE schema, and for a table that
       // already exists it can only ADD COLUMN. An upgrading site's
-      // payment_charges is a different table from this one — it has no `id`,
-      // and SQLite refuses to add a PRIMARY KEY column — so the apply would
-      // stop the upgrade dead. Dropping the dormant tables first means every
-      // one of them is missing when the apply runs, and a missing table is
-      // created by a single CREATE carrying every column.
+      // payment_charges is a foreign shape: the apply could neither drop
+      // payment_id nor origin, and SQLite refuses the NOT NULL refund
+      // columns it adds to a table that holds rows. Dropping the dormant
+      // tables first means every one of them is missing when the apply runs,
+      // and a missing table is created by a single CREATE carrying every
+      // column.
       // No trigger reads these tables, so dropping them cannot drop one and
       // there is nothing for syncTriggers to restore.
       await clearDormantPaymentTables();

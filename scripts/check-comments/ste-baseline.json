@@ -1071,11 +1071,10 @@
     "semicolon": 2
   },
   "src/shared/db/migrations/schema-sync.ts": {
-    "long-sentence": 7,
-    "banned-modal": 4,
+    "long-sentence": 5,
+    "contraction": 5,
+    "banned-modal": 3,
     "semicolon": 6,
-    "present-perfect": 1,
-    "contraction": 6,
     "participle": 1
   },
   "src/shared/db/migrations/schema/index.ts": {
