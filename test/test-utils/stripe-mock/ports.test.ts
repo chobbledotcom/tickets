@@ -1,3 +1,6 @@
+// test-groups: run-alone - the unload tests fire the isolate's unload
+// listeners by hand, and a shared isolate would run other suites' unload
+// cleanup with them, dropping its golden database and suite mock.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -85,6 +88,42 @@ describe("handing out ports", () => {
       // same port instead of failing on every try.
       expect(claimed).toBe(abandonedPort);
     });
+  });
+
+  test("keeps a rebound claim when the abandoned body settles after the exit", async () => {
+    let abandonedPort = 0;
+    let resumeAbandoned = () => {};
+    const abandonedSettles = new Promise<void>((resolve) => {
+      resumeAbandoned = resolve;
+    });
+    // The body is still pending when the isolate exits. The runner polls the
+    // event loop once more after the exit, so this body can settle then.
+    const abandoned = withUnusedPort((port) => {
+      abandonedPort = port;
+      return abandonedSettles;
+    });
+
+    // The exit released the abandoned claim, and a newer owner received the
+    // same port and still holds it.
+    using _forced = offerPort(abandonedPort, true);
+    globalThis.dispatchEvent(new Event("unload"));
+    let resumeRebound = () => {};
+    const reboundSettles = new Promise<void>((resolve) => {
+      resumeRebound = resolve;
+    });
+    const rebound = withUnusedPort((port) => {
+      expect(port).toBe(abandonedPort);
+      return reboundSettles;
+    });
+
+    // The abandoned body settles after the exit. Its release is already
+    // done, so the rebound claim must stay the new owner's.
+    resumeAbandoned();
+    await abandoned;
+
+    // The new owner finishes and releases its own claim without error.
+    resumeRebound();
+    await rebound;
   });
 });
 

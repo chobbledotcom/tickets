@@ -27,13 +27,12 @@ const heldPortDir = join("/tmp", `tickets-held-ports-${Deno.pid}`);
 /** The claims this isolate still holds. An isolate that exits before its
  * bodies finished cannot run their finally, so the unload below takes the
  * claims away instead of leaving their ports locked for the rest of the run.
- * A body still running holds a claim in this set too, but an isolate only
- * unloads when no body of it is left to finish. */
-const heldLocks = new Set<string>();
+ * The runner still polls the event loop after the exit, so a body can settle
+ * after that; every claim releases once, and a late release is a no-op. */
+const heldLocks = new Set<{ release: () => void }>();
 
 globalThis.addEventListener("unload", () => {
-  for (const lockPath of heldLocks) Deno.removeSync(lockPath);
-  heldLocks.clear();
+  for (const claim of heldLocks) claim.release();
 });
 
 /**
@@ -60,15 +59,21 @@ const claimPort = (
       continue;
     }
     if (!keepOpen) listener.close();
-    heldLocks.add(lockPath);
-    return {
+    let released = false;
+    const claim = {
       port,
       release: () => {
-        heldLocks.delete(lockPath);
+        // The exit above may have taken this claim already, and a newer
+        // owner may hold the filename then, so a claim releases once.
+        if (released) return;
+        released = true;
+        heldLocks.delete(claim);
         Deno.removeSync(lockPath);
         if (keepOpen) listener.close();
       },
     };
+    heldLocks.add(claim);
+    return claim;
   }
   throw new Error(
     `All ${PORT_STEAL_TRIES} tries landed on a port another handout holds. Locks: ${heldPortDir}`,
