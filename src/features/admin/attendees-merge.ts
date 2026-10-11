@@ -12,7 +12,7 @@ import {
 } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
-import { queryAll } from "#db/client.ts";
+import { queryAll, type TxScope } from "#db/client.ts";
 import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
@@ -149,26 +149,22 @@ const buildMergeDiffFor = async (
   );
 };
 
-/** Resolve the (possibly-source) value of a PII field based on decision */
-const pickPiiField = <K extends keyof MergeSource>(
-  decision: AttendeeMergeDecisionInput,
-  field: K & string,
-  source: MergeSource,
-  target: Attendee,
-): string => {
-  const decisionChoice = decision.pii[field];
-  const sourceVal = source[field] as unknown as string;
-  const targetVal = target[field as keyof Attendee] as unknown as string;
-  return decisionChoice === "source" ? sourceVal : targetVal;
-};
-
 /** Update target attendee PII based on merge decisions */
 const updateTargetPiiFromDecision = async (
   attendeeId: number,
   decision: AttendeeMergeDecisionInput,
   source: MergeSource,
   target: Attendee,
+  transaction: TxScope,
 ): Promise<void> => {
+  // The (possibly-source) value of one PII field, read off the side the
+  // operator's decision names.
+  const chosen = (field: keyof MergeSource & string): string => {
+    const decisionChoice = decision.pii[field];
+    const sourceVal = source[field] as unknown as string;
+    const targetVal = target[field as keyof Attendee] as unknown as string;
+    return decisionChoice === "source" ? sourceVal : targetVal;
+  };
   // The pin follows whichever side's address the operator keeps. When the kept
   // side has no pin but the OTHER side pinned the very same address text, keep
   // that pin. Identical addresses render as one "(same)" value on the merge
@@ -178,36 +174,38 @@ const updateTargetPiiFromDecision = async (
   const keptIsPinned = Boolean(kept.lat && kept.lng);
   const addressFrom =
     keptIsPinned || kept.address !== other.address ? kept : other;
-  const email = pickPiiField(decision, "email", source, target);
-  const phone = pickPiiField(decision, "phone", source, target);
-  await updateAttendeePII(attendeeId, {
-    address: pickPiiField(decision, "address", source, target),
-    email,
-    lat: addressFrom.lat,
-    lng: addressFrom.lng,
-    name: pickPiiField(decision, "name", source, target),
-    payment_id: target.payment_id,
-    phone,
-    special_instructions: pickPiiField(
-      decision,
-      "special_instructions",
-      source,
-      target,
-    ),
-    ticket_token: target.ticket_token,
-  });
+  const email = chosen("email");
+  const phone = chosen("phone");
+  await updateAttendeePII(
+    attendeeId,
+    {
+      address: chosen("address"),
+      email,
+      lat: addressFrom.lat,
+      lng: addressFrom.lng,
+      name: chosen("name"),
+      payment_id: target.payment_id,
+      phone,
+      special_instructions: chosen("special_instructions"),
+      ticket_token: target.ticket_token,
+    },
+    transaction,
+  );
   // The target keeps its ticket token, but the merge can switch its kept email
   // or phone to the source's value. The token follows whichever contact now
   // owns it. The deleted source's token stays stale and filtered out on read.
-  await syncAttendeeContactTokens({
-    after: { email, phone },
-    before: { email: target.email, phone: target.phone },
-    firstRealBooking: false,
-    hasBooking: true,
-    privateKey: await requireRequestPrivateKey(),
-    source: "admin",
-    ticketToken: target.ticket_token,
-  });
+  await syncAttendeeContactTokens(
+    {
+      after: { email, phone },
+      before: { email: target.email, phone: target.phone },
+      firstRealBooking: false,
+      hasBooking: true,
+      privateKey: await requireRequestPrivateKey(),
+      source: "admin",
+      ticketToken: target.ticket_token,
+    },
+    transaction,
+  );
 };
 
 /** Build labeled count strings from summary fields, omitting zero-count entries */
@@ -321,12 +319,13 @@ const applyMergeDecisions = async (
       payment_id: target.payment_id,
       ticket_token: target.ticket_token,
     },
+    // The merged PII writes with the merge, so its failure rolls the delete back.
+    updateTargetPii: (tx) =>
+      updateTargetPiiFromDecision(attendeeId, decision, source, target, tx),
   });
 
   const mergedPiiName =
     decision.pii.name === "source" ? source.name : target.name;
-  await updateTargetPiiFromDecision(attendeeId, decision, source, target);
-
   const { summary } = result;
   await logActivity(
     buildMergeLogParts(summary, source.name, mergedPiiName).join(". "),

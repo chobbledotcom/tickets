@@ -254,10 +254,10 @@ export const prepareAttendeeAnswerSave = async (
 };
 
 /** Run a prepared answer save on the caller's open transaction, so a caller
- * that already holds one (a reservation boundary) keeps its own atomicity.
- * The save always writes something: the caller's guard rules out an empty
- * save, and a save with attendees always emits its delete. */
-const saveAttendeeAnswersTx = async (
+ *  that already holds one keeps its own atomicity. The save always writes
+ *  something: the caller's guard rules out an empty save, and a save with
+ *  attendees always emits its delete. */
+export const saveAttendeeAnswersTx = async (
   tx: TxScope,
   prepared: PreparedAnswerSave,
   alongside: SqlStatement[] = [],

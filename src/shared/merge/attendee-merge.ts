@@ -24,7 +24,10 @@ import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
 } from "#db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import {
+  prepareAttendeeAnswerSave,
+  saveAttendeeAnswersTx,
+} from "#db/questions/attendee-answers/save.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
@@ -847,33 +850,29 @@ export const applyAttendeeMerge = async (
     moneyLegs,
     nowIso(),
   );
-  // Both people's payment rows are read for live work inside the transaction
-  // that moves them: the source's rows change hands, and the target's set grows
-  // by everything the source brings, so a refund run judging either one would be
-  // working from a world that no longer exists.
+  // Merged answers for target: re-supplying the merged free-text plaintext
+  // lets the save's replace re-create the encrypted strings it drops.
+  const mergedAnswerSet = {
+    answerIds: [...finalAnswers.values()],
+    textAnswers: [...mergedTextAnswers].map(([questionId, text]) => ({
+      questionId,
+      text,
+    })),
+  };
+  // The re-encryption runs here, before the transaction opens, so it holds
+  // no write lock.
+  const answerSave = await prepareAttendeeAnswerSave(
+    new Map([[targetId, mergedAnswerSet]]),
+  );
+  // One transaction for the whole merge: the row batch, the merged answers,
+  // and the target's PII write commit or roll back together — the answers are
+  // recoverable only from the source, so their failure must undo the delete.
   await withTransaction(async (tx) => {
     await assertRowsFreeToMove(tx, [targetId, sourceId], "merge");
     await tx.batch([...rowStatements, ...adjustmentInserts]);
+    await saveAttendeeAnswersTx(tx, answerSave);
+    await input.updateTargetPii(tx);
   });
-
-  // Save merged answers for target. The choice decisions reduce to one answer
-  // per question; re-supplying the merged free-text plaintext lets
-  // saveAttendeeAnswers' replace (delete-then-insert) re-create the encrypted
-  // strings it drops instead of wiping the answers.
-  await saveAttendeeAnswers(
-    new Map([
-      [
-        targetId,
-        {
-          answerIds: [...finalAnswers.values()],
-          textAnswers: [...mergedTextAnswers].map(([questionId, text]) => ({
-            questionId,
-            text,
-          })),
-        },
-      ],
-    ]),
-  );
 
   const summary: AttendeeMergeApplySummary = {
     answersCleared,

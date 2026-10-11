@@ -149,7 +149,9 @@ export const buildMergeDiff = async (args: {
   );
 
 /** Apply a merge, filling in the target's payment_id/ticket_token and a test
- *  private key so each test only supplies the parts it actually varies. */
+ *  private key so each test only supplies the parts it actually varies. The
+ *  target's PII write belongs to the feature layer, so these service tests
+ *  pass a no-op; the server merge tests cover the real write. */
 export const applyMerge = async (args: {
   diff: AttendeeMergeDiff;
   source: TestAttendee;
@@ -170,6 +172,7 @@ export const applyMerge = async (args: {
       payment_id: args.target.payment_id,
       ticket_token: args.target.ticket_token,
     },
+    updateTargetPii: () => Promise.resolve(),
   });
 
 /** The parts of a decision each test varies; `version` is filled from the diff. */

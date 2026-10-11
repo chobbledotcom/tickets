@@ -7,6 +7,7 @@
  */
 
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import type { TxScope } from "#db/client.ts";
 import type { ContactInfo } from "#types";
 
 // ---------------------------------------------------------------------------
@@ -182,4 +183,8 @@ export type ApplyAttendeeMergeInput = {
   /** Owner private key, used to decrypt the target's free-text answers so they
    * survive the answer re-save. */
   privateKey: CryptoKey;
+  /** The target's PII write, built in the feature layer: it holds the request
+   * private key and the decrypted sides. It runs as the merge transaction's
+   * last write, so a failure rolls the whole merge back with it. */
+  updateTargetPii: (tx: TxScope) => Promise<void>;
 };

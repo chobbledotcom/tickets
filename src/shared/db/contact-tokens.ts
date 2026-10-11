@@ -6,12 +6,19 @@
  * contact's other bookings without decrypting every attendee.
  */
 
+import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { openEach } from "#crypto/open-each.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, queryOne, type SqlStatement } from "#db/client.ts";
+import {
+  execute,
+  queryOne,
+  resultRows,
+  type SqlStatement,
+  type TxScope,
+} from "#db/client.ts";
 import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import { nowMs } from "#shared/now.ts";
@@ -146,17 +153,30 @@ const bookingActivityStatement = async (
   };
 };
 
+/** Run one token write on the caller's transaction, or as its own write when
+ *  no caller transaction is open. */
+const writeTokenStatement = (
+  transaction: TxScope | undefined,
+  statement: SqlStatement,
+): Promise<ResultSet> =>
+  transaction === undefined
+    ? execute(statement.sql, statement.args)
+    : transaction.execute(statement);
+
 /** Append one encrypted ticket token without changing booking counts. */
-const appendBookingToken = async (input: TokenEntryInput): Promise<void> => {
+const appendBookingToken = async (
+  input: TokenEntryInput,
+  transaction?: TxScope,
+): Promise<void> => {
   const entry = await preparedTokenEntry(input);
-  await execute(
-    `INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
+  await writeTokenStatement(transaction, {
+    args: entry.args,
+    sql: `INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
      VALUES (?, ?, ?)
      ON CONFLICT(contact_hash) DO UPDATE SET
        last_activity = excluded.last_activity,
        attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
-    entry.args,
-  );
+  });
 };
 
 /** Build one replay-safe activity statement for each non-empty contact on an
@@ -186,16 +206,28 @@ const addBookingToken = async (
   hash: string,
   ticketToken: string,
   source: BookingSource,
+  transaction?: TxScope,
 ): Promise<void> => {
-  await appendBookingToken({ hash, source, ticketToken });
+  await appendBookingToken({ hash, source, ticketToken }, transaction);
 };
 
-/** Load a contact's encrypted token blob, or null when no row exists. */
-const loadTokenBlob = async (hash: string): Promise<string | null> => {
-  const row = await queryOne<{ attendee_tokens_blob: string }>(
-    "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
-  );
+/** Load a contact's encrypted token blob, or null when no row exists. With a
+ *  caller transaction the read sees that transaction's own writes. */
+const loadTokenBlob = async (
+  hash: string,
+  transaction?: TxScope,
+): Promise<string | null> => {
+  const row = transaction
+    ? resultRows<{ attendee_tokens_blob: string }>(
+        await transaction.execute({
+          args: [hash],
+          sql: "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
+        }),
+      )[0]
+    : await queryOne<{ attendee_tokens_blob: string }>(
+        "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
+        [hash],
+      );
   return row?.attendee_tokens_blob ?? null;
 };
 
@@ -204,8 +236,11 @@ const tokenLinesFrom = (blob: string | null): StoredTokenLine[] =>
   blob ? splitTokenBlob(blob) : [];
 
 /** Load a contact's token entries as stored lines. */
-const loadTokenLines = async (hash: string): Promise<StoredTokenLine[]> =>
-  tokenLinesFrom(await loadTokenBlob(hash));
+const loadTokenLines = async (
+  hash: string,
+  transaction?: TxScope,
+): Promise<StoredTokenLine[]> =>
+  tokenLinesFrom(await loadTokenBlob(hash, transaction));
 
 /** Decrypt loaded token lines into source + ticket token pairs. */
 const bookingTokensFrom = openEach(parseTokenEntry);
@@ -228,9 +263,10 @@ const removeBookingToken = async (
   hash: string,
   ticketToken: string,
   privateKey: CryptoKey,
+  transaction?: TxScope,
 ): Promise<BookingSource | null> => {
   const marker = await tokenMarkerFor(hash, ticketToken);
-  const match = (await loadTokenLines(hash)).find(
+  const match = (await loadTokenLines(hash, transaction)).find(
     (entry) => entry.marker === marker,
   );
   if (!match) return null;
@@ -238,10 +274,10 @@ const removeBookingToken = async (
   // Delete just this entry's ciphertext line in place. REPLACE operates on the
   // column's current value at write time, so a keyless checkout append that
   // lands after our read is preserved instead of overwritten by a stale rewrite.
-  await execute(
-    "UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ?, ''), last_activity = ? WHERE contact_hash = ?",
-    [`${match.raw}\n`, nowMs(), hash],
-  );
+  await writeTokenStatement(transaction, {
+    args: [`${match.raw}\n`, nowMs(), hash],
+    sql: "UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ?, ''), last_activity = ? WHERE contact_hash = ?",
+  });
   return removed.source;
 };
 
@@ -251,12 +287,13 @@ const ensureBookingToken = async (
   ticketToken: string,
   source: BookingSource,
   createMissingContact: boolean,
+  transaction?: TxScope,
 ): Promise<void> => {
-  const blob = await loadTokenBlob(hash);
+  const blob = await loadTokenBlob(hash, transaction);
   if (blob === null && !createMissingContact) return;
   const marker = await tokenMarkerFor(hash, ticketToken);
   if (tokenLinesFrom(blob).some((entry) => entry.marker === marker)) return;
-  await addBookingToken(hash, ticketToken, source);
+  await addBookingToken(hash, ticketToken, source, transaction);
 };
 
 type ContactTokenValues = { email: string; phone: string };
@@ -291,13 +328,19 @@ const valueFor = (
 const syncChannelToken = async (
   channel: ContactChannel,
   sync: ContactTokenSync,
+  transaction?: TxScope,
 ): Promise<void> => {
   const oldHash = await hashForValue(channel, valueFor(channel, sync.before));
   const newHash = await hashForValue(channel, valueFor(channel, sync.after));
   const changed = oldHash !== newHash;
   const removedSource =
     oldHash !== null && changed
-      ? await removeBookingToken(oldHash, sync.ticketToken, sync.privateKey)
+      ? await removeBookingToken(
+          oldHash,
+          sync.ticketToken,
+          sync.privateKey,
+          transaction,
+        )
       : null;
 
   if (!sync.hasBooking || newHash === null) return;
@@ -306,13 +349,15 @@ const syncChannelToken = async (
     sync.ticketToken,
     removedSource ?? sync.source,
     changed || sync.firstRealBooking,
+    transaction,
   );
 };
 
 /** Keep an attendee's ticket token under the contacts that currently own it. */
 export const syncAttendeeContactTokens = async (
   sync: ContactTokenSync,
+  transaction?: TxScope,
 ): Promise<void> => {
-  await syncChannelToken("email", sync);
-  await syncChannelToken("sms", sync);
+  await syncChannelToken("email", sync, transaction);
+  await syncChannelToken("sms", sync, transaction);
 };

@@ -1707,9 +1707,9 @@
     "semicolon": 3
   },
   "src/shared/merge/attendee-merge.ts": {
-    "long-sentence": 23,
-    "semicolon": 7,
-    "banned-modal": 4,
+    "long-sentence": 22,
+    "semicolon": 6,
+    "banned-modal": 3,
     "participle": 1,
     "contraction": 2
   },
