@@ -9,7 +9,7 @@
   "src/shared/db/attendees/servicing.ts": 908,
   "src/shared/db/client.ts": 932,
   "src/shared/db/groups.ts": 800,
-  "src/shared/db/migrations/schema-sync.ts": 664,
+  "src/shared/db/migrations/schema-sync.ts": 657,
   "src/shared/db/modifier-resolve.ts": 617,
   "src/shared/db/table.ts": 764,
   "src/shared/limits.ts": 674,

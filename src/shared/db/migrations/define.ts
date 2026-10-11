@@ -1,3 +1,4 @@
+import { TRIGGERS } from "./schema/triggers.ts";
 import type {
   MigrationBuilder,
   MigrationContext,
@@ -12,12 +13,31 @@ const hasEntries = (values: readonly unknown[] | undefined): boolean =>
 const hasColumnRequirements = (requires: SchemaRequirement): boolean =>
   Object.values(requires.columns ?? {}).some(hasEntries);
 
+/** The tables a migration's apply can touch: the ones it declares. An
+ * incremental apply must never reach a table a later migration redefines.
+ * The whole-schema apply there emits an ALTER the stored shape refuses, and
+ * the upgrade stops before the redefining migration can drop that table. A
+ * declared trigger's table and the tables its body reads are declared too:
+ * the apply must leave them ready for syncTriggers to create the trigger. */
+const declaredTables = (requires: SchemaRequirement): readonly string[] => {
+  const tables = new Set([
+    ...(requires.newTables ?? []),
+    ...Object.keys(requires.columns ?? {}),
+  ]);
+  for (const trigger of TRIGGERS) {
+    if (!(requires.triggers ?? []).includes(trigger.name)) continue;
+    tables.add(trigger.table);
+    for (const dependency of Object.keys(trigger.uses)) tables.add(dependency);
+  }
+  return [...tables];
+};
+
 const runSchemaSync = async (
   context: MigrationContext,
   requires: SchemaRequirement,
 ): Promise<void> => {
   if (hasEntries(requires.newTables) || hasColumnRequirements(requires)) {
-    await context.applySchemaChanges();
+    await context.applySchemaChanges({ tables: declaredTables(requires) });
   }
   if (hasEntries(requires.indexes)) await context.syncIndexes();
   // Trigger sync precedes after() so aggregate migrations can install triggers

@@ -1,6 +1,13 @@
 import type { Client } from "@libsql/client";
 
 /**
+ * The tables a scoped schema step can touch. A schemaMigration passes the
+ * tables it declares, so an incremental step never reaches a table a later
+ * migration redefines.
+ */
+export type SchemaApplyScope = { tables: readonly string[] };
+
+/**
  * The schema objects a single migration is responsible for. Drives that
  * migration's verify() so failures name exactly what the migration was meant
  * to add or remove.
@@ -37,7 +44,7 @@ export type MigrationBuilder = (context: MigrationContext) => Migration;
 
 export type MigrationContext = {
   additive: (migration: AdditiveMigration) => Migration;
-  applySchemaChanges: () => Promise<void>;
+  applySchemaChanges: (scope?: SchemaApplyScope) => Promise<void>;
   backfillAnswerAggregates: () => Promise<void>;
   backfillListingAggregates: () => Promise<void>;
   backfillModifierAggregates: () => Promise<void>;
