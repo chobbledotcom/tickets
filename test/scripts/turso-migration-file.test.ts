@@ -8,6 +8,7 @@ import {
 } from "node:http";
 import { Writable } from "node:stream";
 import { createClient } from "@libsql/client";
+import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -71,6 +72,34 @@ const withUploadServer = async (
     await server.finished;
   }
 };
+
+/** The answer a server sends when it rejects an upload without reading the
+ * whole body. The body is huge, so the client is still busy with it when the
+ * write breaks: the failed write then lands inside the response processing,
+ * which is the order that makes the polyfill's internal task reject. The
+ * message inside stays short. */
+const earlyAnswerBody = JSON.stringify({
+  message: "invalid",
+  pad: "x".repeat(8 * 1024 * 1024),
+});
+
+/** Upload the file at `path` to a server that answers with `handler`, and
+ * expect the upload to reject with `match`. */
+const expectUploadRejection = (
+  path: string,
+  handler: (request: Request) => Response | Promise<Response>,
+  match: string | RegExp,
+): Promise<void> =>
+  withUploadServer(handler, (dbUrl, transport) =>
+    expect(
+      uploadTursoDatabaseFile(
+        path,
+        uploadCredentials(dbUrl),
+        undefined,
+        transport,
+      ),
+    ).rejects.toThrow(match),
+  );
 
 /** A request stub that swallows the piped file bytes. */
 const fakeRequest = (): Writable =>
@@ -192,22 +221,14 @@ describe("Turso migration file", () => {
       const path = join(dir, "database.sqlite");
       await Deno.writeTextFile(path, "sqlite bytes");
 
-      await withUploadServer(
+      await expectUploadRejection(
+        path,
         async (request) => {
           // Read the whole upload first so the reply never races the body.
           await request.arrayBuffer();
           return new Response("invalid", { status: 400 });
         },
-        async (dbUrl, transport) => {
-          await expect(
-            uploadTursoDatabaseFile(
-              path,
-              uploadCredentials(dbUrl),
-              undefined,
-              transport,
-            ),
-          ).rejects.toThrow("Upload database failed (400): invalid");
-        },
+        "Upload database failed (400): invalid",
       );
     }));
 
@@ -253,6 +274,35 @@ describe("Turso migration file", () => {
           request.destroy(new Error("connection reset mid-upload"));
         }),
       ).rejects.toThrow("connection reset mid-upload");
+    }));
+
+  /** A real server can answer before the whole body is sent. The write then
+   * breaks inside node:http's own internals, and the polyfill also rejects an
+   * internal task that nobody awaits. The upload must still end as a normal
+   * rejection, and the duplicate internal rejection must never escape as an
+   * unhandled one. One read keeps the socket alive until the answer is on the
+   * wire, and the padded body gives the client more to read while the write
+   * breaks. That order makes the internal task fail on every run: with the
+   * watch removed, this case ends the run the way issue #2314 reports. The
+   * answer never finishes before the connection is gone, so the upload
+   * reports the broken write. */
+  test("survives a server that answers before the body is sent", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      // Big enough that the write cannot finish before the answer arrives.
+      await Deno.writeFile(path, new Uint8Array(32_000_000));
+
+      await expectUploadRejection(
+        path,
+        async (request) => {
+          const body = request.body;
+          assertExists(body, "Expected an upload body");
+          const reader = body.getReader();
+          await reader.read();
+          return new Response(earlyAnswerBody, { status: 400 });
+        },
+        "error writing a body to connection",
+      );
     }));
 
   // The rejection surfaces whenever the polyfill's own internal task ends, so
