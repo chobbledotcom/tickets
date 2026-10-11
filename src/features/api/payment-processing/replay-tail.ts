@@ -111,9 +111,11 @@ export const resumeBookedSessionTail = async (
     // One atomic sequence decides ownership. The insert wins a missing row,
     // a claimable row leases, and a held or delivered row answers from its
     // actual state. An invented claim notifies twice.
-    work = await claimOrInsertRegistrationWork(sessionId, {
-      ticketToken: fallbackToken,
-    });
+    work = await claimOrInsertRegistrationWork(
+      sessionId,
+      { ticketToken: fallbackToken },
+      attendeeId,
+    );
   }
   if (work.kind === "delivered") return null;
   if (work.kind === "owned") {
@@ -138,14 +140,15 @@ export const resumeBookedSessionTail = async (
         sessionId,
         "Every one of its lines lost its listing.",
       );
-      await markRegistrationWorkDelivered(sessionId);
+      await markRegistrationWorkDelivered(work.lease);
       return null;
     }
     await saveSessionAnswers(entries, intent);
-    await deliverRegistrationWork(sessionId, () =>
+    await deliverRegistrationWork(work.lease, (signal) =>
       logAndNotifyRegistration(entries, {
         awaitNotifications: true,
         freeTexts: payloadFreeTexts(payload),
+        signal,
         siteTokenIndex: intent.siteTokenIndex,
       }),
     );
@@ -153,7 +156,7 @@ export const resumeBookedSessionTail = async (
     // The failure happened after claiming, before the notification's own
     // release boundary. Free the lease, so the redelivery this throw causes
     // claims fresh instead of finding a held lease.
-    await releaseRegistrationWork(sessionId);
+    await releaseRegistrationWork(work.lease);
     throw error;
   }
   return null;

@@ -35,10 +35,11 @@ describeWithEnv("db > registration notification work", { db: true }, () => {
   test("claims a born row once and reads its sealed payload back", async () => {
     await seedWorkRow("cs_claim_once", "tok_claim");
     const claim = await claimRegistrationWork("cs_claim_once");
-    expect(claim).toEqual({
-      kind: "claimed",
-      payload: { ticketToken: "tok_claim" },
-    });
+    if (claim.kind !== "claimed") throw new Error(`claim was ${claim.kind}`);
+    expect(claim.payload).toEqual({ ticketToken: "tok_claim" });
+    // The claim stamped a lease token: the fence every release and delivery
+    // carries, so a late cleanup cannot clear a newer owner's lease.
+    expect(claim.lease.leaseToken).toBeTruthy();
     // The lease is held: a second claimant within the lease window does not
     // win, and the row reads back as owned.
     expect(await claimRegistrationWorkOrNull("cs_claim_once")).toEqual({
@@ -58,8 +59,9 @@ describeWithEnv("db > registration notification work", { db: true }, () => {
 
   test("reads a delivered row back as delivered", async () => {
     await seedWorkRow("cs_claim_delivered", "tok_delivered");
-    await claimRegistrationWork("cs_claim_delivered");
-    await markRegistrationWorkDelivered("cs_claim_delivered");
+    const claim = await claimRegistrationWork("cs_claim_delivered");
+    if (claim.kind !== "claimed") throw new Error(`claim was ${claim.kind}`);
+    await markRegistrationWorkDelivered(claim.lease);
     expect(await claimRegistrationWorkOrNull("cs_claim_delivered")).toEqual({
       kind: "delivered",
     });
@@ -71,32 +73,42 @@ describeWithEnv("db > registration notification work", { db: true }, () => {
     // session reads the actual row instead of assuming a claim.
     await claimRegistrationWork("cs_claim_insert_win");
     expect(
-      await claimOrInsertRegistrationWork("cs_claim_insert_win", {
-        ticketToken: "tok_loser",
-      }),
+      await claimOrInsertRegistrationWork(
+        "cs_claim_insert_win",
+        { ticketToken: "tok_loser" },
+        1,
+      ),
     ).toEqual({
       kind: "owned",
     });
   });
 
   test("claims the row a winning claim-or-create made", async () => {
-    // The fallback's insert wins on a session with no row: it creates the
-    // row claimed, and that ownership is the only thing that separates the
-    // notifying delivery from its competitor.
-    expect(
-      await claimOrInsertRegistrationWork("cs_claim_insert_fresh", {
-        ticketToken: "tok_first",
-      }),
-    ).toEqual({
-      kind: "claimed",
-      payload: { ticketToken: "tok_first" },
-    });
+    // The fallback's insert wins on a session with no row: the final claim
+    // leases the row this delivery just created, and that ownership is the
+    // only thing that separates the notifying delivery from its competitor.
+    const claim = await claimOrInsertRegistrationWork(
+      "cs_claim_insert_fresh",
+      { ticketToken: "tok_first" },
+      7,
+    );
+    if (claim.kind !== "claimed") throw new Error(`claim was ${claim.kind}`);
+    expect(claim.payload).toEqual({ ticketToken: "tok_first" });
+    // The created row keeps the booking's attendee id, so the attendee
+    // delete retires it with the booking it served.
+    const row = await execute(
+      "SELECT attendee_id FROM registration_notification_work WHERE session_index = ?",
+      [await hmacHash("cs_claim_insert_fresh")],
+    );
+    expect(row.rows[0]?.attendee_id).toBe(7);
     // The created row is claimed, so a competing delivery reads a held
     // lease instead of claiming the same notification.
     expect(
-      await claimOrInsertRegistrationWork("cs_claim_insert_fresh", {
-        ticketToken: "tok_second",
-      }),
+      await claimOrInsertRegistrationWork(
+        "cs_claim_insert_fresh",
+        { ticketToken: "tok_second" },
+        7,
+      ),
     ).toEqual({ kind: "owned" });
   });
 
@@ -118,17 +130,52 @@ describeWithEnv("db > registration notification work", { db: true }, () => {
 
   test("releases a failed claim so the next delivery can win it", async () => {
     await seedWorkRow("cs_claim_released", "tok_released");
-    await claimRegistrationWork("cs_claim_released");
-    await releaseRegistrationWork("cs_claim_released");
-    expect(await claimRegistrationWorkOrNull("cs_claim_released")).toEqual({
-      kind: "claimed",
-      payload: { ticketToken: "tok_released" },
-    });
+    const claim = await claimRegistrationWork("cs_claim_released");
+    if (claim.kind !== "claimed") throw new Error(`claim was ${claim.kind}`);
+    await releaseRegistrationWork(claim.lease);
+    const released = await claimRegistrationWorkOrNull("cs_claim_released");
+    if (released?.kind !== "claimed") {
+      throw new Error(`the freed row read ${released?.kind ?? "null"}`);
+    }
+    expect(released.payload).toEqual({ ticketToken: "tok_released" });
     // The released row never delivered, so its delivered stamp is absent.
     const row = await execute(
       "SELECT delivered_at FROM registration_notification_work WHERE session_index = ?",
       [await hmacHash("cs_claim_released")],
     );
     expect(row.rows[0]?.delivered_at).toBe(null);
+  });
+
+  test("fences release and delivery with the claim's lease token", async () => {
+    await seedWorkRow("cs_claim_fence", "tok_fenced");
+    const first = await claimRegistrationWork("cs_claim_fence");
+    if (first.kind !== "claimed") throw new Error(`claim was ${first.kind}`);
+    await releaseRegistrationWork(first.lease);
+
+    // A new delivery claims the freed row. The first delivery's cleanup now
+    // runs late — its release and its delivered stamp name the dead claim's
+    // token, so neither may touch the new owner's lease.
+    const second = await claimRegistrationWork("cs_claim_fence");
+    if (second.kind !== "claimed") throw new Error(`claim was ${second.kind}`);
+    expect(second.lease.leaseToken).not.toBe(first.lease.leaseToken);
+    await releaseRegistrationWork(first.lease);
+    await markRegistrationWorkDelivered(first.lease);
+
+    const row = await execute(
+      "SELECT claimed_at, lease_token, delivered_at FROM registration_notification_work WHERE session_index = ?",
+      [await hmacHash("cs_claim_fence")],
+    );
+    expect(String(row.rows[0]?.claimed_at)).toBeTruthy();
+    expect(String(row.rows[0]?.lease_token)).toBe(second.lease.leaseToken);
+    expect(row.rows[0]?.delivered_at).toBe(null);
+
+    // The owner's own delivery commits the marker; a stale token cannot.
+    await markRegistrationWorkDelivered(second.lease);
+    await releaseRegistrationWork(second.lease);
+    const delivered = await execute(
+      "SELECT delivered_at, lease_token FROM registration_notification_work WHERE session_index = ?",
+      [await hmacHash("cs_claim_fence")],
+    );
+    expect(delivered.rows[0]?.delivered_at).not.toBe(null);
   });
 });

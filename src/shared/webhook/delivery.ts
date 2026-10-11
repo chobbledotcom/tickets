@@ -4,6 +4,7 @@ import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
+  type RegistrationSendOptions,
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email/registration.ts";
@@ -138,14 +139,11 @@ const reportRegistrationDeliveryError = async (): Promise<void> => {
 };
 
 const sendRegistrationNotifications = async (
-  entries: EmailEntry[],
-  currency: string,
-  packageFacts?: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
+  sends: RegistrationSendOptions,
 ): Promise<void> => {
   const [webhookResult, emailResult] = await Promise.allSettled([
-    sendRegistrationWebhooks(entries, currency, packageFacts),
-    sendRegistrationEmails(entries, currency, packageFacts, freeTexts),
+    sendRegistrationWebhooks(sends.entries, sends.currency, sends.packageFacts),
+    sendRegistrationEmails(sends),
   ]);
   const deliveries = [
     completedRegistrationDelivery(webhookResult),
@@ -163,29 +161,21 @@ const sendRegistrationNotifications = async (
 };
 
 const queueRegistrationNotifications = async (
-  entries: EmailEntry[],
-  currency: string,
-  suppliedPackageFacts?: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
+  sends: RegistrationSendOptions,
 ): Promise<void> => {
-  let packageFacts: RegistrationPackageFacts | undefined;
   try {
     const needsPackageFacts =
-      registrationWebhookUrls(entries).length > 0 ||
-      registrationEmailDelivery(entries) !== null;
-    packageFacts = needsPackageFacts
-      ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
-      : suppliedPackageFacts;
+      registrationWebhookUrls(sends.entries).length > 0 ||
+      registrationEmailDelivery(sends.entries) !== null;
+    sends.packageFacts = needsPackageFacts
+      ? (sends.packageFacts ??
+        (await loadRegistrationPackageFacts(sends.entries)))
+      : sends.packageFacts;
   } catch (error) {
     await reportRegistrationDeliveryError();
     throw error;
   }
-  await sendRegistrationNotifications(
-    entries,
-    currency,
-    packageFacts,
-    freeTexts,
-  );
+  await sendRegistrationNotifications(sends);
 };
 
 /** Report background work that died after a booking was already paid for.
@@ -215,6 +205,10 @@ export interface NotifyRegistrationOptions {
   packageFacts?: RegistrationPackageFacts | undefined;
   /** Activity-log lines recorded beside the registration lines. */
   priorActivities?: readonly ActivityToLog[] | undefined;
+  /** Cancels the notification's email send while it is in flight. A work
+   * row's delivery bounds its send by the lease that names it, so a hung
+   * transport cannot outlive the claim. */
+  signal?: AbortSignal | undefined;
   /** Entries only the site assignment sees, in place of `entries`. The resend
    * passes its refunded plan rows here, so a claim recorded on a line refunded
    * later still serves the buyer. Defaults to `entries`. */
@@ -237,12 +231,13 @@ export const logAndNotifyRegistration = async (
     })),
   ]);
   const currency = settings.currency;
-  const notifications = queueRegistrationNotifications(
-    entries,
+  const notifications = queueRegistrationNotifications({
     currency,
-    options.packageFacts,
-    options.freeTexts,
-  );
+    entries,
+    freeTexts: options.freeTexts,
+    packageFacts: options.packageFacts,
+    signal: options.signal,
+  });
   // A work row's completion marker must prove the notification finished, so
   // its delivery awaits the sends instead of parking them. A pending promise
   // dies with the request, and a crash after the marker skips the

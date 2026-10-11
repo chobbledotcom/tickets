@@ -129,15 +129,15 @@ describeWithEnv(
         name: "registration email",
         rendered: async (id) => {
           await configureTestEmail();
-          await sendRegistrationEmails(
-            [
+          await sendRegistrationEmails({
+            currency: "GBP",
+            entries: [
               {
                 attendee: makeTestAttendee(),
                 listing: (await getListingWithCount(id))!,
               },
             ],
-            "GBP",
-          );
+          });
           const body = fetch.getFetchJsonBody();
           const svg = expectSingleTicketSvg(body);
           return `${body.html}\n${svg}`;

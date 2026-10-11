@@ -55,12 +55,13 @@ export const completePaidBooking = async (
           firstEntry.attendee.id,
         )
       : [];
-  await deliverRegistrationWork(sessionId, () =>
+  await deliverRegistrationWork(work.lease, (signal) =>
     logAndNotifyRegistration(createdEntries, {
       awaitNotifications: true,
       freeTexts: payloadFreeTexts(work.payload),
       packageFacts: notificationPackages,
       priorActivities: promoActivities,
+      signal,
       siteTokenIndex: intent.siteTokenIndex,
     }),
   );

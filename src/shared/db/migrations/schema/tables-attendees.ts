@@ -374,11 +374,14 @@ export const attendeeTables: [name: string, table: Table][] = [
     //
     // The lease is the atomic ownership boundary. One `claimed_at` stamp
     // lives per row, and a claimant that goes stale loses it, so two
-    // deliveries cannot both notify. `delivered_at` is the registration
-    // completion marker. No other writer sets it, and it exists for
-    // bookings with no questions at all. A row lives with its booking: the
-    // attendee delete removes it, and no age prune touches it. A late
-    // replay therefore always finds the completion marker.
+    // deliveries cannot both notify. The claim also stamps a fresh
+    // `lease_token`. Releases and deliveries carry the token of the claim
+    // they belong to, so a late cleanup cannot clear a newer owner's lease.
+    // `delivered_at` is the registration completion marker. No other writer
+    // sets it, and it exists for bookings with no questions at all. A row
+    // lives with its booking: the attendee delete removes it, and no age
+    // prune touches it. A late replay therefore always finds the completion
+    // marker.
     "registration_notification_work",
     {
       columns: [
@@ -386,6 +389,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER"],
         ["sealed", "TEXT NOT NULL"],
         ["claimed_at", "TEXT"],
+        ["lease_token", "TEXT"],
         ["delivered_at", "TEXT"],
         ["created_at", "TEXT NOT NULL"],
       ],

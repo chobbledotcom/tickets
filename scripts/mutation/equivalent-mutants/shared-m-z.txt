@@ -39,8 +39,6 @@ src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  fa
 # mutant below survives: when it skips the queue load, sendRegistrationWebhooks
 # performs the same facts read and reports a failed read through the same
 # incident path.
-src/shared/webhook/delivery.ts::queueRegistrationNotifications.needsPackageFacts~0u9opea  0 → 1 audited:08h3zqa # as above: with one webhook URL the mutated gate defers to the send's own fallback load, which is the same read with the same result
-src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → || audited:08h3zqa # suppliedPackageFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
 src/shared/webhook/delivery.ts::logAndNotifyRegistration~0y21tpk  ?? → || audited:08h3zqa # priorActivities is undefined or an activity array; an empty array is truthy, so both operators fall back only on undefined
 src/shared/webhook/delivery.ts::logAndNotifyRegistration~18zsvut  ?? → || audited:08h3zqa # siteAssignmentEntries is undefined or an EmailEntry array; arrays are always truthy
 

@@ -33,7 +33,10 @@ const setupAndSendRegistration = async (
   entries?: ReturnType<typeof makeEntry>[],
 ) => {
   await configureTestEmail(opts);
-  return await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
+  return await sendRegistrationEmails({
+    currency: "GBP",
+    entries: entries ?? [makeEntry()],
+  });
 };
 
 const createHiddenPackage = async (name: string): Promise<number> => {
@@ -75,7 +78,7 @@ describeWithEnv(
     });
 
     test("skips when email not configured", async () => {
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await sendRegistrationEmails({ currency: "GBP", entries: [makeEntry()] });
       expect(fetch.callCount()).toBe(0);
     });
 
@@ -86,7 +89,7 @@ describeWithEnv(
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await sendRegistrationEmails({ currency: "GBP", entries: [makeEntry()] });
 
       expect(fetch.callCount()).toBe(1);
       const [url] = fetch.getFetchArgs();
@@ -206,7 +209,11 @@ describeWithEnv(
       // booked listings, one for the attendees' chosen answer ids.
       expect(
         await countDatabaseCalls(2, () =>
-          sendRegistrationEmails([entry], "GBP", facts),
+          sendRegistrationEmails({
+            currency: "GBP",
+            entries: [entry],
+            packageFacts: facts,
+          }),
         ),
       ).toBe(2);
       const body = fetch.getFetchJsonBody();
@@ -232,12 +239,11 @@ describeWithEnv(
         { id: listing.id, name: listing.name },
         { id: attendee.id },
       );
-      await sendRegistrationEmails(
-        [entry],
-        "GBP",
-        undefined,
-        new Map([[freeText, "Arriving late"]]),
-      );
+      await sendRegistrationEmails({
+        currency: "GBP",
+        entries: [entry],
+        freeTexts: new Map([[freeText, "Arriving late"]]),
+      });
 
       // createTestAttendee books through the real form, so its own
       // notification went out first with no answers to show. The one sent
@@ -286,9 +292,10 @@ describeWithEnv(
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-      const error = await sendRegistrationEmails([makeEntry()], "GBP").catch(
-        (reason) => reason,
-      );
+      const error = await sendRegistrationEmails({
+        currency: "GBP",
+        entries: [makeEntry()],
+      }).catch((reason) => reason);
 
       expect(error).toBeInstanceOf(RegistrationDeliveryError);
       if (!(error instanceof RegistrationDeliveryError)) throw error;
@@ -306,7 +313,11 @@ describeWithEnv(
 
       const sending = runWithSubrequestBudget(() =>
         withSubrequestAllowance({ database: 50, external: 0, total: 50 }, () =>
-          sendRegistrationEmails([makeEntry()], "GBP", facts),
+          sendRegistrationEmails({
+            currency: "GBP",
+            entries: [makeEntry()],
+            packageFacts: facts,
+          }),
         ),
       );
 
@@ -326,7 +337,12 @@ describeWithEnv(
       await configureTestEmail();
       fetch.restubFetch(() => Promise.reject(new TypeError("Network error")));
 
-      expect(await sendRegistrationEmails([makeEntry()], "GBP")).toEqual({
+      expect(
+        await sendRegistrationEmails({
+          currency: "GBP",
+          entries: [makeEntry()],
+        }),
+      ).toEqual({
         failed: true,
       });
     });

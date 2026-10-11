@@ -35,6 +35,18 @@ interface RegistrationEmailDelivery {
   config: EmailConfig;
 }
 
+/** What one registration notification delivery carries to its email and
+ * webhook sends. */
+export interface RegistrationSendOptions {
+  currency: string;
+  entries: EmailEntry[];
+  freeTexts?: FreeTextAnswers | undefined;
+  packageFacts?: RegistrationPackageFacts | undefined;
+  /** Cancels the email send while it is in flight. A work row's delivery
+   * bounds its send by the lease that names it. */
+  signal?: AbortSignal | undefined;
+}
+
 export const registrationEmailDelivery = (
   entries: EmailEntry[],
 ): RegistrationEmailDelivery | null => {
@@ -107,18 +119,16 @@ const buildTicketAttachments = async (
 };
 
 export const sendRegistrationEmails = async (
-  entries: EmailEntry[],
-  currency: string,
-  suppliedFacts?: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
+  sends: RegistrationSendOptions,
 ): Promise<RegistrationDeliveryResult> => {
+  const { entries, currency, freeTexts, packageFacts, signal } = sends;
   const delivery = registrationEmailDelivery(entries);
   if (!delivery) return { failed: false };
   const { attendeeEmail, businessEmail, config } = delivery;
   const facts =
-    suppliedFacts === undefined
+    packageFacts === undefined
       ? await loadRegistrationPackageFacts(entries)
-      : suppliedFacts;
+      : packageFacts;
   const answerLines = await loadOrderAnswerLines(entries, freeTexts);
   const ticketUrl = buildTicketUrl(entries);
   const messages: EmailMessage[] = [];
@@ -163,7 +173,9 @@ export const sendRegistrationEmails = async (
   }
 
   return await waitForRegistrationDeliveries([
-    ...messages.map((message) => deliverRegistrationEmail(config, message)),
+    ...messages.map((message) =>
+      deliverRegistrationEmail(config, message, signal),
+    ),
     ...templateErrors.map((error) => Promise.reject(error)),
   ]);
 };

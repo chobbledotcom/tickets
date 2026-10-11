@@ -98,14 +98,25 @@ export const prepareRegistrationWork = async (
 
 /** What the claim found for one session.
  *  - `claimed`: this delivery owns the notification and must run it, then
- *    mark it delivered or release the lease for the next one.
+ *    mark it delivered or release the lease for the next one. The `lease`
+ *    names this claim: every release and delivery carries it, so a late
+ *    cleanup cannot clear a newer owner's lease.
  *  - `delivered`: the notification already committed. Nothing to do.
  *  - `owned`: a live delivery holds the lease. It finishes the tail.
  *  - `null`: no row — a booking that predates the table, or a payload that
  *    was never sealed. The caller decides what its own surface can still
  *    recover. */
+export interface HeldRegistrationLease {
+  leaseToken: string;
+  sessionId: string;
+}
+
 export type RegistrationWorkClaim =
-  | { kind: "claimed"; payload: RegistrationWorkPayload }
+  | {
+      kind: "claimed";
+      lease: HeldRegistrationLease;
+      payload: RegistrationWorkPayload;
+    }
   | { kind: "delivered" }
   | { kind: "owned" };
 
@@ -117,34 +128,38 @@ interface StoredWorkRow {
 /** The claim a lease statement's outcome decides: a returned row carries the
  * row's own sealed payload, and no row leaves the decision to the caller. */
 const leasedClaim = async (
+  sessionId: string,
   rows: ResultSet["rows"],
 ): Promise<RegistrationWorkClaim | null> => {
   const first = rows[0];
   if (first === undefined) return null;
   return {
     kind: "claimed",
+    lease: { leaseToken: String(first.lease_token), sessionId },
     payload: await readRegistrationPayload(String(first.sealed)),
   };
 };
 
 /** Lease the session's notification work. The conditional update wins
- * exactly once per notification. It steals the lease only when a dead
- * claimant holds it past the stale-reservation clock. Returns null when
- * the session has no work row: a booking that predates the table. Its
- * caller then decides what its own surface can still recover. */
+ * exactly once per notification, stamping a fresh lease token as it does.
+ * It steals the lease only when a dead claimant holds it past the
+ * stale-reservation clock. Returns null when the session has no work row: a
+ * booking that predates the table. Its caller then decides what its own
+ * surface can still recover. */
 export const claimRegistrationWorkOrNull = async (
   sessionId: string,
 ): Promise<RegistrationWorkClaim | null> => {
   const sessionIndex = await hmacHash(sessionId);
+  const leaseToken = crypto.randomUUID();
   const leased = await execute(
     `UPDATE registration_notification_work
-        SET claimed_at = ?
+        SET claimed_at = ?, lease_token = ?
       WHERE session_index = ? AND delivered_at IS NULL
         AND (claimed_at IS NULL OR claimed_at < ?)
-      RETURNING sealed`,
-    [nowIso(), sessionIndex, isoBefore(STALE_RESERVATION_MS)],
+      RETURNING sealed, lease_token`,
+    [nowIso(), leaseToken, sessionIndex, isoBefore(STALE_RESERVATION_MS)],
   );
-  const claimed = await leasedClaim(leased.rows);
+  const claimed = await leasedClaim(sessionId, leased.rows);
   if (claimed) return claimed;
   const row = await queryOne<StoredWorkRow>(
     "SELECT sealed, delivered_at FROM registration_notification_work WHERE session_index = ?",
@@ -170,77 +185,85 @@ export const claimRegistrationWork = async (
 
 /** Lease the session's notification work, creating the row when it is
  * missing. The insert's winner owns the notification. A loser reads the
- * actual row the winner created, held or delivered. */
+ * actual row the winner created, held or delivered. The created row keeps
+ * the booking's attendee id, so the attendee delete retires it with the
+ * booking it served. */
 export const claimOrInsertRegistrationWork = async (
   sessionId: string,
   payload: RegistrationWorkPayload,
+  attendeeId: number,
 ): Promise<RegistrationWorkClaim> => {
   const existing = await claimRegistrationWorkOrNull(sessionId);
   if (existing) return existing;
-  await insertRegistrationWorkClaim(sessionId, payload);
-  // The row exists either way now: this delivery created it unclaimed, or a
-  // competing delivery created it and holds its claim.
-  return claimRegistrationWork(sessionId);
-};
-
-/** Insert the session's work row unclaimed, for a session whose row was
- * never born beside the booking. A competing insert for the same session
- * loses to the existing row, because the session is one notification. */
-export const insertRegistrationWorkClaim = async (
-  sessionId: string,
-  payload: RegistrationWorkPayload,
-): Promise<void> => {
+  // The row is missing: insert it unclaimed, then lease it. A competing
+  // insert loses to this row, and a competing claim reads this delivery's
+  // lease.
   await execute(
     `INSERT INTO registration_notification_work
-                (session_index, sealed, created_at)
-              VALUES (?, ?, ?)
+                (session_index, attendee_id, sealed, created_at)
+              VALUES (?, ?, ?, ?)
               ON CONFLICT(session_index) DO NOTHING`,
     [
       await hmacHash(sessionId),
+      attendeeId,
       await sealedRegistrationPayload(payload),
       nowIso(),
     ],
   );
+  return claimRegistrationWork(sessionId);
 };
 
-/** Run the claimed notification, then stamp it delivered. The stamp is the
- * registration completion marker: it lands only after the awaited
- * notification returns. A replay that finds it skips nothing a buyer is
- * still owed. A failed notification gives the lease back, so the redelivery
- * that the rethrow causes claims fresh. */
+/** Stamp the notification delivered: the registration completion marker. The
+ * lease token fences the stamp, so only the claim that owns the row can
+ * commit it. */
 export const markRegistrationWorkDelivered = async (
-  sessionId: string,
+  lease: HeldRegistrationLease,
 ): Promise<void> => {
   await execute(
-    "UPDATE registration_notification_work SET delivered_at = ? WHERE session_index = ?",
-    [nowIso(), await hmacHash(sessionId)],
+    "UPDATE registration_notification_work SET delivered_at = ? WHERE session_index = ? AND lease_token = ?",
+    [nowIso(), await hmacHash(lease.sessionId), lease.leaseToken],
   );
 };
 
+/** How long one delivery's registration email send can run, well inside the
+ * five-minute lease. An environment tunable means a hand-set key on every
+ * site for a knob nothing tunes, so this one stays a constant. */
+const REGISTRATION_SEND_TIMEOUT_MS = 60 * 1000;
+
+/** The abort signal one delivery's notification send runs under. The send
+ * must finish inside the lease that names it. A hung transport cannot hold
+ * the row past the stale clock. While the first send still runs, a
+ * replacement delivery cannot send the same notification again. */
+const leaseDeadlineSignal = (): AbortSignal =>
+  AbortSignal.timeout(REGISTRATION_SEND_TIMEOUT_MS);
+
 /** Run the claimed notification, then stamp it delivered. The stamp is the
  * registration completion marker: it lands only after the awaited
  * notification returns. A replay that finds it skips nothing a buyer is
  * still owed. A failed notification gives the lease back, so the redelivery
- * that the rethrow causes claims fresh. */
+ * that the rethrow causes claims fresh. The send runs under a deadline, so
+ * a hung transport cannot hold the lease past the stale clock. */
 export const deliverRegistrationWork = async (
-  sessionId: string,
-  deliver: () => Promise<void>,
+  lease: HeldRegistrationLease,
+  deliver: (signal: AbortSignal) => Promise<void>,
 ): Promise<void> => {
-  await deliver().catch(async (error) => {
-    await releaseRegistrationWork(sessionId);
+  await deliver(leaseDeadlineSignal()).catch(async (error) => {
+    await releaseRegistrationWork(lease);
     throw error;
   });
-  await markRegistrationWorkDelivered(sessionId);
+  await markRegistrationWorkDelivered(lease);
 };
 
 /** Give the lease back after a failed notification, so the very next
- * delivery can claim it instead of waiting out the stale clock. */
+ * delivery can claim it instead of waiting out the stale clock. The lease
+ * token fences the release: a cleanup for a dead claim cannot clear a newer
+ * owner's lease. */
 export const releaseRegistrationWork = async (
-  sessionId: string,
+  lease: HeldRegistrationLease,
 ): Promise<void> => {
   await execute(
-    "UPDATE registration_notification_work SET claimed_at = NULL WHERE session_index = ? AND delivered_at IS NULL",
-    [await hmacHash(sessionId)],
+    "UPDATE registration_notification_work SET claimed_at = NULL, lease_token = NULL WHERE session_index = ? AND lease_token = ? AND delivered_at IS NULL",
+    [await hmacHash(lease.sessionId), lease.leaseToken],
   );
 };
 
