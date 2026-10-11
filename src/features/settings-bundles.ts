@@ -26,6 +26,10 @@ export const getPrefix = (path: string): string => {
 const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LISTING_DEFAULTS,
   CONFIG_KEYS.ENABLED_FEATURES,
+  // The CSP rebuild reads the saved flag that says the custom CSS loads
+  // Bunny's fonts. The flag is scanned when the CSS is saved (see
+  // bunny-fonts.ts).
+  CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,
@@ -130,7 +134,7 @@ const ADMIN_SETTINGS: readonly string[] = [...SNAPSHOT_KEYS, "db_schema_hash"];
 
 /**
  * Per-prefix settings bundle (keys *beyond* INFRA_SETTINGS). Every prefix in
- * `prefixHandlers` must be listed; an unlisted prefix falls back to the full
+ * `prefixHandlers` must be listed. An unlisted prefix falls back to the full
  * snapshot. Empty arrays mean "infra is enough" (binary/JSON routes and pure
  * redirects whose only HTML is the themed error fallback).
  */
@@ -165,7 +169,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   ],
   // Contact form submission sends an email to the business address.
   contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY, ...EMAIL_SETTINGS],
-  // The custom stylesheet route reads only the custom_css setting.
+  // The custom stylesheet route reads only the custom_css setting; the CSP
+  // rebuild reads the derived flag, which is infra.
   "custom.css": [CONFIG_KEYS.CUSTOM_CSS],
   demo: [],
   events: [],

@@ -95,6 +95,7 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
       raw === "listings" ? "listings" : "attendees";
   },
   [CONFIG_KEYS.CONTACT_FORM_ENABLED]: boolApply("contact_form_enabled"),
+  [CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS]: boolApply("custom_css_bunny_fonts"),
   [CONFIG_KEYS.ORDER_ENABLED]: boolApply("order_enabled"),
   // Defaults ON: only an explicit "false" disables automatic orphan purging.
   [CONFIG_KEYS.AUTO_PURGE_ORPHANS]: (raw) => {

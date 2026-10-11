@@ -67,5 +67,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-07_holiday_date_padding",
     () => import("./2026-10-07_holiday_date_padding.ts"),
   ),
+  // The saved flag the CSP builder reads, backfilled by scanning the stored
+  // stylesheet once.
+  entry(
+    "2026-10-11_custom_css_bunny_fonts",
+    () => import("./2026-10-11_custom_css_bunny_fonts.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
