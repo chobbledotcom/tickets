@@ -93,8 +93,14 @@ export const incrementAttachmentDownloads = async (
 export const updateAttendeePII = async (
   attendeeId: number,
   input: UpdateAttendeePIIInput,
+  transaction?: TxScope,
 ): Promise<void> => {
-  await executeBatch(await attendeePiiWriteStatements(attendeeId, input));
+  const statements = await attendeePiiWriteStatements(attendeeId, input);
+  // Without a caller transaction the batch is its own atomic write. Opening
+  // an interactive transaction around it only adds round trips.
+  await (transaction === undefined
+    ? executeBatch(statements)
+    : transaction.batch(statements));
 };
 
 /**
