@@ -196,13 +196,13 @@ src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" a
 # value type here is "object" or undefined — an object is always truthy, and
 # undefined falls through to the RHS for both. (Source-side mirror at :245
 # holds the same type.)
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.ta~09unqn1  ?? → || audited:10i51su # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sa~1ys4u6l  ?? → || audited:10i51su # same as :245 — Map<number,object>.get returns undefined or a truthy object
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.questionText~0mw46ge  ?? → || audited:10i51su # questionTextMap.get returns undefined or a truthy validated question string
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w  ?? → || audited:10i51su # sa?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → || audited:10i51su # sa?.answerText is undefined or a non-empty validated answer string
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → || audited:10i51su # ta?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → || audited:10i51su # ta?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.ta~09unqn1  ?? → || audited:120ieie # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sa~1ys4u6l  ?? → || audited:120ieie # same as :245 — Map<number,object>.get returns undefined or a truthy object
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.questionText~0mw46ge  ?? → || audited:120ieie # questionTextMap.get returns undefined or a truthy validated question string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w  ?? → || audited:120ieie # sa?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → || audited:120ieie # sa?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → || audited:120ieie # ta?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → || audited:120ieie # ta?.answerText is undefined or a non-empty validated answer string
 
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
@@ -213,7 +213,7 @@ src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7ou
 # is unobservable: the field is computed but never read. (PII itself is
 # re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
 # not from `mergedPii` — so nothing downstream reads it either.)
-src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record%3cstring%2c%20string%3e%29%5bfield%2efield%5d~0ce4on8  = → += audited:10i51su # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record%3cstring%2c%20string%3e%29%5bfield%2efield%5d~0ce4on8  = → += audited:120ieie # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
 
 # Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
 # prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
@@ -227,8 +227,8 @@ src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record
 # hash change can't surface via an idempotent-replay either; and no test or
 # production code queries the merged attendee's reversal legs by their
 # `event_group` value.
-src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~0ut5xv3  merge-unbill → "" audited:10i51su # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
-src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-credit → "" audited:10i51su # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~0ut5xv3  merge-unbill → "" audited:120ieie # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-credit → "" audited:120ieie # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
 
 # i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — the equivalent
 # survivors here were provably unobservable: needsIcu routes plain copy
