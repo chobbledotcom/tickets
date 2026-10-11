@@ -12,6 +12,7 @@ import { eventGroupHasLegs } from "#accounting/queries.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
 import {
+  decryptSessionTokens,
   finalizeSessionIfUnresolved,
   markSessionFailed,
   type ProcessedPayment,
@@ -42,6 +43,7 @@ import {
   deletedListingSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
+import { resumeBookedSessionTail } from "#routes/api/payment-processing/replay-tail.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import {
   datelessGhostBookings,
@@ -73,6 +75,17 @@ const handleReservationConflict = async (
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
+    // The redelivery after a failed tail arrives here: the booking and its
+    // session finalized, the tail after them did not. Resume the missing
+    // answers and notification before answering success. A resume failure
+    // throws, so the provider redelivers and a later delivery retries it.
+    await resumeBookedSessionTail(
+      data.session.id,
+      existing.attendee_id,
+      data.session,
+      data.intent,
+      (await decryptSessionTokens(existing.ticket_tokens)) || null,
+    );
     return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
@@ -153,11 +166,22 @@ const replaySessionFromLedger = async (
   listingId: number,
   paymentReference: TaggedPaymentReference | null,
   disposition: BookingLedgerDisposition,
+  data: ValidatedSession,
 ): Promise<PaymentResult | null> => {
   switch (disposition.status) {
     case "unrecorded":
       return null;
     case "booked":
+      // The same tail resume the reservation-conflict replay runs. The
+      // pruned idempotency row took the stored token, so the notification
+      // defers to the admin re-send (the module logs it).
+      await resumeBookedSessionTail(
+        sessionId,
+        disposition.attendeeId,
+        data.session,
+        data.intent,
+        null,
+      );
       return replaySuccess(
         sessionId,
         disposition.attendeeId,
@@ -188,6 +212,7 @@ const processNewBookingSession = async (
     signedListingId,
     paymentReferenceOf(session),
     snapshot.ledger,
+    data,
   );
   if (replay) return replay;
 

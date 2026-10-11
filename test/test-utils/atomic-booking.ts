@@ -35,6 +35,26 @@ export const withRejectedBookingWrite = async (
     body,
   );
 
+/** Abort answer writes so caller tests can observe a real failure of the
+ * booking's answer save while the booking rows themselves have gone through. */
+export const withRejectedAnswerWrite = async (
+  body: () => Promise<void>,
+): Promise<void> => {
+  const db = getDb();
+  await db.execute(
+    `CREATE TRIGGER test_reject_answer_write
+       BEFORE INSERT ON attendee_answers
+       BEGIN
+         SELECT RAISE(ABORT, 'unexpected answer write');
+       END`,
+  );
+  try {
+    await body();
+  } finally {
+    await db.execute("DROP TRIGGER test_reject_answer_write");
+  }
+};
+
 /** Make one booking insert affect no rows, matching the capacity-guard outcome
  * after an earlier line has already been written. */
 export const withSkippedBookingWrite = async (

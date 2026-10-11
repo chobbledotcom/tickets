@@ -6,7 +6,11 @@ import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
-import { withRejectedBookingWrite } from "#test-utils/atomic-booking.ts";
+import { createChoiceAnswer } from "#test/features/api/payment-processing/index/helpers.ts";
+import {
+  withRejectedAnswerWrite,
+  withRejectedBookingWrite,
+} from "#test-utils/atomic-booking.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -94,5 +98,32 @@ describeWithEnv("free reservation atomic failures", { db: true }, () => {
 
     await expectNoAttendeesForListings([first.id, rejected.id]);
     expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
+  });
+
+  test("rolls the booking back when its answer save dies inside the boundary", async () => {
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const { items, listingRows } = await reservationParts([listing]);
+    const answer = await createChoiceAnswer(listing.id);
+
+    // The answers ride the booking's own batch, so a failing answers write
+    // leaves no committed booking for the buyer to land on after a 500.
+    await withRejectedAnswerWrite(async () => {
+      await expect(
+        createFreeReservation({
+          contact,
+          date: null,
+          items,
+          ledgerOrder: null,
+          listingAnswers: {
+            answerIds: { [String(listing.id)]: [answer.id] },
+            textAnswers: {},
+          },
+          listings: listingRows,
+          modifierUsages: [],
+        }),
+      ).rejects.toThrow("unexpected answer write");
+    });
+
+    await expectNoAttendeesForListings([listing.id]);
   });
 });

@@ -99,6 +99,13 @@ export const alreadyProcessedResult = async (
   );
 };
 
+/** Index the caller's loaded listings by their id, the lookup every
+ * entry-pairing reads. */
+export const listingsById = (
+  listings: readonly { listing: ListingWithCount }[],
+): Map<number, ListingWithCount> =>
+  new Map(listings.map(({ listing }) => [listing.id, listing]));
+
 /**
  * Pair each created booking row with its listing **by listing id**, not by
  * position. `expandChildAllocations` can emit more rows than there are signed
@@ -113,9 +120,7 @@ export const pairEntriesByListing = <A extends { listing_id: number }>(
   attendees: readonly A[],
   validatedItems: readonly { listing: ListingWithCount }[],
 ): { attendee: A; listing: ListingWithCount }[] => {
-  const listingByItemId = new Map(
-    validatedItems.map((v) => [v.listing.id, v.listing]),
-  );
+  const listingByItemId = listingsById(validatedItems);
   return attendees.map((attendee) => ({
     attendee,
     listing: requiredMapValue(

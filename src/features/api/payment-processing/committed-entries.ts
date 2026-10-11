@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { contactFields } from "#db/attendees/pii.ts";
 import {
@@ -7,11 +8,14 @@ import {
 import { queryAllPrimary } from "#db/client.ts";
 import {
   type CreatedEntry,
-  pairEntriesByListing,
+  listingsById,
 } from "#routes/api/payment-processing/create.ts";
-import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import type { ListingWithCount } from "#types";
+
+/* jscpd:ignore-end */
 
 type CommittedBookingRow = {
   created: string;
@@ -27,14 +31,19 @@ type CommittedBookingRow = {
   ticket_token_index: BlindIndex;
 };
 
-/** Rebuild completion entries from committed primary rows and signed contact
- * data. The callback already holds the exact PII encrypted into the attendee. */
+/** Rebuild completion entries from the committed primary rows and signed
+ * contact data. The callback already holds the exact PII encrypted into the
+ * attendee. The ticket token is the caller's: the rows hold only its blind
+ * index. `listings` are the caller's loaded listing candidates, in place of
+ * the fresh path's validated items. A committed line whose listing is gone
+ * since the booking drops loudly: no notification can name a deleted
+ * listing, and the live lines still notify. */
 export const committedEntries = async (
   attendeeId: number,
   ticketToken: string,
   session: ValidatedSession["session"],
   intent: BookingIntent,
-  validatedItems: ValidatedItem[],
+  listings: readonly { listing: ListingWithCount }[],
 ): Promise<CreatedEntry[]> => {
   const rows = await queryAllPrimary<CommittedBookingRow>({
     args: [attendeeId],
@@ -60,29 +69,44 @@ export const committedEntries = async (
             WHERE attendee.id = ?
             ORDER BY listingAttendee.id`,
   });
-  const attendees: CreatedEntry["attendee"][] = rows.map((row) => ({
-    ...contactFields(intent),
-    attachment_downloads: 0,
-    checked_in: 0,
-    created: row.created,
-    date: row.date,
-    end_date: row.end_date,
-    id: attendeeId,
-    kind: row.kind,
-    lat: "",
-    listing_id: row.listing_id,
-    lng: "",
-    package_group_id: row.package_group_id,
-    payment_id: session.paymentReference,
-    pii_blob: "",
-    price_paid: String(row.price_paid),
-    quantity: row.quantity,
-    refunded: false,
-    remaining_balance: row.remaining_balance,
-    split_logistics_agents: false,
-    status_id: row.status_id,
-    ticket_token: ticketToken,
-    ticket_token_index: row.ticket_token_index,
-  }));
-  return pairEntriesByListing(attendees, validatedItems);
+  const listingById = listingsById(listings);
+  return rows.flatMap((row): CreatedEntry[] => {
+    const listing = listingById.get(row.listing_id);
+    if (listing === undefined) {
+      logError({
+        code: ErrorCode.DATA_INVALID,
+        detail: `Booking line's listing is gone (attendee ${attendeeId}, listing ${row.listing_id}); its notification omits the line`,
+      });
+      return [];
+    }
+    return [
+      {
+        attendee: {
+          ...contactFields(intent),
+          attachment_downloads: 0,
+          checked_in: 0,
+          created: row.created,
+          date: row.date,
+          end_date: row.end_date,
+          id: attendeeId,
+          kind: row.kind,
+          lat: "",
+          listing_id: row.listing_id,
+          lng: "",
+          package_group_id: row.package_group_id,
+          payment_id: session.paymentReference,
+          pii_blob: "",
+          price_paid: String(row.price_paid),
+          quantity: row.quantity,
+          refunded: false,
+          remaining_balance: row.remaining_balance,
+          split_logistics_agents: false,
+          status_id: row.status_id,
+          ticket_token: ticketToken,
+          ticket_token_index: row.ticket_token_index,
+        },
+        listing,
+      },
+    ];
+  });
 };

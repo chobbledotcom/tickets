@@ -1,8 +1,12 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type {
@@ -13,6 +17,7 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import type { PaymentProviderType } from "#types";
@@ -111,6 +116,61 @@ export const expectStoredRefund = async (
   expect((await getAttendeesRaw(expected.listingId))[0]?.quantity).toBe(0);
   expect(refund.calls).toHaveLength(1);
   await expectSessionFailed(expected.sessionId);
+};
+
+/** One choice question with one active answer, asked on the listing the
+ * caller names. Returns the answer the caller wires into its checkout or
+ * submission. */
+export const createChoiceAnswer = async (listingId: number) => {
+  const question = await questionsTable.insert({
+    displayType: "select",
+    text: "Meal?",
+  });
+  const answer = await answersTable.insert({
+    questionId: question.id,
+    sortOrder: 0,
+    text: "Soup",
+  });
+  await listingQuestions.setIds(listingId, [question.id]);
+  return answer;
+};
+
+/** A paid checkout whose buyer answered the booked listing's choice question
+ * (`withChoiceAnswer`), typed one free-text answer, or both. The free text
+ * waits in the staged row the completion takes back. Pass `staged: false`
+ * for a checkout whose row is already gone. */
+export const checkoutWithTypedAnswer = async (
+  id: string,
+  {
+    staged = true,
+    withChoiceAnswer = false,
+  }: { staged?: boolean; withChoiceAnswer?: boolean } = {},
+): Promise<{
+  answer: Awaited<ReturnType<typeof answersTable.insert>> | null;
+  data: ValidatedSession;
+  freeText: number;
+  listing: Awaited<ReturnType<typeof createTestListing>>;
+}> => {
+  const { data, listing } = await singleListingPayment(id, 1000);
+  const answer = withChoiceAnswer ? await createChoiceAnswer(listing.id) : null;
+  if (withChoiceAnswer) {
+    data.intent.listingAnswerIds = { [String(listing.id)]: [answer!.id] };
+  }
+  const freeText = await createFreeTextQuestion([listing.id]);
+  const stringId = (await getOrCreateStringIds(["Arriving late"])).get(
+    "Arriving late",
+  )!;
+  data.intent.listingTextAnswerIds = {
+    [String(listing.id)]: [{ q: freeText, s: stringId }],
+  };
+  if (staged) {
+    await stageCheckoutAnswers(
+      id,
+      { [String(freeText)]: "Arriving late" },
+      null,
+    );
+  }
+  return { answer, data, freeText, listing };
 };
 
 /** One booked line, as the code that writes the booking hands it on. */

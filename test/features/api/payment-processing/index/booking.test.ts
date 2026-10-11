@@ -3,15 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import {
-  stageCheckoutAnswers,
-  takeCheckoutAnswers,
-} from "#db/checkout-pending-answers.ts";
+import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne, withTransaction } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
@@ -20,7 +14,6 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import {
@@ -35,6 +28,8 @@ import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   bookingIntent,
+  checkoutWithTypedAnswer,
+  createChoiceAnswer,
   expectStoredRefund,
   ledgeredPaymentWithoutReservation,
   singleListingPayment,
@@ -43,32 +38,6 @@ import {
 
 describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   const fetch = useFetchStub();
-
-  /** A paid checkout whose buyer typed one free-text answer on the booked
-   * listing: the intent carries the answer's refs, and by default the
-   * plaintext waits in the staged row the completion takes back. Pass
-   * `staged: false` for a checkout whose row is already gone. */
-  const checkoutWithTypedAnswer = async (
-    id: string,
-    { staged = true }: { staged?: boolean } = {},
-  ) => {
-    const { data, listing } = await singleListingPayment(id, 1000);
-    const freeText = await createFreeTextQuestion([listing.id]);
-    const stringId = (await getOrCreateStringIds(["Arriving late"])).get(
-      "Arriving late",
-    )!;
-    data.intent.listingTextAnswerIds = {
-      [String(listing.id)]: [{ q: freeText, s: stringId }],
-    };
-    if (staged) {
-      await stageCheckoutAnswers(
-        id,
-        { [String(freeText)]: "Arriving late" },
-        null,
-      );
-    }
-    return { data, freeText, listing };
-  };
 
   test("creates one paid booking and replays it without a duplicate", async () => {
     const id = "cs_direct_booking";
@@ -138,16 +107,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   test("creates and answers a paid booking in five database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
-    const question = await questionsTable.insert({
-      displayType: "select",
-      text: "Meal?",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Soup",
-    });
-    await listingQuestions.setIds(listing.id, [question.id]);
+    const answer = await createChoiceAnswer(listing.id);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
     await expectBookedInFiveCalls(id, data);
   });
