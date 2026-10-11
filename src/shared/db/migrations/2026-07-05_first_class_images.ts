@@ -1,6 +1,6 @@
 import { executeBatch } from "#db/client.ts";
 import { schemaMigration } from "./define.ts";
-import { getExistingColumns } from "./schema-sync.ts";
+import { getExistingColumns } from "./schema-probe.ts";
 
 /**
  * Promote uploaded images to first-class `images` records and link them through

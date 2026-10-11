@@ -2,16 +2,15 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import groupShowHiddenListings from "#db/migrations/2026-09-14_group_show_hidden_listings.ts";
-import {
-  applySchemaChanges,
-  getExistingColumns,
-  syncIndexes,
-} from "#db/migrations/schema-sync.ts";
+import { getExistingColumns } from "#db/migrations/schema-probe.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
-const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
-const migration = () => groupShowHiddenListings(context);
+const migration = () =>
+  groupShowHiddenListings(
+    buildMigrationContext({ applySchemaChanges, syncIndexes }),
+  );
 
 describeWithEnv(
   "db > migrations > group show hidden listings",

@@ -17,6 +17,7 @@ const state = {
   embedHosts: "example.com",
   externalOrderEnabled: true,
   listingColumnOrder: "",
+  maintenanceGate: false,
   showPublicApi: true,
   siteFooter: "",
   termsAndConditions: "Be kind.",

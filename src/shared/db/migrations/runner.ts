@@ -3,6 +3,7 @@
  * how each one is applied and re-checked, and how partial progress is kept.
  */
 
+import { settings } from "#db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
@@ -15,6 +16,7 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { loadMigrations } from "./context.ts";
 import { combinedFailures } from "./errors.ts";
+import { closeMigrationWindow, openMigrationWindow } from "./gate.ts";
 import {
   getAppliedMigrationIds,
   markMigrationsApplied,
@@ -31,8 +33,8 @@ import type { Migration } from "./types.ts";
  *
  * Without the reserve, a batch that spends the whole budget cannot write its
  * progress markers or release the lock. The database then makes no forward
- * progress and stays locked until the TTL expires, and every reload in that
- * window is turned away and re-runs the same over-budget batch.
+ * progress and stays locked until the TTL expires. Every reload in that
+ * window is turned away, and it re-runs the same over-budget batch.
  */
 const MIGRATION_BOOKKEEPING_RESERVE = 5;
 
@@ -169,34 +171,46 @@ export const runPendingMigrations = async (
   lockToken: string,
 ): Promise<Migration[]> => {
   const completed: Migration[] = [];
+  // An engaged gate refuses every write, including this run's. Open the
+  // window for the batch and close it when the batch ends, whatever the
+  // outcome. Writes then stay gated between batches and after the run.
+  // A run the operator did not gate skips both flips: the cached read costs
+  // nothing, and a no-op update spends a subrequest on every deploy.
+  const windowOpen = settings.maintenanceGate
+    ? await openMigrationWindow()
+    : false;
   try {
-    if (hasSubrequestBudget()) {
-      const budget = Math.max(
-        1,
-        getSubrequestRemaining().database - MIGRATION_BOOKKEEPING_RESERVE,
-      );
-      await withSubrequestAllowance(
-        { database: budget, external: BUNNY_SUBREQUEST_LIMIT, total: budget },
-        () => applyUntilBudgetSpent(pending, completed),
-      );
-    } else {
-      await applyUntilBudgetSpent(pending, completed);
-    }
-  } catch (error) {
-    // Keep successful progress when a later migration fails. This records
-    // outside the capped allowance above, so the reserve pays for it.
-    if (completed.length > 0) {
-      try {
-        await recordCompletedProgress(completed, lockToken);
-      } catch (markerError) {
-        throw combinedFailures(
-          "Database migration failed and completed progress could not be recorded.",
-          error,
-          markerError,
+    try {
+      if (hasSubrequestBudget()) {
+        const budget = Math.max(
+          1,
+          getSubrequestRemaining().database - MIGRATION_BOOKKEEPING_RESERVE,
         );
+        await withSubrequestAllowance(
+          { database: budget, external: BUNNY_SUBREQUEST_LIMIT, total: budget },
+          () => applyUntilBudgetSpent(pending, completed),
+        );
+      } else {
+        await applyUntilBudgetSpent(pending, completed);
       }
+    } catch (error) {
+      // Keep successful progress when a later migration fails. This records
+      // outside the capped allowance above, so the reserve pays for it.
+      if (completed.length > 0) {
+        try {
+          await recordCompletedProgress(completed, lockToken);
+        } catch (markerError) {
+          throw combinedFailures(
+            "Database migration failed and completed progress could not be recorded.",
+            error,
+            markerError,
+          );
+        }
+      }
+      throw error;
     }
-    throw error;
+  } finally {
+    if (windowOpen) await closeMigrationWindow();
   }
   return completed;
 };

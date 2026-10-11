@@ -14,6 +14,7 @@ import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import type { SumupCheckoutRequest } from "#shared/sumup/transport.ts";
 import type { WarningDeleteProps } from "#templates/admin/confirm-page.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 const adminApiResources = exemptFieldsAt<AdminApiResource>(
   "src/shared/admin-api-resources.ts",
@@ -168,6 +169,57 @@ const settingsPageStates = exemptFieldsAt<SettingsPageState>(
   theme: "check",
   underlineLinks: "exempt",
   webhookUrl: "check",
+});
+
+const advancedSettingsPageState = exemptFieldsAt<AdvancedSettingsPageState>(
+  "src/ui/templates/admin/settings-advanced.tsx",
+  [{ name: "AdvancedSettingsPageState" }],
+  {
+    evidence: "settingsForm reads state fields through each form definition",
+    kind: "schema-driven",
+  },
+)({
+  addressLookupApiKeyConfigured: "check",
+  addressLookupProvider: "check",
+  adminTemplates: "check",
+  appleWalletConfigured: "check",
+  appleWalletPassTypeId: "check",
+  appleWalletTeamId: "check",
+  attendeeColumnOrder: "check",
+  bunnyCdnEnabled: "check",
+  bunnyDnsEnabled: "check",
+  bunnyDnsSubdomainSuffix: "check",
+  bunnySubdomain: "check",
+  businessEmail: "check",
+  cdnHostname: "check",
+  confirmationTemplates: "check",
+  customCss: "check",
+  customDomain: "check",
+  customDomainLastValidated: "check",
+  emailApiKeyConfigured: "check",
+  emailFromAddress: "check",
+  emailProvider: "check",
+  existingPaymentProvider: "check",
+  externalOrderEnabled: "check",
+  googleWalletConfigured: "check",
+  googleWalletIssuerId: "check",
+  googleWalletServiceAccountEmail: "check",
+  hostAppleWalletLabel: "check",
+  hostEmailLabel: "check",
+  hostGoogleWalletLabel: "check",
+  listingColumnOrder: "check",
+  maintenanceGate: "exempt",
+  paymentProviderRecoveryNeeded: "check",
+  scheduledTaskKey: "check",
+  showPublicApi: "check",
+  smsGatewayBaseUrl: "check",
+  smsGatewayPassphraseConfigured: "check",
+  smsGatewayPasswordConfigured: "check",
+  smsGatewayUsername: "check",
+  smsGatewayWebhookConfigured: "check",
+  subdomainPreview: "check",
+  subdomainPreviewFullDomain: "check",
+  theme: "check",
 });
 
 const warningDeleteProps = exemptFieldsAt<WarningDeleteProps>(
@@ -354,7 +406,7 @@ const exactExemptions = exactFieldExemptions([
   ),
   settingsSnapshotFields(
     [{ name: "SettingsData" }],
-    ["custom_css_bunny_fonts", "welcome_enabled"],
+    ["custom_css_bunny_fonts", "maintenance_gate", "welcome_enabled"],
     dynamicReason(
       "the settings namespace getter reads the field through snap()",
     ),
@@ -388,6 +440,7 @@ const exactExemptions = exactFieldExemptions([
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...adminApiResources,
+  ...advancedSettingsPageState,
   ...bodyExemptions,
   ...exactExemptions,
   ...publicListings,

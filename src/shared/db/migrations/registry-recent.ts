@@ -74,5 +74,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-11_custom_css_bunny_fonts",
     () => import("./2026-10-11_custom_css_bunny_fonts.ts"),
   ),
+  // The refuse triggers behind the operator's maintenance gate, so an
+  // update's migrations run without concurrent writes.
+  entry(
+    "2026-10-11_maintenance_write_gate",
+    () => import("./2026-10-11_maintenance_write_gate.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

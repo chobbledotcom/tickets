@@ -1,7 +1,7 @@
 import { backfillTransfers } from "#accounting/backfill.ts";
 import { getDb } from "#db/client.ts";
 import { schemaMigration } from "./define.ts";
-import { getExistingColumns } from "./schema-sync.ts";
+import { getExistingColumns } from "./schema-probe.ts";
 
 export default schemaMigration(
   "2026-06-22_backfill_transfers",

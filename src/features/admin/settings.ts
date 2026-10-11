@@ -28,6 +28,7 @@ import {
   handleEmbedHostsPost,
   handleExternalOrderPost,
   handleListingColumnOrderPost,
+  handleMaintenanceGatePost,
   handlePaymentProviderPost,
   handlePaymentProviderRecoveryPost,
   handleResetDatabasePost,
@@ -93,6 +94,7 @@ export const adminHandlers = defineRoutes({
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
   "POST /admin/settings/listing-column-order": handleListingColumnOrderPost,
+  "POST /admin/settings/maintenance-gate": handleMaintenanceGatePost,
   "POST /admin/settings/payment-provider": handlePaymentProviderPost,
   "POST /admin/settings/payment-provider-recovery":
     handlePaymentProviderRecoveryPost,

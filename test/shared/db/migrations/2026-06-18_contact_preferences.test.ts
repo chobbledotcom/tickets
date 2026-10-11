@@ -2,11 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import contactPreferencesMigration from "#db/migrations/2026-06-18_contact_preferences.ts";
-import {
-  applySchemaChanges,
-  tableExists as schemaTableExists,
-  syncIndexes,
-} from "#db/migrations/schema-sync.ts";
+import { tableExists as schemaTableExists } from "#db/migrations/schema-probe.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import {
   columnNames,
   tableExists,

@@ -4,8 +4,13 @@
  * enforced via the settings-helpers route wrappers.
  */
 
+import { restampRefundLegs } from "#accounting/reverses-group.ts";
 /* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
+import {
+  closeMigrationWindow,
+  openMigrationWindow,
+} from "#db/migrations/gate.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
@@ -209,6 +214,28 @@ export const handleThemePost = settingsHandler({
 export const handleShowPublicApiPost = settingsToggle({
   ...formRoute(SETTINGS_FORMS.showPublicApi),
   save: (v) => settings.update.showPublicApi(v),
+});
+
+/** Handle POST /admin/settings/maintenance-gate - owner only */
+export const handleMaintenanceGatePost = settingsToggle({
+  ...formRoute(SETTINGS_FORMS.maintenanceGate),
+  save: async (v) => {
+    if (v) {
+      await settings.update.maintenanceGate(true);
+      return;
+    }
+    // Lifting the gate: a write that slipped in during the migration window
+    // can sit unstamped behind the walk's finished mark. Re-stamp under the
+    // still-engaged gate — the write gate refuses the walk's stamps
+    // otherwise — then lift. A clean ledger costs the walk one cursor read.
+    const windowOpen = await openMigrationWindow();
+    try {
+      await restampRefundLegs();
+    } finally {
+      if (windowOpen) await closeMigrationWindow();
+    }
+    await settings.update.maintenanceGate(false);
+  },
 });
 
 /** Handle POST /admin/settings/external-order - owner only */

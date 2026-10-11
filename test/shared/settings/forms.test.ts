@@ -172,6 +172,17 @@ const EXPECTED_FORM_ROWS = [
     "Public API",
     "showPublicApi",
   ),
+  single(
+    "maintenanceGate",
+    "advanced",
+    "MAINTENANCE_GATE",
+    "boolean",
+    "/admin/settings/maintenance-gate",
+    "settings-maintenance-gate",
+    "maintenance_gate",
+    "Maintenance gate",
+    "maintenanceGate",
+  ),
   multi(
     "addressLookup",
     "advanced",

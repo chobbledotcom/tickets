@@ -284,6 +284,21 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "showPublicApi",
   }),
   form({
+    action: "/admin/settings/maintenance-gate",
+    copy: {
+      descriptionKey: "settings.advanced.maintenance_gate_hint",
+      titleKey: "settings.advanced.maintenance_gate",
+    },
+    fieldName: "maintenance_gate",
+    formId: "settings-maintenance-gate",
+    key: CONFIG_KEYS.MAINTENANCE_GATE,
+    kind: "boolean",
+    name: "maintenanceGate",
+    page: "advanced",
+    routeLabel: "Maintenance gate",
+    stateField: "maintenanceGate",
+  }),
+  form({
     action: "/admin/settings/address-lookup",
     copy: {
       descriptionHtml: "block",

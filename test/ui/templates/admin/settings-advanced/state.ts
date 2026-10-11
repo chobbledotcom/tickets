@@ -30,6 +30,7 @@ export const advancedDefaultState: AdvancedSettingsPageState = {
   hostEmailLabel: "",
   hostGoogleWalletLabel: "",
   listingColumnOrder: "",
+  maintenanceGate: false,
   paymentProviderRecoveryNeeded: false,
   scheduledTaskKey: "",
   showPublicApi: false,

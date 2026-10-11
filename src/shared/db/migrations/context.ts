@@ -9,6 +9,7 @@ import { once } from "#fp";
 import { MIGRATION_REGISTRY } from "./registry.ts";
 import { EVENT_TO_LISTING_RENAME_PLAN } from "./rename-plan.ts";
 import { repairLegacyRenames } from "./rename-utils.ts";
+import { tableExists } from "./schema-probe.ts";
 import {
   applySchemaChanges,
   backfillAnswerAggregates,
@@ -18,7 +19,6 @@ import {
   syncCurrentSchema as syncCurrentSchemaBase,
   syncIndexes,
   syncTriggers,
-  tableExists,
   verifyCurrentAppSchema,
 } from "./schema-sync.ts";
 import type { Migration, MigrationContext } from "./types.ts";

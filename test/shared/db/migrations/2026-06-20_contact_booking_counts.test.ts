@@ -2,11 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import contactBookingCountsMigration from "#db/migrations/2026-06-20_contact_booking_counts.ts";
-import {
-  applySchemaChanges,
-  tableExists as schemaTableExists,
-  syncIndexes,
-} from "#db/migrations/schema-sync.ts";
+import { tableExists as schemaTableExists } from "#db/migrations/schema-probe.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

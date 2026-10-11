@@ -214,6 +214,9 @@ const settingsBase = {
   },
   // --- Core ---
   loadKeys,
+  get maintenanceGate(): boolean {
+    return snap("maintenance_gate");
+  },
   get orderEnabled(): boolean {
     return snap("order_enabled");
   },
@@ -351,6 +354,10 @@ const settingsBase = {
       await writeEncrypted(CONFIG_KEYS.LISTING_DEFAULTS, json);
       setSnapshotField(CONFIG_KEYS.LISTING_DEFAULTS, json);
     },
+    maintenanceGate: boolUpdate(
+      CONFIG_KEYS.MAINTENANCE_GATE,
+      "maintenance_gate",
+    ),
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     orphanPurgeRetention: rawUpdate(
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,

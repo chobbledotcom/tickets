@@ -75,6 +75,7 @@ type SpecificFields = {
   timezone: string;
   phone_prefix: string;
   auto_purge_orphans: boolean;
+  maintenance_gate: boolean;
   orphan_purge_retention: string;
   welcome_enabled: boolean;
 };
@@ -93,6 +94,7 @@ export const data: SettingsData = {
   currency: "GBP",
   custom_css_bunny_fonts: false,
   external_order_enabled: false,
+  maintenance_gate: false,
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,

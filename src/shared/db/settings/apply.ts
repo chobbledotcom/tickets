@@ -101,6 +101,11 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   [CONFIG_KEYS.AUTO_PURGE_ORPHANS]: (raw) => {
     data.auto_purge_orphans = raw !== "false";
   },
+  // "migrating" is the runner's own window value: the gate reads as engaged
+  // while a migration batch runs, and only "true" refuses writes.
+  [CONFIG_KEYS.MAINTENANCE_GATE]: (raw) => {
+    data.maintenance_gate = raw === "true" || raw === "migrating";
+  },
   // Coerce an absent/garbled value back to the default age, so a bad row can
   // never widen the purge window.
   [CONFIG_KEYS.ORPHAN_PURGE_RETENTION]: (raw) => {

@@ -52,6 +52,7 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
   listingColumnOrder: string;
   attendeeColumnOrder: string;
+  maintenanceGate: boolean;
   existingPaymentProvider: PaymentProviderType | null;
   paymentProviderRecoveryNeeded: boolean;
   smsGatewayUsername: string;
@@ -86,6 +87,7 @@ export const adminAdvancedSettingsPage = (
       {settingsForm(SETTINGS_FORMS.attendeeColumnOrder, s)}
       {settingsForm(SETTINGS_FORMS.customCss, s)}
       {settingsForm(SETTINGS_FORMS.showPublicApi, s)}
+      {settingsForm(SETTINGS_FORMS.maintenanceGate, s)}
       {settingsForm(SETTINGS_FORMS.externalOrder, s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}

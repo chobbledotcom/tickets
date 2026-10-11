@@ -1,9 +1,6 @@
 import { assertLiveTableColumns } from "./schema-assertions.ts";
-import {
-  getAppSchemaColumns,
-  type LiveSchema,
-  snapshotLiveSchema,
-} from "./schema-sync.ts";
+import { type LiveSchema, snapshotLiveSchema } from "./schema-probe.ts";
+import { getAppSchemaColumns } from "./schema-sync.ts";
 import type {
   AdditiveMigration,
   Migration,

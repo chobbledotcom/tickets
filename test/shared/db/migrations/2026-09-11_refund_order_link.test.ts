@@ -2,11 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import refundOrderLink from "#db/migrations/2026-09-11_refund_order_link.ts";
-import {
-  applySchemaChanges,
-  getExistingColumns,
-  syncIndexes,
-} from "#db/migrations/schema-sync.ts";
+import { getExistingColumns } from "#db/migrations/schema-probe.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import {
   expectStampedToBooking,
   seedUnattributedRefund,

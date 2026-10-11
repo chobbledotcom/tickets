@@ -1067,12 +1067,12 @@
     "semicolon": 1
   },
   "src/shared/db/migrations/runner.ts": {
-    "long-sentence": 7,
+    "long-sentence": 6,
     "semicolon": 2
   },
   "src/shared/db/migrations/schema-sync.ts": {
-    "long-sentence": 5,
-    "contraction": 5,
+    "contraction": 4,
+    "long-sentence": 6,
     "banned-modal": 3,
     "semicolon": 6,
     "participle": 1

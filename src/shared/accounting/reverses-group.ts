@@ -202,3 +202,15 @@ export const backfillReversesGroup = async (
   }
   await saveCursor(CURSOR_COMPLETE);
 };
+
+/**
+ * Re-run the attribution walk from the start, for the maintenance gate's
+ * lift. A write that slipped in during the migration window can sit
+ * unstamped behind the finished mark, and only a fresh pass stamps it. The
+ * caller opens the write-gate window around this, because the stamps are
+ * writes. Refuses on the same orphans the walk refuses.
+ */
+export const restampRefundLegs = async (): Promise<void> => {
+  await clearCursor();
+  await backfillReversesGroup();
+};

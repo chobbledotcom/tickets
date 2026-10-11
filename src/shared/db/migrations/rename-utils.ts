@@ -1,12 +1,11 @@
 import { countRows, getDb } from "#db/client.ts";
 import { escapeRegExp } from "#shared/regexp.ts";
 import { queryRowsWithArg } from "./master-query.ts";
+import { getExistingColumns, tableExists } from "./schema-probe.ts";
 import {
   currentSchemaColumnsPresentIn,
-  getExistingColumns,
   rebuildTableWithColumns,
   runMigration,
-  tableExists,
 } from "./schema-sync.ts";
 
 export type LegacyTableRename = readonly [legacy: string, target: string];

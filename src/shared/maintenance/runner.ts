@@ -1,5 +1,6 @@
 import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
+import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import {
   getSubrequestRemaining,
   getSubrequestUsage,
@@ -131,8 +132,14 @@ const runWithinAllowance = async (
   requestDeadline: number,
 ): Promise<void> => {
   await settings.loadKeys(
-    unique(candidates.flatMap((task) => task.check.settingsKeys)),
+    unique([
+      CONFIG_KEYS.MAINTENANCE_GATE,
+      ...candidates.flatMap((task) => task.check.settingsKeys),
+    ]),
   );
+  // An engaged gate refuses every task write at the database. Skip the whole
+  // run instead of failing every task into the failure log for the window.
+  if (settings.maintenanceGate) return;
   const { enabled, disabledNames } = await enabledTasks(candidates);
   try {
     await syncMaintenanceTaskRows(
