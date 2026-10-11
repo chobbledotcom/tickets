@@ -153,6 +153,7 @@ src/ui/client/scanner.js::interpolate~1j841kk →"mutated"   # the fallback fire
 src/ui/client/scanner.js::getMessage~0dasa24 ??→||   # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
 src/ui/client/scanner.js::formatTicketCount.safeCount~1eg2obm 1→0   # the count comes from the JSON scan API, which cannot carry a non-finite number, so the fallback never fires
 src/ui/client/scanner.js::formatTicketCount~1vjt9r9 {count} ticket→""   # the page always renders data-message-ticket-count-one, so the fallback copy never shows
+src/ui/client/scanner.js::admitScan.count~00jh1rq How many tickets for {name}?→""   # the page always renders data-message-select-quantity, so the fallback copy never shows
 src/ui/client/scanner.js::skipPerson~0xkiv71 messageSkipped→""   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::skipPerson~0xkiv71 Skipped {name}→""   # the camera page always renders data-message-skipped, so the fallback copy never shows
 src/ui/client/scanner.js::handleResult.checked_in~1n4xdvu {name} checked in for {listingName} ({tickets} of {total} tickets)→""   # the camera page always renders data-message-checked-in-partial, so the fallback copy never shows
