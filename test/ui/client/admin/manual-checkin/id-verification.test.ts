@@ -1,21 +1,29 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { type ManualCheckinPage, useManualCheckinPage } from "./fixture.ts";
+import {
+  type ManualCheckinPage,
+  useManualCheckinPage,
+  waitUntilSettled,
+} from "./fixture.ts";
 
 /** The first POST answers verify_id, so the confirm overlay appears; wait
  *  for it, then answer through its buttons. */
-const waitForConfirm = async (): Promise<void> => {
-  for (let i = 0; i < 100; i++) {
-    const overlay = document.getElementById("scanner-confirm")!;
-    if (!overlay.classList.contains("hidden")) return;
-    await Promise.resolve();
-  }
-  throw new Error("the confirm overlay never appeared");
-};
+const waitForConfirm = (): Promise<void> =>
+  waitUntilSettled(
+    () =>
+      !document.getElementById("scanner-confirm")!.classList.contains("hidden"),
+    "the confirm overlay",
+  );
 
 describe("manual check-in ID verification", () => {
   const { setup } = useManualCheckinPage();
+
+  test("the bounded wait fails loudly when the page never settles", async () => {
+    await expect(
+      waitUntilSettled(() => false, "the door answer"),
+    ).rejects.toThrow("the door answer never settled");
+  });
 
   /** Submit a pick whose first answer is verify_id, then dismiss the prompt
    *  the way the organiser would. Any dismissal must skip the person: one

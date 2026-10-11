@@ -183,4 +183,24 @@ describeWithEnv("group scanner page", { db: true }, () => {
     );
     expect(response.status).toBe(403);
   });
+
+  test("a one-listing door names no listing in its roster details", async () => {
+    // The page title already names the door's one listing, so the option
+    // carries only the day, and a place without a day carries nothing.
+    const door = await groupDoor(1);
+    await createMultiBookingAttendee("Sam", "sam@example.com", [
+      { listingId: door.members[0]!.id, quantity: 2 },
+    ]);
+
+    const body = await doorPage(door.group.id);
+
+    expect(body).toContain(rosterOption("Sam"));
+    expect(body).toContain('data-detail=""');
+  });
+
+  test("answers the scan of a missing group with not_found", async () => {
+    const missing = await scanAtDoor(99999, { token: "any" });
+    expect(missing.response.status).toBe(404);
+    expect(missing.json).toEqual({ status: "not_found" });
+  });
 });

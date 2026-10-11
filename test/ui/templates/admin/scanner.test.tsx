@@ -89,6 +89,24 @@ describe("the admin scanner page template", () => {
     expect(html).not.toContain("ticket token");
   });
 
+  test("joins a several-place pick's details into one searchable line", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [
+        {
+          attendeeId: 43,
+          details: ["Camping", "12 Jun"],
+          name: "Ada",
+          quantity: 2,
+        },
+      ],
+    );
+
+    expect(html).toContain('data-detail="Camping, 12 Jun"');
+  });
+
   test("escapes a pick's name and day once, so the search reads the real words", () => {
     const html = adminScannerPage(
       { name: "Doors" },
@@ -243,6 +261,14 @@ describe("the admin scanner page template", () => {
       t("admin.scanner.ticket_option", holes("name", "tickets", "token")),
       1,
     );
+    carried(
+      "ticket-option-detail",
+      t(
+        "admin.scanner.ticket_option_detail",
+        holes("detail", "name", "tickets"),
+      ),
+      1,
+    );
     carried("verify-id-note", t("admin.scanner.verify_id_note"), 1);
   });
 
@@ -262,13 +288,26 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('class="scanner-overlay-box"');
     expect(html).toContain('id="scanner-confirm-close"');
     expect(html).toContain('id="scanner-confirm-message"');
-    expect(html).toContain('class="scanner-confirm-actions"');
+    expect(times(html, 'class="scanner-confirm-actions"')).toBe(2);
     expect(html).toContain('id="scanner-confirm-yes"');
     expect(html).toContain('id="scanner-confirm-no"');
     expect(html).toContain(
       'class="scanner-overlay hidden" id="scanner-quantity"',
     );
     expect(html).toContain('id="scanner-start"');
+    // The camera hole and status line the scanner script starts from, and
+    // the quantity ask's controls.
+    expect(html).toContain('id="scanner-container"');
+    expect(html).toContain('id="scanner-video"');
+    expect(html).toContain('id="scanner-status"');
+    expect(html).toContain('id="scanner-quantity-message"');
+    expect(html).toContain('for="scanner-quantity-select"');
+    expect(html).toContain('id="scanner-quantity-select"');
+    expect(html).toContain('id="scanner-quantity-confirm"');
+    expect(html).toContain('id="scanner-quantity-cancel"');
+    // The /admin/ route is the home section's own landing link, so the nav
+    // highlights it.
+    expect(html).toContain('<a class="active" href="/admin/">Home</a>');
 
     // The manual pick-up form.
     expect(html).toContain('id="manual-checkin"');
