@@ -11,7 +11,7 @@ import * as v from "valibot";
 import { lineGroupId } from "#booking/signed-metadata.ts";
 import type { ActivityToLog } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import type { SqlStatement } from "#db/client.ts";
+import type { BatchTail } from "#db/attendees/create-batch.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -284,7 +284,7 @@ export const createAttendeeForSession = async (
   ticketToken: string,
   publicStatusId: number,
   parentIdsByChild: ReadonlyMap<number, readonly number[]>,
-  registrationWork: SqlStatement[],
+  registrationWork: BatchTail,
 ): Promise<HonourResult> => {
   let prepared: {
     attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
@@ -349,7 +349,7 @@ export const createAttendeeForSession = async (
     result = await attendeesApi.createBookingAtomic(
       prepared.attendeeInput,
       prepared.plan,
-      () => registrationWork,
+      registrationWork,
     );
   } catch (error) {
     return { error, ok: null };

@@ -12,7 +12,10 @@ import { eventGroupHasLegs } from "#accounting/queries.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
-import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import {
+  discardCheckoutAnswersStatement,
+  readCheckoutAnswers,
+} from "#db/checkout-pending-answers.ts";
 import {
   decryptSessionTokens,
   finalizeSessionIfUnresolved,
@@ -24,6 +27,7 @@ import {
 } from "#db/processed-payments.ts";
 import {
   freeTextsRecord,
+  prepareRegistrationWork,
   registrationWorkStatements,
 } from "#db/registration-notification-work.ts";
 import { forgetSquareLinkEnd } from "#db/square-link-ends.ts";
@@ -83,15 +87,17 @@ const handleReservationConflict = async (
   if (existing.attendee_id !== null) {
     // The redelivery after a failed tail arrives here: the booking and its
     // session finalized, the tail after them did not. Resume the missing
-    // answers and notification before answering success. A resume failure
-    // throws, so the provider redelivers and a later delivery retries it.
-    await resumeBookedSessionTail(
+    // answers and notification before answering success. A held lease
+    // answers retryably, and a resume failure throws, so the provider
+    // redelivers and a later delivery retries it.
+    const held = await resumeBookedSessionTail(
       data.session.id,
       existing.attendee_id,
       data.session,
       data.intent,
       (await decryptSessionTokens(existing.ticket_tokens)) || null,
     );
+    if (held) return held;
     return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
@@ -285,11 +291,12 @@ const processNewBookingSession = async (
   const ticketToken = generateTicketToken();
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
 
-  // The typed free texts leave their staging row here, so the notification
-  // work item carries them beside the booking. Whatever fails later, the
-  // payload is already durable, and a replay reads its own copy.
+  // The typed free texts ride their staging row into the creation batch. The
+  // batch commits the work row that replaces the staging row, and deletes it
+  // in the same atomic commit. A crash in between leaves the texts staged
+  // for the retry, instead of losing the only decryptable copy.
   const freeTexts = intent.listingTextAnswerIds
-    ? await takeCheckoutAnswers(session.id)
+    ? await readCheckoutAnswers(session.id)
     : undefined;
   if (freeTexts?.size === 0) {
     // The hashed index, not the raw session id: for SumUp the id is the
@@ -299,12 +306,13 @@ const processNewBookingSession = async (
       detail: `A paid checkout carried text answers but its staged row is gone (session index ${await hmacHash(session.id)}); its emails will show choice answers only`,
     });
   }
-  const registrationWork = await registrationWorkStatements(session.id, {
+  const registrationWork = await prepareRegistrationWork(session.id, {
     ticketToken,
     ...(freeTexts === undefined
       ? {}
       : { freeTexts: freeTextsRecord(freeTexts) }),
   });
+  const discardStaging = await discardCheckoutAnswersStatement(session.id);
 
   const complete = (
     entries: Parameters<typeof completePaidBooking>[0],
@@ -328,7 +336,10 @@ const processNewBookingSession = async (
     ticketToken,
     snapshot.publicStatusId,
     snapshot.parentsByChildId,
-    registrationWork,
+    (tokenIndex) => [
+      ...registrationWorkStatements(registrationWork, tokenIndex),
+      discardStaging,
+    ],
   );
   if (honoured.ok === null) {
     return recoverOrRefundUnexpectedCreate({

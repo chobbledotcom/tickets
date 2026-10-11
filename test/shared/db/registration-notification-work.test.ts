@@ -1,27 +1,33 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 
+import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import {
+  claimOrInsertRegistrationWork,
   claimRegistrationWork,
   claimRegistrationWorkOrNull,
   markRegistrationWorkDelivered,
+  prepareRegistrationWork,
   registrationWorkStatements,
   releaseRegistrationWork,
 } from "#db/registration-notification-work.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** A work row born beside a booking, the way the creation batch writes it:
- * no claim yet, its payload sealed. */
+ * no claim yet, its payload sealed, its attendee resolved from the booking
+ * batch's token (absent in this seed, where no attendee row exists). */
 const seedWorkRow = async (
   sessionId: string,
   ticketToken: string,
 ): Promise<void> => {
-  for (const statement of await registrationWorkStatements(sessionId, {
-    ticketToken,
-  })) {
-    await execute(statement.sql, statement.args);
+  const prepared = await prepareRegistrationWork(sessionId, { ticketToken });
+  for (const { sql, args } of registrationWorkStatements(
+    prepared,
+    "tok_seed",
+  )) {
+    await execute(sql, args);
   }
 };
 
@@ -57,6 +63,57 @@ describeWithEnv("db > registration notification work", { db: true }, () => {
     expect(await claimRegistrationWorkOrNull("cs_claim_delivered")).toEqual({
       kind: "delivered",
     });
+  });
+
+  test("reads a held lease for a losing claim-or-create", async () => {
+    await seedWorkRow("cs_claim_insert_win", "tok_winner");
+    // The winner holds the lease; a competing claim-or-create for the same
+    // session reads the actual row instead of assuming a claim.
+    await claimRegistrationWork("cs_claim_insert_win");
+    expect(
+      await claimOrInsertRegistrationWork("cs_claim_insert_win", {
+        ticketToken: "tok_loser",
+      }),
+    ).toEqual({
+      kind: "owned",
+    });
+  });
+
+  test("claims the row a winning claim-or-create made", async () => {
+    // The fallback's insert wins on a session with no row: it creates the
+    // row claimed, and that ownership is the only thing that separates the
+    // notifying delivery from its competitor.
+    expect(
+      await claimOrInsertRegistrationWork("cs_claim_insert_fresh", {
+        ticketToken: "tok_first",
+      }),
+    ).toEqual({
+      kind: "claimed",
+      payload: { ticketToken: "tok_first" },
+    });
+    // The created row is claimed, so a competing delivery reads a held
+    // lease instead of claiming the same notification.
+    expect(
+      await claimOrInsertRegistrationWork("cs_claim_insert_fresh", {
+        ticketToken: "tok_second",
+      }),
+    ).toEqual({ kind: "owned" });
+  });
+
+  test("names the work item when its payload cannot be read", async () => {
+    await seedWorkRow("cs_claim_corrupt", "tok_corrupt");
+    // Ciphertext that decrypts but is not a work payload: the failure is the
+    // work item's own schema, so its name is what the error names.
+    await execute(
+      "UPDATE registration_notification_work SET sealed = ? WHERE session_index = ?",
+      [
+        await encrypt('{"unexpected":"shape"}'),
+        await hmacHash("cs_claim_corrupt"),
+      ],
+    );
+    await expect(claimRegistrationWork("cs_claim_corrupt")).rejects.toThrow(
+      "registration notification work",
+    );
   });
 
   test("releases a failed claim so the next delivery can win it", async () => {

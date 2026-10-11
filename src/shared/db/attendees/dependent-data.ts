@@ -88,6 +88,12 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
     action: "delete",
     field: "attendee_id",
     kind: "direct",
+    table: "registration_notification_work",
+  },
+  {
+    action: "delete",
+    field: "attendee_id",
+    kind: "direct",
     table: "listing_attendees",
   },
   {

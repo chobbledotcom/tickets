@@ -878,7 +878,7 @@
     "banned-modal": 1
   },
   "src/shared/db/checkout-pending-answers.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "banned-modal": 1
   },
   "src/shared/db/chosen-columns.ts": {
@@ -2318,7 +2318,7 @@
     "contraction": 1
   },
   "src/shared/webhook/delivery.ts": {
-    "long-sentence": 3
+    "long-sentence": 2
   },
   "src/ui/client/admin/address-diff.ts": {
     "contraction": 2,

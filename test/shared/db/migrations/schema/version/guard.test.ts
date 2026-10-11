@@ -117,7 +117,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-10-11_custom_css_bunny_fonts",
         "2026-10-11_registration_notification_work",
       ],
-      schemaHash: "13f7dfd",
+      schemaHash: "f7v051",
     });
   });
 

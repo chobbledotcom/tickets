@@ -2,6 +2,7 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
 import { logActivities } from "#db/activity-log.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, getDb } from "#db/client.ts";
@@ -181,6 +182,40 @@ describeWithEnv(
       expect(fetch.getFetchJsonBody().text).toContain("Arriving late");
     });
 
+    test("releases the lease when the resumed answer save fails", async () => {
+      const { answer, attendeeId, data, id, listingName } =
+        await bookedWithFailingTail("cs_replay_tail_release");
+
+      // The first replay claims the lease, then its answer save dies. The
+      // claim must come back, so the next delivery can claim fresh instead
+      // of finding a held lease and answering retryably forever.
+      await withRejectedAnswerWrite(() =>
+        expect(processPaymentSession(id, data)).rejects.toThrow(
+          "unexpected answer write",
+        ),
+      );
+      await redeliver(id, data);
+      await expectResumedAnswers(attendeeId, listingName, answer.id);
+    });
+
+    test("resumes a missing-row booking whose notification never ran", async () => {
+      const { answer, attendeeId, data, id, listingName } =
+        await bookedWithFailingTail("cs_replay_tail_row_lost");
+
+      // The work row is gone before the notification ever ran: no
+      // registration line exists, so the booking owes the whole tail. The
+      // stored token rebuilds the payload the row would have carried.
+      await execute(
+        "DELETE FROM registration_notification_work WHERE session_index = ?",
+        [await hmacHash(id)],
+      );
+      await redeliver(id, data);
+      await expectResumedAnswers(attendeeId, listingName, answer.id);
+      expect(fetch.getFetchJsonBody()).toMatchObject({
+        to: ["buyer@example.com"],
+      });
+    });
+
     test("resumes despite other activity rows for the attendee", async () => {
       const { answer, attendeeId, data, id, listing, listingName } =
         await bookedWithFailingTail("cs_replay_tail_move_line");
@@ -255,16 +290,17 @@ describeWithEnv(
       await expectNoFurtherDelivery(id, data, attendeeId, listingName);
     });
 
-    test("delivers one notification when two deliveries race the tail", async () => {
+    test("answers a held lease retryably and delivers one notification", async () => {
       const id = "cs_replay_tail_race";
       const { data, listing, listingName } = await answeredCheckout(id);
       await configureTestEmail();
 
       // The first delivery claims the work and blocks inside its email
-      // send. A second delivery then reaches the same unfinished tail,
-      // fails to claim the held lease, and answers without notifying.
+      // send. A second delivery then reaches the same unfinished tail: the
+      // row is claimed and undelivered, so the lease is held, and the second
+      // delivery answers retryably instead of pretending the tail is done.
       // Exactly one confirmation and one registration line exist across
-      // both.
+      // both, and the provider keeps retrying until the tail finishes.
       let releaseEmail!: () => void;
       const emailHeld = new Promise<void>((resolve) => {
         releaseEmail = resolve;
@@ -298,10 +334,23 @@ describeWithEnv(
       }
       await emailReachedP;
 
+      // The lease is held and nothing is delivered yet: the tail is
+      // demonstrably incomplete while the competitor decides its answer.
+      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
+      const workState = await execute(
+        "SELECT claimed_at, delivered_at FROM registration_notification_work WHERE session_index = ?",
+        [await hmacHash(id)],
+      );
+      expect(String(workState.rows[0]?.claimed_at)).toBeTruthy();
+      expect(workState.rows[0]?.delivered_at).toBe(null);
+
       const second = await withRequestContext(() =>
         processPaymentSession(id, data),
       );
-      expect(second.success).toBe(true);
+      // The held lease answers retryably: the provider is told to come back
+      // while the first delivery finishes the tail.
+      if (second.success) throw new Error("the held lease answered success");
+      expect(second.status).toBe(409);
       // The second delivery notified nothing: the one recorded call is the
       // first delivery's held send.
       expect(fetch.callCount()).toBe(1);
@@ -309,7 +358,6 @@ describeWithEnv(
       releaseEmail();
       const firstOutcome = await first;
       expect(firstOutcome.ok).toBe(true);
-      const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
       expect(await registrationLines(attendeeId, listingName)).toBe(1);
       expect(fetch.callCount()).toBe(1);
     });

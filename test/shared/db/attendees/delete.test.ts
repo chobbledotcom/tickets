@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { deleteAttendee } from "#db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
-import { getDb, queryOne } from "#db/client.ts";
+import { execute, getDb, queryOne } from "#db/client.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
@@ -14,6 +15,10 @@ import { getAllModifiers, modifiersTable } from "#db/modifiers.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import {
+  prepareRegistrationWork,
+  registrationWorkStatements,
+} from "#db/registration-notification-work.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,8 +32,35 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
+import type { Attendee } from "#types";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
+  /** One booked attendee holding one finalized payment session, the shape
+   * every dependent-row test here starts from. */
+  const paidAttendeeWithSession = async (
+    sessionId: string,
+    name: string,
+  ): Promise<Attendee> => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      name,
+      `${name.toLowerCase().replace(/[^a-z]/g, "")}@example.com`,
+    );
+    await reserveSession(sessionId);
+    await finalizeReservedPayment(
+      sessionId,
+      attendee.id,
+      "tok-test",
+      taggedPaymentReference(`pi_${sessionId}`),
+    );
+    return attendee;
+  };
+
   test("removes attendee", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
@@ -48,24 +80,42 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     expect(fetched).toBeNull();
   });
 
-  test("removes processed payment records", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Jane Doe",
-      "jane@example.com",
-    );
-
-    await reserveSession("sess_attendee_delete");
-    await finalizeReservedPayment(
+  test("removes the booking's registration work rows", async () => {
+    const attendee = await paidAttendeeWithSession(
       "sess_attendee_delete",
-      attendee.id,
-      "tok-test",
-      taggedPaymentReference("pi_attendee_delete"),
+      "Jane Doe",
+    );
+    // A pending notification work row for this booking: the delete must
+    // retire it, because no delivery can ever finish a booking that is gone.
+    // The attendee id resolves from the booking's own ticket-token index, the
+    // way the creation batch binds it.
+    const booked = await queryOne<{ ticket_token_index: string }>(
+      "SELECT ticket_token_index FROM attendees WHERE id = ?",
+      [attendee.id],
+    );
+    const work = await prepareRegistrationWork("sess_attendee_delete", {
+      ticketToken: "tok-test",
+    });
+    for (const { sql, args } of registrationWorkStatements(
+      work,
+      booked!.ticket_token_index,
+    )) {
+      await execute(sql, args);
+    }
+
+    await deleteAttendee(attendee.id);
+
+    const row = await queryOne<{ session_index: string }>(
+      "SELECT session_index FROM registration_notification_work WHERE session_index = ?",
+      [await hmacHash("sess_attendee_delete")],
+    );
+    expect(row).toBeNull();
+  });
+
+  test("removes processed payment records", async () => {
+    const attendee = await paidAttendeeWithSession(
+      "sess_attendee_delete",
+      "Jane Doe",
     );
 
     await deleteAttendee(attendee.id);

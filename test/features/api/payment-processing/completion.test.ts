@@ -1,9 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, getDb } from "#db/client.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { execute, getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { registrationWorkStatements } from "#db/registration-notification-work.ts";
+import {
+  prepareRegistrationWork,
+  registrationWorkStatements,
+} from "#db/registration-notification-work.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -36,16 +40,17 @@ describeWithEnv(
   "finishing off a booking that has been paid",
   { db: true },
   () => {
-    stubFetchEachTest(() => new Response());
+    const fetch = stubFetchEachTest(() => new Response());
 
     /** The work row the creation batch births beside every booking: the
      * completion claims it, so a direct completion call seeds one first. */
     const seedWork = async (sessionId: string): Promise<void> => {
-      await executeBatch(
-        await registrationWorkStatements(sessionId, {
-          ticketToken: "tok_seeded",
-        }),
-      );
+      const prepared = await prepareRegistrationWork(sessionId, {
+        ticketToken: "tok_seeded",
+      });
+      for (const { sql, args } of registrationWorkStatements(prepared, "")) {
+        await execute(sql, args);
+      }
     };
 
     test("hands back the first line's booking, listing, and tickets", async () => {
@@ -68,6 +73,38 @@ describeWithEnv(
         success: true,
         ticketTokens: ["tok_a", "tok_b"],
       });
+    });
+
+    test("answers retryably when another delivery holds the lease", async () => {
+      const { entry } = await bookedLine("Held Line");
+      const sessionId = "cs_completion_held";
+      const prepared = await prepareRegistrationWork(sessionId, {
+        ticketToken: "tok_seeded",
+      });
+      for (const { sql, args } of registrationWorkStatements(prepared, "")) {
+        await execute(sql, args);
+      }
+      // A competing delivery claimed the row and holds its lease. The held
+      // lease is not a finished tail, so this delivery must not answer
+      // success and stop the provider's retries.
+      await execute(
+        "UPDATE registration_notification_work SET claimed_at = ? WHERE session_index = ?",
+        [new Date().toISOString(), await hmacHash(sessionId)],
+      );
+
+      const result = await completePaidBooking(
+        [entry],
+        bareIntent(),
+        [],
+        [],
+        ["tok_a"],
+        noPackageFacts(),
+        sessionId,
+      );
+      if (result.success) throw new Error("the held lease answered success");
+      expect(result.status).toBe(409);
+      // The held delivery notified nothing: no send left this process.
+      expect(fetch.calls.length).toBe(0);
     });
 
     test("answers about the first line even when several were booked", async () => {

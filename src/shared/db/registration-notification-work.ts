@@ -11,11 +11,13 @@
  * completion marker. It exists even for bookings with no questions.
  */
 
+import type { ResultSet } from "@libsql/client";
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
 import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -50,7 +52,9 @@ export const readRegistrationPayload = async (
     "registration notification work",
   );
 
-const sealedRegistrationPayload = (
+/** Seal a payload for the work row. The migration's backfill seals the empty
+ * payload its delivered rows carry, so the helper is shared. */
+export const sealedRegistrationPayload = (
   payload: RegistrationWorkPayload,
 ): Promise<string> =>
   encrypt(
@@ -59,23 +63,38 @@ const sealedRegistrationPayload = (
 
 /** The batch statement that births the work item beside its booking: a
  * committed booking always has its payload. A retry of the same checkout
- * keeps the first row, because a session is paid once. */
-export const registrationWorkStatements = async (
-  sessionId: string,
-  payload: RegistrationWorkPayload,
-): Promise<SqlStatement[]> => [
+ * keeps the first row, because a session is paid once. The attendee id
+ * resolves from the booking batch's own attendee insert, so the row names
+ * the booking it belongs to and dies with it. */
+export const registrationWorkStatements = (
+  prepared: PreparedRegistrationWork,
+  tokenIndex: string,
+): SqlStatement[] => [
   {
-    args: [
-      await hmacHash(sessionId),
-      await sealedRegistrationPayload(payload),
-      nowIso(),
-    ],
+    // The second placeholder sits inside the attendee subquery, so the token
+    // index binds before the payload and the stamps.
+    args: [prepared.sessionIndex, tokenIndex, prepared.sealed, nowIso()],
     sql: `INSERT INTO registration_notification_work
-                (session_index, sealed, created_at)
-              VALUES (?, ?, ?)
+                (session_index, attendee_id, sealed, created_at)
+              VALUES (?, (${ATTENDEE_BY_TOKEN_SQL}), ?, ?)
               ON CONFLICT(session_index) DO NOTHING`,
   },
 ];
+
+/** The row's lookup key and sealed payload, prepared before the booking
+ * batch runs, so the batch tail itself stays synchronous. */
+export interface PreparedRegistrationWork {
+  sealed: string;
+  sessionIndex: string;
+}
+
+export const prepareRegistrationWork = async (
+  sessionId: string,
+  payload: RegistrationWorkPayload,
+): Promise<PreparedRegistrationWork> => ({
+  sealed: await sealedRegistrationPayload(payload),
+  sessionIndex: await hmacHash(sessionId),
+});
 
 /** What the claim found for one session.
  *  - `claimed`: this delivery owns the notification and must run it, then
@@ -95,6 +114,19 @@ interface StoredWorkRow {
   sealed: string;
 }
 
+/** The claim a lease statement's outcome decides: a returned row carries the
+ * row's own sealed payload, and no row leaves the decision to the caller. */
+const leasedClaim = async (
+  rows: ResultSet["rows"],
+): Promise<RegistrationWorkClaim | null> => {
+  const first = rows[0];
+  if (first === undefined) return null;
+  return {
+    kind: "claimed",
+    payload: await readRegistrationPayload(String(first.sealed)),
+  };
+};
+
 /** Lease the session's notification work. The conditional update wins
  * exactly once per notification. It steals the lease only when a dead
  * claimant holds it past the stale-reservation clock. Returns null when
@@ -112,12 +144,8 @@ export const claimRegistrationWorkOrNull = async (
       RETURNING sealed`,
     [nowIso(), sessionIndex, isoBefore(STALE_RESERVATION_MS)],
   );
-  if (leased.rows.length > 0) {
-    return {
-      kind: "claimed",
-      payload: await readRegistrationPayload(String(leased.rows[0]!.sealed)),
-    };
-  }
+  const claimed = await leasedClaim(leased.rows);
+  if (claimed) return claimed;
   const row = await queryOne<StoredWorkRow>(
     "SELECT sealed, delivered_at FROM registration_notification_work WHERE session_index = ?",
     [sessionIndex],
@@ -140,27 +168,46 @@ export const claimRegistrationWork = async (
   return claim;
 };
 
-/** Insert one work row as this delivery's own claim, for a session whose
- * row was never born beside the booking. */
+/** Lease the session's notification work, creating the row when it is
+ * missing. The insert's winner owns the notification. A loser reads the
+ * actual row the winner created, held or delivered. */
+export const claimOrInsertRegistrationWork = async (
+  sessionId: string,
+  payload: RegistrationWorkPayload,
+): Promise<RegistrationWorkClaim> => {
+  const existing = await claimRegistrationWorkOrNull(sessionId);
+  if (existing) return existing;
+  await insertRegistrationWorkClaim(sessionId, payload);
+  // The row exists either way now: this delivery created it unclaimed, or a
+  // competing delivery created it and holds its claim.
+  return claimRegistrationWork(sessionId);
+};
+
+/** Insert the session's work row unclaimed, for a session whose row was
+ * never born beside the booking. A competing insert for the same session
+ * loses to the existing row, because the session is one notification. */
 export const insertRegistrationWorkClaim = async (
   sessionId: string,
   payload: RegistrationWorkPayload,
 ): Promise<void> => {
   await execute(
     `INSERT INTO registration_notification_work
-                (session_index, sealed, claimed_at, created_at)
-              VALUES (?, ?, ?, ?)
+                (session_index, sealed, created_at)
+              VALUES (?, ?, ?)
               ON CONFLICT(session_index) DO NOTHING`,
     [
       await hmacHash(sessionId),
       await sealedRegistrationPayload(payload),
       nowIso(),
-      nowIso(),
     ],
   );
 };
 
-/** Commit the notification: the registration completion marker. */
+/** Run the claimed notification, then stamp it delivered. The stamp is the
+ * registration completion marker: it lands only after the awaited
+ * notification returns. A replay that finds it skips nothing a buyer is
+ * still owed. A failed notification gives the lease back, so the redelivery
+ * that the rethrow causes claims fresh. */
 export const markRegistrationWorkDelivered = async (
   sessionId: string,
 ): Promise<void> => {
@@ -170,9 +217,11 @@ export const markRegistrationWorkDelivered = async (
   );
 };
 
-/** Run the claimed notification, then stamp it delivered. A notification
- * that fails gives the lease back, so the redelivery this failure causes
- * claims the work instead of waiting out the stale clock. */
+/** Run the claimed notification, then stamp it delivered. The stamp is the
+ * registration completion marker: it lands only after the awaited
+ * notification returns. A replay that finds it skips nothing a buyer is
+ * still owed. A failed notification gives the lease back, so the redelivery
+ * that the rethrow causes claims fresh. */
 export const deliverRegistrationWork = async (
   sessionId: string,
   deliver: () => Promise<void>,

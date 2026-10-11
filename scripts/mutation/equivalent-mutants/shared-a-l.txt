@@ -334,3 +334,4 @@ src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → || audited:0h2
 src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → || audited:0h2dj0b # freshRecord is undefined or a truthy record object
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal
+src/shared/db/registration-notification-work.ts::sealedRegistrationPayload~1v4h056 registration notification work→"" audited:1tfnmz1 # the label names the payload only inside thrown validation errors, and the payload type is compile-checked, so no input reaches that throw

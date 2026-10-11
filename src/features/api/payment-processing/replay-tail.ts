@@ -13,15 +13,20 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryAllPrimary } from "#db/client.ts";
 import {
+  claimOrInsertRegistrationWork,
   claimRegistrationWorkOrNull,
   deliverRegistrationWork,
-  insertRegistrationWorkClaim,
   markRegistrationWorkDelivered,
   payloadFreeTexts,
+  releaseRegistrationWork,
 } from "#db/registration-notification-work.ts";
 import { committedLiveEntries } from "#routes/api/payment-processing/committed-entries.ts";
 import { saveSessionAnswers } from "#routes/api/payment-processing/create.ts";
-import type { ValidatedSession } from "#routes/api/webhook-types.ts";
+import type {
+  PaymentFailureResult,
+  PaymentResult,
+  ValidatedSession,
+} from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
@@ -49,28 +54,41 @@ const logNotificationDeferred = async (
   });
 };
 
+/** The answer a delivery gives while another delivery holds an undelivered
+ * lease. Retryable, so the provider comes back after the holder finishes or
+ * the lease goes stale. */
+export const heldTailAnswer = (): PaymentFailureResult => ({
+  error: "Payment is being processed. Please wait a moment and refresh.",
+  status: 409,
+  success: false,
+});
+
 /** Finish a booked session's tail on a replay. Claim the notification,
- * save the answers, and queue the notification once. The answers save is a
+ * save the answers, and run the notification once. The answers save is a
  * whole replace, so a re-run lands the same rows. The work row's payload
- * carries the ticket token and free texts. The notification is then
- * identical to the first delivery's, even when the stored tokens are gone.
+ * carries the ticket token and free texts, so the notification matches the
+ * first delivery's even when the stored tokens are gone.
  *
  * `fallbackToken` is the session's stored token, for a booking that
  * predates the work table. The conflict surface holds one. The ledger
- * surface holds none. Without any token the emails cannot render a working
- * check-in link, so the notification defers to the admin re-send. A resume
- * failure releases the lease and throws, so the provider redelivers. */
+ * surface holds none, so its emails defer to the admin re-send.
+ *
+ * Returns the answer to give instead of success: a held lease answers
+ * retryably, because its owner can die before finishing. */
 export const resumeBookedSessionTail = async (
   sessionId: string,
   attendeeId: number,
   session: ValidatedSession["session"],
   intent: BookingIntent,
   fallbackToken: string | null,
-): Promise<void> => {
+): Promise<PaymentResult | null> => {
   const listingIds = await bookedListingIds(attendeeId);
-  if (listingIds.length === 0) return;
+  if (listingIds.length === 0) return null;
   let work = await claimRegistrationWorkOrNull(sessionId);
   if (work === null) {
+    // A missing row is owed work. Bookings completed before this table were
+    // copied in stamped delivered by its migration. A delivered row lives
+    // with its booking, so no completed booking loses its row.
     if (fallbackToken === null) {
       // No work row and no stored token: the booking predates the work
       // table, and no plaintext token was ever sealed for it. The durable
@@ -88,42 +106,55 @@ export const resumeBookedSessionTail = async (
         sessionId,
         "No notification payload was ever sealed for this booking.",
       );
-      return;
+      return null;
     }
-    await insertRegistrationWorkClaim(sessionId, {
+    // One atomic sequence decides ownership. The insert wins a missing row,
+    // a claimable row leases, and a held or delivered row answers from its
+    // actual state. An invented claim notifies twice.
+    work = await claimOrInsertRegistrationWork(sessionId, {
       ticketToken: fallbackToken,
     });
-    work = { kind: "claimed", payload: { ticketToken: fallbackToken } };
   }
-  if (work.kind !== "claimed") {
-    // Delivered: the notification already committed. Owned: a live delivery
-    // holds the lease and finishes the tail.
-    return;
+  if (work.kind === "delivered") return null;
+  if (work.kind === "owned") {
+    // A held lease is not a finished tail: its holder can die after
+    // claiming. Answer retryably so the provider comes back.
+    return heldTailAnswer();
   }
   const payload = work.payload;
-  // A line whose listing is gone since the booking drops loudly: no
-  // notification can name a deleted listing. A booking with no live lines
-  // marks the work delivered, because the notification is genuinely
-  // impossible and the admin re-send is its only path.
-  const entries = await committedLiveEntries(listingIds, {
-    attendeeId,
-    intent,
-    session,
-    ticketToken: payload.ticketToken,
-  });
-  if (entries.length === 0) {
-    await logNotificationDeferred(
-      sessionId,
-      "Every one of its lines lost its listing.",
+  try {
+    // A line whose listing is gone since the booking drops loudly: no
+    // notification can name a deleted listing. A booking with no live lines
+    // marks the work delivered, because the notification is genuinely
+    // impossible and the admin re-send is its only path.
+    const entries = await committedLiveEntries(listingIds, {
+      attendeeId,
+      intent,
+      session,
+      ticketToken: payload.ticketToken,
+    });
+    if (entries.length === 0) {
+      await logNotificationDeferred(
+        sessionId,
+        "Every one of its lines lost its listing.",
+      );
+      await markRegistrationWorkDelivered(sessionId);
+      return null;
+    }
+    await saveSessionAnswers(entries, intent);
+    await deliverRegistrationWork(sessionId, () =>
+      logAndNotifyRegistration(entries, {
+        awaitNotifications: true,
+        freeTexts: payloadFreeTexts(payload),
+        siteTokenIndex: intent.siteTokenIndex,
+      }),
     );
-    await markRegistrationWorkDelivered(sessionId);
-    return;
+  } catch (error) {
+    // The failure happened after claiming, before the notification's own
+    // release boundary. Free the lease, so the redelivery this throw causes
+    // claims fresh instead of finding a held lease.
+    await releaseRegistrationWork(sessionId);
+    throw error;
   }
-  await saveSessionAnswers(entries, intent);
-  await deliverRegistrationWork(sessionId, () =>
-    logAndNotifyRegistration(entries, {
-      freeTexts: payloadFreeTexts(payload),
-      siteTokenIndex: intent.siteTokenIndex,
-    }),
-  );
+  return null;
 };

@@ -368,7 +368,7 @@ export const attendeeTables: [name: string, table: Table][] = [
     // notification to whichever delivery can finish it. It is born beside
     // the booking in the creation batch. A committed booking always has its
     // payload: the ticket token and the typed free texts. The payload is
-    // sealed with DB_ENCRYPTION_KEY and keyed by the HMAC of the session
+    // sealed with DB_ENCRYPTION_KEY. The row key is the HMAC of the session
     // id. For SumUp the id is the checkout reference, which must never rest
     // in this database.
     //
@@ -376,12 +376,14 @@ export const attendeeTables: [name: string, table: Table][] = [
     // lives per row, and a claimant that goes stale loses it, so two
     // deliveries cannot both notify. `delivered_at` is the registration
     // completion marker. No other writer sets it, and it exists for
-    // bookings with no questions at all. Delivered rows prune on the
-    // payments clock.
+    // bookings with no questions at all. A row lives with its booking: the
+    // attendee delete removes it, and no age prune touches it. A late
+    // replay therefore always finds the completion marker.
     "registration_notification_work",
     {
       columns: [
         ["session_index", "TEXT PRIMARY KEY"],
+        ["attendee_id", "INTEGER"],
         ["sealed", "TEXT NOT NULL"],
         ["claimed_at", "TEXT"],
         ["delivered_at", "TEXT"],

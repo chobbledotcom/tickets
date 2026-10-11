@@ -180,13 +180,16 @@ const queueRegistrationNotifications = async (
     await reportRegistrationDeliveryError();
     throw error;
   }
-  addPendingWork(
-    sendRegistrationNotifications(entries, currency, packageFacts, freeTexts),
+  await sendRegistrationNotifications(
+    entries,
+    currency,
+    packageFacts,
+    freeTexts,
   );
 };
 
 /** Report background work that died after a booking was already paid for.
- * addPendingWork settles rejections silently, so without this the buyer keeps
+ * addPendingWork settles rejections silently. Without this the buyer keeps
  * the ticket and the operator never learns the site or its credit was lost. */
 const reportAfterBookingFailure =
   (detail: string) =>
@@ -199,6 +202,10 @@ const reportAfterBookingFailure =
  * facts, extra activity-log lines, the renewal token's hash, and the entries
  * the site assignment sees. */
 export interface NotifyRegistrationOptions {
+  /** Await the confirmation webhook and email instead of parking them. A
+   * work row's delivered stamp needs this: the stamp must prove the
+   * notification finished, not that a pending promise exists. */
+  awaitNotifications?: boolean | undefined;
   /** The buyer's typed free-text answers. The strings table keeps them sealed
    * to the owner key, which no notification path can spend, so the booking
    * request hands the plaintext it already holds to the confirmation email. */
@@ -230,14 +237,21 @@ export const logAndNotifyRegistration = async (
     })),
   ]);
   const currency = settings.currency;
-  addPendingWork(
-    queueRegistrationNotifications(
-      entries,
-      currency,
-      options.packageFacts,
-      options.freeTexts,
-    ),
+  const notifications = queueRegistrationNotifications(
+    entries,
+    currency,
+    options.packageFacts,
+    options.freeTexts,
   );
+  // A work row's completion marker must prove the notification finished, so
+  // its delivery awaits the sends instead of parking them. A pending promise
+  // dies with the request, and a crash after the marker skips the
+  // notification on every later replay.
+  if (options.awaitNotifications) {
+    await notifications;
+  } else {
+    addPendingWork(notifications);
+  }
   addPendingWork(
     assignAndNotifyBuiltSites(options.siteAssignmentEntries ?? entries).catch(
       reportAfterBookingFailure(

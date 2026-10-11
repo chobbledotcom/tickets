@@ -7,7 +7,10 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import { logActivities } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
-import { registrationWorkStatements } from "#db/registration-notification-work.ts";
+import {
+  prepareRegistrationWork,
+  registrationWorkStatements,
+} from "#db/registration-notification-work.ts";
 import {
   alreadyProcessedResult,
   bookingSlot,
@@ -218,6 +221,10 @@ const preparationResult = async (options: PreparationOptions) => {
     provider: "stripe",
   };
 
+  const work = await prepareRegistrationWork(session.id, {
+    ticketToken: "stable-ticket-token",
+  });
+
   return createAttendeeForSession(
     session,
     intent,
@@ -244,9 +251,7 @@ const preparationResult = async (options: PreparationOptions) => {
     "stable-ticket-token",
     1,
     new Map(),
-    await registrationWorkStatements(session.id, {
-      ticketToken: "stable-ticket-token",
-    }),
+    (tokenIndex) => registrationWorkStatements(work, tokenIndex),
   );
 };
 

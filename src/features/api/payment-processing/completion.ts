@@ -9,6 +9,7 @@ import {
   saveSessionAnswers,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
+import { heldTailAnswer } from "#routes/api/payment-processing/replay-tail.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
@@ -30,15 +31,19 @@ export const completePaidBooking = async (
   // fails leaves the work row unclaimed for the next delivery.
   await saveSessionAnswers(createdEntries, intent);
   const work = await claimRegistrationWork(sessionId);
-  if (work.kind !== "claimed") {
-    // Delivered: the notification already committed. Owned: a live delivery
-    // holds the lease and finishes the tail. Either way this delivery must
-    // not notify again.
+  if (work.kind === "delivered") {
+    // The notification already committed. This delivery must not send again.
     return sessionSuccess(
       createdEntries[0]!.attendee.id,
       createdEntries[0]!.listing.id,
       ticketTokens,
     );
+  }
+  if (work.kind === "owned") {
+    // A held lease is not a finished tail: its holder can die after
+    // claiming. Answer retryably so the provider comes back after the
+    // holder finishes or the lease goes stale.
+    return heldTailAnswer();
   }
   const firstEntry = createdEntries[0]!;
   const promoActivities =
@@ -52,6 +57,7 @@ export const completePaidBooking = async (
       : [];
   await deliverRegistrationWork(sessionId, () =>
     logAndNotifyRegistration(createdEntries, {
+      awaitNotifications: true,
       freeTexts: payloadFreeTexts(work.payload),
       packageFacts: notificationPackages,
       priorActivities: promoActivities,

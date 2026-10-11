@@ -1,13 +1,15 @@
 /** The staged copy of a checkout's free-text answers: sealed at rest, keyed by
- * the hash of the session id, taken back and deleted in the round trip the
- * completion reads, and replaced when the same checkout is created again. */
+ * the hash of the session id, read back non-destructively by the completion,
+ * deleted by the creation batch that commits its replacement, and replaced
+ * when the same checkout is created again. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
+  discardCheckoutAnswersStatement,
+  readCheckoutAnswers,
   stageCheckoutAnswers,
-  takeCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
@@ -29,7 +31,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   test("stages sealed rows and gives them back by session id", async () => {
     await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" }, null);
 
-    expect(await takeCheckoutAnswers("cs_staged")).toEqual(
+    expect(await readCheckoutAnswers("cs_staged")).toEqual(
       new Map([[7, "Coming by bus"]]),
     );
   });
@@ -59,12 +61,19 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     });
   });
 
-  test("takes the row away, so a second take finds nothing", async () => {
+  test("reads twice without taking, and the discard statement deletes", async () => {
     await stageCheckoutAnswers("cs_taken", { "7": "Once only" }, null);
-    expect(await takeCheckoutAnswers("cs_taken")).toEqual(
+    expect(await readCheckoutAnswers("cs_taken")).toEqual(
       new Map([[7, "Once only"]]),
     );
-    expect(await takeCheckoutAnswers("cs_taken")).toEqual(new Map());
+    // The read is non-destructive: a crash before the creation batch commits
+    // leaves the texts staged for the retry.
+    expect(await readCheckoutAnswers("cs_taken")).toEqual(
+      new Map([[7, "Once only"]]),
+    );
+    const discard = await discardCheckoutAnswersStatement("cs_taken");
+    await execute(discard.sql, discard.args);
+    expect(await readCheckoutAnswers("cs_taken")).toEqual(new Map());
   });
 
   test("replaces what an earlier session id staged, and skips empty answers", async () => {
@@ -72,17 +81,17 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_replaced", { "8": "second try" }, null);
     await stageCheckoutAnswers("cs_empty", undefined, null);
 
-    expect(await takeCheckoutAnswers("cs_replaced")).toEqual(
+    expect(await readCheckoutAnswers("cs_replaced")).toEqual(
       new Map([[8, "second try"]]),
     );
-    expect(await takeCheckoutAnswers("cs_empty")).toEqual(new Map());
+    expect(await readCheckoutAnswers("cs_empty")).toEqual(new Map());
   });
 
-  test("spends one database call to take a row", async () => {
+  test("spends one database call to read a row", async () => {
     await stageCheckoutAnswers("cs_one_call", { "7": "count me" }, null);
 
     const calls = await countDatabaseCalls(1, () =>
-      takeCheckoutAnswers("cs_one_call"),
+      readCheckoutAnswers("cs_one_call"),
     );
 
     expect(calls).toBe(1);
@@ -101,8 +110,8 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
 
     await runDatabasePruning();
 
-    expect(await takeCheckoutAnswers("cs_abandoned")).toEqual(new Map());
-    expect(await takeCheckoutAnswers("cs_open")).toEqual(
+    expect(await readCheckoutAnswers("cs_abandoned")).toEqual(new Map());
+    expect(await readCheckoutAnswers("cs_open")).toEqual(
       new Map([[7, "still open"]]),
     );
   });
@@ -142,7 +151,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       await sessionIndexOf("cs_square"),
     ]);
     await runDatabasePruning();
-    expect(await takeCheckoutAnswers("cs_square")).toEqual(new Map());
+    expect(await readCheckoutAnswers("cs_square")).toEqual(new Map());
   });
 
   test("the Square fallback prunes answers past Square's own page lifetime", async () => {
@@ -171,7 +180,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     // No monitor ever ran and the handle row still stands, but past
     // Square's own 180-day clock the link cannot take payment.
     await runDatabasePruning();
-    expect(await takeCheckoutAnswers("cs_fallback")).toEqual(new Map());
+    expect(await readCheckoutAnswers("cs_fallback")).toEqual(new Map());
   });
 
   test("prunes a handle row past Square's own page lifetime, and keeps a younger one", async () => {

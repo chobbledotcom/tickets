@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne, withTransaction } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
@@ -122,7 +122,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
 
-    expect(await takeCheckoutAnswers(id)).toEqual(new Map());
+    expect(await readCheckoutAnswers(id)).toEqual(new Map());
     const body = fetch.getFetchJsonBody();
     expect(body.text).toContain("Anything else?: Arriving late");
   });
@@ -168,7 +168,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     );
 
     // The staged row survived the failed save, so a retry can still read it.
-    expect(await takeCheckoutAnswers(id)).toEqual(
+    expect(await readCheckoutAnswers(id)).toEqual(
       new Map([[freeText, "Arriving late"]]),
     );
   });

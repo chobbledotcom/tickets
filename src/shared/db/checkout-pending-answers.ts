@@ -1,10 +1,10 @@
 /**
  * The free-text answers a buyer typed, staged beside their checkout: sealed
- * with `DB_ENCRYPTION_KEY`, taken back by the completion in one round trip,
- * deleted with that read, and pruned once its checkout can no longer be paid. The
- * strings table keeps its owner-sealed copy, which the completion has no
- * session to spend, and checkout metadata cannot carry the text because
- * providers cap it.
+ * with `DB_ENCRYPTION_KEY`, read back non-destructively by the completion,
+ * deleted by the creation batch that commits the work row replacing them,
+ * and pruned once its checkout can no longer be paid. The strings table
+ * keeps its owner-sealed copy, which the completion has no session to spend,
+ * and checkout metadata cannot carry the text because providers cap it.
  *
  * Keyed by the HMAC of the session id, never the id itself: for SumUp it is
  * the checkout reference, which must never rest in this database — with it,
@@ -15,7 +15,7 @@
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, queryOne } from "#db/client.ts";
+import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";
@@ -55,17 +55,14 @@ export const stageCheckoutAnswers = async (
   );
 };
 
-/** Take back the answers staged for a checkout, deleting the row in the same
- * round trip. An email send that later fails loses nothing that matters: the
- * strings table keeps every answer sealed to the owner key, and the admin
- * resend can read it there. */
-export const takeCheckoutAnswers = async (
+/** Read back the answers staged for a checkout without deleting them. The
+ * staging row dies only when the creation batch commits its replacement,
+ * so a crash in between leaves the buyer's texts staged for the retry. */
+export const readCheckoutAnswers = async (
   sessionId: string,
 ): Promise<FreeTextAnswers> => {
   const row = await queryOne<StagedRow>(
-    `DELETE FROM checkout_pending_answers
-      WHERE session_index = ?
-      RETURNING sealed`,
+    "SELECT sealed FROM checkout_pending_answers WHERE session_index = ?",
     [await hmacHash(sessionId)],
   );
   if (row === null) return new Map();
@@ -80,3 +77,12 @@ export const takeCheckoutAnswers = async (
     ]),
   );
 };
+
+/** The staging row's delete, to ride inside the creation batch beside the
+ * work row that replaces it: one atomic commit, no destructive gap. */
+export const discardCheckoutAnswersStatement = async (
+  sessionId: string,
+): Promise<SqlStatement> => ({
+  args: [await hmacHash(sessionId)],
+  sql: "DELETE FROM checkout_pending_answers WHERE session_index = ?",
+});
