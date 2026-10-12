@@ -3,6 +3,7 @@ import type {
   OrderOptionState,
   OrderPools,
 } from "#shared/order/options.ts";
+import { clampDurationDays } from "#types";
 
 /**
  * Selections are honoured in the order they were added, so an earlier choice
@@ -21,58 +22,109 @@ import type {
 const listingPool = (listingId: number): string => `L${listingId}`;
 const groupPool = (groupId: number): string => `G${groupId}`;
 
-/** What one selection of an option takes from each pool: its per-listing units
- * plus, per capped group, the summed units of its listings in that group. */
-const demandOf = (
+/** The undated ledger day: a listing or group judged datelessly reads as one
+ * undated day, so dated and dateless pools share one ledger shape. */
+const UNDATED = "";
+
+/** Every demand entry, as flat pool, day, and units triples. */
+const demandEntries = function* (demand: Demand) {
+  for (const [pool, byDay] of demand) {
+    for (const [day, units] of byDay) yield { day, pool, units };
+  }
+};
+
+/** The pool's remaining on one day, or undefined when untracked. */
+const remainingOn = (ledger: Ledger, pool: string, day: string) =>
+  ledger.get(pool)?.get(day);
+
+/** The pool's day map, created on first use. */
+const dayMapOf = (
+  source: Demand | Ledger,
+  pool: string,
+): Map<string, number> => {
+  const byDay = source.get(pool) ?? new Map<string, number>();
+  source.set(pool, byDay);
+  return byDay;
+};
+
+/** What one selection of an option takes from each pool: its per-listing
+ * units over the days that listing's booking occupies (the option's declared
+ * spans, one undated day when no date is chosen), plus the same demand on
+ * each capped group the listing shares. Pool → day → units. */
+type Demand = Map<string, Map<string, number>>;
+
+/** The days one listing's demand occupies, from the option's declared spans. */
+const demandDaysOf = (
   option: OrderOption,
   pools: OrderPools,
-): Map<string, number> => {
-  const demand = new Map<string, number>();
+  listingId: number,
+): string[] => {
+  if (pools.days.length === 0) return [UNDATED];
+  if (!pools.remainingByListingDay.has(listingId)) return [UNDATED];
+  const span = option.spanDaysByListingId.get(listingId) ?? 1;
+  return pools.days.slice(0, clampDurationDays(span));
+};
+
+const demandOf = (option: OrderOption, pools: OrderPools): Demand => {
+  const demand: Demand = new Map();
+  const add = (pool: string, day: string, units: number) => {
+    const byDay = dayMapOf(demand, pool);
+    byDay.set(day, (byDay.get(day) ?? 0) + units);
+  };
   for (const [listingId, units] of option.unitsByListingId) {
-    demand.set(listingPool(listingId), units);
-    for (const groupId of pools.groupIdsByListingId.get(listingId) ?? []) {
-      const key = groupPool(groupId);
-      demand.set(key, (demand.get(key) ?? 0) + units);
+    for (const day of demandDaysOf(option, pools, listingId)) {
+      add(listingPool(listingId), day, units);
+      for (const groupId of pools.groupIdsByListingId.get(listingId) ?? []) {
+        add(groupPool(groupId), day, units);
+      }
     }
   }
   return demand;
 };
 
-/** The tracked pools and what is left in each. Pools without a limit are not
- * tracked (unlimited). */
-type PoolLedger = Map<string, number>;
+/** The tracked pools and what is left in each, pool → day → remaining. Pools
+ * without a limit are not tracked (unlimited). */
+type Ledger = Map<string, Map<string, number>>;
 
-const openLedger = (pools: OrderPools): PoolLedger => {
-  const ledger: PoolLedger = new Map();
+const openLedger = (pools: OrderPools): Ledger => {
+  const ledger: Ledger = new Map();
+  const put = (pool: string, day: string, remaining: number) => {
+    dayMapOf(ledger, pool).set(day, remaining);
+  };
   for (const [listingId, remaining] of pools.remainingByListingId) {
-    ledger.set(listingPool(listingId), remaining);
+    put(listingPool(listingId), UNDATED, remaining);
   }
   for (const [groupId, remaining] of pools.remainingByGroupId) {
-    ledger.set(groupPool(groupId), remaining);
+    put(groupPool(groupId), UNDATED, remaining);
+  }
+  for (const [listingId, byDay] of pools.remainingByListingDay) {
+    for (const [day, remaining] of byDay) {
+      put(listingPool(listingId), day, remaining);
+    }
+  }
+  for (const [groupId, byDay] of pools.remainingByGroupDay) {
+    for (const [day, remaining] of byDay) {
+      put(groupPool(groupId), day, remaining);
+    }
   }
   return ledger;
 };
 
-/** The first demanded pool the ledger cannot cover, or null when all fit. */
-const firstShortPool = (
-  ledger: PoolLedger,
-  demand: ReadonlyMap<string, number>,
-): string | null => {
-  for (const [pool, units] of demand) {
-    const remaining = ledger.get(pool);
-    if (remaining !== undefined && remaining < units) return pool;
-  }
-  return null;
+/** The first demanded pool day the ledger cannot cover, or null when all fit. */
+const firstShortPool = (ledger: Ledger, demand: Demand): string | null => {
+  const short = [...demandEntries(demand)].find(({ day, pool, units }) => {
+    const remaining = remainingOn(ledger, pool, day);
+    return remaining !== undefined && remaining < units;
+  });
+  return short?.pool ?? null;
 };
 
-/** Take the demand out of every tracked pool (demand on untracked/unlimited
- * pools needs no bookkeeping). */
-const commit = (
-  ledger: PoolLedger,
-  demand: ReadonlyMap<string, number>,
-): void => {
-  for (const [pool, remaining] of ledger) {
-    ledger.set(pool, remaining - (demand.get(pool) ?? 0));
+/** Take the demand out of every tracked pool day (demand on untracked or
+ * unlimited pools needs no bookkeeping). */
+const commit = (ledger: Ledger, demand: Demand): void => {
+  for (const { day, pool, units } of demandEntries(demand)) {
+    const remaining = remainingOn(ledger, pool, day);
+    if (remaining !== undefined) ledger.get(pool)!.set(day, remaining - units);
   }
 };
 
@@ -85,7 +137,7 @@ const judgeable = (option: OrderOption, dateChosen: boolean): boolean =>
 const judgeOption = (
   option: OrderOption,
   pools: OrderPools,
-  ledger: PoolLedger,
+  ledger: Ledger,
   committed: readonly OrderOption[],
   dateChosen: boolean,
 ): OrderOptionState => {

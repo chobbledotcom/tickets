@@ -2,14 +2,23 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { N_PLUS_ONE_THRESHOLD } from "#db/query-log.ts";
-import { loadOrderCatalog } from "#routes/public/order-catalog.ts";
+import {
+  judgeOrderOptions,
+  loadOrderCatalog,
+} from "#routes/public/order-catalog.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   enablePublicOrder,
+  expectState,
   fetchAvailability,
+  nextWeekday,
   orderDate,
 } from "#test/features/public/order/helpers.ts";
+import {
+  createEarlyWeekPair,
+  createSpanKitPair,
+} from "#test/shared/booking/option-demand/cases.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -28,15 +37,6 @@ const sharedChildParents = async (childName: string, maxAttendees: number) => {
   await listingChildren.setIds(parentA.id, [child.id]);
   await listingChildren.setIds(parentB.id, [child.id]);
   return { parentA, parentB };
-};
-
-/** Assert one option's live state on the availability endpoint. */
-const expectState = (
-  states: Record<string, { state: string; label: string }>,
-  listing: { id: number },
-  expected: { label: string; state: string },
-): void => {
-  expect(states[`listing:${listing.id}`]).toEqual(expected);
 };
 
 /**
@@ -211,18 +211,7 @@ describeWithEnv(
         // The fixed 3-day parent folds its sole customisable child at 3 days,
         // so the child's pool must cover every day of that span: a child full
         // on the second day reads unavailable, as the form refuses it.
-        const child = await createDailyTestListing({
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 2000, 3: 3000 },
-          durationDays: 3,
-          maxAttendees: 1,
-          name: "Span Kit",
-        });
-        const parent = await createDailyTestListing({
-          durationDays: 3,
-          name: "Three Day Trip",
-        });
-        await listingChildren.setIds(parent.id, [child.id]);
+        const { child, parent } = await createSpanKitPair();
         await bookAttendee(child, {
           date: addDays(orderDate(), 1),
           durationDays: 1,
@@ -235,12 +224,12 @@ describeWithEnv(
         });
       });
 
-      test("charges nothing when the fold does not hold at every offered span", async () => {
+      test("charges the child at the span the form can book", async () => {
         // The customisable parent offers 1-3 days and its sole child serves
-        // only one day: the fold resolves at the first span but not at the
-        // later spans. The buyer's choice decides there, so no child quantity
-        // is guaranteed and the gallery charges none — the rival parent
-        // contending for the child pool stays available.
+        // only one day: the form can book the parent at one day and folds
+        // the child there, so that unit leaves the child pool and the rival
+        // parent contending for it reads blocked — exactly what the form
+        // refuses.
         const child = await createDailyTestListing({
           maxAttendees: 1,
           name: "One Day Kit",
@@ -259,7 +248,91 @@ describeWithEnv(
           `select_${parent.id}=1&start_date=${orderDate()}`,
         );
         expectState(data.states, parent, { label: "", state: "selected" });
-        expectState(data.states, rival, { label: "", state: "available" });
+        expectState(data.states, rival, {
+          label: "Remove Any Length Trip to add",
+          state: "blocked",
+        });
+      });
+
+      test("a customisable parent folds its child at the one span the child serves", async () => {
+        // The parent prices 1-3 days; its sole required child prices only
+        // one day, and a fixed one-day rival parent requires the same child.
+        // The form can book the parent at one day only, folding the child
+        // there — so the rival parent, needing the child's last spot, reads
+        // blocked.
+        const child = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 500 },
+          durationDays: 1,
+          maxAttendees: 1,
+          name: "Single Day Kit",
+        });
+        const flexible = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 2000, 3: 3000 },
+          durationDays: 3,
+          name: "Flexible Trip",
+        });
+        const oneDay = await createDailyTestListing({
+          durationDays: 1,
+          name: "One Day Trip",
+        });
+        await listingChildren.setIds(flexible.id, [child.id]);
+        await listingChildren.setIds(oneDay.id, [child.id]);
+
+        const data = await fetchAvailability(
+          `select_${flexible.id}=1&start_date=${orderDate()}`,
+        );
+        expectState(data.states, flexible, { label: "", state: "selected" });
+        expectState(data.states, oneDay, {
+          label: "Remove Flexible Trip to add",
+          state: "blocked",
+        });
+      });
+
+      test("judges each fixed parent over the span its own fold occupies", async () => {
+        // A one-day and a three-day parent share a customisable child with
+        // one spot; the child is free on the start day and full the day
+        // after. The one-day parent's fold needs the child on the start day
+        // only, the three-day parent's fold needs it on every day of its
+        // span — so the same child reads roomy to one parent and full to the
+        // other.
+        const { child, parent: long } = await createSpanKitPair();
+        const short = await createDailyTestListing({
+          durationDays: 1,
+          name: "One Day Trip",
+        });
+        await listingChildren.setIds(short.id, [child.id]);
+        await bookAttendee(child, {
+          date: addDays(orderDate(), 1),
+          durationDays: 1,
+        });
+
+        const data = await fetchAvailability(`start_date=${orderDate()}`);
+        expectState(data.states, short, { label: "", state: "available" });
+        expectState(data.states, long, {
+          label: "Sold Out",
+          state: "unavailable",
+        });
+      });
+
+      test("a child that cannot hold the parent's span refuses the start date", async () => {
+        // The fixed three-day parent's sole customisable child serves early
+        // weekdays only: starting Wednesday, the span runs into days the
+        // child refuses, and the form cannot book it — the parent reads sold
+        // out. Starting Monday, the child holds the whole span.
+        const { parent } = await createEarlyWeekPair();
+        const monday = nextWeekday(orderDate(), "Monday");
+        const wednesday = nextWeekday(monday, "Wednesday");
+
+        const atWednesday = await fetchAvailability(`start_date=${wednesday}`);
+        expectState(atWednesday.states, parent, {
+          label: "Sold Out",
+          state: "unavailable",
+        });
+
+        const atMonday = await fetchAvailability(`start_date=${monday}`);
+        expectState(atMonday.states, parent, { label: "", state: "available" });
       });
     });
 
@@ -293,8 +366,9 @@ describeWithEnv(
         );
         // One hydration covers every parent's children, so the catalog's
         // reads stay flat in the parent count (a per-parent read costs about
-        // two each), and the fold still charges the shared child.
-        const option = catalog.options.find(
+        // two each), and judging — which adds no reads — still charges the
+        // shared child.
+        const option = judgeOrderOptions(catalog, null, []).find(
           (o) => o.key === `listing:${parentIds[0]}`,
         );
         expect(option?.unitsByListingId.get(child.id)).toBe(1);

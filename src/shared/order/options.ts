@@ -1,15 +1,15 @@
 import type { GroupIdsByListingId } from "#shared/group-capacity.ts";
 
 /**
- * The **order selection model** — the pure core behind ordering surfaces (the
- * public order gallery today; an admin "start a booking on this day" surface
- * can reuse it). An {@link OrderOption} is one selectable thing (a listing or
- * a whole package) described purely by data: which listing units one selection
- * books, whether judging it needs a chosen date, and whether it is bookable at
- * all right now. The evaluator (see ./evaluate.ts) subtracts a visitor's
- * selections from shared capacity pools, in added order, to decide what else
- * still fits —
- * context-agnostic and IO-free, so any surface can drive it.
+ * The **order selection model** — the pure core behind ordering surfaces. The
+ * public order gallery uses it today, and an admin "start a booking on this
+ * day" surface can reuse it. An {@link OrderOption} is one selectable thing:
+ * a listing or a whole package, described purely by data. The data names the
+ * listing units one selection books, whether judging needs a chosen date, and
+ * whether the option is bookable at all right now. The evaluator (see
+ * ./evaluate.ts) subtracts a visitor's selections from shared capacity pools,
+ * in added order, to decide what else still fits. It is context-agnostic and
+ * IO-free, so any surface can drive it.
  */
 
 /** One selectable thing on an ordering surface. */
@@ -20,6 +20,11 @@ export type OrderOption = {
   name: string;
   /** Listing units ONE selection of this option books (listing id → units). */
   unitsByListingId: ReadonlyMap<number, number>;
+  /** The days each listing's units occupy from the chosen start date — the
+   * form's own span rules, from the option's demand judge (listing id →
+   * days; a listing absent from the map occupies one day). Only read when a
+   * date is chosen. */
+  spanDaysByListingId: ReadonlyMap<number, number>;
   /** Whether availability can only be judged once a date is chosen (the
    * option books a daily listing). */
   needsDate: boolean;
@@ -29,13 +34,22 @@ export type OrderOption = {
 };
 
 /** The shared capacity pools selections draw from, resolved by the caller for
- * the chosen date (or datelessly when none is chosen). A listing/group absent
- * from its map is unlimited. */
+ * the chosen date, or datelessly when none is chosen. A listing or group
+ * absent from its maps is unlimited. Day-judged listings and groups carry
+ * per-day remaining over the chosen date's span. Everything else carries its
+ * running-total remaining. */
 export type OrderPools = {
+  /** The chosen date's span days, earliest first. Empty when no date is
+   * chosen — every pool then reads datelessly. */
+  days: readonly string[];
   /** Remaining units per listing (its own cap ∩ its groups' caps). */
   remainingByListingId: ReadonlyMap<number, number>;
-  /** Remaining units per capped group. */
+  /** Remaining units per day-judged listing, per day. */
+  remainingByListingDay: ReadonlyMap<number, ReadonlyMap<string, number>>;
+  /** Remaining units per capped group (undated). */
   remainingByGroupId: ReadonlyMap<number, number>;
+  /** Remaining units per capped group, per day. */
+  remainingByGroupDay: ReadonlyMap<number, ReadonlyMap<string, number>>;
   /** Group ids each listing belongs to. */
   groupIdsByListingId: GroupIdsByListingId;
 };
@@ -75,6 +89,7 @@ export const listingOption = (
   key: listingOptionKey(listing.id),
   name: listing.name,
   needsDate: listing.listing_type === "daily",
+  spanDaysByListingId: new Map(),
   unitsByListingId: new Map([[listing.id, listing.min_quantity]]),
 });
 
@@ -90,6 +105,7 @@ export const packageOption = (
   key: packageOptionKey(group.id),
   name: group.name,
   needsDate: members.some((member) => member.listing_type === "daily"),
+  spanDaysByListingId: new Map(),
   unitsByListingId: new Map(
     members.map((member) => [member.id, quantities.get(member.id) ?? 1]),
   ),

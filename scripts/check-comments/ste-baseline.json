@@ -220,10 +220,9 @@
   },
   "src/features/public/order.ts": {
     "present-perfect": 1,
-    "long-sentence": 4,
-    "semicolon": 2,
-    "contraction": 3,
-    "banned-modal": 2
+    "long-sentence": 3,
+    "semicolon": 1,
+    "contraction": 2
   },
   "src/features/public/pages.ts": {
     "semicolon": 3,
@@ -1725,7 +1724,7 @@
     "participle": 1
   },
   "src/shared/order/options.ts": {
-    "long-sentence": 3,
+    "long-sentence": 1,
     "semicolon": 1,
     "banned-modal": 1
   },

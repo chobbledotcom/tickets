@@ -1,5 +1,6 @@
 import { intersect } from "@std/collections";
 import type { CartLengthItem } from "#booking/cart-conflicts.ts";
+import { childKindOf, SPAN_RULES } from "#booking/span-rules.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -78,11 +79,15 @@ export const childHasDateOrStockForDays =
 export const childDateOk =
   (date: string | null, holidays: Holiday[], duration: number) =>
   (child: TicketListing): boolean => {
-    if (child.listing.listing_type !== "daily") return true;
+    const kind = childKindOf(child.listing);
+    if (kind === "standard") return true;
     if (!date) return false;
-    return child.listing.customisable_days
-      ? isBookingRangeValid(child.listing, date, duration, holidays)
-      : getBookableStartDates(child.listing, holidays).includes(date);
+    return SPAN_RULES[kind].childDateOk(
+      child.listing,
+      date,
+      duration,
+      holidays,
+    );
   };
 
 /** Checks one parent plus one child can fit in their shared group. */
@@ -130,13 +135,23 @@ export const childDaysFromParent = <T extends number | null>(
   >,
   customisableValue: T,
   standardValue: T,
-): T => {
-  if (parent.customisable_days) return customisableValue;
-  if (parent.listing_type === "daily") {
-    return clampDurationDays(parent.duration_days) as T;
-  }
-  return standardValue;
-};
+): T =>
+  SPAN_RULES[childKindOf(parent)].parentValue(
+    parent,
+    customisableValue,
+    standardValue,
+  );
+
+/** The booking duration a parent's customisable children inherit. It is the
+ * shared `dayCount` for a customisable parent, the fixed `duration_days` for
+ * a fixed daily parent, and 1 for a standard parent. */
+export const parentResolvedDuration = (
+  parent: Pick<
+    ListingWithCount,
+    "customisable_days" | "duration_days" | "listing_type"
+  >,
+  dayCount: number,
+): number => childDaysFromParent(parent, dayCount, 1);
 
 /** A parent's fixed day count, or null when the buyer chooses it. */
 export const fixedParentDays = (
@@ -249,13 +264,8 @@ const dayCountsEveryListingSupports = (listings: TicketListing[]): number[] => {
 /** Day counts a required child supports, or null when any count is fine. */
 export const dayCountsChildSupports = (
   child: Pick<TicketListing, "listing">,
-): number[] | null => {
-  if (child.listing.customisable_days) return availableDayCounts(child.listing);
-  if (child.listing.listing_type === "daily") {
-    return [clampDurationDays(child.listing.duration_days)];
-  }
-  return null;
-};
+): number[] | null =>
+  SPAN_RULES[childKindOf(child.listing)].childSpans(child.listing);
 
 /** Whether a required child can serve a booking of exactly `days` days:
  * standard children serve any span, a fixed daily child only its own, and a

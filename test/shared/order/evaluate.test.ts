@@ -18,13 +18,17 @@ const option = (
   key,
   name: key,
   needsDate: false,
+  spanDaysByListingId: new Map(),
   unitsByListingId: new Map(units),
   ...over,
 });
 
 const pools = (over: Partial<OrderPools> = {}): OrderPools => ({
+  days: [],
   groupIdsByListingId: new Map(),
+  remainingByGroupDay: new Map(),
   remainingByGroupId: new Map(),
+  remainingByListingDay: new Map(),
   remainingByListingId: new Map(),
   ...over,
 });
@@ -395,5 +399,75 @@ describe("evaluateOrder — group pools", () => {
       false,
     );
     expect(states.get("listing:1")).toEqual({ kind: "unavailable" });
+  });
+});
+
+describe("evaluateOrder — spans", () => {
+  const start = "2026-03-02";
+  /** Listing 1 has one unit left on the start day and `unitsAfterStart` the
+   * day after. */
+  const dayPools = (unitsAfterStart: number) =>
+    pools({
+      days: [start, "2026-03-03"],
+      remainingByListingDay: new Map([
+        [
+          1,
+          new Map([
+            [start, 1],
+            ["2026-03-03", unitsAfterStart],
+          ]),
+        ],
+      ]),
+    });
+  /** The same pair of options judged over different spans of listing 1. */
+  const oneDay = option("listing:1", [[1, 1]], {
+    name: "One Day Trip",
+    spanDaysByListingId: new Map([[1, 1]]),
+  });
+  const twoDay = option("listing:2", [[1, 1]], {
+    name: "Two Day Trip",
+    spanDaysByListingId: new Map([[1, 2]]),
+  });
+
+  test("a demand judged over one day fits where a longer span cannot", () => {
+    // The same shared listing pool: one option takes a unit on the start day
+    // only, the other's booking occupies both days. The first fits, the
+    // second never does — each judged over its own span.
+    const states = evaluateOrder([oneDay, twoDay], dayPools(0), [], true);
+    expect(kindsOf(states)).toEqual({
+      "listing:1": "available",
+      "listing:2": "unavailable",
+    });
+  });
+
+  test("a committed short span still holds only its own days", () => {
+    // The selected one-day booking takes the start day's unit; a later
+    // two-day option is blocked by it (the day after was already full), while
+    // the committed demand never reaches into days its own span does not
+    // occupy.
+    const states = evaluateOrder(
+      [oneDay, twoDay],
+      dayPools(1),
+      ["listing:1"],
+      true,
+    );
+    expect(states.get("listing:1")).toEqual({ kind: "selected" });
+    expect(states.get("listing:2")).toEqual({
+      byKey: "listing:1",
+      byName: "One Day Trip",
+      kind: "blocked",
+    });
+  });
+
+  test("an option without a declared span judges the start day alone", () => {
+    // A day-judged pool with no span on the option: the demand reads the
+    // start day alone.
+    const states = evaluateOrder(
+      [option("listing:1", [[1, 1]])],
+      dayPools(0),
+      [],
+      true,
+    );
+    expect(states.get("listing:1")).toEqual({ kind: "available" });
   });
 });

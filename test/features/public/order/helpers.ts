@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { settings } from "#db/settings.ts";
@@ -6,6 +7,7 @@ import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 import { expectStatus } from "#test-utils/assertions.ts";
+import { weekdayOf } from "#test-utils/booking-model-fixtures.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -47,3 +49,21 @@ export const fetchAvailability = async (
 /** A start date comfortably inside every daily listing's booking window. */
 export const orderDate = (): DateString =>
   addDays(testDate(todayInTz("UTC")), 2);
+
+/** The next date after `from` whose weekday is `name`. */
+export const nextWeekday = (from: DateString, name: string): DateString => {
+  for (let days = 1; days <= 7; days++) {
+    const date = addDays(from, days);
+    if (weekdayOf(date) === name) return date;
+  }
+  throw new Error(`No ${name} after ${from}`);
+};
+
+/** Assert one option's live state on the availability endpoint. */
+export const expectState = (
+  states: Record<string, { state: string; label: string }>,
+  listing: { id: number },
+  expected: { label: string; state: string },
+): void => {
+  expect(states[`listing:${listing.id}`]).toEqual(expected);
+};

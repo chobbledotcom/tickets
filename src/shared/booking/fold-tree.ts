@@ -2,9 +2,9 @@ import { formatAtomicError, parseCustomPrice } from "#booking/form.ts";
 import {
   childCanBeBooked,
   childDateOk,
-  childDaysFromParent,
   childPassesAllChecks,
   childSupportsDays,
+  parentResolvedDuration,
   type TicketListing,
 } from "#booking/model.ts";
 import { nodesDeepestFirst } from "#booking/node-order.ts";
@@ -36,15 +36,6 @@ import { parseNonNegativeInt } from "#shared/validation/number.ts";
  * availability, and fetches holidays, then hands them in — so this walk is a
  * direct function of its inputs.
  */
-
-/** The booking duration a parent's customisable children inherit:
- * the shared `dayCount` for a customisable parent, fixed `duration_days` for a
- * fixed daily parent, 1 for a standard parent. Specialises the shared
- * {@link childDaysFromParent} with `(dayCount, 1)`. */
-export const parentResolvedDuration = (
-  parent: TicketListing["listing"],
-  dayCount: number,
-): number => childDaysFromParent(parent, dayCount, 1);
 
 /** Order context the candidate child must be bookable against: inherited
  * duration, resolved date, active holidays. */
