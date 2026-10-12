@@ -10,7 +10,7 @@ import type { ListingWithCount } from "#types";
 
 export const today = (): string => todayInTz("UTC");
 
-export const weekdayOf = (dateStr: string): string =>
+export const weekdayOf = (dateStr: string): (typeof DAY_NAMES)[number] =>
   DAY_NAMES[new Date(`${dateStr}T00:00:00Z`).getUTCDay()]!;
 
 export const listing = (

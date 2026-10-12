@@ -263,5 +263,10 @@ describeWithEnv(
         expect(folded.ok, testCase.name).toBe(testCase.foldsDateless ?? false);
       }
     });
+
+    test("nameOf refuses a listing id no fixture holds", async () => {
+      const built = await CASES[0]!.build();
+      expect(() => nameOf(built, -1)).toThrow("Unknown listing -1");
+    });
   },
 );

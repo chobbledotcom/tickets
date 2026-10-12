@@ -3,6 +3,7 @@ import { afterEach, beforeEach } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { DAY_NAMES } from "#shared/day-names.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
@@ -50,13 +51,16 @@ export const fetchAvailability = async (
 export const orderDate = (): DateString =>
   addDays(testDate(todayInTz("UTC")), 2);
 
-/** The next date after `from` whose weekday is `name`. */
-export const nextWeekday = (from: DateString, name: string): DateString => {
-  for (let days = 1; days <= 7; days++) {
-    const date = addDays(from, days);
-    if (weekdayOf(date) === name) return date;
-  }
-  throw new Error(`No ${name} after ${from}`);
+/** The next date after `from` whose weekday is `name`. One of the next
+ * seven days always has the weekday, so a same-day answer rolls a week
+ * forward and the ring never misses. */
+export const nextWeekday = (
+  from: DateString,
+  name: (typeof DAY_NAMES)[number],
+): DateString => {
+  const offset =
+    (DAY_NAMES.indexOf(name) - DAY_NAMES.indexOf(weekdayOf(from)) + 7) % 7;
+  return addDays(from, offset || 7);
 };
 
 /** Assert one option's live state on the availability endpoint. */

@@ -6,6 +6,7 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { foldBookingTree, resolvedByNodeKey } from "#booking/fold-tree.ts";
+import { requiredMapValue } from "#fp";
 import {
   buildTicketListing,
   type ChildrenByParent,
@@ -139,7 +140,13 @@ const choiceForm = (built: BuiltCase): FormParams => {
   return new FormParams([
     [
       childQuantityFieldName(parent.listing.id, child.listing.id),
-      String(built.quantities.get(parent.listing.id) ?? 1),
+      String(
+        requiredMapValue(
+          built.quantities,
+          parent.listing.id,
+          "A case's choice form needs its parent quantity",
+        ),
+      ),
     ],
   ]);
 };
