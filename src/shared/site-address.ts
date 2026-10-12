@@ -35,8 +35,9 @@ export const visitSiteUrl = (siteUrl: string): string | undefined => {
   // hostname with a port. "javascript:alert(1)" and "ftp://example.com" bear
   // a scheme that no visit link can carry.
   const scheme = /^([a-z][a-z0-9+.-]*):([^/]*)(\/.*)?$/i.exec(siteUrl);
-  const bare = scheme === null || /^\d+$/.test(scheme[2]);
-  if (scheme !== null && !bare && !/^https?$/i.test(scheme[1])) return;
+  // Both groups always take part in a match, so a match always holds them.
+  const bare = scheme === null || /^\d+$/.test(scheme[2]!);
+  if (scheme !== null && !bare && !/^https?$/i.test(scheme[1]!)) return undefined;
   const withScheme = bare ? `https://${siteUrl}` : siteUrl;
   if (!URL.canParse(withScheme)) return;
   const url = new URL(withScheme);
