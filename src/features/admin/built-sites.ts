@@ -145,10 +145,9 @@ const runSiteUpdate = async (
   }
   return deployAndReport({
     deploy,
-    logPrefix: `Updated built site '${site.name}'`,
     onError: (message) => builtSiteTabError(id, "update", message),
     onSuccess: (message) => builtSiteTabSuccess(id, "update", message),
-    successPrefix: `Updated '${site.name}'`,
+    subject: { kind: "built_site", siteName: site.name },
   });
 };
 

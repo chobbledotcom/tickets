@@ -87,10 +87,9 @@ const deployUpdate = async (): Promise<Response> => {
 
   return deployAndReport({
     deploy: () => deployLatestReleaseToScript(),
-    logPrefix: "Software updated",
     onError: (message) => errorRedirect(UPDATE_PATH, message),
     onSuccess: (message) => redirect(UPDATE_PATH, message, true),
-    successPrefix: "Updated",
+    subject: { kind: "self" },
   });
 };
 

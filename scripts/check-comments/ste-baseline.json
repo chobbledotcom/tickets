@@ -2041,7 +2041,7 @@
   },
   "src/shared/site-update.ts": {
     "long-sentence": 3,
-    "semicolon": 2
+    "semicolon": 1
   },
   "src/shared/slug.ts": {
     "participle": 1
