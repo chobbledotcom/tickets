@@ -24,6 +24,7 @@ const SKIPPED_FOLDERS = [
   ".local-data",
   ".mutation-runs",
   ".pi-worktrees",
+  ".scratch",
   "cov",
   "cov_profile",
   "dist",
@@ -69,6 +70,11 @@ describe("what a mutation snapshot leaves behind", () => {
       expect(shouldCopySnapshotPath(`sub/${file}`)).toBe(false);
     });
   }
+
+  test("leaves the agent scratch folder behind at the top and inside", () => {
+    expect(shouldCopySnapshotPath(".scratch")).toBe(false);
+    expect(shouldCopySnapshotPath(".scratch/probe.test.ts")).toBe(false);
+  });
 
   test("copies an ordinary source file", () => {
     expect(shouldCopySnapshotPath("src/shared/dates.ts")).toBe(true);

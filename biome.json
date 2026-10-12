@@ -21,7 +21,8 @@
       "!src/ui/client/scanner.js",
       "!**/.pi-worktrees/**",
       "!**/.security-worktrees/**",
-      "!**/.mutation-runs/**"
+      "!**/.mutation-runs/**",
+      "!**/.scratch/**"
     ]
   },
   "formatter": {

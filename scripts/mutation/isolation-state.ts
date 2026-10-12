@@ -39,6 +39,7 @@ const SKIPPED_TOP_LEVEL_NAMES = new Set([
   ".local-data",
   ".mutation-runs",
   ".pi-worktrees",
+  ".scratch",
   "cov",
   "cov_profile",
   "dist",
