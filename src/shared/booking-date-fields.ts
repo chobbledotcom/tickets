@@ -12,7 +12,7 @@
 
 import { parentResolvedDuration } from "#booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
-import type { ListingWithCount } from "#types";
+import { clampDurationDays, type ListingWithCount } from "#types";
 
 /** The listing facts the row builder reads to derive a booking's date and
  *  duration. Narrower than the full listing so the helper stays pure over the
@@ -40,5 +40,7 @@ export const bookingDateFields = (
   dayCount = 1,
 ): { date: string | null; durationDays: number } => ({
   date: capacityDateFor(listing.listing_type, date),
-  durationDays: parentResolvedDuration(listing, dayCount),
+  // A legacy signed session can carry any day count, so the row clamps it
+  // even though the buyer's own path has already priced it.
+  durationDays: clampDurationDays(parentResolvedDuration(listing, dayCount)),
 });

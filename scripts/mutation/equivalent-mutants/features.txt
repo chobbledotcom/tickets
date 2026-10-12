@@ -176,12 +176,8 @@ src/features/public/pages.ts::renderContactPage.content~1090zn7  || → ?? audit
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity
 # reading applies again, and key halves that are always present.
-src/features/public/order.ts::bookingSpanDays~1ybe7gz  1 → 0 audited:12s8dvt # a stored daily listing's duration_days is at least 1, so Math.max never picks the floor
-src/features/public/order.ts::bookingSpanDays~1mmd8yc  1 → 0 audited:12s8dvt # the span of a listing not judged day by day is unused, and daysOfSpan clamps it back to one day anyway
-src/features/public/order.ts::widestSpanPerGroup~0ia21ee  ?? → || audited:12s8dvt # spanByGroupId holds spans of at least 1, so the only falsy value is undefined
-src/features/public/order.ts::widestSpanPerGroup~0ia21ee  1 → 0 audited:12s8dvt # the first span seen is at least 1, so Math.max returns it whichever starting value it is compared against
-src/features/public/order.ts::loadOrderPools.spanOf~08bj7h9  1 → 0 audited:0miz9v1 # with no date chosen nothing is judged day by day, and daysOfSpan clamps the span back to one day
-src/features/public/order.ts::loadOrderPools~15mruqs  1 → 0 audited:12s8dvt # every listing's span is at least 1, so the floor never wins; with no listings at all the reading has no days either way
+src/features/public/order.ts::loadOrderPools.widestSpanDays~1j2oze7  1 → 0 audited:17fmvrh # every listing's span is at least 1, so the floor never wins; with no listings at all the reading has no days either way
+src/features/public/order.ts::loadOrderPools.remainingByListingId~0l9tqt6  1 → 0 audited:17fmvrh # with no date chosen nothing is judged day by day, and daysOfSpan clamps the span back to one day
 src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated" audited:12s8dvt # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated" audited:12s8dvt # the same key always carries its id, so the id half is never missing
 
