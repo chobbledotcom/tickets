@@ -3,10 +3,13 @@
 
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { expectHtml } from "#test-utils/assertions.ts";
+import { assertJson, expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
-import { adminGet } from "#test-utils/session.ts";
+import {
+  bookTestAttendeeWithFlags,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
+import { adminGet, apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("pending notification badges", { db: true }, () => {
   test("a red badge says the email never went out for an online booking", async () => {
@@ -45,36 +48,54 @@ describeWithEnv("pending notification badges", { db: true }, () => {
     });
   });
 
-  test("a fields list with padded tokens still owes the email badge", async () => {
+  test("a fields list beside email still owes the email badge", async () => {
     const { listing } = await bookTestAttendeeWithFlags(
-      "Padded Fields Buyer",
+      "Listed Fields Buyer",
       1,
       0,
     );
-    // The admin API stores the fields string verbatim; the parser trims each
-    // comma token, so "email" is still a collected field.
-    await execute("UPDATE listings SET fields = 'phone, email' WHERE id = ?", [
+    // The stored form is trimmed tokens comma-joined, and the badge SQL
+    // compares whole tokens, so "email" beside "phone" is still a collected
+    // field.
+    await execute("UPDATE listings SET fields = 'phone,email' WHERE id = ?", [
       listing.id,
     ]);
 
     await expectHtml(await adminGet("/admin/attendees"), {
-      contains: ["Padded Fields Buyer", "Email not sent"],
+      contains: ["Listed Fields Buyer", "Email not sent"],
     });
   });
 
-  test("a whitespace-padded email token still owes the email badge", async () => {
-    const { listing } = await bookTestAttendeeWithFlags(
-      "Space Fields Buyer",
-      1,
-      0,
-    );
-    await execute("UPDATE listings SET fields = ' email ' WHERE id = ?", [
-      listing.id,
-    ]);
-
-    await expectHtml(await adminGet("/admin/attendees"), {
-      contains: ["Space Fields Buyer", "Email not sent"],
-    });
+  test("a listing the admin API stored from a padded fields string owes the email badge", async () => {
+    // The API write stores the parser's own read of the string, so a
+    // space- or non-breaking-space-padded "email" stores "email" — and the
+    // badge reads that stored token back. The direct booking leaves the
+    // flags unset, so the test raises the email flag the way a send that
+    // never got accepted would.
+    const padded = [
+      ["Api Space Buyer", " email "],
+      ["Api Narrow Buyer", "\u00a0email\u00a0"],
+    ] as const;
+    for (const [name, fields] of padded) {
+      const created = await assertJson<{ listing: { id: number } }>(
+        apiRequest("/api/admin/listings", {
+          body: { fields, max_attendees: 10, name },
+          method: "POST",
+        }),
+        201,
+      );
+      const { attendee } = await createTestAttendeeDirect(
+        created.listing.id,
+        name,
+        `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
+      );
+      await execute("UPDATE attendees SET email_pending = 2 WHERE id = ?", [
+        attendee.id,
+      ]);
+      await expectHtml(await adminGet("/admin/attendees"), {
+        contains: [name, "Email not sent"],
+      });
+    }
   });
 
   test("a field name that merely contains email owes no email badge", async () => {

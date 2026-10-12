@@ -6,6 +6,7 @@ import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
+  buyerConfirmationAttempted,
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email/registration.ts";
@@ -160,11 +161,13 @@ const sendRegistrationNotifications = async (
   send: RegistrationSend,
 ): Promise<void> => {
   const { entries, currency } = send;
-  // A send that had nothing to attempt — no email config or address, no
-  // webhook URL — reports `failed: false`. That is not an acceptance: the far
-  // side saw nothing, so it must not clear the flag that says a send is owed.
+  // A send that had nothing to attempt — no email config or buyer address,
+  // no webhook URL — reports `failed: false`. That is not an acceptance: the
+  // far side saw nothing, so it must not clear the flag that says a send is
+  // owed. The email flag is the buyer's confirmation. The owner's admin copy
+  // alone is a different message and never clears it.
   const webhooksAttempted = registrationWebhookUrls(entries).length > 0;
-  const emailAttempted = registrationEmailDelivery(entries) !== null;
+  const emailAttempted = buyerConfirmationAttempted(entries);
   const [webhookResult, emailResult] = await Promise.allSettled([
     sendRegistrationWebhooks(entries, currency, send.packageFacts),
     sendRegistrationEmails(

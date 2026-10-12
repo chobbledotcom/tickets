@@ -800,8 +800,8 @@
     "contraction": 1
   },
   "src/shared/db/attendees/queries.ts": {
-    "long-sentence": 12,
-    "contraction": 3,
+    "long-sentence": 11,
+    "contraction": 2,
     "semicolon": 6,
     "wordy": 4,
     "banned-modal": 2,

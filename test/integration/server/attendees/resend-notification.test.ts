@@ -3,12 +3,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import type { AttendeeInput } from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
 import { stubEdgeSecretSuccess } from "#test/integration/server/site-assignment-shared.ts";
+import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   adminAttendeeAction,
   setupAdminTest,
@@ -22,6 +24,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -46,7 +49,6 @@ describeWithEnv(
         name: string,
         email: string,
       ): Promise<Attendee> => {
-        const { attendeesApi } = await import("#db/attendees/api.ts");
         const result = await attendeesApi.createAttendeeAtomic({
           bookings,
           email,
@@ -192,12 +194,13 @@ describeWithEnv(
         return row!;
       };
 
-      test("a package-scoped resend beside another purchase clears no flags", async () => {
-        // The attendee holds two packages. The resend runs for the first
-        // booking's package alone: its accepted webhook never attempted the
-        // other package's send, so the attendee-wide flags stay up for a
-        // whole-attendee resend to clear.
-        await configureTestEmail();
+      test("one resend sends every booking's webhooks and email, then clears the flags", async () => {
+        // The attendee holds two packages, each with its own webhook, and
+        // both sends are owed. The resend is the whole-attendee recovery
+        // action: one invocation notifies EVERY booking — both webhooks and
+        // the buyer's plus the owner's email copy — and the accepted sends
+        // clear the attendee-wide flags.
+        await configureTestEmail({ businessEmail: "owner@example.com" });
         const listingA = await createTestListing({
           name: "Package A Show",
           webhookUrl: "https://a.example.com/hook",
@@ -211,8 +214,8 @@ describeWithEnv(
             { listingId: listingA.id, packageGroupId: 1, quantity: 1 },
             { listingId: listingB.id, packageGroupId: 2, quantity: 1 },
           ],
-          "Partial Resend",
-          "partial-resend@example.com",
+          "Whole Resend",
+          "whole-resend@example.com",
         );
         await execute(
           "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
@@ -222,18 +225,21 @@ describeWithEnv(
         using webhookFetch = stubFetch(new Response());
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
-          { confirm_identifier: "Partial Resend" },
+          { confirm_identifier: "Whole Resend" },
         );
         expect(response.status).toBe(302);
-        // Package A's webhook went out; package B's did not. (The stub sees
-        // the confirmation email's catcher too, so filter by URL.)
         const urls = webhookFetch.calls.map((call) => String(call.args[0]));
         expect(
           urls.filter((url) => url.includes("a.example.com")),
         ).toHaveLength(1);
         expect(
           urls.filter((url) => url.includes("b.example.com")),
-        ).toHaveLength(0);
+        ).toHaveLength(1);
+        // The buyer's copy and the owner's copy are two email deliveries to
+        // the provider.
+        expect(
+          urls.filter((url) => url.includes("api.resend.com")),
+        ).toHaveLength(2);
 
         const row = await queryOne<{
           email_pending: number;
@@ -242,7 +248,7 @@ describeWithEnv(
           "SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?",
           [attendee.id],
         );
-        expect(row).toEqual({ email_pending: 1, webhooks_pending: 1 });
+        expect(row).toEqual({ email_pending: 0, webhooks_pending: 0 });
       });
 
       test("a resend whose sends are accepted clears the pending flags", async () => {
@@ -272,9 +278,6 @@ describeWithEnv(
         expect(response.status).toBe(302);
 
         // Verify activity was logged
-        const { getListingActivityLog } = await import(
-          "#test-utils/activity-log.ts"
-        );
         const logs = await getListingActivityLog(listing.id);
         const resendLog = logs.find((l: { message: string }) =>
           l.message.includes("Notification re-sent"),
@@ -287,9 +290,6 @@ describeWithEnv(
         // The resend selects ONE member row, but the notification must carry
         // the attendee's whole package — otherwise a hidden package's
         // confirmation collapses to that single row's quantity/price.
-        const { createTestGroup } = await import(
-          "#test-utils/db-helpers/groups.ts"
-        );
         const group = await createTestGroup({
           isPackage: true,
           name: "Duo Kit",
@@ -346,13 +346,11 @@ describeWithEnv(
         expect(byName.get("Solo B")).toBe(2);
       });
 
-      test("a package resend never notifies another package or a standalone line", async () => {
-        // One attendee can hold several purchases. The selected package
-        // member's resend rehydrates ITS package alone — never the lines of
-        // another package on the same attendee.
-        const { createTestGroup } = await import(
-          "#test-utils/db-helpers/groups.ts"
-        );
+      test("a resend carries every booking the attendee holds", async () => {
+        // One attendee can hold several purchases. The resend is the
+        // recovery action for ALL of them: every package and every
+        // standalone line rides one invocation, or the purchases it leaves
+        // out could never finish their pending sends.
         const duo = await createTestGroup({
           isPackage: true,
           name: "Duo Kit",
@@ -386,44 +384,7 @@ describeWithEnv(
           "multi@example.com",
         );
         const names = tickets.map((t) => t.listing_name).sort();
-        // The selected booking is the duo's first member (lowest listing id),
-        // so the resend carries exactly the duo package.
-        expect(names).toEqual(["Duo A", "Duo B"]);
-      });
-
-      test("a standalone resend never notifies a package's lines", async () => {
-        // The mirror half: resending a standalone line leaves every package
-        // of the same attendee to its own members' resends.
-        const { createTestGroup } = await import(
-          "#test-utils/db-helpers/groups.ts"
-        );
-        const duo = await createTestGroup({
-          isPackage: true,
-          name: "Duo Kit",
-        });
-        const solo = await createTestListing({
-          name: "Solo S",
-          webhookUrl: "https://example.com/webhook",
-        });
-        const duoA = await createTestListing({
-          groupId: duo.id,
-          name: "Duo A",
-        });
-        const duoB = await createTestListing({
-          groupId: duo.id,
-          name: "Duo B",
-        });
-        const tickets = await resendTickets(
-          [
-            { listingId: solo.id, quantity: 1 },
-            { listingId: duoA.id, packageGroupId: duo.id, quantity: 2 },
-            { listingId: duoB.id, packageGroupId: duo.id, quantity: 3 },
-          ],
-          "Mixed Buyer",
-          "mixed@example.com",
-        );
-        // The selected booking is the standalone line (lowest listing id).
-        expect(tickets.map((t) => t.listing_name)).toEqual(["Solo S"]);
+        expect(names).toEqual(["Duo A", "Duo B", "Solo S", "Trio C"]);
       });
 
       test("a resend assigns the site a later plan line bought", async () => {

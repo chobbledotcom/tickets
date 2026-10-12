@@ -123,6 +123,42 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     ).toHaveLength(0);
   });
 
+  test("an owner-only copy never clears the buyer's email flag", async () => {
+    // The attendee carries no address, so the send delivers the owner's
+    // admin copy alone. The owner's copy is accepted, but it is not the
+    // buyer's confirmation: the flag that says the buyer's confirmation is
+    // owed stays up, so adding the missing address later restores the
+    // warning. The webhook send was attempted and accepted, so its flag
+    // clears.
+    await configureTestEmail({ businessEmail: "owner@example.com" });
+    const { attendee } = await bookTestAttendeeWithFlags(
+      "No Address Buyer",
+      1,
+      1,
+    );
+    fetchSpy.reply(() => new Response("{}"));
+
+    await withRequestContext(() =>
+      logAndNotifyRegistration(
+        [
+          makeEntry(
+            { webhook_url: "https://owner-only-hook.example.com" },
+            { email: "", id: attendee.id },
+          ),
+        ],
+        { clearPendingFlagsFor: [attendee.id] },
+      ),
+    );
+
+    const row = await queryOne<{
+      email_pending: number;
+      webhooks_pending: number;
+    }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
+      attendee.id,
+    ]);
+    expect(row).toEqual({ email_pending: 1, webhooks_pending: 0 });
+  });
+
   test("reports one incident for unexpected failures in both delivery channels", async () => {
     await configureTestEmail();
     fetchSpy.reply(() =>

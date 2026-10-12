@@ -2,10 +2,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import {
-  type BookingScope,
-  getAttendeeBookingRowsRaw,
-} from "#db/attendees/queries.ts";
+import { getAttendeeBookingRowsRaw } from "#db/attendees/queries.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
 import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
@@ -204,36 +201,28 @@ const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
 ].page(attendeeActionPage(adminResendNotificationPage));
 
-/** One scope of the attendee's booking lines, rebuilt as notification
- * entries. Each entry comes from its own row and listing. A confirmation
- * never treats one member row as the whole purchase. One member row alone
- * reads wrong in three ways. It collapses a hidden package to one row's
- * quantity and price. It heads a visible one with a lone member. It hides
- * the plan line that bought a site. Refunded rows stay in. The email
- * filters them out below. The assignment's served check needs them to see
- * a claim recorded before the refund. */
-const scopeEntries = async (
-  attendeeId: number,
-  scope: BookingScope,
-): Promise<EmailEntry[]> => {
+/** Every booking line the attendee holds, rebuilt as notification entries.
+ * Each entry comes from its own row and listing. A confirmation never treats
+ * one member row as the whole purchase. One member row alone reads wrong in
+ * three ways. It collapses a hidden package to one row's quantity and price.
+ * It heads a visible one with a lone member. It hides the plan line that
+ * bought a site. Refunded rows stay in. The email filters them out below.
+ * The assignment's served check needs them to see a claim recorded before
+ * the refund. */
+const bookingEntries = async (attendeeId: number): Promise<EmailEntry[]> => {
   const pk = await requireRequestPrivateKey();
-  const rows = await getAttendeeBookingRowsRaw(attendeeId, scope);
+  const rows = await getAttendeeBookingRowsRaw(attendeeId);
   // The route already verified this attendee's active line, so its booking
   // rows exist, decrypt with the same key, and each names a live listing.
   return attendeeListingEntries(rows, pk);
 };
 
-/** The purchase the SELECTED booking belongs to. A package line covers its
- * own package alone, never another package the attendee holds. A standalone
- * line covers every standalone line the attendee booked. */
-const purchaseScope = (data: AttendeeWithBooking): BookingScope =>
-  data.selectedPackageGroupId > 0
-    ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
-    : { kind: "standalone" };
-
-/** Re-send an attendee's booking notification (its whole package, if any),
- * refusing on a no-quantity ghost row. The verified-action wrapper below runs
- * this after confirming the typed attendee name. */
+/** Re-send the attendee's notification for EVERY booking they hold: every
+ * package and every standalone line, one send carrying all of them. A
+ * partial resend beside another purchase never delivers that purchase's
+ * tickets and never clears its flags. Refuses on a no-quantity ghost row.
+ * The verified-action wrapper below runs this after confirming the typed
+ * attendee name. */
 const resendNotification = async (
   data: AttendeeWithBooking,
   form: FormParams,
@@ -251,27 +240,19 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
+  // Every line the attendee holds, refunded ones included: the site
+  // assignment reads them all, because one site serves the whole buyer. A
+  // claim recorded on another purchase's plan keeps the buyer served. So
+  // does a claim on a line refunded later.
+  const entries = await bookingEntries(attendeeId);
   // A refunded line bought nothing now, so the resend must not notify it
   // again.
-  const entries = await scopeEntries(attendeeId, purchaseScope(data));
   const notify = entries.filter((entry) => !entry.attendee.refunded);
   if (notify.length === 0) {
     return redirect(actionsTab, t("attendees.resend_refused_refunded"), false, {
       form,
     });
   }
-
-  // One site serves the whole buyer, so the assignment reads every line they
-  // hold, refunded ones too. A claim recorded on another purchase's plan
-  // keeps the buyer served. So does a claim on a line refunded later.
-  const wholeEntries = await scopeEntries(attendeeId, { kind: "whole" });
-  // The flags are attendee-wide: clear them only when this resend's send
-  // covered every live booking line the attendee holds. A resend scoped to
-  // one package beside another purchase never attempted those lines. Such a
-  // resend leaves the flags up for a whole-attendee resend to clear.
-  const coversWholeAttendee =
-    notify.length ===
-    wholeEntries.filter((entry) => !entry.attendee.refunded).length;
 
   // An admin session can spend the owner key. The resend is therefore the
   // one path that reads the buyer's free-text answers straight from the
@@ -285,14 +266,14 @@ const resendNotification = async (
 
   await Promise.all([
     logAndNotifyRegistration(notify, {
-      // This resend owns the booking's pending-notification flags when it
-      // covered the whole attendee. The email send clears email_pending when
-      // its far side accepts. The webhook send clears webhooks_pending the
-      // same way. A refused send leaves its flag up, so the badge keeps
-      // saying what never went out.
-      clearPendingFlagsFor: coversWholeAttendee ? [attendeeId] : undefined,
+      // This resend carries every live booking line the attendee holds, so
+      // its sends own the attendee's pending-notification flags. The email
+      // send clears email_pending when its far side accepts. The webhook
+      // send clears webhooks_pending the same way. A refused send leaves its
+      // flag up, so the badge keeps saying what never went out.
+      clearPendingFlagsFor: [attendeeId],
       freeTexts,
-      siteAssignmentEntries: wholeEntries,
+      siteAssignmentEntries: entries,
     }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,

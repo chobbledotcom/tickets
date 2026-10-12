@@ -196,12 +196,6 @@ describe("attendee filter and order SQL", () => {
     expect(listings.args).toEqual([7, 8]);
   });
 
-  test("a package group binds one placeholder", () => {
-    const { from, args } = attendeeFromWhere("inner", { packageGroupId: 4 });
-    expect(from).toContain("listingAttendee.package_group_id = ?");
-    expect(args).toEqual([4]);
-  });
-
   test("realLinesOnly adds the quantity guard only when true", () => {
     expect(attendeeFromWhere("inner", { realLinesOnly: true }).from).toContain(
       "listingAttendee.quantity > 0",
@@ -295,14 +289,16 @@ describe("attendee SELECT — exact generated SQL", () => {
   // dropped separator or an inserted token.
 
   /** The email badge's read-time rule, spelled out exactly as the reader
-   * emits it — a mutation to the fragment fails these pins. */
+   * emits it — a mutation to the fragment fails these pins. Writes store the
+   * contact fields as trimmed, comma-joined tokens, so the match compares
+   * whole tokens. */
   const EMAIL_OWED_COLUMN = `(CASE WHEN attendee.email_pending > 0
            THEN EXISTS (
   SELECT 1 FROM listing_attendees AS owed_line
   JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
   WHERE owed_line.attendee_id = attendee.id
     AND owed_line.quantity > 0
-    AND instr(',' || REPLACE(REPLACE(REPLACE(REPLACE(owed_listing.fields, ' ', ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), '') || ',', ',email,') > 0
+    AND instr(',' || owed_listing.fields || ',', ',email,') > 0
 )
            ELSE 0 END) as email_owed`;
 

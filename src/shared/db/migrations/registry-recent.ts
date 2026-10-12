@@ -80,5 +80,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-12_pending_notification_flags",
     () => import("./2026-10-12_pending_notification_flags.ts"),
   ),
+  // The listing contact fields in the one stored form, so the badge SQL can
+  // compare whole tokens the way the parser reads them.
+  entry(
+    "2026-10-12_listing_fields_trim",
+    () => import("./2026-10-12_listing_fields_trim.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

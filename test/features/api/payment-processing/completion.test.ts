@@ -41,11 +41,52 @@ const flagOf = async (
   return Number(row?.value ?? 0);
 };
 
+/** The entry as the create batch hands it on: the in-memory echo carries the
+ *  buyer's typed address, which the raw stored row the fixture reads back
+ *  does not. */
+const withBuyerAddress = (
+  entry: Parameters<typeof completePaidBooking>[0][number],
+  email: string,
+): typeof entry => ({ ...entry, attendee: { ...entry.attendee, email } });
+
 describeWithEnv(
   "finishing off a booking that has been paid",
   { db: true },
   () => {
     const fetch = useFetchStub();
+
+    /** Book one flagged line, run the paid-completion send against the
+     *  stubbed provider, and return the email flag the row carries after.
+     *  `mapEntry` reshapes the entry the way the caller's scenario needs. */
+    const completedEmailFlag = async (
+      name: string,
+      {
+        mapEntry,
+        providerStatus = 200,
+      }: {
+        mapEntry?: (
+          entry: Parameters<typeof withBuyerAddress>[0],
+        ) => typeof entry;
+        providerStatus?: number;
+      } = {},
+    ): Promise<number> => {
+      const { attendeeId, entry } = await bookedLine(name);
+      await configureTestEmail({ businessEmail: "owner@example.com" });
+      await raiseFlag(attendeeId, "email_pending");
+      if (providerStatus !== 200) {
+        fetch.restubFetch(() => new Response("", { status: providerStatus }));
+      }
+      await withRequestContext(() =>
+        completePaidBooking(
+          [mapEntry ? mapEntry(entry) : entry],
+          bareIntent(),
+          [],
+          noPackageFacts(),
+          undefined,
+        ),
+      );
+      return flagOf(attendeeId, "email_pending");
+    };
 
     test("hands back the first line's booking, listing, and tickets", async () => {
       const { attendeeId, entry, listingId } = await bookedLine("First Line");
@@ -88,41 +129,29 @@ describeWithEnv(
     });
 
     test("clears the pending email flag its send got accepted", async () => {
-      const { attendeeId, entry } = await bookedLine("Flagged Line");
-      await configureTestEmail({ businessEmail: "owner@example.com" });
-      await raiseFlag(attendeeId, "email_pending");
+      // The create batch's echo carries the buyer's typed address (see the
+      // attendee it hands back), so the confirmation goes to the buyer. That
+      // is the send this flag tracks.
+      expect(
+        await completedEmailFlag("Flagged Line", {
+          mapEntry: (entry) =>
+            withBuyerAddress(entry, "flagged-buyer@example.com"),
+        }),
+      ).toBe(0);
+    });
 
-      await withRequestContext(() =>
-        completePaidBooking(
-          [entry],
-          bareIntent(),
-          [],
-          noPackageFacts(),
-          undefined,
-        ),
-      );
-
-      expect(await flagOf(attendeeId, "email_pending")).toBe(0);
+    test("an owner-only copy leaves the pending email flag up", async () => {
+      // No buyer address on the entry, so the send delivers the owner's
+      // admin copy alone. The owner's copy is accepted, but the buyer's
+      // confirmation never went out: the flag stays up.
+      expect(await completedEmailFlag("Owner Copy Line")).toBe(1);
     });
 
     test("leaves the email flag up when the provider refuses the email", async () => {
-      const { attendeeId, entry } = await bookedLine("Refused Line");
-      await configureTestEmail({ businessEmail: "owner@example.com" });
-      await raiseFlag(attendeeId, "email_pending");
-      fetch.restubFetch(() => new Response("", { status: 500 }));
-
-      await withRequestContext(() =>
-        completePaidBooking(
-          [entry],
-          bareIntent(),
-          [],
-          noPackageFacts(),
-          undefined,
-        ),
-      );
-
       // The booking stands; only the flag says the email never went out.
-      expect(await flagOf(attendeeId, "email_pending")).toBe(1);
+      expect(
+        await completedEmailFlag("Refused Line", { providerStatus: 500 }),
+      ).toBe(1);
     });
   },
 );
