@@ -7,6 +7,7 @@ import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { siteDbApi } from "#shared/site-db.ts";
 import {
   deployAndReport,
+  hostedSiteUpdateGuardIo,
   loadBuiltSiteUpdateState,
 } from "#shared/site-update.ts";
 import {
@@ -16,9 +17,15 @@ import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
+import {
+  type UpdateGuardIo,
+  updatePageMeta,
+  updatePageState,
+} from "#shared/update-guard.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
 
@@ -33,11 +40,28 @@ const stubTaskLockBypass = (): Stub =>
     }),
   );
 
+/** A guard io whose flag calls land in `calls` and whose page always shows
+ * the update page, so both waits pass at once. */
+const recordingGuard = (calls: string[]): UpdateGuardIo => ({
+  clearFlag: async () => {
+    calls.push("clear");
+  },
+  fetchPage: () => {
+    calls.push("fetch");
+    return Promise.resolve(updatePageMeta("active"));
+  },
+  setFlag: async (value) => {
+    calls.push(`set:${value}`);
+  },
+});
+
 test("deployAndReport keeps the update task name and full failure context", async () => {
   const taskStub = stubTaskLockBypass();
+  const guardCalls: string[] = [];
   try {
     const response = await deployAndReport({
       deploy: () => Promise.reject(new Error("provider down")),
+      guard: recordingGuard(guardCalls),
       onError: (message) => new Response(message, { status: 500 }),
       onSuccess: (message) => new Response(message),
       subject: { kind: "self" },
@@ -45,6 +69,9 @@ test("deployAndReport keeps the update task name and full failure context", asyn
     expect(taskStub.calls[0]?.args[0]).toBe("update");
     expect(response.status).toBe(500);
     expect(await response.text()).toBe("Update failed: provider down");
+    // The deploy failed after the flag was set, so the flag stays set by
+    // design and the caller's error carries the operator instruction.
+    expect(guardCalls).toEqual(["set:1", "fetch"]);
   } finally {
     taskStub.restore();
   }
@@ -69,6 +96,7 @@ describeWithEnv("deployAndReport success", { db: true }, () => {
             name: "2099-01-01 - Big Update",
             tagName: LATEST_TAG,
           }),
+        guard: recordingGuard([]),
         onError: (message) => new Response(message, { status: 500 }),
         onSuccess: (message) => new Response(message),
         subject: { kind: "self" },
@@ -84,6 +112,38 @@ describeWithEnv("deployAndReport success", { db: true }, () => {
     }
   });
 });
+
+describeWithEnv(
+  "hostedSiteUpdateGuardIo",
+  { env: { BUNNY_API_KEY: "host-key" } },
+  () => {
+    test("fetchPage throws with the status when the page check fails", async () => {
+      using _fetch = stubFetch(() => new Response("busy", { status: 503 }));
+      const io = hostedSiteUpdateGuardIo({
+        hostingId: "8500",
+        hostingProvider: "bunny",
+        siteUrl: "https://site.example",
+      });
+      await expect(io.fetchPage()).rejects.toThrow(
+        /update page check failed \(HTTP 503\)/,
+      );
+    });
+
+    test("fetchPage returns the page body for a bare-hostname site URL", async () => {
+      using _fetch = stubFetch((url) =>
+        url === "https://site.example/read-only"
+          ? new Response(updatePageMeta("active"))
+          : new Response("missing", { status: 404 }),
+      );
+      const io = hostedSiteUpdateGuardIo({
+        hostingId: "8500",
+        hostingProvider: "bunny",
+        siteUrl: "site.example",
+      });
+      expect(updatePageState(await io.fetchPage())).toBe("active");
+    });
+  },
+);
 
 /** Seed an in-memory libsql client standing in for the remote site's DB. */
 const seedSiteDb = async (version: string | null): Promise<Client> => {

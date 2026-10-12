@@ -1,11 +1,14 @@
 name: Deploy Bunny edge script
-description: Deploy a built Bunny Edge script bundle to one Bunny Edge Scripting script.
+description: Deploy a built Bunny Edge Scripting script bundle to one Bunny Edge Scripting script, with the site write-locked while the update runs.
 inputs:
   script_id:
     description: Bunny Edge Scripting script ID.
     required: true
   api_key:
     description: Bunny API access key.
+    required: true
+  site_url:
+    description: The site's public origin (e.g. https://tickets.example.com), which the update-mode wait polls.
     required: true
   file:
     description: Built script file to deploy.
@@ -14,6 +17,31 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Resolve the site host
+      shell: devenv --profile ci shell bash -- -e {0}
+      env:
+        SITE_URL: ${{ inputs.site_url }}
+      run: |
+        # The update-mode waits fetch the site's read-only page, so Deno needs
+        # the site host granted next to the Bunny API host.
+        site_host="$(sed -E 's#^[a-z]+://([^/]+).*#\1#' <<<"$SITE_URL")"
+        echo "SITE_HOST=$site_host" >> "$GITHUB_ENV"
+
+    - name: Put the site into update mode
+      shell: devenv --profile ci shell bash -- -e {0}
+      env:
+        BUNNY_ACCESS_KEY: ${{ inputs.api_key }}
+        SCRIPT_ID: ${{ inputs.script_id }}
+        SITE_URL: ${{ inputs.site_url }}
+      run: |
+        # Sets UPDATE_IN_PROGRESS on the script and waits until the running
+        # build serves its update page. A site stuck in update mode refuses
+        # every write, which is safer than a half-migrated database.
+        deno run \
+          --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+          --allow-net="api.bunny.net,$SITE_HOST" \
+          scripts/update-mode.ts begin "$SCRIPT_ID" "$SITE_URL"
+
     - name: Deploy script to Bunny Edge Scripting
       shell: devenv --profile ci shell bash -- -e {0}
       env:
@@ -30,3 +58,18 @@ runs:
           --allow-read="$file" \
           --allow-net=api.bunny.net \
           scripts/deploy-built-edge.ts "$BUNNY_SCRIPT_ID" "$file"
+
+    - name: Wake the new build and lift update mode
+      shell: devenv --profile ci shell bash -- -e {0}
+      env:
+        BUNNY_ACCESS_KEY: ${{ inputs.api_key }}
+        SCRIPT_ID: ${{ inputs.script_id }}
+        SITE_URL: ${{ inputs.site_url }}
+      run: |
+        # The first request to the new build runs its migrations; the wait
+        # confirms the update page still serves, then removes the flag. On
+        # any failure the flag stays set and this job fails loudly.
+        deno run \
+          --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+          --allow-net="api.bunny.net,$SITE_HOST" \
+          scripts/update-mode.ts end "$SCRIPT_ID" "$SITE_URL"

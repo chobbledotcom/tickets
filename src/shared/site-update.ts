@@ -10,14 +10,16 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import type { BuiltSite } from "#db/built-sites/types.ts";
+import type { BuiltSite, HostingProvider } from "#db/built-sites/types.ts";
 /* jscpd:ignore-start -- imports */
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
+import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import type { Result } from "#shared/result.ts";
+import { type Result, requireSuccess } from "#shared/result.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 import { hasSiteDbCredentials, readSiteSetting } from "#shared/site-db.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
 /* jscpd:ignore-end */
@@ -27,6 +29,12 @@ import {
   formatBuildDate,
   isNewerVersion,
 } from "#shared/update.ts";
+import {
+  runUnderUpdateGuard,
+  UPDATE_FLAG_LIFTED_VALUE,
+  UPDATE_IN_PROGRESS_VAR,
+  type UpdateGuardIo,
+} from "#shared/update-guard.ts";
 
 /**
  * What an update deploys: this app itself, or one built site by name. The kind
@@ -84,19 +92,59 @@ export type BuiltSiteUpdateState = {
 };
 
 /**
+ * The update-mode guard for one hosted site: the flag rides the hosting
+ * provider's secret store, and the wait polls the site's own read-only page.
+ * The lift writes an empty value, not a delete: Deno Deploy offers no secret
+ * delete, and an empty value reads as unset in the app.
+ */
+export const hostedSiteUpdateGuardIo = (site: {
+  hostingId: string;
+  hostingProvider: HostingProvider;
+  siteUrl: string;
+}): UpdateGuardIo => {
+  const setFlag = async (value: string): Promise<void> => {
+    requireSuccess(
+      await resolveHostingProvider(site.hostingProvider).setSecrets(
+        site.hostingId,
+        [[UPDATE_IN_PROGRESS_VAR, value]],
+      ),
+    );
+  };
+  const pageUrl = `${siteBaseUrl(site.siteUrl)}/read-only`;
+  return {
+    clearFlag: () => setFlag(UPDATE_FLAG_LIFTED_VALUE),
+    fetchPage: async () => {
+      const response = await fetchText(pageUrl);
+      if (!response.ok) {
+        throw new Error(
+          `The update page check failed (HTTP ${response.status}).`,
+        );
+      }
+      return response.text;
+    },
+    setFlag,
+  };
+};
+
+/**
  * Run a release deploy as the current "update" task, write the activity-log
  * line, and turn the outcome into a response. `subject` picks the catalog
  * variant for the log line and the success flash. A thrown deploy failure
- * becomes an error response.
+ * becomes an error response. The deploy runs inside the update guard: the
+ * site refuses writes from the set flag until the new build serves and the
+ * flag lifts.
  */
 export const deployAndReport = async (opts: {
   deploy: () => Promise<DeployedRelease>;
+  guard: UpdateGuardIo;
   onError: (message: string) => Response;
   onSuccess: (message: string) => Response;
   subject: UpdateSubject;
 }): Promise<Response> => {
   const result = await tryStep("Update failed", () =>
-    settings.withCurrentTask("update", opts.deploy),
+    settings.withCurrentTask("update", () =>
+      runUnderUpdateGuard(opts.guard, opts.deploy),
+    ),
   );
   if (!result.ok) return opts.onError(result.error);
   const keys = DEPLOY_MESSAGE_KEYS[opts.subject.kind];

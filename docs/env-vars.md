@@ -62,6 +62,14 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   secret.
 - `DENO_DEPLOY_TOKEN` - Deno Deploy organization access token. Required with
   `DENO_DEPLOY_ORG_ID` and `DENO_DEPLOY_ORG_SLUG` to build sites on Deno Deploy.
+- `UPDATE_IN_PROGRESS` - Update write-stop. The deploy workflows set this
+  variable on the site's edge script before they update the site's code, and
+  they remove it after the new build serves its first request. While it is
+  set, the app refuses every write, the read-only page shows the update
+  message, and a webhook answer is a 503, so the sender redelivers it. A
+  failed deploy leaves the variable set. Re-run the same update to clear it,
+  or remove the variable by hand in the Bunny dashboard under the script's
+  Environment Secrets.
 - `DENO_DEPLOY_ORG_ID` - Deno Deploy organization ID used by the app creation
   API.
 - `DENO_DEPLOY_ORG_SLUG` - Deno Deploy organization slug used in each app's

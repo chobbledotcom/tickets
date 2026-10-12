@@ -72,6 +72,7 @@ jobs:
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          site_url: ${{ secrets.MAIN_INSTANCE }}
 
       # Upload source maps for this release after deploy (no-op without secrets).
       - name: Upload Sentry source maps

@@ -28,7 +28,10 @@ import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { addMissingSiteSecrets } from "#shared/site-secrets.ts";
-import { deployAndReport } from "#shared/site-update.ts";
+import {
+  deployAndReport,
+  hostedSiteUpdateGuardIo,
+} from "#shared/site-update.ts";
 import {
   deployLatestReleaseToDeno,
   deployLatestReleaseToScript,
@@ -145,6 +148,7 @@ const runSiteUpdate = async (
   }
   return deployAndReport({
     deploy,
+    guard: hostedSiteUpdateGuardIo(site),
     onError: (message) => builtSiteTabError(id, "update", message),
     onSuccess: (message) => builtSiteTabSuccess(id, "update", message),
     subject: { kind: "built_site", siteName: site.name },
