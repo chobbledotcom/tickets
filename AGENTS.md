@@ -84,8 +84,8 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   human approval before implementation.
 - **Infrastructure problems are not yours to fix**: If you think you hit an
   infrastructure problem, stop. Do not fix it. Do not work around it: no probe
-  scripts, no harness changes, no retry loops. Leave your branch clean and wait
-  for a human decision. The infrastructure is:
+  scripts, no harness changes, no retry loops. Leave your work as it is and
+  wait for a human decision. The infrastructure is:
   - the local test runner and harness, the coverage tooling, and the pre-commit
     hook
   - the save-check follow-ups, devenv, nix, and deno
@@ -95,6 +95,15 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   infrastructure. When `agent-report-infra` is on PATH, run
   `agent-report-infra "<summary>"` and put the details on stdin. A failure in
   your own change is still yours to fix.
+
+  Two other rules stop at an infrastructure failure. "A red check is not
+  automatically yours" says to trace a failure and re-run it. When you suspect
+  infrastructure, do not re-run: report it and wait. "Never lose work — commit
+  WIP even if broken" says to commit and push before you pause. When you
+  suspect infrastructure, do not commit or push only to leave the branch
+  clean: keep the work in progress as it is. Do not clean up or discard work
+  either. A failure that the task's own change causes stays yours under both
+  rules.
 - **Once it is built, the code is the authority**: A behavior contract governs
   work that does not exist yet. When a slice lands, its code and tests are the
   truth. Check every finding or amendment against the real `src/` and `test/`
@@ -279,7 +288,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - `deno task check:imports`
   - `deno task check:comment-ste`
   - `deno task typecheck`
-  - `deno task check:ste` for a Markdown-only change
+  - `deno task check:ste` whenever the change touches Markdown
 
   When `job-submit` is on PATH, run the tests and any full precommit through
   it: `job-submit --max <seconds|Nm> -- deno task test:files <file>`. A single
