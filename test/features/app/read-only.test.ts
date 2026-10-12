@@ -107,7 +107,7 @@ describe("read-only request guard in update mode", () => {
     expect(updating("/sms/webhook", "POST")).toBe("api");
   });
 
-  test("blocks the public writes read-only mode normally allows", () => {
+  test("update mode refuses the public writes read-only mode allows", () => {
     // The update's data migration must see a still database, so no safe
     // path stays open.
     const cases: [string, string][] = [

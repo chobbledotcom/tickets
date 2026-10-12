@@ -357,7 +357,7 @@ describeWithEnv(
       expect(res.status).toBe(503);
     });
 
-    test("public writes read-only mode allows are blocked with the redirect", async () => {
+    test("update mode refuses the public writes read-only mode allows, with the redirect", async () => {
       expectReadOnlyRedirect(await postForm("/renew"));
       expectReadOnlyRedirect(await postForm("/join/some-code"));
       expectReadOnlyRedirect(await postForm("/contact"));
