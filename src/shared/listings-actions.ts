@@ -5,6 +5,7 @@
  * so that the route handlers remain thin response formatters.
  */
 
+import * as v from "valibot";
 /* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
@@ -32,6 +33,7 @@ import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   dayPriceFieldsFromInput,
@@ -270,9 +272,15 @@ export const validateListingInput = async (
 ): Promise<string | null> => {
   const nameError = await listingNameError(input.name, existingId);
   if (nameError) return nameError;
-  if (existingId !== undefined) {
-    const taken = await isSlugTaken(input.slug, existingId);
-    if (taken) return t("error.slug_in_use");
+  // The booking form parses this string into contact-field names and drops
+  // the ones it does not know. An unknown token collects nothing, without a
+  // word to the operator. Reject it instead, on the web form and the admin
+  // JSON API alike.
+  if (!v.is(optionalFieldsSchema, input.fields)) {
+    return t("error.listing_fields_unknown");
+  }
+  if (existingId !== undefined && (await isSlugTaken(input.slug, existingId))) {
+    return t("error.slug_in_use");
   }
   const minError = validateMinQuantity(input);
   if (minError) return minError;

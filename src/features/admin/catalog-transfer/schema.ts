@@ -13,10 +13,10 @@ import {
   groupCatalogFields,
   listingCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
+import { fieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { commaParts } from "#shared/split.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
-import { isContactField, ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
+import { ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 
 /**
  * True when `value` is storable in a datetime column: empty (no value), or a
@@ -92,19 +92,6 @@ const DurationDaysSchema = v.pipe(
   integerAtLeast(1),
   v.maxValue(MAX_DURATION_DAYS, `must be at most ${MAX_DURATION_DAYS} days`),
 );
-/** A single valid contact-field name (email/phone/address/…). */
-const ContactFieldSchema = v.custom<string>(
-  (value) => typeof value === "string" && isContactField(value),
-  "must be a known contact field",
-);
-/** The `fields` column: a comma-separated list of valid contact-field names, so
- * a typo ("fax") is a field error rather than a silently-dropped entry. */
-const FieldsSchema = v.pipe(
-  v.string(),
-  v.transform(commaParts),
-  v.array(ContactFieldSchema),
-  v.transform((parts) => parts.join(",")),
-);
 /** A bookable weekday name — validated so a typo ("Funday") is a field error
  * rather than a day that never matches an availability check. */
 const BookableDaySchema = v.picklist(VALID_DAY_NAMES);
@@ -140,7 +127,7 @@ const TRANSFER_FIELD_SCHEMAS = {
   datetime: v.optional(DatetimeSchema),
   dayPrices: v.optional(DayPricesSchema),
   durationDays: v.optional(DurationDaysSchema),
-  fields: v.optional(FieldsSchema),
+  fields: v.optional(fieldsSchema),
   listingType: v.optional(ListingTypeSchema),
   maxPrice: v.optional(PriceSchema, 0),
   name: NameRefSchema,

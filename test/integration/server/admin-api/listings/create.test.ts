@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -146,6 +147,52 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.error).toContain("Webhook URL");
         },
       );
+    });
+
+    test("rejects a fields list with an unknown contact field on create", async () => {
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            fields: "phone, e mail",
+            max_attendees: 10,
+            name: "Unknown Field",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("error.listing_fields_unknown"));
+        },
+      );
+      expect(
+        await queryAll("SELECT id FROM listings WHERE name = ?", [
+          "Unknown Field",
+        ]),
+      ).toEqual([]);
+    });
+
+    test("stores padded contact fields as the trimmed tokens the parser reads", async () => {
+      // The badge SQL compares whole stored tokens, so the write path stores
+      // the parser's own read of the string: every token trims, blank ones
+      // drop. A space- or non-breaking-space-padded "email" stores "email".
+      const padded = [
+        ["Padded Space Fields", " email ", "email"],
+        ["Padded Narrow Fields", " email ", "email"],
+        ["Padded List Fields", "phone ,\temail ", "phone,email"],
+        ["Doubled Commas", "email,,phone", "email,phone"],
+      ] as const;
+      for (const [name, submitted, stored] of padded) {
+        const created = await assertJson<{ listing: { id: number } }>(
+          apiRequest("/api/admin/listings", {
+            body: { fields: submitted, max_attendees: 10, name },
+            method: "POST",
+          }),
+          201,
+        );
+        expect((await requireListingWithCount(created.listing.id)).fields).toBe(
+          stored,
+        );
+      }
     });
 
     test("creates a customisable-days listing with day_prices", async () => {
@@ -325,6 +372,48 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         (body) => {
           expect(body.error).toBe("name is required");
         },
+      );
+    });
+  });
+
+  describe("PUT /api/admin/listings/:listingId", () => {
+    test("rejects a fields list with an unknown contact field on update", async () => {
+      const created = await assertJson<{ listing: { id: number } }>(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 10, name: "Field Update" },
+          method: "POST",
+        }),
+        201,
+      );
+      await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`, {
+          body: { fields: "emailx" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("error.listing_fields_unknown"));
+        },
+      );
+    });
+
+    test("stores an update's padded contact fields the way the parser reads them", async () => {
+      const created = await assertJson<{ listing: { id: number } }>(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 10, name: "Padded Update" },
+          method: "POST",
+        }),
+        201,
+      );
+      await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`, {
+          body: { fields: " email " },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect((await requireListingWithCount(created.listing.id)).fields).toBe(
+        "email",
       );
     });
   });

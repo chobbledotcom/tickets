@@ -4,11 +4,11 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { col } from "#db/table.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { storedListingFields } from "#shared/listing-fields.ts";
 import {
   clampDurationDays,
   type DayPrices,
   DayPricesSchema,
-  type ListingFields,
   type ListingType,
 } from "#types";
 import type {
@@ -77,7 +77,10 @@ export const listingCatalogFields = {
   ],
   fields: [
     "fields",
-    col.withDefault<ListingFields>(() => "email"),
+    // Every write stores the parser's own read of the string (see
+    // `storedListingFields`). The stored tokens are what every reader
+    // compares: the booking form and the badge SQL alike.
+    { default: () => "email", write: storedListingFields },
     "fields",
     CATALOG_API_FORM,
   ],
