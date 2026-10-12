@@ -11,6 +11,7 @@ import type { TicketListing } from "#booking/model.ts";
 import {
   judgeOptionDemand,
   type OptionVerdict,
+  widestAlternative,
 } from "#booking/option-demand.ts";
 import {
   getGroupPackagePricesByGroupIds,
@@ -60,20 +61,34 @@ export type OrderCatalog = {
 };
 
 /** Merge one option's card gate with the judge's verdict. The judge decides
- * whether the form can book the option. Its demand — the units and the days
- * they occupy — replaces the card's own. */
-const judgedOption = (
+ * whether the form can book the option. Its realisable alternatives — the
+ * units and the days they occupy, per bookable span — replace the card's
+ * own, and the widest alternative is the committed preview. */
+export const judgedOption = (
   option: OrderOption,
   verdict: OptionVerdict,
-): OrderOption => ({
-  ...option,
-  bookableAlone: option.bookableAlone && verdict.outcome.state === "bookable",
-  spanDaysByListingId: verdict.spanDaysByListingId,
-  unitsByListingId:
-    verdict.outcome.state === "bookable"
-      ? verdict.outcome.unitsByListingId
-      : option.unitsByListingId,
-});
+): OrderOption => {
+  if (verdict.outcome.state !== "bookable") {
+    return {
+      ...option,
+      bookableAlone: false,
+      spanDaysByListingId: verdict.spanDaysByListingId,
+    };
+  }
+  const widest = widestAlternative(verdict.outcome.alternatives);
+  return {
+    ...option,
+    alternatives: verdict.outcome.alternatives.map(
+      ({ spanDaysByListingId, unitsByListingId }) => ({
+        spanDaysByListingId,
+        unitsByListingId,
+      }),
+    ),
+    bookableAlone: option.bookableAlone,
+    spanDaysByListingId: widest.spanDaysByListingId,
+    unitsByListingId: widest.unitsByListingId,
+  };
+};
 
 /** Judge every option in gallery order: the bookable packages lead, then the
  * listing cards. Each option asks the one judge what the booking form folds

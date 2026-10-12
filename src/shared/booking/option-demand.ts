@@ -1,13 +1,13 @@
 /**
- * The one place that answers, per bookable option, the question every
- * surface must agree on: can the booking form book it with the visitor's
- * selections, and what child demand does the form itself fold, over which
- * days? The form's fold, the gallery and the checkout availability path
- * all read this verdict, so their answers cannot drift. The rules are the
- * form's own: spans and dates come from the declared table
- * (`span-rules.ts`), the child filter and the sole-child auto-fill from
- * the fold's exported walk pieces. Nothing here re-derives a rule. Pure:
- * callers hand in the resolved listings, holidays, and date.
+ * The one place that answers, per bookable option, what the booking form
+ * books and what child demand it folds, over which days. The form's fold,
+ * the gallery and the checkout availability path all read this verdict, so
+ * their answers cannot drift.
+ *
+ * The rules are the form's own. Spans and dates come from the declared
+ * table (`span-rules.ts`). The child filter and the sole-child auto-fill
+ * come from the fold's exported walk pieces. Nothing re-derives a rule.
+ * Pure: callers hand in the resolved listings, holidays, and date.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -52,17 +52,25 @@ const UnitsMapSchema = v.map(v.number(), v.number());
 export const OptionVerdictSchema = v.object({
   outcome: v.variant("state", [
     v.object({
+      /** One demand per span the form can book: the units one booking at
+       * that span takes, and the days each charged listing occupies. The
+       * buyer's realisable choices. Capacity is judged per alternative. */
+      alternatives: v.array(
+        v.object({
+          dayCount: v.number(),
+          spanDaysByListingId: UnitsMapSchema,
+          unitsByListingId: UnitsMapSchema,
+        }),
+      ),
       /** The day counts the form can book the option for. */
       bookableDayCounts: v.array(v.number()),
       state: v.literal("bookable"),
-      /** All units one booking takes, per listing: the parents' own demand
-       * plus the children the form auto-folds. */
-      unitsByListingId: UnitsMapSchema,
     }),
     v.object({ reason: OptionRefusalSchema, state: v.literal("refused") }),
   ]),
   /** The days each charged listing's booking occupies from the start date:
-   * every option parent, plus the children the form auto-folds. */
+   * the widest alternative's spans, and the parents' own spans in a
+   * refusal. Pools are sized over these. Judging reads the alternatives. */
   spanDaysByListingId: UnitsMapSchema,
 });
 export type OptionVerdict = v.InferOutput<typeof OptionVerdictSchema>;
@@ -180,6 +188,7 @@ const mergeUnits = (
 };
 
 const parentFoldsAtSpan = (
+  state: ReturnType<typeof emptyFoldState>,
   parent: TicketListing,
   children: readonly TicketListing[],
   parentQty: number,
@@ -220,7 +229,6 @@ const parentFoldsAtSpan = (
       ok: false,
     };
   }
-  const state = emptyFoldState();
   const { spans, units } = newFoldAccumulators();
   for (const { child, qty } of resolved) {
     const error = foldChild(
@@ -238,23 +246,40 @@ const parentFoldsAtSpan = (
   return { ok: true, spans, units };
 };
 
-/** One candidate span judged over every parent: the child units the form
- * folds (summed across parents), or the first failure. */
+/** The units one parent books in the option, or 0 when it books none. */
+const parentQuantityOf = (
+  question: OptionDemandQuestion,
+  parent: TicketListing,
+): number =>
+  requiredMapValue(
+    question.quantities,
+    parent.listing.id,
+    `Option quantities miss parent ${parent.listing.id}`,
+  );
+
+/** One candidate span judged over every parent through the ONE order-wide
+ * fold state the form walks with. The customisable duration records once,
+ * so two members inheriting different durations refuse here as the form
+ * refuses. Returns the child units the form folds, summed across parents,
+ * or the first failure. */
 const spanOutcome = (
   question: OptionDemandQuestion,
   dayCount: number,
 ): SpanFold => {
+  const state = emptyFoldState();
+  // The form seeds the fold's customisable duration with the buyer's chosen
+  // span when the option carries a customisable parent.
+  if (question.parents.some((parent) => parent.listing.customisable_days)) {
+    state.customisableDuration = dayCount;
+  }
   const { spans, units } = newFoldAccumulators();
   for (const parent of question.parents) {
-    const parentQty = requiredMapValue(
-      question.quantities,
-      parent.listing.id,
-      `Option quantities miss parent ${parent.listing.id}`,
-    );
+    const parentQty = parentQuantityOf(question, parent);
     if (parentQty <= 0) continue;
     const durationDays = parentResolvedDuration(parent.listing, dayCount);
     const children = question.childrenByParentId.get(parent.listing.id) ?? [];
     const fold = parentFoldsAtSpan(
+      state,
       parent,
       children,
       parentQty,
@@ -341,31 +366,57 @@ type BookableSpan = {
   units: ReadonlyMap<number, number>;
 };
 
-/** The demand every bookable span's fold charges. Per listing it takes the
- * largest single booking's fold, never a sum across spans (the buyer books
- * one), plus the parents' own demand. The widest span each charged fold
- * occupies is the pool span. */
-const chargedDemand = (
-  question: OptionDemandQuestion,
-  bookable: readonly BookableSpan[],
-): { spans: Map<number, number>; units: Map<number, number> } => {
-  const units = new Map<number, number>();
-  const spans = new Map(parentSpans(question));
-  for (const { spans: spanMap, units: spanUnits } of bookable) {
-    mergeUnits(units, spanUnits, Math.max);
-    mergeUnits(spans, spanMap, Math.max);
-  }
-  // The parents' own demand joins every span's booking.
-  for (const [parentId, qty] of question.quantities) {
-    units.set(parentId, Math.max(units.get(parentId) ?? 0, qty));
-  }
-  return { spans, units };
+/** One span's realisable booking: the units one booking at that span takes,
+ * and the days each charged listing occupies. */
+export type Alternative = {
+  dayCount: number;
+  spanDaysByListingId: Map<number, number>;
+  unitsByListingId: Map<number, number>;
 };
+
+/** One span's realisable booking: the fold's child demand plus the parents'
+ * own demand at the span they actually book. The parents' pool span is the
+ * span the form books them for, never the one-day preview default. */
+const alternativeOf = (
+  question: OptionDemandQuestion,
+  bookable: BookableSpan,
+): Alternative => {
+  const spans = new Map(bookable.spans);
+  const units = new Map(bookable.units);
+  for (const parent of question.parents) {
+    const qty = parentQuantityOf(question, parent);
+    if (qty <= 0) continue;
+    spans.set(
+      parent.listing.id,
+      parentResolvedDuration(parent.listing, bookable.dayCount),
+    );
+    units.set(
+      parent.listing.id,
+      Math.max(units.get(parent.listing.id) ?? 0, qty),
+    );
+  }
+  return {
+    dayCount: bookable.dayCount,
+    spanDaysByListingId: spans,
+    unitsByListingId: units,
+  };
+};
+
+/** The widest alternative: the biggest span the buyer can pick, whose
+ * demand is the option's committed preview. */
+export const widestAlternative = (
+  alternatives: readonly Alternative[],
+): Alternative =>
+  alternatives.reduce((left, right) =>
+    right.dayCount > left.dayCount ? right : left,
+  );
 
 /** Judge one option the way the booking form books it. It judges every span
  * the form's own page rules offer, at the chosen date, or date-less in the
  * render phase. The option is bookable when the form can book at least one
- * span. The charge is the demand of the span the buyer picks. */
+ * span, and each bookable span carries its own realisable demand. The
+ * committed preview is the widest alternative: the biggest span the buyer
+ * can pick. */
 export const judgeOptionDemand = (
   question: OptionDemandQuestion,
 ): OptionVerdict => {
@@ -382,21 +433,27 @@ export const judgeOptionDemand = (
   const failures = judged.flatMap(({ outcome }) =>
     outcome.ok ? [] : [outcome.failure],
   );
-  const bookable = judged.flatMap(({ dayCount, outcome }): BookableSpan[] =>
+  const alternatives = judged.flatMap(({ dayCount, outcome }): Alternative[] =>
     outcome.ok
-      ? [{ dayCount, spans: outcome.spans, units: outcome.units }]
+      ? [
+          alternativeOf(question, {
+            dayCount,
+            spans: outcome.spans,
+            units: outcome.units,
+          }),
+        ]
       : [],
   );
-  if (bookable.length === 0) {
+  if (alternatives.length === 0) {
     return refusedVerdict(question, reasonOfFailures(failures));
   }
-  const demand = chargedDemand(question, bookable);
+  const widest = widestAlternative(alternatives);
   return {
     outcome: {
-      bookableDayCounts: bookable.map(({ dayCount }) => dayCount),
+      alternatives,
+      bookableDayCounts: alternatives.map(({ dayCount }) => dayCount),
       state: "bookable",
-      unitsByListingId: demand.units,
     },
-    spanDaysByListingId: demand.spans,
+    spanDaysByListingId: widest.spanDaysByListingId,
   };
 };

@@ -225,25 +225,3 @@ export const perDayRemainingFromSnapshot = (
         ];
       }),
   );
-
-/**
- * How many units each capped group has left, each judged over the span given
- * for it — the widest any of its listings would occupy, since the cap has to
- * hold on every day any of them takes up.
- */
-export const groupRemainingFromSnapshot = (
-  snapshot: CapacitySnapshot,
-  spanByGroupId: ReadonlyMap<number, number>,
-): Map<number, number> => {
-  if (snapshot.days.length === 0) {
-    return new Map(snapshot.datelessGroupRemaining);
-  }
-  const remaining = new Map<number, number>();
-  for (const [groupId, span] of spanByGroupId) {
-    const byDay = snapshot.groupByDay.get(groupId);
-    if (byDay) {
-      remaining.set(groupId, lowestOverDays(byDay, daysOfSpan(snapshot, span)));
-    }
-  }
-  return remaining;
-};

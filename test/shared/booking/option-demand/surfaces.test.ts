@@ -8,12 +8,29 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  type Alternative,
   judgeOptionDemand,
   type OptionDemandQuestion,
   type OptionVerdict,
 } from "#booking/option-demand.ts";
+import {
+  judgedByDay,
+  loadCapacitySnapshot,
+  perDayRemainingFromSnapshot,
+  remainingFromSnapshot,
+} from "#db/attendees/capacity/snapshot.ts";
+import { listingGroups } from "#db/groups/table.ts";
+import { uniqueBy } from "#fp";
+import { judgedOption } from "#routes/public/order-catalog.ts";
 import { checkAvailability } from "#routes/public/ticket-payment.ts";
+import { evaluateOrder } from "#shared/order/evaluate.ts";
+import {
+  listingOption,
+  type OrderOption,
+  type OrderPools,
+} from "#shared/order/options.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import type { ListingWithCount } from "#types";
 import {
   type BuiltCase,
   CASES,
@@ -26,23 +43,76 @@ import {
   sortedEntries,
 } from "./cases.ts";
 
-/** The child units the judge charges: the option's demand minus its parents'
+/** The widest alternative the judge answered: the biggest span the buyer
+ * can pick, and the committed preview. */
+const widestAlternative = (
+  outcome: Extract<OptionVerdict["outcome"], { state: "bookable" }>,
+): Alternative => {
+  const [widest] = [...outcome.alternatives].sort(
+    (left, right) => right.dayCount - left.dayCount,
+  );
+  if (widest === undefined) throw new Error("a bookable verdict has spans");
+  return widest;
+};
+
+/** The child units one alternative charges: its demand minus the parents'
  * own units. */
 const chargedChildUnits = (
   question: OptionDemandQuestion,
-  outcome: OptionVerdict["outcome"],
+  alternative: Alternative,
 ): [number, number][] => {
-  if (outcome.state !== "bookable") return [];
   const parentIds = new Set(question.parents.map((p) => p.listing.id));
-  return [...outcome.unitsByListingId]
+  return [...alternative.unitsByListingId]
     .filter(([listingId]) => !parentIds.has(listingId))
     .map(([listingId, qty]): [number, number] => [listingId, qty]);
 };
 
+/** The alternative judged for one span, or undefined when the span is not
+ * bookable. */
+const alternativeAt = (
+  outcome: Extract<OptionVerdict["outcome"], { state: "bookable" }>,
+  dayCount: number,
+): Alternative | undefined =>
+  outcome.alternatives.find((alternative) => alternative.dayCount === dayCount);
+
+/** The gallery's capacity pools for one case's fixtures, built the way the
+ * order page builds them: one snapshot over the option's widest span, per
+ * day for day-judged listings, a running total otherwise. */
+const galleryPools = async (
+  built: BuiltCase,
+  judged: OrderOption,
+): Promise<OrderPools> => {
+  const involved = uniqueBy((listing: ListingWithCount) => listing.id)([
+    ...built.parents.map((info) => info.listing),
+    ...[...built.childrenByParentId.values()]
+      .flat()
+      .map((info) => info.listing),
+  ]);
+  const widestSpanDays = Math.max(1, ...judged.spanDaysByListingId.values());
+  const groupIdsByListingId = await listingGroups.getIdsByKeys(
+    involved.map((listing) => listing.id),
+  );
+  const snapshot = await loadCapacitySnapshot(
+    involved,
+    built.date,
+    widestSpanDays,
+    groupIdsByListingId,
+  );
+  const dateless = involved.filter((info) => !judgedByDay(info, snapshot));
+  return {
+    days: snapshot.days,
+    groupIdsByListingId,
+    remainingByGroupDay: snapshot.groupByDay,
+    remainingByGroupId: snapshot.datelessGroupRemaining,
+    remainingByListingDay: perDayRemainingFromSnapshot(snapshot, involved),
+    remainingByListingId: remainingFromSnapshot(snapshot, dateless, () => 1),
+  };
+};
+
 /** The form's fold at one judged span accepts, and — when the fold is the
- * gallery's own empty form — produces exactly the demand the judge charges.
- * An explicit buyer choice decides its own child units, so the judge
- * deliberately charges none of those. */
+ * gallery's own empty form — produces exactly the demand the judge charges
+ * for that span. An explicit buyer choice decides its own child units, so
+ * the judge deliberately charges none of those. */
 const expectFoldMatchesJudge = async (
   testCase: DemandCase,
   built: BuiltCase,
@@ -51,9 +121,11 @@ const expectFoldMatchesJudge = async (
 ): Promise<void> => {
   const folded = await foldFor(testCase, built, dayCount);
   expect(folded.ok, testCase.name).toBe(true);
-  if (!folded.ok || testCase.fold === "explicit-choice") return;
+  const alternative = alternativeAt(outcome, dayCount);
+  expect(alternative, testCase.name).toBeDefined();
+  if (!folded.ok || testCase.fold === "explicit-choice" || !alternative) return;
   expect(sortedEntries(folded.quantities), testCase.name).toEqual(
-    sortedEntries(outcome.unitsByListingId),
+    sortedEntries(alternative.unitsByListingId),
   );
 };
 
@@ -82,10 +154,12 @@ describeWithEnv(
         expect(outcome.bookableDayCounts, testCase.name).toEqual(
           expected.dayCounts,
         );
+        const charged = chargedChildUnits(
+          questionFor(built),
+          widestAlternative(outcome),
+        );
         expect(
-          chargedChildUnits(questionFor(built), outcome).map(
-            ([listingId, qty]) => [nameOf(built, listingId), qty],
-          ),
+          charged.map(([listingId, qty]) => [nameOf(built, listingId), qty]),
         ).toEqual(expected.childUnits);
       });
 
@@ -110,22 +184,55 @@ describeWithEnv(
           if (outcome.state !== "bookable") {
             throw new Error("the judge must accept a bookable case");
           }
-          const folded = await foldFor(
-            testCase,
-            built,
-            outcome.bookableDayCounts[0]!,
-          );
-          if (!folded.ok) {
-            throw new Error("the fold must accept a bookable case");
+          // Every span the form can book, not only the first: the checkout
+          // must answer each realisable booking the judge offers, refusing
+          // exactly the spans the per-date capacity refuses.
+          for (const dayCount of outcome.bookableDayCounts) {
+            const folded = await foldFor(testCase, built, dayCount);
+            if (!folded.ok) {
+              throw new Error("the fold must accept a bookable case");
+            }
+            const fits =
+              testCase.capacityFitsAt?.includes(dayCount) ??
+              !testCase.capacityRefuses;
+            expect(
+              await checkAvailability(
+                folded.listings,
+                folded.quantities,
+                built.date,
+                folded.dayCount,
+              ),
+              `${testCase.name} at ${dayCount} day(s)`,
+            ).toBe(fits);
           }
-          expect(
-            await checkAvailability(
-              folded.listings,
-              folded.quantities,
-              built.date,
-              folded.dayCount,
-            ),
-          ).toBe(!testCase.capacityRefuses);
+        });
+
+        test(`backwards — the gallery judges as the checkout answers: ${testCase.name}`, async () => {
+          const built = await testCase.build();
+          const verdict = judgeOptionDemand(questionFor(built));
+          if (verdict.outcome.state !== "bookable") {
+            throw new Error("the judge must accept a bookable case");
+          }
+          // The gallery's own merge: the card option carrying the judge's
+          // realisable alternatives.
+          const judged = judgedOption(
+            listingOption(built.parents[0]!.listing, true),
+            verdict,
+          );
+          const states = evaluateOrder(
+            [judged],
+            await galleryPools(built, judged),
+            [],
+            true,
+          );
+          const state = states.get(judged.key);
+          expect(state, testCase.name).toBeDefined();
+          // The gallery's greying must agree with the checkout's per-date
+          // answer: available when the buyer's booking fits the pools, and
+          // unavailable when the per-date capacity refuses it.
+          expect(state?.kind, testCase.name).toBe(
+            testCase.capacityRefuses ? "unavailable" : "available",
+          );
         });
       }
     }
@@ -136,6 +243,11 @@ describeWithEnv(
         const built = { ...(await testCase.build()), date: null };
         const outcome = judgeOptionDemand(questionFor(built)).outcome;
         expect(outcome.state, testCase.name).toBe("bookable");
+        // The form's date-less fold holds exactly where no daily child
+        // demands a date: a standard-priced child folds, a daily child
+        // waits for the date gate.
+        const folded = await formFold(built, 1);
+        expect(folded.ok, testCase.name).toBe(testCase.foldsDateless ?? false);
       }
     });
   },

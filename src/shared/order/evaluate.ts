@@ -47,32 +47,41 @@ const dayMapOf = (
   return byDay;
 };
 
-/** What one selection of an option takes from each pool: its per-listing
- * units over the days that listing's booking occupies (the option's declared
- * spans, one undated day when no date is chosen), plus the same demand on
- * each capped group the listing shares. Pool → day → units. */
+/** What one booking takes from each pool: its per-listing units over the
+ * days that listing's booking occupies. The same demand joins each capped
+ * group the listing shares. The days come from the booking's declared
+ * spans, or one undated day when no date is chosen. Pool → day → units. */
 type Demand = Map<string, Map<string, number>>;
 
-/** The days one listing's demand occupies, from the option's declared spans. */
+/** The days one booking's demand occupies for one listing, from the spans
+ * the booking declares. */
 const demandDaysOf = (
-  option: OrderOption,
+  spans: ReadonlyMap<number, number>,
   pools: OrderPools,
   listingId: number,
 ): string[] => {
   if (pools.days.length === 0) return [UNDATED];
   if (!pools.remainingByListingDay.has(listingId)) return [UNDATED];
-  const span = option.spanDaysByListingId.get(listingId) ?? 1;
+  const span = spans.get(listingId) ?? 1;
   return pools.days.slice(0, clampDurationDays(span));
 };
 
-const demandOf = (option: OrderOption, pools: OrderPools): Demand => {
+/** What one booking takes from each pool: its per-listing units over the
+ * days that listing's booking occupies (one undated day when no date is
+ * chosen), plus the same demand on each capped group the listing shares.
+ * Pool → day → units. */
+const demandOfBooking = (
+  unitsByListingId: ReadonlyMap<number, number>,
+  spanDaysByListingId: ReadonlyMap<number, number>,
+  pools: OrderPools,
+): Demand => {
   const demand: Demand = new Map();
   const add = (pool: string, day: string, units: number) => {
     const byDay = dayMapOf(demand, pool);
     byDay.set(day, (byDay.get(day) ?? 0) + units);
   };
-  for (const [listingId, units] of option.unitsByListingId) {
-    for (const day of demandDaysOf(option, pools, listingId)) {
+  for (const [listingId, units] of unitsByListingId) {
+    for (const day of demandDaysOf(spanDaysByListingId, pools, listingId)) {
       add(listingPool(listingId), day, units);
       for (const groupId of pools.groupIdsByListingId.get(listingId) ?? []) {
         add(groupPool(groupId), day, units);
@@ -81,6 +90,11 @@ const demandOf = (option: OrderOption, pools: OrderPools): Demand => {
   }
   return demand;
 };
+
+/** What one selection of the option commits: its preview demand, the widest
+ * alternative the judge answered. */
+const demandOf = (option: OrderOption, pools: OrderPools): Demand =>
+  demandOfBooking(option.unitsByListingId, option.spanDaysByListingId, pools);
 
 /** The tracked pools and what is left in each, pool → day → remaining. Pools
  * without a limit are not tracked (unlimited). */
@@ -110,13 +124,17 @@ const openLedger = (pools: OrderPools): Ledger => {
   return ledger;
 };
 
-/** The first demanded pool day the ledger cannot cover, or null when all fit. */
-const firstShortPool = (ledger: Ledger, demand: Demand): string | null => {
+/** A pool day the ledger cannot cover. */
+type ShortPool = { day: string; pool: string };
+
+/** The first demanded pool day the ledger cannot cover, or null when all
+ * fit. The day rides along, so a blocker must hold the exact short day. */
+const firstShortPool = (ledger: Ledger, demand: Demand): ShortPool | null => {
   const short = [...demandEntries(demand)].find(({ day, pool, units }) => {
     const remaining = remainingOn(ledger, pool, day);
     return remaining !== undefined && remaining < units;
   });
-  return short?.pool ?? null;
+  return short === undefined ? null : { day: short.day, pool: short.pool };
 };
 
 /** Take the demand out of every tracked pool day (demand on untracked or
@@ -133,7 +151,9 @@ const judgeable = (option: OrderOption, dateChosen: boolean): boolean =>
   dateChosen || !option.needsDate;
 
 /** Judge one unselected option against the cart: each rule that fails names
- * the option's state, and an option passing them all is plainly available. */
+ * the option's state, and an option passing them all is plainly available.
+ * The option is available when ANY alternative the judge answered fits
+ * beside the cart — the buyer books one span, never their union. */
 const judgeOption = (
   option: OrderOption,
   pools: OrderPools,
@@ -143,19 +163,29 @@ const judgeOption = (
 ): OrderOptionState => {
   if (!option.bookableAlone) return { kind: "unavailable" };
   if (!judgeable(option, dateChosen)) return { kind: "needs_date" };
-  const demand = demandOf(option, pools);
-  const shortPool = firstShortPool(ledger, demand);
-  if (shortPool === null) return { kind: "available" };
-  // Doesn't fit beside the cart. If it doesn't fit on a fresh ledger either,
-  // it never fitted today at all; otherwise some committed selection is
-  // holding the contested capacity — the pool only shrank through commits,
-  // so the earliest committed selection drawing from it always exists.
-  if (firstShortPool(openLedger(pools), demand) !== null) {
+  const bookings = option.alternatives.map((alternative) =>
+    demandOfBooking(
+      alternative.unitsByListingId,
+      alternative.spanDaysByListingId,
+      pools,
+    ),
+  );
+  if (bookings.some((booking) => firstShortPool(ledger, booking) === null)) {
+    return { kind: "available" };
+  }
+  // No alternative fits beside the cart. If the first one doesn't fit on a
+  // fresh ledger either, it never fitted today at all; otherwise some
+  // committed selection is holding the contested pool day — the day only
+  // shrank through commits, so a committed selection demanding it always
+  // exists. Every judged option carries at least one alternative.
+  const short = firstShortPool(ledger, bookings[0]!)!;
+  if (firstShortPool(openLedger(pools), bookings[0]!) !== null) {
     return { kind: "unavailable" };
   }
-  const blocker = committed.find((selected) =>
-    demandOf(selected, pools).has(shortPool),
-  )!;
+  const blocker = committed.find((selected) => {
+    const held = demandOf(selected, pools);
+    return (held.get(short.pool)?.get(short.day) ?? 0) > 0;
+  })!;
   return { byKey: blocker.key, byName: blocker.name, kind: "blocked" };
 };
 

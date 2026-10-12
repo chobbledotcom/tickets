@@ -79,10 +79,10 @@ export const childHasDateOrStockForDays =
 export const childDateOk =
   (date: string | null, holidays: Holiday[], duration: number) =>
   (child: TicketListing): boolean => {
-    const kind = childKindOf(child.listing);
-    if (kind === "standard") return true;
+    // Only a daily listing carries a date, even when it prices day counts.
+    if (child.listing.listing_type !== "daily") return true;
     if (!date) return false;
-    return SPAN_RULES[kind].childDateOk(
+    return SPAN_RULES[childKindOf(child.listing)].childDateOk(
       child.listing,
       date,
       duration,

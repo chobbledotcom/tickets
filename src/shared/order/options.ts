@@ -25,6 +25,13 @@ export type OrderOption = {
    * days; a listing absent from the map occupies one day). Only read when a
    * date is chosen. */
   spanDaysByListingId: ReadonlyMap<number, number>;
+  /** The realisable bookings one selection can make, per span the form can
+   * book, as the demand judge answered them. An option is available when
+   * any alternative fits beside the cart. */
+  alternatives: ReadonlyArray<{
+    spanDaysByListingId: ReadonlyMap<number, number>;
+    unitsByListingId: ReadonlyMap<number, number>;
+  }>;
   /** Whether availability can only be judged once a date is chosen (the
    * option books a daily listing). */
   needsDate: boolean;
@@ -72,6 +79,18 @@ export const listingOptionKey = (listingId: number): string =>
 export const packageOptionKey = (groupId: number): string =>
   `package:${groupId}`;
 
+/** One option's shared shell: the preview demand, which is also the base
+ * alternative the demand judge replaces. */
+const optionWithDemand = (
+  option: Pick<OrderOption, "bookableAlone" | "key" | "name" | "needsDate">,
+  units: ReadonlyMap<number, number>,
+): OrderOption => ({
+  alternatives: [{ spanDaysByListingId: new Map(), unitsByListingId: units }],
+  ...option,
+  spanDaysByListingId: new Map(),
+  unitsByListingId: units,
+});
+
 /** Build a listing's order option from its availability-resolved card facts.
  *  The option's demand is the listing's minimum. The Continue prefill opens
  *  the booking page at that quantity, so the cart is judged at what the
@@ -84,14 +103,16 @@ export const listingOption = (
     min_quantity: number;
   },
   bookableAlone: boolean,
-): OrderOption => ({
-  bookableAlone,
-  key: listingOptionKey(listing.id),
-  name: listing.name,
-  needsDate: listing.listing_type === "daily",
-  spanDaysByListingId: new Map(),
-  unitsByListingId: new Map([[listing.id, listing.min_quantity]]),
-});
+): OrderOption =>
+  optionWithDemand(
+    {
+      bookableAlone,
+      key: listingOptionKey(listing.id),
+      name: listing.name,
+      needsDate: listing.listing_type === "daily",
+    },
+    new Map([[listing.id, listing.min_quantity]]),
+  );
 
 /** Build a package's order option: one selection books every member at its
  * fixed per-package quantity. */
@@ -100,13 +121,15 @@ export const packageOption = (
   members: readonly { id: number; listing_type: string }[],
   quantities: ReadonlyMap<number, number>,
   bookableAlone: boolean,
-): OrderOption => ({
-  bookableAlone,
-  key: packageOptionKey(group.id),
-  name: group.name,
-  needsDate: members.some((member) => member.listing_type === "daily"),
-  spanDaysByListingId: new Map(),
-  unitsByListingId: new Map(
-    members.map((member) => [member.id, quantities.get(member.id) ?? 1]),
-  ),
-});
+): OrderOption =>
+  optionWithDemand(
+    {
+      bookableAlone,
+      key: packageOptionKey(group.id),
+      name: group.name,
+      needsDate: members.some((member) => member.listing_type === "daily"),
+    },
+    new Map(
+      members.map((member) => [member.id, quantities.get(member.id) ?? 1]),
+    ),
+  );

@@ -72,13 +72,18 @@ export type Expectation =
 /** One declared case: an option (its parents and quantities) judged at a
  * date. `capacityRefuses` marks a case the fold accepts but the per-date
  * capacity refuses — the gallery's pools refuse the same demand, pinned
- * end-to-end by the /order/availability suite. `fold: "explicit-choice"`
+ * end-to-end by the /order/availability suite. `capacityFitsAt` names the
+ * bookable spans whose bookings still fit the pools, when a shorter span
+ * escapes the refusal. `foldsDateless` marks a case whose fold holds with
+ * no date, as a listing with no calendar folds. `fold: "explicit-choice"`
  * marks a multi-child option the form books only with a chosen child. */
 export type DemandCase = {
   build: () => Promise<BuiltCase>;
+  capacityFitsAt?: readonly number[];
   capacityRefuses?: boolean;
   expected: Expectation;
   fold?: "explicit-choice";
+  foldsDateless?: boolean;
   name: string;
 };
 
@@ -162,6 +167,18 @@ const oneParentCase = async (
   parents: [await ticketInfo(parentId)],
   quantities: new Map([[parentId, 1]]),
 });
+
+/** Books one unit of a listing for one day on the day after the order date,
+ * the way the capacity fixtures drain one date's pool. */
+const bookOneUnitTomorrow = async (listingId: number): Promise<void> => {
+  await bookAttendee(
+    { id: listingId },
+    {
+      date: addDays(orderDate(), 1),
+      durationDays: 1,
+    },
+  );
+};
 
 /** A fixed three-day parent whose sole customisable child prices 1-3 days
  * with one spot. */
@@ -253,10 +270,7 @@ export const CASES: DemandCase[] = [
   {
     async build() {
       const { child, parent } = await createSpanKitPair();
-      await bookAttendee(child, {
-        date: addDays(orderDate(), 1),
-        durationDays: 1,
-      });
+      await bookOneUnitTomorrow(child.id);
       return oneParentCase(parent.id, orderDate());
     },
     capacityRefuses: true,
@@ -341,8 +355,121 @@ export const CASES: DemandCase[] = [
     fold: "explicit-choice",
     name: "several bookable children leave the choice to the buyer",
   },
+  {
+    async build() {
+      // A standard listing that prices day counts: no calendar, so the fold
+      // never demands a date for it.
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500 },
+        maxAttendees: 1,
+        name: "Priced Standard Kit",
+      });
+      const parent = await createTestListing({ name: "Standard Parent" });
+      await listingChildren.setIds(parent.id, [child.id]);
+      return oneParentCase(parent.id, orderDate());
+    },
+    expected: {
+      bookable: true,
+      childUnits: [["Priced Standard Kit", 1]],
+      dayCounts: [1],
+    },
+    foldsDateless: true,
+    name: "a standard child that prices day counts folds without a date",
+  },
+  {
+    async build() {
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 2000 },
+        durationDays: 2,
+        maxAttendees: 1,
+        name: "Two Day Lone Trip",
+      });
+      await bookOneUnitTomorrow(parent.id);
+      return oneParentCase(parent.id, orderDate());
+    },
+    capacityRefuses: true,
+    expected: { bookable: true, childUnits: [], dayCounts: [2] },
+    name: "a childless two-day parent reads its second day's shortage",
+  },
+  {
+    async build() {
+      const child = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500, 2: 900 },
+        durationDays: 2,
+        maxAttendees: 1,
+        name: "Short Fits Kit",
+      });
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 2000 },
+        durationDays: 2,
+        name: "Short Fits Trip",
+      });
+      await listingChildren.setIds(parent.id, [child.id]);
+      // The child is full on the second day: only the one-day booking fits.
+      await bookOneUnitTomorrow(child.id);
+      return oneParentCase(parent.id, orderDate());
+    },
+    capacityFitsAt: [1],
+    expected: {
+      bookable: true,
+      childUnits: [["Short Fits Kit", 1]],
+      dayCounts: [1, 2],
+    },
+    name: "a child full on the later day keeps the shorter booking",
+  },
+  {
+    async build() {
+      const shortChild = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500 },
+        durationDays: 1,
+        maxAttendees: 5,
+        name: "One Day Member Kit",
+      });
+      const shortParent = await createDailyTestListing({
+        durationDays: 1,
+        maxAttendees: 5,
+        name: "One Day Member",
+      });
+      await listingChildren.setIds(shortParent.id, [shortChild.id]);
+      const longChild = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 3: 1500 },
+        durationDays: 3,
+        maxAttendees: 5,
+        name: "Three Day Member Kit",
+      });
+      const longParent = await createDailyTestListing({
+        durationDays: 3,
+        maxAttendees: 5,
+        name: "Three Day Member",
+      });
+      await listingChildren.setIds(longParent.id, [longChild.id]);
+      return {
+        childrenByParentId: await resolvedChildren([
+          shortParent.id,
+          longParent.id,
+        ]),
+        date: orderDate(),
+        parents: [
+          await ticketInfo(shortParent.id),
+          await ticketInfo(longParent.id),
+        ],
+        quantities: new Map([
+          [shortParent.id, 1],
+          [longParent.id, 1],
+        ]),
+      };
+    },
+    expected: { bookable: false, reason: "capacity" },
+    name: "a package whose members inherit different durations refuses",
+  },
 ];
 
 /** The cases whose date refusal disappears in the form's date-less render
  * phase. */
-export const renderPhaseCases = [6, 4] as const;
+export const renderPhaseCases = [6, 4, 9] as const;

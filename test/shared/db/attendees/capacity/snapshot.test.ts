@@ -9,7 +9,6 @@ import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import {
   groupRemainingForSpan,
-  groupRemainingFromSnapshot,
   loadCapacitySnapshot,
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
@@ -134,15 +133,14 @@ describeWithEnv(
 
       const snapshot = await loadCapacitySnapshot([short, long], date, 3);
 
+      // The group's cap holds on every day the listing occupies: the
+      // one-day stay reads the first day's remaining, the three-day stay
+      // reads the lowest day, which the late booking drained.
       expect(
-        groupRemainingFromSnapshot(snapshot, new Map([[group.id, 1]])).get(
-          group.id,
-        ),
+        remainingFromSnapshot(snapshot, [short], () => 1).get(short.id),
       ).toBe(10);
       expect(
-        groupRemainingFromSnapshot(snapshot, new Map([[group.id, 3]])).get(
-          group.id,
-        ),
+        remainingFromSnapshot(snapshot, [long], () => 3).get(long.id),
       ).toBe(6);
     });
 
@@ -212,14 +210,9 @@ describeWithEnv(
 
       const snapshot = await loadCapacitySnapshot([listing], date, 1);
 
-      // Its own 10 gives way to the group's 4, and the group reads the same.
+      // Its own 10 gives way to the group's 4.
       expect(
         remainingFromSnapshot(snapshot, [listing], () => 1).get(listing.id),
-      ).toBe(4);
-      expect(
-        groupRemainingFromSnapshot(snapshot, new Map([[group.id, 1]])).get(
-          group.id,
-        ),
       ).toBe(4);
     });
 

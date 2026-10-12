@@ -444,7 +444,7 @@
     "contraction": 1
   },
   "src/shared/booking-date-fields.ts": {
-    "long-sentence": 2
+    "long-sentence": 1
   },
   "src/shared/booking-fee.ts": {
     "long-sentence": 1
@@ -763,10 +763,9 @@
     "banned-modal": 5
   },
   "src/shared/db/attendees/capacity/snapshot.ts": {
-    "long-sentence": 4,
-    "present-perfect": 3,
-    "semicolon": 1,
-    "banned-modal": 1
+    "long-sentence": 3,
+    "present-perfect": 2,
+    "semicolon": 1
   },
   "src/shared/db/attendees/create.ts": {
     "long-sentence": 1
@@ -1718,7 +1717,7 @@
   "src/shared/order/evaluate.ts": {
     "wordy": 1,
     "long-sentence": 4,
-    "contraction": 2,
+    "contraction": 1,
     "semicolon": 3,
     "present-perfect": 1,
     "participle": 1
