@@ -18,12 +18,12 @@ import {
   validateHttpsDomainUrl,
   validateListingFields,
   validateName,
-  validateNonNegativeInteger,
   validateNonNegativePrice,
   validatePhone,
   validateSpecialInstructions,
   validateUpdateTier,
   validateUsername,
+  validateWholeNumber,
 } from "#templates/fields/validators.ts";
 
 /** A validator accepts a value when it returns exactly `null` (not `undefined`,
@@ -53,12 +53,11 @@ describe("fields validators", () => {
       rejects(validateNonNegativePrice, "not-money");
     });
 
-    test("validates non-negative whole numbers with the field label", () => {
-      const validate = validateNonNegativeInteger("Capacity");
+    test("validates whole numbers with the field label", () => {
+      const validate = validateWholeNumber("Capacity");
       accepts(validate, "0");
       accepts(validate, "2");
-      expect(validate("-1")).toBe("Capacity must be 0 or greater");
-      expect(validate("1.5")).toBe("Capacity must be 0 or greater");
+      expect(validate("1.5")).toBe("Capacity must be a whole number");
     });
   });
 

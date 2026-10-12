@@ -167,18 +167,12 @@ const listingFields = (view: ListingFormView = {}) =>
       min: 1,
       validate: (value: string): string | null => {
         // validateSingleField only calls this when the value is non-empty, so
-        // the empty-string case never reaches here.
+        // the empty-string case never reaches here. The declared min/max
+        // enforce the range. This check refuses a fraction.
         const parsed = Number(value);
-        if (!Number.isInteger(parsed)) {
-          return t("fields.validation.duration_whole");
-        }
-        if (parsed < 1) return t("fields.validation.duration_min");
-        if (parsed > MAX_DURATION_DAYS) {
-          return t("fields.validation.duration_max", {
-            max: MAX_DURATION_DAYS,
-          });
-        }
-        return null;
+        return Number.isInteger(parsed)
+          ? null
+          : t("fields.validation.duration_whole");
       },
     }),
     {

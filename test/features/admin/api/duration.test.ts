@@ -53,7 +53,9 @@ describeWithEnv("Admin API listing duration", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("duration_days must be a safe integer");
+          expect(body.error).toBe(
+            "duration_days must be a whole number from 1 to 90",
+          );
         },
       );
     });

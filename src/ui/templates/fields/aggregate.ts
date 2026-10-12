@@ -6,7 +6,7 @@
 
 import { t } from "#i18n";
 import type { Field } from "#shared/forms/field.ts";
-import { validateNonNegativeInteger } from "#templates/fields/validators.ts";
+import { validateWholeNumber } from "#templates/fields/validators.ts";
 
 export const aggregateIntegerField = (name: string, label: string): Field => ({
   label,
@@ -15,7 +15,7 @@ export const aggregateIntegerField = (name: string, label: string): Field => ({
   parse: Number,
   required: true,
   type: "number",
-  validate: validateNonNegativeInteger(label),
+  validate: validateWholeNumber(label),
 });
 
 type AggregateFieldSpec = {

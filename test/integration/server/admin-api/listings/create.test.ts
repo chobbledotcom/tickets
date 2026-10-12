@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
-import { requireListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -48,44 +47,32 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
-    test("clamps out-of-range duration_days to the supported bounds", async () => {
-      // The JSON API has no form layer, so the column-level clamp is all that
-      // bounds duration_days (each day adds a clause to the atomic capacity
-      // SQL, so an unbounded value is a perf hazard). The response echoes the
-      // clamped value, and the clamp is what is stored.
-      const high = await assertJson<{
-        listing: { id: number; duration_days: number };
-      }>(
-        apiRequest("/api/admin/listings", {
-          body: {
-            duration_days: 5000,
-            listing_type: "daily",
-            max_attendees: 50,
-            name: "API Clamped High",
+    test("refuses out-of-range duration_days like the form does", async () => {
+      // The declared range (1 to MAX_DURATION_DAYS) now applies to the JSON
+      // API body, the same bounds the listing form enforces. The write's
+      // column clamp stays as the storage backstop.
+      for (const [durationDays, name] of [
+        [5000, "API Refused High"],
+        [-2, "API Refused Low"],
+      ] as const) {
+        await assertJson(
+          apiRequest("/api/admin/listings", {
+            body: {
+              duration_days: durationDays,
+              listing_type: "daily",
+              max_attendees: 50,
+              name,
+            },
+            method: "POST",
+          }),
+          400,
+          (body: { error: string }) => {
+            expect(body.error).toBe(
+              `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
+            );
           },
-          method: "POST",
-        }),
-        201,
-      );
-      expect(high.listing.duration_days).toBe(MAX_DURATION_DAYS);
-      expect(
-        (await requireListingWithCount(high.listing.id)).duration_days,
-      ).toBe(MAX_DURATION_DAYS);
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            duration_days: -2,
-            listing_type: "daily",
-            max_attendees: 50,
-            name: "API Clamped Low",
-          },
-          method: "POST",
-        }),
-        201,
-        (body: { listing: { duration_days: number } }) => {
-          expect(body.listing.duration_days).toBe(1);
-        },
-      );
+        );
+      }
     });
 
     test("defaults duration_days to 1 when omitted", async () => {
@@ -255,7 +242,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("max_attendees is required and must be >= 1");
+          expect(body.error).toBe("max_attendees is required");
         },
       );
     });

@@ -27,9 +27,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("returns error for missing max_attendees", async () => {
       const result = await bodyToCreateInput({ name: "Test" });
       expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error).toBe("max_attendees is required and must be >= 1");
-      }
+      if (!result.ok) expect(result.error).toBe("max_attendees is required");
     });
 
     test("returns error when max_attendees is zero", async () => {
@@ -39,7 +37,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error).toBe("max_attendees is required and must be >= 1");
+        expect(result.error).toBe("max_attendees has an invalid value");
       }
     });
 
@@ -64,7 +62,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
 
       expect(result).toEqual({
-        error: "duration_days must be a safe integer",
+        error: "duration_days must be a whole number from 1 to 90",
         ok: false,
       });
     });
@@ -291,7 +289,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
 
       expect(result).toEqual({
-        error: "max_attendees must be a whole number of at least 1",
+        error: "max_attendees has an invalid value",
         ok: false,
       });
     });
@@ -305,7 +303,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
 
       expect(result).toEqual({
-        error: "max_attendees must be a whole number of at least 1",
+        error: "max_attendees has an invalid value",
         ok: false,
       });
     });

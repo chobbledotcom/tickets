@@ -52,9 +52,14 @@ export const createTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
+  // The create form refuses a capacity below the field's declared minimum of
+  // 1. A fixture that needs a stored zero-capacity listing — the capacity
+  // suites do — submits the form with a bookable capacity and then writes the
+  // requested column value directly.
+  const formCapacity = Math.max(input.maxAttendees, 1);
   const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
-    buildCreateListingForm(input),
+    buildCreateListingForm({ ...input, maxAttendees: formCapacity }),
     async () => {
       const { getAllListings } = await import("#db/listings/records.ts");
       const listings = await getAllListings();
@@ -63,6 +68,14 @@ export const createTestListing = async (
     "create listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  if (formCapacity !== input.maxAttendees) {
+    const { execute } = await import("#db/client.ts");
+    await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
+      input.maxAttendees,
+      listing.id,
+    ]);
+    return { ...listing, max_attendees: input.maxAttendees };
+  }
   return listing;
 };
 

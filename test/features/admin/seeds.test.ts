@@ -17,8 +17,7 @@ import { testCookie } from "#test-utils/session.ts";
 describeWithEnv("admin seeds handler", { db: true }, () => {
   // The expected attributes are written out here, not read back from the form
   // definition, so a changed default or bound fails this test instead of
-  // moving the expectation along with it. The two shared ceilings are the
-  // constants the clamp itself uses.
+  // moving the expectation along with it.
   const expectedBoxes = [
     { from: "1", name: "listing_count", starts: "5", upTo: MAX_SEED_LISTINGS },
     {
@@ -61,7 +60,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
     expect((await getAllListings()).length).toBe(2);
   });
 
-  test("clamps a listing count past the ceiling down to the ceiling", async () => {
+  test("refuses a listing count past the declared ceiling", async () => {
     const response = await postSeeds({
       attendees_per_listing: "0",
       listing_count: "999",
@@ -69,11 +68,15 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
     await expectFlashRedirect(
       "/admin/seeds",
-      t("admin.seeds.created", { attendees: 0, listings: MAX_SEED_LISTINGS }),
+      t("fields.validation.max_value", {
+        label: t("admin.seeds.listing_count_label"),
+        max: MAX_SEED_LISTINGS,
+      }),
+      false,
     )(response);
   });
 
-  test("clamps negative counts up to the floor", async () => {
+  test("refuses counts below the declared minimums", async () => {
     const response = await postSeeds({
       attendees_per_listing: "-10",
       listing_count: "-5",
@@ -81,7 +84,11 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
     await expectFlashRedirect(
       "/admin/seeds",
-      t("admin.seeds.created", { attendees: 0, listings: 1 }),
+      t("fields.validation.min_value", {
+        label: t("admin.seeds.listing_count_label"),
+        min: 1,
+      }),
+      false,
     )(response);
   });
 

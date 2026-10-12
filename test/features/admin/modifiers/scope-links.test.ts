@@ -332,9 +332,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Minimum previous bookings must be a whole number of 0 or more",
+        "Minimum previous bookings (optional) must be 0 or greater",
         false,
       )(response);
+    });
+
+    test("accepts zero, the declared minimum", async () => {
+      await adminFormPost("/admin/modifiers", createData({ min_visits: "0" }));
+      expect((await lastModifier()).min_visits).toBe(0);
     });
 
     test("rejects a fractional minimum previous bookings value", async () => {
@@ -344,7 +349,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Minimum previous bookings must be a whole number of 0 or more",
+        "Minimum previous bookings must be a whole number",
         false,
       )(response);
     });

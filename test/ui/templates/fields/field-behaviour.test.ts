@@ -44,8 +44,9 @@ describe("fields behaviour", () => {
       accepts(field, "5");
       accepts(field, "0");
     });
-    test("reject a negative, a fraction, and a non-number", () => {
-      rejects(field, "-1");
+    test("reject a fraction and a non-number", () => {
+      // The declared min of 0 refuses a negative; the field's own check
+      // refuses only what the schema cannot see.
       rejects(field, "1.5");
       rejects(field, "abc");
     });
@@ -108,14 +109,15 @@ describe("fields behaviour", () => {
       expect(byName(fields, "minimum_days_before").min).toBe(0);
       expect(byName(fields, "maximum_days_after").min).toBe(0);
     });
-    test("duration_days accepts 1..MAX and rejects outside/non-integer", () => {
+    test("duration_days accepts 1..MAX and rejects a fraction", () => {
       const duration = byName(fields, "duration_days");
       expect(duration.min).toBe(1);
+      expect(duration.max).toBe(MAX_DURATION_DAYS);
       accepts(duration, "1");
       accepts(duration, String(MAX_DURATION_DAYS));
-      rejects(duration, "0");
+      // The declared min/max refuse the outside values; the field's own
+      // check refuses a fraction.
       rejects(duration, "1.5");
-      rejects(duration, String(MAX_DURATION_DAYS + 1));
     });
     test("the date field rejects an unparseable datetime", () => {
       rejects(byName(fields, "date"), "not-a-datetime");

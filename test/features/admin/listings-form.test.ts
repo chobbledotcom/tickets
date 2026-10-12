@@ -91,6 +91,35 @@ describeWithEnv("listings form", { db: true }, () => {
         expect(row.closes_at).toBeNull();
       })());
 
+    test("refuses a quantity below the field's declared minimum", async () => {
+      for (const [field, value] of [
+        ["max_attendees", "0"],
+        ["min_quantity", "0"],
+      ] as const) {
+        const form = listingForm({ [field]: value });
+        const result = await buildCreateListingResource(form).create(form);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBe(
+            field === "max_attendees"
+              ? "Max attendees must be 1 or greater"
+              : "Min tickets per purchase must be 1 or greater",
+          );
+        }
+      }
+    });
+
+    test("accepts quantities at the declared minimum", async () => {
+      const row = await createListing({
+        max_attendees: "1",
+        max_quantity: "1",
+        min_quantity: "1",
+      });
+      expect(row.max_attendees).toBe(1);
+      expect(row.max_quantity).toBe(1);
+      expect(row.min_quantity).toBe(1);
+    });
+
     test("a zero unit price stays an explicit zero", async () => {
       const row = await createListing({ unit_price: "0" });
       expect(row.unit_price).toBe(0);

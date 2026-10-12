@@ -50,13 +50,12 @@ export const validateNonNegativePrice = (value: string): string | null =>
     ? t("fields.validation.price_min")
     : null;
 
-export const validateNonNegativeInteger =
+/** Refuses a fraction. The field's declared min covers the range. */
+export const validateWholeNumber =
   (label: string) =>
   (value: string): string | null => {
     const n = Number(value);
-    return Number.isInteger(n) && n >= 0
-      ? null
-      : `${label} must be 0 or greater`;
+    return Number.isInteger(n) ? null : `${label} must be a whole number`;
   };
 
 /** One field's answer to a submitted value: why it was refused, or null. */

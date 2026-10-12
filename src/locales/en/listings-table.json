@@ -298,8 +298,6 @@
   "fields.validation.days_required": "At least one day is required",
   "fields.validation.invalid_day": "Invalid day: {day}. Use: {valid}",
   "fields.validation.duration_whole": "Booking duration (days) must be a whole number.",
-  "fields.validation.duration_min": "Booking duration (days) must be at least 1.",
-  "fields.validation.duration_max": "Booking duration (days) must be at most {max}.",
   "error.months_per_unit_needs_flags": "Months per unit requires No check-in and Hidden listing to be enabled.",
   "error.initial_site_months_required": "Initial site months is required when a site is assigned.",
   "error.assign_built_site_not_tier": "A listing that assigns a site cannot also be a renewal tier. Turn off months per unit or stop assigning a site.",

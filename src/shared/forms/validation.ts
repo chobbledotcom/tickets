@@ -54,6 +54,25 @@ const invalidFieldError = (field: Field): FieldValidationResult => ({
 const isUnusableParsedValue = (value: string | number | null): boolean =>
   value === null || (typeof value === "number" && !Number.isFinite(value));
 
+/** The browser applies a number field's min/max attributes. The server
+ *  enforces the same declaration, so a hand-built request cannot slip past
+ *  them. Fields without a bound stay unbounded. */
+const outOfRangeError = (field: Field, value: number): string | null => {
+  if (field.min !== undefined && value < field.min) {
+    return t("fields.validation.min_value", {
+      label: field.label,
+      min: field.min,
+    });
+  }
+  if (field.max !== undefined && value > field.max) {
+    return t("fields.validation.max_value", {
+      label: field.label,
+      max: field.max,
+    });
+  }
+  return null;
+};
+
 const collectFieldValue = (
   form: FormParams,
   field: Field,
@@ -111,6 +130,10 @@ const validateSingleField = (
   const value = parseFieldValue(field, trimmed);
   if (trimmed && isUnusableParsedValue(value)) {
     return invalidFieldError(field);
+  }
+  if (typeof value === "number") {
+    const rangeError = outOfRangeError(field, value);
+    if (rangeError !== null) return { error: rangeError, valid: false };
   }
   return { valid: true, value };
 };
