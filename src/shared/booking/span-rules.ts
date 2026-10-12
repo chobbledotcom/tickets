@@ -43,13 +43,16 @@ export const childKindOf = (
   return listing.listing_type === "daily" ? "daily_fixed" : "standard";
 };
 
-/** One kind's span rules. Each rule reads only the columns it needs. */
+/** One kind's span rules. Each rule reads only the columns it needs. A
+ * standard listing has no calendar, so it declares no date rule: the
+ * caller answers a non-daily listing without one. */
 type SpanRule = {
   /** The day counts a child of this kind can serve, or null when it serves
    * any span. */
   readonly childSpans: (listing: DayPricedListing) => number[] | null;
-  /** Whether the listing can start on `date` and hold `durationDays`. */
-  readonly childDateOk: (
+  /** Whether the listing can start on `date` and hold `durationDays`. Only
+   * a calendar-bearing kind declares one. */
+  readonly childDateOk?: (
     listing: Listing,
     date: string,
     durationDays: number,
@@ -62,42 +65,28 @@ type SpanRule = {
     whenCustomisable: T,
     whenStandard: T,
   ) => T;
-  /** The span one directly-booked unit occupies while the buyer has not
-   * picked a span. A fixed daily listing books its whole duration, and
-   * anything else judges at one day. */
-  readonly directSpanDays: (
-    listing: Pick<
-      Listing,
-      "customisable_days" | "duration_days" | "listing_type"
-    >,
-  ) => number;
 };
 
 /** The declared table. A kind missing here is a compile error, never a
  * fallthrough. Every rule that follows a listing's kind lives in one cell. */
 export const SPAN_RULES: Readonly<Record<ChildKind, SpanRule>> = {
   daily_customisable: {
+    // The caller has already asked the listing type. This cell judges the
+    // calendar of a daily listing.
     childDateOk: (listing, date, durationDays, holidays) =>
-      // The form's date rule asks the listing type first: a listing judged
-      // datelessly has no calendar, even when it prices day counts.
-      listing.listing_type !== "daily" ||
       isBookingRangeValid(listing, date, durationDays, holidays),
     childSpans: (listing) => availableDayCounts(listing),
-    directSpanDays: () => 1,
     parentValue: (_listing, whenCustomisable) => whenCustomisable,
   },
   daily_fixed: {
     childDateOk: (listing, date, _durationDays, holidays) =>
       getBookableStartDates(listing, holidays).includes(date),
     childSpans: (listing) => [clampDurationDays(listing.duration_days)],
-    directSpanDays: (listing) => clampDurationDays(listing.duration_days),
     parentValue: <T>(listing: Pick<Listing, "duration_days">) =>
       clampDurationDays(listing.duration_days) as T,
   },
   standard: {
-    childDateOk: () => true,
     childSpans: () => null,
-    directSpanDays: () => 1,
     parentValue: (_listing, _whenCustomisable, whenStandard) => whenStandard,
   },
 };

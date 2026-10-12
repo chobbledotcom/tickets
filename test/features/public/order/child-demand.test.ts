@@ -18,7 +18,7 @@ import {
 import {
   createEarlyWeekPair,
   createSpanKitPair,
-} from "#test/shared/booking/option-demand/cases.ts";
+} from "#test/shared/booking/option-demand/fixtures.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

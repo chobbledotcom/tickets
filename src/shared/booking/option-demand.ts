@@ -26,7 +26,6 @@ import {
   parentResolvedDuration,
   type TicketListing,
 } from "#booking/model.ts";
-import { childKindOf, SPAN_RULES } from "#booking/span-rules.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { requiredMapValue } from "#fp";
 import { isBookingRangeValid } from "#shared/dates.ts";
@@ -117,16 +116,13 @@ type Serving = {
 const whyChildFails = (serving: Serving): ChildFailure | null => {
   if (!childCanBeBooked(serving.child)) return "structural";
   if (!childSupportsDays(serving.child, serving.durationDays)) return "span";
-  if (
-    serving.date !== null &&
-    !childDateOk(
-      serving.date,
-      serving.holidays,
-      serving.durationDays,
-    )(serving.child)
-  ) {
-    return "date";
-  }
+  if (serving.date === null) return null;
+  const dateOk = childDateOk(
+    serving.date,
+    serving.holidays,
+    serving.durationDays,
+  )(serving.child);
+  if (!dateOk) return "date";
   return null;
 };
 
@@ -142,9 +138,8 @@ const whyNoChildServes = (
   const failures = children.map((child) =>
     whyChildFails({ child, date, durationDays, holidays }),
   );
-  if (failures.every((failure) => failure === "structural")) {
+  if (failures.every((failure) => failure === "structural"))
     return "structural";
-  }
   if (failures.includes("date")) return "date";
   return "span";
 };
@@ -298,31 +293,22 @@ const spanOutcome = (
   return { ok: true, spans, units };
 };
 
-/** The option's refusal, carrying the parents' own pool spans. */
+/** The option's refusal. No demand folds in a refusal, so no span map
+ * rides along: the option's pool span stays whatever the card declared. */
 const refusedVerdict = (
-  question: OptionDemandQuestion,
+  _question: OptionDemandQuestion,
   reason: OptionRefusal,
 ): OptionVerdict => ({
   outcome: { reason, state: "refused" },
-  spanDaysByListingId: parentSpans(question),
+  spanDaysByListingId: new Map(),
 });
-
-/** Every option parent's own pool span (no child is charged in a refusal). */
-const parentSpans = (question: OptionDemandQuestion): Map<number, number> =>
-  new Map(
-    question.parents.map((parent): [number, number] => [
-      parent.listing.id,
-      SPAN_RULES[childKindOf(parent.listing)].directSpanDays(parent.listing),
-    ]),
-  );
 
 /** The declared refusal for a set of span failures. */
 const reasonOfFailures = (failures: readonly SpanFailure[]): OptionRefusal => {
   if (failures.includes("structural")) return "no_bookable_child";
   if (failures.includes("span")) return "span_unsupported";
-  if (failures.includes("date") || failures.includes("parent_date")) {
+  if (failures.includes("date") || failures.includes("parent_date"))
     return "date_unsupported";
-  }
   return "capacity";
 };
 
@@ -386,14 +372,10 @@ const alternativeOf = (
   for (const parent of question.parents) {
     const qty = parentQuantityOf(question, parent);
     if (qty <= 0) continue;
-    spans.set(
-      parent.listing.id,
-      parentResolvedDuration(parent.listing, bookable.dayCount),
-    );
-    units.set(
-      parent.listing.id,
-      Math.max(units.get(parent.listing.id) ?? 0, qty),
-    );
+    const span = parentResolvedDuration(parent.listing, bookable.dayCount);
+    spans.set(parent.listing.id, span);
+    const charged = Math.max(units.get(parent.listing.id) ?? 0, qty);
+    units.set(parent.listing.id, charged);
   }
   return {
     dayCount: bookable.dayCount,
@@ -406,10 +388,13 @@ const alternativeOf = (
  * demand is the option's committed preview. */
 export const widestAlternative = (
   alternatives: readonly Alternative[],
-): Alternative =>
-  alternatives.reduce((left, right) =>
-    right.dayCount > left.dayCount ? right : left,
-  );
+): Alternative => {
+  let widest = alternatives[0]!;
+  for (const alternative of alternatives) {
+    if (alternative.dayCount > widest.dayCount) widest = alternative;
+  }
+  return widest;
+};
 
 /** Judge one option the way the booking form books it. It judges every span
  * the form's own page rules offer, at the chosen date, or date-less in the

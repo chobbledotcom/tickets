@@ -21,8 +21,12 @@ import {
 } from "#db/attendees/capacity/snapshot.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { uniqueBy } from "#fp";
+import { FormParams } from "#shared/form-data.ts";
 import { judgedOption } from "#routes/public/order-catalog.ts";
-import { checkAvailability } from "#routes/public/ticket-payment.ts";
+import {
+  checkAvailability,
+  resolveDayCount,
+} from "#routes/public/ticket-payment.ts";
 import { evaluateOrder } from "#shared/order/evaluate.ts";
 import {
   listingOption,
@@ -226,9 +230,25 @@ describeWithEnv(
         const built = await testCase.build();
         const outcome = judgeOptionDemand(questionFor(built)).outcome;
         if (outcome.state === "refused") {
-          // A refusal the fold shares. A capacity refusal is the one the
-          // checkout's per-date check answers instead.
-          expect((await formFold(built, 1)).ok).toBe(false);
+          // A refusal the fold shares, unless the page's day-count
+          // resolution answers it first: the fold walk folds each member
+          // at its own duration, and the day-count gate refuses the
+          // submission.
+          expect((await formFold(built, 1)).ok).toBe(
+            testCase.foldAccepts ?? false,
+          );
+          if (testCase.foldAccepts) {
+            const chosen = built.parents.map((info) => ({
+              listing: info.listing,
+              qty: built.quantities.get(info.listing.id) ?? 0,
+            }));
+            const resolved = await resolveDayCount(
+              chosen,
+              new FormParams([["day_count", "1"]]),
+              built.date,
+            );
+            expect("error" in resolved, testCase.name).toBe(true);
+          }
           return;
         }
         for (const dayCount of outcome.bookableDayCounts) {
@@ -267,6 +287,27 @@ describeWithEnv(
     test("nameOf refuses a listing id no fixture holds", async () => {
       const built = await CASES[0]!.build();
       expect(() => nameOf(built, -1)).toThrow("Unknown listing -1");
+    });
+
+    test("a zero-quantity parent books nothing and demands nothing", async () => {
+      // The judge answers the option the catalog hands it. The catalog only
+      // judges parents the buyer books, and a zero quantity contributes no
+      // fold and no demand, on every surface.
+      const built = await CASES[0]!.build();
+      const question = questionFor(built);
+      const parentId = built.parents[0]!.listing.id;
+      const outcome = judgeOptionDemand({
+        ...question,
+        quantities: new Map([[parentId, 0]]),
+      }).outcome;
+      expect(outcome.state, "a zero-quantity parent is bookable").toBe(
+        "bookable",
+      );
+      if (outcome.state !== "bookable") return;
+      expect(outcome.bookableDayCounts).toEqual([1]);
+      expect(
+        sortedEntries(widestAlternative(outcome).unitsByListingId),
+      ).toEqual([]);
     });
   },
 );
