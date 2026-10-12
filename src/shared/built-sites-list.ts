@@ -8,6 +8,7 @@ import * as v from "valibot";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { sort } from "#fp";
 import { compareByName } from "#shared/name-order.ts";
+import { parseDateMs } from "#shared/now.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
 export const BuiltSitesSortSchema = v.picklist([
@@ -27,16 +28,12 @@ export const readBuiltSitesSort = (query: URLSearchParams): BuiltSitesSort => {
   return raw !== null && isBuiltSitesSort(raw) ? raw : "name";
 };
 
-/** The deadline's instant in milliseconds, or null when no deadline is set. */
-const deadlineInstant = (deadline: string): number | null =>
-  deadline === "" ? null : Date.parse(deadline);
-
-/** The deadlines in time order. A site with no deadline sorts after the dated
- * ones. The stored spellings ("…59Z" and "…59.000Z") name the same instant,
- * so equal deadlines reach the name tie-breaker. */
+/** The deadlines in time order. A site whose deadline is empty or unreadable
+ * sorts after the dated ones. The stored spellings ("…59Z" and "…59.000Z")
+ * name the same instant, so equal deadlines reach the name tie-breaker. */
 const compareDeadlines = (first: string, second: string): number => {
-  const firstInstant = deadlineInstant(first);
-  const secondInstant = deadlineInstant(second);
+  const firstInstant = parseDateMs(first);
+  const secondInstant = parseDateMs(second);
   if (firstInstant === null || secondInstant === null) {
     return firstInstant === secondInstant ? 0 : firstInstant === null ? 1 : -1;
   }

@@ -126,4 +126,20 @@ describe("visitSiteUrl", () => {
       "https://tickets.example.co.uk/bunny.net",
     );
   });
+
+  test("gives no address for an empty saved URL", () => {
+    expect(visitSiteUrl("")).toBeUndefined();
+  });
+
+  test("gives no address for a truncated URL", () => {
+    expect(visitSiteUrl("https://")).toBeUndefined();
+  });
+
+  test("gives no address for a non-http scheme", () => {
+    expect(visitSiteUrl("javascript:alert(1)")).toBeUndefined();
+  });
+
+  test("gives no address for a URL on another scheme", () => {
+    expect(visitSiteUrl("ftp://example.com")).toBeUndefined();
+  });
 });

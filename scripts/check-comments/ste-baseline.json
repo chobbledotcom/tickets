@@ -1987,8 +1987,8 @@
     "long-sentence": 1
   },
   "src/shared/site-address.ts": {
-    "long-sentence": 2,
     "semicolon": 1,
+    "long-sentence": 1,
     "banned-modal": 1
   },
   "src/shared/site-assignment.ts": {

@@ -226,6 +226,14 @@ describe("built-site templates", () => {
       const edit = String(BuiltSiteEditPanel({ site }));
       expect(edit).not.toContain("(visit)");
     });
+
+    test("renders the edit form, with no (visit) link, for a malformed saved URL", () => {
+      const site = testBuiltSite({ siteUrl: "https://" });
+      const edit = String(BuiltSiteEditPanel({ site }));
+      expect(edit).toContain('action="/admin/built-sites');
+      expect(edit).toContain('value="https://"');
+      expect(edit).not.toContain("(visit)");
+    });
   });
 
   describe("renewalPanelFor — provisioned site", () => {

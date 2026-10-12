@@ -1,7 +1,7 @@
 /**
  * The stable address of a built site. Every host that serves one site on two
- * hostnames is named here once, and every link, monitor, and probe goes
- * through siteBaseUrl — a future deployment host is one new table row.
+ * hostnames is named here once. Every link, monitor, and probe goes through
+ * siteBaseUrl. A future deployment host is one new table row.
  */
 
 /** A raw host suffix that some visitors cannot reach, and the stable host
@@ -26,10 +26,16 @@ const renderedUrl = (url: URL): string =>
 /** The "(visit)" address for a saved site URL: the same URL with its host's
  * raw zone suffix swapped for the CDN one. A custom domain, or a host that is
  * already the CDN name, comes back unchanged. A saved bare hostname becomes
- * its https address, never a relative one. */
-export const visitSiteUrl = (siteUrl: string): string => {
-  const bare = !/^https?:\/\//i.test(siteUrl);
-  const url = new URL(bare ? `https://${siteUrl}` : siteUrl);
+ * its https address, never a relative one. A saved value that names a scheme
+ * other than http or https, or that is not a valid URL, returns undefined.
+ * The caller then renders no link. */
+export const visitSiteUrl = (siteUrl: string): string | undefined => {
+  const scheme = /^[a-z][a-z0-9+.-]*:/i.exec(siteUrl)?.[0];
+  if (scheme !== undefined && !/^https?:$/i.test(scheme)) return;
+  const bare = scheme === undefined;
+  const withScheme = bare ? `https://${siteUrl}` : siteUrl;
+  if (!URL.canParse(withScheme)) return;
+  const url = new URL(withScheme);
   const { hostname } = url;
   if (!hostname.endsWith(ZONE_HOST_SUFFIX)) {
     return bare ? renderedUrl(url) : siteUrl;

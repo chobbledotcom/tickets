@@ -100,6 +100,35 @@ describe("inBuiltSitesOrder", () => {
     ).toEqual(["Zeta", "Alpha"]);
   });
 
+  test("sorts an unreadable deadline with the missing ones", () => {
+    const later = site({
+      id: 15,
+      name: "Aaron",
+      readOnlyFrom: "2026-12-01T00:00:00Z",
+    });
+    const unreadable = site({
+      id: 16,
+      name: "Nadir",
+      readOnlyFrom: "not a date",
+    });
+    const earlier = site({
+      id: 17,
+      name: "Zulu",
+      readOnlyFrom: "2026-01-01T00:00:00Z",
+    });
+    const undated = site({ id: 18, name: "Beta", readOnlyFrom: "" });
+    // The dated rows keep time order even though name order opposes it, and
+    // the unreadable deadline falls in the same bucket as the empty one.
+    expect(
+      inBuiltSitesOrder("read_only_from")([
+        later,
+        unreadable,
+        earlier,
+        undated,
+      ]).map((s) => s.name),
+    ).toEqual(["Zulu", "Aaron", "Beta", "Nadir"]);
+  });
+
   test("breaks equal sort keys by name", () => {
     const first = site({
       created: "2026-01-01T00:00:00Z",

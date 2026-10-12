@@ -107,9 +107,9 @@ export const BuiltSiteEditPanel = ({
   editPanel(error)(
     <BuiltSiteSaveForm action={`/admin/built-sites/${site.id}/edit`}>
       <Raw
-        html={getBuiltSiteForm(
-          site.siteUrl ? visitSiteUrl(site.siteUrl) : undefined,
-        ).render(values ?? builtSiteToFieldValues(site))}
+        html={getBuiltSiteForm(visitSiteUrl(site.siteUrl)).render(
+          values ?? builtSiteToFieldValues(site),
+        )}
       />
     </BuiltSiteSaveForm>,
   );
