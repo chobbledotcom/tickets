@@ -49,32 +49,42 @@ describeAdminSettings(() => {
       expectFlash(response, "Booking fee set to 0%");
     });
 
-    /** Assert the POST rejects `value` with the standard "must be a number
-     *  between 0 and 10" flash. Sets the payment provider first so the form
-     *  is visible — the route guards on a configured provider. */
-    const expectRejectsOutOfRange = async (value: string): Promise<void> => {
+    /** Assert the POST rejects `value` with the given flash. Sets the payment
+     *  provider first so the form is visible — the route guards on a
+     *  configured provider. */
+    const expectRejects = async (
+      value: string,
+      message: string,
+    ): Promise<void> => {
       await settings.update.paymentProvider("stripe");
       const response = await postBookingFee(value);
       expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining(
-          "Booking fee must be a number between 0 and 10",
-        ),
-        false,
-      );
+      expectFlash(response, expect.stringContaining(message), false);
     };
 
-    test("rejects value exceeding 10", async () => {
-      await expectRejectsOutOfRange("15");
+    test("rejects a value above the declared maximum", async () => {
+      await expectRejects("15", "Booking Fee (%) must be 10 or fewer");
     });
 
-    test("rejects negative value", async () => {
-      await expectRejectsOutOfRange("-1");
+    test("rejects a value below the declared minimum", async () => {
+      await expectRejects("-1", "Booking Fee (%) must be 0 or greater");
     });
 
-    test("rejects non-numeric value", async () => {
-      await expectRejectsOutOfRange("abc");
+    test("rejects a value the number type turns down", async () => {
+      await expectRejects("abc", "Booking Fee (%) is invalid.");
+    });
+
+    test("saves the value the bounds validated for crafted number text", async () => {
+      // "1e3" parses to 1000 — far past the declared max. The POST guard
+      // refuses it before the extractor runs.
+      await settings.update.paymentProvider("stripe");
+      const before = settings.bookingFee;
+      await expectRejects("1e3", "Booking Fee (%) must be 10 or fewer");
+      expect(settings.bookingFee).toBe(before);
+      // "0xA" is 10 to the schema's Number and 0 to a parseFloat.
+      const response = await postBookingFee("0xA");
+      expectFlash(response, "Booking fee set to 10%");
+      expect(settings.bookingFee).toBe("10");
     });
 
     test("settings page displays booking fee form when payment provider is set", async () => {

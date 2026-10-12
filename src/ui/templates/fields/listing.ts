@@ -6,6 +6,11 @@
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import {
+  type CatalogField,
+  isWholeNumberKind,
+} from "#shared/catalog-fields/definition.ts";
+import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -33,6 +38,7 @@ import {
   validateHttpsDomainUrl,
   validateListingFields,
   validateNonNegativePrice,
+  validateWholeNumber,
 } from "#templates/fields/validators.ts";
 import {
   ContactFieldSchema,
@@ -74,6 +80,13 @@ type ListingNumberField<
   type: "number";
 };
 
+/** The catalog entry behind each listing form number field, keyed by the
+ *  submitted name. The entry's kind is the shared declaration the listing
+ *  JSON API enforces on the same value. */
+const CATALOG_FIELD_BY_NAME: Record<string, CatalogField> = Object.fromEntries(
+  Object.values(listingCatalogFields).map((entry) => [entry[0], entry]),
+);
+
 const listingNumberField = <
   TName extends ListingNumberFieldName,
   TSection extends string,
@@ -84,10 +97,20 @@ const listingNumberField = <
   options: TOptions,
 ): ListingNumberField<TName, TSection> & TOptions => {
   const copy = LISTING_NUMBER_COPY[name];
+  const label = t(`fields.listing.${copy}`);
+  const catalogField = CATALOG_FIELD_BY_NAME[name];
   return {
     hint: t(`fields.listing.${copy}_hint`),
-    label: t(`fields.listing.${copy}`),
+    label,
     ...options,
+    // A whole-number kind refuses a fraction on the form, the same rule the
+    // API check enforces on the body value. The field's declared min stays
+    // responsible for the range.
+    ...(catalogField !== undefined &&
+    isWholeNumberKind(catalogField) &&
+    options.validate === undefined
+      ? { validate: validateWholeNumber(label) }
+      : {}),
     name,
     section,
     type: "number",
@@ -167,18 +190,12 @@ const listingFields = (view: ListingFormView = {}) =>
       min: 1,
       validate: (value: string): string | null => {
         // validateSingleField only calls this when the value is non-empty, so
-        // the empty-string case never reaches here.
+        // the empty-string case never reaches here. The declared min/max
+        // enforce the range. This check refuses a fraction.
         const parsed = Number(value);
-        if (!Number.isInteger(parsed)) {
-          return t("fields.validation.duration_whole");
-        }
-        if (parsed < 1) return t("fields.validation.duration_min");
-        if (parsed > MAX_DURATION_DAYS) {
-          return t("fields.validation.duration_max", {
-            max: MAX_DURATION_DAYS,
-          });
-        }
-        return null;
+        return Number.isInteger(parsed)
+          ? null
+          : t("fields.validation.duration_whole");
       },
     }),
     {

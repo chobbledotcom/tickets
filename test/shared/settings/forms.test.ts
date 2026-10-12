@@ -313,8 +313,9 @@ describe("settings form schema", () => {
   });
 
   test("bounds the booking fee between 0 and 10 in steps of 0.1", () => {
-    expect(SETTINGS_FORMS.bookingFee.max).toBe("10");
-    expect(SETTINGS_FORMS.bookingFee.min).toBe("0");
+    // The bounds are numbers: the POST guard reads them off the field schema.
+    expect(SETTINGS_FORMS.bookingFee.max).toBe(10);
+    expect(SETTINGS_FORMS.bookingFee.min).toBe(0);
     expect(SETTINGS_FORMS.bookingFee.step).toBe("0.1");
   });
 

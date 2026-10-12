@@ -221,9 +221,17 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Max times per order must be a whole number of 1 or more",
+        "Max times per order (optional) must be 1 or greater",
         false,
       )(response);
+    });
+
+    test("accepts the max times per order at its declared minimum", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ max_per_order: "1", trigger: "answer" }),
+      );
+      expect((await lastModifier()).max_per_order).toBe(1);
     });
 
     test("rejects a fractional max times per order", async () => {
@@ -233,7 +241,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Max times per order must be a whole number of 1 or more",
+        "Max times per order (optional) must be a whole number",
         false,
       )(response);
     });

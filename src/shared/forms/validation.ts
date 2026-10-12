@@ -1,6 +1,10 @@
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import {
+  invalidFieldMessage,
+  outOfRangeError,
+} from "#shared/forms/constraints.ts";
+import {
   type ChoiceField,
   effectiveMaxLength,
   type Field,
@@ -42,9 +46,6 @@ const requiredFieldError = (field: Field): FieldValidationResult => ({
   error: field.requiredMessage ?? `${field.label} is required`,
   valid: false,
 });
-
-const invalidFieldMessage = (field: Field): string =>
-  field.invalidMessage ?? t("error.field_invalid", { label: field.label });
 
 const invalidFieldError = (field: Field): FieldValidationResult => ({
   error: invalidFieldMessage(field),
@@ -111,6 +112,10 @@ const validateSingleField = (
   const value = parseFieldValue(field, trimmed);
   if (trimmed && isUnusableParsedValue(value)) {
     return invalidFieldError(field);
+  }
+  if (typeof value === "number") {
+    const rangeError = outOfRangeError(field, value);
+    if (rangeError !== null) return { error: rangeError, valid: false };
   }
   return { valid: true, value };
 };

@@ -239,14 +239,13 @@ export const handleCalendarFeedsPost = settingsHandler({
 /** Handle POST /admin/settings/booking-fee - owner only */
 export const handleBookingFeePost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.bookingFee),
-  extract: (form) =>
-    Number.parseFloat(form.getString(SETTINGS_FORMS.bookingFee.fieldName)),
+  // The schema's parse is Number. A blank becomes NaN, so the handler refuses.
+  extract: (form) => Number(form.getString("booking_fee") || Number.NaN),
   log: (v) => `Booking fee set to ${v}%`,
   save: (v) => settings.update.bookingFee(String(v)),
-  validate: (v) =>
-    !Number.isFinite(v) || v < 0 || v > 10
-      ? t("error.booking_fee_range")
-      : null,
+  // The declared 0..10 bounds refuse an out-of-range number before the
+  // extractor runs. This check refuses the blank, which parses to NaN.
+  validate: (v) => (Number.isFinite(v) ? null : t("error.booking_fee_range")),
 });
 
 /**

@@ -223,6 +223,39 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
       expectFlash(response, "Your Name is required", false);
     });
 
+    test("refuses the quantity-0 quick-add POST from #2559", async () => {
+      // The form declares quantity min 1, and validateForm enforces the
+      // declared minimum on the server, so a hand-built POST cannot save a
+      // quantity-0 ghost line.
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
+
+      const response = await submitAddAttendee(listing.id, cookie, csrfToken, {
+        email: "ghost@example.com",
+        name: "Quick Add Ghost",
+        quantity: "0",
+      });
+      expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
+      expectFlash(response, "Quantity must be 1 or greater", false);
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees.length).toBe(0);
+    });
+
+    test("books an attendee at the declared minimum quantity", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
+
+      const response = await submitAddAttendee(listing.id, cookie, csrfToken, {
+        email: "at-min@example.com",
+        name: "Quick Add At Minimum",
+        quantity: "1",
+      });
+      const added = await expectAttendeeAdded(response, listing.id);
+      expect(added.quantity).toBe(1);
+    });
+
     test("redirects with error when capacity exceeded", async () => {
       const listing = await createTestListing({ maxAttendees: 1 });
       await createTestAttendee(

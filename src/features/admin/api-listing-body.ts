@@ -7,6 +7,7 @@ import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { reduce } from "#fp";
 import {
   type CatalogApiBody,
+  invalidApiValueField,
   projectCatalogFields,
 } from "#shared/catalog-fields/definition.ts";
 import {
@@ -27,7 +28,12 @@ import {
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 // jscpd:ignore-end
 import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
-import type { AdminSession, ListingWithCount } from "#types";
+import { integerAtLeast } from "#shared/validation/number.ts";
+import {
+  type AdminSession,
+  type ListingWithCount,
+  MAX_DURATION_DAYS,
+} from "#types";
 
 /** JSON body accepted by POST /api/admin/listings. */
 export type CreateListingBody = Omit<
@@ -102,8 +108,8 @@ const API_BODY_FIELD_RULES = [
   ],
   [
     "duration_days",
-    v.pipe(v.number(), v.safeInteger()),
-    "duration_days must be a safe integer",
+    v.pipe(integerAtLeast(1), v.maxValue(MAX_DURATION_DAYS)),
+    `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
   ],
   [
     "closes_at",
@@ -185,11 +191,24 @@ const withParsedJoinIds = (
   ) {
     return Promise.resolve(errorResult("attribute_option_ids is owner-only"));
   }
+  // The same declared bounds the listing form enforces. Each field's kind
+  // carries its minimum, so a hand-built body cannot set max_attendees 0 or
+  // a negative min_quantity/max_quantity. The check reads the body after the
+  // editor lock strip, so a locked field keeps its ignore semantics. It runs
+  // after the per-field rules so their messages stay the specific ones.
   const invalid = API_BODY_FIELD_RULES.find(
     ([apiKey, schema]) =>
       body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
   );
   if (invalid) return Promise.resolve(errorResult(invalid[2]));
+  const applicableBody = withoutEditorLockedFields(body, session);
+  const invalidField = invalidApiValueField(
+    listingCatalogFields,
+    applicableBody,
+  );
+  if (invalidField) {
+    return Promise.resolve(errorResult(`${invalidField} has an invalid value`));
+  }
   const groupIds = parseOptionalIdArray(body.group_ids, "group_ids");
   if (!groupIds.ok) return Promise.resolve(groupIds);
   const attributeOptionIds = parseOptionalIdArray(
@@ -213,11 +232,10 @@ export const bodyToCreateInput = (
   if (typeof body.name !== "string" || body.name.trim() === "") {
     return Promise.resolve({ error: "name is required", ok: false });
   }
-  if (typeof body.max_attendees !== "number" || body.max_attendees < 1) {
-    return Promise.resolve({
-      error: "max_attendees is required and must be >= 1",
-      ok: false,
-    });
+  // Requiredness only. A supplied value's range is the field kind's declared
+  // minimum, refused by the shared catalog field check in withParsedJoinIds.
+  if (typeof body.max_attendees !== "number") {
+    return Promise.resolve({ error: "max_attendees is required", ok: false });
   }
   const name = body.name.trim();
   const maxAttendees = body.max_attendees;
@@ -254,14 +272,13 @@ export const bodyToUpdateInput = async (
   if (!parsedName.ok) return parsedName;
 
   return withParsedJoinIds(session, body, async (joinIds) => {
+    // An absent max_attendees keeps the stored value. A supplied one already
+    // passed the field kind's declared minimum in withParsedJoinIds.
     const maxAttendees = bodyNumber(
       body,
       "max_attendees",
       existing.max_attendees,
     );
-    if (!Number.isSafeInteger(maxAttendees) || maxAttendees < 1) {
-      return errorResult("max_attendees must be a whole number of at least 1");
-    }
 
     const { slug, slugIndex } = await parseUpdatedListingSlug(
       body,

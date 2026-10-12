@@ -14,11 +14,13 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 import {
   assertRedirectTo,
   createDatedServicingScenario,
@@ -26,6 +28,7 @@ import {
   createTestServicingEvent,
   expectRejects,
   getServicingEvent,
+  type ServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -81,25 +84,84 @@ describeWithEnv(
       response.body?.cancel();
     });
 
-    test("zero-quantity bookings are filtered so only positive-quantity bookings are saved", async () => {
-      // normalizeServicingForSave must strip zero-quantity bookings so they
-      // don't cause a NO_LINES_ERROR or attempt to insert a 0-qty row.
-      const listingA = await createTestListing({ maxAttendees: 10, name: "A" });
-      const listingB = await createTestListing({ maxAttendees: 10, name: "B" });
-      const { response } = await adminFormPost("/admin/servicing/new", {
-        [`quantity_${listingA.id}`]: "0",
-        [`quantity_${listingB.id}`]: "2",
-        name: "Filtered Service",
+    /** POST a zero day count for one listing and assert the field schema's
+     *  refusal flash on the path the POST came from. */
+    const expectZeroDayCountRefused = async (
+      path: string,
+      listingId: number,
+    ): Promise<void> => {
+      const { response } = await adminFormPost(path, {
+        day_count: "0",
+        name: "Zero-Day Service",
+        start_date: "2026-07-01",
+        [`quantity_${listingId}`]: "1",
       });
-      // Event was created (redirects to the new event page).
+      await expectFlashRedirect(
+        path,
+        "Days must be 1 or greater",
+        false,
+      )(response);
+    };
+
+    test("a day count below the declared minimum is refused on create, not clamped", async () => {
+      // The rendered field declares min 1. The route must refuse the raw 0
+      // through the field schema before the parser clamps it into a one-day
+      // hold.
+      const listing = await createDailyTestListing({
+        maxAttendees: 5,
+        name: "L",
+      });
+      await expectZeroDayCountRefused("/admin/servicing/new", listing.id);
+    });
+
+    test("a day count below the declared minimum is refused on edit", async () => {
+      const { id, listing } = await createDatedServicingScenario();
+      await expectZeroDayCountRefused(`/admin/servicing/${id}`, listing.id);
+    });
+
+    /** Create a servicing event through the route and return the stored
+     *  event. The redirect must land on the new event's page. */
+    const createEventByPost = async (
+      payload: TestFormValues,
+    ): Promise<ServicingEvent> => {
+      const { response } = await adminFormPost("/admin/servicing/new", payload);
       expect(response.status).toBe(302);
       const location = response.headers.get("location") ?? "";
       response.body?.cancel();
       const eventId = Number(location.match(/\/admin\/servicing\/(\d+)/)?.[1]);
       expect(eventId).toBeGreaterThan(0);
       const event = await getServicingEvent(eventId);
+      expect(event).not.toBeNull();
+      return event!;
+    };
+
+    test("a day count at the declared minimum books a one-day hold", async () => {
+      const listing = await createDailyTestListing({
+        maxAttendees: 5,
+        name: "L",
+      });
+      const event = await createEventByPost({
+        day_count: "1",
+        name: "One-Day Service",
+        start_date: "2026-07-01",
+        [`quantity_${listing.id}`]: "1",
+      });
+      expect(event.bookings[0]?.listingId).toBe(listing.id);
+      expect(event.bookings[0]?.durationDays).toBe(1);
+    });
+
+    test("zero-quantity bookings are filtered so only positive-quantity bookings are saved", async () => {
+      // normalizeServicingForSave must strip zero-quantity bookings so they
+      // don't cause a NO_LINES_ERROR or attempt to insert a 0-qty row.
+      const listingA = await createTestListing({ maxAttendees: 10, name: "A" });
+      const listingB = await createTestListing({ maxAttendees: 10, name: "B" });
+      const event = await createEventByPost({
+        [`quantity_${listingA.id}`]: "0",
+        [`quantity_${listingB.id}`]: "2",
+        name: "Filtered Service",
+      });
       // Only the positive-quantity booking on listingB was saved.
-      const bookings = event?.bookings ?? [];
+      const bookings = event.bookings;
       expect(bookings).toHaveLength(1);
       expect(bookings[0]?.listingId).toBe(listingB.id);
       expect(bookings[0]?.quantity).toBe(2);

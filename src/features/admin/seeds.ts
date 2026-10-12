@@ -9,11 +9,7 @@ import { t } from "#i18n";
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import {
-  createSeeds,
-  MAX_SEED_LISTINGS,
-  SEED_MAX_ATTENDEES,
-} from "#shared/seeds.ts";
+import { createSeeds } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 import { seedsForm } from "#templates/fields/seeds.ts";
 
@@ -27,22 +23,14 @@ const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = ownerPage(
   },
 );
 
-const clamp = (value: number, lo: number, hi: number): number =>
-  Math.min(Math.max(lo, value), hi);
-
-/** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
     const parsed = seedsForm.validate(form);
     if (!parsed.valid) return redirect("/admin/seeds", parsed.error, false);
+    // The form schema bounds both counts (min/max on the fields), so the
+    // parsed values are already inside the seeds limits.
     const { listing_count, attendees_per_listing } = parsed.values;
-    const listingCount = clamp(listing_count, 1, MAX_SEED_LISTINGS);
-    const attendeesPerListing = clamp(
-      attendees_per_listing,
-      0,
-      SEED_MAX_ATTENDEES,
-    );
-    const result = await createSeeds(listingCount, attendeesPerListing);
+    const result = await createSeeds(listing_count, attendees_per_listing);
     const message = t("admin.seeds.created", {
       attendees: result.attendeesCreated,
       listings: result.listingsCreated,

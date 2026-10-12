@@ -182,6 +182,21 @@ describe("catalog field projection", () => {
     expect(isValidCatalogApiValue(groupCatalogFields.maxAttendees, 1.5)).toBe(
       false,
     );
+    expect(isValidCatalogApiValue(listingCatalogFields.maxAttendees, 1)).toBe(
+      true,
+    );
+    expect(isValidCatalogApiValue(listingCatalogFields.maxAttendees, 0)).toBe(
+      false,
+    );
+    expect(isValidCatalogApiValue(listingCatalogFields.maxQuantity, 1)).toBe(
+      true,
+    );
+    expect(isValidCatalogApiValue(listingCatalogFields.minQuantity, -1)).toBe(
+      false,
+    );
+    expect(isValidCatalogApiValue(listingCatalogFields.minQuantity, "1")).toBe(
+      false,
+    );
     expect(
       isValidCatalogApiValue(listingCatalogFields.bookableDays, ["Monday"]),
     ).toBe(true);

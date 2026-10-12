@@ -8,7 +8,7 @@ src/shared/builder-dry-run.ts::CANNED_BODIES.primary_regions.id~10dvhh2  eu-west
 src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west-1→"" audited:0sa17d1 # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
 
 src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → || audited:18ccc1f # trim returns a string, and its only falsy value is the empty string supplied by the fallback
-src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:0ojezob # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
+src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:03nm4ht # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
 src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2 audited:1yx1o3h # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
 src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → || audited:110btoy # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1 audited:0r62zcl # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both

@@ -137,21 +137,24 @@ const validateModifier = (
   if (input.trigger === "code" && !input.code) {
     return Promise.resolve("A promo-code modifier needs a code");
   }
-  if (
-    input.minVisits !== undefined &&
-    (!Number.isInteger(input.minVisits) || input.minVisits < 0)
-  ) {
+  // The declared field minimums (min_visits 0, max_per_order 1) refuse the
+  // out-of-range values. These checks refuse a fraction.
+  if (input.minVisits !== undefined && !Number.isInteger(input.minVisits)) {
     return Promise.resolve(
-      "Minimum previous bookings must be a whole number of 0 or more",
+      t("fields.validation.whole_number", {
+        label: t("modifiers.min_visits.label"),
+      }),
     );
   }
   if (
     input.maxPerOrder !== undefined &&
     input.maxPerOrder !== null &&
-    (!Number.isInteger(input.maxPerOrder) || input.maxPerOrder < 1)
+    !Number.isInteger(input.maxPerOrder)
   ) {
     return Promise.resolve(
-      "Max times per order must be a whole number of 1 or more",
+      t("fields.validation.whole_number", {
+        label: t("modifiers.max_per_order.label"),
+      }),
     );
   }
   const isOptionalAddOn = input.trigger === "optional";

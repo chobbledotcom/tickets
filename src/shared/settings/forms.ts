@@ -196,8 +196,8 @@ export const SETTINGS_FORM_DEFINITIONS = [
     inputType: "number",
     key: CONFIG_KEYS.BOOKING_FEE,
     kind: "text",
-    max: "10",
-    min: "0",
+    max: 10,
+    min: 0,
     name: "bookingFee",
     page: "main",
     required: true,
@@ -380,11 +380,21 @@ export const settingsDefinitionFields = (
         : [],
     );
   }
+  const base = {
+    label: t(definition.copy.labelKey),
+    name: definition.fieldName,
+  };
+  if (definition.kind === "textarea") {
+    return [{ ...base, type: "textarea" }];
+  }
   return [
     {
-      label: t(definition.copy.labelKey),
-      name: definition.fieldName,
-      type: definition.kind === "textarea" ? "textarea" : definition.inputType,
+      ...base,
+      type: definition.inputType,
+      // The declared bounds travel with the field so the POST guard and the
+      // rendered input read one declaration.
+      ...(definition.min !== undefined && { min: definition.min }),
+      ...(definition.max !== undefined && { max: definition.max }),
     },
   ];
 };

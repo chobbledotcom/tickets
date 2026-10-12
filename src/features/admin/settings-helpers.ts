@@ -23,7 +23,7 @@ import {
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { formLengthError } from "#shared/forms/constraints.ts";
+import { formFieldError } from "#shared/forms/constraints.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { settingsFormFields } from "#shared/settings/forms.ts";
@@ -83,7 +83,8 @@ export const withSettingsFields =
     handler: SettingsFormHandler,
   ): SettingsFormHandler =>
   (form, errorPage, session) => {
-    const error = formLengthError(form, settingsFormFields(formId ?? ""));
+    const fields = settingsFormFields(formId ?? "");
+    const error = formFieldError(form, fields);
     return error ? errorPage(error, formId) : handler(form, errorPage, session);
   };
 

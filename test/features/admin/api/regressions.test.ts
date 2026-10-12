@@ -78,7 +78,7 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
     await expect(
       bodyToCreateInput({ max_attendees: 0, name: "No Capacity" }),
     ).resolves.toEqual({
-      error: "max_attendees is required and must be >= 1",
+      error: "max_attendees has an invalid value",
       ok: false,
     });
   });

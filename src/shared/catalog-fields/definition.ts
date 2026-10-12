@@ -108,14 +108,32 @@ const matchesTransfer = (value: unknown, transfer: TransferName) => {
       : typeof value === kind;
 };
 
-/** Check an API value's type and any limit named by its catalog field. */
+/** The whole-number kinds and the smallest value each accepts. The kind is
+ *  the field's declared bound, so every API surface enforces it the same way. */
+const INTEGER_KIND_MINIMUMS: Partial<Record<TransferName, number>> = {
+  nonNegativeInt: 0,
+  positiveInt: 1,
+  requiredPositiveInt: 1,
+};
+
+/** Check an API value's type and the bound named by its catalog field. */
 export const isValidCatalogApiValue = (
   field: CatalogField,
   value: unknown,
-): boolean =>
-  matchesTransfer(value, field[2] as TransferName) &&
-  (field[2] !== "nonNegativeInt" ||
-    (Number.isSafeInteger(value as number) && (value as number) >= 0));
+): boolean => {
+  const minimum = INTEGER_KIND_MINIMUMS[field[2] as TransferName];
+  return (
+    matchesTransfer(value, field[2] as TransferName) &&
+    (minimum === undefined ||
+      (Number.isSafeInteger(value as number) && (value as number) >= minimum))
+  );
+};
+
+/** True when the field's kind accepts only whole numbers, so every surface
+ *  that submits the field refuses a fraction. The form validators read this
+ *  to apply the same declaration the API check enforces. */
+export const isWholeNumberKind = (field: CatalogField): boolean =>
+  INTEGER_KIND_MINIMUMS[field[2] as TransferName] !== undefined;
 
 /** The first API-visible field whose supplied body value fails its field
  *  check, named for the error message, or null when every supplied value

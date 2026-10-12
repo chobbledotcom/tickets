@@ -331,9 +331,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe(
-            "max_attendees must be a whole number of at least 1",
-          );
+          expect(body.error).toBe("max_attendees has an invalid value");
         },
       );
     });
@@ -350,9 +348,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe(
-            "max_attendees must be a whole number of at least 1",
-          );
+          expect(body.error).toBe("max_attendees has an invalid value");
         },
       );
     });
