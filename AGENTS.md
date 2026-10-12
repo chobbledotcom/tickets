@@ -171,7 +171,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   Add to the issue that exists when there is one. Carry on with the task. Never
   fix it in the task's pull request.
 - **Scratch work lives in `.scratch/`**: Put every probe, experiment, throwaway
-  test, and note in `.scratch/` in your checkout. The overseer empties it at the
+  test, and note in `.scratch/` in your checkout. The boss empties it at the
   start of each job. You can create and delete anything in it without asking.
   Run a scratch test with `deno task test:files .scratch/<name>.test.ts`.
   Nothing in `.scratch/` is ever committed. When the task needs an investigation
@@ -185,7 +185,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   script, `bash -c`, `sh -c`, `node -e`, `python -c`, `kill`, and `pkill`. Do
   not try them. Never reach the same result another way. Use the repo's deno
   tasks, `git`, `gh`, and plain shell tools. When those are not enough, ask the
-  overseer.
+  boss.
 - **A written-down diagnosis is a hypothesis, not a finding**: Re-derive every
   written diagnosis from the current source before you fix anything.
 - **A finished job closes its issue**: Close an issue in the same change that
