@@ -306,6 +306,7 @@
   "error.customisable_days_with_pay_more": "Customisable days cannot be combined with Allow pay more. Customisable days set a price for each day count. Allow pay more lets the visitor choose the price. Only one of them can decide what to charge. Turn one off.",
   "error.slug_in_use": "Slug is already in use by another listing",
   "error.name_in_use": "Name is already in use by another listing or group",
+  "error.listing_fields_unknown": "Contact fields must be a comma-separated list of known contact field names.",
   "error.listing_min_quantity_whole": "Min tickets per purchase must be a whole number of 1 or more.",
   "error.listing_min_quantity_above_max": "Min tickets per purchase must not be more than Max tickets per purchase.",
   "success.listing_created": "Listing created",

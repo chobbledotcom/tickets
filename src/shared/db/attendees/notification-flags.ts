@@ -52,9 +52,9 @@ export const clearPendingFlagStatement = (
 
 /** SQL for "a comma-separated fields string names the field". The parser
  * (commaParts) trims every token, so the match strips the whitespace a stored
- * "phone, email" carries. A token whose inner whitespace strips away ("e
- * mail") matches here, but the parser rejects it. No supported field name
- * holds inner whitespace. */
+ * "phone, email" carries. The write path accepts only known contact-field
+ * names (fieldsSchema), so a stored token never holds inner whitespace that
+ * the strip can fold into a name. */
 export const sqlFieldsInclude = (column: string, field: string): string =>
   `instr(',' || REPLACE(REPLACE(REPLACE(REPLACE(${column}, ' ', ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), '') || ',', ',${field},') > 0`;
 

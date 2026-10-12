@@ -161,6 +161,28 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("rejects a fields list with an unknown contact field on create", async () => {
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            fields: "phone, e mail",
+            max_attendees: 10,
+            name: "Unknown Field",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("error.listing_fields_unknown"));
+        },
+      );
+      expect(
+        await queryAll("SELECT id FROM listings WHERE name = ?", [
+          "Unknown Field",
+        ]),
+      ).toEqual([]);
+    });
+
     test("creates a customisable-days listing with day_prices", async () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
@@ -337,6 +359,28 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         400,
         (body) => {
           expect(body.error).toBe("name is required");
+        },
+      );
+    });
+  });
+
+  describe("PUT /api/admin/listings/:listingId", () => {
+    test("rejects a fields list with an unknown contact field on update", async () => {
+      const created = await assertJson<{ listing: { id: number } }>(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 10, name: "Field Update" },
+          method: "POST",
+        }),
+        201,
+      );
+      await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`, {
+          body: { fields: "emailx" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("error.listing_fields_unknown"));
         },
       );
     });
