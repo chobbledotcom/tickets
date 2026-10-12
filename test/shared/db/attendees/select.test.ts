@@ -302,7 +302,7 @@ describe("attendee SELECT — exact generated SQL", () => {
   JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
   WHERE owed_line.attendee_id = attendee.id
     AND owed_line.quantity > 0
-    AND (',' || owed_listing.fields || ',') LIKE '%,email,%'
+    AND instr(',' || REPLACE(REPLACE(REPLACE(REPLACE(owed_listing.fields, ' ', ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), '') || ',', ',email,') > 0
 )
            ELSE 0 END) as email_owed`;
 

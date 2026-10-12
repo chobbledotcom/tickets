@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { countAttendeesWithPendingFlags } from "#db/attendees/notification-flags.ts";
+import { execute } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 
@@ -17,5 +18,25 @@ describeWithEnv("the pending-notification count", { db: true }, () => {
     await bookTestAttendeeWithFlags("Owed Webhooks", 0, 1);
     await bookTestAttendeeWithFlags("Owed Both", 2, 2);
     expect(await countAttendeesWithPendingFlags()).toBe(3);
+  });
+
+  test("reads the trimmed field tokens the parser reads", async () => {
+    const padded = await bookTestAttendeeWithFlags("Padded Fields Buyer", 1, 0);
+    await execute("UPDATE listings SET fields = 'phone, email' WHERE id = ?", [
+      padded.listing.id,
+    ]);
+    expect(await countAttendeesWithPendingFlags()).toBe(1);
+
+    const lookalike = await bookTestAttendeeWithFlags(
+      "Lookalike Fields Buyer",
+      1,
+      0,
+    );
+    await execute("UPDATE listings SET fields = 'emailx' WHERE id = ?", [
+      lookalike.listing.id,
+    ]);
+    // The lookalike listing never collects an email, so only the padded one
+    // still counts.
+    expect(await countAttendeesWithPendingFlags()).toBe(1);
   });
 });

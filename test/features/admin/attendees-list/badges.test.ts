@@ -45,6 +45,54 @@ describeWithEnv("pending notification badges", { db: true }, () => {
     });
   });
 
+  test("a fields list with padded tokens still owes the email badge", async () => {
+    const { listing } = await bookTestAttendeeWithFlags(
+      "Padded Fields Buyer",
+      1,
+      0,
+    );
+    // The admin API stores the fields string verbatim; the parser trims each
+    // comma token, so "email" is still a collected field.
+    await execute("UPDATE listings SET fields = 'phone, email' WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await expectHtml(await adminGet("/admin/attendees"), {
+      contains: ["Padded Fields Buyer", "Email not sent"],
+    });
+  });
+
+  test("a whitespace-padded email token still owes the email badge", async () => {
+    const { listing } = await bookTestAttendeeWithFlags(
+      "Space Fields Buyer",
+      1,
+      0,
+    );
+    await execute("UPDATE listings SET fields = ' email ' WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await expectHtml(await adminGet("/admin/attendees"), {
+      contains: ["Space Fields Buyer", "Email not sent"],
+    });
+  });
+
+  test("a field name that merely contains email owes no email badge", async () => {
+    const { listing } = await bookTestAttendeeWithFlags(
+      "Lookalike Fields Buyer",
+      1,
+      0,
+    );
+    await execute("UPDATE listings SET fields = 'emailx' WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await expectHtml(await adminGet("/admin/attendees"), {
+      contains: ["Lookalike Fields Buyer"],
+      notContains: ["Email not sent"],
+    });
+  });
+
   test("a booking whose webhooks never went out says so", async () => {
     await bookTestAttendeeWithFlags("Webhook Buyer", 0, 1);
 

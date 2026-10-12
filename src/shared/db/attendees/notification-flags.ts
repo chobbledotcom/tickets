@@ -50,6 +50,14 @@ export const clearPendingFlagStatement = (
           AND ${FLAG_COLUMN[side]} > 0`,
 });
 
+/** SQL for "a comma-separated fields string names the field". The parser
+ * (commaParts) trims every token, so the match strips the whitespace a stored
+ * "phone, email" carries. A token whose inner whitespace strips away ("e
+ * mail") matches here, but the parser rejects it. No supported field name
+ * holds inner whitespace. */
+export const sqlFieldsInclude = (column: string, field: string): string =>
+  `instr(',' || REPLACE(REPLACE(REPLACE(REPLACE(${column}, ' ', ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), '') || ',', ',${field},') > 0`;
+
 /** SQL for "a listing this attendee booked currently collects an email".
  * The attendee row reads and the dashboard count share it, so the badge and
  * the count cannot disagree. `attendeeRef` names the alias the attendee
@@ -60,7 +68,7 @@ export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
   JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
   WHERE owed_line.attendee_id = ${attendeeRef}.id
     AND owed_line.quantity > 0
-    AND (',' || owed_listing.fields || ',') LIKE '%,email,%'
+    AND ${sqlFieldsInclude("owed_listing.fields", "email")}
 )`;
 
 /** Whether the email badge shows for one attendee row: the stored flag is up
