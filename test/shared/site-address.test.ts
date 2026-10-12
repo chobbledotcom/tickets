@@ -109,6 +109,10 @@ describe("visitSiteUrl", () => {
     expect(visitSiteUrl("test-42.b-cdn.net")).toBe("https://test-42.b-cdn.net");
   });
 
+  test("prepends https:// to a bare hostname with a port", () => {
+    expect(visitSiteUrl("example.com:8443")).toBe("https://example.com:8443");
+  });
+
   test("leaves a b-cdn.net URL as it is", () => {
     expect(visitSiteUrl("https://child.b-cdn.net")).toBe(
       "https://child.b-cdn.net",

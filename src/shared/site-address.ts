@@ -25,14 +25,18 @@ const renderedUrl = (url: URL): string =>
 
 /** The "(visit)" address for a saved site URL: the same URL with its host's
  * raw zone suffix swapped for the CDN one. A custom domain, or a host that is
- * already the CDN name, comes back unchanged. A saved bare hostname becomes
- * its https address, never a relative one. A saved value that names a scheme
- * other than http or https, or that is not a valid URL, returns undefined.
- * The caller then renders no link. */
+ * already the CDN name, comes back unchanged. A saved bare hostname, with or
+ * without a port, becomes its https address, never a relative one. A saved
+ * value that names a scheme other than http or https, or that is not a valid
+ * URL, returns undefined. The caller then renders no link. */
 export const visitSiteUrl = (siteUrl: string): string | undefined => {
-  const scheme = /^[a-z][a-z0-9+.-]*:/i.exec(siteUrl)?.[0];
-  if (scheme !== undefined && !/^https?:$/i.test(scheme)) return;
-  const bare = scheme === undefined;
+  // WHATWG's scheme grammar at the string start. A digit-only segment before
+  // the first slash names a bare host's port: "example.com:8443" is a
+  // hostname with a port. "javascript:alert(1)" and "ftp://example.com" bear
+  // a scheme that no visit link can carry.
+  const scheme = /^([a-z][a-z0-9+.-]*):([^/]*)(\/.*)?$/i.exec(siteUrl);
+  const bare = scheme === null || /^\d+$/.test(scheme[2]);
+  if (scheme !== null && !bare && !/^https?$/i.test(scheme[1])) return;
   const withScheme = bare ? `https://${siteUrl}` : siteUrl;
   if (!URL.canParse(withScheme)) return;
   const url = new URL(withScheme);
