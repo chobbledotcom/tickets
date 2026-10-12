@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { extractNameFilter } from "#scripts/name-filter.ts";
+import {
+  extractNameFilter,
+  rejectReporterWithFilter,
+} from "#scripts/name-filter.ts";
 
 describe("extracting --filter from runner arguments", () => {
   test("pulls a separate-value filter out of the arguments", () => {
@@ -45,5 +48,21 @@ describe("extracting --filter from runner arguments", () => {
     expect(() => extractNameFilter(["--filter"])).toThrow(
       "--filter needs a name or a /regular-expression/",
     );
+  });
+});
+
+describe("refusing a custom reporter on a filtered run", () => {
+  test("throws when a filter meets a custom reporter", () => {
+    expect(() =>
+      rejectReporterWithFilter(["test/", "--reporter=dot"], "nothing"),
+    ).toThrow(
+      "A filtered run cannot use a custom reporter: the runner cannot tell whether any test matched.",
+    );
+  });
+
+  test("allows a custom reporter without a filter", () => {
+    expect(() =>
+      rejectReporterWithFilter(["test/", "--reporter=dot"], undefined),
+    ).not.toThrow();
   });
 });

@@ -36,6 +36,9 @@ const fakeBdd = (): BddFunctions => {
   const runSteps =
     (steps: FakeStep[]) =>
     async (t: FakeContext): Promise<void> => {
+      // A suite runner reads the context it was handed before it steps; the
+      // read drives the filtered context's property forwarding.
+      void t.name;
       for (const step of steps) await t.step(step);
     };
   /** Adapts a fake runner to the `Deno.test` definition shape. */
@@ -43,7 +46,14 @@ const fakeBdd = (): BddFunctions => {
     (fn: (t: FakeContext) => unknown) =>
     (t: Deno.TestContext): Promise<void> =>
       fn(t as unknown as FakeContext) as Promise<void>;
-  const registerSuite = (name: string, fn: () => void): void => {
+  const registerSuite = (
+    nameOrBody: string | (() => void),
+    maybeBody?: () => void,
+  ): void => {
+    // std's describe carries a name; a bare-function suite is the anonymous
+    // shape the filter must still keep-able-track.
+    const fn = maybeBody ?? (nameOrBody as () => void);
+    const suiteName = maybeBody === undefined ? "" : (nameOrBody as string);
     const suite: FakeStep[] = [];
     const parent = current;
     if (parent === undefined) {
@@ -53,9 +63,9 @@ const fakeBdd = (): BddFunctions => {
       } finally {
         current = undefined;
       }
-      Deno.test({ fn: denoFn(runSteps(suite)), name });
+      Deno.test({ fn: denoFn(runSteps(suite)), name: suiteName });
     } else {
-      parent.push({ fn: denoFn(runSteps(suite)), name });
+      parent.push({ fn: denoFn(runSteps(suite)), name: suiteName });
       current = suite;
       try {
         fn();
@@ -86,7 +96,7 @@ const fakeBdd = (): BddFunctions => {
     beforeEach: ((fn: () => void) => {
       bdd.beforeAll(fn);
     }) as BddFunctions["beforeEach"],
-    describe: registerSuite as BddFunctions["describe"],
+    describe: registerSuite as unknown as BddFunctions["describe"],
     it: ((name: string, fn: () => void) => {
       if (current === undefined) Deno.test({ fn, name });
       else current.push({ fn, name });
@@ -286,6 +296,31 @@ describe("a leaf-name filter", () => {
     ]);
   });
 
+  test("runs a matched suite's own nested groups whole", async () => {
+    const run: string[] = [];
+    const { filtered, captured } = installFilter("inner group");
+    filtered.describe("outer group", () => {
+      filtered.describe("inner group", () => {
+        filtered.describe("deepest group", () => {
+          filtered.it("leaf alpha", () => {
+            run.push("leaf alpha");
+          });
+        });
+      });
+    });
+
+    await runCaptured(captured, ["outer group"], run, ["leaf alpha"]);
+  });
+
+  test("keeps an anonymous suite when a leaf below it matches", () => {
+    const { filtered, captured } = installFilter("leaf alpha");
+    filtered.describe(() => {
+      filtered.it("leaf alpha", () => {});
+    });
+
+    expect(captured).toHaveLength(1);
+  });
+
   test("drops plain and ignored Deno.test declarations that do not match", () => {
     const { captured } = installFilter("kept");
     Deno.test("kept plain", () => {});
@@ -294,6 +329,14 @@ describe("a leaf-name filter", () => {
     Deno.test({ fn: () => {}, ignore: true, name: "dropped ignored" });
 
     expect(names(captured)).toEqual(["kept plain", "kept ignored"]);
+  });
+
+  test("drops a nameless plain test and a nameless it", () => {
+    const { captured, filtered } = installFilter("kept");
+    Deno.test(() => {});
+    filtered.it(() => {});
+
+    expect(captured).toEqual([]);
   });
 
   test("holds a top-level hook's hidden suite until a leaf needs it", async () => {

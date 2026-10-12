@@ -13,14 +13,21 @@ const FIXTURE_DIR = "test/scripts/test-name-filter/fixtures";
 const runFixture = async (
   fixture: string,
   filter?: string,
-): Promise<{ names: string[]; marks: string; success: boolean }> => {
+  options?: { withoutMarks?: boolean },
+): Promise<{
+  marks: string;
+  names: string[];
+  stdout: string;
+  success: boolean;
+}> => {
   const dir: TempPath = tempDir();
   try {
     const marksPath = `${dir.path}/marks.log`;
     const env = Deno.env.toObject();
     if (filter === undefined) delete env[TEST_NAME_FILTER_ENV];
     else env[TEST_NAME_FILTER_ENV] = filter;
-    env.TICKETS_TEST_FILTER_MARKS = marksPath;
+    if (options?.withoutMarks) delete env.TICKETS_TEST_FILTER_MARKS;
+    else env.TICKETS_TEST_FILTER_MARKS = marksPath;
     const command = new Deno.Command(Deno.execPath(), {
       args: [
         "test",
@@ -46,7 +53,12 @@ const runFixture = async (
       if (error instanceof Deno.errors.NotFound) return "";
       throw error;
     });
-    return { marks, names, success };
+    return {
+      marks,
+      names,
+      stdout: stream,
+      success,
+    };
   } finally {
     dir.dispose();
   }
@@ -185,5 +197,43 @@ describe("a test-name filter in the test child", () => {
     expect(names).not.toContain("plain test");
     expect(marks).toContain("wrapped leaf ran\n");
     expect(marks).not.toContain("plain test ran");
+  });
+
+  test("runs a matched standalone it of a hooked file by name", async () => {
+    const { marks, names, success } = await runFixture(
+      "hooks.ts",
+      "standalone beta",
+    );
+
+    expect(success).toBe(true);
+    expect(names).toContain("standalone beta");
+    expect(marks).toContain("global hook ran\n");
+    expect(marks).toContain("standalone beta ran\n");
+    expect(marks).not.toContain("standalone alpha ran");
+    expect(marks).not.toContain("inner leaf ran");
+  });
+
+  test("runs a matched group's hooks and leaf when the group keeps them", async () => {
+    const { marks, names, success } = await runFixture(
+      "hooks-inside.ts",
+      "pruned leaf",
+    );
+
+    expect(success).toBe(true);
+    expect(names).toContain("pruned leaf");
+    expect(names).not.toContain("kept leaf");
+    expect(marks).toContain("pruned setup ran\n");
+    expect(marks).toContain("pruned leaf ran\n");
+    expect(marks).toContain("pruned afterAll ran after 1 setups\n");
+    expect(marks).not.toContain("kept leaf ran");
+  });
+
+  test("fails a fixture run whose marks path is missing", async () => {
+    const { stdout, success } = await runFixture("plain.ts", "plain test", {
+      withoutMarks: true,
+    });
+
+    expect(success).toBe(false);
+    expect(stdout).toContain("TICKETS_TEST_FILTER_MARKS is not set");
   });
 });

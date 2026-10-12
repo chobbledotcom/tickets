@@ -10,6 +10,7 @@
 
 import { TEST_NAME_FILTER_ENV } from "#test-utils/test-name-filter.ts";
 import { splitFlagValues } from "./flag-values.ts";
+import { hasReporterArg } from "./tap-estimate.ts";
 
 export { TEST_NAME_FILTER_ENV };
 
@@ -37,4 +38,19 @@ export const extractNameFilter = (
   }
   const nameFilter = (values as string[]).at(-1);
   return nameFilter === undefined ? { args: rest } : { args: rest, nameFilter };
+};
+
+/** Refuses the one argument combination the runner cannot honor: with a
+ * custom reporter the pass-through shape has no parsed TAP, so a filtered
+ * run that matched nothing would exit 0 and the no-match rule would not
+ * hold. */
+export const rejectReporterWithFilter = (
+  args: readonly string[],
+  nameFilter: string | undefined,
+): void => {
+  if (nameFilter !== undefined && hasReporterArg(args)) {
+    throw new Error(
+      "A filtered run cannot use a custom reporter: the runner cannot tell whether any test matched.",
+    );
+  }
 };

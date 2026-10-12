@@ -56,19 +56,20 @@ export type FilteredBdd = BddFunctions;
 type HookFn = BddFunctions["beforeAll"];
 
 /** A `describe` body on the registration stack. `args` is the definition the
- * suite handed `Deno.test`; it registers only when the body kept a matching
- * leaf or the suite's own name matched. */
+ * suite handed `Deno.test` when it carries one; it registers only when the
+ * body kept a matching leaf. A suite whose own name matched never reaches
+ * the stack. */
 interface DescribeFrame {
   args?: readonly unknown[];
   kept: boolean;
-  matched: boolean;
   name: string;
 }
 
 /** The name of a `describe`/`it`/`Deno.test` call, when the argument shape
  * carries one the repo writes: a leading name string or an options object.
- * The `suite`-prefixed and anonymous shapes return undefined and pass
- * through unfiltered. */
+ * The other shapes return undefined: an anonymous suite is kept when a leaf
+ * below it matches, and a nameless plain test has nothing to match and is
+ * dropped. */
 const nameOf = (args: readonly unknown[]): string | undefined => {
   const first = args[0] as
     | string
@@ -152,16 +153,8 @@ export const createTestNameFilter = (
         }
         return (stepArg: unknown): unknown => {
           const step = stepArg as Deno.TestStepDefinition;
-          if (
-            typeof step !== "object" ||
-            step === null ||
-            typeof step.name !== "string" ||
-            typeof step.fn !== "function"
-          ) {
-            return target.step(stepArg as never);
-          }
-          const stepPath = [...path, step.name];
           if (matches(step.name)) return target.step(step);
+          const stepPath = [...path, step.name];
           if (!keeps(stepPath)) return skippedStep();
           return target.step({
             ...step,
@@ -193,18 +186,13 @@ export const createTestNameFilter = (
     if (!frame.kept || frame.args === undefined) return;
     keep([...frames.map((open) => open.name), frame.name]);
     const definition = frame.args[0] as Deno.TestDefinition;
-    // A suite whose own name did not match runs through the filtered context,
-    // so its empty nested suites stay out of the report.
-    const argsToRegister: readonly unknown[] = !frame.matched
-      ? [
-          {
-            ...definition,
-            fn: (t: Deno.TestContext) =>
-              definition.fn!(filteredContext(t, [frame.name])),
-          },
-        ]
-      : frame.args;
-    realTest(...(argsToRegister as Parameters<typeof Deno.test>));
+    // A kept suite's own name did not match, so its run-time steps go through
+    // the filtered context and its empty nested suites stay out of the report.
+    realTest({
+      ...definition,
+      fn: (t: Deno.TestContext) =>
+        definition.fn!(filteredContext(t, [frame.name])),
+    });
   };
 
   const describeWrapper = ((...args: Parameters<BddFunctions["describe"]>) => {
@@ -213,7 +201,7 @@ export const createTestNameFilter = (
     if (name !== undefined && matches(name)) {
       return describeMatched(args, name);
     }
-    frames.push({ kept: false, matched: false, name: name ?? "" });
+    frames.push({ kept: false, name: name ?? "" });
     describeWindow += 1;
     try {
       return bdd.describe(...args);

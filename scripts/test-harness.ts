@@ -24,7 +24,7 @@ import {
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
 import { junitPathInArgs, junitReportForRun } from "./junit-report-path.ts";
-import { extractNameFilter } from "./name-filter.ts";
+import { extractNameFilter, rejectReporterWithFilter } from "./name-filter.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
@@ -188,11 +188,7 @@ export const runTests = async (
 ): Promise<number> => {
   if (useCoverage) await removeOldCoverageOutput();
   const { args, nameFilter } = extractNameFilter(extraArgs);
-  if (nameFilter !== undefined && hasReporterArg(args)) {
-    throw new Error(
-      "A filtered run cannot use a custom reporter: the runner cannot tell whether any test matched.",
-    );
-  }
+  rejectReporterWithFilter(args, nameFilter);
   if (!hasReporterArg(args)) {
     return await runFocusedTest(
       { extraArgs: args, junitPath, nameFilter, useCoverage },
