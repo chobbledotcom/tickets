@@ -95,7 +95,7 @@ describe("isI18nScanTarget", () => {
 
 describe("leftoverBudget", () => {
   test("reads the file's ratchet entry, defaulting to zero", () => {
-    expect(leftoverBudget("src/ui/templates/fields/modifier.ts")).toBe(20);
+    expect(leftoverBudget("src/ui/templates/fields/modifier.ts")).toBe(19);
     expect(leftoverBudget("src/ui/templates/public/news.tsx")).toBe(0);
     expect(leftoverBudget("scripts/grade-code/checks.ts")).toBe(0);
   });
