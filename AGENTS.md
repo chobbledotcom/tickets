@@ -281,8 +281,15 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - `deno task typecheck`
   - `deno task check:ste` for a Markdown-only change
 
+  When `job-submit` is on PATH, run the tests and any full precommit through
+  it: `job-submit --max <seconds|Nm> -- deno task test:files <file>`. A single
+  test file starts at once. The result arrives as a message.
   `deno task test:files` does not typecheck, so `deno task typecheck` is in the
-  list. Hosted CI runs the full precommit and decides.
+  list. Hosted CI runs the full precommit and decides. The pre-commit hook
+  still runs the full precommit. When the tests and the gates above pass,
+  commit with `--no-verify`, and put
+  `light gates passed; full precommit left to hosted CI` in the message. A
+  later pull request makes the hook light.
 
 ## Stacked Pull Requests
 
