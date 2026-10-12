@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CliError } from "#cli/errors.ts";
-import { runApi } from "#cli/run.ts";
+import { type RunDeps, runApi } from "#cli/run.ts";
 import type { AdminApiRequest } from "#shared/admin-api-client.ts";
 import {
   recordingTransport,
@@ -63,12 +63,7 @@ describe("CLI run", () => {
     const transport = async (_request: AdminApiRequest): Promise<never> => {
       throw new Error("curl request failed");
     };
-    const result = await runApi(
-      ["list", "gadgets"],
-      runDeps(testTable, transport),
-    );
-    expect(result.code).toBe(6);
-    expect(JSON.parse(result.err ?? "").error.kind).toBe("server");
+    await expectServerFailure(transport);
   });
 
   /** One refused command: exit 2 with the usage kind, a message that names
@@ -104,6 +99,21 @@ describe("CLI run", () => {
       fields: answer.error.fields,
       message: answer.error.message,
     };
+  };
+
+  /** One server failure: exit 6 with the server kind. Returns the parsed
+   *  error for the caller's own assertions. */
+  const expectServerFailure = async (
+    transport: RunDeps["transport"],
+  ): Promise<Record<string, unknown>> => {
+    const result = await runApi(
+      ["list", "gadgets"],
+      runDeps(testTable, transport),
+    );
+    expect(result.code).toBe(6);
+    const answer = JSON.parse(result.err ?? "").error;
+    expect(answer.kind).toBe("server");
+    return answer;
   };
 
   test("stops a bad body before any request and answers exit 3 with fields", async () => {
@@ -235,14 +245,15 @@ describe("CLI run", () => {
     const transport = async (_request: AdminApiRequest): Promise<never> => {
       throw "not an error object"; // A broken transport may reject with anything.
     };
-    const result = await runApi(
-      ["list", "gadgets"],
-      runDeps(testTable, transport),
+    const answer = await expectServerFailure(transport);
+    expect(answer.message).toBe("not an error object");
+  });
+
+  test("keeps the served status when a success reply fails the envelope schema", async () => {
+    const answer = await expectServerFailure(
+      recordingTransport({}, 200).transport,
     );
-    expect(result.code).toBe(6);
-    const answer = JSON.parse(result.err ?? "");
-    expect(answer.error.kind).toBe("server");
-    expect(answer.error.message).toBe("not an error object");
+    expect(answer.status).toBe(200);
   });
 
   test("sends a child create through the typed client", async () => {
