@@ -73,12 +73,11 @@ const foldedChildUnits = (
     new FormParams(),
   );
   if ("error" in selections) return new Map();
-  return new Map(
-    selections.map(({ child, qty }): [number, number] => [
-      child.listing.id,
-      qty,
-    ]),
-  );
+  const units = new Map<number, number>();
+  for (const { child, qty } of selections) {
+    units.set(child.listing.id, qty);
+  }
+  return units;
 };
 
 /** The child units one package option auto-folds. Each member parent's sole
@@ -88,18 +87,23 @@ const foldedPackageChildUnits = (
   pkg: OrderPackage,
   childrenByParentId: ChildrenByParentId,
   parentInfoById: ReadonlyMap<number, TicketListing>,
-): ReadonlyMap<number, number>[] =>
-  pkg.members.map((member) =>
-    foldedChildUnits(
-      requiredMapValue(
-        parentInfoById,
-        member.id,
-        `Package member ${member.id} left the catalog`,
-      ),
+): ReadonlyMap<number, number>[] => {
+  const folds: ReadonlyMap<number, number>[] = [];
+  for (const member of pkg.members) {
+    const parentInfo = requiredMapValue(
+      parentInfoById,
+      member.id,
+      `Package member ${member.id} left the catalog`,
+    );
+    const units = foldedChildUnits(
+      parentInfo,
       childrenByParentId.get(member.id) ?? [],
       pkg.quantities.get(member.id) ?? 1,
-    ),
-  );
+    );
+    folds.push(units);
+  }
+  return folds;
+};
 
 /** Add the folded child units to an option's demand, summing units when the
  * option already books that child (the form sums a child's lines too). */
