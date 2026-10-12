@@ -130,6 +130,19 @@ describe("read-only request guard in update mode", () => {
     expect(updating("/admin/logout", "POST")).toBeNull();
   });
 
+  test("update mode refuses the listed admin writes", () => {
+    // The migration must see a still database, so even the operations
+    // ordinary read-only mode allows stop while an update runs.
+    for (const path of [
+      "/admin/listing/42/attendee/99/checkin",
+      "/admin/listing/42/scan",
+      "/admin/deliveries/mark",
+      "/admin/backup/create",
+    ]) {
+      expect(updating(path, "POST"), path).toBe("page");
+    }
+  });
+
   test("blocks admin mutations like ordinary read-only mode", () => {
     expect(updating("/admin/listing/42/edit", "GET")).toBe("page");
     expect(updating("/admin/groups/42/edit", "POST")).toBe("page");

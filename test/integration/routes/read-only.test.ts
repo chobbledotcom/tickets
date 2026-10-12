@@ -370,6 +370,23 @@ describeWithEnv(
       expect(page.headers.get("location")).not.toBe("/read-only");
     });
 
+    test("update mode refuses the listed admin writes, with the redirect", async () => {
+      // The migration must see a still database, so even the operations
+      // ordinary read-only mode allows stop while an update runs. The scan
+      // API takes JSON; the check-in form takes a form post.
+      expectReadOnlyRedirect(
+        await postForm("/admin/listing/42/attendee/99/checkin"),
+      );
+      expectReadOnlyRedirect(
+        await handleRequest(
+          jsonRequest("/admin/listing/42/scan", {
+            body: {},
+            method: "POST",
+          }),
+        ),
+      );
+    });
+
     test("an admin mutation still redirects to /read-only", async () => {
       expectReadOnlyRedirect(await postForm("/admin/listing"));
     });

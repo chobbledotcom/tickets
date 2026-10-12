@@ -6,6 +6,10 @@ const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
   routePathPatternToRegex,
 );
 
+/** The admin sign-in and sign-out. They are the only admin writes that stay
+ * open while an update runs. */
+const READ_ONLY_SIGN_IN_OUT_PATHS = ["/admin/login", "/admin/logout"];
+
 const READ_ONLY_ADMIN_OPERATION_PATTERNS = [
   "/admin/attendees/:attendeeId/refresh-payment",
   "/admin/backup/create",
@@ -14,8 +18,7 @@ const READ_ONLY_ADMIN_OPERATION_PATTERNS = [
   "/admin/listing/:id/scan",
   "/admin/listing/:listingId/attendee/:attendeeId/checkin",
   "/admin/groups/:id/scan",
-  "/admin/login",
-  "/admin/logout",
+  ...READ_ONLY_SIGN_IN_OUT_PATHS,
   "/admin/support",
 ].map(routePathPatternToRegex);
 
@@ -82,6 +85,11 @@ const isAllowedAdminOperation = sentTo(
   READ_ONLY_ADMIN_OPERATION_PATTERNS,
 );
 
+const isSignInOrOut = sentTo(
+  "POST",
+  READ_ONLY_SIGN_IN_OUT_PATHS.map(routePathPatternToRegex),
+);
+
 const isSafePath = pathIn(READ_ONLY_SAFE_PATHS);
 
 const isRetryingWebhook = pathIn(RETRYING_WEBHOOK_PATHS);
@@ -97,8 +105,13 @@ const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
     matches: sentTo("GET", READ_ONLY_GET_PATTERNS),
   },
   {
+    // Ordinary read-only mode keeps every allowed admin operation. Update
+    // mode refuses admin writes too, and keeps only the sign-in and
+    // sign-out, because the migration must see a still database.
     decide: (request) => (isAllowedAdminOperation(request) ? null : "page"),
-    matches: ({ method, path }) => isAdminMutation(path, method),
+    matches: (request) =>
+      isAdminMutation(request.path, request.method) &&
+      (!request.updating || isSignInOrOut(request)),
   },
   {
     decide: fixedDecision(null),
