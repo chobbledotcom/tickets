@@ -6,6 +6,7 @@ import { queryOne } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { siteDbApi } from "#shared/site-db.ts";
 import {
+  type DeployedRelease,
   deployAndReport,
   hostedSiteUpdateGuardIo,
   loadBuiltSiteUpdateState,
@@ -22,6 +23,7 @@ import {
   updatePageMeta,
   updatePageState,
 } from "#shared/update-guard.ts";
+import { recordingUpdateGuard } from "#test-utils/_shared-site-update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -40,38 +42,34 @@ const stubTaskLockBypass = (): Stub =>
     }),
   );
 
-/** A guard io whose flag calls land in `calls` and whose page always shows
- * the update page, so both waits pass at once. */
-const recordingGuard = (calls: string[]): UpdateGuardIo => ({
-  clearFlag: async () => {
-    calls.push("clear");
-  },
-  fetchPage: () => {
-    calls.push("fetch");
-    return Promise.resolve(updatePageMeta("active"));
-  },
-  setFlag: async (value) => {
-    calls.push(`set:${value}`);
-  },
-});
+/** Run deployAndReport with the test's standard response builders and the
+ * "self" subject. Returns the response the caller asserts on. */
+const runDeployAndReport = (
+  deploy: () => Promise<DeployedRelease>,
+  io: UpdateGuardIo,
+): Promise<Response> =>
+  deployAndReport({
+    deploy,
+    guard: io,
+    onError: (message) => new Response(message, { status: 500 }),
+    onSuccess: (message) => new Response(message),
+    subject: { kind: "self" },
+  });
 
 test("deployAndReport keeps the update task name and full failure context", async () => {
   const taskStub = stubTaskLockBypass();
-  const guardCalls: string[] = [];
+  const { calls, io } = recordingUpdateGuard();
   try {
-    const response = await deployAndReport({
-      deploy: () => Promise.reject(new Error("provider down")),
-      guard: recordingGuard(guardCalls),
-      onError: (message) => new Response(message, { status: 500 }),
-      onSuccess: (message) => new Response(message),
-      subject: { kind: "self" },
-    });
+    const response = await runDeployAndReport(
+      () => Promise.reject(new Error("provider down")),
+      io,
+    );
     expect(taskStub.calls[0]?.args[0]).toBe("update");
     expect(response.status).toBe(500);
     expect(await response.text()).toBe("Update failed: provider down");
     // The deploy failed after the flag was set, so the flag stays set by
     // design and the caller's error carries the operator instruction.
-    expect(guardCalls).toEqual(["set:1", "fetch"]);
+    expect(calls).toEqual(["set:1", "fetch"]);
   } finally {
     taskStub.restore();
   }
@@ -90,17 +88,15 @@ describeWithEnv("deployAndReport success", { db: true }, () => {
       // A public key that is not key material makes the log write's
       // encryption throw, so logActivity rejects.
       settings.setForTest({ public_key: "not valid key material" });
-      const response = await deployAndReport({
-        deploy: () =>
+      const { io } = recordingUpdateGuard();
+      const response = await runDeployAndReport(
+        () =>
           Promise.resolve({
             name: "2099-01-01 - Big Update",
             tagName: LATEST_TAG,
           }),
-        guard: recordingGuard([]),
-        onError: (message) => new Response(message, { status: 500 }),
-        onSuccess: (message) => new Response(message),
-        subject: { kind: "self" },
-      });
+        io,
+      );
 
       expect(response.status).toBe(200);
       expect(await response.text()).toBe(

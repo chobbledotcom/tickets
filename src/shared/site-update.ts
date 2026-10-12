@@ -45,7 +45,7 @@ export type UpdateSubject =
   | { kind: "built_site"; siteName: string };
 
 /** The release a successful deploy produced. */
-type DeployedRelease = { tagName: string; name: string };
+export type DeployedRelease = { tagName: string; name: string };
 
 /** Catalog keys for the success flash and the activity-log line, one entry per
  * subject kind. Each call site's copy lives in its own feature's group. */

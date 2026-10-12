@@ -1,13 +1,16 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import { backupKey, backupTimestamp } from "#db/backup-storage.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
-import { updatePageMeta } from "#shared/update-guard.ts";
-import { useLocalStoragePath } from "#test-utils/_shared-site-update.ts";
+import {
+  stubBunnyUpdateFlag,
+  stubUpdateFetch,
+  useLocalStoragePath,
+} from "#test-utils/_shared-site-update.ts";
 import {
   expectFlash,
   expectHtmlResponse,
@@ -17,10 +20,10 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   awaitTestRequest,
-  MOCK_RELEASE,
   stubReleaseFetch,
   withMocks,
 } from "#test-utils/mocks.ts";
@@ -53,29 +56,8 @@ const setupForDeploy = async () => {
   await seedRecentBackup();
 };
 
-/** The fetches a guarded deploy makes: the site's read-only page (answering
- * the update marker, so both waits pass at once), the GitHub release lookup,
- * and the release download. */
-const stubUpdateFetch = (
-  opts: { download?: () => Response; release?: Response } = {},
-): Stub =>
-  stubFetch((url) => {
-    if (url.includes("/read-only")) {
-      return new Response(updatePageMeta("active"));
-    }
-    if (url.includes("releases/latest")) {
-      return (
-        opts.release ??
-        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 })
-      );
-    }
-    return (
-      opts.download ??
-      (() => new Response("console.log('updated')", { status: 200 }))
-    )();
-  });
-
-/** deployScriptCode + release-fetch stubs for an /admin/update deploy. */
+/** The stubs a guarded /admin/update deploy runs behind: the code upload
+ * answering `deployResult`, the flag store, and the page fetch. */
 const deployMocks = (
   opts: {
     deployResult?: Awaited<ReturnType<typeof bunnyCdnApi.deployScriptCode>>;
@@ -87,9 +69,7 @@ const deployMocks = (
     Promise.resolve(opts.deployResult ?? { ok: true as const }),
   ),
   fetchStub: stubUpdateFetch(opts),
-  flagStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
+  flagStub: stubBunnyUpdateFlag(),
 });
 
 const stubSuccessfulDeploy = () => deployMocks();
@@ -112,247 +92,249 @@ const getUpdatePageHtml = async (): Promise<string> => {
   return response.text();
 };
 
-describeWithEnv(
-  "server (admin update)",
-  { db: true, env: { BUNNY_SCRIPT_ID: "42" } },
-  () => {
-    useLocalStoragePath();
+describeWithEnv("server (admin update)", { db: true }, () => {
+  useLocalStoragePath();
 
-    afterEach(() => {
-      settings.clearTestOverrides();
-      setBuildTimestampForTest(null);
+  afterEach(() => {
+    settings.clearTestOverrides();
+    setBuildTimestampForTest(null);
+  });
+
+  describe("GET /admin/update", () => {
+    testRequiresAuth("/admin/update");
+
+    test("shows update page when authenticated", async () => {
+      const response = await adminGet("/admin/update");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Software Update",
+        "Current Version",
+        "Check for Updates",
+      );
     });
 
-    describe("GET /admin/update", () => {
-      testRequiresAuth("/admin/update");
-
-      test("shows update page when authenticated", async () => {
-        const response = await adminGet("/admin/update");
-        await expectHtmlResponse(
-          response,
-          200,
-          "Software Update",
-          "Current Version",
-          "Check for Updates",
-        );
-      });
-
-      test("shows Development build in dev mode", async () => {
-        const response = await adminGet("/admin/update");
-        const html = await response.text();
-        expect(html).toContain("Development build");
-      });
-
-      test("shows update available when latest version is newer", async () => {
-        await setLatestVersion("v2099-01-01-120000", "2099-01-01 - Big Update");
-        const html = await getUpdatePageHtml();
-        expect(html).toContain("Update Available");
-        expect(html).toContain("2099-01-01 - Big Update");
-      });
-
-      test("shows no update available when version is current", async () => {
-        await setLatestVersion("v2025-01-01-000000", "2025-01-01 - Old");
-        const html = await getUpdatePageHtml();
-        expect(html).toContain("No Update Available");
-      });
-
-      test("displays success flash message", async () => {
-        const cookie = await testCookie();
-        const response = await awaitTestRequest(
-          `/admin/update?flash=${FLASH_TEST_ID}`,
-          {
-            cookie: `${cookie}; ${flashCookieHeader("Update available: v1")}`,
-          },
-        );
-        const html = await response.text();
-        expect(html).toContain("Update available: v1");
-      });
-
-      test("displays error flash message", async () => {
-        const cookie = await testCookie();
-        const response = await awaitTestRequest(
-          `/admin/update?flash=${FLASH_TEST_ID}`,
-          {
-            cookie: `${cookie}; ${flashCookieHeader("Failed to check", false)}`,
-          },
-        );
-        const html = await response.text();
-        expect(html).toContain("Failed to check");
-      });
+    test("shows Development build in dev mode", async () => {
+      const response = await adminGet("/admin/update");
+      const html = await response.text();
+      expect(html).toContain("Development build");
     });
 
-    describe("POST /admin/update/check", () => {
-      test("stores latest version and redirects on success", async () => {
-        await withMocks(stubReleaseFetch, async () => {
-          const { response } = await adminFormPost("/admin/update/check");
-          expectRedirect(response, "/admin/update");
-        });
-      });
+    test("shows update available when latest version is newer", async () => {
+      await setLatestVersion("v2099-01-01-120000", "2099-01-01 - Big Update");
+      const html = await getUpdatePageHtml();
+      expect(html).toContain("Update Available");
+      expect(html).toContain("2099-01-01 - Big Update");
+    });
 
-      test("stores tag name in settings after check", async () => {
-        await withMocks(stubReleaseFetch, async () => {
-          await adminFormPost("/admin/update/check");
-          settings.invalidateCache();
-          await settings.loadKeys(ALL_SETTINGS_KEYS);
-          expect(settings.latestScriptVersion).toBe("v2099-01-01-120000");
-          expect(settings.latestScriptVersionName).toBe(
-            "2099-01-01 - Big Update",
-          );
-        });
-      });
+    test("shows no update available when version is current", async () => {
+      await setLatestVersion("v2025-01-01-000000", "2025-01-01 - Old");
+      const html = await getUpdatePageHtml();
+      expect(html).toContain("No Update Available");
+    });
 
-      test("reports update available when release is newer", async () => {
-        simulateProductionBuild();
-        await withMocks(stubReleaseFetch, async () => {
-          const { response } = await adminFormPost("/admin/update/check");
-          expectFlash(response, expect.stringContaining("Update available"));
-        });
-      });
+    test("displays success flash message", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest(
+        `/admin/update?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Update available: v1")}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain("Update available: v1");
+    });
 
-      test("reports up to date when release is older", async () => {
-        setBuildTimestampForTest("2099-12-31T23:59:59Z");
-        await withMocks(stubReleaseFetch, async () => {
-          const { response } = await adminFormPost("/admin/update/check");
-          expectFlash(response, expect.stringContaining("latest version"));
-        });
-      });
+    test("displays error flash message", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest(
+        `/admin/update?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Failed to check", false)}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain("Failed to check");
+    });
+  });
 
-      test("redirects with error on GitHub API failure", async () => {
-        using _fetch = stubFetch(new Response("Not Found", { status: 404 }));
+  describe("POST /admin/update/check", () => {
+    test("stores latest version and redirects on success", async () => {
+      await withMocks(stubReleaseFetch, async () => {
         const { response } = await adminFormPost("/admin/update/check");
         expectRedirect(response, "/admin/update");
-        expectFlash(
-          response,
-          expect.stringContaining("Failed to check"),
-          false,
+      });
+    });
+
+    test("stores tag name in settings after check", async () => {
+      await withMocks(stubReleaseFetch, async () => {
+        await adminFormPost("/admin/update/check");
+        settings.invalidateCache();
+        await settings.loadKeys(ALL_SETTINGS_KEYS);
+        expect(settings.latestScriptVersion).toBe("v2099-01-01-120000");
+        expect(settings.latestScriptVersionName).toBe(
+          "2099-01-01 - Big Update",
         );
       });
     });
 
-    describe("POST /admin/update", () => {
-      test("redirects with error when no latest version stored", async () => {
-        const { response } = await adminFormPost("/admin/update");
-        expectRedirect(response, "/admin/update");
-        expectFlash(
-          response,
-          expect.stringContaining("No update available"),
-          false,
-        );
+    test("reports update available when release is newer", async () => {
+      simulateProductionBuild();
+      await withMocks(stubReleaseFetch, async () => {
+        const { response } = await adminFormPost("/admin/update/check");
+        expectFlash(response, expect.stringContaining("Update available"));
       });
+    });
 
-      test("redirects with error when version is not newer", async () => {
-        setBuildTimestampForTest("2099-12-31T23:59:59Z");
-        await settings.update.latestScriptVersion("v2026-01-01-000000");
-        settings.invalidateCache();
-        await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-        const { response } = await adminFormPost("/admin/update");
-        expectFlash(
-          response,
-          expect.stringContaining("No update available"),
-          false,
-        );
+    test("reports up to date when release is older", async () => {
+      setBuildTimestampForTest("2099-12-31T23:59:59Z");
+      await withMocks(stubReleaseFetch, async () => {
+        const { response } = await adminFormPost("/admin/update/check");
+        expectFlash(response, expect.stringContaining("latest version"));
       });
+    });
 
-      test("blocks the update when no backup was taken in the last hour", async () => {
-        // A newer version is available (passes the version check), but storage
-        // holds no recent backup, so the gate refuses to deploy.
-        simulateProductionBuild();
-        await settings.update.latestScriptVersion("v2099-01-01-120000");
-        settings.invalidateCache();
-        await settings.loadKeys(ALL_SETTINGS_KEYS);
+    test("redirects with error on GitHub API failure", async () => {
+      using _fetch = stubFetch(new Response("Not Found", { status: 404 }));
+      const { response } = await adminFormPost("/admin/update/check");
+      expectRedirect(response, "/admin/update");
+      expectFlash(response, expect.stringContaining("Failed to check"), false);
+    });
+  });
 
-        const { response } = await adminFormPost("/admin/update");
-        expectRedirect(response, "/admin/update");
-        expectFlash(
-          response,
-          expect.stringContaining("No database backup in the last hour"),
-          false,
-        );
-      });
+  describe("POST /admin/update", () => {
+    test("redirects with error when no latest version stored", async () => {
+      const { response } = await adminFormPost("/admin/update");
+      expectRedirect(response, "/admin/update");
+      expectFlash(
+        response,
+        expect.stringContaining("No update available"),
+        false,
+      );
+    });
 
-      test("redirects with error when release has no asset", async () => {
-        await setupForDeploy();
-        using _fetch = stubUpdateFetch({
-          release: new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
-        });
-        using _flag = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-          Promise.resolve({ ok: true as const }),
-        );
+    test("redirects with error when version is not newer", async () => {
+      setBuildTimestampForTest("2099-12-31T23:59:59Z");
+      await settings.update.latestScriptVersion("v2026-01-01-000000");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-        const { response } = await adminFormPost("/admin/update");
-        expectRedirect(response, "/admin/update");
-        expectFlash(response, expect.stringContaining("Update failed"), false);
-      });
+      const { response } = await adminFormPost("/admin/update");
+      expectFlash(
+        response,
+        expect.stringContaining("No update available"),
+        false,
+      );
+    });
 
-      test("deploys successfully and redirects with success flash", async () => {
-        await setupForDeploy();
-        await withMocks(stubSuccessfulDeploy, async ({ deployStub }) => {
+    test("blocks the update when no backup was taken in the last hour", async () => {
+      // A newer version is available (passes the version check), but storage
+      // holds no recent backup, so the gate refuses to deploy.
+      simulateProductionBuild();
+      await settings.update.latestScriptVersion("v2099-01-01-120000");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+      const { response } = await adminFormPost("/admin/update");
+      expectRedirect(response, "/admin/update");
+      expectFlash(
+        response,
+        expect.stringContaining("No database backup in the last hour"),
+        false,
+      );
+    });
+
+    test("redirects with error when release has no asset", async () => {
+      await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+      await withMocks(
+        () =>
+          deployMocks({
+            release: new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
+          }),
+        async () => {
           const { response } = await adminFormPost("/admin/update");
           expectRedirect(response, "/admin/update");
-          expectFlash(response, expect.stringContaining("Updated to"));
-          expect(deployStub.calls.length).toBe(1);
-        });
+          expectFlash(
+            response,
+            expect.stringContaining("Update failed"),
+            false,
+          );
+        },
+      );
+    });
+
+    test("deploys successfully and redirects with success flash", async () => {
+      await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+      await withMocks(stubSuccessfulDeploy, async ({ deployStub }) => {
+        const { response } = await adminFormPost("/admin/update");
+        expectRedirect(response, "/admin/update");
+        expectFlash(response, expect.stringContaining("Updated to"));
+        expect(deployStub.calls.length).toBe(1);
       });
+    });
 
-      test("redirects with error when asset download fails", async () => {
-        await setupForDeploy();
-        await withMocks(
-          () =>
-            deployMocks({
-              download: () => new Response("Not Found", { status: 404 }),
-            }),
-          async () => {
-            const { response } = await adminFormPost("/admin/update");
-            expectFlash(
-              response,
-              expect.stringContaining("Update failed"),
-              false,
-            );
-          },
-        );
-      });
-
-      test("redirects with error when Bunny deploy fails", async () => {
-        await setupForDeploy();
-        await withMocks(
-          () =>
-            deployMocks({
-              deployResult: {
-                error: "Upload script code failed (500): Server Error",
-                ok: false as const,
-              },
-              download: () =>
-                new Response("console.log('code')", { status: 200 }),
-            }),
-          async () => {
-            const { response } = await adminFormPost("/admin/update");
-            expectFlash(
-              response,
-              expect.stringContaining("Update failed"),
-              false,
-            );
-          },
-        );
-      });
-
-      test("redirects with error when another task is in progress", async () => {
-        await setupForDeploy();
-        await settings.update.currentTask("other-task");
-        settings.invalidateCache();
-        await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-        await withMocks(stubReleaseFetch, async () => {
+    test("redirects with error when asset download fails", async () => {
+      await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+      await withMocks(
+        () =>
+          deployMocks({
+            download: () => new Response("Not Found", { status: 404 }),
+          }),
+        async () => {
           const { response } = await adminFormPost("/admin/update");
           expectFlash(
             response,
-            expect.stringContaining("already in progress"),
+            expect.stringContaining("Update failed"),
             false,
           );
-        });
-
-        await settings.update.currentTask("");
-      });
+        },
+      );
     });
-  },
-);
+
+    test("redirects with error when Bunny deploy fails", async () => {
+      await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+      await withMocks(
+        () =>
+          deployMocks({
+            deployResult: {
+              error: "Upload script code failed (500): Server Error",
+              ok: false as const,
+            },
+            download: () =>
+              new Response("console.log('code')", { status: 200 }),
+          }),
+        async () => {
+          const { response } = await adminFormPost("/admin/update");
+          expectFlash(
+            response,
+            expect.stringContaining("Update failed"),
+            false,
+          );
+        },
+      );
+    });
+
+    test("redirects with error when another task is in progress", async () => {
+      await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+      await settings.update.currentTask("other-task");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+      await withMocks(stubReleaseFetch, async () => {
+        const { response } = await adminFormPost("/admin/update");
+        expectFlash(
+          response,
+          expect.stringContaining("already in progress"),
+          false,
+        );
+      });
+
+      await settings.update.currentTask("");
+    });
+  });
+});

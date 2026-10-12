@@ -7,16 +7,18 @@ import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
-import { updatePageMeta } from "#shared/update-guard.ts";
-import { useLocalStoragePath } from "#test-utils/_shared-site-update.ts";
+import {
+  stubBunnyUpdateFlag,
+  stubUpdateFetch,
+  useLocalStoragePath,
+} from "#test-utils/_shared-site-update.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
-import { MOCK_RELEASE, stubReleaseFetch } from "#test-utils/mocks.ts";
+import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 /** A built site database URL whose backups land in a site-specific folder. */
@@ -40,20 +42,6 @@ const expectNoHostingIdError = async (siteId: number): Promise<void> => {
   )(response);
 };
 
-/** The fetches a guarded deploy makes: the site's read-only page (answering
- * the update marker, so both waits pass at once), the GitHub release lookup,
- * and the release download. */
-const stubUpdateFetch = (): Stub =>
-  stubFetch((url) => {
-    if (url.includes("/read-only")) {
-      return new Response(updatePageMeta("active"));
-    }
-    if (url.includes("releases/latest")) {
-      return new Response(JSON.stringify(MOCK_RELEASE), { status: 200 });
-    }
-    return new Response("console.log('updated')", { status: 200 });
-  });
-
 /** The stubs a guarded Bunny deploy runs behind: the code upload answering
  * `deployResult`, the flag store, and the page fetch. */
 const stubBunnyDeploy = (
@@ -63,9 +51,7 @@ const stubBunnyDeploy = (
     Promise.resolve(deployResult),
   ),
   fetch: stubUpdateFetch(),
-  flag: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
+  flag: stubBunnyUpdateFlag(),
 });
 
 describeWithEnv(

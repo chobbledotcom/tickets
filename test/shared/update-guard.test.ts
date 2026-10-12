@@ -8,6 +8,7 @@ import {
   updatePageState,
   waitForUpdatePage,
 } from "#shared/update-guard.ts";
+import { recordingUpdateGuard } from "#test-utils/_shared-site-update.ts";
 
 /** A wait clock the tests step forward on every sleep, so a timed-out wait
  * needs no real delay. */
@@ -144,33 +145,12 @@ describe("waitForUpdatePage", () => {
   });
 });
 
-const recordingIo = (
-  pages: string[],
-): { calls: string[]; io: UpdateGuardIo } => {
-  const calls: string[] = [];
-  return {
-    calls,
-    io: {
-      clearFlag: async () => {
-        calls.push("clear");
-      },
-      fetchPage: () => {
-        calls.push("fetch");
-        return Promise.resolve(
-          pages[calls.filter((c) => c === "fetch").length - 1] ??
-            page("active"),
-        );
-      },
-      setFlag: async (value) => {
-        calls.push(`set:${value}`);
-      },
-    },
-  };
-};
-
 describe("runUnderUpdateGuard", () => {
   test("sets the flag, deploys, confirms the new build, and lifts", async () => {
-    const { calls, io } = recordingIo([page("active"), page("active")]);
+    const { calls, io } = recordingUpdateGuard([
+      page("active"),
+      page("active"),
+    ]);
     const result = await runUnderUpdateGuard(io, async () => {
       calls.push("deploy");
       return "done";
@@ -181,7 +161,10 @@ describe("runUnderUpdateGuard", () => {
   });
 
   test("skips the first wait for a build that predates update mode", async () => {
-    const { calls, io } = recordingIo([page("unsupported"), page("active")]);
+    const { calls, io } = recordingUpdateGuard([
+      page("unsupported"),
+      page("active"),
+    ]);
     await runUnderUpdateGuard(io, async () => {
       calls.push("deploy");
     });
@@ -189,7 +172,7 @@ describe("runUnderUpdateGuard", () => {
   });
 
   test("leaves the flag set when the deploy throws", async () => {
-    const { calls, io } = recordingIo([page("active")]);
+    const { calls, io } = recordingUpdateGuard([page("active")]);
     await expect(
       runUnderUpdateGuard(io, () => Promise.reject(new Error("upload failed"))),
     ).rejects.toThrow("upload failed");
