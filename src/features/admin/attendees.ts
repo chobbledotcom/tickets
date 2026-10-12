@@ -16,6 +16,7 @@ import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
+import { createdBookingEntries } from "#shared/booking.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
@@ -185,10 +186,14 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
       // Same behavior as the admin form's manual add: the new booking tells
       // the listing's webhooks. The buyer email waits for the "Send tickets
       // email" action, and the activity line above stays the only create
-      // line.
-      queueManualAddWebhooks([
-        { attendee: createResult.attendees[0]!, listing },
-      ]);
+      // line. A quantity-0 ghost line books nothing, so createdBookingEntries
+      // skips it, as the attendee actions refuse a no-quantity row.
+      queueManualAddWebhooks(
+        createdBookingEntries(
+          createResult.attendees,
+          new Map([[listing.id, listing]]),
+        ),
+      );
       // Land on the roster (Attendees tab), where the new attendee and the
       // quick-add form live. The flash and the added row are then both in
       // view.

@@ -14,6 +14,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 // jscpd:ignore-end
+import { expectAttendeeLineCount } from "#test-utils/attendee-form/helpers.ts";
 import {
   expectAttendeeAdded,
   expectFlashPage,
@@ -378,6 +379,30 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
           unitPrice: 2500,
           url: "https://hooks.example.test/quick-add",
         });
+      });
+
+      test("a quantity-0 create books nothing, so it fires no webhook", async () => {
+        // The declared quantity minimum refuses the POST before the route
+        // books anything, so no webhook fires for a no-quantity row.
+        const { listing, cookie, csrfToken } = await setupListingAndLogin({
+          fields: "email",
+          maxAttendees: 100,
+          unitPrice: 2500,
+          webhookUrl: "https://hooks.example.test/quick-add-ghost",
+        });
+        const response = await submitAddAttendee(
+          listing.id,
+          cookie,
+          csrfToken,
+          {
+            email: "ghost-quick@example.com",
+            name: "Quick Add Ghost",
+            quantity: "0",
+          },
+        );
+        expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
+        await expectAttendeeLineCount(listing.id, 0);
+        expect(fetchSpy.calls.length).toBe(0);
       });
     });
   });
