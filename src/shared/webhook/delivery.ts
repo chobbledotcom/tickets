@@ -1,4 +1,4 @@
-import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
+import { logActivities } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
@@ -185,6 +185,10 @@ const queueRegistrationNotifications = async (
   );
 };
 
+/** The activity line a registration writes: one per booked listing. */
+export const registeredActivityMessage = (listingName: string): string =>
+  `Attendee registered for '${listingName}'`;
+
 /** Report background work that died after a booking was already paid for.
  * addPendingWork settles rejections silently, so without this the buyer keeps
  * the ticket and the operator never learns the site or its credit was lost. */
@@ -196,8 +200,7 @@ const reportAfterBookingFailure =
 
 /** What a booking passes to its notification queue. Everything is optional:
  * the plaintext free-text answers only the caller can hold, preloaded package
- * facts, extra activity-log lines, the renewal token's hash, and the entries
- * the site assignment sees. */
+ * facts, the entries the site assignment sees, and the renewal token's hash. */
 export interface NotifyRegistrationOptions {
   /** The buyer's typed free-text answers. The strings table keeps them sealed
    * to the owner key, which no notification path can spend, so the booking
@@ -206,8 +209,6 @@ export interface NotifyRegistrationOptions {
   /** Package facts the caller already loaded, so the queue does not re-read
    * them. */
   packageFacts?: RegistrationPackageFacts | undefined;
-  /** Activity-log lines recorded beside the registration lines. */
-  priorActivities?: readonly ActivityToLog[] | undefined;
   /** Entries only the site assignment sees, in place of `entries`. The resend
    * passes its refunded plan rows here, so a claim recorded on a line refunded
    * later still serves the buyer. Defaults to `entries`. */
@@ -216,19 +217,14 @@ export interface NotifyRegistrationOptions {
   siteTokenIndex?: string | undefined;
 }
 
-/** Record a registration and queue its external notifications. */
-export const logAndNotifyRegistration = async (
+/** Queue a registration's external sends: the confirmation email and the
+ * registration webhooks, then built-site assignment and renewal processing.
+ * The caller owns the registration's activity line, so a caller whose batch
+ * already wrote it queues without a second copy. */
+export const queueRegistrationSends = async (
   entries: EmailEntry[],
-  options: NotifyRegistrationOptions = {},
+  options: NotifyRegistrationOptions,
 ): Promise<void> => {
-  await logActivities([
-    ...(options.priorActivities ?? []),
-    ...entries.map(({ listing, attendee }) => ({
-      attendeeId: attendee.id,
-      listing,
-      message: `Attendee registered for '${listing.name}'`,
-    })),
-  ]);
   const currency = settings.currency;
   addPendingWork(
     queueRegistrationNotifications(
@@ -252,4 +248,19 @@ export const logAndNotifyRegistration = async (
       ),
     ),
   );
+};
+
+/** Record a registration and queue its external notifications. */
+export const logAndNotifyRegistration = async (
+  entries: EmailEntry[],
+  options: NotifyRegistrationOptions = {},
+): Promise<void> => {
+  await logActivities(
+    entries.map(({ listing, attendee }) => ({
+      attendeeId: attendee.id,
+      listing,
+      message: registeredActivityMessage(listing.name),
+    })),
+  );
+  await queueRegistrationSends(entries, options);
 };

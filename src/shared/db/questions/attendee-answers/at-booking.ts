@@ -14,11 +14,8 @@ import type { SqlStatement } from "#db/client.ts";
 import { rowsByIds } from "#db/query.ts";
 import type { BookedAnswer } from "#db/question-types.ts";
 import {
-  type AttendeeAnswerSet,
-  type AttendeeListingEntry,
   bookedAnswerSaveStatements,
   type PreparedAnswerSave,
-  saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { mapParallel } from "#fp";
@@ -57,26 +54,7 @@ const recordAnswersSql = (
     WHERE true
     ON CONFLICT (attendee_id, question_id) DO NOTHING`;
 
-/** Copy every question the booked listings asked, with its saved answer. A
- * choice question counts as asked when it offers an active answer, because
- * the form shows no other. A second copy of a booking changes nothing. */
-const recordAnswersAtBooking = (
-  lines: readonly AttendeeListingEntry[],
-): SqlStatement => ({
-  args: lines.flatMap((line) => [line.attendee.id, line.listing.id]),
-  sql: recordAnswersSql(lines.length, "?"),
-});
-
-/** Save a new booking's answers and record them as the answers at booking,
- * in one write. A booked line with no answers still records its questions. */
-export const saveBookedAnswers = (
-  lines: readonly AttendeeListingEntry[],
-  answers: Map<number, AttendeeAnswerSet>,
-): Promise<void> =>
-  saveAttendeeAnswers(answers, [recordAnswersAtBooking(lines)]);
-
-/**
- * The answers a reservation boundary rides with its booking batch: the answer
+/** The answers a reservation boundary rides with its booking batch: the answer
  * save plus the answers-at-booking record, with the attendee resolved from the
  * batch's own ticket token. The boundary runs these after the booking rows, so
  * a failing answers write rolls the whole reservation back.

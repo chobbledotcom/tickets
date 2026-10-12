@@ -4,11 +4,12 @@ import { deleteAttendee } from "#db/attendees/delete.ts";
 import { execute, queryAll } from "#db/client.ts";
 import {
   attendeesWithChangedAnswers,
+  bookedAnswersTail,
   getBookedAnswers,
-  saveBookedAnswers,
 } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   type AttendeeAnswerSet,
+  prepareAttendeeAnswerSave,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
@@ -33,11 +34,17 @@ const seedBooking = async () => {
   const notes = await createQuestion("Notes?", { displayType: "free_text" });
   await listingQuestions.setIds(listing.id, [size.id, notes.id]);
   const attendee = await createAttendee(listing.id);
-  const book = (answers: AttendeeAnswerSet) =>
-    saveBookedAnswers(
-      [{ attendee, listing }],
-      new Map([[attendee.id, answers]]),
+  // Book the answers the way the create batch does: the answer save and the
+  // answers-at-booking record, keyed by the batch's own ticket token.
+  const book = async (answers: AttendeeAnswerSet) => {
+    const tail = bookedAnswersTail(
+      await prepareAttendeeAnswerSave(new Map([[0, answers]])),
+      [listing.id],
     );
+    for (const statement of tail(attendee.ticket_token_index)) {
+      await execute(statement.sql, statement.args);
+    }
+  };
   const edit = (answers: AttendeeAnswerSet) =>
     saveAttendeeAnswers(new Map([[attendee.id, answers]]));
   return { attendee, book, edit, large, listing, notes, size, small };

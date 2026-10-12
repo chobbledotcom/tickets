@@ -6,17 +6,13 @@
  * quantity-0 placeholder instead of dropping a paid customer.
  */
 
-import * as v from "valibot";
 /* jscpd:ignore-start */
 import { lineGroupId } from "#booking/signed-metadata.ts";
-import type { ActivityToLog } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
 } from "#db/processed-payments.ts";
-import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
-import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 import { requiredMapValue } from "#fp";
 import { paymentReferenceOf } from "#payment/validated-session.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
@@ -25,29 +21,23 @@ import {
   orderLineTotal,
   paidByItem,
 } from "#routes/api/payment-processing/pricing.ts";
+import {
+  type PaidBookingTail,
+  paidBookingTail,
+} from "#routes/api/payment-processing/tail.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 /* jscpd:ignore-end */
 import { refusedOrderItem } from "#shared/attendee-failures.ts";
-import {
-  type BookingIntent,
-  type BookingItem,
-  type StoredTextAnswerRef,
-  StoredTextAnswerRefSchema,
-  type TextAnswerRef,
-} from "#shared/booking-intent.ts";
+import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 /* jscpd:ignore-start */
 import {
   bookingsForOrder,
   checkoutBookingLines,
 } from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
-import type {
-  ModifierApplication,
-  PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
 /* jscpd:ignore-end */
-import { formatCurrency } from "#shared/currency.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
@@ -143,74 +133,23 @@ export type CreatedEntry = {
 };
 
 /**
- * The outcome of trying to honour a signed booking at the charged price: the
- * created entries, or a structured reason it cannot be created. The caller
- * decides what to do: a success finalizes a real ticket. Any failure keeps a
- * quantity-0 placeholder and refunds. createAttendeeForSession never refunds
- * itself.
+ * The outcome of trying to honour a signed booking at the charged price. On
+ * success: the created entries with the buyer's typed free texts. On failure:
+ * a structured reason, never a refund — the caller keeps a quantity-0
+ * placeholder.
  */
 export type HonourResult =
-  | { ok: true; entries: CreatedEntry[] }
+  | {
+      entries: CreatedEntry[];
+      freeTexts: FreeTextAnswers | undefined;
+      ok: true;
+    }
   | { ok: null; error: unknown }
   | {
       ok: false;
       reason: "sold_out" | "capacity_exceeded" | "unexpected_error";
       detail: string;
     };
-
-/**
- * Keep only the text-answer refs that still carry a resolved string id (`s`).
- * A ref without one is corrupt metadata, and the text is not recoverable from
- * it. Drop that one answer loudly rather than bind an undefined id. The
- * payment is already captured, so the booking must still finalize instead of
- * crash-loop the webhook.
- *
- * The check is the schema, not a presence test, because these refs were parsed
- * but never validated. Without it, a null, a word, or half a number lands in
- * the stored answers.
- */
-const textRefsWithStringId = (
-  refs: TextAnswerRef[],
-  listingId: number,
-): StoredTextAnswerRef[] => {
-  const resolved: StoredTextAnswerRef[] = [];
-  for (const ref of refs) {
-    if (v.is(StoredTextAnswerRefSchema, ref)) {
-      resolved.push(ref);
-    } else {
-      logError({
-        code: ErrorCode.DATA_INVALID,
-        detail: `Text answer ref has no usable string id (question ${ref.q})`,
-        listingId,
-      });
-    }
-  }
-  return resolved;
-};
-
-export const saveSessionAnswers = async (
-  createdEntries: CreatedEntry[],
-  intent: BookingIntent,
-): Promise<void> => {
-  const grouped = groupListingAnswerSets(
-    createdEntries,
-    intent.listingAnswerIds ?? {},
-  );
-  for (const { attendee, listing } of createdEntries) {
-    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
-    const resolvedRefs = textRefsWithStringId(refs, listing.id);
-    if (resolvedRefs.length === 0) continue;
-    const existing = grouped.get(attendee.id) ?? { answerIds: [] };
-    grouped.set(attendee.id, {
-      ...existing,
-      textAnswerIds: [
-        ...(existing.textAnswerIds ?? []),
-        ...resolvedRefs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
-      ],
-    });
-  }
-  await saveBookedAnswers(createdEntries, grouped);
-};
 
 /** The identity fields every stored attendee starts from: who the buyer said
  * they are, the payment that proves it, and the starting status. */
@@ -236,38 +175,17 @@ export const attendeeBaseFields = (
   statusId: publicStatusId,
 });
 
-export const promoCodeActivities = (
-  specs: ModifierSpec[],
-  applications: ModifierApplication[],
-  listing: ListingWithCount,
-  attendeeId: number,
-): ActivityToLog[] => {
-  const byId = new Map(applications.map((a) => [a.modifierId, a]));
-  return specs.map((spec) => {
-    const delta = requiredMapValue(
-      byId,
-      spec.id,
-      `Modifier application ${spec.id} was not loaded for promo code activity`,
-    ).delta;
-    const effect =
-      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
-    return {
-      attendeeId,
-      listing,
-      message: `Promo code '${spec.name}' used: ${effect}`,
-    };
-  });
-};
-
 /**
  * Create the attendee plus per-listing bookings atomically, finalizing the
  * payment session in the SAME batch (see batchFinalizeStatements). The batch
  * sets attendee_id only when the attendee row exists. That closes the crash
  * window between a separate post-transaction finalize and the attendee
- * INSERT. The durationDays value is listing-scoped and re-read here so the
- * stored range always matches the listing's current duration policy. Returns
- * a structured failure (never refunds) so the caller can keep the booking as
- * a placeholder instead.
+ * INSERT. The durationDays value is listing-scoped and re-read here, so the
+ * stored range always matches the listing's current duration policy.
+ *
+ * The batch also carries the booking's whole completion (see
+ * {@link paidBookingTail}). A failure anywhere in it rolls the booking back.
+ * The function returns a structured failure, never a refund.
  */
 export const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
@@ -278,10 +196,12 @@ export const createAttendeeForSession = async (
   ticketToken: string,
   publicStatusId: number,
   parentIdsByChild: ReadonlyMap<number, readonly number[]>,
+  codeSpecs: ModifierSpec[],
 ): Promise<HonourResult> => {
   let prepared: {
     attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
     plan: Parameters<typeof attendeesApi.createBookingAtomic>[1];
+    completion: PaidBookingTail;
   };
   try {
     // Per-line paid amounts are keyed by checkout item object, so one listing
@@ -318,6 +238,29 @@ export const createAttendeeForSession = async (
         sessionId: session.id,
       },
     );
+    // A transient failure reading or decrypting the staged answers must not
+    // refund a valid payment. Nothing is written yet, so the provider can
+    // redeliver and the whole booking runs again. The retryable shape routes
+    // through the same recovery as a failed create.
+    let completion: PaidBookingTail;
+    try {
+      completion = await paidBookingTail({
+        codeSpecs,
+        intent,
+        // The listings in booking-row order, the order the created entries keep.
+        listings: bookings.map((booking) =>
+          requiredMapValue(
+            listingById,
+            booking.listingId,
+            `Listing ${booking.listingId} was not loaded for a created booking`,
+          ),
+        ),
+        modifierApplications: pricedOrder.modifierApplications,
+        sessionId: session.id,
+      });
+    } catch (error) {
+      return { error, ok: null };
+    }
     prepared = {
       attendeeInput: {
         ...attendeeBaseFields(session.paymentReference, intent, publicStatusId),
@@ -326,6 +269,7 @@ export const createAttendeeForSession = async (
         remainingBalance,
         ticketToken,
       },
+      completion,
       plan,
     };
   } catch (error) {
@@ -342,6 +286,7 @@ export const createAttendeeForSession = async (
     result = await attendeesApi.createBookingAtomic(
       prepared.attendeeInput,
       prepared.plan,
+      prepared.completion.ride,
     );
   } catch (error) {
     return { error, ok: null };
@@ -368,5 +313,5 @@ export const createAttendeeForSession = async (
     };
   }
   const entries = pairEntriesByListing(result.attendees, validatedItems);
-  return { entries, ok: true };
+  return { entries, freeTexts: prepared.completion.freeTexts, ok: true };
 };

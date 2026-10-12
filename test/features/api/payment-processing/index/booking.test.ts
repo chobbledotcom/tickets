@@ -1,24 +1,23 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
+  readCheckoutAnswers,
   stageCheckoutAnswers,
-  takeCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-import { execute, queryOne, withTransaction } from "#db/client.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
-import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
-import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -31,7 +30,6 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   bookingIntent,
@@ -73,22 +71,38 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   test("creates one paid booking and replays it without a duplicate", async () => {
     const id = "cs_direct_booking";
     const { data, listing } = await singleListingPayment(id, 1000);
+    await configureTestEmail();
 
-    const first = await processPaymentSession(id, data);
-    expect(first.success).toBe(true);
-    if (!first.success) throw new Error(first.error);
-    expect(first.listingId).toBe(listing.id);
-    expect(first.ticketTokens).toHaveLength(1);
-    expect(first.ticketTokens[0]).toMatch(/^[A-Za-z0-9_-]+$/);
+    await withRequestContext(async () => {
+      const first = await processPaymentSession(id, data);
+      expect(first.success).toBe(true);
+      if (!first.success) throw new Error(first.error);
+      expect(first.listingId).toBe(listing.id);
+      expect(first.ticketTokens).toHaveLength(1);
+      expect(first.ticketTokens[0]).toMatch(/^[A-Za-z0-9_-]+$/);
 
-    expect(await processPaymentSession(id, data)).toEqual(first);
+      // The redelivery finds the booking already exists: it answers 200 and
+      // runs nothing again — no second booking, no second email.
+      expect(await processPaymentSession(id, data)).toEqual(first);
+      expect((await getProcessedPayment(id))?.attendee_id).toBe(
+        first.attendee.id,
+      );
+    });
+    // Exactly one confirmation email went out across both deliveries: the
+    // queued sends flush when the request context ends.
+    expect(fetch.callCount()).toBe(1);
+
     const attendees = await getAttendeesRaw(listing.id);
     expect(attendees).toHaveLength(1);
     expect(attendees[0]?.quantity).toBe(1);
     expect(attendees[0]?.price_paid).toBe(1000);
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(
-      first.attendee.id,
-    );
+    // The batch wrote the registration activity exactly once. Queueing the
+    // sends adds no second copy: the post-commit path writes nothing.
+    expect(
+      (await getAllActivityLog()).filter((entry) =>
+        entry.message.includes("Attendee registered"),
+      ),
+    ).toHaveLength(1);
   });
 
   test("takes a Square checkout's handle row when its payment books", async () => {
@@ -117,25 +131,28 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toBeNull();
   });
 
-  /** A paid booking costs five database calls, answered or not. The fifth
-   * records the questions the booking asked. */
-  const expectBookedInFiveCalls = async (
+  /** A paid booking costs three database calls, answered or not. The answers,
+   * the questions-record, and the activity lines ride the create batch, and
+   * the post-commit queue writes nothing, so an answered booking costs the
+   * same as a bare one. A later stack layer clears the pending-notification
+   * flags in one more call after the sends settle. */
+  const expectBookedInThreeCalls = async (
     id: string,
     data: Parameters<typeof processPaymentSession>[1],
   ): Promise<void> => {
-    const calls = await countDatabaseCalls(5, async () => {
+    const calls = await countDatabaseCalls(3, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(5);
+    expect(calls).toBe(3);
   };
 
-  test("creates an unanswered paid booking in five database calls", async () => {
+  test("creates an unanswered paid booking in three database calls", async () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
-    await expectBookedInFiveCalls(id, data);
+    await expectBookedInThreeCalls(id, data);
   });
 
-  test("creates and answers a paid booking in five database calls", async () => {
+  test("creates and answers a paid booking in three database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
     const question = await questionsTable.insert({
@@ -149,7 +166,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     });
     await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
-    await expectBookedInFiveCalls(id, data);
+    await expectBookedInThreeCalls(id, data);
   });
 
   test("takes a checkout's staged answers into its confirmation email", async () => {
@@ -161,55 +178,47 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
 
-    expect(await takeCheckoutAnswers(id)).toEqual(new Map());
+    // The staged row went with the booking's create batch.
+    expect(await readCheckoutAnswers(id)).toEqual(new Map());
     const body = fetch.getFetchJsonBody();
     expect(body.text).toContain("Anything else?: Arriving late");
   });
 
-  test("a failed answer save leaves the staged plaintext for the retry", async () => {
-    const id = "cs_save_fails";
+  test("a failed create batch writes nothing and keeps the staged answers", async () => {
+    const id = "cs_batch_fails";
     const { data, freeText, listing } = await checkoutWithTypedAnswer(id);
-    // A booked line on the checkout's own listing, so the completion's answer
-    // save genuinely matches the intent's refs and hits the lock below. The
-    // booking answers the listing's required question, as the real form does.
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Booked",
-      `${listing.slug}@example.com`,
-      1,
-      "",
-      { [`question_${freeText}`]: "Arriving late" },
-    );
-    const loaded = await getListingWithCount(listing.id);
-    const entry: CreatedEntry = { attendee, listing: loaded! };
-    // Hold the database's single write lock while the completion tries to
-    // save the booking's answers: the save exhausts its busy retries and
-    // fails, the way a stalled database does in production.
-    await withVirtualBackoff(() =>
-      withTransaction(async (tx) => {
-        await tx.execute({
-          args: [],
-          sql: "UPDATE sessions SET expires = expires WHERE 0",
-        });
-        await expect(
-          completePaidBooking(
-            [entry],
-            data.intent,
-            [],
-            [],
-            ["token"],
-            { displays: new Map(), pricingByGroup: new Map() },
-            id,
-          ),
-        ).rejects.toThrow();
-      }),
+    // The create batch is the atomic boundary: answers, activity lines, and
+    // flags ride it, so a failure anywhere in it leaves no booking, no
+    // answers, no activity line, and no flags behind.
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.reject(new Error("batch failed")),
     );
 
-    // The staged row survived the failed save, so a retry can still read it.
-    expect(await takeCheckoutAnswers(id)).toEqual(
+    await expect(processPaymentSession(id, data)).rejects.toThrow(
+      "batch failed",
+    );
+
+    expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
+    expect(await queryOne("SELECT 1 FROM answers_at_booking LIMIT 1")).toBe(
+      null,
+    );
+    expect(
+      (await getAllActivityLog()).filter((entry) =>
+        entry.message.includes("Attendee registered"),
+      ),
+    ).toEqual([]);
+    // The staged row survived the failed batch, so the provider's redelivery
+    // reads the buyer's typed answers again.
+    expect(await readCheckoutAnswers(id)).toEqual(
       new Map([[freeText, "Arriving late"]]),
     );
+    // The reservation was released, so the redelivery starts fresh.
+    expect(
+      await queryOne(
+        "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
+        [id],
+      ),
+    ).toBeNull();
   });
 
   test("logs loudly when a late payment outlives its staged answers", async () => {

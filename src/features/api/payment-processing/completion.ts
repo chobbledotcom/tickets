@@ -1,57 +1,34 @@
-import { hmacHash } from "#crypto/hashing.ts";
-import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   type CreatedEntry,
-  promoCodeActivities,
-  saveSessionAnswers,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type { ModifierApplication } from "#shared/checkout-pricing.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import type { ModifierSpec } from "#shared/payments.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
-import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
+import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 
+/**
+ * Queue a paid booking's external sends after its create batch committed.
+ * The batch already wrote the booking, its answers, and its activity lines.
+ * This queues the confirmation email and the registration webhooks without
+ * writing the registration activity again. No post-commit database write
+ * stands between the committed booking and its sends.
+ *
+ * A redelivery that finds the booking already exists never reaches this: the
+ * ledger replay answers success first, so the sends are queued once.
+ */
 export const completePaidBooking = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
-  codeSpecs: ModifierSpec[],
-  modifierApplications: ModifierApplication[],
   ticketTokens: string[],
   notificationPackages: RegistrationPackageFacts,
-  sessionId: string,
+  freeTexts: FreeTextAnswers | undefined,
 ): Promise<PaymentResult> => {
-  // The answers save before the staged row is taken. A save that fails must
-  // leave the staged plaintext in place, not destroy the only copy the
-  // completion's emails can read.
-  await saveSessionAnswers(createdEntries, intent);
-  const freeTexts = intent.listingTextAnswerIds
-    ? await takeCheckoutAnswers(sessionId)
-    : undefined;
-  if (freeTexts?.size === 0) {
-    // The hashed index, not the raw session id: for SumUp the id is the
-    // checkout reference, which must not reach logs or sinks either.
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `A paid checkout carried text answers but its staged row is gone (session index ${await hmacHash(sessionId)}); its emails will show choice answers only`,
-    });
-  }
   const firstEntry = createdEntries[0]!;
-  const promoActivities =
-    codeSpecs.length > 0
-      ? promoCodeActivities(
-          codeSpecs,
-          modifierApplications,
-          firstEntry.listing,
-          firstEntry.attendee.id,
-        )
-      : [];
-  await logAndNotifyRegistration(createdEntries, {
+  await queueRegistrationSends(createdEntries, {
     freeTexts,
     packageFacts: notificationPackages,
-    priorActivities: promoActivities,
     siteTokenIndex: intent.siteTokenIndex,
   });
   return sessionSuccess(

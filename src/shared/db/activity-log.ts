@@ -18,7 +18,13 @@ import {
 } from "#crypto/hybrid.ts";
 
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
+import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
+import {
+  queryBatch,
+  resultRows,
+  type SqlStatement,
+  type TxScope,
+} from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { listingReader } from "#db/listings/select.ts";
@@ -62,9 +68,9 @@ export type ActivityLogInput = {
  * Activity log table definition.
  *
  * `message` is a plain column here because its crypto can't be expressed as a
- * static transform: the write key is resolved at runtime (owner public key when
- * configured, else the env key) and the read key is the per-request private key.
- * {@link logActivity} and {@link decryptLogRows} own those two steps.
+ * static transform. The write key is resolved at runtime (owner public key
+ * when configured, else the env key). The read key is the per-request private
+ * key. {@link logActivity} and {@link decryptLogRows} own those two steps.
  */
 export const activityLogTable = defineTable<
   StoredActivityLogEntry,
@@ -85,8 +91,8 @@ const ACTIVITY_LOG_COLUMNS = activityLogTable.columns.join(", ");
 const logEntries = activityLogTable.read;
 
 /**
- * Newest first, by id rather than by created: id is AUTOINCREMENT so it rises
- * with created (newest row = highest id) but, being the rowid, it is served
+ * Newest first, by id rather than by created. Id is AUTOINCREMENT, so it
+ * rises with created (newest row = highest id). Being the rowid, it is served
  * straight from the primary key / idx_activity_log_listing_id without a sort
  * over the unbounded log table.
  */
@@ -110,7 +116,7 @@ const decryptLogMessage = (
  * The owner public key, loading it into the settings snapshot on demand if a
  * mid-request cache reset (setup, restore, database reset) blanked it. A set-up
  * site always has one in the DB, so this trusts that rather than falling back to
- * the env key; only genuinely pre-setup does it stay empty (and encryption then
+ * the env key. Only genuinely pre-setup does it stay empty (and encryption then
  * throws, which the error logger swallows).
  */
 const ownerPublicKey = async (): Promise<string> => {
@@ -160,8 +166,7 @@ export const logActivities = async (
       activityLogTable.insertStatement(
         {
           attendeeId: activity.attendeeId ?? null,
-          listingId: toListingId(activity.listing),
-          message: await encryptWithOwnerKey(activity.message, publicKey),
+          ...(await sealedLine(activity, publicKey)),
         },
         undefined,
         ACTIVITY_LOG_COLUMNS,
@@ -175,8 +180,7 @@ export const logActivities = async (
   }));
 };
 
-/**
- * Log one activity, through the shared many-activity write. Optionally
+/** Log one activity, through the shared many-activity write. Optionally
  * associate it with a listing and/or attendee so admin views can filter the log
  * by either.
  */
@@ -190,6 +194,51 @@ export const logActivity = async (
     (await logActivities([{ attendeeId, listing, message }], transaction))[0],
     "Activity log row missing",
   );
+
+/** One activity line a booking batch records: its listing, and its message
+ * already sealed with the owner public key. */
+export type BookedActivity = {
+  listingId: number | null;
+  message: StoredLogMessage;
+};
+
+/** The listing id and sealed message one activity line reduces to — the shape
+ * a stored row carries whatever resolves the attendee. */
+const sealedLine = async (
+  activity: ActivityToLog,
+  publicKey: string,
+): Promise<BookedActivity> => ({
+  listingId: toListingId(activity.listing),
+  message: await encryptWithOwnerKey(activity.message, publicKey),
+});
+
+/** Seal a booking's activity lines for a create batch: each message is
+ * encrypted with the owner public key, and the listing reference reduces to
+ * its id. The attendee each line names is the one the batch itself inserts,
+ * so the seal drops the caller's attendee reference — the statements resolve
+ * the attendee from the batch's own ticket token instead. */
+export const sealBookedActivities = async (
+  activities: readonly ActivityToLog[],
+): Promise<BookedActivity[]> => {
+  const publicKey = await ownerPublicKey();
+  return Promise.all(
+    activities.map((activity) => sealedLine(activity, publicKey)),
+  );
+};
+
+/** The activity lines a create batch records, as plain statements. The
+ * attendee row does not exist yet, so each insert resolves it from the
+ * batch's own ticket token — the same resolution the booking rows,
+ * modifier usages, and ledger legs in that batch use. */
+export const bookingActivityStatements = (
+  activities: readonly BookedActivity[],
+  tokenIndex: string,
+): SqlStatement[] =>
+  activities.map((activity) => ({
+    args: [tokenIndex, activity.listingId, activity.message, nowIso()],
+    sql: `INSERT INTO activity_log (attendee_id, listing_id, message, created)
+          SELECT ${ATTENDEE_BY_TOKEN_SQL}, ?, ?, ?`,
+  }));
 
 /**
  * Decrypt the messages of a batch of raw activity log rows. The session private
