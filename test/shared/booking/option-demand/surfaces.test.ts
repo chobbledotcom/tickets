@@ -129,6 +129,65 @@ const expectFoldMatchesJudge = async (
   );
 };
 
+/** The checkout must answer each realisable booking the judge offers,
+ * refusing exactly the spans the per-date capacity refuses. */
+const expectCheckoutAgreesWithPools = async (
+  testCase: DemandCase,
+  built: BuiltCase,
+): Promise<void> => {
+  const outcome = judgeOptionDemand(questionFor(built)).outcome;
+  if (outcome.state !== "bookable") {
+    throw new Error("the judge must accept a bookable case");
+  }
+  for (const dayCount of outcome.bookableDayCounts) {
+    const folded = await foldFor(testCase, built, dayCount);
+    if (!folded.ok) {
+      throw new Error("the fold must accept a bookable case");
+    }
+    const fits =
+      testCase.capacityFitsAt?.includes(dayCount) ?? !testCase.capacityRefuses;
+    expect(
+      await checkAvailability(
+        folded.listings,
+        folded.quantities,
+        built.date,
+        folded.dayCount,
+      ),
+      `${testCase.name} at ${dayCount} day(s)`,
+    ).toBe(fits);
+  }
+};
+
+/** The gallery's greying must agree with the checkout's per-date answer:
+ * available when the buyer's booking fits the pools, unavailable when the
+ * per-date capacity refuses it. */
+const expectGalleryAgreesWithCheckout = async (
+  testCase: DemandCase,
+  built: BuiltCase,
+): Promise<void> => {
+  const verdict = judgeOptionDemand(questionFor(built));
+  if (verdict.outcome.state !== "bookable") {
+    throw new Error("the judge must accept a bookable case");
+  }
+  // The gallery's own merge: the card option carrying the judge's
+  // realisable alternatives.
+  const judged = judgedOption(
+    listingOption(built.parents[0]!.listing, true),
+    verdict,
+  );
+  const states = evaluateOrder(
+    [judged],
+    await galleryPools(built, judged),
+    [],
+    true,
+  );
+  const state = states.get(judged.key);
+  expect(state, testCase.name).toBeDefined();
+  expect(state?.kind, testCase.name).toBe(
+    testCase.capacityRefuses ? "unavailable" : "available",
+  );
+};
+
 describeWithEnv(
   "booking > option demand — the one judge every surface asks",
   { db: true, triggers: true },
@@ -179,59 +238,13 @@ describeWithEnv(
 
       if (expected.bookable) {
         test(`backwards — checkout agrees with the pools: ${testCase.name}`, async () => {
-          const built = await testCase.build();
-          const outcome = judgeOptionDemand(questionFor(built)).outcome;
-          if (outcome.state !== "bookable") {
-            throw new Error("the judge must accept a bookable case");
-          }
-          // Every span the form can book, not only the first: the checkout
-          // must answer each realisable booking the judge offers, refusing
-          // exactly the spans the per-date capacity refuses.
-          for (const dayCount of outcome.bookableDayCounts) {
-            const folded = await foldFor(testCase, built, dayCount);
-            if (!folded.ok) {
-              throw new Error("the fold must accept a bookable case");
-            }
-            const fits =
-              testCase.capacityFitsAt?.includes(dayCount) ??
-              !testCase.capacityRefuses;
-            expect(
-              await checkAvailability(
-                folded.listings,
-                folded.quantities,
-                built.date,
-                folded.dayCount,
-              ),
-              `${testCase.name} at ${dayCount} day(s)`,
-            ).toBe(fits);
-          }
+          await expectCheckoutAgreesWithPools(testCase, await testCase.build());
         });
 
         test(`backwards — the gallery judges as the checkout answers: ${testCase.name}`, async () => {
-          const built = await testCase.build();
-          const verdict = judgeOptionDemand(questionFor(built));
-          if (verdict.outcome.state !== "bookable") {
-            throw new Error("the judge must accept a bookable case");
-          }
-          // The gallery's own merge: the card option carrying the judge's
-          // realisable alternatives.
-          const judged = judgedOption(
-            listingOption(built.parents[0]!.listing, true),
-            verdict,
-          );
-          const states = evaluateOrder(
-            [judged],
-            await galleryPools(built, judged),
-            [],
-            true,
-          );
-          const state = states.get(judged.key);
-          expect(state, testCase.name).toBeDefined();
-          // The gallery's greying must agree with the checkout's per-date
-          // answer: available when the buyer's booking fits the pools, and
-          // unavailable when the per-date capacity refuses it.
-          expect(state?.kind, testCase.name).toBe(
-            testCase.capacityRefuses ? "unavailable" : "available",
+          await expectGalleryAgreesWithCheckout(
+            testCase,
+            await testCase.build(),
           );
         });
       }
