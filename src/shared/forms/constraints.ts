@@ -4,7 +4,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { effectiveMaxLength, type Field } from "#shared/forms/field.ts";
 
 /** The range refusal for a parsed number, from the field's declared min/max.
- *  The browser applies the same attributes; the server answers with the
+ *  The browser applies the same attributes. The server answers with the
  *  field's label. */
 export const outOfRangeError = (field: Field, value: number): string | null => {
   if (field.min !== undefined && value < field.min) {
@@ -38,11 +38,12 @@ const numberError: FieldValueCheck = (field, value) => {
   return outOfRangeError(field, number);
 };
 
-/** The settings POST guard: refuse the first submitted value a field
- *  constraint turns down — a length past the field's cap, or a number its
- *  declared type or range turns down — with the same message a submitted
- *  form gets. A masked secret means "unchanged", and a blank's requiredness
- *  is the caller's decision, so neither reaches the checks. */
+/** The settings POST guard. It refuses the first submitted value a field
+ *  constraint turns down. The refusal covers a length past the field's cap
+ *  and a number its declared type or range turns down. The message is the
+ *  one a submitted form gets. A masked secret means "unchanged". A blank's
+ *  requiredness is the caller's decision. Neither reaches the numeric
+ *  check. */
 export const formFieldError = (
   form: FormParams,
   fields: readonly Field[],
