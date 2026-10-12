@@ -64,6 +64,10 @@ describe("accounts guide schema", () => {
   test("renders the webhook answer with its developer framing", () => {
     const html = String(renderGuideSections([sectionById("webhooks")]));
     expect(html).toContain("sent as JSON — a text shape");
+    // A re-send with no stored contact history reports "unknown".
+    expect(html).toContain(
+      "<code>unknown</code> means no stored contact history",
+    );
   });
 
   test("renders the lockout answer with the attempt count and the minutes", () => {
