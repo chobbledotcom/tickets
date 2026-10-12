@@ -177,6 +177,23 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).toContain('href="/admin/listings"');
   });
 
+  test("AdminNav shows the update banner while an update runs, with no renew link", () => {
+    using _env = withEnv({
+      RENEWAL_URL: "https://example.com/renew/?t=abc",
+      UPDATE_IN_PROGRESS: "1",
+    });
+    const html = String(
+      AdminNav({
+        active: "/admin/listings",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).toContain("The site is being updated.");
+    // A renewal is a blocked write during the update window, so the banner
+    // carries no dead renew link.
+    expect(html).not.toContain("renew/?t=abc");
+  });
+
   test("Invite User stays owner-only", () => {
     const managerHtml = String(
       AdminNav({ active: "/admin/users", session: { adminLevel: "manager" } }),

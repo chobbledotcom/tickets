@@ -68,8 +68,18 @@ export const isInWarningWindow = (
     (cutoffMs) => now >= cutoffMs - warnDays * DAY_MS && now < cutoffMs,
   );
 
-/** Check if the system is in read-only mode based on the READ_ONLY_FROM cutoff */
+/** Check if an update is in progress: UPDATE_IN_PROGRESS is set non-empty.
+ * The deploy workflows set it around a site code update, and every write
+ * refuses while it is set. */
+export const isUpdateInProgress = (): boolean => {
+  const value = getEnv("UPDATE_IN_PROGRESS");
+  return value !== undefined && value !== "";
+};
+
+/** Check if the system is read-only: an update is running, or the
+ * READ_ONLY_FROM cutoff is in the past */
 export const isReadOnly = (): boolean => {
+  if (isUpdateInProgress()) return true;
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
   if (parseDateMs(cutoff) === null) {

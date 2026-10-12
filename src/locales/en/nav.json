@@ -16,6 +16,7 @@
   "nav.support": "Support",
   "nav.logout": "Log out",
   "nav.readonly.banner": "This site is in read-only mode",
+  "nav.readonly.updating": "The site is being updated. Please try again shortly.",
   "nav.readonly.renew": "Renew now",
   "nav.readonly.expires": "Your site expires on {date}",
   "nav.readonly.expiring": "Your site is approaching its expiry",

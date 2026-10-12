@@ -2,7 +2,8 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
-import { getRenewalUrl } from "#shared/env.ts";
+import { getRenewalUrl, isUpdateInProgress } from "#shared/env.ts";
+import { updatePageMeta } from "#shared/update-guard.ts";
 import {
   ProseHeading,
   RawParagraph,
@@ -199,14 +200,27 @@ export const siteNotActivatedPage = (): string =>
   )(<p>{t("public.not_activated.message")}</p>);
 
 /**
- * Read-only mode page
+ * Read-only mode page. While an update runs (UPDATE_IN_PROGRESS set), the
+ * page shows the update message. The renewal link then stays off, because a
+ * renewal is a blocked write in that window.
  */
 export const readOnlyPage = (): string => {
-  const renewalUrl = getRenewalUrl();
+  const updating = isUpdateInProgress();
+  const renewalUrl = updating ? null : getRenewalUrl();
   return String(
-    <Layout family="public" title={t("public.read_only.title")}>
+    <Layout
+      family="public"
+      headExtra={updatePageMeta(updating ? "active" : "supported")}
+      title={t(
+        updating ? "public.update_in_progress.title" : "public.read_only.title",
+      )}
+    >
       <p>
-        {t("public.read_only.message")}
+        {t(
+          updating
+            ? "public.update_in_progress.message"
+            : "public.read_only.message",
+        )}
         {renewalUrl && (
           <Raw
             html={` <a href="${escapeHtml(renewalUrl)}">${t(

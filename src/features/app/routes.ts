@@ -2,7 +2,7 @@
 
 import { settings } from "#db/settings.ts";
 import { once, reduce } from "#fp";
-import { withMessageGroups } from "#i18n";
+import { t, withMessageGroups } from "#i18n";
 import {
   ADMIN_API_MESSAGE_GROUPS,
   ADMIN_SHELL_MESSAGE_GROUPS,
@@ -24,7 +24,7 @@ import {
 } from "#routes/router.ts";
 import { getPrefix } from "#routes/settings-bundles.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
-import { isReadOnly } from "#shared/env.ts";
+import { isReadOnly, isUpdateInProgress } from "#shared/env.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
 import { readOnlyBlock } from "./read-only.ts";
@@ -88,7 +88,12 @@ const requirePublicSiteGet =
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
 const readOnlyResponses = {
-  api: (): Response => apiErrorResponse(READ_ONLY_MESSAGE, 403),
+  // Update mode answers 503: payment providers and the SMS gateway redeliver
+  // a webhook that gets a non-2xx answer.
+  api: (updating: boolean): Response =>
+    updating
+      ? apiErrorResponse(t("public.update_in_progress.message"), 503)
+      : apiErrorResponse(READ_ONLY_MESSAGE, 403),
   page: (): Response => redirectResponse("/read-only"),
 } as const;
 
@@ -448,8 +453,10 @@ export const routeMainApp = async ({
   method,
 }: AppRouteRequest): Promise<Response> => {
   if (isReadOnly()) {
-    const blocked = readOnlyBlock(path, method);
-    if (blocked) return readOnlyResponses[blocked]();
+    const updating = isUpdateInProgress();
+    const blocked = readOnlyBlock(path, method, updating);
+    if (blocked === "api") return readOnlyResponses.api(updating);
+    if (blocked === "page") return readOnlyResponses.page();
   }
 
   const prefix = getPrefix(path);
