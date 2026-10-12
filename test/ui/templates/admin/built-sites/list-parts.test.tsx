@@ -9,7 +9,12 @@ import { testBuiltSite } from "#test-utils/factories.ts";
 
 test("renders the empty list with its renewal summary", () => {
   const html = String(
-    BuiltSitesListBody({ hostingIds: "", renewalTiers: [], sites: [] }),
+    BuiltSitesListBody({
+      hostingIds: "",
+      renewalTiers: [],
+      sites: [],
+      sort: "name",
+    }),
   );
   expect(html).toContain("No built sites recorded.");
   expect(html).toContain("Renewal tiers");
@@ -31,6 +36,7 @@ test("renders a site's link, URL, status, channel, and host id", () => {
           updates: "beta",
         }),
       ],
+      sort: "name",
     }),
   );
   expect(html).toContain('href="/admin/built-sites/42">Child site</a>');
@@ -46,6 +52,7 @@ test("labels an unassigned site that others can book as Available", () => {
       hostingIds: "",
       renewalTiers: [],
       sites: [testBuiltSite({ assignable: true, id: 1, name: "Alpha" })],
+      sort: "name",
     }),
   );
   expect(html).toContain('<a href="/admin/built-sites/1">Alpha</a>');
@@ -59,6 +66,7 @@ test("labels an unassigned site nobody can book as Not assignable", () => {
       hostingIds: "",
       renewalTiers: [],
       sites: [testBuiltSite({ assignable: false, id: 2, name: "Beta" })],
+      sort: "name",
     }),
   );
   expect(html).toContain('<a href="/admin/built-sites/2">Beta</a>');
@@ -78,6 +86,7 @@ test("links a bare bunny.run address as a working b-cdn.net link", () => {
           siteUrl: "childsite.bunny.run",
         }),
       ],
+      sort: "name",
     }),
   );
   expect(html).toContain('href="https://childsite.b-cdn.net"');

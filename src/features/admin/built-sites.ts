@@ -16,6 +16,10 @@ import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
+import {
+  inBuiltSitesOrder,
+  readBuiltSitesSort,
+} from "#shared/built-sites-list.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 /* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
@@ -230,14 +234,21 @@ const handleAddSecrets = builtSiteAction(async (site, form, id) => {
   );
 });
 
-/** Overrides the CRUD list to render the renewal-tier summary beside the
- * sites table. */
-const handleBuiltSitesListGet = ownerPage(async (session) => {
+/** Overrides the CRUD list: the renewal-tier summary sits beside the table,
+ * and the address names the row order. */
+const handleBuiltSitesListGet = ownerPage(async (session, request) => {
+  const sortOrder = readBuiltSitesSort(new URL(request.url).searchParams);
   const [sites, tiers] = await Promise.all([
     builtSites.getAll(),
     getQualifyingTierListings(),
   ]);
-  return adminBuiltSitesPage(sites, session, getFlash().success, tiers);
+  return adminBuiltSitesPage(
+    inBuiltSitesOrder(sortOrder)(sites),
+    session,
+    getFlash().success,
+    tiers,
+    sortOrder,
+  );
 });
 
 /** The whole built-sites section is hidden from the nav when CAN_BUILD_SITES

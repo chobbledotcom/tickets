@@ -31,6 +31,42 @@ describe("built-site templates", () => {
       expect(html).toContain("day");
     });
 
+    test("shows the build count above the list, singular for 1", () => {
+      const one = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
+      expect(one).toContain("1 build");
+      const two = adminBuiltSitesPage(
+        [testBuiltSite(), testBuiltSite({ id: 2 })],
+        OWNER_SESSION,
+      );
+      expect(two).toContain("2 builds");
+      // The count names the number before the list itself starts.
+      expect(two.indexOf("2 builds")).toBeLessThan(two.indexOf("<table"));
+    });
+
+    test("links each sortable header and marks the sort in force", () => {
+      const html = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
+      // Name is the default sort, so its heading is plain text and the
+      // others link to their sort.
+      expect(html).toContain("<strong>Name</strong>");
+      expect(html).toContain('href="/admin/built-sites?sort=created"');
+      expect(html).toContain('href="/admin/built-sites?sort=read_only_from"');
+      const byCreated = adminBuiltSitesPage(
+        [testBuiltSite()],
+        OWNER_SESSION,
+        undefined,
+        [],
+        "created",
+      );
+      expect(byCreated).toContain("<strong>Created</strong>");
+      expect(byCreated).toContain('href="/admin/built-sites?sort=name"');
+    });
+
+    test("renders the created column as a short datetime", () => {
+      const html = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
+      expect(html).toContain("Created");
+      expect(html).toContain("<td>2026-01-01 00:00</td>");
+    });
+
     test("renders 'never' for empty deadline", () => {
       const site = testBuiltSite({ readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION);
@@ -161,6 +197,20 @@ describe("built-site templates", () => {
       expect(deletePage).toContain("Delete Built Site");
       expect(deletePage).toContain("Delete &lt;site&gt;");
       expect(deletePage).not.toContain("button-danger");
+    });
+
+    test("adds a (visit) link with the rewritten host inside the Site URL label", () => {
+      const site = testBuiltSite({ siteUrl: "https://test.bunny.net/tickets" });
+      const edit = String(BuiltSiteEditPanel({ site }));
+      expect(edit).toContain(
+        '<label>Site URL <a href="https://test.b-cdn.net/tickets" target="_blank" rel="noopener noreferrer">(visit)</a>',
+      );
+    });
+
+    test("adds no (visit) link when no site URL is saved", () => {
+      const site = testBuiltSite({ siteUrl: "" });
+      const edit = String(BuiltSiteEditPanel({ site }));
+      expect(edit).not.toContain("(visit)");
     });
   });
 

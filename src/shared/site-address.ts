@@ -11,6 +11,26 @@ const STABLE_HOST_SUFFIXES: readonly (readonly [
   stable: string,
 ])[] = [[".bunny.run", ".b-cdn.net"]];
 
+/** The saved URL's raw Bunny zone host suffix, and the CDN host suffix a
+ * visitor opens. Only the host carries the suffix, so a match never lands on
+ * a path segment. */
+const ZONE_HOST_SUFFIX = ".bunny.net";
+
+/** The "(visit)" address for a saved site URL: the same URL with its host's
+ * raw zone suffix swapped for the CDN one. A custom domain, or a host that is
+ * already the CDN name, comes back unchanged. */
+export const visitSiteUrl = (siteUrl: string): string => {
+  const url = new URL(
+    /^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`,
+  );
+  const { hostname } = url;
+  if (!hostname.endsWith(ZONE_HOST_SUFFIX)) return siteUrl;
+  url.hostname = `${hostname.slice(0, hostname.length - ZONE_HOST_SUFFIX.length)}.b-cdn.net`;
+  return `${url.origin}${
+    url.pathname === "/" ? "" : url.pathname
+  }${url.search}${url.hash}`;
+};
+
 /** The stable hostname for the same site as `hostname`; any hostname that
  * matches no table row is returned unchanged. */
 export const toStableHostname = (hostname: string): string => {

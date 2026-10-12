@@ -85,6 +85,9 @@ interface FieldBase<
   inputmode?: string;
   invalidMessage?: string;
   label: string;
+  /** Trusted template HTML rendered immediately after the field's label text,
+   *  inside the same <label> (a link beside the label, for example). */
+  labelSuffixHtml?: string;
   markdown?: never;
   max?: number;
   maxlength?: number;

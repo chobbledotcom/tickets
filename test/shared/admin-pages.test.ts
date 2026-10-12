@@ -54,18 +54,25 @@ describe("admin navigation", () => {
       storage: false,
       support: false,
     };
-    const hidden = visibleSections(context).flatMap((section) => section.items);
-    const visible = visibleSections({
+    const hidden = visibleTopLevel(context).map((link) => link.href);
+    const visible = visibleTopLevel({
       ...context,
       builder: true,
       support: true,
-    }).flatMap((section) => section.items);
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/built-sites");
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/support");
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/attributes");
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/questions");
-    expect(visible.map((link) => link.href)).toContain("/admin/built-sites");
-    expect(visible.map((link) => link.href)).toContain("/admin/support");
+    }).map((link) => link.href);
+    // Builds is a top-level section now: it leaves the Settings sub-nav and
+    // answers only to the builder flag.
+    expect(hidden).not.toContain("/admin/built-sites");
+    expect(
+      visibleSections({ ...context, support: true })
+        .flatMap((section) => section.items)
+        .map((link) => link.href),
+    ).not.toContain("/admin/built-sites");
+    expect(visible).toContain("/admin/built-sites");
+    const subNav = visibleSections({ ...context, support: true })
+      .flatMap((section) => section.items)
+      .map((link) => link.href);
+    expect(subNav).toContain("/admin/support");
     const featureLinks = visibleSections({
       ...context,
       enabledFeatures: setFeatureEnabled(
