@@ -70,7 +70,6 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     expect(await getFirstBooking(made.attendees[0]!.id)).toEqual({
       active: true,
       listingId: listing.id,
-      packageGroupId: 0,
     });
 
     const ghost = await attendeesApi.createAttendeeAtomic({
@@ -83,7 +82,6 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     expect(await getFirstBooking(ghost.attendees[0]!.id)).toEqual({
       active: false,
       listingId: listing.id,
-      packageGroupId: 0,
     });
     expect(await getFirstBooking(999_999)).toBeNull();
   });
@@ -122,9 +120,7 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
     if (!made.success) throw new Error("booking setup failed");
     const attendeeId = made.attendees[0]!.id;
 
-    const rows = await getAttendeeBookingRowsRaw(attendeeId, {
-      kind: "standalone",
-    });
+    const rows = await getAttendeeBookingRowsRaw(attendeeId);
 
     expect(rows.length).toBe(1);
     expect(rows[0]!.listing_id).toBe(listing.id);

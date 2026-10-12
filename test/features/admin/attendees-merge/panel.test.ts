@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import {
   expectHtmlResponse,
   tableRowContaining,
@@ -103,6 +104,20 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Use source: John Smith",
         '<th scope="row">Name</th>',
       );
+    });
+
+    test("shows the source's owed sends beside the merge preview", async () => {
+      // The merge deletes the source attendee, so its pending badges show in
+      // the preview the same way the target's do.
+      const { target, source, sourceToken } = await mergePair();
+      await execute("UPDATE attendees SET email_pending = 1 WHERE id = ?", [
+        source.id,
+      ]);
+
+      const response = await mergeActionsPage(target.id, sourceToken);
+      const html = await response.text();
+      expect(html).toContain("Merge Preview");
+      expect(html).toContain("Email not sent");
     });
 
     test("the token search box focuses when idle and echoes the searched token", async () => {
