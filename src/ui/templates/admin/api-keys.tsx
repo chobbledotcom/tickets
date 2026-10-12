@@ -108,7 +108,7 @@ export const adminApiKeysPage = (
             <code>{opts.newKey}</code>
           </pre>
           <p>
-            Use it with: <code>Authorization: Bearer YOUR_KEY</code>
+            <Raw html={t("api_keys.usage_hint")} />
           </p>
         </div>
       )}
@@ -237,13 +237,10 @@ export const adminApiDocsPage = (
     <>
       <DocsSection
         heading={t("api_keys.authentication")}
-        intro="Admin API endpoints require authentication via API key or session cookie:"
+        intro={t("api_keys.authentication_intro")}
       >
         <CodeBlock>Authorization: Bearer YOUR_API_KEY</CodeBlock>
-        <p>
-          Public API endpoints require no authentication. All responses are
-          JSON.
-        </p>
+        <p>{t("api_keys.public_api_no_auth")}</p>
       </DocsSection>
 
       {endpointDocsSections([
@@ -257,7 +254,7 @@ export const adminApiDocsPage = (
           heading: t("api_keys.admin_api"),
           intro: (
             <>
-              Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.{" "}
+              <Raw html={t("api_keys.admin_api_intro")} />{" "}
               {t("api_keys.role_parity_note")}
             </>
           ),

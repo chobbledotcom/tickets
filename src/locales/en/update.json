@@ -16,6 +16,8 @@
   "update.check_failed": "Failed to check for updates: {error}",
   "update.update_available_flash": "Update available: {version}",
   "update.running_latest_flash": "You are running the latest version",
+  "update.updated_flash": "Updated to {name} — the new version will be active shortly",
+  "update.updated_log": "Software updated to {name} ({version})",
   "update.no_update_to_install": "No update available to install",
   "update.backup_required": "No database backup in the last hour — run a backup before updating."
 }

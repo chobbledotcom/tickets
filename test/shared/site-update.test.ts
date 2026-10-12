@@ -18,11 +18,13 @@ import {
 } from "#shared/update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
 
-test("deployAndReport keeps the update task name and full failure context", async () => {
-  const taskStub = stub(
+/** Bypass the update task lock, running the deploy as withCurrentTask would. */
+const stubTaskLockBypass = (): Stub =>
+  stub(
     settings,
     "withCurrentTask",
     async <T>(_task: string, run: () => Promise<T>) => ({
@@ -30,13 +32,15 @@ test("deployAndReport keeps the update task name and full failure context", asyn
       value: await run(),
     }),
   );
+
+test("deployAndReport keeps the update task name and full failure context", async () => {
+  const taskStub = stubTaskLockBypass();
   try {
     const response = await deployAndReport({
       deploy: () => Promise.reject(new Error("provider down")),
-      logPrefix: "Updated",
       onError: (message) => new Response(message, { status: 500 }),
       onSuccess: (message) => new Response(message),
-      successPrefix: "Updated",
+      subject: { kind: "self" },
     });
     expect(taskStub.calls[0]?.args[0]).toBe("update");
     expect(response.status).toBe(500);
@@ -44,6 +48,41 @@ test("deployAndReport keeps the update task name and full failure context", asyn
   } finally {
     taskStub.restore();
   }
+});
+
+describeWithEnv("deployAndReport success", { db: true }, () => {
+  const errorSpy = setupErrorSpy();
+
+  afterEach(() => {
+    settings.clearTestOverrides();
+  });
+
+  test("reports success when the activity-log write fails", async () => {
+    const taskStub = stubTaskLockBypass();
+    try {
+      // A public key that is not key material makes the log write's
+      // encryption throw, so logActivity rejects.
+      settings.setForTest({ public_key: "not valid key material" });
+      const response = await deployAndReport({
+        deploy: () =>
+          Promise.resolve({
+            name: "2099-01-01 - Big Update",
+            tagName: LATEST_TAG,
+          }),
+        onError: (message) => new Response(message, { status: 500 }),
+        onSuccess: (message) => new Response(message),
+        subject: { kind: "self" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(
+        "Updated to 2099-01-01 - Big Update — the new version will be active shortly",
+      );
+      expect(errorSpy.contains("activity-log write failed")).toBe(true);
+    } finally {
+      taskStub.restore();
+    }
+  });
 });
 
 /** Seed an in-memory libsql client standing in for the remote site's DB. */

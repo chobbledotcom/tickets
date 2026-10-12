@@ -164,6 +164,8 @@
   "built_sites.renewal_provisioned": "Renewal provisioned",
   "built_sites.renewal_push_failed": "Renewal could not be pushed to the site",
   "built_sites.backup_required": "No backup of this site in the last hour — back it up before updating.",
+  "built_sites.updated_flash": "Updated ''{site}'' to {name} — the new version will be active shortly",
+  "built_sites.updated_log": "Updated built site ''{site}'' to {name} ({version})",
   "built_sites.secrets_failed": "Secrets could not be set: {error}",
   "built_sites.no_missing_secrets": "No missing secrets — nothing to set",
   "built_sites.secrets_set": "Set {summary}",
