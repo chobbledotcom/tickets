@@ -4,11 +4,14 @@ import {
   runUnderUpdateGuard,
   UPDATE_FLAG_VALUE,
   type UpdateGuardIo,
+  updateBuildTagMeta,
+  updatePageBuildTag,
   updatePageMeta,
   updatePageState,
   waitForUpdatePage,
 } from "#shared/update-guard.ts";
 import { recordingUpdateGuard } from "#test-utils/_shared-site-update.ts";
+import { MOCK_RELEASE } from "#test-utils/mocks.ts";
 
 /** A wait clock the tests step forward on every sleep, so a timed-out wait
  * needs no real delay. */
@@ -25,9 +28,13 @@ const fakeClock = (): {
   };
 };
 
-const page = (state: "unsupported" | "supported" | "active"): string => {
+const page = (
+  state: "unsupported" | "supported" | "active",
+  buildTag?: string,
+): string => {
   if (state === "unsupported") return "<html><head></head></html>";
-  return `<html><head>${updatePageMeta(state)}</head></html>`;
+  const tag = buildTag === undefined ? "" : updateBuildTagMeta(buildTag);
+  return `<html><head>${updatePageMeta(state)}${tag}</head></html>`;
 };
 
 describe("update page marker", () => {
@@ -44,6 +51,14 @@ describe("update page marker", () => {
         '<meta name="update-in-progress" content="supported"><meta name="x" content="active">',
       ),
     ).toBe("supported");
+  });
+
+  test("reads the build tag the page reports", () => {
+    expect(updatePageBuildTag(page("active", "v2026-03-28-143022"))).toBe(
+      "v2026-03-28-143022",
+    );
+    expect(updatePageBuildTag(page("active"))).toBeNull();
+    expect(updatePageBuildTag("")).toBeNull();
   });
 });
 
@@ -143,18 +158,68 @@ describe("waitForUpdatePage", () => {
       }),
     ).rejects.toThrow(/UPDATE_IN_PROGRESS is still set/);
   });
+
+  test("keeps polling while only the old build answers active", async () => {
+    // The exact post-deploy race: the old build still serves its update page
+    // after publish, so an active page without the expected tag must not
+    // pass the wait.
+    const pages = [
+      page("active"),
+      page("active", "v2026-01-01-000000"),
+      page("active", MOCK_RELEASE.tag_name),
+    ];
+    let fetches = 0;
+    await waitForUpdatePage({
+      expectedBuildTag: MOCK_RELEASE.tag_name,
+      fetchPage: () => Promise.resolve(pages[fetches++]!),
+      sleep: () => Promise.resolve(),
+    });
+    expect(fetches).toBe(3);
+  });
+
+  test("refuses an active page that reports no build tag", async () => {
+    const clock = fakeClock();
+    await expect(
+      waitForUpdatePage({
+        expectedBuildTag: MOCK_RELEASE.tag_name,
+        fetchPage: () => Promise.resolve(page("active")),
+        now: clock.now,
+        sleep: clock.sleep,
+      }),
+    ).rejects.toThrow(
+      /a build that reports no build tag, but the deploy expected v2099-01-01-120000/,
+    );
+  });
+
+  test("names the build that kept answering the update page", async () => {
+    const clock = fakeClock();
+    await expect(
+      waitForUpdatePage({
+        expectedBuildTag: MOCK_RELEASE.tag_name,
+        fetchPage: () => Promise.resolve(page("active", "v2026-01-01-000000")),
+        now: clock.now,
+        sleep: clock.sleep,
+      }),
+    ).rejects.toThrow(
+      /answered from build v2026-01-01-000000, but the deploy expected v2099-01-01-120000/,
+    );
+  });
 });
 
 describe("runUnderUpdateGuard", () => {
   test("sets the flag, deploys, confirms the new build, and lifts", async () => {
     const { calls, io } = recordingUpdateGuard([
-      page("active"),
-      page("active"),
+      page("active", "v2026-01-01-000000"),
+      page("active", MOCK_RELEASE.tag_name),
     ]);
-    const result = await runUnderUpdateGuard(io, async () => {
-      calls.push("deploy");
-      return "done";
-    });
+    const result = await runUnderUpdateGuard(
+      io,
+      async () => {
+        calls.push("deploy");
+        return "done";
+      },
+      () => MOCK_RELEASE.tag_name,
+    );
     expect(result).toBe("done");
     expect(calls).toEqual(["set:1", "fetch", "deploy", "fetch", "clear"]);
     expect(calls[0]).toBe(`set:${UPDATE_FLAG_VALUE}`);
@@ -163,18 +228,62 @@ describe("runUnderUpdateGuard", () => {
   test("skips the first wait for a build that predates update mode", async () => {
     const { calls, io } = recordingUpdateGuard([
       page("unsupported"),
-      page("active"),
+      page("active", MOCK_RELEASE.tag_name),
     ]);
-    await runUnderUpdateGuard(io, async () => {
-      calls.push("deploy");
-    });
+    await runUnderUpdateGuard(
+      io,
+      async () => {
+        calls.push("deploy");
+      },
+      () => MOCK_RELEASE.tag_name,
+    );
     expect(calls).toEqual(["set:1", "fetch", "deploy", "fetch", "clear"]);
+  });
+
+  test("keeps the flag while the old build answers after publish", async () => {
+    // The old build serves its update page after publish and names no
+    // expected build, so the guard must not lift the flag for it. The page
+    // fetch never stops answering with that old build.
+    const clock = fakeClock();
+    const calls: string[] = [];
+    const io: UpdateGuardIo = {
+      clearFlag: async () => {
+        calls.push("clear");
+      },
+      fetchPage: () => {
+        calls.push("fetch");
+        return Promise.resolve(page("active"));
+      },
+      now: clock.now,
+      setFlag: async (value) => {
+        calls.push(`set:${value}`);
+      },
+      sleep: clock.sleep,
+    };
+    await expect(
+      runUnderUpdateGuard(
+        io,
+        async () => {
+          calls.push("deploy");
+        },
+        () => MOCK_RELEASE.tag_name,
+      ),
+    ).rejects.toThrow(/the deploy expected v2099-01-01-120000/);
+    // The wait polls the old build to its deadline; the flag never lifts.
+    expect(calls.filter((call) => call !== "fetch")).toEqual([
+      "set:1",
+      "deploy",
+    ]);
   });
 
   test("leaves the flag set when the deploy throws", async () => {
     const { calls, io } = recordingUpdateGuard([page("active")]);
     await expect(
-      runUnderUpdateGuard(io, () => Promise.reject(new Error("upload failed"))),
+      runUnderUpdateGuard(
+        io,
+        () => Promise.reject(new Error("upload failed")),
+        () => MOCK_RELEASE.tag_name,
+      ),
     ).rejects.toThrow("upload failed");
     expect(calls).toEqual(["set:1", "fetch"]);
   });
@@ -188,16 +297,20 @@ describe("runUnderUpdateGuard", () => {
       },
       fetchPage: () => {
         calls.push("fetch");
-        return Promise.resolve(page("active"));
+        return Promise.resolve(page("active", MOCK_RELEASE.tag_name));
       },
       setFlag: async (value) => {
         calls.push(`set:${value}`);
       },
     };
     await expect(
-      runUnderUpdateGuard(io, async () => {
-        calls.push("deploy");
-      }),
+      runUnderUpdateGuard(
+        io,
+        async () => {
+          calls.push("deploy");
+        },
+        () => MOCK_RELEASE.tag_name,
+      ),
     ).rejects.toThrow("bunny api down");
     expect(calls).toEqual(["set:1", "fetch", "deploy", "fetch", "clear"]);
   });

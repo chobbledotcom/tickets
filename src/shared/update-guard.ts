@@ -40,15 +40,53 @@ export const updatePageState = (html: string): UpdatePageState => {
   return html.includes(MARKER_NAME) ? "supported" : "unsupported";
 };
 
+const BUILD_TAG_MARKER_NAME = 'name="update-build-tag"';
+
+const BUILD_TAG_PATTERN = new RegExp(
+  `<meta ${BUILD_TAG_MARKER_NAME} content="([^"]+)"`,
+);
+
+/** The head marker that names the running build by its release tag. The
+ * page renders it from the build timestamp the bundle bakes in. The
+ * post-deploy wait matches it against the build the deploy just published,
+ * so an active page from the old build cannot pass the wait. */
+export const updateBuildTagMeta = (buildTag: string): string =>
+  `<meta ${BUILD_TAG_MARKER_NAME} content="${buildTag}" />`;
+
+/** Read the running build's release tag off a /read-only page body. Return
+ * null when the page carries no tag: a build from before this marker
+ * existed. */
+export const updatePageBuildTag = (html: string): string | null =>
+  BUILD_TAG_PATTERN.exec(html)?.[1] ?? null;
+
 export const UPDATE_WAIT_INTERVAL_MS = 5_000;
 export const UPDATE_WAIT_TIMEOUT_MS = 180_000;
 
-const waitTimedOut = (ms: number, lastError: string | null): string =>
+const waitTimedOut = (
+  ms: number,
+  lastError: string | null,
+  buildMismatch: string | null,
+): string =>
   `The site did not show its update page within ${Math.round(ms / 1000)} seconds. ` +
   "UPDATE_IN_PROGRESS is still set, so the site still refuses every write. " +
   "Fix the cause, then re-run the same update, or remove UPDATE_IN_PROGRESS " +
   "from the script's environment in the hosting dashboard." +
+  (buildMismatch === null ? "" : buildMismatch) +
   (lastError === null ? "" : ` The last page check failed: ${lastError}`);
+
+/** Names the build that kept answering when the expected build never served,
+ * so the operator can tell an unfinished publish from a wrong deploy. Return
+ * null when the run-out does not name a mismatch. */
+const buildMismatchNote = (
+  expected: string | undefined,
+  state: UpdatePageState,
+  served: string | null,
+): string | null => {
+  if (expected === undefined || state !== "active") return null;
+  return served === null
+    ? ` The site answered from a build that reports no build tag, but the deploy expected ${expected}.`
+    : ` The site answered from build ${served}, but the deploy expected ${expected}.`;
+};
 
 /** The clock, wait, and log that every update helper accepts, so tests step
  * time instead of sleeping. */
@@ -72,6 +110,10 @@ export type UpdateWaitOptions = UpdatePollIo & {
   /** Return instead of time out when the running build predates update mode
    * and so never shows the update page. */
   skipWhenUnsupported?: boolean | undefined;
+  /** The release tag of the build the deploy just published. The wait passes
+   * only when the served update page names this build, so an active page
+   * from the build the deploy replaces never passes. */
+  expectedBuildTag?: string | undefined;
 };
 
 /** One poll: resolve the page state, or report the failure that stood in for
@@ -79,14 +121,21 @@ export type UpdateWaitOptions = UpdatePollIo & {
  * not-ready, and the wait retries. */
 const pollOnce = async (
   options: UpdateWaitOptions,
-): Promise<{ lastError: string | null; state: UpdatePageState }> => {
+): Promise<{
+  buildTag: string | null;
+  lastError: string | null;
+  state: UpdatePageState;
+}> => {
   try {
+    const html = await options.fetchPage();
     return {
+      buildTag: updatePageBuildTag(html),
       lastError: null,
-      state: updatePageState(await options.fetchPage()),
+      state: updatePageState(html),
     };
   } catch (error) {
     return {
+      buildTag: null,
       lastError: error instanceof Error ? error.message : String(error),
       state: "unsupported",
     };
@@ -95,8 +144,10 @@ const pollOnce = async (
 
 /** Poll the site's read-only page until the update page shows. A failed
  * page fetch says nothing about the site's state, so the wait retries it
- * until the deadline. A run-out names the last failure. The wait throws when
- * it runs out, and the caller keeps the update flag set. */
+ * until the deadline. With `expectedBuildTag`, the page must also name that
+ * build: an active page from any other build keeps the wait polling. A
+ * run-out names the last failure. The wait throws when it runs out, and the
+ * caller keeps the update flag set. */
 export const waitForUpdatePage = async (
   options: UpdateWaitOptions,
 ): Promise<void> => {
@@ -104,8 +155,14 @@ export const waitForUpdatePage = async (
   const now = options.now ?? Date.now;
   const deadline = now() + UPDATE_WAIT_TIMEOUT_MS;
   for (;;) {
-    const { state, lastError } = await pollOnce(options);
-    if (state === "active") return;
+    const { buildTag, lastError, state } = await pollOnce(options);
+    if (
+      state === "active" &&
+      (options.expectedBuildTag === undefined ||
+        buildTag === options.expectedBuildTag)
+    ) {
+      return;
+    }
     // A fetch failure must not read as "the build predates update mode". The
     // skip therefore fires only on a real unsupported page.
     if (
@@ -120,7 +177,13 @@ export const waitForUpdatePage = async (
       return;
     }
     if (now() >= deadline) {
-      throw new Error(waitTimedOut(UPDATE_WAIT_TIMEOUT_MS, lastError));
+      throw new Error(
+        waitTimedOut(
+          UPDATE_WAIT_TIMEOUT_MS,
+          lastError,
+          buildMismatchNote(options.expectedBuildTag, state, buildTag),
+        ),
+      );
     }
     await sleep(UPDATE_WAIT_INTERVAL_MS);
   }
@@ -134,11 +197,14 @@ export type UpdateGuardIo = UpdatePollIo & {
 };
 
 /** The wait options an io already carries. `skipWhenUnsupported` returns
- * instead of timing out when the running build predates update mode. */
+ * instead of timing out when the running build predates update mode.
+ * `expectedBuildTag` pins the post-deploy wait to the published build. */
 export const waitOptionsFrom = (
   io: UpdatePollIo,
   skipWhenUnsupported = false,
+  expectedBuildTag?: string,
 ): UpdateWaitOptions => ({
+  expectedBuildTag,
   fetchPage: io.fetchPage,
   log: io.log,
   now: io.now,
@@ -151,16 +217,20 @@ export type UpdateRun<T> = () => Promise<T>;
 
 /** Put a site into update mode around `run` (the code deploy itself). The
  * first wait proves the running copy went read-only before the deploy
- * touches it. The second wait proves the new build is serving. The new
- * build's first served request ran the migrations. */
+ * touches it. The second wait proves the build the deploy published is
+ * serving. The page must name that build: an active page the old build
+ * still answers cannot lift the flag. The new build's first served request
+ * ran the migrations. `expectedBuildTag` reads the published build's tag
+ * off the deploy's result. */
 export const runUnderUpdateGuard = async <T>(
   io: UpdateGuardIo,
   run: UpdateRun<T>,
+  expectedBuildTag: (result: T) => string,
 ): Promise<T> => {
   await io.setFlag(UPDATE_FLAG_VALUE);
   await waitForUpdatePage(waitOptionsFrom(io, true));
   const result = await run();
-  await waitForUpdatePage(waitOptionsFrom(io));
+  await waitForUpdatePage(waitOptionsFrom(io, false, expectedBuildTag(result)));
   await io.clearFlag();
   return result;
 };

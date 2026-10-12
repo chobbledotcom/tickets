@@ -143,7 +143,13 @@ export const deployAndReport = async (opts: {
 }): Promise<Response> => {
   const result = await tryStep("Update failed", () =>
     settings.withCurrentTask("update", () =>
-      runUnderUpdateGuard(opts.guard, opts.deploy),
+      // The release tag is the deployed bundle's build tag: build-edge.ts
+      // writes .build-tag from the same timestamp it bakes into the bundle.
+      runUnderUpdateGuard(
+        opts.guard,
+        opts.deploy,
+        (release) => release.tagName,
+      ),
     ),
   );
   if (!result.ok) return opts.onError(result.error);

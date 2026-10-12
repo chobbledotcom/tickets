@@ -12,6 +12,11 @@
  * half-migrated one, and a re-run of the same update lifts the flag on
  * success. The operator can also remove the variable by hand in the Bunny
  * dashboard (script -> Env Configuration -> Environment Secrets).
+ *
+ * `end` takes the release tag of the build the deploy just published and
+ * waits until the served page names that build before it lifts the flag, so
+ * an active page the old build still answers cannot lift it. The release
+ * tag matches the build tag build-edge.ts bakes into the bundle.
  */
 
 import { BUNNY_API_BASE, formatBunnyError } from "#scripts/deploy-edge-lib.ts";
@@ -27,7 +32,8 @@ import {
 } from "#shared/update-guard.ts";
 
 export const USAGE =
-  "Usage: deno run scripts/update-mode.ts <begin|end> <script-id> <site-url>";
+  "Usage: deno run scripts/update-mode.ts begin <script-id> <site-url>\n" +
+  "       deno run scripts/update-mode.ts end <script-id> <site-url> <build-tag>";
 
 export interface UpdateModeIo extends UpdateIoOptions {
   accessKey: string;
@@ -126,11 +132,12 @@ export const runUpdateMode = async (
   args: string[],
   io: UpdateModeIo,
 ): Promise<number> => {
-  const [command, scriptId, siteUrl] = args;
+  const [command, scriptId, siteUrl, buildTag] = args;
   if (
     (command !== "begin" && command !== "end") ||
     scriptId === undefined ||
-    siteUrl === undefined
+    siteUrl === undefined ||
+    (command === "end" && buildTag === undefined)
   ) {
     io.log(USAGE);
     return 1;
@@ -149,7 +156,9 @@ export const runUpdateMode = async (
     return 0;
   }
 
-  await waitForUpdatePage(waitOptionsFrom(scopedIo));
+  // Only the build this deploy published may answer: an active page the old
+  // build still serves must not lift the flag before the new build serves.
+  await waitForUpdatePage(waitOptionsFrom(scopedIo, false, buildTag));
   io.log(`Removing ${UPDATE_IN_PROGRESS_VAR} from script ${scriptId}..`);
   const secretId = await findUpdateSecretId(scopedIo);
   // Nothing to remove: the flag was already lifted (a re-run after a manual

@@ -2,10 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { runUpdateMode, type UpdateModeIo } from "#scripts/update-mode-lib.ts";
-import { updatePageMeta } from "#shared/update-guard.ts";
+import { updateBuildTagMeta, updatePageMeta } from "#shared/update-guard.ts";
 
 const UPDATE_SECRET_URL = "https://api.bunny.net/compute/script/42/secrets";
 const READ_ONLY_URL = "https://site.example/read-only";
+
+/** The release tag the end command pins the wait to. */
+const END_BUILD_TAG = "v2099-01-01-120000";
 
 const response = (
   ok: boolean,
@@ -49,21 +52,39 @@ const io = (
   ...overrides,
 });
 
-const activePage = `<html><head>${updatePageMeta("active")}</head></html>`;
+const activePage = `<html><head>${updatePageMeta("active")}${updateBuildTagMeta(END_BUILD_TAG)}</head></html>`;
+// A build from before the wait pinned the build tag: it answers active but
+// names no build.
+const oldBuildActivePage = `<html><head>${updatePageMeta("active")}</head></html>`;
 const supportedPage = `<html><head>${updatePageMeta("supported")}</head></html>`;
 const plainPage = "<html><head></head></html>";
 
 describe("runUpdateMode", () => {
-  test("rejects an unknown command with the usage line", async () => {
+  /** Run one command line and expect the usage line and exit code 1.
+   * Returns the recorded calls so a test can pin what the command did not
+   * do. */
+  const expectUsage = async (
+    args: string[],
+  ): Promise<{ calls: { init: RequestInit; url: string }[] }> => {
     const logged: string[] = [];
-    const { fetchText } = stubFetch([], []);
-    const code = await runUpdateMode(["lift", "42", "https://site.example"], {
+    const { calls, fetchText } = stubFetch([], []);
+    const code = await runUpdateMode(args, {
       accessKey: "key",
       fetchText,
       log: (line) => logged.push(line),
     });
     expect(code).toBe(1);
     expect(logged.join("\n")).toContain("Usage:");
+    return { calls };
+  };
+
+  test("rejects an unknown command with the usage line", async () => {
+    await expectUsage(["lift", "42", "https://site.example"]);
+  });
+
+  test("end rejects a missing build tag with the usage line", async () => {
+    const { calls } = await expectUsage(["end", "42", "https://site.example"]);
+    expect(calls).toEqual([]);
   });
 
   test("begin sets the flag, then waits for the update page", async () => {
@@ -132,7 +153,7 @@ describe("runUpdateMode", () => {
       [activePage],
     );
     const code = await runUpdateMode(
-      ["end", "42", "https://site.example"],
+      ["end", "42", "https://site.example", END_BUILD_TAG],
       io(fetchText),
     );
     expect(code).toBe(0);
@@ -150,7 +171,7 @@ describe("runUpdateMode", () => {
       [activePage],
     );
     const code = await runUpdateMode(
-      ["end", "42", "https://site.example"],
+      ["end", "42", "https://site.example", END_BUILD_TAG],
       io(fetchText),
     );
     expect(code).toBe(0);
@@ -163,8 +184,56 @@ describe("runUpdateMode", () => {
       [activePage],
     );
     await expect(
-      runUpdateMode(["end", "42", "https://site.example"], io(fetchText)),
+      runUpdateMode(
+        ["end", "42", "https://site.example", END_BUILD_TAG],
+        io(fetchText),
+      ),
     ).rejects.toThrow(/List edge script secrets failed \(401\)/);
+  });
+
+  test("end keeps waiting while the old build answers active", async () => {
+    // The post-deploy race: the old build still serves its update page after
+    // publish. Only the page naming the published build may pass the wait.
+    const { calls, fetchText } = stubFetch(
+      [
+        response(
+          true,
+          200,
+          '{"Secrets":[{"Id":7,"Name":"UPDATE_IN_PROGRESS"}]}',
+        ),
+      ],
+      [oldBuildActivePage, activePage],
+    );
+    const code = await runUpdateMode(
+      ["end", "42", "https://site.example", END_BUILD_TAG],
+      io(fetchText),
+    );
+    expect(code).toBe(0);
+    expect(calls[0]?.url).toBe(READ_ONLY_URL);
+    expect(calls[1]?.url).toBe(READ_ONLY_URL);
+    expect(calls[2]?.init.method).toBe("GET");
+    expect(calls[3]?.url).toBe(`${UPDATE_SECRET_URL}/7`);
+    expect(calls.length).toBe(4);
+  });
+
+  test("end never clears the flag while only the old build answers", async () => {
+    let time = 0;
+    const { calls, fetchText } = stubFetch([], [oldBuildActivePage]);
+    await expect(
+      runUpdateMode(["end", "42", "https://site.example", END_BUILD_TAG], {
+        accessKey: "key",
+        fetchText,
+        log: () => {},
+        now: () => time,
+        sleep: async (ms) => {
+          time += ms;
+        },
+      }),
+    ).rejects.toThrow(
+      /a build that reports no build tag, but the deploy expected v2099-01-01-120000/,
+    );
+    // Only page polls: no secret list, no delete.
+    expect(calls.every((call) => call.url === READ_ONLY_URL)).toBe(true);
   });
 
   test("begin surfaces a failed flag upsert", async () => {
@@ -190,7 +259,10 @@ describe("runUpdateMode", () => {
       [activePage],
     );
     await expect(
-      runUpdateMode(["end", "42", "https://site.example"], io(fetchText)),
+      runUpdateMode(
+        ["end", "42", "https://site.example", END_BUILD_TAG],
+        io(fetchText),
+      ),
     ).rejects.toThrow(/Delete UPDATE_IN_PROGRESS failed \(400\)/);
   });
 
@@ -214,7 +286,7 @@ describe("runUpdateMode", () => {
       );
     };
     const code = await runUpdateMode(
-      ["end", "42", "https://site.example"],
+      ["end", "42", "https://site.example", END_BUILD_TAG],
       io(fetchText),
     );
     expect(code).toBe(0);

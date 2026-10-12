@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build Bunny edge script
+        id: build
         uses: ./.github/actions/build-bunny-script
         with:
           build_commit: ${{ github.sha }}
@@ -61,12 +62,25 @@ jobs:
           auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
           release: chobble-tickets@${{ github.sha }}
 
+      # Resolve the production site's own public origin for the selected
+      # script. This runs on every deploy, with or without the backup: the
+      # update-mode wait must poll the deployed site, never the main instance
+      # that serves the fleet's credentials.
+      - name: Resolve the production site's URL
+        id: resolve-site
+        uses: ./.github/actions/resolve-site-credentials
+        with:
+          main_instance: ${{ secrets.MAIN_INSTANCE }}
+          main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
+          script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+
       - name: Deploy to production
         uses: ./.github/actions/deploy-bunny-script
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
-          site_url: ${{ secrets.MAIN_INSTANCE }}
+          site_url: ${{ steps.resolve-site.outputs.site_url }}
+          build_tag: ${{ steps.build.outputs.build_tag }}
 
       # Upload source maps for this release after deploy (no-op without secrets).
       - name: Upload Sentry source maps
