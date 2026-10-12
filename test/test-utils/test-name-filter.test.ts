@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { lazyRef } from "#fp";
 import {
   type BddFunctions,
   createTestNameFilter,
@@ -97,11 +98,20 @@ const fakeBdd = (): BddFunctions => {
   return bdd;
 };
 
-let restoreTest: (() => void) | undefined;
+const [getRestoreTest, setRestoreTest] = lazyRef<(() => void) | undefined>(
+  () => undefined,
+);
+
+/** Deno's types mark `test` read-only, but the runtime property is writable;
+ * this named const is how a test patches and later restores registration. */
+const setDenoTest = (value: typeof Deno.test): void => {
+  const writableTest = Deno as unknown as { test: typeof Deno.test };
+  writableTest.test = value;
+};
 
 afterEach(() => {
-  restoreTest?.();
-  restoreTest = undefined;
+  getRestoreTest()?.();
+  setRestoreTest(undefined);
 });
 
 /** Installs the filter under a spec with fake bdd functions and hands back
@@ -116,9 +126,7 @@ const installFilter = (
     captured.push(args);
   }) as unknown as typeof Deno.test;
   const originalTest = Deno.test;
-  restoreTest = () => {
-    (Deno as unknown as { test: typeof Deno.test }).test = originalTest;
-  };
+  setRestoreTest(() => setDenoTest(originalTest));
   return {
     captured,
     filtered: createTestNameFilter(spec, fakeBdd(), realTest),
@@ -160,9 +168,7 @@ describe("an unset filter spec", () => {
   test("passes the bdd functions straight through", () => {
     const bdd = fakeBdd();
     const originalTest = Deno.test;
-    restoreTest = () => {
-      (Deno as unknown as { test: typeof Deno.test }).test = originalTest;
-    };
+    setRestoreTest(() => setDenoTest(originalTest));
     const filtered = createTestNameFilter(undefined, bdd, originalTest);
 
     expect(filtered.describe).toBe(bdd.describe);
