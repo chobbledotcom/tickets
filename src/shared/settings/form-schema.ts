@@ -55,9 +55,10 @@ type SettingsFormBase<Copy extends FormCopyBase> =
 export type TextSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
   kind: "text";
   inputType: "email" | "text" | "number" | "url";
-  /** Input constraints, forwarded to the rendered field as-is. */
-  min?: string;
-  max?: string;
+  /** Input constraints, forwarded to the rendered field as-is. The POST
+   *  guard also reads min and max as the server-side bounds. */
+  min?: number;
+  max?: number;
   step?: string;
   minlength?: number;
   required?: true;

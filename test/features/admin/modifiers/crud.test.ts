@@ -241,7 +241,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Max times per order must be a whole number",
+        "Max times per order (optional) must be a whole number",
         false,
       )(response);
     });

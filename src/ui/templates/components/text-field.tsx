@@ -37,9 +37,11 @@ export const TextField = ({
   autofocus?: boolean | undefined;
   required?: boolean | undefined;
   duplicate?: boolean | undefined;
-  /** Numeric bounds for `type="number"` fields (omitted otherwise). */
-  min?: string | undefined;
-  max?: string | undefined;
+  /** Numeric bounds for `type="number"` fields (omitted otherwise). A number
+   *  renders as its decimal text. The settings POST guard reads the same
+   *  value off the field schema. */
+  min?: string | number | undefined;
+  max?: string | number | undefined;
   /** Longest value the browser accepts: short single-line values are this
    *  component's norm, so the input cap is the default. Browsers ignore
    *  maxlength on the numeric/date types some callers use. */

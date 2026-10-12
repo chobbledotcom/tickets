@@ -55,7 +55,9 @@ export const validateWholeNumber =
   (label: string) =>
   (value: string): string | null => {
     const n = Number(value);
-    return Number.isInteger(n) ? null : `${label} must be a whole number`;
+    return Number.isInteger(n)
+      ? null
+      : t("fields.validation.whole_number", { label });
   };
 
 /** One field's answer to a submitted value: why it was refused, or null. */

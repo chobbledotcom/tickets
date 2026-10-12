@@ -1,5 +1,6 @@
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
+import { firstFieldRejection } from "#shared/forms/constraints.ts";
 import {
   type ChoiceField,
   effectiveMaxLength,
@@ -150,3 +151,18 @@ export const validateForm = <T = FieldValues>(
   }
   return { valid: true, values: values as T };
 };
+
+/** The numeric half of {@link validateForm} for a settings POST. It refuses a
+ *  submitted value the field's declared number type or range turns down, with
+ *  the same message a submitted form gets. A blank stays with the form's own
+ *  handler, which decides whether the field is required. */
+export const formRangeError = (
+  form: FormParams,
+  fields: readonly Field[],
+): string | null =>
+  firstFieldRejection(form, fields, (field, raw) => {
+    if (field.type !== "number" || !raw) return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return invalidFieldMessage(field);
+    return outOfRangeError(field, value);
+  });

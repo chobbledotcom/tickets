@@ -19,6 +19,7 @@ import { getAllListings, listingNames } from "#db/listings/records.ts";
 import { identity, map, mapById, unique } from "#fp";
 import { t } from "#i18n";
 import {
+  buildServicingFieldSchema,
   normalizeServicingForSave,
   parseServicingForm,
 } from "#routes/admin/servicing/form-model.ts";
@@ -46,6 +47,7 @@ import {
   SERVICING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { validateForm } from "#shared/forms/validation.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   selectedListingQuantities,
@@ -122,6 +124,10 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
 
 const parseCreateInput = async (form: FormParams) => {
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
+  // The rendered field schema bounds the submission (the day count's declared
+  // minimum) before the attendee parser clamps a raw value into range.
+  const checked = validateForm(form, buildServicingFieldSchema());
+  if (!checked.valid) throw new Error(checked.error);
   const listings = await getAllListings();
   return normalizeServicingForSave(
     parseServicingForm(form, mapById(identity<ListingWithCount>)(listings)),

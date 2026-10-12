@@ -129,6 +129,12 @@ export const isValidCatalogApiValue = (
   );
 };
 
+/** True when the field's kind accepts only whole numbers, so every surface
+ *  that submits the field refuses a fraction. The form validators read this
+ *  to apply the same declaration the API check enforces. */
+export const isWholeNumberKind = (field: CatalogField): boolean =>
+  INTEGER_KIND_MINIMUMS[field[2] as TransferName] !== undefined;
+
 /** The first API-visible field whose supplied body value fails its field
  *  check, named for the error message, or null when every supplied value
  *  passes. Absent keys pass: the API input mappers apply their own

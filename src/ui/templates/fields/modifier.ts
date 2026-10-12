@@ -112,7 +112,7 @@ const getModifierFields = () =>
     },
     {
       hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
-      label: "Minimum previous bookings (optional)",
+      label: t("modifiers.min_visits.label"),
       min: 0,
       name: "min_visits",
       parse: (value: string) => (value ? Number(value) : 0),

@@ -109,6 +109,21 @@ describe("fields behaviour", () => {
       expect(byName(fields, "minimum_days_before").min).toBe(0);
       expect(byName(fields, "maximum_days_after").min).toBe(0);
     });
+    test("whole-number catalog kinds refuse a fraction like the API does", () => {
+      // The kind is the shared declaration: the listing JSON API refuses the
+      // same fraction for every field here.
+      for (const name of [
+        "max_attendees",
+        "max_quantity",
+        "min_quantity",
+        "minimum_days_before",
+        "maximum_days_after",
+        "months_per_unit",
+        "initial_site_months",
+      ]) {
+        rejects(byName(fields, name), "1.5");
+      }
+    });
     test("duration_days accepts 1..MAX and rejects a fraction", () => {
       const duration = byName(fields, "duration_days");
       expect(duration.min).toBe(1);

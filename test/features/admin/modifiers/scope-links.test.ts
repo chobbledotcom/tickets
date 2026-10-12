@@ -349,7 +349,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Minimum previous bookings must be a whole number",
+        "Minimum previous bookings (optional) must be a whole number",
         false,
       )(response);
     });

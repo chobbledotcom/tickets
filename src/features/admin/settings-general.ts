@@ -243,10 +243,9 @@ export const handleBookingFeePost = settingsHandler({
     Number.parseFloat(form.getString(SETTINGS_FORMS.bookingFee.fieldName)),
   log: (v) => `Booking fee set to ${v}%`,
   save: (v) => settings.update.bookingFee(String(v)),
-  validate: (v) =>
-    !Number.isFinite(v) || v < 0 || v > 10
-      ? t("error.booking_fee_range")
-      : null,
+  // The declared 0..10 bounds refuse an out-of-range number before the
+  // extractor runs. This check refuses the blank, which parses to NaN.
+  validate: (v) => (Number.isFinite(v) ? null : t("error.booking_fee_range")),
 });
 
 /**

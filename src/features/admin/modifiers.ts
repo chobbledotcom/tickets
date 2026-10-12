@@ -140,14 +140,22 @@ const validateModifier = (
   // The declared field minimums (min_visits 0, max_per_order 1) refuse the
   // out-of-range values. These checks refuse a fraction.
   if (input.minVisits !== undefined && !Number.isInteger(input.minVisits)) {
-    return Promise.resolve("Minimum previous bookings must be a whole number");
+    return Promise.resolve(
+      t("fields.validation.whole_number", {
+        label: t("modifiers.min_visits.label"),
+      }),
+    );
   }
   if (
     input.maxPerOrder !== undefined &&
     input.maxPerOrder !== null &&
     !Number.isInteger(input.maxPerOrder)
   ) {
-    return Promise.resolve("Max times per order must be a whole number");
+    return Promise.resolve(
+      t("fields.validation.whole_number", {
+        label: t("modifiers.max_per_order.label"),
+      }),
+    );
   }
   const isOptionalAddOn = input.trigger === "optional";
   const requiresPreviousBookings = Number(input.minVisits) > 0;

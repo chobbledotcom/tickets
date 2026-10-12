@@ -5,6 +5,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { isWholeNumberKind } from "#shared/catalog-fields/definition.ts";
+import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { ChoiceField, Field, InputField } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -13,18 +15,26 @@ import {
   buildDescriptionField,
   buildHiddenField,
   getSlugField,
+  validateWholeNumber,
 } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 
 /** Max attendees field for group forms */
-const getGroupMaxAttendeesField = () =>
-  ({
+const getGroupMaxAttendeesField = () => {
+  const label = t("fields.group.max_attendees");
+  return {
     hint: t("fields.group.max_attendees_hint"),
-    label: t("fields.group.max_attendees"),
+    label,
     name: "max_attendees",
     type: "number",
-  }) satisfies InputField<"max_attendees">;
+    // The catalog kind (nonNegativeInt) is the declaration the group JSON
+    // API enforces. The form refuses the same fraction.
+    ...(isWholeNumberKind(groupCatalogFields.maxAttendees)
+      ? { validate: validateWholeNumber(label) }
+      : {}),
+  } satisfies InputField<"max_attendees">;
+};
 
 /** Group description field */
 const getGroupDescriptionField = () =>

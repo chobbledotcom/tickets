@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { ensureMessageGroups } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
@@ -39,6 +40,8 @@ const rejects = (validate: (v: string) => string | null, value: string) => {
 };
 
 describe("fields validators", () => {
+  beforeAll(() => ensureMessageGroups(["validation"]));
+
   describe("numeric and URL validators", () => {
     test("accepts public HTTPS URLs only", () => {
       accepts(validateHttpsDomainUrl, "https://example.com/path");
