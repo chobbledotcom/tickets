@@ -36,6 +36,7 @@ import {
   expectStoredRefund,
   ledgeredPaymentWithoutReservation,
   singleListingPayment,
+  singleListingPaymentWithWebhook,
   trustedPayment,
 } from "./helpers.ts";
 
@@ -105,6 +106,69 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toHaveLength(1);
   });
 
+  /** Book a paid listing, read its one attendee's pending flags back. */
+  const bookedFlags = async (
+    id: string,
+    withWebhook = false,
+  ): Promise<{ email: number; webhooks: number }> => {
+    const { data, listing } = await (withWebhook
+      ? singleListingPaymentWithWebhook(id, 1000)
+      : singleListingPayment(id, 1000));
+    await configureTestEmail();
+    await withRequestContext(async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+    const attendee = (await getAttendeesRaw(listing.id))[0]!;
+    return {
+      email: attendee.email_pending,
+      webhooks: attendee.webhooks_pending,
+    };
+  };
+
+  test("a booking on a listing that collects no email sets no flags", async () => {
+    // The listing's contact fields name no email, and no webhook is set, so
+    // the booking owes no send and both flags stay down.
+    const listing = await createTestListing({
+      // The empty fields string collects no contact fields, so the booking
+      // owes no confirmation email.
+      fields: "",
+      maxAttendees: 5,
+      unitPrice: 1000,
+    });
+    const data = trustedPayment(
+      "cs_direct_no_email",
+      bookingIntent([{ e: listing.id, p: 1000, q: 1 }]),
+      1000,
+    );
+    await configureTestEmail();
+    await withRequestContext(async () => {
+      expect(
+        (await processPaymentSession("cs_direct_no_email", data)).success,
+      ).toBe(true);
+    });
+    const attendee = (await getAttendeesRaw(listing.id))[0]!;
+    expect(attendee.email_pending).toBe(0);
+    expect(attendee.webhooks_pending).toBe(0);
+  });
+
+  test("a paid booking's pending flags clear when its sends are accepted", async () => {
+    // Both sends were accepted, so both flags are down.
+    expect(await bookedFlags("cs_direct_flags")).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
+  });
+
+  test("a paid booking's flags stay up when the sends are refused", async () => {
+    // A provider that accepts nothing: every send the booking owes is
+    // refused, so both flags stay up for the admin.
+    fetch.restubFetch(() => new Response("", { status: 500 }));
+    expect(await bookedFlags("cs_direct_flags_refused", true)).toEqual({
+      email: 1,
+      webhooks: 1,
+    });
+  });
+
   test("takes a Square checkout's handle row when its payment books", async () => {
     const id = "sq_direct_booking";
     const listing = await createTestListing({
@@ -131,28 +195,28 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toBeNull();
   });
 
-  /** A paid booking costs three database calls, answered or not. The answers,
-   * the questions-record, and the activity lines ride the create batch, and
-   * the post-commit queue writes nothing, so an answered booking costs the
-   * same as a bare one. A later stack layer clears the pending-notification
-   * flags in one more call after the sends settle. */
-  const expectBookedInThreeCalls = async (
+  /** A paid booking costs four database calls, answered or not. The answers,
+   * the questions-record, and the activity lines ride the create batch — one
+   * write fewer than before the batch carried them, because the post-commit
+   * queue writes nothing — so an answered booking costs the same as a bare
+   * one. */
+  const expectBookedInFourCalls = async (
     id: string,
     data: Parameters<typeof processPaymentSession>[1],
   ): Promise<void> => {
-    const calls = await countDatabaseCalls(3, async () => {
+    const calls = await countDatabaseCalls(4, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(3);
+    expect(calls).toBe(4);
   };
 
-  test("creates an unanswered paid booking in three database calls", async () => {
+  test("creates an unanswered paid booking in four database calls", async () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
-    await expectBookedInThreeCalls(id, data);
+    await expectBookedInFourCalls(id, data);
   });
 
-  test("creates and answers a paid booking in three database calls", async () => {
+  test("creates and answers a paid booking in four database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
     const question = await questionsTable.insert({
@@ -166,7 +230,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     });
     await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
-    await expectBookedInThreeCalls(id, data);
+    await expectBookedInFourCalls(id, data);
   });
 
   test("takes a checkout's staged answers into its confirmation email", async () => {

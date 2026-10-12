@@ -61,6 +61,10 @@ import {
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-questions.ts";
 import {
+  adminLineSend,
+  emailPendingForAdminLines,
+} from "#routes/admin/attendees-route-helpers.ts";
+import {
   AUTH_FORM,
   type AuthSession,
   requireSessionOr,
@@ -343,6 +347,7 @@ const applyCreate = async (
     {
       ...input,
       allowOverbook: true,
+      emailPending: emailPendingForAdminLines(parsed.lines.map(adminLineSend)),
       remainingBalance: sumOf(lineListPrice)(order.lines),
       source: "admin",
     },

@@ -735,8 +735,8 @@
     "semicolon": 2
   },
   "src/shared/db/attendee-types.ts": {
-    "long-sentence": 4,
-    "semicolon": 10
+    "semicolon": 10,
+    "long-sentence": 3
   },
   "src/shared/db/attendees/atomic-update.ts": {
     "long-sentence": 12,
@@ -2219,9 +2219,9 @@
   "src/shared/types.ts": {
     "long-sentence": 10,
     "wordy": 2,
-    "semicolon": 19,
     "contraction": 2,
-    "banned-modal": 12
+    "banned-modal": 11,
+    "semicolon": 18
   },
   "src/shared/update.ts": {
     "long-sentence": 4,

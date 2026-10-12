@@ -3,6 +3,7 @@
  * - the buyer's answers
  * - the take-back of the checkout's staged free text
  * - the booking's activity lines
+ * - the pending-notification flags
  *
  * They ride the same atomic batch as the attendee insert (see `BatchTail`). A
  * failure in any of them rolls the whole booking back. The payment provider's
@@ -20,9 +21,14 @@ import {
 } from "#db/activity-log.ts";
 import type { BatchTail } from "#db/attendees/create-batch.ts";
 import {
+  PENDING_NOTIFICATION,
+  type PendingNotificationFlag,
+} from "#db/attendees/notification-flags.ts";
+import {
   dropCheckoutAnswersStatement,
   readCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
+import type { SqlStatement } from "#db/client.ts";
 import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   groupListingAnswerSets,
@@ -36,6 +42,7 @@ import {
 } from "#shared/booking-intent.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
+import { parseListingFields } from "#shared/listing-fields.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import { registeredActivityMessage } from "#shared/webhook/delivery.ts";
@@ -102,6 +109,34 @@ export const promoActivityLines = (
     };
   });
 };
+
+/** Whether any booked listing collects an email address, so a confirmation
+ * email is owed. */
+const owesEmailSend = (listings: readonly ListingWithCount[]): boolean => {
+  const fields = listings.map((listing) => parseListingFields(listing.fields));
+  return fields.some((names) => names.includes("email"));
+};
+
+/** Whether any booked listing has a registration webhook, so a webhook send is
+ * owed. */
+const owesWebhookSend = (listings: readonly ListingWithCount[]): boolean => {
+  const urls = listings.map((listing) => listing.webhook_url);
+  return urls.some((url) => url !== "");
+};
+
+/** Set one pending-notification flag on the attendee the batch itself
+ * inserts. The value is a trusted constant, so it is inlined into the SQL
+ * rather than bound as an argument. */
+const flagStatement =
+  (
+    column: "email_pending" | "webhooks_pending",
+    value: PendingNotificationFlag,
+  ): ((tokenIndex: string) => SqlStatement) =>
+  (tokenIndex) => ({
+    args: [tokenIndex],
+    sql: `UPDATE attendees SET ${column} = ${value}
+          WHERE ticket_token_index = ?`,
+  });
 
 export type PaidBookingTail = {
   /** The buyer's typed free-text answers, read from the staged row for the
@@ -185,6 +220,13 @@ export const paidBookingTail = async ({
     })),
   ]);
 
+  const emailPending = owesEmailSend(listings)
+    ? flagStatement("email_pending", PENDING_NOTIFICATION.online)
+    : null;
+  const webhooksPending = owesWebhookSend(listings)
+    ? flagStatement("webhooks_pending", PENDING_NOTIFICATION.online)
+    : null;
+
   return {
     freeTexts,
     ride: (tokenIndex) => [
@@ -194,6 +236,8 @@ export const paidBookingTail = async ({
       )(tokenIndex),
       ...(stagedDrop === null ? [] : [stagedDrop]),
       ...bookingActivityStatements(sealedActivities, tokenIndex),
+      ...(emailPending === null ? [] : [emailPending(tokenIndex)]),
+      ...(webhooksPending === null ? [] : [webhooksPending(tokenIndex)]),
     ],
   };
 };

@@ -3,6 +3,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
@@ -322,6 +323,27 @@ export const createTestAttendeeWithToken = async (
     phone,
   );
   return { attendee, listing, token };
+};
+
+/** Book one attendee with its pending-notification flags forced to the given
+ * values, the way a create batch whose sends never got accepted would leave
+ * them — for tests of the badges and counts those flags render. */
+export const bookTestAttendeeWithFlags = async (
+  name: string,
+  email: number,
+  webhooks: number,
+): Promise<{ attendee: Attendee; listing: Listing }> => {
+  const listing = await createTestListing({ name: `${name} Show` });
+  const { attendee } = await createTestAttendeeDirect(
+    listing.id,
+    name,
+    `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
+  );
+  await execute(
+    "UPDATE attendees SET email_pending = ?, webhooks_pending = ? WHERE id = ?",
+    [email, webhooks, attendee.id],
+  );
+  return { attendee, listing };
 };
 
 export const createTestAttendeeWithPhone = async (
