@@ -90,16 +90,11 @@ const foldedPackageChildUnits = (
 ): ReadonlyMap<number, number>[] => {
   const folds: ReadonlyMap<number, number>[] = [];
   for (const member of pkg.members) {
-    const parentInfo = requiredMapValue(
-      parentInfoById,
-      member.id,
-      `Package member ${member.id} left the catalog`,
-    );
-    const units = foldedChildUnits(
-      parentInfo,
-      childrenByParentId.get(member.id) ?? [],
-      pkg.quantities.get(member.id) ?? 1,
-    );
+    const message = `Package member ${member.id} left the catalog`;
+    const parentInfo = requiredMapValue(parentInfoById, member.id, message);
+    const children = childrenByParentId.get(member.id) ?? [];
+    const memberQty = pkg.quantities.get(member.id) ?? 1;
+    const units = foldedChildUnits(parentInfo, children, memberQty);
     folds.push(units);
   }
   return folds;
