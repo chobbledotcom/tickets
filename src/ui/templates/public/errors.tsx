@@ -121,7 +121,10 @@ p{line-height:1.5;margin:.75rem 0}
 a{color:#0369a1}
 </style>`;
 
-const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="2" />
+/** Seconds between auto-refreshes of the temporary error pages. The
+ * Retry-After header on their 503 responses matches. */
+export const TEMPORARY_ERROR_REFRESH_SECONDS = 2;
+const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="${TEMPORARY_ERROR_REFRESH_SECONDS}" />
 ${ERROR_DIALOG_STYLE}`;
 
 export const temporaryErrorPage = (autoRefresh: boolean): string =>
@@ -176,7 +179,10 @@ export const databaseBusyPage = (autoRefresh: boolean): string =>
  * seeing a generic error. The backup can take a few seconds on larger
  * databases, so refresh a little slower than the temporary error page.
  */
-const MIGRATION_IN_PROGRESS_HEAD = `<meta http-equiv="refresh" content="5" />
+/** Seconds between auto-refreshes of the migration page. The Retry-After
+ * header on its 503 response matches. */
+export const MIGRATION_IN_PROGRESS_REFRESH_SECONDS = 5;
+const MIGRATION_IN_PROGRESS_HEAD = `<meta http-equiv="refresh" content="${MIGRATION_IN_PROGRESS_REFRESH_SECONDS}" />
 ${ERROR_DIALOG_STYLE}`;
 
 export const migrationInProgressPage = (): string =>

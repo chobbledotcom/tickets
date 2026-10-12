@@ -1,4 +1,4 @@
-import { jsonResponse } from "#routes/response.ts";
+import { jsonResponse, withHeaders } from "#routes/response.ts";
 
 const CORS_HEADERS: Record<string, string> = {
   "access-control-allow-headers": "content-type",
@@ -8,13 +8,8 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 /** JSON response with CORS headers */
-export const apiResponse = (data: unknown, status = 200): Response => {
-  const response = jsonResponse(data, status);
-  for (const [key, value] of Object.entries(CORS_HEADERS)) {
-    response.headers.set(key, value);
-  }
-  return response;
-};
+export const apiResponse = (data: unknown, status = 200): Response =>
+  withHeaders(jsonResponse(data, status), CORS_HEADERS);
 
 /** Turn a JSON responder into an error responder. The returned function wraps
  * a message in the shared `{ error: message }` envelope (400 unless told

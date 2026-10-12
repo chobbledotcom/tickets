@@ -4,8 +4,9 @@ import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
-import { orResponse } from "#routes/response.ts";
+import { orResponse, withHeaders } from "#routes/response.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { BOOKING_LOCKOUT_MS } from "#shared/limits.ts";
 import { getRequestClientIp } from "#shared/request-context.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { isRecord, type ListingWithCount } from "#types";
@@ -169,7 +170,12 @@ export const toFormParams = (body: Record<string, unknown>): FormParams =>
 export const checkBookingRateLimit = async (): Promise<Response | null> => {
   const ip = getRequestClientIp();
   if (await bookingLimiter.isLimited(ip)) {
-    return apiError("Too many booking attempts. Please try again later.", 429);
+    // The limiter does not expose the remaining lockout, so the header names
+    // the full window. A client then never retries before it can succeed.
+    return withHeaders(
+      apiError("Too many booking attempts. Please try again later.", 429),
+      { "retry-after": `${BOOKING_LOCKOUT_MS / 1000}` },
+    );
   }
   await bookingLimiter.record(ip);
   return null;

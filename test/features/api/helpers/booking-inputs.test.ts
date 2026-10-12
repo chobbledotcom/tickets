@@ -143,6 +143,7 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
     });
     expect(limited).toBeInstanceOf(Response);
     expect((limited as Response).status).toBe(429);
+    expect((limited as Response).headers.get("retry-after")).toBe("600");
     expect(await (limited as Response).json()).toEqual({
       error: "Too many booking attempts. Please try again later.",
     });

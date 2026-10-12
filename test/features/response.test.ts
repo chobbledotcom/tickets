@@ -18,6 +18,7 @@ import {
   siteNotActivatedResponse,
   temporaryErrorResponse,
   withCookie,
+  withHeaders,
 } from "#routes/response.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import {
@@ -112,6 +113,22 @@ describeWithEnv("route responses", { db: true }, () => {
       const result = await withCookie(response, "session=abc; Path=/");
       expect(result.status).toBe(204);
       expect(result.headers.get("set-cookie")).toBe("session=abc; Path=/");
+    });
+  });
+
+  describe("withHeaders", () => {
+    test("sets a header on a built response", () => {
+      const response = withHeaders(htmlResponse("<p>hi</p>"), {
+        "retry-after": "2",
+      });
+      expect(response.headers.get("retry-after")).toBe("2");
+    });
+
+    test("replaces an existing header value", () => {
+      const response = withHeaders(htmlResponse("<p>hi</p>"), {
+        "content-type": "text/plain",
+      });
+      expect(response.headers.get("content-type")).toBe("text/plain");
     });
   });
 
@@ -286,6 +303,33 @@ describeWithEnv("route responses", { db: true }, () => {
         'http-equiv="refresh"',
       );
       expect(html).not.toContain("Temporary error");
+    });
+
+    test("sets Retry-After to the page refresh interval on temporary errors", () => {
+      expect(temporaryErrorResponse("GET").headers.get("retry-after")).toBe(
+        "2",
+      );
+      expect(temporaryErrorResponse("POST").headers.get("retry-after")).toBe(
+        "2",
+      );
+    });
+
+    test("sets Retry-After on the busy database response", () => {
+      expect(databaseBusyResponse("GET").headers.get("retry-after")).toBe("2");
+    });
+
+    test("sets Retry-After to the migration refresh interval", () => {
+      expect(migrationInProgressResponse().headers.get("retry-after")).toBe(
+        "5",
+      );
+    });
+
+    test("sends no Retry-After while the site is not activated", () => {
+      expect(siteNotActivatedResponse().headers.get("retry-after")).toBeNull();
+    });
+
+    test("sends no Retry-After on the token rate-limit page", () => {
+      expect(rateLimitedResponse().headers.get("retry-after")).toBeNull();
     });
   });
 });
