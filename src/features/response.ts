@@ -8,10 +8,12 @@ import { getSavedFormData } from "#shared/forms/saved-data.ts";
 import { appendIframeParam, getRequestId } from "#shared/request-context.ts";
 import {
   databaseBusyPage,
+  MIGRATION_IN_PROGRESS_REFRESH_SECONDS,
   migrationInProgressPage,
   notFoundPage,
   rateLimitedPage,
   siteNotActivatedPage,
+  TEMPORARY_ERROR_REFRESH_SECONDS,
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
 
@@ -70,15 +72,23 @@ type RequestErrorResponse = (method: string) => Response;
 
 // A refresh loads the URL as GET. It cannot preserve a submitted form.
 const requestErrorResponse =
-  (page: (autoRefresh: boolean) => string): RequestErrorResponse =>
+  (
+    page: (autoRefresh: boolean) => string,
+    retryAfterSeconds: number,
+  ): RequestErrorResponse =>
   (method) =>
-    htmlResponse(page(method === "GET" || method === "HEAD"), 503);
+    withHeaders(
+      htmlResponse(page(method === "GET" || method === "HEAD"), 503),
+      { "retry-after": `${retryAfterSeconds}` },
+    );
 
 export const temporaryErrorResponse: RequestErrorResponse =
-  requestErrorResponse(temporaryErrorPage);
+  requestErrorResponse(temporaryErrorPage, TEMPORARY_ERROR_REFRESH_SECONDS);
 
-export const databaseBusyResponse: RequestErrorResponse =
-  requestErrorResponse(databaseBusyPage);
+export const databaseBusyResponse: RequestErrorResponse = requestErrorResponse(
+  databaseBusyPage,
+  TEMPORARY_ERROR_REFRESH_SECONDS,
+);
 
 /**
  * Create "site not activated" response for sites whose database has not
@@ -95,7 +105,9 @@ export const siteNotActivatedResponse = (): Response =>
  * presenting it as an error.
  */
 export const migrationInProgressResponse = (): Response =>
-  htmlResponse(migrationInProgressPage(), 503);
+  withHeaders(htmlResponse(migrationInProgressPage(), 503), {
+    "retry-after": `${MIGRATION_IN_PROGRESS_REFRESH_SECONDS}`,
+  });
 
 /**
  * Create bare 302 redirect response (no message).
@@ -250,6 +262,22 @@ export const downloadResponse = (
       "content-type": contentType,
     },
   });
+
+/**
+ * Set headers on a built response.
+ * Takes a response the app built: a redirect or fetched response has
+ * immutable headers.
+ * Mutates headers in-place to avoid re-reading the response body.
+ */
+export const withHeaders = (
+  response: Response,
+  headers: Record<string, string>,
+): Response => {
+  for (const [name, value] of Object.entries(headers)) {
+    response.headers.set(name, value);
+  }
+  return response;
+};
 
 /**
  * Add cookie header to response.

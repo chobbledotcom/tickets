@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBookingRateLimit,
+  lockoutRetryAfter,
   resolveCustomPrice,
   resolvePositiveQuantity,
   toFormParams,
@@ -28,6 +29,20 @@ const expectError = async (
   expect(response.status).toBe(status);
   expect(await response.json()).toEqual({ error });
 };
+
+describe("lockoutRetryAfter", () => {
+  test("rounds a partial second up to a whole Retry-After second", () => {
+    expect(lockoutRetryAfter(1500)).toBe("2");
+  });
+
+  test("keeps a lockout of exact seconds unchanged", () => {
+    expect(lockoutRetryAfter(1000)).toBe("1");
+  });
+
+  test("keeps the default ten-minute lockout at whole seconds", () => {
+    expect(lockoutRetryAfter(600_000)).toBe("600");
+  });
+});
 
 describe("resolvePositiveQuantity", () => {
   test("requires the quantity field", async () => {
@@ -143,6 +158,7 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
     });
     expect(limited).toBeInstanceOf(Response);
     expect((limited as Response).status).toBe(429);
+    expect((limited as Response).headers.get("retry-after")).toBe("600");
     expect(await (limited as Response).json()).toEqual({
       error: "Too many booking attempts. Please try again later.",
     });
