@@ -265,6 +265,8 @@ export const downloadResponse = (
 
 /**
  * Set headers on a built response.
+ * Takes a response the app built: a redirect or fetched response has
+ * immutable headers.
  * Mutates headers in-place to avoid re-reading the response body.
  */
 export const withHeaders = (

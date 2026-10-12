@@ -161,6 +161,12 @@ export const toFormParams = (body: Record<string, unknown>): FormParams =>
     return params;
   }, new FormParams());
 
+/** The Retry-After header value for a lockout measured in milliseconds. HTTP
+ * delay-seconds takes whole digits only, so a fraction of a second rounds up:
+ * the header never names a moment inside the window. */
+export const lockoutRetryAfter = (lockoutMs: number): string =>
+  `${Math.ceil(lockoutMs / 1000)}`;
+
 /**
  * Throttle a booking request by client IP. The booking endpoints are
  * unauthenticated and create rows, send emails, and fire webhooks, so a flood
@@ -174,7 +180,7 @@ export const checkBookingRateLimit = async (): Promise<Response | null> => {
     // the full window. A client then never retries before it can succeed.
     return withHeaders(
       apiError("Too many booking attempts. Please try again later.", 429),
-      { "retry-after": `${BOOKING_LOCKOUT_MS / 1000}` },
+      { "retry-after": lockoutRetryAfter(BOOKING_LOCKOUT_MS) },
     );
   }
   await bookingLimiter.record(ip);
