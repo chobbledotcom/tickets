@@ -166,7 +166,7 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
       }
     });
 
-    test("prints usage for an unknown command", async () => {
+    test("answers exit 2 with a JSON usage error for an unknown command", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -177,15 +177,18 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         ]);
 
         expect(result.code).toBe(2);
-        expect(result.stderr).toContain(
-          "Usage: deno task cli:api <list|get|create|update|delete>",
-        );
+        expect(JSON.parse(result.stderr).error).toEqual({
+          fields: null,
+          kind: "usage",
+          message: expect.stringContaining("Unknown command 'publish'"),
+          status: null,
+        });
       } finally {
         await api.stop();
       }
     });
 
-    test("prints usage when arguments are missing", async () => {
+    test("answers exit 2 with a JSON usage error when arguments are missing", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -197,15 +200,13 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         );
 
         expect(result.code).toBe(2);
-        expect(result.stderr).toContain(
-          "Usage: deno task cli:api <list|get|create|update|delete>",
-        );
+        expect(JSON.parse(result.stderr).error.kind).toBe("usage");
       } finally {
         await api.stop();
       }
     });
 
-    test("surfaces API failures from create commands with omitted JSON bodies", async () => {
+    test("answers exit 3 when a create sends a body the server refuses", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -213,15 +214,19 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         const result = await runCliApiExpectingFailure(api.hostname, apiKey, [
           "create",
           "listings",
+          "{}",
         ]);
 
-        expect(result.code).toBe(1);
+        expect(result.code).toBe(3);
+        const answer = JSON.parse(result.stderr);
+        expect(answer.error.kind).toBe("validation");
+        expect(answer.error.status).toBe(400);
       } finally {
         await api.stop();
       }
     });
 
-    test("surfaces API failures from commands with omitted JSON bodies", async () => {
+    test("answers exit 3 when a delete carries no confirmation", async () => {
       const listing = await createTestListing({ name: "CLI Delete Guard" });
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
@@ -233,7 +238,26 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
           String(listing.id),
         ]);
 
-        expect(result.code).toBe(1);
+        expect(result.code).toBe(3);
+        expect(JSON.parse(result.stderr).error.kind).toBe("validation");
+      } finally {
+        await api.stop();
+      }
+    });
+
+    test("answers exit 5 for an unknown listing", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const api = serveTestApi();
+
+      try {
+        const result = await runCliApiExpectingFailure(api.hostname, apiKey, [
+          "get",
+          "listings",
+          "999999",
+        ]);
+
+        expect(result.code).toBe(5);
+        expect(JSON.parse(result.stderr).error.kind).toBe("not_found");
       } finally {
         await api.stop();
       }

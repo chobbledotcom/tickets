@@ -2,12 +2,16 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { buildRequest, parseBody } from "#cli/api-request.ts";
 import { loadConfig } from "#cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "#cli/curl.ts";
-import { clearScreen, writeErr, writeOut } from "#cli/io.ts";
-import { parseResource, resourcePath, resources } from "#cli/resources.ts";
+import { CliError } from "#cli/errors.ts";
+import { readStdin, type StdinLike, writeErr, writeOut } from "#cli/io.ts";
 import { adminApiRoutes } from "#routes/admin/api.ts";
+import { jsonResponse } from "#routes/response.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiResource,
+} from "#shared/admin-api-resources.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
@@ -48,67 +52,35 @@ describe("CLI config", () => {
     });
   });
 
-  test("prompts for missing config", async () => {
-    using _env = withEnv({
-      API_HOSTNAME: undefined,
-      API_KEY: undefined,
+  test("rejects a missing host instead of prompting", async () => {
+    using _env = withEnv({ API_HOSTNAME: undefined, API_KEY: "env-key" });
+    const prompt = stub(globalThis, "prompt", () => {
+      throw new Error("the CLI must not prompt");
     });
-    const prompt = stub(globalThis, "prompt", (label?: string) =>
-      label === "API host" ? "prompt.test" : "prompt-key",
-    );
     try {
       await withTempDir((envDir) =>
-        expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "https://prompt.test",
-          apiKey: "prompt-key",
-        }),
+        expect(loadConfig(envDir)).rejects.toThrow("The API host is missing"),
       );
     } finally {
       prompt.restore();
     }
   });
 
-  test("rejects empty prompted config", async () => {
+  test("rejects a missing key instead of prompting", async () => {
     using _env = withEnv({
-      API_HOSTNAME: undefined,
+      API_HOSTNAME: "tickets.example.com",
       API_KEY: undefined,
     });
-    const prompt = stub(globalThis, "prompt", () => "");
+    const prompt = stub(globalThis, "prompt", () => {
+      throw new Error("the CLI must not prompt");
+    });
     try {
       await withTempDir((envDir) =>
-        expect(loadConfig(envDir)).rejects.toThrow("API host is required"),
+        expect(loadConfig(envDir)).rejects.toThrow("The API key is missing"),
       );
     } finally {
       prompt.restore();
     }
-  });
-
-  test("rejects missing prompted config", async () => {
-    using _env = withEnv({
-      API_HOSTNAME: undefined,
-      API_KEY: undefined,
-    });
-    const prompt = stub(globalThis, "prompt", () => null);
-    try {
-      await withTempDir((envDir) =>
-        expect(loadConfig(envDir)).rejects.toThrow("API host is required"),
-      );
-    } finally {
-      prompt.restore();
-    }
-  });
-
-  test("preserves an explicitly blank environment host", async () => {
-    using _env = withEnv({
-      API_HOSTNAME: "   ",
-      API_KEY: "env-key",
-    });
-    await withTempDir((envDir) =>
-      expect(loadConfig(envDir)).resolves.toEqual({
-        apiHostname: "",
-        apiKey: "env-key",
-      }),
-    );
   });
 
   test("surfaces dotenv read errors that are not missing files", async () => {
@@ -133,13 +105,14 @@ describe("CLI curl", () => {
     ).toEqual([
       "--silent",
       "--show-error",
-      "--fail-with-body",
       "--request",
       "GET",
       "--header",
       "Authorization: Bearer key",
       "--header",
       "Accept: application/json",
+      "--write-out",
+      "\n%{http_code}",
       "https://tickets.example.com/api/admin/listings",
     ]);
   });
@@ -162,6 +135,41 @@ describe("CLI curl", () => {
     ).rejects.toThrow();
   });
 
+  test("answers a served JSON body with its parsed data and status", async () => {
+    const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, () =>
+      jsonResponse({ ok: true }),
+    );
+    const { port } = server.addr;
+    try {
+      await expect(
+        curlJson(
+          { apiHostname: `http://127.0.0.1:${port}`, apiKey: "key" },
+          { method: "GET", path: "/api/admin/listings" },
+        ),
+      ).resolves.toEqual({ data: { ok: true }, status: 200 });
+    } finally {
+      await server.shutdown();
+    }
+  });
+
+  test("throws when the answer is not JSON", async () => {
+    const server = Deno.serve(
+      { hostname: "127.0.0.1", port: 0 },
+      () => new Response("<html>502</html>", { status: 502 }),
+    );
+    const { port } = server.addr;
+    try {
+      await expect(
+        curlJson(
+          { apiHostname: `http://127.0.0.1:${port}`, apiKey: "key" },
+          { method: "GET", path: "/api/admin/listings" },
+        ),
+      ).rejects.toThrow("not JSON");
+    } finally {
+      await server.shutdown();
+    }
+  });
+
   test("prefers stderr for curl failure messages", () => {
     expect(curlFailureMessage(" stderr failure \n", "stdout failure")).toBe(
       "stderr failure",
@@ -177,118 +185,52 @@ describe("CLI curl", () => {
   });
 });
 
-describe("CLI resources", () => {
-  test("builds collection and entity paths", () => {
-    expect(resourcePath("listings")).toBe("/api/admin/listings");
-    expect(resourcePath("listings", "123")).toBe("/api/admin/listings/123");
-  });
-
-  test("builds nested option paths under a parent id", () => {
-    expect(resourcePath("attributes", "3/options")).toBe(
-      "/api/admin/attributes/3/options",
+describe("CLI table-vs-server", () => {
+  test("exposes exactly the routes the admin API serves", () => {
+    // Every route key the server registers must be one the table can name:
+    // the resource paths, the child paths under them, and the custom routes.
+    // Neither side can silently drift.
+    const entries: readonly [string, AdminApiResource][] =
+      Object.entries(ADMIN_API_RESOURCES);
+    const declared = entries.flatMap(([, entry]) => {
+      const root = `/api/admin/${entry.path}`;
+      const idParam = `:${entry.label.toLowerCase()}Id`;
+      const children = Object.entries(entry.children ?? {}).flatMap(
+        ([, child]) => [
+          `POST ${root}/${idParam}/${child.path}`,
+          `PUT ${root}/${idParam}/${child.path}/:${child.idParam}`,
+          `DELETE ${root}/${idParam}/${child.path}/:${child.idParam}`,
+        ],
+      );
+      const custom = Object.entries(entry.custom ?? {}).map(
+        ([, route]) => `${route.method} ${root}/${route.subpath}`,
+      );
+      return [
+        `GET ${root}`,
+        `GET ${root}/${idParam}`,
+        `POST ${root}`,
+        `PUT ${root}/${idParam}`,
+        `DELETE ${root}/${idParam}`,
+        ...children,
+        ...custom,
+      ];
+    });
+    // A custom route may occupy the standard delete's key, and the server's
+    // route map holds each key once.
+    expect([...new Set(declared)].sort()).toEqual(
+      Object.keys(adminApiRoutes).sort(),
     );
-    expect(resourcePath("attributes", "3/options/9")).toBe(
-      "/api/admin/attributes/3/options/9",
-    );
-  });
-
-  test("parses known resources and rejects unknown resources", () => {
-    expect(parseResource("holidays")).toBe("holidays");
-    expect(() => parseResource("orders")).toThrow(
-      "Unknown resource: orders. Expected attributes, listings, groups, holidays",
-    );
-  });
-
-  test("exposes exactly the resources the admin API serves", () => {
-    // Derive the resource segment from every registered admin API route key
-    // (e.g. "POST /api/admin/groups/:groupId" → "groups"). The CLI's resource
-    // list must match this set exactly, so neither side can silently drift.
-    const served = [
-      ...new Set(
-        Object.keys(adminApiRoutes).map(
-          (route) => route.match(/\/api\/admin\/([a-z]+)/)?.[1] ?? "",
-        ),
-      ),
-    ].sort();
-    expect([...resources].sort()).toEqual(served);
-  });
-});
-
-describe("CLI api-request", () => {
-  test("parseBody returns undefined when no JSON argument is given", () => {
-    expect(parseBody(undefined)).toBeUndefined();
-    expect(parseBody("")).toBeUndefined();
-  });
-
-  test("parseBody parses a JSON string into a value", () => {
-    expect(parseBody('{"name":"Demo"}')).toEqual({ name: "Demo" });
-  });
-
-  test("builds a bodyless list request", () => {
-    expect(buildRequest("list", "listings")).toEqual({
-      method: "GET",
-      path: "/api/admin/listings",
-    });
-  });
-
-  test("builds a get request addressing a single entity", () => {
-    expect(buildRequest("get", "listings", "5")).toEqual({
-      method: "GET",
-      path: "/api/admin/listings/5",
-    });
-  });
-
-  test("builds a create request with a parsed JSON body", () => {
-    expect(buildRequest("create", "listings", '{"name":"Demo"}')).toEqual({
-      body: { name: "Demo" },
-      method: "POST",
-      path: "/api/admin/listings",
-    });
-  });
-
-  test("builds a nested create from a parent path and body", () => {
-    expect(
-      buildRequest("create", "attributes", "3/options", '{"text":"2 players"}'),
-    ).toEqual({
-      body: { text: "2 players" },
-      method: "POST",
-      path: "/api/admin/attributes/3/options",
-    });
-  });
-
-  test("builds an update request from an id and JSON body", () => {
-    expect(buildRequest("update", "groups", "7", '{"name":"G"}')).toEqual({
-      body: { name: "G" },
-      method: "PUT",
-      path: "/api/admin/groups/7",
-    });
-  });
-
-  test("builds a delete request that defaults to no body", () => {
-    expect(buildRequest("delete", "holidays", "9")).toEqual({
-      body: undefined,
-      method: "DELETE",
-      path: "/api/admin/holidays/9",
-    });
-  });
-
-  test("returns null for an unrecognised command", () => {
-    expect(buildRequest("publish", "listings")).toBeNull();
   });
 });
 
 describe("CLI io", () => {
-  const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
-
-  // Stub both std streams while running `act`, returning whatever each received.
-  // A single curried recorder keeps the two stubs identical without repetition.
   const captureStdio = async (
     act: () => Promise<void>,
   ): Promise<{ out: string[]; err: string[] }> => {
     const out: string[] = [];
     const err: string[] = [];
     const recorder = (sink: string[]) => (bytes: Uint8Array) => {
-      sink.push(decode(bytes));
+      sink.push(new TextDecoder().decode(bytes));
       return Promise.resolve(bytes.length);
     };
     const outStub = stub(Deno.stdout, "write", recorder(out));
@@ -314,8 +256,47 @@ describe("CLI io", () => {
     expect(out).toEqual([]);
   });
 
-  test("clearScreen writes the ANSI clear-and-home sequence to stdout", async () => {
-    const { out } = await captureStdio(() => clearScreen());
-    expect(out).toEqual(["\x1b[2J\x1b[H"]);
+  describe("readStdin", () => {
+    /** One stdin side that answers with the given chunks, then ends. */
+    const piped = (
+      chunks: readonly string[],
+    ): { input: StdinLike; reads: number } => {
+      const encoder = new TextEncoder();
+      const payloads = chunks.map((text) => encoder.encode(text));
+      let reads = 0;
+      return {
+        input: {
+          isTerminal: () => false,
+          read: async (buffer: Uint8Array) => {
+            const payload = payloads[reads];
+            reads += 1;
+            if (payload === undefined) return null;
+            buffer.set(payload.subarray(0, buffer.length));
+            return Math.min(payload.length, buffer.length);
+          },
+        },
+        reads,
+      };
+    };
+
+    test("reads every chunk and decodes the text", async () => {
+      const { input } = piped(['{"name":', '"Demo"}']);
+      await expect(readStdin(input)).resolves.toBe('{"name":"Demo"}');
+    });
+
+    test("answers an empty string when stdin closes with nothing", async () => {
+      const { input } = piped([]);
+      await expect(readStdin(input)).resolves.toBe("");
+    });
+
+    test("refuses a terminal stdin with a usage error", async () => {
+      const failure = await readStdin({
+        isTerminal: () => true,
+        read: async () => null,
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(CliError);
+      expect((failure as CliError).kind).toBe("usage");
+      expect((failure as Error).message).toContain("stdin is a terminal");
+    });
   });
 });

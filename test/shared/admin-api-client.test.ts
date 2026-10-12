@@ -4,7 +4,11 @@ import {
   AdminApiError,
   type AdminApiResponse,
   type AdminApiTransport,
+  adminApiChildCall,
   adminApiChildCreate,
+  adminApiCustomRoute,
+  adminApiDelete,
+  adminApiGet,
   adminApiList,
   adminApiWrite,
 } from "#shared/admin-api-client.ts";
@@ -86,6 +90,70 @@ describe("admin api client", () => {
     expect(created.calls).toEqual([
       { method: "POST", path: "/api/admin/attributes/3/options" },
     ]);
+  });
+
+  test("get reads one row through the single envelope", async () => {
+    const { calls, transport } = stubTransport({ attribute: ATTRIBUTE });
+    const got = await adminApiGet(transport, ADMIN_API_RESOURCES.attributes, 3);
+    expect(calls).toEqual([{ method: "GET", path: "/api/admin/attributes/3" }]);
+    expect(got.attribute.id).toBe(3);
+  });
+
+  test("delete sends the confirmation body and validates the status answer", async () => {
+    const { calls, transport } = stubTransport({ status: "ok" });
+    const deleted = await adminApiDelete(
+      transport,
+      ADMIN_API_RESOURCES.attributes,
+      3,
+      { confirm_identifier: "Game Length" },
+    );
+    expect(calls).toEqual([
+      { method: "DELETE", path: "/api/admin/attributes/3" },
+    ]);
+    expect(deleted.status).toBe("ok");
+  });
+
+  test("the child delete answers through the shared status envelope", async () => {
+    const deleted = stubTransport({ status: "ok" });
+    const answer = await adminApiChildCall(
+      deleted.transport,
+      ADMIN_API_RESOURCES.attributes,
+      "delete",
+      "options",
+      3,
+      8,
+      { confirm_identifier: "15-20 minutes" },
+    );
+    expect(deleted.calls).toEqual([
+      { method: "DELETE", path: "/api/admin/attributes/3/options/8" },
+    ]);
+    expect(answer).toEqual({ status: "ok" });
+  });
+
+  test("a custom route sends the table's method and substituted id", async () => {
+    const toggled = stubTransport({ status: "inactive" });
+    const answer = await adminApiCustomRoute(
+      toggled.transport,
+      ADMIN_API_RESOURCES.listings,
+      "deactivate",
+      5,
+    );
+    expect(toggled.calls).toEqual([
+      { method: "POST", path: "/api/admin/listings/5/deactivate" },
+    ]);
+    expect(answer).toEqual({ status: "inactive" });
+  });
+
+  test("an unknown custom route throws instead of building a path", async () => {
+    const failure = await adminApiCustomRoute(
+      stubTransport({}).transport,
+      ADMIN_API_RESOURCES.groups,
+      "deactivate",
+      5,
+    ).catch((error: unknown) => error);
+    expect((failure as Error).message).toBe(
+      "admin api groups has no deactivate custom route",
+    );
   });
 
   test("a malformed response throws with the resource and field named", async () => {

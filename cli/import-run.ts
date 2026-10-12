@@ -49,8 +49,17 @@ type Report = {
     options: number;
   };
   filesUpdated: number;
+  /** The progress lines the run produced, in order. The entrypoint answers
+   *  with one JSON document that carries them. */
+  lines: string[];
   skipped: number;
   updated: number;
+};
+
+/** Record one progress line on the report. The report is the run's whole
+ *  stdout, so no line reaches the stream before the run ends. */
+const line = (report: Report, text: string): void => {
+  report.lines.push(text.trim());
 };
 
 /** One attribute's values: reuse the stored options, create the missing ones
@@ -81,7 +90,7 @@ const syncAttributeOptions = async (
       continue;
     }
     if (plan || !attribute) {
-      await writeOut(`would create attribute ${name}: ${value}\n`);
+      line(report, `would create attribute ${name}: ${value}`);
       continue;
     }
     const created = await adminApiChildCreate(
@@ -97,7 +106,7 @@ const syncAttributeOptions = async (
     if (!newOption) throw new Error(`Option '${value}' missing after create`);
     optionIds.set(optionKey(name, value), newOption.id);
     report.created.options += 1;
-    await writeOut(`created option ${name}: ${value}\n`);
+    line(report, `created option ${name}: ${value}`);
   }
 };
 
@@ -137,7 +146,7 @@ const syncAttributes = async (
       );
       attribute = created.attribute;
       report.created.attributes += 1;
-      await writeOut(`created attribute ${name}\n`);
+      line(report, `created attribute ${name}`);
     }
     await syncAttributeOptions(
       transport,
@@ -187,7 +196,7 @@ const syncGroups = async (
       continue;
     }
     if (plan) {
-      await writeOut(`would create group ${name}\n`);
+      line(report, `would create group ${name}`);
       continue;
     }
     const created = await adminApiWrite(
@@ -202,7 +211,7 @@ const syncGroups = async (
     );
     idsBySlug.set(slug, created.group.id);
     report.created.groups += 1;
-    await writeOut(`created group ${name}\n`);
+    line(report, `created group ${name}`);
   }
   return idsBySlug;
 };
@@ -225,7 +234,7 @@ const importProduct = async (
   const relative = `src/products/${product.filename}.md`;
   const file = await files.verify(`${files.root}/${relative}`);
   if (flags.plan) {
-    await writeOut(planLine(plan, product));
+    line(report, planLine(plan, product));
     if (plan.action === "skip-imported") report.skipped += 1;
     if (plan.action === "skip-conflict" || plan.action === "skip-ambiguous") {
       report.conflicts += 1;
@@ -238,14 +247,15 @@ const importProduct = async (
   }
   if (plan.action === "skip-conflict") {
     report.conflicts += 1;
-    await writeOut(conflictLine(product, plan.listingId, false));
+    line(report, conflictLine(product, plan.listingId, false));
     return;
   }
   if (plan.action === "skip-ambiguous") {
     report.conflicts += 1;
-    await writeOut(
+    line(
+      report,
       `skipped listing ${product.title}: the name matches listings ` +
-        `${plan.listingIds.join(" and ")}; rename one on the site and rerun\n`,
+        `${plan.listingIds.join(" and ")}; rename one on the site and rerun`,
     );
     return;
   }
@@ -277,10 +287,11 @@ const importProduct = async (
         );
   if (plan.action === "update") report.updated += 1;
   else report.created.listings += 1;
-  await writeOut(
+  line(
+    report,
     `${
       plan.action === "update" ? "updated" : "created"
-    } listing ${product.title} -> id ${saved.listing.id}\n`,
+    } listing ${product.title} -> id ${saved.listing.id}`,
   );
   refuseChangedFile(
     file,
@@ -352,6 +363,7 @@ export const runImport = async (
     conflicts: 0,
     created: { attributes: 0, groups: 0, listings: 0, options: 0 },
     filesUpdated: 0,
+    lines: [],
     skipped: 0,
     updated: 0,
   };
@@ -400,11 +412,15 @@ export const runImport = async (
   }
 
   await writeOut(
-    `\ndone${flags.plan ? " (plan)" : ""}: ` +
-      `${report.created.attributes} attributes, ${report.created.options} options, ` +
-      `${report.created.groups} groups, ${report.created.listings} listings created, ` +
-      `${report.updated} listings updated, ${report.skipped} already imported, ` +
-      `${report.conflicts} name conflicts, ${report.filesUpdated} files updated\n`,
+    `${JSON.stringify({
+      conflicts: report.conflicts,
+      created: report.created,
+      filesUpdated: report.filesUpdated,
+      lines: report.lines,
+      plan: flags.plan,
+      skipped: report.skipped,
+      updated: report.updated,
+    })}\n`,
   );
   return report;
 };

@@ -20,39 +20,45 @@
 import type { AdminApiTransport } from "#shared/admin-api-client.ts";
 import { loadConfig } from "./config.ts";
 import { curlJson } from "./curl.ts";
+import {
+  CliError,
+  cliErrorFromUnknown,
+  errorJson,
+  exitCodeFor,
+} from "./errors.ts";
 import { runImport } from "./import-run.ts";
 import { writeErr } from "./io.ts";
 import { parseImportFlags } from "./product-plan.ts";
 
 const usage =
-  "Usage: deno task cli:import-frontmatter [--plan] [--update] --dir <catalog directory>\n";
+  "Usage: deno task cli:import-frontmatter [--plan] [--update] --dir <catalog directory>";
 
-const main = async (): Promise<void> => {
+const main = async (): Promise<number> => {
   const flags = parseImportFlags(Deno.args);
   const dir = flags.dir;
   if (dir === undefined) {
-    await writeErr(usage);
-    Deno.exit(2);
+    throw new CliError(
+      "usage",
+      `The import needs the catalog directory. ${usage}`,
+    );
   }
   const config = await loadConfig(Deno.cwd());
   // The transport seam: curl carries the auth and the HTTP mechanics, and
   // the client validates every answer. When tickets-6's bindFirst lands,
   // this binding goes through it.
-  const transport: AdminApiTransport = async (options) => ({
-    data: await curlJson(config, options),
-  });
+  const transport: AdminApiTransport = (options) => curlJson(config, options);
   await runImport({ ...flags, dir }, transport);
+  return 0;
 };
 
 if (import.meta.main) {
   try {
-    await main();
+    Deno.exit(await main());
   } catch (error) {
-    await writeErr(
-      `frontmatter import failed: ${
-        error instanceof Error ? error.message : String(error)
-      }\n`,
-    );
-    Deno.exit(1);
+    // A failure the client did not name is the import's own input or its
+    // environment: the message carries the cause, and the exit code stays 6.
+    const cli = cliErrorFromUnknown(error, "io");
+    await writeErr(`${JSON.stringify(errorJson(cli))}\n`);
+    Deno.exit(exitCodeFor(cli));
   }
 }
