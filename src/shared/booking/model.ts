@@ -82,7 +82,7 @@ export const childDateOk =
     // Only a daily listing carries a date, even when it prices day counts.
     if (child.listing.listing_type !== "daily") return true;
     if (!date) return false;
-    return SPAN_RULES[childKindOf(child.listing)].childDateOk(
+    return SPAN_RULES[childKindOf(child.listing)].childDateOk!(
       child.listing,
       date,
       duration,
