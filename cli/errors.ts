@@ -1,4 +1,7 @@
-import { AdminApiError } from "#shared/admin-api-client.ts";
+import {
+  AdminApiError,
+  AdminApiSchemaError,
+} from "#shared/admin-api-client.ts";
 
 /** The failure kinds the CLI reports. Each kind maps to one exit code. */
 export type CliErrorKind =
@@ -80,9 +83,11 @@ const serverMessage = (error: AdminApiError): string => {
 };
 
 /** Map any thrown value to the contract's error shape. A `CliError` passes
- *  through; the typed client's refusal maps by status; every other failure
- *  takes the caller's fallback kind — a transport failure for the api
- *  command, a local input or environment failure for the importer. */
+ *  through; the typed client's refusal maps by status; a success answer the
+ *  table's envelope rejects keeps the served status under the server kind;
+ *  every other failure takes the caller's fallback kind — a transport
+ *  failure for the api command, a local input or environment failure for the
+ *  importer. */
 export const cliErrorFromUnknown = (
   error: unknown,
   fallbackKind: CliErrorKind = "server",
@@ -95,6 +100,11 @@ export const cliErrorFromUnknown = (
       null,
       error.status,
     );
+  }
+  if (error instanceof AdminApiSchemaError) {
+    // The served status stays: the server did answer, and its status names
+    // the malformed reply.
+    return new CliError("server", error.message, null, error.status);
   }
   return new CliError(
     fallbackKind,

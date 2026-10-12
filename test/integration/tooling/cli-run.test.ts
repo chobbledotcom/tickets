@@ -71,6 +71,23 @@ describe("CLI run", () => {
     expect(JSON.parse(result.err ?? "").error.kind).toBe("server");
   });
 
+  /** One refused command: exit 2 with the usage kind, a message that names
+   *  the problem, the status null because no server answered, and nothing
+   *  sent to the transport. */
+  const expectUsageRejection = async (
+    args: readonly string[],
+    message: string,
+  ): Promise<void> => {
+    const { requests, transport } = recordingTransport({});
+    const result = await runApi(args, runDeps(testTable, transport));
+    expect(result.code).toBe(2);
+    const error = JSON.parse(result.err ?? "").error;
+    expect(error.kind).toBe("usage");
+    expect(error.message).toContain(message);
+    expect(error.status).toBeNull();
+    expect(requests).toEqual([]);
+  };
+
   /** One refused write: nothing was sent, and the answer names the fields
    *  that failed. */
   const expectRefusedWithFields = async (
@@ -278,69 +295,42 @@ describe("CLI run", () => {
   });
 
   test("rejects a child update without the child id before any request", async () => {
-    const { requests, transport } = recordingTransport({});
-    const result = await runApi(
+    await expectUsageRejection(
       ["update", "gadgets", "1/parts", '{"label":"changed"}'],
-      runDeps(testTable, transport),
+      "needs the child id",
     );
-    expect(result.code).toBe(2);
-    const error = JSON.parse(result.err ?? "").error;
-    expect(error.kind).toBe("usage");
-    expect(error.message).toContain("needs the child id");
-    expect(error.status).toBeNull();
-    expect(requests).toEqual([]);
   });
 
   test("rejects a child delete without the child id before any request", async () => {
-    const { requests, transport } = recordingTransport({});
-    const result = await runApi(
+    await expectUsageRejection(
       ["delete", "gadgets", "1/parts", '{"confirm_identifier":"1"}'],
-      runDeps(testTable, transport),
+      "needs the child id",
     );
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.err ?? "").error.kind).toBe("usage");
-    expect(requests).toEqual([]);
   });
 
   test("rejects an inherited table property as a resource", async () => {
-    const { requests, transport } = recordingTransport({});
-    for (const args of [
+    await expectUsageRejection(
       ["describe", "constructor"],
+      "Unknown resource 'constructor'",
+    );
+    await expectUsageRejection(
       ["list", "constructor"],
-    ]) {
-      const result = await runApi(args, runDeps(testTable, transport));
-      expect(result.code).toBe(2);
-      const error = JSON.parse(result.err ?? "").error;
-      expect(error.kind).toBe("usage");
-      expect(error.message).toContain("Unknown resource 'constructor'");
-      expect(requests).toEqual([]);
-    }
+      "Unknown resource 'constructor'",
+    );
   });
 
   test("rejects an inherited property as a child key", async () => {
-    const { requests, transport } = recordingTransport({});
-    const result = await runApi(
+    await expectUsageRejection(
       ["create", "gadgets", "1/constructor", '{"label":"L"}'],
-      runDeps(testTable, transport),
-    );
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.err ?? "").error.message).toContain(
       "has no child 'constructor'",
     );
-    expect(requests).toEqual([]);
   });
 
   test("rejects an inherited property as a custom route", async () => {
-    const { requests, transport } = recordingTransport({});
-    const result = await runApi(
+    await expectUsageRejection(
       ["toString", "listings", "1"],
-      runDeps(testTable, transport),
-    );
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.err ?? "").error.message).toContain(
       "Unknown command 'toString'",
     );
-    expect(requests).toEqual([]);
   });
 
   test("sends a custom route with the id substituted", async () => {
@@ -356,31 +346,21 @@ describe("CLI run", () => {
   });
 
   test("answers exit 2 for a route the resource does not carry", async () => {
-    const { transport } = recordingTransport({});
-    const result = await runApi(
+    await expectUsageRejection(
       ["recalibrate", "listings", "7"],
-      runDeps(testTable, transport),
-    );
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.err ?? "").error.message).toContain(
       "is not a route of 'listings'",
     );
   });
 
   test("answers exit 2 when the command is missing", async () => {
-    const { transport } = recordingTransport({});
-    const result = await runApi([], runDeps(testTable, transport));
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.err ?? "").error.kind).toBe("usage");
+    await expectUsageRejection([], "needs a command");
   });
 
   test("answers exit 2 when the arguments are too many", async () => {
-    const { transport } = recordingTransport({});
-    const result = await runApi(
+    await expectUsageRejection(
       ["get", "gadgets", "5", "6"],
-      runDeps(testTable, transport),
+      "Too many arguments.",
     );
-    expect(result.code).toBe(2);
   });
 
   test("answers exit 2 with a JSON error when the config is missing", async () => {

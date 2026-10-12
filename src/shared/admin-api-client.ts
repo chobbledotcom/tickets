@@ -58,14 +58,26 @@ const AdminApiErrorMessage = (data: unknown, status: number | undefined) => {
   return `admin api request failed (status ${status})`;
 };
 
+/** The server answered a success status, but the body does not fit the
+ *  contract's envelope for the resource. `status` keeps the HTTP status the
+ *  transport saw, so callers can report which answer was malformed. */
+export class AdminApiSchemaError extends namedError("AdminApiSchemaError") {
+  readonly status: number | undefined;
+
+  constructor(message: string, status: number | undefined) {
+    super(message);
+    this.status = status;
+  }
+}
+
 /** Validate one success envelope, naming the resource and the rejected
  *  fields when the server answers something the contract does not describe. */
 const parseEnvelope = <T>(
   resource: string,
   schema: v.GenericSchema<T>,
-  data: unknown,
+  response: AdminApiResponse,
 ): T => {
-  const result = v.safeParse(schema, data);
+  const result = v.safeParse(schema, response.data);
   if (!result.success) {
     const issues = result.issues
       .map(
@@ -75,8 +87,9 @@ const parseEnvelope = <T>(
             .join(".")}: ${issue.message}`,
       )
       .join("; ");
-    throw new Error(
+    throw new AdminApiSchemaError(
       `admin api ${resource} response failed validation: ${issues}`,
+      response.status,
     );
   }
   return result.output;
@@ -105,7 +118,7 @@ const request = async <T>(
 ): Promise<T> => {
   const response = await transport(options);
   refuseErrorStatus(response);
-  return parseEnvelope(resource, schema, response.data);
+  return parseEnvelope(resource, schema, response);
 };
 
 /** The HTTP method each root verb answers with. */

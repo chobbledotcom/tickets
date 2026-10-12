@@ -72,9 +72,13 @@ const runCliApiExpectingFailure = async (
   hostname: string,
   apiKey: string,
   args: string[],
-): Promise<{ code: number; stderr: string }> => {
+): Promise<{ code: number; stdout: string; stderr: string }> => {
   const output = await runCliApiRaw(hostname, apiKey, args);
-  return { code: output.code, stderr: decode(output.stderr) };
+  return {
+    code: output.code,
+    stderr: decode(output.stderr),
+    stdout: decode(output.stdout),
+  };
 };
 
 describeWithEnv("CLI API e2e", { db: true }, () => {
@@ -260,6 +264,38 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         expect(JSON.parse(result.stderr).error.kind).toBe("not_found");
       } finally {
         await api.stop();
+      }
+    });
+  });
+
+  describe("malformed server replies", () => {
+    test("keeps the served status when a 200 reply fails the envelope schema", async () => {
+      // The reply is valid JSON that the table's envelope does not describe,
+      // so the failure happens after curl: the served status must survive.
+      const server = Deno.serve(
+        { hostname: "127.0.0.1", port: 0 },
+        () =>
+          new Response("{}", {
+            headers: { "content-type": "application/json" },
+          }),
+      );
+      const { port } = server.addr;
+      try {
+        const result = await runCliApiExpectingFailure(
+          `http://127.0.0.1:${port}`,
+          "unused-key",
+          ["list", "listings"],
+        );
+
+        expect(result.code).toBe(6);
+        expect(result.stdout).toBe("");
+        const answer = JSON.parse(result.stderr);
+        expect(answer.error.kind).toBe("server");
+        expect(answer.error.status).toBe(200);
+        expect(answer.error.fields).toBeNull();
+        expect(answer.error.message).toContain("failed validation");
+      } finally {
+        await server.shutdown();
       }
     });
   });

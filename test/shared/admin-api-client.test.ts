@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   AdminApiError,
   type AdminApiResponse,
+  AdminApiSchemaError,
   type AdminApiTransport,
   adminApiChildCall,
   adminApiChildCreate,
@@ -169,6 +170,19 @@ describe("admin api client", () => {
       "admin api attributes response failed validation",
     );
     expect((failure as Error).message).toContain("attributes.0.id");
+  });
+
+  test("a schema-invalid success keeps the served status", async () => {
+    const { transport } = stubTransport({}, 200);
+    const failure = await adminApiList(
+      transport,
+      ADMIN_API_RESOURCES.attributes,
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AdminApiSchemaError);
+    expect((failure as AdminApiSchemaError).status).toBe(200);
+    expect((failure as Error).message).toContain(
+      "admin api attributes response failed validation",
+    );
   });
 
   test("a non-2xx status throws AdminApiError with the server's message", async () => {
