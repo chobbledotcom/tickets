@@ -185,7 +185,8 @@ const sendRegistrationNotifications = async (
     // The flags carry the failure: each side clears its own flag only when
     // its send was attempted and its far side accepted. A failed send leaves
     // its flag up for the admin. No failure activity line is written for a
-    // booking whose sends own their flags.
+    // booking whose sends own their flags. The error is still reported, so
+    // an unexpected rejection reaches the log and the alert.
     await executeBatch([
       ...(webhooksAttempted && acceptedDelivery(webhookResult)
         ? [clearPendingFlagStatement("webhooks", send.clearPendingFlagsFor)]
@@ -194,6 +195,7 @@ const sendRegistrationNotifications = async (
         ? [clearPendingFlagStatement("email", send.clearPendingFlagsFor)]
         : []),
     ]);
+    if (errors.length > 0) await reportRegistrationDeliveryError(false);
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
   } else if (deliveries.some(({ failed }) => failed)) {

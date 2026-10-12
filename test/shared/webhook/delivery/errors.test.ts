@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { PRICE_TYPE_GROUP } from "#db/price-types.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
@@ -25,6 +25,7 @@ import {
 } from "#test/shared/webhook/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -81,6 +82,45 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       "private",
     );
+  });
+
+  test("a rejected send with owned flags reports but writes no failure line", async () => {
+    // The booking's sends own the attendee's pending flags. The webhook is
+    // refused, so the flag must stay up for the admin, the unexpected
+    // rejection must still reach the log and alert, and no failure activity
+    // line is written — the flags carry the failure instead.
+    await configureTestEmail();
+    const { attendee } = await bookTestAttendeeWithFlags("Flagged Buyer", 1, 1);
+    fetchSpy.reply(() => Promise.reject(new Error("private failure detail")));
+
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await withRequestContext(() =>
+        logAndNotifyRegistration(
+          [
+            makeEntry(
+              { webhook_url: "https://refused-hook.example.com" },
+              { email: attendee.email, id: attendee.id },
+            ),
+          ],
+          { clearPendingFlagsFor: [attendee.id] },
+        ),
+      );
+      return errorSpy.calls.map(({ args }) => String(args[0]));
+    });
+
+    expectOneError(logs, "E_REGISTRATION_DELIVERY");
+    const row = await queryOne<{
+      email_pending: number;
+      webhooks_pending: number;
+    }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
+      attendee.id,
+    ]);
+    expect(row).toEqual({ email_pending: 1, webhooks_pending: 1 });
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed.",
+      ),
+    ).toHaveLength(0);
   });
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {

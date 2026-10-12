@@ -3,6 +3,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
@@ -331,8 +332,7 @@ export const bookTestAttendeeWithFlags = async (
   name: string,
   email: number,
   webhooks: number,
-): Promise<void> => {
-  const { execute } = await import("#db/client.ts");
+): Promise<{ attendee: Attendee; listing: Listing }> => {
   const listing = await createTestListing({ name: `${name} Show` });
   const { attendee } = await createTestAttendeeDirect(
     listing.id,
@@ -343,6 +343,7 @@ export const bookTestAttendeeWithFlags = async (
     "UPDATE attendees SET email_pending = ?, webhooks_pending = ? WHERE id = ?",
     [email, webhooks, attendee.id],
   );
+  return { attendee, listing };
 };
 
 export const createTestAttendeeWithPhone = async (
