@@ -106,8 +106,15 @@ const loadOrderPools = async (
   const groupIdsByListingId = await listingGroups.getIdsByKeys(
     involved.map((listing) => listing.id),
   );
-  const spanOf = (listing: ListingWithCount): number =>
-    date === null ? 1 : bookingSpanDays(listing);
+  const spanOf = (listing: ListingWithCount): number => {
+    if (date === null) return 1;
+    // A folded child's pool is judged over the span its guaranteed fold
+    // occupies. A fixed parent's span inherits onto it, never below the
+    // child's own span.
+    const foldSpan = catalog.foldSpanByChildId.get(listing.id);
+    if (foldSpan === undefined) return bookingSpanDays(listing);
+    return Math.max(foldSpan, bookingSpanDays(listing));
+  };
   const spanByGroupId = widestSpanPerGroup(
     involved,
     groupIdsByListingId,

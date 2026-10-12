@@ -23,11 +23,11 @@ import {
   packageOption,
 } from "#shared/order/options.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
-import type { Group, ListingWithCount } from "#types";
+import { availableDayCounts, type Group, type ListingWithCount } from "#types";
+import { allChildListings, loadChildrenByParentId } from "./child-listings.ts";
 import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { loadBookablePackages } from "./group-liveness.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
-import { allChildListings, loadChildrenByParentId } from "./ticket-payment.ts";
 import type { ChildrenByParentId } from "./types.ts";
 
 /** Load the bookable listings for the order page, in the standard sorted order. */
@@ -51,33 +51,78 @@ export type OrderCatalog = {
   /** The children the options auto-fold, so the pools carry the child
    * capacity that folded demand draws from. */
   childListings: ListingWithCount[];
+  /** The shortest span a guaranteed fold occupies for each child. The pools
+   * judge the child over the days that fold takes up. */
+  foldSpanByChildId: ReadonlyMap<number, number>;
   options: OrderOption[];
 };
 
-/** The child units the form auto-folds under one parent: a sole bookable child
- * takes the whole quantity the option books for that parent. The form's own
- * resolver decides — an empty form says nothing was chosen yet, so only the
- * auto-fill can answer. */
-const foldedChildUnits = (
+/** The day counts the form can book one parent for. A customisable listing
+ * offers each priced count. Everything else offers one fixed span. */
+const parentBookableSpans = (parent: TicketListing): number[] =>
+  parent.listing.customisable_days
+    ? availableDayCounts(parent.listing)
+    : [parentResolvedDuration(parent.listing, 1)];
+
+/** The child units the form guarantees for one parent, and the shortest span
+ * that fold occupies. A sole bookable child takes the whole quantity the
+ * option books for that parent. The guarantee holds only when that same fold
+ * resolves at every span the parent can be booked for.
+ *
+ * When some span folds differently (or no child is bookable there), the
+ * buyer's choice decides and nothing is guaranteed. The form's own resolver
+ * decides — an empty form says nothing was chosen yet, so only the auto-fill
+ * can answer. */
+const guaranteedFold = (
+  parent: TicketListing,
+  children: readonly TicketListing[],
+  parentQty: number,
+): { units: ReadonlyMap<number, number>; spanDays: number } | null => {
+  const spans = parentBookableSpans(parent);
+  const unitsAt = (span: number): ReadonlyMap<number, number> | null => {
+    const selections = resolveChildSelections(
+      parent,
+      children.filter((child) => childSelectableForSpan(child, span)),
+      parentQty,
+      new FormParams(),
+    );
+    if ("error" in selections) return null;
+    return new Map(
+      selections.map(({ child, qty }): [number, number] => [
+        child.listing.id,
+        qty,
+      ]),
+    );
+  };
+  const folds = spans.map(unitsAt);
+  const first = folds[0];
+  if (!first) return null;
+  const sameUnits = (units: ReadonlyMap<number, number> | null): boolean =>
+    units !== null &&
+    units.size === first.size &&
+    [...first].every(([id, qty]) => units.get(id) === qty);
+  if (!folds.every(sameUnits)) return null;
+  return { spanDays: Math.min(...spans), units: first };
+};
+
+/** Charge one parent's guaranteed fold: return its units, and record the span
+ * each charged child's fold occupies. The widest span wins, for a child
+ * shared by parents that fold it over different spans. */
+const chargedFoldUnits = (
+  foldSpanByChildId: Map<number, number>,
   parent: TicketListing,
   children: readonly TicketListing[],
   parentQty: number,
 ): ReadonlyMap<number, number> => {
-  const bookable = children.filter((child) =>
-    childSelectableForSpan(child, parentResolvedDuration(parent.listing, 1)),
-  );
-  const selections = resolveChildSelections(
-    parent,
-    bookable,
-    parentQty,
-    new FormParams(),
-  );
-  if ("error" in selections) return new Map();
-  const units = new Map<number, number>();
-  for (const { child, qty } of selections) {
-    units.set(child.listing.id, qty);
+  const fold = guaranteedFold(parent, children, parentQty);
+  if (fold === null) return new Map();
+  for (const childId of fold.units.keys()) {
+    const widest = foldSpanByChildId.get(childId);
+    if (widest === undefined || fold.spanDays > widest) {
+      foldSpanByChildId.set(childId, fold.spanDays);
+    }
   }
-  return units;
+  return fold.units;
 };
 
 /** The child units one package option auto-folds. Each member parent's sole
@@ -87,6 +132,7 @@ const foldedPackageChildUnits = (
   pkg: OrderPackage,
   childrenByParentId: ChildrenByParentId,
   parentInfoById: ReadonlyMap<number, TicketListing>,
+  foldSpanByChildId: Map<number, number>,
 ): ReadonlyMap<number, number>[] => {
   const memberInfos: TicketListing[] = [];
   for (const member of pkg.members) {
@@ -99,8 +145,9 @@ const foldedPackageChildUnits = (
     const memberId = member.listing.id;
     const message = `Package member ${memberId} left the catalog`;
     const memberQty = requiredMapValue(pkg.quantities, memberId, message);
-    const units = foldedChildUnits(member, children, memberQty);
-    folds.push(units);
+    folds.push(
+      chargedFoldUnits(foldSpanByChildId, member, children, memberQty),
+    );
   }
   return folds;
 };
@@ -172,6 +219,7 @@ export const loadOrderCatalog = async (): Promise<OrderCatalog> => {
       memberListings.filter((listing) => !cardIds.has(listing.id)),
     )),
   ];
+  const foldSpanByChildId = new Map<number, number>();
   const childrenByParentId = await loadChildrenByParentId(parentInfos);
   const parentInfoById = new Map(
     parentInfos.map((info): [number, TicketListing] => [info.listing.id, info]),
@@ -182,13 +230,19 @@ export const loadOrderCatalog = async (): Promise<OrderCatalog> => {
     ...packages.map((pkg) =>
       withFoldedChildren(
         packageOption(pkg.group, pkg.members, pkg.quantities, true),
-        ...foldedPackageChildUnits(pkg, childrenByParentId, parentInfoById),
+        ...foldedPackageChildUnits(
+          pkg,
+          childrenByParentId,
+          parentInfoById,
+          foldSpanByChildId,
+        ),
       ),
     ),
     ...ticketListings.map((info) =>
       withFoldedChildren(
         listingOption(info.listing, !info.isSoldOut && !info.isClosed),
-        foldedChildUnits(
+        chargedFoldUnits(
+          foldSpanByChildId,
           info,
           childrenByParentId.get(info.listing.id) ?? [],
           info.listing.min_quantity,
@@ -198,6 +252,7 @@ export const loadOrderCatalog = async (): Promise<OrderCatalog> => {
   ];
   return {
     childListings: allChildListings(childrenByParentId),
+    foldSpanByChildId,
     options,
     packages,
     ticketListings,

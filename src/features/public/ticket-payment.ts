@@ -45,7 +45,7 @@ import {
 } from "#db/modifier-resolve.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { settings } from "#db/settings.ts";
-import { compact, requiredMapValue, unique } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -67,6 +67,7 @@ import {
   type Group,
   type ListingWithCount,
 } from "#types";
+import { childListingIdsOf, loadChildrenByParentId } from "./child-listings.ts";
 import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
@@ -492,43 +493,6 @@ const keepPackageDatesChildrenCanServe = (
             holidays,
           }),
   );
-
-/**
- * Children are loaded by relationship only. Bookability is evaluated at render
- * and submit against the resolved date.
- *
- * Keeping the date-less group cap off a daily parent's children needs no code
- * here. That aggregate already excludes every daily listing, and a daily
- * parent's group is type-homogeneous, so any child co-grouped with it is daily
- * too. Per-date capacity is left to the date-aware {@link checkAvailability},
- * which rejects and never clamps.
- */
-export const loadChildrenByParentId = async (
-  listings: TicketListing[],
-): Promise<ChildrenByParentId> => {
-  const childLinks = await hydrateListingLinks(
-    listingChildren,
-    listings.map((e) => e.listing.id),
-  );
-  const childrenByParent = childLinks.listingsByKey;
-  const result: ChildrenByParentId = new Map();
-  for (const [parentId, children] of childrenByParent) {
-    result.set(parentId, await buildTicketListingsWithGroupCapacity(children));
-  }
-  return result;
-};
-
-/** Every parent's children flattened to their listings, in parent order. */
-export const allChildListings = (
-  childrenByParentId: ChildrenByParentId,
-): ListingWithCount[] =>
-  [...childrenByParentId.values()].flat().map((child) => child.listing);
-
-/** Distinct child listing ids across every parent's children. */
-export const childListingIdsOf = (
-  childrenByParentId: ChildrenByParentId,
-): number[] =>
-  unique(allChildListings(childrenByParentId).map((listing) => listing.id));
 
 /** Day counts the parent can pass to daily children. */
 const parentDayCountsForChildren = (parent: ListingWithCount): number[] => {

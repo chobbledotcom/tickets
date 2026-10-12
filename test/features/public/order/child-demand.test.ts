@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
+import { N_PLUS_ONE_THRESHOLD } from "#db/query-log.ts";
+import { loadOrderCatalog } from "#routes/public/order-catalog.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -10,11 +12,13 @@ import {
 } from "#test/features/public/order/helpers.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 /** Two parent listings that share one child listing with the given capacity. */
 const sharedChildParents = async (childName: string, maxAttendees: number) => {
@@ -165,6 +169,109 @@ describeWithEnv(
           label: "",
           state: "available",
         });
+      });
+
+      test("charges the sole child when the parent only books two days", async () => {
+        // Both parents price one length: 2 days, and their sole child serves
+        // exactly 2 days. The form folds the child at 2 days under the
+        // selected parent, so its unit leaves the child pool and the rival
+        // parent cannot join — the fold is charged, not filtered out at the
+        // gallery's one-day span.
+        const child = await createDailyTestListing({
+          durationDays: 2,
+          maxAttendees: 1,
+          name: "Two Day Kit",
+        });
+        const parentA = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 2: 2000 },
+          durationDays: 2,
+          name: "Two Day Trip A",
+        });
+        const parentB = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 2: 2000 },
+          durationDays: 2,
+          name: "Two Day Trip B",
+        });
+        await listingChildren.setIds(parentA.id, [child.id]);
+        await listingChildren.setIds(parentB.id, [child.id]);
+
+        const data = await fetchAvailability(
+          `select_${parentA.id}=1&start_date=${orderDate()}`,
+        );
+        expectState(data.states, parentA, { label: "", state: "selected" });
+        expectState(data.states, parentB, {
+          label: "Remove Two Day Trip A to add",
+          state: "blocked",
+        });
+      });
+
+      test("judges the folded child over the fixed parent's three days", async () => {
+        // The fixed 3-day parent folds its sole customisable child at 3 days,
+        // so the child's pool must cover every day of that span: a child full
+        // on the second day reads unavailable, as the form refuses it.
+        const child = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 2000, 3: 3000 },
+          durationDays: 3,
+          maxAttendees: 1,
+          name: "Span Kit",
+        });
+        const parent = await createDailyTestListing({
+          durationDays: 3,
+          name: "Three Day Trip",
+        });
+        await listingChildren.setIds(parent.id, [child.id]);
+        await bookAttendee(child, {
+          date: addDays(orderDate(), 1),
+          durationDays: 1,
+        });
+
+        const data = await fetchAvailability(`start_date=${orderDate()}`);
+        expectState(data.states, parent, {
+          label: "Sold Out",
+          state: "unavailable",
+        });
+      });
+    });
+
+    describe("loadOrderCatalog", () => {
+      enablePublicOrder();
+
+      test("reads many parents' shared child once, not once per parent", async () => {
+        // A capped group makes each per-parent child hydration read the
+        // group's remaining again: one parent past the N+1 guard (25) would
+        // cross it before the fold charges a single unit.
+        const group = await createTestGroup({
+          maxAttendees: 5,
+          name: "Capped Pool",
+        });
+        const child = await createTestListing({
+          groupId: group.id,
+          maxAttendees: 5,
+          name: "Pool Kit",
+        });
+        const parentIds: number[] = [];
+        for (let i = 0; i <= N_PLUS_ONE_THRESHOLD; i++) {
+          const parent = await createTestListing({
+            name: `Catalog Parent ${i}`,
+          });
+          await listingChildren.setIds(parent.id, [child.id]);
+          parentIds.push(parent.id);
+        }
+
+        const { value: catalog, roundTrips } = await runAndCountRoundTrips(() =>
+          loadOrderCatalog(),
+        );
+        // One hydration covers every parent's children, so the catalog's
+        // reads stay flat in the parent count (a per-parent read costs about
+        // two each), and the fold still charges the shared child.
+        const option = catalog.options.find(
+          (o) => o.key === `listing:${parentIds[0]}`,
+        );
+        expect(option?.unitsByListingId.get(child.id)).toBe(1);
+        expect(roundTrips).toBeLessThanOrEqual(20);
       });
     });
   },

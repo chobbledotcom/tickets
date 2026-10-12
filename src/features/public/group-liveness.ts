@@ -23,7 +23,11 @@ import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { requiredMapValue, uniqueBy } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { Group, GroupWithMembers, ListingWithCount } from "#types";
-import { classifyForDiscovery } from "./discovery.ts";
+import { mappedChildrenByParentId } from "./child-listings.ts";
+import {
+  classifyForDiscovery,
+  type DiscoveryClassification,
+} from "./discovery.ts";
 
 /* jscpd:ignore-end */
 
@@ -146,11 +150,9 @@ const bookablePackageIds = async (
       isRegistrationClosed(listing),
       remainingByListingId.get(listing.id),
     );
-  const childrenByParentId = new Map(
-    [...childrenByParent].map(([parentId, children]) => [
-      parentId,
-      children.map(toTicketListing),
-    ]),
+  const childrenByParentId = mappedChildrenByParentId(
+    childrenByParent,
+    (_parentId, child) => toTicketListing(child),
   );
   return packages
     .filter((group) => {
