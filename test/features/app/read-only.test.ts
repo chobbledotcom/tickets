@@ -142,7 +142,6 @@ describe("read-only request guard in update mode", () => {
       expect(updating(path, "POST"), path).toBe("page");
     }
   });
-
   test("blocks admin mutations like ordinary read-only mode", () => {
     expect(updating("/admin/listing/42/edit", "GET")).toBe("page");
     expect(updating("/admin/groups/42/edit", "POST")).toBe("page");

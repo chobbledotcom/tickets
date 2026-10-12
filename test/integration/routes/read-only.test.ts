@@ -386,7 +386,6 @@ describeWithEnv(
         ),
       );
     });
-
     test("an admin mutation still redirects to /read-only", async () => {
       expectReadOnlyRedirect(await postForm("/admin/listing"));
     });
