@@ -57,13 +57,16 @@ const splitStatus = (stdout: string): { body: string; statusText: string } => {
   };
 };
 
-/** Parse the answer body. A body that is not JSON keeps the status the
- *  transport already extracted: the server answered, so the contract's
- *  status is its HTTP status, not null. */
+/** Parse the answer body. A non-JSON body on an error status is the
+ *  server's refusal: the raw body goes back, and the client's status
+ *  mapping names the kind (401 → not_allowed, 400 → validation). A non-JSON
+ *  success keeps the status the transport already extracted: the server
+ *  answered, so the contract's status is its HTTP status, not null. */
 const parseJson = (text: string, status: number): unknown => {
   try {
     return JSON.parse(text) as unknown;
   } catch {
+    if (status >= 400) return text;
     throw new CliError(
       "server",
       `The server answered with text that is not JSON: ${text.slice(0, 200)}`,
@@ -90,7 +93,9 @@ export const curlJson = async (
   const stderr = new TextDecoder().decode(output.stderr);
   const { body, statusText } = splitStatus(stdout);
   if (!output.success) {
-    throw new Error(curlFailureMessage(stderr, body));
+    // The server kind survives the importer's io fallback: a transfer
+    // failure is never a local input failure.
+    throw new CliError("server", curlFailureMessage(stderr, body));
   }
   const status = Number(statusText);
   return { data: parseJson(body, status), status };

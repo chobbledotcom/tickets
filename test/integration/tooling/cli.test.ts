@@ -154,23 +154,25 @@ describe("CLI curl", () => {
     }
   });
 
-  test("keeps the status on the error when the answer is not JSON", async () => {
+  /** One caught curlJson answer against the port: the tests assert the
+   *  thrown shape, so the rejection becomes a value. */
+  const curlJsonFailure = (port: number): Promise<unknown> =>
+    curlJson(
+      { apiHostname: `http://127.0.0.1:${port}`, apiKey: "key" },
+      { method: "GET", path: "/api/admin/listings" },
+    ).catch((error: unknown) => error);
+
+  test("keeps the status on the error when a success reply is not JSON", async () => {
     const server = Deno.serve(
       { hostname: "127.0.0.1", port: 0 },
-      () => new Response("<html>502</html>", { status: 502 }),
+      () => new Response("<html>sign in</html>"),
     );
     const { port } = server.addr;
     try {
-      await expect(
-        curlJson(
-          { apiHostname: `http://127.0.0.1:${port}`, apiKey: "key" },
-          { method: "GET", path: "/api/admin/listings" },
-        ),
-      ).rejects.toMatchObject({
-        kind: "server",
-        message: expect.stringContaining("not JSON"),
-        status: 502,
-      });
+      const failure = await curlJsonFailure(port);
+      expect(failure).toBeInstanceOf(CliError);
+      expect((failure as CliError).message).toContain("not JSON");
+      expect((failure as CliError).status).toBe(200);
     } finally {
       await server.shutdown();
     }
@@ -216,7 +218,15 @@ describe("CLI curl", () => {
     );
     expect(error.kind).toBe("server");
     expect(error.status).toBe(502);
-    expect(error.message).toContain("not JSON");
+    expect(error.message).toContain("admin api request failed");
+  });
+
+  test("maps an HTML 401 reply to the not-allowed kind", async () => {
+    const error = await runAgainstServer(
+      () => new Response("<html>sign in</html>", { status: 401 }),
+    );
+    expect(error.kind).toBe("not_allowed");
+    expect(error.status).toBe(401);
   });
 
   test("reports the HTTP status for an empty reply", async () => {
@@ -225,6 +235,19 @@ describe("CLI curl", () => {
     );
     expect(error.kind).toBe("server");
     expect(error.status).toBe(304);
+  });
+
+  test("answers a server-kind error for a curl transfer failure", async () => {
+    const server = Deno.serve(
+      { hostname: "127.0.0.1", port: 0 },
+      () => new Response("abandoned"),
+    );
+    const { port } = server.addr;
+    await server.shutdown();
+    const failure = await curlJsonFailure(port);
+    expect(failure).toBeInstanceOf(CliError);
+    expect((failure as CliError).kind).toBe("server");
+    expect((failure as CliError).status).toBeUndefined();
   });
 });
 

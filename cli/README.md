@@ -121,4 +121,5 @@ task targets the site the `.env` names — check it before you run.
 The importer's stdout is one JSON report with the counts and the progress
 lines. Its failures answer the same stderr JSON error shape. A local input or
 environment failure (a catalog refusal, an unreadable file) exits `6` with
-kind `"io"`. A refused request maps its HTTP status like the api command.
+kind `"io"`. A curl failure answers kind `"server"`, like the api command. A
+refused request maps its HTTP status like the api command.
