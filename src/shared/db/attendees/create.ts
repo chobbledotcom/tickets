@@ -80,6 +80,9 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   checked_in: 0,
   created: input.created,
   date: input.date,
+  // A just-created in-memory echo: the caller reads the badge rule from the
+  // stored row, not from this echo.
+  email_owed: 0,
   email_pending: input.emailPending ?? PENDING_NOTIFICATION.none,
   end_date: input.date
     ? addDays(

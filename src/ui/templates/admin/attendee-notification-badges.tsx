@@ -5,15 +5,19 @@
  * which. The booking wrote the value when it was made.
  */
 
-import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
+import {
+  emailBadgeOwed,
+  PENDING_NOTIFICATION,
+} from "#db/attendees/notification-flags.ts";
 import { t } from "#i18n";
 import { Badge } from "#templates/components/badge.tsx";
 import type { Attendee } from "#types";
 
-/** The two flag columns every attendee row carries. */
+/** The flag columns every attendee read carries, with the email rule the read
+ * resolved into `email_owed`. */
 export type PendingNotificationFlags = Pick<
   Attendee,
-  "email_pending" | "webhooks_pending"
+  "email_owed" | "email_pending" | "webhooks_pending"
 >;
 
 /** One pill for a flag that is still up. None for a flag that is down. */
@@ -29,12 +33,21 @@ const pendingBadge = (value: number, label: string): JSX.Element | null => {
 };
 
 /** The pending-notification pills for one attendee, in flag order. Empty when
- * every send the booking owed got accepted. */
-export const pendingNotificationBadges = ({
-  email_pending,
-  webhooks_pending,
-}: PendingNotificationFlags): JSX.Element[] =>
+ * every send the booking owed got accepted. The email pill follows the same
+ * read-time rule as the dashboard count: no booked listing collects an email
+ * any more, no email badge. */
+export const pendingNotificationBadges = (
+  attendee: PendingNotificationFlags,
+): JSX.Element[] =>
   [
-    pendingBadge(email_pending, t("attendees.badge.email_not_sent")),
-    pendingBadge(webhooks_pending, t("attendees.badge.webhooks_not_sent")),
+    emailBadgeOwed(attendee)
+      ? pendingBadge(
+          attendee.email_pending,
+          t("attendees.badge.email_not_sent"),
+        )
+      : null,
+    pendingBadge(
+      attendee.webhooks_pending,
+      t("attendees.badge.webhooks_not_sent"),
+    ),
   ].filter((badge) => badge !== null);

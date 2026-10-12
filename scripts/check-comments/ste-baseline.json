@@ -2229,7 +2229,7 @@
     "wordy": 2,
     "contraction": 2,
     "banned-modal": 11,
-    "semicolon": 19
+    "semicolon": 18
   },
   "src/shared/update.ts": {
     "long-sentence": 4,

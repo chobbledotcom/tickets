@@ -97,6 +97,13 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     expect(attendees).toHaveLength(1);
     expect(attendees[0]?.quantity).toBe(1);
     expect(attendees[0]?.price_paid).toBe(1000);
+    // The batch wrote the registration activity exactly once. Queueing the
+    // sends adds no second copy: the post-commit path writes nothing.
+    expect(
+      (await getAllActivityLog()).filter((entry) =>
+        entry.message.includes("Attendee registered"),
+      ),
+    ).toHaveLength(1);
   });
 
   /** Book a paid listing, read its one attendee's pending flags back. */
@@ -188,26 +195,28 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toBeNull();
   });
 
-  /** A paid booking costs five database calls, answered or not. The answers,
-   * the questions-record, and the activity lines ride the create batch, so an
-   * answered booking costs the same as a bare one. */
-  const expectBookedInFiveCalls = async (
+  /** A paid booking costs four database calls, answered or not. The answers,
+   * the questions-record, and the activity lines ride the create batch — one
+   * write fewer than before the batch carried them, because the post-commit
+   * queue writes nothing — so an answered booking costs the same as a bare
+   * one. */
+  const expectBookedInFourCalls = async (
     id: string,
     data: Parameters<typeof processPaymentSession>[1],
   ): Promise<void> => {
-    const calls = await countDatabaseCalls(5, async () => {
+    const calls = await countDatabaseCalls(4, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(5);
+    expect(calls).toBe(4);
   };
 
-  test("creates an unanswered paid booking in five database calls", async () => {
+  test("creates an unanswered paid booking in four database calls", async () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
-    await expectBookedInFiveCalls(id, data);
+    await expectBookedInFourCalls(id, data);
   });
 
-  test("creates and answers a paid booking in five database calls", async () => {
+  test("creates and answers a paid booking in four database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
     const question = await questionsTable.insert({
@@ -221,7 +230,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     });
     await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
-    await expectBookedInFiveCalls(id, data);
+    await expectBookedInFourCalls(id, data);
   });
 
   test("takes a checkout's staged answers into its confirmation email", async () => {

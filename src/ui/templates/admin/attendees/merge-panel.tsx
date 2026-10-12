@@ -17,6 +17,9 @@ type MergeSourceInfo = {
   special_instructions: string;
   ticket_token: string;
   bookings: ListingAttendeeRow[];
+  email_owed: number;
+  email_pending: number;
+  webhooks_pending: number;
 };
 
 /** Search for and merge a source attendee into the current attendee. */
@@ -62,7 +65,12 @@ export const AttendeeMergePanel = (
     {source && mergeDiff && (
       <div>
         <div class="prose">
-          <h3>{t("admin.attendees.merge_preview")}</h3>
+          <h3>
+            {t("admin.attendees.merge_preview")}
+            {/* The merge deletes the source attendee, so its owed sends show
+                beside the preview the same way the target's do. */}
+            {pendingNotificationBadges(source)}
+          </h3>
           <p>{t("admin.attendees.merge_intro")}</p>
         </div>
 

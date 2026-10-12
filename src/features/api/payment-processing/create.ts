@@ -238,20 +238,29 @@ export const createAttendeeForSession = async (
         sessionId: session.id,
       },
     );
-    const completion = await paidBookingTail({
-      codeSpecs,
-      intent,
-      // The listings in booking-row order, the order the created entries keep.
-      listings: bookings.map((booking) =>
-        requiredMapValue(
-          listingById,
-          booking.listingId,
-          `Listing ${booking.listingId} was not loaded for a created booking`,
+    // A transient failure reading or decrypting the staged answers must not
+    // refund a valid payment. Nothing is written yet, so the provider can
+    // redeliver and the whole booking runs again. The retryable shape routes
+    // through the same recovery as a failed create.
+    let completion: PaidBookingTail;
+    try {
+      completion = await paidBookingTail({
+        codeSpecs,
+        intent,
+        // The listings in booking-row order, the order the created entries keep.
+        listings: bookings.map((booking) =>
+          requiredMapValue(
+            listingById,
+            booking.listingId,
+            `Listing ${booking.listingId} was not loaded for a created booking`,
+          ),
         ),
-      ),
-      modifierApplications: pricedOrder.modifierApplications,
-      sessionId: session.id,
-    });
+        modifierApplications: pricedOrder.modifierApplications,
+        sessionId: session.id,
+      });
+    } catch (error) {
+      return { error, ok: null };
+    }
     prepared = {
       attendeeInput: {
         ...attendeeBaseFields(session.paymentReference, intent, publicStatusId),

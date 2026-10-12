@@ -261,6 +261,18 @@ const resendNotification = async (
     });
   }
 
+  // One site serves the whole buyer, so the assignment reads every line they
+  // hold, refunded ones too. A claim recorded on another purchase's plan
+  // keeps the buyer served. So does a claim on a line refunded later.
+  const wholeEntries = await scopeEntries(attendeeId, { kind: "whole" });
+  // The flags are attendee-wide: clear them only when this resend's send
+  // covered every live booking line the attendee holds. A resend scoped to
+  // one package beside another purchase never attempted those lines. Such a
+  // resend leaves the flags up for a whole-attendee resend to clear.
+  const coversWholeAttendee =
+    notify.length ===
+    wholeEntries.filter((entry) => !entry.attendee.refunded).length;
+
   // An admin session can spend the owner key. The resend is therefore the
   // one path that reads the buyer's free-text answers straight from the
   // strings table.
@@ -273,17 +285,14 @@ const resendNotification = async (
 
   await Promise.all([
     logAndNotifyRegistration(notify, {
-      // This resend owns the booking's pending-notification flags: the email
-      // send clears email_pending when its far side accepts, the webhook send
-      // clears webhooks_pending the same way. A refused send leaves its flag
-      // up, so the badge keeps saying what never went out.
-      clearPendingFlagsFor: [attendeeId],
+      // This resend owns the booking's pending-notification flags when it
+      // covered the whole attendee. The email send clears email_pending when
+      // its far side accepts. The webhook send clears webhooks_pending the
+      // same way. A refused send leaves its flag up, so the badge keeps
+      // saying what never went out.
+      clearPendingFlagsFor: coversWholeAttendee ? [attendeeId] : undefined,
       freeTexts,
-      // One site serves the whole buyer, so the assignment reads every line
-      // they hold, refunded ones too. A claim recorded on another purchase's
-      // plan keeps the buyer served. So does a claim on a line refunded
-      // later.
-      siteAssignmentEntries: await scopeEntries(attendeeId, { kind: "whole" }),
+      siteAssignmentEntries: wholeEntries,
     }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,

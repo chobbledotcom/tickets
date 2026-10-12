@@ -274,18 +274,14 @@ export interface NotifyRegistrationOptions {
   siteTokenIndex?: string | undefined;
 }
 
-/** Record a registration and queue its external notifications. */
-export const logAndNotifyRegistration = async (
+/** Queue a registration's external sends: the confirmation email and the
+ * registration webhooks, then built-site assignment and renewal processing.
+ * The caller owns the registration's activity line, so a caller whose batch
+ * already wrote it queues without a second copy. */
+export const queueRegistrationSends = async (
   entries: EmailEntry[],
-  options: NotifyRegistrationOptions = {},
+  options: NotifyRegistrationOptions,
 ): Promise<void> => {
-  await logActivities(
-    entries.map(({ listing, attendee }) => ({
-      attendeeId: attendee.id,
-      listing,
-      message: registeredActivityMessage(listing.name),
-    })),
-  );
   const currency = settings.currency;
   addPendingWork(
     queueRegistrationNotifications(
@@ -310,4 +306,19 @@ export const logAndNotifyRegistration = async (
       ),
     ),
   );
+};
+
+/** Record a registration and queue its external notifications. */
+export const logAndNotifyRegistration = async (
+  entries: EmailEntry[],
+  options: NotifyRegistrationOptions = {},
+): Promise<void> => {
+  await logActivities(
+    entries.map(({ listing, attendee }) => ({
+      attendeeId: attendee.id,
+      listing,
+      message: registeredActivityMessage(listing.name),
+    })),
+  );
+  await queueRegistrationSends(entries, options);
 };

@@ -353,12 +353,13 @@ export interface Attendee extends ContactInfo {
   checked_in: number;
   created: string;
   date: string | null;
+  /** 1 while a booked listing still collects an email (`emailOwedSql`). Echoes hold 0. */
+  email_owed: number;
   /** 0 none, 1 online booking, 2 admin add — an owed confirmation email. */
   email_pending: number;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the
    * last booked day), from `listing_attendees.end_at`. Null for date-less
-   * bookings. Renders each booking's true span, which varies on
-   * customisable-days listings. */
+   * bookings. Renders each booking's true span, not the listing's default. */
   end_date: string | null;
   id: number;
   kind: string;
@@ -371,7 +372,7 @@ export interface Attendee extends ContactInfo {
    * stamped on every row of a package order so tickets/emails group under it. */
   package_group_id: number;
   payment_id: string;
-  /** Owner-key-encrypted PII blob; "" only on a just-created in-memory echo. */
+  /** Owner-key-encrypted PII blob; "" on a just-created in-memory echo. */
   pii_blob: OwnerKeyEncrypted | "";
   price_paid: string;
   quantity: number;
@@ -384,7 +385,7 @@ export interface Attendee extends ContactInfo {
   status_id: number | null;
   ticket_token: string;
   ticket_token_index: BlindIndex;
-  /** Registration webhooks still owed; same values as `email_pending`. */
+  /** Registration webhooks still owed. Same values as `email_pending`. */
   webhooks_pending: number;
 }
 
@@ -418,12 +419,10 @@ export interface Session {
 /** Schema for admin role levels.
  * - `owner`/`manager` share full back-office access (gated per-page; managers
  *   are denied a subset).
- * - `agent` is a delivery-driver login that reaches only its own run sheet
- *   (`/admin/deliveries`).
+ * - `agent` is a delivery-driver login for its own run sheet only (`/admin/deliveries`).
  * - `editor` writes listings, groups and site content but holds no DATA_KEY,
  *   so attendee PII stays undecryptable for them (`CONTENT_ADMIN_LEVELS`).
- * - `scanner` works a door: the scanner pages, the scan API, and the ticket
- *   check-in page, and nothing else (`DOOR_ADMIN_LEVELS`). */
+ * - `scanner` works a door: the scanner pages, the scan API, and check-in (`DOOR_ADMIN_LEVELS`). */
 export const AdminLevelSchema = v.picklist([
   "owner",
   "manager",
@@ -750,10 +749,10 @@ export type AttendeeRowListing = {
 
 /**
  * The attendee fields the shared attendee table and its column registry
- * actually read. A full decrypted {@link Attendee} satisfies it, and so does a
- * field-selected read that skipped the money subqueries — so the browsing
- * tables can render rows that never computed `price_paid` or
- * `remaining_balance` (see `src/shared/db/attendees/select.ts`).
+ * actually read. A full decrypted {@link Attendee} satisfies it, and so does
+ * a field-selected read that skipped the money subqueries — so the browsing
+ * tables render rows that never computed the money columns
+ * (`src/shared/db/attendees/select.ts`).
  */
 export type DisplayAttendee = Pick<
   Attendee,
@@ -762,6 +761,7 @@ export type DisplayAttendee = Pick<
   | "created"
   | "date"
   | "email"
+  | "email_owed"
   | "email_pending"
   | "id"
   | "kind"

@@ -192,6 +192,59 @@ describeWithEnv(
         return row!;
       };
 
+      test("a package-scoped resend beside another purchase clears no flags", async () => {
+        // The attendee holds two packages. The resend runs for the first
+        // booking's package alone: its accepted webhook never attempted the
+        // other package's send, so the attendee-wide flags stay up for a
+        // whole-attendee resend to clear.
+        await configureTestEmail();
+        const listingA = await createTestListing({
+          name: "Package A Show",
+          webhookUrl: "https://a.example.com/hook",
+        });
+        const listingB = await createTestListing({
+          name: "Package B Show",
+          webhookUrl: "https://b.example.com/hook",
+        });
+        const attendee = await firstBookedAttendee(
+          [
+            { listingId: listingA.id, packageGroupId: 1, quantity: 1 },
+            { listingId: listingB.id, packageGroupId: 2, quantity: 1 },
+          ],
+          "Partial Resend",
+          "partial-resend@example.com",
+        );
+        await execute(
+          "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
+          [attendee.id],
+        );
+
+        using webhookFetch = stubFetch(new Response());
+        const { response } = await adminFormPost(
+          `/admin/attendees/${attendee.id}/resend-notification`,
+          { confirm_identifier: "Partial Resend" },
+        );
+        expect(response.status).toBe(302);
+        // Package A's webhook went out; package B's did not. (The stub sees
+        // the confirmation email's catcher too, so filter by URL.)
+        const urls = webhookFetch.calls.map((call) => String(call.args[0]));
+        expect(
+          urls.filter((url) => url.includes("a.example.com")),
+        ).toHaveLength(1);
+        expect(
+          urls.filter((url) => url.includes("b.example.com")),
+        ).toHaveLength(0);
+
+        const row = await queryOne<{
+          email_pending: number;
+          webhooks_pending: number;
+        }>(
+          "SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?",
+          [attendee.id],
+        );
+        expect(row).toEqual({ email_pending: 1, webhooks_pending: 1 });
+      });
+
       test("a resend whose sends are accepted clears the pending flags", async () => {
         // Each send was accepted, so each side's flag is down.
         expect(await resendWithFlags(200)).toEqual({

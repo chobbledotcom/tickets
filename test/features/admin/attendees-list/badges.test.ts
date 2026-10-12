@@ -2,6 +2,7 @@
  * when a send never got accepted. */
 
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
@@ -22,6 +23,25 @@ describeWithEnv("pending notification badges", { db: true }, () => {
 
     await expectHtml(await adminGet("/admin/attendees"), {
       contains: ["Hand Added Buyer", "Email not sent", "badge-warning"],
+    });
+  });
+
+  test("a booking whose listing stopped collecting email carries no email badge", async () => {
+    const { listing } = await bookTestAttendeeWithFlags(
+      "Dropped Email Buyer",
+      1,
+      0,
+    );
+    // The listing no longer collects an email, so the stored flag no longer
+    // means an owed send: the badge follows the current rule, not the flag
+    // alone.
+    await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await expectHtml(await adminGet("/admin/attendees"), {
+      contains: ["Dropped Email Buyer"],
+      notContains: ["Email not sent"],
     });
   });
 

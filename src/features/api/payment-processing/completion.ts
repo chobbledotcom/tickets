@@ -6,14 +6,15 @@ import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
-import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
+import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 
 /**
- * Queue a paid booking's external sends after its create batch committed. The
- * batch already wrote the booking, its answers, its activity lines, and its
- * pending-notification flags. This only queues the confirmation email and the
- * registration webhooks, whose accepted sends clear their own flags. A send
- * that never gets accepted leaves its flag up for the admin.
+ * Queue a paid booking's external sends after its create batch committed.
+ * The batch already wrote the booking, its answers, its activity lines, and
+ * its pending-notification flags. This queues the confirmation email and the
+ * registration webhooks without writing the registration activity again. No
+ * post-commit database write stands between the committed booking and its
+ * sends. A send that never gets accepted leaves its flag up for the admin.
  *
  * A redelivery that finds the booking already exists never reaches this: the
  * ledger replay answers success first, so the sends are queued once.
@@ -26,7 +27,7 @@ export const completePaidBooking = async (
   freeTexts: FreeTextAnswers | undefined,
 ): Promise<PaymentResult> => {
   const firstEntry = createdEntries[0]!;
-  await logAndNotifyRegistration(createdEntries, {
+  await queueRegistrationSends(createdEntries, {
     clearPendingFlagsFor: [firstEntry.attendee.id],
     freeTexts,
     packageFacts: notificationPackages,
