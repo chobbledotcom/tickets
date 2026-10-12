@@ -18,17 +18,36 @@ describe("running deno test with the compact reporter", () => {
       }),
     );
 
-  /** Write a one-test file and run the compact reporter over it. */
+  /** Write a one-test file and run the compact reporter over it. A filter
+   * travels to the child as deno's own `--filter` — the fixture is a plain
+   * test, where deno's and the repo's filter agree — and to the parent's
+   * zero-match check as the same value. */
   const runOver = async (
     body: string,
+    options: { nameFilter?: string } = {},
   ): Promise<{ code: number; logs: string[] }> => {
     const dir: TempPath = tempDir();
     try {
       Deno.writeTextFileSync(`${dir.path}/sample.test.ts`, body);
       const { errors, logs, value } = await capturingConsole(() =>
         runCompactDenoTest(
-          ["test", "--no-check", "-A", "--reporter=tap", "sample.test.ts"],
-          { cwd: dir.path, env: { CI: "1" } },
+          [
+            "test",
+            "--no-check",
+            "-A",
+            "--reporter=tap",
+            ...(options.nameFilter === undefined
+              ? []
+              : ["--filter", options.nameFilter]),
+            "sample.test.ts",
+          ],
+          {
+            cwd: dir.path,
+            env: { CI: "1" },
+            ...(options.nameFilter === undefined
+              ? {}
+              : { nameFilter: options.nameFilter }),
+          },
         ),
       );
       return { code: value, logs: [...logs, ...errors] };
@@ -155,5 +174,34 @@ describe("running deno test with the compact reporter", () => {
     } finally {
       dir.dispose();
     }
+  });
+
+  test("fails a filtered run that matched no test", async () => {
+    const { code, logs } = await runOver('Deno.test("other test", () => {});', {
+      nameFilter: "no such leaf",
+    });
+
+    expect(code).toBe(1);
+    expect(logs).toContain("No test matched --filter no such leaf.");
+  });
+
+  test("passes a filtered run whose only matches are skipped tests", async () => {
+    const { code, logs } = await runOver(
+      'Deno.test("ignored", { ignore: true }, () => {});',
+      { nameFilter: "ignored" },
+    );
+
+    expect(code).toBe(1);
+    expect(logs).toContain("No test matched --filter ignored.");
+  });
+
+  test("passes a filtered run that matched a test", async () => {
+    const { code, logs } = await runOver(
+      'Deno.test("a matching test", () => {});',
+      { nameFilter: "matching" },
+    );
+
+    expect(code).toBe(0);
+    expect(logs.join("\n")).not.toContain("No test matched");
   });
 });

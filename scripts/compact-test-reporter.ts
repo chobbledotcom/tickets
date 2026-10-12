@@ -89,6 +89,7 @@ export class CompactTapReporter {
   #stderr: (line: string) => void;
   #passed = 0;
   #failed = 0;
+  #skipped = 0;
   #pendingFailure?: PendingFailure | undefined;
   #diagnosticLines?: string[] | undefined;
   #failures: CompactFailure[] = [];
@@ -162,6 +163,7 @@ export class CompactTapReporter {
     this.#flushPendingFailure();
 
     const failed = Boolean(result[1]);
+    const rawName = result[2] ?? "";
     const name = stripTapDirective(result[2] ?? "(unnamed test)");
     this.#lastResultName = name;
     if (failed) {
@@ -169,6 +171,7 @@ export class CompactTapReporter {
       return;
     }
 
+    if (/#\s*SKIP\b/i.test(rawName)) this.#skipped++;
     this.#passed++;
     this.#stdout(this.#formatResultLine("ok  ", name));
   }
@@ -190,6 +193,7 @@ export class CompactTapReporter {
       lastResultName: this.#lastResultName,
       passed: this.#passed,
       sawTap: this.#sawTap,
+      skipped: this.#skipped,
       suppressedResults: this.#consumedResults - this.#passed - this.#failed,
     };
   }
@@ -290,6 +294,9 @@ export const runCompactDenoTest = async (
     env: Record<string, string>;
     estimatedTotal?: number;
     junitPath?: string;
+    /** The `--filter` value the run selects by; set when the caller passed
+     * one, so a run that matched nothing can fail loudly. */
+    nameFilter?: string;
   },
 ): Promise<number> => {
   console.log("Running tests...");
@@ -333,5 +340,15 @@ export const runCompactDenoTest = async (
     stderrText,
     junitErrorFiles(junit),
   );
+  // A filtered run that executed nothing did not select any test. A failed
+  // run has its own cause to report, so only a clean exit names the filter.
+  if (
+    options.nameFilter !== undefined &&
+    status.code === 0 &&
+    summary.passed - summary.skipped + summary.failed === 0
+  ) {
+    console.error(`No test matched --filter ${options.nameFilter}.`);
+    return 1;
+  }
   return status.code;
 };

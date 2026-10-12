@@ -9,6 +9,7 @@
 
 import { findCoverageFailures, printCoverageReport } from "./coverage-check.ts";
 import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
+import { extractNameFilter } from "./name-filter.ts";
 import { denoCommand } from "./process.ts";
 import { projectRoot } from "./project-root.ts";
 import { readSlowTestsReport } from "./test-durations.ts";
@@ -46,8 +47,9 @@ const checkCoverage = async (): Promise<void> => {
 
 /** Main: run the whole suite inside the harness, then enforce coverage */
 const main = async (): Promise<void> => {
-  const useCoverage = Deno.args.includes("--coverage");
-  const exitCode = await runSuiteWithHarness(useCoverage);
+  const { args, nameFilter } = extractNameFilter(Deno.args);
+  const useCoverage = args.includes("--coverage");
+  const exitCode = await runSuiteWithHarness(useCoverage, nameFilter);
 
   if (exitCode !== 0) Deno.exit(exitCode);
   if (useCoverage) await checkCoverage();

@@ -486,11 +486,12 @@ automatic.
   the start. The dev database is the gitignored `local.db` beside its `.db-key`.
   `:memory:` is not a valid dev URL
 - `deno task serve` — the bare server command that `start` and `dev` call
-- `deno task test` — run the full suite
+- `deno task test` — run the full suite. Pass `--filter "<test name>"` to run
+  the tests the name matches (see the filter rules below)
 - `deno task test:coverage` — run the full suite with coverage
 - `deno task test:files <file>...` — run only the given files with the full
-  runner's setup. Arguments go through to `deno test`, so `--filter` and Feature
-  files work
+  runner's setup. Arguments go through to `deno test`, so Feature files work.
+  The runner takes `--filter` for itself and prunes by test name
 - `deno task cov:files <file>... [--only <part>]` — same setup as `test:files`,
   then print the lines and branches this run left uncovered
 - `deno task specs` — run every Cucumber Feature. Reports land under `reports/`
@@ -523,7 +524,7 @@ automatic.
 
 ## Running Individual Test Files
 
-Do not use `deno task test -- --filter` to debug one test. It loads the entire
+Do not use `deno task test --filter` to debug one test. It loads the entire
 suite. Use `deno task test:files` instead. It runs only the files you pass,
 builds the static assets when they changed, and starts stripe-mock:
 
@@ -532,6 +533,18 @@ deno task test:files test/shared/dates.test.ts
 deno task test:files test/shared/dates.test.ts --filter "formats date"
 deno task test:files specs/payments/capacity-after-payment.feature
 ```
+
+A `--filter` value matches test names, not only file names. The rules:
+
+- A plain substring matches every test whose name carries it. A nested `it`
+  name matches, so `--filter "formats date"` runs that one test.
+- `/pattern/` matches as a regular expression, for example
+  `--filter "/formats date (and|or) time/"`.
+- A name that matches a `describe` runs that whole group, hooks included.
+- When nothing matches, the run exits non-zero with
+  `No test matched --filter <value>.` A zero-test run is never a pass.
+- A filtered run selects direct Deno tests. It does not run the Cucumber
+  Features.
 
 Both runners skip the asset build when nothing it reads has changed.
 

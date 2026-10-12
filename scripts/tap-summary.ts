@@ -20,6 +20,8 @@ export type CompactFailure = {
 export type CompactTapSummary = {
   passed: number;
   failed: number;
+  /** Results deno reported as skipped (an ignored test), which ran nothing. */
+  skipped: number;
   failures: CompactFailure[];
   sawTap: boolean;
   /** Parent results the reporter deliberately dropped because a child step
