@@ -94,9 +94,6 @@
     "wordy": 1,
     "participle": 1
   },
-  "src/features/app/read-only.ts": {
-    "participle": 1
-  },
   "src/features/app/routes.ts": {
     "semicolon": 2,
     "wordy": 1,

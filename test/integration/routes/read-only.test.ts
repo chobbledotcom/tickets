@@ -314,3 +314,113 @@ describeWithEnv(
     });
   },
 );
+
+describeWithEnv(
+  "update mode (UPDATE_IN_PROGRESS set)",
+  { db: true, env: { READ_ONLY_FROM: undefined, UPDATE_IN_PROGRESS: "1" } },
+  () => {
+    test("GET /read-only shows the update message and the marker", async () => {
+      const res = await handleRequest(mockRequest("/read-only"));
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain("The site is being updated.");
+      expect(html).toContain('name="update-in-progress" content="active"');
+    });
+
+    test("a mutating /api/ request returns 503 with the update message", async () => {
+      const res = await handleRequest(
+        jsonRequest("/api/admin/listings", {
+          body: { name: "test" },
+          method: "POST",
+        }),
+      );
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.error).toBe(
+        "The site is being updated. Please try again in a few minutes.",
+      );
+    });
+
+    test("POST /payment/webhook returns the retryable 503", async () => {
+      // The webhook endpoints take JSON only; the guard runs before the
+      // handler, so the delivery gets the 503 its sender redelivers.
+      const res = await handleRequest(
+        jsonRequest("/payment/webhook", { body: {}, method: "POST" }),
+      );
+      expect(res.status).toBe(503);
+    });
+
+    test("POST /sms/webhook returns the retryable 503", async () => {
+      const res = await handleRequest(
+        jsonRequest("/sms/webhook", { body: {}, method: "POST" }),
+      );
+      expect(res.status).toBe(503);
+    });
+
+    test("update mode refuses the public writes read-only mode allows, with the redirect", async () => {
+      expectReadOnlyRedirect(await postForm("/renew"));
+      expectReadOnlyRedirect(await postForm("/join/some-code"));
+      expectReadOnlyRedirect(await postForm("/contact"));
+    });
+
+    test("the admin can still sign in and read pages", async () => {
+      const login = await postForm("/admin/login", "password=test");
+      expect(login.headers.get("location")).not.toBe("/read-only");
+      const page = await handleRequest(mockRequest("/admin/listings"));
+      expect(page.headers.get("location")).not.toBe("/read-only");
+    });
+
+    test("update mode refuses the listed admin writes, with the redirect", async () => {
+      // The migration must see a still database, so even the operations
+      // ordinary read-only mode allows stop while an update runs. The scan
+      // API takes JSON; the check-in form takes a form post.
+      expectReadOnlyRedirect(
+        await postForm("/admin/listing/42/attendee/99/checkin"),
+      );
+      expectReadOnlyRedirect(
+        await handleRequest(
+          jsonRequest("/admin/listing/42/scan", {
+            body: {},
+            method: "POST",
+          }),
+        ),
+      );
+    });
+
+    test("an admin mutation still redirects to /read-only", async () => {
+      expectReadOnlyRedirect(await postForm("/admin/listing"));
+    });
+  },
+);
+
+describeWithEnv(
+  "update mode takes over an expired site's message",
+  {
+    db: true,
+    env: {
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+      UPDATE_IN_PROGRESS: "1",
+    },
+  },
+  () => {
+    test("the page shows the update message, not the expired one", async () => {
+      const res = await handleRequest(mockRequest("/read-only"));
+      const html = await res.text();
+      expect(html).toContain("The site is being updated.");
+      expect(html).not.toContain("This site is in read-only mode.");
+    });
+  },
+);
+
+describeWithEnv(
+  "the expired read-only page keeps the update marker",
+  { db: true, env: { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" } },
+  () => {
+    test("the marker says supported, so a later deploy's wait can run", async () => {
+      const res = await handleRequest(mockRequest("/read-only"));
+      const html = await res.text();
+      expect(html).toContain("This site is in read-only mode.");
+      expect(html).toContain('name="update-in-progress" content="supported"');
+    });
+  },
+);

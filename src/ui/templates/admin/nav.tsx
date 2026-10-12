@@ -25,6 +25,7 @@ import {
   getRenewalUrl,
   isReadOnly,
   isReadOnlyWarning,
+  isUpdateInProgress,
 } from "#shared/env.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { isSupportEnabled } from "#shared/support.ts";
@@ -96,11 +97,21 @@ const renewalBannerLink = (renewalUrl: string | null): string =>
 
 /** Render read-only or warning banner with optional renewal URL */
 const renderReadOnlyBanner = (
+  updating: boolean,
   readOnly: boolean,
   warning: boolean,
   cutoffIso: string | null,
   renewalUrl: string | null,
 ): JSX.Element | null => {
+  // No renewal link while an update runs: the renewal form is a blocked
+  // write during that window.
+  if (updating) {
+    return (
+      <Raw
+        html={`<div class="read-only-banner">${t("nav.readonly.updating")}</div>`}
+      />
+    );
+  }
   if (readOnly) {
     const link = renewalBannerLink(renewalUrl);
     return (
@@ -236,6 +247,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   return (
     <>
       {renderReadOnlyBanner(
+        isUpdateInProgress(),
         isReadOnly(),
         isReadOnlyWarning(),
         getReadOnlyCutoffIso(),

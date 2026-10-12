@@ -10,6 +10,7 @@ import {
   isReadOnly,
   isReadOnlyFromCutoff,
   isReadOnlyWarning,
+  isUpdateInProgress,
   parseWarnDays,
   requireEnv,
 } from "#shared/env.ts";
@@ -30,6 +31,7 @@ describeWithEnv(
       READ_ONLY_FROM: undefined,
       READ_ONLY_WARN_DAYS: undefined,
       RENEWAL_URL: undefined,
+      UPDATE_IN_PROGRESS: undefined,
     },
   },
   () => {
@@ -85,6 +87,40 @@ describeWithEnv(
         } finally {
           errorSpy.restore();
         }
+      });
+    });
+
+    describe("isUpdateInProgress", () => {
+      test("is false when UPDATE_IN_PROGRESS is unset", () => {
+        expect(isUpdateInProgress()).toBe(false);
+      });
+
+      test("is false when UPDATE_IN_PROGRESS is empty (a lifted flag)", () => {
+        process.env.UPDATE_IN_PROGRESS = "";
+        expect(isUpdateInProgress()).toBe(false);
+      });
+
+      test("is true when UPDATE_IN_PROGRESS is set", () => {
+        process.env.UPDATE_IN_PROGRESS = "1";
+        expect(isUpdateInProgress()).toBe(true);
+      });
+
+      test("puts the site into read-only mode", () => {
+        process.env.UPDATE_IN_PROGRESS = "1";
+        expect(isReadOnly()).toBe(true);
+      });
+
+      test("overrides a future READ_ONLY_FROM cutoff", () => {
+        process.env.UPDATE_IN_PROGRESS = "1";
+        process.env.READ_ONLY_FROM = isoFromNow(DAY_MS * 30);
+        expect(isReadOnly()).toBe(true);
+      });
+
+      test("does not touch the READ_ONLY_FROM behaviour when unset", () => {
+        process.env.READ_ONLY_FROM = isoFromNow(-DAY_MS);
+        expect(isReadOnly()).toBe(true);
+        delete process.env.READ_ONLY_FROM;
+        expect(isReadOnly()).toBe(false);
       });
     });
 

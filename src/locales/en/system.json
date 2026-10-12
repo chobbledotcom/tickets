@@ -22,6 +22,8 @@
   "public.not_activated.message": "This site has not been activated yet.",
   "public.read_only.title": "Read Only",
   "public.read_only.message": "This site is in read-only mode.",
+  "public.update_in_progress.title": "Updating",
+  "public.update_in_progress.message": "The site is being updated. Please try again in a few minutes.",
   "auth.forbidden_owner_only": "Only the owner account can open this page. Ask the site owner for help.",
   "auth.forbidden_role": "Your account can't open this page. Ask the site owner for help."
 }
