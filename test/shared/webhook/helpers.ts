@@ -4,6 +4,7 @@
  * around a failing send.
  */
 
+import { expect } from "@std/expect";
 import { spy } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import type { WebhookListing, WebhookPayload } from "#shared/webhook.ts";
@@ -52,4 +53,36 @@ export const stubWebhookFetch = (): WebhookFetch => {
     },
     reply: fetch.reply,
   };
+};
+
+/** The manual add's one webhook POST: the listing's URL carries the shared
+ * registration payload for the new attendee, and no second fetch (an email
+ * provider call) joins it. */
+export const expectManualAddWebhook = (
+  fetchSpy: WebhookFetch,
+  expected: {
+    contact: { email: string; name: string };
+    listing: { name: string; slug: string };
+    quantity: number;
+    unitPrice: number;
+    url: string;
+  },
+): void => {
+  expect(fetchSpy.calls.length).toBe(1);
+  const [url, options] = fetchSpy.calls[0]!.args as [string, RequestInit];
+  expect(url).toBe(expected.url);
+  const payload = JSON.parse(options.body as string) as WebhookPayload;
+  expect(payload.notification_type).toBe("registration.completed");
+  expect(payload.name).toBe(expected.contact.name);
+  expect(payload.email).toBe(expected.contact.email);
+  expect(payload.tickets).toEqual([
+    {
+      date: null,
+      listing_name: expected.listing.name,
+      listing_slug: expected.listing.slug,
+      quantity: expected.quantity,
+      ticket_token: expect.any(String),
+      unit_price: expected.unitPrice,
+    },
+  ]);
 };

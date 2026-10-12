@@ -13,11 +13,26 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import type { AttendeeCreationWork } from "#db/attendees/create.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
+import type { EmailEntry } from "#shared/email.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#types";
+
+/** The notification entries for the booking rows a create just wrote: one per
+ * real booking line, each paired with its listing. A quantity-0 ghost line
+ * books nothing, so it never notifies. */
+export const createdBookingEntries = (
+  attendees: Attendee[],
+  listingById: Map<number, ListingWithCount>,
+): EmailEntry[] =>
+  attendees
+    .filter((attendee) => attendee.quantity > 0)
+    .map((attendee) => ({
+      attendee,
+      listing: listingById.get(attendee.listing_id)!,
+    }));
 
 /**
  * Creation work for a provider-less owed booking: inside the create

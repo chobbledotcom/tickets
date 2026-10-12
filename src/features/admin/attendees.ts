@@ -25,7 +25,10 @@ import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
+import {
+  logAndNotifyRegistration,
+  queueManualAddWebhooks,
+} from "#shared/webhook/delivery.ts";
 import { adminResendNotificationPage } from "#templates/admin/attendees.tsx";
 import {
   type AddAttendeeFormValues,
@@ -179,6 +182,13 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         params.listingId,
         createResult.attendees[0]!.id,
       );
+      // Same behavior as the admin form's manual add: the new booking tells
+      // the listing's webhooks. The buyer email waits for the "Send tickets
+      // email" action, and the activity line above stays the only create
+      // line.
+      queueManualAddWebhooks([
+        { attendee: createResult.attendees[0]!, listing },
+      ]);
       // Land on the roster (Attendees tab), where the new attendee and the
       // quick-add form live. The flash and the added row are then both in
       // view.

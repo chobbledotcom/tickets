@@ -1,5 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  expectManualAddWebhook,
+  stubWebhookFetch,
+} from "#test/shared/webhook/helpers.ts";
+import {
+  activityMessages,
+  getListingActivityLog,
+} from "#test-utils/activity-log.ts";
 import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
 import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
 import { expectAttendeeLineCount } from "#test-utils/attendee-form/helpers.ts";
@@ -243,6 +251,116 @@ describeWithEnv(
         );
         expect(response.status).toBe(302);
         expect((await getAttendeesRaw(event.id))[0]!.quantity).toBe(4);
+      });
+    });
+
+    describe("outgoing webhooks", () => {
+      const fetchSpy = stubWebhookFetch();
+
+      test("an admin create fires one webhook call and no email", async () => {
+        const { listing } = await setupListingAndLogin({
+          maxAttendees: 100,
+          maxQuantity: 5,
+          unitPrice: 2500,
+          webhookUrl: "https://hooks.example.test/registration",
+        });
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          email: "hooked@example.com",
+          name: "Hooked Admin Add",
+          ...attendeeLineFields([{ eventId: listing.id, quantity: 2 }]),
+        });
+        expectRedirect(response, "/admin/attendees/");
+        expectManualAddWebhook(fetchSpy, {
+          contact: { email: "hooked@example.com", name: "Hooked Admin Add" },
+          listing,
+          quantity: 2,
+          unitPrice: 2500,
+          url: "https://hooks.example.test/registration",
+        });
+      });
+
+      test("a no-quantity-only create books nothing, so it fires no webhook", async () => {
+        const { listing } = await setupListingAndLogin({
+          maxAttendees: 100,
+          webhookUrl: "https://hooks.example.test/ghost",
+        });
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          name: "Ghost Only",
+          ...attendeeLineFields([
+            { eventId: listing.id, noQuantity: true, quantity: 1 },
+          ]),
+        });
+        expectRedirect(response, "/admin/attendees/");
+        await expectAttendeeLineCount(listing.id, 1);
+        expect(fetchSpy.calls.length).toBe(0);
+      });
+
+      test("an edit fires no webhook", async () => {
+        const { listing } = await setupListingAndLogin({
+          maxAttendees: 50,
+          webhookUrl: "https://hooks.example.test/edit",
+        });
+        const { attendeesApi } = await import("#db/attendees/api.ts");
+        const result = await attendeesApi.createAttendeeAtomic({
+          bookings: [{ listingId: listing.id, quantity: 1 }],
+          email: "",
+          name: "Edited",
+        });
+        if (!result.success) throw new Error("setup");
+        const attendeeId = result.attendees[0]!.id;
+        const form = await buildAttendeeEditForm(attendeeId, {
+          name: "Edited Two",
+        });
+        const { response } = await adminFormPost(
+          `/admin/attendees/${attendeeId}`,
+          form,
+        );
+        expect(response.status).toBe(302);
+        expect(fetchSpy.calls.length).toBe(0);
+      });
+
+      test("a failed webhook still saves the attendee", async () => {
+        const { listing } = await setupListingAndLogin({
+          maxAttendees: 100,
+          webhookUrl: "https://hooks.example.test/failing",
+        });
+        fetchSpy.reply(new Response("", { status: 500 }));
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          email: "failing@example.com",
+          name: "Failing Hook",
+          ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
+        });
+        expectRedirect(response, "/admin/attendees/");
+        const attendees = await expectAttendeeLineCount(listing.id, 1);
+        expect(attendees[0]!.quantity).toBe(1);
+        // The create line stays the only create line, and the failed send
+        // leaves the same operator signal the online booking path logs.
+        expect(
+          (await getListingActivityLog(listing.id))
+            .map(({ message }) => message)
+            .filter((message) => message.includes("added manually")),
+        ).toEqual(["Attendee 'Failing Hook' added manually"]);
+        expect(await activityMessages()).toContain(
+          "Registration notification delivery failed.",
+        );
+      });
+
+      test("a thrown webhook delivery still saves the attendee", async () => {
+        const { listing } = await setupListingAndLogin({
+          maxAttendees: 100,
+          webhookUrl: "https://hooks.example.test/thrown",
+        });
+        fetchSpy.reply(new Error("connection reset"));
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          email: "thrown@example.com",
+          name: "Thrown Hook",
+          ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
+        });
+        expectRedirect(response, "/admin/attendees/");
+        await expectAttendeeLineCount(listing.id, 1);
+        expect(await activityMessages()).toContain(
+          "Registration notification delivery failed.",
+        );
       });
     });
   },

@@ -3,6 +3,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import {
+  expectManualAddWebhook,
+  stubWebhookFetch,
+} from "#test/shared/webhook/helpers.ts";
+import {
   assertAdminHtml,
   expectFlash,
   expectHtmlResponse,
@@ -344,6 +348,37 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
         "Not enough spots",
         false,
       );
+    });
+
+    describe("outgoing webhooks", () => {
+      const fetchSpy = stubWebhookFetch();
+
+      test("fires the same webhook the admin form's manual add fires", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin({
+          fields: "email",
+          maxAttendees: 100,
+          unitPrice: 2500,
+          webhookUrl: "https://hooks.example.test/quick-add",
+        });
+        const response = await submitAddAttendee(
+          listing.id,
+          cookie,
+          csrfToken,
+          {
+            email: "quick@example.com",
+            name: "Quick Add",
+            quantity: "2",
+          },
+        );
+        expectRedirect(response, `/admin/listing/${listing.id}`);
+        expectManualAddWebhook(fetchSpy, {
+          contact: { email: "quick@example.com", name: "Quick Add" },
+          listing,
+          quantity: 2,
+          unitPrice: 2500,
+          url: "https://hooks.example.test/quick-add",
+        });
+      });
     });
   });
 });

@@ -143,6 +143,31 @@ const reportRegistrationDeliveryError = async (): Promise<void> => {
   addPendingWork(captureServerError(context));
 };
 
+/** Deliver the manual add's webhooks and report a failed send the same way the
+ * booking path does. Never throws: a failed webhook must not fail the save. */
+const deliverManualAddWebhooks = async (
+  entries: EmailEntry[],
+): Promise<void> => {
+  try {
+    const { failed } = await sendRegistrationWebhooks(
+      entries,
+      settings.currency,
+      "admin",
+    );
+    if (failed) await recordRegistrationDeliveryFailure();
+  } catch {
+    // A dead webhook endpoint is normal operation. The report is the
+    // documented behavior, and the save stands.
+    await reportRegistrationDeliveryError();
+  }
+};
+
+/** Queue only the registration webhooks for attendees an admin added by hand —
+ * no buyer email and no registration activity line. */
+export const queueManualAddWebhooks = (entries: EmailEntry[]): void => {
+  addPendingWork(deliverManualAddWebhooks(entries));
+};
+
 const sendRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,

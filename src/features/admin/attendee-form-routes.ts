@@ -70,6 +70,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { createdBookingEntries } from "#shared/booking.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -81,6 +82,7 @@ import {
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
   AttendeeFormPanel,
@@ -245,7 +247,7 @@ const handleSubmitInner = async (
   // re-render the submitted form in place so entered data is never lost.
   let outcome: SaveOutcome;
   if (mode === "create") {
-    outcome = await applyCreate(parsed, logisticsPlan);
+    outcome = await applyCreate(parsed, logisticsPlan, listingsById);
   } else {
     const answers = parseQuestionAnswers({ optional: true })(form, questions);
     if (!answers.ok) return showErrors({ formError: answers.error });
@@ -325,6 +327,7 @@ const applyLogisticsPlan = (
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
   logisticsPlan: LogisticsPlan,
+  listingsById: Map<number, ListingWithCount>,
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
@@ -353,6 +356,10 @@ const applyCreate = async (
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
   await applyLogisticsPlan(newId, logisticsPlan);
+  // An online booking tells the listings' webhooks, and so does a manual add.
+  // Webhooks only: the buyer email waits for the "Send tickets email" action,
+  // and the activity line below stays the only create line.
+  queueManualAddWebhooks(createdBookingEntries(attendees, listingsById));
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
     firstListingId,
