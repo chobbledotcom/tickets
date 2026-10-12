@@ -1,3 +1,4 @@
+import { CliError } from "#cli/errors.ts";
 import { normalizeEntityName } from "#db/name-registry.ts";
 import {
   type CatalogProduct,
@@ -99,12 +100,12 @@ export const parseImportFlags = (args: readonly string[]): ImportFlags => {
     else if (arg === "--dir") {
       const value = args[index + 1];
       if (value === undefined || value.startsWith("-")) {
-        throw new Error("--dir requires a directory");
+        throw new CliError("usage", "--dir requires a directory");
       }
       flags.dir = value;
       index += 1;
     } else {
-      throw new Error(`unknown argument: ${arg}`);
+      throw new CliError("usage", `unknown argument: ${arg}`);
     }
   }
   return flags;

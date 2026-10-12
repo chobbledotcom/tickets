@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { cliErrorFromUnknown, exitCodeFor } from "#cli/errors.ts";
 import { parseProductFile } from "#cli/product-catalog/parse.ts";
 import {
   composeDescription,
@@ -127,6 +128,28 @@ Body text that the importer never reads.
     expect(() => parseImportFlags(["../fun-pro-uk"])).toThrow(
       "unknown argument: ../fun-pro-uk",
     );
+  });
+
+  test("classifies every flag failure as a usage error, not an io error", () => {
+    const flagFailures = [
+      ["--dir"],
+      ["--dir", "--plan"],
+      ["--paln"],
+      ["../fun-pro-uk"],
+    ] as const;
+    for (const args of flagFailures) {
+      let thrown: unknown;
+      try {
+        parseImportFlags([...args]);
+      } catch (error) {
+        thrown = error;
+      }
+      // The importer's catch maps with the io fallback; a CliError passes
+      // through it, so the agent sees the usage exit, not the io exit.
+      const mapped = cliErrorFromUnknown(thrown, "io");
+      expect(mapped.kind).toBe("usage");
+      expect(exitCodeFor(mapped)).toBe(2);
+    }
   });
 
   test("resolves every filter attribute to its option id", () => {

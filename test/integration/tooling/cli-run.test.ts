@@ -246,6 +246,103 @@ describe("CLI run", () => {
     ]);
   });
 
+  test("sends child update and delete with the child id in the path", async () => {
+    const update = recordingTransport({
+      gadget: { id: 9, parts: [{ id: 9, label: "L2" }] },
+    });
+    const updateResult = await runApi(
+      ["update", "gadgets", "3/parts/9", '{"label":"L2"}'],
+      runDeps(testTable, update.transport),
+    );
+    expect(updateResult.code).toBe(0);
+    expect(update.requests).toEqual([
+      {
+        body: { label: "L2" },
+        method: "PUT",
+        path: "/api/admin/gadgets/3/parts/9",
+      },
+    ]);
+    const remove = recordingTransport({ status: "ok" });
+    const removeResult = await runApi(
+      ["delete", "gadgets", "3/parts/9", '{"confirm_identifier":"9"}'],
+      runDeps(testTable, remove.transport),
+    );
+    expect(removeResult.code).toBe(0);
+    expect(remove.requests).toEqual([
+      {
+        body: { confirm_identifier: "9" },
+        method: "DELETE",
+        path: "/api/admin/gadgets/3/parts/9",
+      },
+    ]);
+  });
+
+  test("rejects a child update without the child id before any request", async () => {
+    const { requests, transport } = recordingTransport({});
+    const result = await runApi(
+      ["update", "gadgets", "1/parts", '{"label":"changed"}'],
+      runDeps(testTable, transport),
+    );
+    expect(result.code).toBe(2);
+    const error = JSON.parse(result.err ?? "").error;
+    expect(error.kind).toBe("usage");
+    expect(error.message).toContain("needs the child id");
+    expect(error.status).toBeNull();
+    expect(requests).toEqual([]);
+  });
+
+  test("rejects a child delete without the child id before any request", async () => {
+    const { requests, transport } = recordingTransport({});
+    const result = await runApi(
+      ["delete", "gadgets", "1/parts", '{"confirm_identifier":"1"}'],
+      runDeps(testTable, transport),
+    );
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.err ?? "").error.kind).toBe("usage");
+    expect(requests).toEqual([]);
+  });
+
+  test("rejects an inherited table property as a resource", async () => {
+    const { requests, transport } = recordingTransport({});
+    for (const args of [
+      ["describe", "constructor"],
+      ["list", "constructor"],
+    ]) {
+      const result = await runApi(args, runDeps(testTable, transport));
+      expect(result.code).toBe(2);
+      const error = JSON.parse(result.err ?? "").error;
+      expect(error.kind).toBe("usage");
+      expect(error.message).toContain("Unknown resource 'constructor'");
+      expect(requests).toEqual([]);
+    }
+  });
+
+  test("rejects an inherited property as a child key", async () => {
+    const { requests, transport } = recordingTransport({});
+    const result = await runApi(
+      ["create", "gadgets", "1/constructor", '{"label":"L"}'],
+      runDeps(testTable, transport),
+    );
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.err ?? "").error.message).toContain(
+      "has no child 'constructor'",
+    );
+    expect(requests).toEqual([]);
+  });
+
+  test("rejects an inherited property as a custom route", async () => {
+    const { requests, transport } = recordingTransport({});
+    const result = await runApi(
+      ["toString", "listings", "1"],
+      runDeps(testTable, transport),
+    );
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.err ?? "").error.message).toContain(
+      "Unknown command 'toString'",
+    );
+    expect(requests).toEqual([]);
+  });
+
   test("sends a custom route with the id substituted", async () => {
     const { requests, transport } = recordingTransport({ status: "ok" });
     const result = await runApi(

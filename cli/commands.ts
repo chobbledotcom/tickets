@@ -1,9 +1,7 @@
 import type * as v from "valibot";
 import {
   type AdminApiChild,
-  type AdminApiCustomRoute,
   type AdminApiResource,
-  adminApiIdParam,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { CliError } from "./errors.ts";
@@ -62,6 +60,12 @@ const unknownResource = (raw: string, table: Table): CliError =>
     ).join(", ")}.`,
   );
 
+/** Read one own property off a table record, or undefined for a name the
+ *  table never declared. Inherited properties do not count, so
+ *  'constructor' names no resource and no route. */
+const ownEntry = <T>(record: Record<string, T>, key: string): T | undefined =>
+  Object.hasOwn(record, key) ? record[key] : undefined;
+
 /** One whole-number id segment. */
 const parseId = (raw: string, what: string): number => {
   if (!/^\d+$/.test(raw)) {
@@ -84,6 +88,23 @@ const requireBody = (raw: string | undefined, verb: string): string => {
     );
   }
   return raw;
+};
+
+/** The usage error for a write whose id argument is missing. */
+const missingWriteIdError = (
+  verb: "create" | "delete" | "update",
+  entry: AdminApiResource,
+): CliError => {
+  if (verb === "create") {
+    return new CliError(
+      "usage",
+      "The 'create' command needs a JSON body argument, or '-' to read it from stdin.",
+    );
+  }
+  return new CliError(
+    "usage",
+    `The '${verb}' command needs the ${entry.label.toLowerCase()} id.`,
+  );
 };
 
 /** One child-addressing failure: the path segments did not fit the child
@@ -109,9 +130,10 @@ const parseChildWrite = (
   // The address regex guarantees the parent id and the child key groups.
   const parentIdText = match[1] as string;
   const key = match[2] as string;
-  const def = entry.children?.[key];
+  const children = entry.children;
+  const def = children === undefined ? undefined : ownEntry(children, key);
   if (!def) {
-    const names = Object.keys(entry.children ?? {}).join(", ") || "none";
+    const names = Object.keys(children ?? {}).join(", ") || "none";
     throw new CliError(
       "usage",
       `The resource '${resource}' has no child '${key}'. Its children are: ${names}.`,
@@ -145,7 +167,7 @@ const resolveResource = (
       ).join(", ")}.`,
     );
   }
-  const entry = table[resourceRaw];
+  const entry = ownEntry(table, resourceRaw);
   if (!entry) throw unknownResource(resourceRaw, table);
   return { entry, name: resourceRaw };
 };
@@ -186,6 +208,24 @@ const writeBody = (
   return requireBody(bodyRaw, verb);
 };
 
+/** One child address checked against its verb: a create addresses the
+ *  collection, an update or a delete the one row. */
+const checkChildVerbAddress = (
+  verb: "create" | "delete" | "update",
+  child: ChildAddress,
+  raw: string,
+): void => {
+  if (verb === "create" && child.id !== undefined) throw badAddress(raw);
+  if (verb !== "create" && child.id === undefined) {
+    // The admin api serves a child row's PUT and DELETE only with the
+    // child id in the path; the collection answers no such method.
+    throw new CliError(
+      "usage",
+      `The '${verb}' command needs the child id. Use '<parentId>/<child>/<childId>'.`,
+    );
+  }
+};
+
 /** Parse create, update, and delete over one resolved resource. */
 const parseWrite = (
   resource: string,
@@ -195,18 +235,7 @@ const parseWrite = (
 ): ParsedCommand => {
   const [, , idRaw, bodyRaw, extra, ...rest] = args;
   if (extra !== undefined || rest.length > 0) throw tooManyArguments();
-  if (idRaw === undefined) {
-    if (verb === "create") {
-      throw new CliError(
-        "usage",
-        "The 'create' command needs a JSON body argument, or '-' to read it from stdin.",
-      );
-    }
-    throw new CliError(
-      "usage",
-      `The '${verb}' command needs the ${entry.label.toLowerCase()} id.`,
-    );
-  }
+  if (idRaw === undefined) throw missingWriteIdError(verb, entry);
   // A child address starts with the parent id: "3/options". A JSON body
   // never starts with digits and a slash.
   const childForm = /^\d+\//.test(idRaw);
@@ -225,7 +254,7 @@ const parseWrite = (
   }
   if (childForm) {
     const { child, parentId } = parseChildWrite(resource, entry, idRaw);
-    if (verb === "create" && child.id !== undefined) throw badAddress(idRaw);
+    checkChildVerbAddress(verb, child, idRaw);
     return {
       body: writeBody(verb, bodyRaw),
       child,
@@ -254,7 +283,12 @@ const parseCustom = (
   args: readonly string[],
 ): ParsedCommand => {
   const [, resourceRaw, idRaw, extra, ...rest] = args;
-  if (!Object.values(table).some((item) => item.custom?.[routeKey])) {
+  if (
+    !Object.values(table).some(
+      (item) =>
+        item.custom !== undefined && Object.hasOwn(item.custom, routeKey),
+    )
+  ) {
     throw new CliError(
       "usage",
       `Unknown command '${routeKey}'. The valid commands are: ${STANDARD_VERBS.join(
@@ -269,9 +303,9 @@ const parseCustom = (
       `The '${routeKey}' command needs the resource and the id. Usage: ${routeKey} <resource> <id>.`,
     );
   }
-  const entry = table[resourceRaw];
+  const entry = ownEntry(table, resourceRaw);
   if (!entry) throw unknownResource(resourceRaw, table);
-  if (!entry.custom?.[routeKey]) {
+  if (entry.custom === undefined || !Object.hasOwn(entry.custom, routeKey)) {
     const routeNames = Object.keys(entry.custom ?? {});
     const names = routeNames.length > 0 ? routeNames.join(", ") : "none";
     throw new CliError(
@@ -298,7 +332,7 @@ const parseDescribe = (
   if (resourceRaw === undefined) {
     return { kind: "describe", resources: Object.entries(table) };
   }
-  const entry = table[resourceRaw];
+  const entry = ownEntry(table, resourceRaw);
   if (!entry) throw unknownResource(resourceRaw, table);
   return { kind: "describe", resources: [[resourceRaw, entry]] };
 };
@@ -339,159 +373,3 @@ export const bodySchemaFor = (
     ? entry.createBodySchema
     : entry.updateBodySchema;
 };
-
-/* ===========================================================================
- * describe — the agent's help, derived from the table.
- * =========================================================================== */
-
-/** One body field as describe reports it: its name, its JSON type, and
- *  whether a write must carry it. */
-export type FieldDoc = {
-  items?: { type: string };
-  fields?: FieldDoc[];
-  name: string;
-  required: boolean;
-  type: string;
-};
-
-/** One verb's body: the table's fields, or the note that the server owns
- *  the validation. */
-export type BodyDoc =
-  | { fields: FieldDoc[]; kind: "fields" }
-  | { kind: "server" };
-
-/** The schema shapes describe reads off valibot's runtime objects. */
-type EntriesSchema = v.GenericSchema & {
-  entries: Record<string, v.GenericSchema>;
-};
-type WrappedSchema = v.GenericSchema & { wrapped: v.GenericSchema };
-type ItemSchema = v.GenericSchema & { item: v.GenericSchema };
-
-const isEntries = (schema: v.GenericSchema): schema is EntriesSchema =>
-  "entries" in schema;
-
-const isWrapped = (schema: v.GenericSchema): schema is WrappedSchema =>
-  "wrapped" in schema;
-
-const isItem = (schema: v.GenericSchema): schema is ItemSchema =>
-  "item" in schema;
-
-/** Read one field's JSON type and nested shape off its schema. A schema the
- *  walker cannot name answers "unknown" rather than a guess. */
-const fieldDoc = (
-  name: string,
-  schema: v.GenericSchema,
-  required: boolean,
-): FieldDoc => {
-  if (isWrapped(schema)) {
-    // An optional key a write may omit; a nullable key must travel, so its
-    // requiredness stays as it is.
-    return schema.type === "optional"
-      ? fieldDoc(name, schema.wrapped, false)
-      : fieldDoc(name, schema.wrapped, required);
-  }
-  if (isItem(schema)) {
-    return {
-      items: { type: fieldDoc("", schema.item, true).type },
-      name,
-      required,
-      type: "array",
-    };
-  }
-  if (isEntries(schema)) {
-    return { fields: fieldsOf(schema.entries), name, required, type: "object" };
-  }
-  if (
-    schema.type === "boolean" ||
-    schema.type === "number" ||
-    schema.type === "string"
-  ) {
-    return { name, required, type: schema.type };
-  }
-  return { name, required, type: "unknown" };
-};
-
-const fieldsOf = (entries: Record<string, v.GenericSchema>): FieldDoc[] =>
-  Object.entries(entries).map(([name, schema]) => fieldDoc(name, schema, true));
-
-/** One verb's body document, read off the schema the table declares. A body
- *  schema the table carries must be an object schema; anything else is a
- *  table bug the CLI refuses. */
-const bodyDoc = (schema: v.GenericSchema | undefined): BodyDoc => {
-  if (!schema) return { kind: "server" };
-  if (!isEntries(schema)) {
-    throw new Error(
-      "a body schema in the admin api table must be an object schema",
-    );
-  }
-  return { fields: fieldsOf(schema.entries), kind: "fields" };
-};
-
-export type VerbDoc = { body?: BodyDoc };
-
-export type ChildDoc = {
-  idParam: string;
-  path: string;
-  verbs: Record<"create" | "delete" | "update", VerbDoc>;
-};
-
-export type CustomRouteDoc = { method: string; subpath: string };
-
-export type ResourceDoc = {
-  children: Record<string, ChildDoc>;
-  customRoutes: Record<string, CustomRouteDoc>;
-  idParam: string;
-  label: string;
-  path: string;
-  verbs: Record<"create" | "delete" | "get" | "list" | "update", VerbDoc>;
-};
-
-export type DescribeDoc = { resources: Record<string, ResourceDoc> };
-
-/** One resource's describe document, read off the table. */
-export const describeResource = (entry: AdminApiResource): ResourceDoc => {
-  const children: Record<string, AdminApiChild> = entry.children ?? {};
-  const custom: Record<string, AdminApiCustomRoute> = entry.custom ?? {};
-  return {
-    children: Object.fromEntries(
-      Object.entries(children).map(([key, child]) => [
-        key,
-        {
-          idParam: child.idParam,
-          path: child.path,
-          verbs: {
-            create: { body: bodyDoc(child.bodySchema) },
-            delete: { body: bodyDoc(DeleteBodySchema) },
-            update: { body: bodyDoc(child.bodySchema) },
-          },
-        },
-      ]),
-    ),
-    customRoutes: Object.fromEntries(
-      Object.entries(custom).map(([key, route]) => [
-        key,
-        { method: route.method, subpath: route.subpath },
-      ]),
-    ),
-    idParam: adminApiIdParam(entry.label),
-    label: entry.label,
-    path: entry.path,
-    verbs: {
-      create: { body: bodyDoc(entry.createBodySchema) },
-      delete: { body: bodyDoc(DeleteBodySchema) },
-      get: {},
-      list: {},
-      update: { body: bodyDoc(entry.updateBodySchema) },
-    },
-  };
-};
-
-/** The describe document for the resources one describe command names, read
- *  off the table. */
-export const describeEntries = (
-  entries: readonly [string, AdminApiResource][],
-): DescribeDoc => ({
-  resources: Object.fromEntries(
-    entries.map(([name, entry]) => [name, describeResource(entry)]),
-  ),
-});

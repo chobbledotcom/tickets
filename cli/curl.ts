@@ -3,6 +3,7 @@ import type {
   AdminApiResponse,
 } from "#shared/admin-api-client.ts";
 import type { CliConfig } from "./config.ts";
+import { CliError } from "./errors.ts";
 
 const buildUrl = (host: string, path: string): string =>
   `${host}${path.startsWith("/") ? path : `/${path}`}`;
@@ -56,12 +57,18 @@ const splitStatus = (stdout: string): { body: string; statusText: string } => {
   };
 };
 
-const parseJson = (text: string): unknown => {
+/** Parse the answer body. A body that is not JSON keeps the status the
+ *  transport already extracted: the server answered, so the contract's
+ *  status is its HTTP status, not null. */
+const parseJson = (text: string, status: number): unknown => {
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new Error(
-      `the server answered with text that is not JSON: ${text.slice(0, 200)}`,
+    throw new CliError(
+      "server",
+      `The server answered with text that is not JSON: ${text.slice(0, 200)}`,
+      null,
+      status,
     );
   }
 };
@@ -85,5 +92,6 @@ export const curlJson = async (
   if (!output.success) {
     throw new Error(curlFailureMessage(stderr, body));
   }
-  return { data: parseJson(body), status: Number(statusText) };
+  const status = Number(statusText);
+  return { data: parseJson(body, status), status };
 };

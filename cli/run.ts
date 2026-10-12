@@ -10,12 +10,12 @@ import {
 } from "#shared/admin-api-client.ts";
 import {
   bodySchemaFor,
-  describeEntries,
   type ParsedCommand,
   parseCommand,
   type Table,
 } from "./commands.ts";
 import type { CliConfig } from "./config.ts";
+import { describeEntries } from "./describe.ts";
 import {
   CliError,
   cliErrorFromUnknown,

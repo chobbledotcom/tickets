@@ -6,12 +6,14 @@ import { loadConfig } from "#cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "#cli/curl.ts";
 import { CliError } from "#cli/errors.ts";
 import { readStdin, type StdinLike, writeErr, writeOut } from "#cli/io.ts";
+import { runApi } from "#cli/run.ts";
 import { adminApiRoutes } from "#routes/admin/api.ts";
 import { jsonResponse } from "#routes/response.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
 } from "#shared/admin-api-resources.ts";
+import { runDeps, testTable } from "#test-utils/cli-table.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
@@ -152,7 +154,7 @@ describe("CLI curl", () => {
     }
   });
 
-  test("throws when the answer is not JSON", async () => {
+  test("keeps the status on the error when the answer is not JSON", async () => {
     const server = Deno.serve(
       { hostname: "127.0.0.1", port: 0 },
       () => new Response("<html>502</html>", { status: 502 }),
@@ -164,7 +166,11 @@ describe("CLI curl", () => {
           { apiHostname: `http://127.0.0.1:${port}`, apiKey: "key" },
           { method: "GET", path: "/api/admin/listings" },
         ),
-      ).rejects.toThrow("not JSON");
+      ).rejects.toMatchObject({
+        kind: "server",
+        message: expect.stringContaining("not JSON"),
+        status: 502,
+      });
     } finally {
       await server.shutdown();
     }
@@ -182,6 +188,43 @@ describe("CLI curl", () => {
 
   test("uses a generic curl failure message when output is empty", () => {
     expect(curlFailureMessage("", "")).toBe("curl request failed");
+  });
+
+  /** One CLI run over the real curl transport against a local server that
+   *  answers every request with `respond`. Returns the agent-facing error
+   *  the run printed. */
+  const runAgainstServer = async (
+    respond: () => Response,
+  ): Promise<{ kind: string; message: string; status: unknown }> => {
+    const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, respond);
+    const { port } = server.addr;
+    try {
+      const config = { apiHostname: `http://127.0.0.1:${port}`, apiKey: "key" };
+      const result = await runApi(
+        ["list", "gadgets"],
+        runDeps(testTable, (options) => curlJson(config, options)),
+      );
+      return JSON.parse(result.err ?? "").error;
+    } finally {
+      await server.shutdown();
+    }
+  };
+
+  test("reports the HTTP status for an HTML reply", async () => {
+    const error = await runAgainstServer(
+      () => new Response("<html>bad gateway</html>", { status: 502 }),
+    );
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(502);
+    expect(error.message).toContain("not JSON");
+  });
+
+  test("reports the HTTP status for an empty reply", async () => {
+    const error = await runAgainstServer(
+      () => new Response(null, { status: 304 }),
+    );
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(304);
   });
 });
 

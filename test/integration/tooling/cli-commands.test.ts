@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { bodySchemaFor, describeEntries, parseCommand } from "#cli/commands.ts";
+import { bodySchemaFor, parseCommand } from "#cli/commands.ts";
+import { describeEntries } from "#cli/describe.ts";
 import { CliError, EXIT_CODES } from "#cli/errors.ts";
 import {
   ADMIN_API_RESOURCES,
