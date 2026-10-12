@@ -6,6 +6,7 @@ import {
   type BookingScope,
   getAttendeeBookingRowsRaw,
 } from "#db/attendees/queries.ts";
+import { storedBookingSource } from "#db/contact-tokens.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
 import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
@@ -241,6 +242,17 @@ const resendNotification = async (
   );
   if (noLineRedirect) return noLineRedirect;
 
+  // The webhook reports how the booking was made. It reads the stored
+  // booking, not who pressed the button. A booking with no contact history
+  // has no stored source, so the payload says "unknown".
+  const source =
+    (await storedBookingSource(
+      data.attendee.email,
+      data.attendee.phone,
+      data.attendee.ticket_token,
+      await requireRequestPrivateKey(),
+    )) ?? "unknown";
+
   // A refunded line bought nothing now, so the resend must not notify it
   // again.
   const entries = await scopeEntries(attendeeId, purchaseScope(data));
@@ -269,6 +281,7 @@ const resendNotification = async (
       // plan keeps the buyer served. So does a claim on a line refunded
       // later.
       siteAssignmentEntries: await scopeEntries(attendeeId, { kind: "whole" }),
+      source,
     }),
     logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,

@@ -12,6 +12,7 @@ import {
 } from "#scripts/unread-fields/policy.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import type { SumupCheckoutRequest } from "#shared/sumup/transport.ts";
+import type { WebhookPayload } from "#shared/webhook.ts";
 import type { WarningDeleteProps } from "#templates/admin/confirm-page.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 
@@ -168,6 +169,32 @@ const settingsPageStates = exemptFieldsAt<SettingsPageState>(
   theme: "check",
   underlineLinks: "exempt",
   webhookUrl: "check",
+});
+
+const webhookPayloads = exemptFieldsAt<WebhookPayload>(
+  "src/shared/webhook.ts",
+  [{ name: "WebhookPayload" }],
+  {
+    evidence:
+      "sendWebhook serialises the payload into the registration POST body; the reader is the operator's external integration",
+    kind: "external-output",
+  },
+)({
+  address: "check",
+  amount_owed: "check",
+  business_email: "check",
+  currency: "check",
+  email: "check",
+  name: "check",
+  notification_type: "check",
+  payment_id: "check",
+  phone: "check",
+  price_paid: "check",
+  source: "exempt",
+  special_instructions: "check",
+  ticket_url: "check",
+  tickets: "check",
+  timestamp: "check",
 });
 
 const warningDeleteProps = exemptFieldsAt<WarningDeleteProps>(
@@ -394,6 +421,7 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...settingsPageStates,
   ...siteDataBlobs,
   ...sumupCheckoutRequests,
+  ...webhookPayloads,
   groupScanChecksInAllListings,
   groupShowHiddenListings,
   sumupHostedCheckout,

@@ -2,7 +2,7 @@
  * Example webhook payload for documentation.
  *
  * This constant is rendered in the admin guide and README.
- * A test in test/lib/webhook-example.test.ts calls the real
+ * A test in test/shared/webhook-example.test.ts calls the real
  * buildWebhookPayload() with matching inputs and asserts
  * the output has the same keys, types, and structure —
  * so a payload shape change will break the test and force
@@ -48,6 +48,9 @@ export const WEBHOOK_EXAMPLE_PAYLOAD: WebhookPayload = {
   payment_id: EXAMPLE_ATTENDEE.payment_id,
   phone: EXAMPLE_ATTENDEE.phone,
   price_paid: Number.parseInt(EXAMPLE_ATTENDEE.price_paid, 10),
+  // The booking's source: "public" (made online), "admin" (added by hand),
+  // or "unknown" (no stored contact history holds the answer).
+  source: "public",
   special_instructions: EXAMPLE_ATTENDEE.special_instructions,
   ticket_url: `https://${EXAMPLE_DOMAIN}/t/${EXAMPLE_ATTENDEE.ticket_token}`,
   tickets: [

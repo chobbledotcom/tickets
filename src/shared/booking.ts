@@ -146,6 +146,11 @@ export const processBooking = async (
     return { type: "sold_out" };
   }
 
-  await logAndNotifyRegistration([{ attendee: result.attendees[0]!, listing }]);
+  await logAndNotifyRegistration(
+    [{ attendee: result.attendees[0]!, listing }],
+    {
+      source: "public",
+    },
+  );
   return { attendee: result.attendees[0]!, type: "success" };
 };

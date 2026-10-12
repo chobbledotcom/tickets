@@ -10,6 +10,7 @@ import {
 import { handleBookPackage } from "#routes/api/packages.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
+import { flushAsync, stubWebhookFetch } from "#test/shared/webhook/helpers.ts";
 import type { BookResponseBody } from "#test-utils/api/helpers.ts";
 import {
   expectCapturedItemPriced,
@@ -26,6 +27,7 @@ import {
   makeCustomisableDailyParent,
   makeParent,
 } from "#test-utils/parents.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { ListingWithCount } from "#types";
 
@@ -328,3 +330,27 @@ describeWithEnv("processParentApiBooking", { db: true, triggers: true }, () => {
     }
   });
 });
+
+describeWithEnv(
+  "folded booking registration webhook",
+  { db: true, triggers: true },
+  () => {
+    const fetchSpy = stubWebhookFetch();
+
+    test("says the person booked online", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 500 }],
+        parent: {
+          maxAttendees: 10,
+          unitPrice: 0,
+          webhookUrl: "https://example.com/registration",
+        },
+      });
+
+      await withRequestContext(() => bookParent(parent, parentBody(child)));
+      await flushAsync();
+
+      expect(fetchSpy.firstBody().source).toBe("public");
+    });
+  },
+);

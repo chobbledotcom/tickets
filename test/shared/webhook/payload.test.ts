@@ -42,7 +42,8 @@ const reportedPrice = (
       } satisfies RegistrationPackagePricing,
     ],
   ]);
-  return buildWebhookPayload([entry], "GBP", overrides).tickets[0]?.unit_price;
+  return buildWebhookPayload([entry], "GBP", "public", overrides).tickets[0]
+    ?.unit_price;
 };
 
 describeWithEnv("webhook payload", { db: true }, () => {
@@ -59,19 +60,25 @@ describeWithEnv("webhook payload", { db: true }, () => {
     // say — would silently multiply what integrations are told was paid.
     const entry = makeEntry({ unit_price: 0 }, { price_paid: "0x10" });
 
-    expect(buildWebhookPayload([entry], "GBP").price_paid).toBeNull();
+    expect(buildWebhookPayload([entry], "GBP", "public").price_paid).toBeNull();
   });
 
   test("reports a free listing that took a payment as paid", () => {
     const entry = makeEntry({ unit_price: 0 }, { price_paid: "1" });
 
-    expect(buildWebhookPayload([entry], "GBP").price_paid).toBe(1);
+    expect(buildWebhookPayload([entry], "GBP", "public").price_paid).toBe(1);
   });
 
   test("reports a free order that took nothing as unpaid", () => {
     const entry = makeEntry({ unit_price: 0 }, { price_paid: "0" });
 
-    expect(buildWebhookPayload([entry], "GBP").price_paid).toBeNull();
+    expect(buildWebhookPayload([entry], "GBP", "public").price_paid).toBeNull();
+  });
+
+  test("reports how the booking was made", () => {
+    const entry = makeEntry({ unit_price: 0 });
+
+    expect(buildWebhookPayload([entry], "GBP", "admin").source).toBe("admin");
   });
 });
 
@@ -81,7 +88,7 @@ describeWithEnv("webhook sending safety", { db: true }, () => {
   test("refuses to post to an unsafe address", async () => {
     const result = await sendWebhook(
       "http://127.0.0.1/hook",
-      buildWebhookPayload([makeEntry()], "GBP"),
+      buildWebhookPayload([makeEntry()], "GBP", "public"),
     );
 
     expect(testFetch.calls.length).toBe(0);

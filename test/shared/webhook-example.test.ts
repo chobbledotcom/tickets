@@ -101,6 +101,7 @@ describe("webhook example", () => {
     const payload = await buildWebhookPayload(
       [exampleEntry()],
       EXAMPLE_CURRENCY,
+      "public",
     );
 
     expect(payload).toEqual(WEBHOOK_EXAMPLE_PAYLOAD);
@@ -116,6 +117,7 @@ describe("webhook example", () => {
     const payload = await buildWebhookPayload(
       [exampleEntry()],
       EXAMPLE_CURRENCY,
+      "public",
     );
 
     const payloadKeys = Object.keys(payload).sort();
@@ -128,6 +130,7 @@ describe("webhook example", () => {
     const payload = await buildWebhookPayload(
       [exampleEntry()],
       EXAMPLE_CURRENCY,
+      "public",
     );
 
     const ticketKeys = Object.keys(payload.tickets[0]!).sort();

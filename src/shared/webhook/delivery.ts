@@ -1,4 +1,5 @@
 import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
+import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
@@ -86,7 +87,7 @@ const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
 /** Send one consolidated payload to each distinct registration webhook. */
 export const sendRegistrationWebhooks: RegistrationNotification<
   RegistrationEntry
-> = async (entries, currency, suppliedFacts) => {
+> = async (entries, currency, source, suppliedFacts) => {
   const webhookUrls = registrationWebhookUrls(entries);
   if (webhookUrls.length === 0) return { failed: false };
   if (webhookUrls.length > MAX_REGISTRATION_WEBHOOK_URLS) {
@@ -94,7 +95,12 @@ export const sendRegistrationWebhooks: RegistrationNotification<
   }
 
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
-  const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
+  const payload = buildWebhookPayload(
+    entries,
+    currency,
+    source,
+    facts.pricingByGroup,
+  );
   return await waitForRegistrationDeliveries(
     webhookUrls.map((url) => sendWebhook(url, payload)),
   );
@@ -140,11 +146,12 @@ const reportRegistrationDeliveryError = async (): Promise<void> => {
 const sendRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
+  source: WebhookBookingSource,
   packageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
 ): Promise<void> => {
   const [webhookResult, emailResult] = await Promise.allSettled([
-    sendRegistrationWebhooks(entries, currency, packageFacts),
+    sendRegistrationWebhooks(entries, currency, source, packageFacts),
     sendRegistrationEmails(entries, currency, packageFacts, freeTexts),
   ]);
   const deliveries = [
@@ -165,6 +172,7 @@ const sendRegistrationNotifications = async (
 const queueRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
+  source: WebhookBookingSource,
   suppliedPackageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
 ): Promise<void> => {
@@ -181,7 +189,13 @@ const queueRegistrationNotifications = async (
     throw error;
   }
   addPendingWork(
-    sendRegistrationNotifications(entries, currency, packageFacts, freeTexts),
+    sendRegistrationNotifications(
+      entries,
+      currency,
+      source,
+      packageFacts,
+      freeTexts,
+    ),
   );
 };
 
@@ -194,10 +208,11 @@ const reportAfterBookingFailure =
     logError({ code: ErrorCode.SITE_ASSIGNMENT, detail, error });
   };
 
-/** What a booking passes to its notification queue. Everything is optional:
- * the plaintext free-text answers only the caller can hold, preloaded package
- * facts, extra activity-log lines, the renewal token's hash, and the entries
- * the site assignment sees. */
+/** What a booking passes to its notification queue. `source` is required, so
+ * every booking path states how the booking was made. Everything else is
+ * optional: the plaintext free-text answers only the caller can hold, preloaded
+ * package facts, extra activity-log lines, the renewal token's hash, and the
+ * entries the site assignment sees. */
 export interface NotifyRegistrationOptions {
   /** The buyer's typed free-text answers. The strings table keeps them sealed
    * to the owner key, which no notification path can spend, so the booking
@@ -214,12 +229,16 @@ export interface NotifyRegistrationOptions {
   siteAssignmentEntries?: EmailEntry[] | undefined;
   /** The hashed renewal token, when this booking came from /renew. */
   siteTokenIndex?: string | undefined;
+  /** How the booking was made. "public" is a booking the person made online,
+   * "admin" is a booking an admin added by hand. "unknown" means no stored
+   * contact history holds the answer, which a re-send reports. */
+  source: WebhookBookingSource;
 }
 
 /** Record a registration and queue its external notifications. */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
-  options: NotifyRegistrationOptions = {},
+  options: NotifyRegistrationOptions,
 ): Promise<void> => {
   await logActivities([
     ...(options.priorActivities ?? []),
@@ -234,6 +253,7 @@ export const logAndNotifyRegistration = async (
     queueRegistrationNotifications(
       entries,
       currency,
+      options.source,
       options.packageFacts,
       options.freeTexts,
     ),

@@ -80,7 +80,9 @@ src/features/admin/attendees-merge.ts::updateTargetPiiFromDecision.keptIsPinned~
 # contact-tokens.ts — `?? → ||` sites whose operand can never be a
 # falsy-but-non-null value.
 src/shared/db/contact-tokens.ts::loadTokenBlob~0hgbweg  ?? → || audited:0sppv7e # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
-src/shared/db/contact-tokens.ts::syncChannelToken~07hz79m  ?? → || audited:0sppv7e # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
+src/shared/db/contact-tokens.ts::findTokenLine~1lcv0oh  ?? → || audited:1oyo0zq # findTokenLine's `…find(...) ?? null`: Array.find yields an element of the stored lines or undefined, and a stored line is always an object, so it is never falsy-but-non-null; ?? and || agree
+src/shared/db/contact-tokens.ts::syncChannelToken~1mqxdjq  ?? → || audited:1oyo0zq # `removedSource ?? storedSource ?? sync.source`: removedSource and storedSource are BookingSource|null, sync.source is BookingSource, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
+src/shared/db/contact-tokens.ts::syncChannelToken~1dp5quy  ?? → || audited:1oyo0zq # `removedSource ?? storedSource ?? sync.source`: removedSource and storedSource are BookingSource|null, sync.source is BookingSource, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
 
 # Admin segment dispatch (admin/index.ts) — one provably-equivalent survivor
 # from the routeAdmin run over the manifest + footer suites.

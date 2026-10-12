@@ -291,7 +291,7 @@ const completeFoldedBooking = async (
   // `createFreeReservation`. Without this, the folded free/provider-less
   // parent booking silently skips the confirmation email, registration webhook,
   // and activity log every other booking path fires.
-  await logAndNotifyRegistration(reservation.entries);
+  await logAndNotifyRegistration(reservation.entries, { source: "public" });
   return bookingSuccessResponse(reservation.entries[0]!.attendee);
 };
 

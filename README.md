@@ -255,13 +255,13 @@ for all optional variables.
 - Outbound POST on every registration (free or paid) to per-listing and/or
   global webhook URLs
 - Payload: name, email, phone, address, amount, currency, payment ID, ticket
-  URL, per-ticket details
+  URL, per-ticket details, and how the booking was made (`source`)
 - Multi-listing bookings send one consolidated webhook
 
 <details>
 <summary>Example webhook payload</summary>
 
-<!-- This example is tested - see test/lib/webhook-example.test.ts -->
+<!-- This example is tested - see test/shared/webhook-example.test.ts -->
 
 ```json
 {
@@ -275,6 +275,7 @@ for all optional variables.
   "payment_id": "pi_3abc123def456",
   "phone": "+44 7700 900000",
   "price_paid": 3000,
+  "source": "public",
   "special_instructions": "Wheelchair access needed",
   "ticket_url": "https://tickets.example.com/t/A1B2C3D4E5",
   "tickets": [
@@ -291,7 +292,10 @@ for all optional variables.
 }
 ```
 
-Prices are in the smallest currency unit (for example pence, cents). For
+Prices are in the smallest currency unit (for example pence, cents). The
+`source` field says how the booking was made: `public` is a booking the person
+made online, `admin` is a booking an admin added by hand, and `unknown` means
+no stored contact history holds the answer. For
 multi-listing bookings the `tickets` array contains one entry per listing and
 the `ticket_url` combines tokens with `+` - one webhook, not several.
 

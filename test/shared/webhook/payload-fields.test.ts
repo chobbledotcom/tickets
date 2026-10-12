@@ -38,9 +38,14 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
   });
 
   test("builds payload for a single free listing", async () => {
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     expect(payload.notification_type).toBe("registration.completed");
+    expect(payload.source).toBe("public");
     expect(payload.name).toBe("Jane Doe");
     expect(payload.email).toBe("jane@example.com");
     expect(payload.phone).toBe("555-1234");
@@ -67,7 +72,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       ),
     ];
 
-    const payload = await buildWebhookPayload(entries, "USD");
+    const payload = await buildWebhookPayload(entries, "USD", "public");
 
     expect(payload.price_paid).toBe(1000);
     expect(payload.payment_id).toBe("pi_abc123");
@@ -96,7 +101,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     ];
     const overrides = new Map([[7, packagePricing(new Map([[42, 900]]))]]);
 
-    const payload = buildWebhookPayload(entries, "GBP", overrides);
+    const payload = buildWebhookPayload(entries, "GBP", "public", overrides);
 
     // The order reports what was actually paid.
     expect(payload.price_paid).toBe(3000);
@@ -106,7 +111,12 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
   /** The payload for entries whose package group 7 carries NO overrides. */
   const payloadWithEmptyOverrides = (entries: EmailEntry[]) =>
-    buildWebhookPayload(entries, "GBP", new Map([[7, packagePricing()]]));
+    buildWebhookPayload(
+      entries,
+      "GBP",
+      "public",
+      new Map([[7, packagePricing()]]),
+    );
 
   test("falls back to the base price for a package member with no override", async () => {
     const entries = [
@@ -146,6 +156,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     const payload = buildWebhookPayload(
       entries,
       "GBP",
+      "public",
       new Map([
         [7, packagePricing(new Map(), new Map([[44, new Map([[2, 1500]])]]))],
       ]),
@@ -192,7 +203,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
         },
       ),
     ];
-    const payload = await buildWebhookPayload(entries, "GBP");
+    const payload = await buildWebhookPayload(entries, "GBP", "public");
     expect(payload.tickets[0]!.unit_price).toBe(1500);
   });
 
@@ -211,7 +222,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       ),
     ];
 
-    const payload = await buildWebhookPayload(entries, "GBP");
+    const payload = await buildWebhookPayload(entries, "GBP", "public");
 
     expect(payload.price_paid).toBe(0);
     expect(payload.amount_owed).toBe(3000);
@@ -238,7 +249,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       ),
     ];
 
-    const payload = await buildWebhookPayload(entries, "EUR");
+    const payload = await buildWebhookPayload(entries, "EUR", "public");
 
     expect(payload.name).toBe("Jane Doe");
     expect(payload.price_paid).toBe(1700);
@@ -267,7 +278,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       },
     ];
 
-    const payload = await buildWebhookPayload(entries, "GBP");
+    const payload = await buildWebhookPayload(entries, "GBP", "public");
 
     expect(payload.price_paid).toBe(500);
     expect(payload.payment_id).toBe("pi_donate");
@@ -277,6 +288,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     const payload = await buildWebhookPayload(
       [makeEntry({}, { date: "2025-07-15" })],
       "GBP",
+      "public",
     );
 
     expect(payload.tickets[0]!.date).toBe("2025-07-15");
@@ -294,7 +306,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       ),
     ];
 
-    const payload = await buildWebhookPayload(entries, "GBP");
+    const payload = await buildWebhookPayload(entries, "GBP", "public");
 
     expect(payload.tickets[0]!.date).toBe("2025-07-15");
     expect(payload.tickets[1]!.date).toBeNull();
@@ -304,6 +316,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     const payload = await buildWebhookPayload(
       [makeEntry({ unit_price: 500 }, { quantity: 3 })],
       "GBP",
+      "public",
     );
 
     expect(payload.price_paid).toBe(0);
@@ -313,13 +326,21 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     const { updateBusinessEmail } = await import("#shared/validation/email.ts");
     await updateBusinessEmail("contact@example.com");
 
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     expect(payload.business_email).toBe("contact@example.com");
   });
 
   test("includes empty business_email when not set", async () => {
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     expect(payload.business_email).toBe("");
   });

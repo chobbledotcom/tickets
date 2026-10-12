@@ -162,7 +162,11 @@ export const handleFreePath = async (
   const freeTexts = new Map(
     info.textAnswers.map(({ questionId, text }) => [questionId, text]),
   );
-  await logAndNotifyRegistration(result.entries, { freeTexts, siteTokenIndex });
+  await logAndNotifyRegistration(result.entries, {
+    freeTexts,
+    siteTokenIndex,
+    source: "public",
+  });
 
   // The caller resolves the redirect from the pre-fold listing set (a single
   // listing's — or a single parent + its folded children's — thank-you URL), so

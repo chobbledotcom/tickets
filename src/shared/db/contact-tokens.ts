@@ -28,6 +28,10 @@ import { nowMs } from "#shared/now.ts";
  * key. */
 export type BookingSource = "admin" | "public";
 
+/** The source a webhook payload reports: the stored source, or "unknown"
+ * when no stored contact history holds the answer. */
+export type WebhookBookingSource = BookingSource | "unknown";
+
 /** A booked ticket token linked to a contact, with the source that booked it. */
 export type BookingToken = { source: BookingSource; token: string };
 
@@ -179,6 +183,18 @@ const appendBookingToken = async (
   });
 };
 
+/** The contacts a person's non-empty email and phone name, in search order. */
+const contactsFor = (
+  email: unknown,
+  phone: unknown,
+): [ContactChannel, string][] => {
+  const contacts: [ContactChannel, string][] = [];
+  if (typeof email === "string" && email.trim())
+    contacts.push(["email", email]);
+  if (typeof phone === "string" && phone.trim()) contacts.push(["sms", phone]);
+  return contacts;
+};
+
 /** Build one replay-safe activity statement for each non-empty contact on an
  * order. These statements can be included in the booking transaction. */
 export const orderActivityStatements = async (
@@ -187,12 +203,10 @@ export const orderActivityStatements = async (
   source: BookingSource,
   ticketToken: string,
 ): Promise<SqlStatement[]> => {
-  const contacts: [ContactChannel, string][] = [];
-  if (typeof email === "string" && email.trim())
-    contacts.push(["email", email]);
-  if (typeof phone === "string" && phone.trim()) contacts.push(["sms", phone]);
   const hashes = await Promise.all(
-    contacts.map(([channel, value]) => contactHash(channel, value)),
+    contactsFor(email, phone).map(([channel, value]) =>
+      contactHash(channel, value),
+    ),
   );
   return Promise.all(
     hashes.map((hash) =>
@@ -258,6 +272,44 @@ export const getRecentBookingTokens = async (
   );
 };
 
+/** Read how one stored booking was made, from the contact history the booking
+ * wrote when it happened. Looks in the contacts the attendee's email and phone
+ * point at. Null when no contact still holds the token. The token list only
+ * fills from bookings made after it shipped, and GDPR erasure removes it, so
+ * the origin is then gone. */
+export const storedBookingSource = async (
+  email: string,
+  phone: string,
+  ticketToken: string,
+  privateKey: CryptoKey,
+): Promise<BookingSource | null> => {
+  for (const [channel, value] of contactsFor(email, phone)) {
+    const line = await findTokenLine(
+      await contactHash(channel, value),
+      ticketToken,
+    );
+    if (line) {
+      return (await parseTokenEntry(line.encrypted, privateKey)).source;
+    }
+  }
+  return null;
+};
+
+/** Find a contact's stored entry for one ticket token, or null when the
+ * contact holds no such booking. */
+const findTokenLine = async (
+  hash: string,
+  ticketToken: string,
+  transaction?: TxScope,
+): Promise<StoredTokenLine | null> => {
+  const marker = await tokenMarkerFor(hash, ticketToken);
+  return (
+    (await loadTokenLines(hash, transaction)).find(
+      (entry) => entry.marker === marker,
+    ) ?? null
+  );
+};
+
 /** Remove the first entry for `ticketToken` from a contact's encrypted list. */
 const removeBookingToken = async (
   hash: string,
@@ -265,10 +317,7 @@ const removeBookingToken = async (
   privateKey: CryptoKey,
   transaction?: TxScope,
 ): Promise<BookingSource | null> => {
-  const marker = await tokenMarkerFor(hash, ticketToken);
-  const match = (await loadTokenLines(hash, transaction)).find(
-    (entry) => entry.marker === marker,
-  );
+  const match = await findTokenLine(hash, ticketToken, transaction);
   if (!match) return null;
   const removed = await parseTokenEntry(match.encrypted, privateKey);
   // Delete just this entry's ciphertext line in place. REPLACE operates on the
@@ -303,7 +352,9 @@ export type ContactTokenSync = {
   before: ContactTokenValues;
   after: ContactTokenValues;
   privateKey: CryptoKey;
-  /** Source to use when a token is first attached by this admin-side sync. */
+  /** Source to use when a token is first attached and no stored history
+   * names the booking's source — a genuinely admin-made booking. A channel
+   * the edit adds inherits the stored source instead. */
   source: BookingSource;
   /** Only real bookings should be linked into Previous bookings. */
   hasBooking: boolean;
@@ -328,6 +379,7 @@ const valueFor = (
 const syncChannelToken = async (
   channel: ContactChannel,
   sync: ContactTokenSync,
+  storedSource: BookingSource | null,
   transaction?: TxScope,
 ): Promise<void> => {
   const oldHash = await hashForValue(channel, valueFor(channel, sync.before));
@@ -347,10 +399,33 @@ const syncChannelToken = async (
   await ensureBookingToken(
     newHash,
     sync.ticketToken,
-    removedSource ?? sync.source,
+    removedSource ?? storedSource ?? sync.source,
     changed || sync.firstRealBooking,
     transaction,
   );
+};
+
+/** The source the attendee's stored contact history already gives this
+ * booking, or null when no contact holds the token. Scanned before either
+ * channel sync writes, over the contacts the edit moves between. */
+const storedSourceFor = async (
+  sync: ContactTokenSync,
+  transaction?: TxScope,
+): Promise<BookingSource | null> => {
+  for (const channel of ["email", "sms"] as const) {
+    for (const value of [
+      valueFor(channel, sync.before),
+      valueFor(channel, sync.after),
+    ]) {
+      const hash = await hashForValue(channel, value);
+      if (hash === null) continue;
+      const line = await findTokenLine(hash, sync.ticketToken, transaction);
+      if (line) {
+        return (await parseTokenEntry(line.encrypted, sync.privateKey)).source;
+      }
+    }
+  }
+  return null;
 };
 
 /** Keep an attendee's ticket token under the contacts that currently own it. */
@@ -358,6 +433,7 @@ export const syncAttendeeContactTokens = async (
   sync: ContactTokenSync,
   transaction?: TxScope,
 ): Promise<void> => {
-  await syncChannelToken("email", sync, transaction);
-  await syncChannelToken("sms", sync, transaction);
+  const storedSource = await storedSourceFor(sync, transaction);
+  await syncChannelToken("email", sync, storedSource, transaction);
+  await syncChannelToken("sms", sync, storedSource, transaction);
 };

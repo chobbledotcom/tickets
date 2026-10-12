@@ -53,6 +53,7 @@ export const completePaidBooking = async (
     packageFacts: notificationPackages,
     priorActivities: promoActivities,
     siteTokenIndex: intent.siteTokenIndex,
+    source: "public",
   });
   return sessionSuccess(
     firstEntry.attendee.id,

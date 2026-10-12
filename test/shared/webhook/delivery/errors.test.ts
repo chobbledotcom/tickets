@@ -39,7 +39,7 @@ const registrationLogs = (
 ) =>
   withErrorSpy(async (errorSpy) => {
     await withRequestContext(() =>
-      logAndNotifyRegistration(entries, { packageFacts }),
+      logAndNotifyRegistration(entries, { packageFacts, source: "public" }),
     );
     return errorSpy.calls.map(({ args }) => String(args[0]));
   });
@@ -59,9 +59,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
 
     await withRequestContext(() =>
-      logAndNotifyRegistration([
-        makeEntry({ webhook_url: "https://failed-hook.com" }),
-      ]),
+      logAndNotifyRegistration(
+        [makeEntry({ webhook_url: "https://failed-hook.com" })],
+        { source: "public" },
+      ),
     );
 
     const expected = await withMessageGroups(["activity-log"], () =>
@@ -176,9 +177,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     await withErrorSpy(() =>
       withRequestContext(() =>
-        logAndNotifyRegistration([
-          makeEntry({ webhook_url: "https://failed-hook.com" }),
-        ]),
+        logAndNotifyRegistration(
+          [makeEntry({ webhook_url: "https://failed-hook.com" })],
+          { source: "public" },
+        ),
       ),
     );
 
@@ -196,10 +198,13 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     await withErrorSpy(() =>
       withRequestContext(() =>
-        logAndNotifyRegistration([
-          makeEntry({ id: 1, webhook_url: "https://refused-hook.com" }),
-          makeEntry({ id: 2, webhook_url: "https://failed-hook.com" }),
-        ]),
+        logAndNotifyRegistration(
+          [
+            makeEntry({ id: 1, webhook_url: "https://refused-hook.com" }),
+            makeEntry({ id: 2, webhook_url: "https://failed-hook.com" }),
+          ],
+          { source: "public" },
+        ),
       ),
     );
 
@@ -276,7 +281,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       const outcome = Promise.withResolvers<unknown>();
       const sending = (async () => {
         try {
-          await sendRegistrationWebhooks(entries, "GBP");
+          await sendRegistrationWebhooks(entries, "GBP", "public");
           outcome.resolve(null);
         } catch (error) {
           rejected = true;
@@ -303,7 +308,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const entries = [makeEntry({ webhook_url: "https://failed-hook.com" })];
 
     const logs = await withErrorSpy(async (errorSpy) => {
-      await withRequestContext(() => logAndNotifyRegistration(entries));
+      await withRequestContext(() =>
+        logAndNotifyRegistration(entries, { source: "public" }),
+      );
       return errorSpy.calls;
     });
 
@@ -324,7 +331,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const logs = await withErrorSpy(async (errorSpy) => {
       await runWithSubrequestBudget(() =>
         withSubrequestAllowance({ database: 1, external: 0, total: 1 }, () =>
-          withRequestContext(() => logAndNotifyRegistration(entries)),
+          withRequestContext(() =>
+            logAndNotifyRegistration(entries, { source: "public" }),
+          ),
         ),
       );
       return errorSpy.calls.map(({ args }) => String(args[0]));
@@ -354,7 +363,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
 
     await withErrorSpy(() =>
-      withRequestContext(() => logAndNotifyRegistration([entry])),
+      withRequestContext(() =>
+        logAndNotifyRegistration([entry], { source: "public" }),
+      ),
     );
 
     expect(fetchSpy.firstBody().tickets[0]!.unit_price).toBe(2500);
