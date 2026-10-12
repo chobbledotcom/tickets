@@ -3,12 +3,13 @@
  * `:has()`), so the page works with no JavaScript. A script only keeps
  * availability live on top of that.
  *
- * The page is advisory. An option's demand covers its direct listings, not the
- * folded children, so two selections sharing a child pool look fine here and
- * are refused at the form.
+ * The page is advisory: the booking form stays the authority. An option's
+ * demand covers its direct listings and the child units the form auto-folds.
+ * Two selections that contend for one child pool therefore show the conflict
+ * the form refuses.
  */
 
-import type { TicketListing } from "#booking/model.ts";
+/* jscpd:ignore-start -- imports */
 import {
   groupRemainingFromSnapshot,
   loadCapacitySnapshot,
@@ -16,13 +17,9 @@ import {
 } from "#db/attendees/capacity/snapshot.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import {
-  getGroupPackagePricesByGroupIds,
-  packageMemberMaps,
-} from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { settings } from "#db/settings.ts";
-import { compact, requiredMapValue, uniqueBy } from "#fp";
+import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -32,34 +29,19 @@ import {
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { isPublicListing } from "#shared/listing-visibility.ts";
 import { evaluateOrder } from "#shared/order/evaluate.ts";
-import {
-  listingOption,
-  type OrderOption,
-  type OrderOptionState,
-  type OrderPools,
-  packageOption,
-} from "#shared/order/options.ts";
+import type { OrderOptionState, OrderPools } from "#shared/order/options.ts";
 import {
   orderedSelectionKeys,
   selectedStartDate,
 } from "#shared/order-select.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { loadSortedListings } from "#shared/sort-listings.ts";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
-import type { Group, ListingWithCount } from "#types";
-/* jscpd:ignore-start */
-import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
-import { loadBookablePackages } from "./group-liveness.ts";
+import type { ListingWithCount } from "#types";
+import { loadOrderCatalog, type OrderCatalog } from "./order-catalog.ts";
 import { publicNavProps } from "./site-nav.ts";
-import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /* jscpd:ignore-end */
-
-/** Load the bookable listings for the order page, in the standard sorted order. */
-const loadOrderListings = async (): Promise<ListingWithCount[]> =>
-  (await loadSortedListings(isPublicListing)).listings;
 
 /**
  * Guard: the order page is available only when the public site is on and the
@@ -71,72 +53,6 @@ const orderUnavailable = (): Response | null => {
   if (!settings.features.site) return redirectResponse("/admin/login");
   if (!settings.orderEnabled) return notFoundResponse();
   return null;
-};
-
-/** One selectable package with everything its card and its option need. */
-export type OrderPackage = {
-  group: Group;
-  members: ListingWithCount[];
-  /** How many units of each member one package books. */
-  quantities: ReadonlyMap<number, number>;
-};
-
-/** Everything the order surfaces share: the listing cards, the packages, and
- * the option list (in gallery order) the evaluator judges. */
-type OrderCatalog = {
-  ticketListings: TicketListing[];
-  packages: OrderPackage[];
-  options: OrderOption[];
-};
-
-/** Load the order page's catalog: the selectable listing cards, bookable
- * packages with their members, and the evaluator options for both. */
-const loadOrderCatalog = async (): Promise<OrderCatalog> => {
-  const [listings, packageGroups] = await Promise.all([
-    loadOrderListings(),
-    loadBookablePackages(),
-  ]);
-  const [classification, priceRowsByGroupId] = await Promise.all([
-    classifyForDiscovery(listings),
-    getGroupPackagePricesByGroupIds(packageGroups.map(({ group }) => group.id)),
-  ]);
-  // Drop non-standalone children (not selectable), then build cards and project
-  // child-derived sold-out onto the surviving parents. A `bookable_alone` child
-  // keeps its card and joins the cart like any listing; when its parent lands
-  // on the same booking page (directly or inside a package) the form re-folds
-  // it, so its units are chosen through the parent's child selector there.
-  const offered = listings.filter(
-    (e) => !classification.nonStandaloneChildIds.has(e.id),
-  );
-  const ticketListings = applyParentSoldOut(
-    await buildTicketListingsWithGroupCapacity(offered),
-    classification,
-  );
-  // A bookable bundle always has membership price rows.
-  const packages = packageGroups.map(
-    ({ group, members }): OrderPackage => ({
-      group,
-      members,
-      quantities: packageMemberMaps(
-        requiredMapValue(
-          priceRowsByGroupId,
-          group.id,
-          `Package prices missing for group ${group.id}`,
-        ),
-      ).quantities,
-    }),
-  );
-  const options = [
-    // Bookable packages lead the gallery; the shared package gate already
-    // proved each whole bundle fits, so they are bookable alone.
-    ...packages.map((pkg) =>
-      packageOption(pkg.group, pkg.members, pkg.quantities, true),
-    ),
-    ...ticketListings.map((info) =>
-      listingOption(info.listing, !info.isSoldOut && !info.isClosed),
-    ),
-  ];
-  return { options, packages, ticketListings };
 };
 
 /** The span a listing's booking occupies from a chosen start date: a fixed
@@ -183,6 +99,9 @@ const loadOrderPools = async (
   const involved = uniqueBy((listing: ListingWithCount) => listing.id)([
     ...catalog.ticketListings.map((info) => info.listing),
     ...catalog.packages.flatMap((pkg) => pkg.members),
+    // The folded children join the pools: their remaining (and their groups'
+    // remaining) is what the folded demand draws from.
+    ...catalog.childListings,
   ]);
   const groupIdsByListingId = await listingGroups.getIdsByKeys(
     involved.map((listing) => listing.id),

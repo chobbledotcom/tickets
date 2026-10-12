@@ -41,7 +41,7 @@ import { parseNonNegativeInt } from "#shared/validation/number.ts";
  * the shared `dayCount` for a customisable parent, fixed `duration_days` for a
  * fixed daily parent, 1 for a standard parent. Specialises the shared
  * {@link childDaysFromParent} with `(dayCount, 1)`. */
-const parentResolvedDuration = (
+export const parentResolvedDuration = (
   parent: TicketListing["listing"],
   dayCount: number,
 ): number => childDaysFromParent(parent, dayCount, 1);

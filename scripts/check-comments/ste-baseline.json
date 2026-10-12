@@ -219,9 +219,9 @@
     "banned-modal": 1
   },
   "src/features/public/order.ts": {
-    "long-sentence": 6,
     "present-perfect": 1,
-    "semicolon": 4,
+    "long-sentence": 4,
+    "semicolon": 2,
     "contraction": 3,
     "banned-modal": 2
   },
