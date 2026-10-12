@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import {
+  CHILD_FIXTURE_MARKER,
   collectTestFiles,
   defaultGroupCount,
   GROUPS_DIR,
@@ -271,6 +272,19 @@ describe("test-groups", () => {
         },
         { prefix: "tickets-test-groups-" },
       );
+
+    test("collectTestFiles accepts a marked child fixture with a global hook", async () => {
+      await withScratchRoot(async (root) => {
+        await Deno.writeTextFile(
+          `${root}/test/hooks-child-fixture.ts`,
+          `// ${CHILD_FIXTURE_MARKER}\nbeforeAll(() => {});\n`,
+        );
+        expect(await collectTestFiles(root)).toEqual([
+          `${root}/test/global-hooks.test.ts`,
+          `${root}/test/plain.test.ts`,
+        ]);
+      });
+    });
 
     test("collectTestFiles rejects a shared helper with a global hook", async () => {
       await withScratchRoot(async (root) => {

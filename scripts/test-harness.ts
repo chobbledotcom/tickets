@@ -188,6 +188,11 @@ export const runTests = async (
 ): Promise<number> => {
   if (useCoverage) await removeOldCoverageOutput();
   const { args, nameFilter } = extractNameFilter(extraArgs);
+  if (nameFilter !== undefined && hasReporterArg(args)) {
+    throw new Error(
+      "A filtered run cannot use a custom reporter: the runner cannot tell whether any test matched.",
+    );
+  }
   if (!hasReporterArg(args)) {
     return await runFocusedTest(
       { extraArgs: args, junitPath, nameFilter, useCoverage },

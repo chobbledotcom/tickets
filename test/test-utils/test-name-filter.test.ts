@@ -280,13 +280,14 @@ describe("a leaf-name filter", () => {
     ]);
   });
 
-  test("drops a plain Deno.test that does not match and keeps a matched one", () => {
-    const { captured } = installFilter("kept plain");
+  test("drops plain and ignored Deno.test declarations that do not match", () => {
+    const { captured } = installFilter("kept");
     Deno.test("kept plain", () => {});
     Deno.test("dropped plain", () => {});
+    Deno.test({ fn: () => {}, ignore: true, name: "kept ignored" });
     Deno.test({ fn: () => {}, ignore: true, name: "dropped ignored" });
 
-    expect(names(captured)).toEqual(["kept plain", "dropped ignored"]);
+    expect(names(captured)).toEqual(["kept plain", "kept ignored"]);
   });
 
   test("holds a top-level hook's hidden suite until a leaf needs it", async () => {

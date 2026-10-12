@@ -86,9 +86,6 @@ const nameOf = (args: readonly unknown[]): string | undefined => {
   return;
 };
 
-const isOptions = (args: readonly unknown[]): boolean =>
-  typeof args[0] === "object" && args[0] !== null;
-
 export const createTestNameFilter = (
   spec: string | undefined,
   bdd: BddFunctions,
@@ -257,10 +254,8 @@ export const createTestNameFilter = (
       pendingGlobal = args;
       return;
     }
-    const ignored =
-      isOptions(args) && (args[0] as { ignore?: unknown }).ignore === true;
     const name = nameOf(args);
-    if (ignored || (name !== undefined && matches(name))) {
+    if (name !== undefined && matches(name)) {
       realTest(...args);
     }
     // A plain test whose name does not match is dropped, like Deno's own
