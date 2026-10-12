@@ -115,6 +115,36 @@ describeWithEnv("AdminNav visibility", {}, () => {
     }
   });
 
+  test("Builds is a top-level link on a site that can build", () => {
+    using _builder = withEnv({ CAN_BUILD_SITES: "true" });
+    // The landing nav renders no section sub-nav, so a link here can only
+    // sit at the top level.
+    const html = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+    );
+    expect(html).toContain('href="/admin/built-sites"');
+    expect(html).toContain("Builds");
+  });
+
+  test("Builds is absent on a site that cannot build", () => {
+    const html = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+    );
+    expect(html).not.toContain('href="/admin/built-sites"');
+  });
+
+  test("Builds no longer sits in the Settings sub-nav", () => {
+    using _builder = withEnv({ CAN_BUILD_SITES: "true" });
+    const html = String(
+      AdminNav({
+        active: "/admin/settings",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    const sub = subNav(html);
+    expect(sub).not.toContain('href="/admin/built-sites"');
+  });
+
   test("editors get no section sub-nav away from the Site editor", () => {
     const html = String(
       AdminNav({

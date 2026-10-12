@@ -3,9 +3,11 @@ import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import type { BuiltSitesSort } from "#shared/built-sites-list.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 /* jscpd:ignore-end */
 import { booleanToCheckbox } from "#shared/forms/values.ts";
+import { visitSiteUrl } from "#shared/site-address.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import {
   BuiltSitesGuideFooter,
@@ -24,6 +26,7 @@ export const adminBuiltSitesPage = (
   session: AdminSession,
   successMessage?: string,
   renewalTiers: ListingWithCount[] = [],
+  sort: BuiltSitesSort = "name",
 ): string => {
   const hostingIds = sites
     .filter((site) => site.hostingId && site.hostingProvider === "bunny")
@@ -39,6 +42,7 @@ export const adminBuiltSitesPage = (
           hostingIds={hostingIds}
           renewalTiers={renewalTiers}
           sites={sites}
+          sort={sort}
         />
         <BuiltSitesGuideFooter />
       </>
@@ -103,7 +107,9 @@ export const BuiltSiteEditPanel = ({
   editPanel(error)(
     <BuiltSiteSaveForm action={`/admin/built-sites/${site.id}/edit`}>
       <Raw
-        html={getBuiltSiteForm().render(values ?? builtSiteToFieldValues(site))}
+        html={getBuiltSiteForm(visitSiteUrl(site.siteUrl)).render(
+          values ?? builtSiteToFieldValues(site),
+        )}
       />
     </BuiltSiteSaveForm>,
   );

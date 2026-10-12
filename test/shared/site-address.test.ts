@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { siteBaseUrl, toStableHostname } from "#shared/site-address.ts";
+import {
+  siteBaseUrl,
+  toStableHostname,
+  visitSiteUrl,
+} from "#shared/site-address.ts";
 
 describe("toStableHostname", () => {
   test("maps a bunny.run hostname to b-cdn.net", () => {
@@ -81,5 +85,65 @@ describe("siteBaseUrl", () => {
     expect(siteBaseUrl("tickets.example.co.uk")).toBe(
       "https://tickets.example.co.uk",
     );
+  });
+});
+
+describe("visitSiteUrl", () => {
+  test("swaps a bunny.net host for its b-cdn.net address", () => {
+    expect(visitSiteUrl("https://child.newsite.bunny.net")).toBe(
+      "https://child.newsite.b-cdn.net",
+    );
+  });
+
+  test("keeps the path and query of a rewritten URL", () => {
+    expect(visitSiteUrl("https://child.bunny.net/tickets?x=1")).toBe(
+      "https://child.b-cdn.net/tickets?x=1",
+    );
+  });
+
+  test("prepends https:// to a bare bunny.net hostname", () => {
+    expect(visitSiteUrl("child.bunny.net")).toBe("https://child.b-cdn.net");
+  });
+
+  test("gives a bare CDN hostname its absolute https address", () => {
+    expect(visitSiteUrl("test-42.b-cdn.net")).toBe("https://test-42.b-cdn.net");
+  });
+
+  test("prepends https:// to a bare hostname with a port", () => {
+    expect(visitSiteUrl("example.com:8443")).toBe("https://example.com:8443");
+  });
+
+  test("leaves a b-cdn.net URL as it is", () => {
+    expect(visitSiteUrl("https://child.b-cdn.net")).toBe(
+      "https://child.b-cdn.net",
+    );
+  });
+
+  test("leaves a custom domain as it is", () => {
+    expect(visitSiteUrl("https://tickets.example.co.uk/tickets")).toBe(
+      "https://tickets.example.co.uk/tickets",
+    );
+  });
+
+  test("leaves a URL whose path merely names bunny.net as it is", () => {
+    expect(visitSiteUrl("https://tickets.example.co.uk/bunny.net")).toBe(
+      "https://tickets.example.co.uk/bunny.net",
+    );
+  });
+
+  test("gives no address for an empty saved URL", () => {
+    expect(visitSiteUrl("")).toBeUndefined();
+  });
+
+  test("gives no address for a truncated URL", () => {
+    expect(visitSiteUrl("https://")).toBeUndefined();
+  });
+
+  test("gives no address for a non-http scheme", () => {
+    expect(visitSiteUrl("javascript:alert(1)")).toBeUndefined();
+  });
+
+  test("gives no address for a URL on another scheme", () => {
+    expect(visitSiteUrl("ftp://example.com")).toBeUndefined();
   });
 });

@@ -71,11 +71,12 @@ src/ui/templates/admin/schema-atlas.tsx::UnansweredMoneySection~15crpim ??→|| 
 src/ui/templates/admin/builder.tsx::builtSitesTable~0ytajae name→"" audited:1kypnnr # renderTable(builtSitesTable, sites) filters by key only when columnKeys/hiddenKeys are passed, and this page passes neither
 src/ui/templates/admin/builder.tsx::builtSitesTable~0l4ob4i url→"" audited:1kypnnr # same: the key reaches no rendered output on this page
 src/ui/templates/admin/builder.tsx::builtSitesTable~0w4j3rw built→"" audited:1kypnnr # same: the key reaches no rendered output on this page
-src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~02alai9 name→"" audited:1o8gw8z # same: renderTable(builtSitesTable, sites) passes no columnKeys or hiddenKeys, so no code path reads the column key
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~0xw6dmx@1 name→"" audited:0x6wcuh # same: renderTable(builtSitesTable, sites) passes no columnKeys or hiddenKeys, so no code path reads the column key
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~0xw6dmx@2 name→"" audited:0x6wcuh # same: renderTable(builtSitesTable, sites) passes no columnKeys or hiddenKeys, so no code path reads the column key
 src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~0wl4rmg site_url→"" audited:1o8gw8z # same: this table renders with no columnKeys or hiddenKeys
 src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~0g1lcco status→"" audited:1o8gw8z # same: this table renders with no columnKeys or hiddenKeys
 src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~1szmvt4 updates→"" audited:1o8gw8z # same: this table renders with no columnKeys or hiddenKeys
-src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~1geahz2 read_only→"" audited:1o8gw8z # same: this table renders with no columnKeys or hiddenKeys
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~13trush read_only→"" audited:0x6wcuh # same: this table renders with no columnKeys or hiddenKeys
 
 # seeds.tsx: the page passes no nav route, and no nav section owns the empty
 # string, so any non-route value renders the same unhighlighted nav.

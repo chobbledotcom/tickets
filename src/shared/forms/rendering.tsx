@@ -58,9 +58,9 @@ const renderCheckboxGroup = (
       (option) =>
         `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
           option.value,
-        )}"${selectedValues.has(option.value) ? " checked" : ""}${dataAttrs}> ${escapeHtml(
-          option.label,
-        )}</label>`,
+        )}"${
+          selectedValues.has(option.value) ? " checked" : ""
+        }${dataAttrs}> ${escapeHtml(option.label)}</label>`,
     )
     .join("")}</fieldset>`;
 
@@ -229,6 +229,7 @@ export const renderField = (field: Field, value: string = ""): string =>
     <>
       <label>
         {field.label}
+        {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
         {renderFieldInput(field, value)}
         {field.hint && <small>{field.hint}</small>}
         {field.hintHtml && (

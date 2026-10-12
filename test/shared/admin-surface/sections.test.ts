@@ -32,6 +32,7 @@ describe("the admin sections table", () => {
       "modifiers",
       "ledger",
       "site",
+      "builtSites",
       "settings",
       "guide",
     ]);
@@ -135,6 +136,7 @@ describe("the sections that own a record page", () => {
     expect(withDetail.map((section) => section.id)).toEqual([
       "listings",
       "groups",
+      "builtSites",
     ]);
   });
 
@@ -142,6 +144,7 @@ describe("the sections that own a record page", () => {
     expect(withDetail.map((section) => adminPattern(section.detail!))).toEqual([
       "/admin/listing/:id",
       "/admin/groups/:id",
+      "/admin/built-sites/:id",
     ]);
   });
 

@@ -171,6 +171,14 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     visible: featureVisible("site"),
   },
   {
+    detail: "builtSite",
+    id: "builtSites",
+    labelKey: "nav.built_sites",
+    landing: "builtSites",
+    nav: [{ id: "builtSites", kind: "landing", labelKey: "nav.built_sites" }],
+    visible: (ctx) => ctx.builder,
+  },
+  {
     id: "settings",
     labelKey: "nav.settings",
     landing: "settings",
@@ -203,12 +211,6 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       },
       { id: "emails", kind: "link", labelKey: "nav.emails" },
       { id: "holidays", kind: "link", labelKey: "terms.holidays" },
-      {
-        id: "builtSites",
-        kind: "link",
-        labelKey: "nav.built_sites",
-        visible: (ctx) => ctx.builder,
-      },
       { id: "settingsAdvanced", kind: "link", labelKey: "nav.sub.advanced" },
       { id: "backup", kind: "link", labelKey: "nav.sub.backups" },
       { id: "debug", kind: "link", labelKey: "nav.sub.debug" },

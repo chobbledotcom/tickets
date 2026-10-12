@@ -5,6 +5,7 @@
  */
 
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
 import {
@@ -135,13 +136,19 @@ export const providerChoices = <
 /**
  * Built site form field definitions (per-request builder)
  */
-const getBuiltSiteFields = () =>
+/** The "(visit)" link that follows the Site URL label: it opens the address a
+ *  visitor reaches, which the saved URL names. */
+const visitLinkHtml = (visitUrl: string): string =>
+  ` <a href="${escapeHtml(visitUrl)}" target="_blank" rel="noopener noreferrer">${t("fields.built_site.visit_site")}</a>`;
+
+const getBuiltSiteFields = (visitUrl?: string) =>
   [
     { ...builtSiteBox("name", "name", "text" as const), required: true },
     {
       ...builtSiteBox("site_url", "site_url", "url" as const),
       required: true,
       validate: validateHttpsDomainUrl,
+      ...(visitUrl && { labelSuffixHtml: visitLinkHtml(visitUrl) }),
     },
     builtSiteBox("db_url", "db_url", "url" as const),
     {

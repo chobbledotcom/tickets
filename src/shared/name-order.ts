@@ -5,3 +5,10 @@
 export const sortByName = <T extends { name: string }>(
   rows: readonly T[],
 ): T[] => rows.toSorted((a, b) => a.name.localeCompare(b.name));
+
+/** Compare two named rows by name, ascending. One comparator for every sort
+ * that falls back to the name. */
+export const compareByName = <T extends { name: string }>(
+  first: T,
+  second: T,
+): number => first.name.localeCompare(second.name);

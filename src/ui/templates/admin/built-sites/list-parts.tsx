@@ -2,7 +2,9 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import type { SafeHtml } from "#jsx/jsx-runtime.ts";
+import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
+import type { BuiltSitesSort } from "#shared/built-sites-list.ts";
+import { formatDatetimeShort } from "#shared/dates.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -47,8 +49,35 @@ const builtSiteUrlCell = (site: BuiltSite): JSX.Element => (
   <NewTabUrl url={siteBaseUrl(site.siteUrl)} />
 );
 
-const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
-  translatedTableColumn("name", "common.name", builtSiteNameCell),
+/** The heading of one sortable column: a link to that sort, or plain bold
+ *  text when the list already shows it. */
+const sortableHeader = (
+  current: BuiltSitesSort,
+  sortOrder: BuiltSitesSort,
+  labelKey: string,
+): Child =>
+  sortOrder === current ? (
+    <strong>{t(labelKey)}</strong>
+  ) : (
+    <a href={`/admin/built-sites?sort=${sortOrder}`}>{t(labelKey)}</a>
+  );
+
+const sortableColumn = (
+  key: "name" | "created" | "read_only",
+  current: BuiltSitesSort,
+  sortOrder: BuiltSitesSort,
+  labelKey: string,
+  cell: TableColumn<BuiltSite>["cell"],
+) => ({
+  cell,
+  header: () => sortableHeader(current, sortOrder, labelKey),
+  key,
+});
+
+const builtSiteColumns = (
+  current: BuiltSitesSort,
+): readonly TableColumn<BuiltSite>[] => [
+  sortableColumn("name", current, "name", "common.name", builtSiteNameCell),
   translatedTableColumn(
     "site_url",
     "built_sites.table_site_url",
@@ -66,22 +95,36 @@ const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
     "built_sites.table_updates",
     (site) => site.updates,
   ),
-  translatedTableColumn("read_only", "built_sites.table_read_only", (site) =>
-    formatDeadlineLabel(site.readOnlyFrom),
+  sortableColumn("created", current, "created", "common.created", (site) =>
+    formatDatetimeShort(site.created),
+  ),
+  sortableColumn(
+    "read_only",
+    current,
+    "read_only_from",
+    "built_sites.table_read_only",
+    (site) => formatDeadlineLabel(site.readOnlyFrom),
   ),
 ];
 
-const builtSitesTable = defineTable(builtSiteColumns);
+const builtSitesTable = (current: BuiltSitesSort) =>
+  defineTable(builtSiteColumns(current));
+
+/** The sites the list shows, their shared host marker, and the order its
+ *  header links name. */
+interface BuiltSitesListProps {
+  hostingIds: string;
+  sites: BuiltSite[];
+  sort: BuiltSitesSort;
+}
 
 const BuiltSitesTable = ({
   hostingIds,
   sites,
-}: {
-  hostingIds: string;
-  sites: BuiltSite[];
-}): JSX.Element => (
+  sort: sortOrder,
+}: BuiltSitesListProps): JSX.Element => (
   <div>
-    {renderTable(builtSitesTable, sites)}
+    {renderTable(builtSitesTable(sortOrder), sites)}
     <p>{hostingIds}</p>
   </div>
 );
@@ -90,16 +133,14 @@ export const BuiltSitesListBody = ({
   hostingIds,
   renewalTiers,
   sites,
-}: {
-  hostingIds: string;
-  renewalTiers: ListingWithCount[];
-  sites: BuiltSite[];
-}): JSX.Element => (
+  sort: sortOrder,
+}: BuiltSitesListProps & { renewalTiers: ListingWithCount[] }): JSX.Element => (
   <>
+    <p>{t("built_sites.list_count", { count: sites.length })}</p>
     {sites.length === 0 ? (
       <p>{t("built_sites.no_built_sites")}</p>
     ) : (
-      <BuiltSitesTable hostingIds={hostingIds} sites={sites} />
+      <BuiltSitesTable hostingIds={hostingIds} sites={sites} sort={sortOrder} />
     )}
     <RenewalTierSummary tiers={renewalTiers} />
   </>
