@@ -234,6 +234,33 @@ describeWithEnv(
           state: "unavailable",
         });
       });
+
+      test("charges nothing when the fold does not hold at every offered span", async () => {
+        // The customisable parent offers 1-3 days and its sole child serves
+        // only one day: the fold resolves at the first span but not at the
+        // later spans. The buyer's choice decides there, so no child quantity
+        // is guaranteed and the gallery charges none — the rival parent
+        // contending for the child pool stays available.
+        const child = await createDailyTestListing({
+          maxAttendees: 1,
+          name: "One Day Kit",
+        });
+        const parent = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 2000, 3: 3000 },
+          durationDays: 3,
+          name: "Any Length Trip",
+        });
+        await listingChildren.setIds(parent.id, [child.id]);
+        const rival = await createTestListing({ name: "Rival Parent" });
+        await listingChildren.setIds(rival.id, [child.id]);
+
+        const data = await fetchAvailability(
+          `select_${parent.id}=1&start_date=${orderDate()}`,
+        );
+        expectState(data.states, parent, { label: "", state: "selected" });
+        expectState(data.states, rival, { label: "", state: "available" });
+      });
     });
 
     describe("loadOrderCatalog", () => {
