@@ -39,7 +39,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       makeEntry({ id: 2, webhook_url: "https://hook-b.com" }),
     ];
 
-    await sendRegistrationWebhooks(entries, "GBP");
+    await sendRegistrationWebhooks(entries, "GBP", "public");
 
     expect(fetchSpy.calls.length).toBe(2);
     const urls = spyFirstArgs(fetchSpy.calls);
@@ -54,7 +54,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       makeEntry({ id: 2, webhook_url: "https://same-hook.com" }),
     ];
 
-    await sendRegistrationWebhooks(entries, "GBP");
+    await sendRegistrationWebhooks(entries, "GBP", "public");
 
     expect(fetchSpy.calls.length).toBe(1);
   });
@@ -65,7 +65,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       makeEntry({ id: 2, webhook_url: "https://hook.com" }),
     ];
 
-    await sendRegistrationWebhooks(entries, "GBP");
+    await sendRegistrationWebhooks(entries, "GBP", "public");
 
     expect(fetchSpy.calls.length).toBe(1);
     const [url] = fetchSpy.calls[0]!.args as [string, RequestInit];
@@ -73,7 +73,11 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
   });
 
   test("does nothing when all webhook URLs are empty", async () => {
-    await sendRegistrationWebhooks([makeEntry({ webhook_url: "" })], "GBP");
+    await sendRegistrationWebhooks(
+      [makeEntry({ webhook_url: "" })],
+      "GBP",
+      "public",
+    );
 
     expect(fetchSpy.calls.length).toBe(0);
   });
@@ -88,10 +92,18 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       ),
     ];
 
-    await sendRegistrationWebhooks(entries, "GBP");
+    await sendRegistrationWebhooks(entries, "GBP", "public");
 
     expect(fetchSpy.calls.length).toBe(1);
     expect(fetchSpy.firstBody().tickets[0]!.unit_price).toBe(900);
+  });
+
+  test("reports how the booking was made", async () => {
+    const entries = [makeEntry({ id: 1, webhook_url: "https://hook.com" })];
+
+    await sendRegistrationWebhooks(entries, "GBP", "admin");
+
+    expect(fetchSpy.firstBody().source).toBe("admin");
   });
 
   test("accepts 16 distinct webhook URLs", async () => {
@@ -99,7 +111,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
     );
 
-    await sendRegistrationWebhooks(entries, "GBP");
+    await sendRegistrationWebhooks(entries, "GBP", "public");
 
     expect(fetchSpy.calls.length).toBe(16);
   });
@@ -109,7 +121,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
     );
 
-    const result = await sendRegistrationWebhooks(entries, "GBP");
+    const result = await sendRegistrationWebhooks(entries, "GBP", "public");
 
     expect(result).toEqual({ failed: true });
     expect(fetchSpy.calls.length).toBe(0);
@@ -135,7 +147,9 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     ];
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
 
-    await withRequestContext(() => logAndNotifyRegistration(entries));
+    await withRequestContext(() =>
+      logAndNotifyRegistration(entries, { source: "public" }),
+    );
 
     const messages = await activityMessages();
     expect(
@@ -158,7 +172,9 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
         }),
       );
 
-      await withRequestContext(() => logAndNotifyRegistration(entries));
+      await withRequestContext(() =>
+        logAndNotifyRegistration(entries, { source: "public" }),
+      );
 
       expect(
         (await activityMessages()).filter(
@@ -180,7 +196,9 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
       listingFromDb(dbListing, "https://example.com/hook"),
     );
 
-    await logAndNotifyRegistration([{ attendee: makeAttendee(), listing }]);
+    await logAndNotifyRegistration([{ attendee: makeAttendee(), listing }], {
+      source: "public",
+    });
     await flushAsync();
 
     expect(fetchSpy.calls.length).toBe(1);
@@ -200,7 +218,9 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const dbListing = await createTestListing();
     const listing = makeListing(listingFromDb(dbListing, ""));
 
-    await logAndNotifyRegistration([{ attendee: makeAttendee(), listing }]);
+    await logAndNotifyRegistration([{ attendee: makeAttendee(), listing }], {
+      source: "public",
+    });
     await flushAsync();
 
     expect(fetchSpy.calls.length).toBe(0);
@@ -210,9 +230,10 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const dbListing = await createTestListing();
     const listing = makeListing(listingFromDb(dbListing, ""));
 
-    await logAndNotifyRegistration([
-      { attendee: makeAttendee({ id: 7 }), listing },
-    ]);
+    await logAndNotifyRegistration(
+      [{ attendee: makeAttendee({ id: 7 }), listing }],
+      { source: "public" },
+    );
 
     const entry = (await getAllActivityLog()).find((e) =>
       e.message.startsWith("Attendee registered for"),
@@ -237,7 +258,7 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
       makeEntry(listingFromDb(dbListingB, "https://hook.com")),
     ];
 
-    await logAndNotifyRegistration(entries);
+    await logAndNotifyRegistration(entries, { source: "public" });
     await flushAsync();
 
     expect(fetchSpy.calls.length).toBe(1);
@@ -254,7 +275,7 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
       makeEntry(listingFromDb(dbListingB, "")),
     ];
 
-    await logAndNotifyRegistration(entries);
+    await logAndNotifyRegistration(entries, { source: "public" });
     await flushAsync();
 
     expect(fetchSpy.calls.length).toBe(0);
@@ -269,7 +290,9 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
       }),
     );
 
-    await withRequestContext(() => logAndNotifyRegistration(entries));
+    await withRequestContext(() =>
+      logAndNotifyRegistration(entries, { source: "public" }),
+    );
 
     expect(fetchSpy.calls.length).toBe(1);
     const [url] = fetchSpy.calls[0]!.args as [string, RequestInit];

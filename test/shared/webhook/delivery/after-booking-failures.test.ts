@@ -49,12 +49,15 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
     );
     try {
       await withRequestContext(() =>
-        logAndNotifyRegistration([
-          makeEntry({
-            assign_built_site: true,
-            initial_site_months: 1,
-          }),
-        ]),
+        logAndNotifyRegistration(
+          [
+            makeEntry({
+              assign_built_site: true,
+              initial_site_months: 1,
+            }),
+          ],
+          { source: "public" },
+        ),
       );
     } finally {
       errorSpy.restore();
@@ -92,7 +95,7 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
               purchase_only: true,
             }),
           ],
-          { siteTokenIndex: "stored-index" },
+          { siteTokenIndex: "stored-index", source: "public" },
         ),
       );
     } finally {

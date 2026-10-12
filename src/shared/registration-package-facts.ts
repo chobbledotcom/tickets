@@ -1,3 +1,4 @@
+import type { BookingSource } from "#db/contact-tokens.ts";
 import {
   getPackageDisplaysByIds,
   loadPackageMemberPricingByGroupIds,
@@ -59,6 +60,7 @@ export const waitForRegistrationDeliveries = async <
 export type RegistrationNotification<Entry extends PackageRow> = (
   entries: Entry[],
   currency: string,
+  source: BookingSource,
   suppliedFacts?: RegistrationPackageFacts,
 ) => Promise<RegistrationDeliveryResult>;
 

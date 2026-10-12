@@ -9,6 +9,7 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
+import { flushAsync } from "#test/shared/webhook/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -35,7 +36,7 @@ describeWithEnv(
   "finishing off a booking that has been paid",
   { db: true },
   () => {
-    stubFetchEachTest(() => new Response());
+    const fetchSpy = stubFetchEachTest(() => new Response());
 
     test("hands back the first line's booking, listing, and tickets", async () => {
       const { attendeeId, entry, listingId } = await bookedLine("First Line");
@@ -172,6 +173,37 @@ describeWithEnv(
       );
 
       expect(await logMentions("Promo code")).toBe(false);
+    });
+
+    test("says the checkout was made online", async () => {
+      const { entry } = await bookedLine("Online Source Line");
+      const notifiedEntry: CreatedEntry = {
+        ...entry,
+        listing: {
+          ...entry.listing,
+          webhook_url: "https://example.com/registration",
+        },
+      };
+
+      await withRequestContext(() =>
+        completePaidBooking(
+          [notifiedEntry],
+          bareIntent(),
+          [],
+          [],
+          [],
+          noPackageFacts(),
+          "cs_completion_online_source",
+        ),
+      );
+      await flushAsync();
+
+      const webhookCall = fetchSpy.calls.find(
+        (one) => one.args[0] === "https://example.com/registration",
+      );
+      const [, options] = webhookCall!.args as [string, RequestInit];
+      const body = JSON.parse(options.body as string) as { source: string };
+      expect(body.source).toBe("public");
     });
 
     test("reuses paid package facts for notification rendering", async () => {

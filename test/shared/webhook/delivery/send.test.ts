@@ -28,6 +28,7 @@ describeWithEnv("sendWebhook", { db: true }, () => {
     const payload: WebhookPayload = await buildWebhookPayload(
       defaultEntries(),
       "GBP",
+      "public",
     );
 
     const result = await sendWebhook("https://example.com/webhook", payload);
@@ -73,6 +74,7 @@ describeWithEnv("sendWebhook", { db: true }, () => {
           },
         })),
         "GBP",
+        "public",
       );
 
       const result = await sendWebhook("https://example.com/webhook", payload);
@@ -93,7 +95,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
   test("returns a failed delivery on a transport error", async () => {
     fetchSpy.reply(() => Promise.reject(new TypeError("Network error")));
 
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     const result = await sendWebhook("https://example.com/webhook", payload);
 
@@ -113,7 +119,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
           ),
         ),
     );
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     const sending = sendWebhook("https://example.com/webhook", payload);
     await time.tickAsync(10_000);
@@ -123,7 +133,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
 
   test("returns a failed delivery for an oversized response", async () => {
     fetchSpy.reply(() => new Response("x".repeat(64 * 1024 + 1)));
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     const result = await sendWebhook("https://example.com/webhook", payload);
 
@@ -137,7 +151,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
     // The response-size cap only refuses bodies past 64 KiB. A real provider
     // reply carries a JSON body, so a non-empty answer must still deliver.
     fetchSpy.reply(() => new Response("ok"));
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     expect(await sendWebhook("https://example.com/webhook", payload)).toEqual({
       delivered: true,
@@ -163,7 +181,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
           );
         }),
     );
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     const sending = sendWebhook("https://example.com/webhook", payload);
     await time.tickAsync(5_000);
@@ -172,14 +194,20 @@ describeWithEnv("sendWebhook", { db: true }, () => {
   });
 
   test("answers no delivery failure when no listing carries a webhook", async () => {
-    expect(await sendRegistrationWebhooks(defaultEntries(), "GBP")).toEqual({
+    expect(
+      await sendRegistrationWebhooks(defaultEntries(), "GBP", "public"),
+    ).toEqual({
       failed: false,
     });
     expect(fetchSpy.calls.length).toBe(0);
   });
 
   test("refuses to fetch an unsafe (internal) webhook URL", async () => {
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     // SSRF guard: an internal/non-https URL must never be fetched.
     const result = await sendWebhook(
@@ -195,7 +223,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
     fetchSpy.reply(() =>
       Promise.reject(new TypeError("secret transport detail")),
     );
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     const logs = await withErrorSpy(async (errorSpy) => {
       await sendWebhook("https://example.com/webhook", payload);
@@ -206,7 +238,11 @@ describeWithEnv("sendWebhook", { db: true }, () => {
   });
 
   test("does not hide a subrequest allowance failure", async () => {
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+    const payload = await buildWebhookPayload(
+      defaultEntries(),
+      "GBP",
+      "public",
+    );
 
     await expect(
       runWithSubrequestBudget(() =>

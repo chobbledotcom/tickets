@@ -10,6 +10,7 @@ import {
 } from "#db/contact-preferences.ts";
 import {
   getRecentBookingTokens,
+  storedBookingSource,
   syncAttendeeContactTokens,
 } from "#db/contact-tokens.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
@@ -55,6 +56,68 @@ const tokenBlobFor = async (hash: string): Promise<string> =>
 
 const firstMarkerFrom = (blob: string): string =>
   blob.split("\n")[0]!.split("\t")[0]!;
+
+describeWithEnv("storedBookingSource", { db: true }, () => {
+  test("reads the source the booking stored", async () => {
+    const privateKey = await getTestPrivateKey();
+    await seedOrderActivity(
+      "sourced@example.com",
+      "07700 900001",
+      "public",
+      "PUBTOKEN1",
+    );
+    await seedOrderActivity("walkin@example.com", "", "admin", "ADMTOKEN1");
+
+    expect(
+      await storedBookingSource(
+        "sourced@example.com",
+        "07700 900001",
+        "PUBTOKEN1",
+        privateKey,
+      ),
+    ).toBe("public");
+    expect(
+      await storedBookingSource(
+        "walkin@example.com",
+        "",
+        "ADMTOKEN1",
+        privateKey,
+      ),
+    ).toBe("admin");
+  });
+
+  test("reads a phone-only contact", async () => {
+    const privateKey = await getTestPrivateKey();
+    await seedOrderActivity("", "07700 900002", "admin", "PHONETOKEN1");
+
+    expect(
+      await storedBookingSource("", "07700 900002", "PHONETOKEN1", privateKey),
+    ).toBe("admin");
+  });
+
+  test("answers null when no contact holds the token", async () => {
+    const privateKey = await getTestPrivateKey();
+    await seedOrderActivity("gone@example.com", "", "public", "GONETOKEN1");
+
+    // The contact's other tokens answer nothing for a different booking.
+    expect(
+      await storedBookingSource(
+        "gone@example.com",
+        "",
+        "OTHERTOKEN1",
+        privateKey,
+      ),
+    ).toBeNull();
+    expect(
+      await storedBookingSource(
+        "nobody@example.com",
+        "",
+        "GONETOKEN1",
+        privateKey,
+      ),
+    ).toBeNull();
+  });
+});
 
 describeWithEnv("contact-tokens", { db: true }, () => {
   test("order activity splits the count by source, leaving outreach stats intact", async () => {

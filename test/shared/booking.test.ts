@@ -6,11 +6,13 @@ import {
   listingHasSpots,
   processBooking,
 } from "#shared/booking.ts";
+import { flushAsync, stubWebhookFetch } from "#test/shared/webhook/helpers.ts";
 import { withCheckoutStub } from "#test-utils/api/helpers.ts";
 import { STUB_CHECKOUT_URL, stubCheckout } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { Attendee, ContactInfo } from "#types";
 
@@ -236,6 +238,25 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
       const booked = await processBooking(listing, contact, 1, null, BASE_URL);
       expect(booked.type).toBe("success");
       expect(await listingHasSpots(listing, 1, null)).toBe(false);
+    });
+  });
+
+  describe("registration webhook", () => {
+    const fetchSpy = stubWebhookFetch();
+
+    test("says the person booked online", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 0,
+        webhookUrl: "https://example.com/registration",
+      });
+
+      await withRequestContext(() =>
+        processBooking(listing, contact, 1, null, BASE_URL),
+      );
+      await flushAsync();
+
+      expect(fetchSpy.firstBody().source).toBe("public");
     });
   });
 });

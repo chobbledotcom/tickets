@@ -211,6 +211,27 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
     });
   });
 
+  describe("the registration webhook on a web booking", () => {
+    const fetch = useFetchStub();
+
+    test("says the person booked online", async () => {
+      const listing = await createTestListing({
+        fields: "email",
+        unitPrice: 0,
+        webhookUrl: "https://example.com/registration",
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        email: "hooked@example.com",
+        name: "Web Booker",
+      });
+
+      expect(response.status).toBe(302);
+      const body = fetch.getFetchJsonBody() as { source: string };
+      expect(body.source).toBe("public");
+    });
+  });
+
   describe("quotes without a payment provider", () => {
     test("tells the buyer they owe the full value of a paid order", async () => {
       const listing = await createTestListing({

@@ -10,6 +10,7 @@ import {
 } from "#booking/price-tree.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
+import type { BookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { bookedSpanDays } from "#shared/dates.ts";
@@ -39,6 +40,10 @@ export type WebhookTicket = {
 /** Consolidated payload sent to webhook endpoints */
 export type WebhookPayload = ContactInfo & {
   notification_type: "registration.completed";
+  /** How the booking was made: "public" is a booking the person made online
+   * (checkout, reservation, or API), "admin" is a booking an admin added by
+   * hand. */
+  source: BookingSource;
   price_paid: number | null;
   /** Outstanding order balance still owed, in minor units. 0 when fully paid;
    * positive when a booking was taken without collecting payment (e.g. no
@@ -137,11 +142,14 @@ const ticketUnitPrice = (
 };
 
 /**
- * Build a consolidated webhook payload from registration entries
+ * Build a consolidated webhook payload from registration entries. `source` is
+ * required, so a new booking path cannot send a payload without saying how
+ * the booking was made.
  */
 export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
+  source: BookingSource,
   pricingByGroup: PackagePricingByGroup = new Map(),
 ): WebhookPayload => {
   const first = entries[0]!;
@@ -168,6 +176,7 @@ export const buildWebhookPayload = (
     payment_id: first.attendee.payment_id || null,
     phone: first.attendee.phone,
     price_paid: isPaidOrder ? totalPricePaid : null,
+    source,
     special_instructions: first.attendee.special_instructions,
     ticket_url: buildTicketUrl(entries),
     tickets: entries.map((entry) => ({

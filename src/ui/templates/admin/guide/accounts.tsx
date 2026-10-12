@@ -104,7 +104,10 @@ export const accountsSections = (): GuideSection[] => [
             message for a paid listing booking:
           </p>
           <PricedJsonExample json={WEBHOOK_EXAMPLE_JSON}>
-            The <code>ticket_url</code> links to the attendee's ticket page. For
+            The <code>source</code> says how the booking was made:{" "}
+            <code>public</code> is a booking the person made online,{" "}
+            <code>admin</code> is a booking an admin added by hand. The{" "}
+            <code>ticket_url</code> links to the attendee's ticket page. For
             multi-listing bookings the <code>tickets</code> array contains one
             entry per listing, all sharing the same ticket token.
           </PricedJsonExample>

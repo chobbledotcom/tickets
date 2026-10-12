@@ -96,7 +96,9 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const eight = await orderEntries("Many", 8);
     const calls = (entries: EmailEntry[]): Promise<number> =>
       countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        withRequestContext(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() =>
+          logAndNotifyRegistration(entries, { source: "public" }),
+        ),
       );
 
     expect(await calls(eight)).toBe(await calls(one));
@@ -107,7 +109,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const six = await packagedEntries("Many", 6);
     const calls = (entries: EmailEntry[]): Promise<number> =>
       countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        sendRegistrationWebhooks(entries, "GBP"),
+        sendRegistrationWebhooks(entries, "GBP", "public"),
       );
 
     expect(await calls(six)).toBe(await calls(one));
@@ -120,7 +122,9 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     // throws without being counted, and pending work swallows the throw.
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        withRequestContext(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() =>
+          logAndNotifyRegistration(entries, { source: "public" }),
+        ),
       ),
     ).toBe(1);
   });
@@ -130,7 +134,9 @@ describeWithEnv("registration notification budget", { db: true }, () => {
 
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        withRequestContext(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() =>
+          logAndNotifyRegistration(entries, { source: "public" }),
+        ),
       ),
     ).toBe(4);
   });
@@ -143,7 +149,9 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     // flow's calls plus the email send's own two, not two fact loads.
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        withRequestContext(() => logAndNotifyRegistration(entries)),
+        withRequestContext(() =>
+          logAndNotifyRegistration(entries, { source: "public" }),
+        ),
       ),
     ).toBe(6);
   });
@@ -166,7 +174,9 @@ describeWithEnv("registration notification budget", { db: true }, () => {
 
     expect(
       await countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        withRequestContext(() => logAndNotifyRegistration(groups.flat())),
+        withRequestContext(() =>
+          logAndNotifyRegistration(groups.flat(), { source: "public" }),
+        ),
       ),
     ).toBe(5);
   });
@@ -196,7 +206,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     };
     expect(
       await countDatabaseCalls(0, () =>
-        sendRegistrationWebhooks([entry], "GBP", facts),
+        sendRegistrationWebhooks([entry], "GBP", "public", facts),
       ),
     ).toBe(0);
     const payload = fetchSpy.firstBody();
