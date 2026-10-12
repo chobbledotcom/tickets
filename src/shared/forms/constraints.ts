@@ -3,31 +3,59 @@ import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import { effectiveMaxLength, type Field } from "#shared/forms/field.ts";
 
-/** Read each submitted field once and return the first refusal one of them
- *  gives its value, or null when every field passes. The per-field rule is
- *  the caller's callback. */
-export const firstFieldRejection = (
-  form: FormParams,
-  fields: readonly Field[],
-  reject: (field: Field, value: string) => string | null,
-): string | null => {
-  for (const field of fields) {
-    const error = reject(field, form.getString(field.name));
-    if (error !== null) return error;
+/** The range refusal for a parsed number, from the field's declared min/max.
+ *  The browser applies the same attributes; the server answers with the
+ *  field's label. */
+export const outOfRangeError = (field: Field, value: number): string | null => {
+  if (field.min !== undefined && value < field.min) {
+    return t("fields.validation.min_value", {
+      label: field.label,
+      min: field.min,
+    });
+  }
+  if (field.max !== undefined && value > field.max) {
+    return t("fields.validation.max_value", {
+      label: field.label,
+      max: field.max,
+    });
   }
   return null;
 };
 
-/** Refuse long submitted values before custom validators or external calls. */
-export const formLengthError = (
+/** The refusal for a value the field's declared type turns down. */
+export const invalidFieldMessage = (field: Field): string =>
+  field.invalidMessage ?? t("error.field_invalid", { label: field.label });
+
+/** One field's submitted value against one constraint: the refusal, or null. */
+type FieldValueCheck = (field: Field, value: string) => string | null;
+
+/** The numeric refusal for one submitted value, or null: a non-number field,
+ *  a blank, and the handler's requiredness all stay outside this check. */
+const numberError: FieldValueCheck = (field, value) => {
+  if (field.type !== "number" || !value) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return invalidFieldMessage(field);
+  return outOfRangeError(field, number);
+};
+
+/** The settings POST guard: refuse the first submitted value a field
+ *  constraint turns down — a length past the field's cap, or a number its
+ *  declared type or range turns down — with the same message a submitted
+ *  form gets. A masked secret means "unchanged", and a blank's requiredness
+ *  is the caller's decision, so neither reaches the checks. */
+export const formFieldError = (
   form: FormParams,
   fields: readonly Field[],
-): string | null =>
-  firstFieldRejection(form, fields, (field, value) => {
-    if (isMaskSentinel(value)) return null;
+): string | null => {
+  for (const field of fields) {
+    const value = form.getString(field.name);
+    if (isMaskSentinel(value)) continue;
     const max = effectiveMaxLength(field);
     if (max !== undefined && value.length > max) {
       return t("fields.validation.max_length", { label: field.label, max });
     }
-    return null;
-  });
+    const numeric = numberError(field, value);
+    if (numeric !== null) return numeric;
+  }
+  return null;
+};

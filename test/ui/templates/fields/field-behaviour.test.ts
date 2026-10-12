@@ -183,6 +183,9 @@ describe("fields behaviour", () => {
       expect(byName(fields, "name").required).toBe(true);
       expect(byName(fields, "terms_and_conditions").markdown).toBe(true);
     });
+    test("group max attendees refuses a fraction like the group API does", () => {
+      rejects(byName(getGroupCreateForm().fields, "max_attendees"), "1.5");
+    });
     test("ticket name and email fields are required", () => {
       const fields = getTicketFields("email", false);
       expect(byName(fields, "name").required).toBe(true);
