@@ -96,7 +96,9 @@ const foldedPackageChildUnits = (
   const pairs = membersWithChildren(memberInfos, childrenByParentId);
   const folds: ReadonlyMap<number, number>[] = [];
   for (const { member, children } of pairs) {
-    const memberQty = pkg.quantities.get(member.listing.id) ?? 1;
+    const memberId = member.listing.id;
+    const message = `Package member ${memberId} left the catalog`;
+    const memberQty = requiredMapValue(pkg.quantities, memberId, message);
     const units = foldedChildUnits(member, children, memberQty);
     folds.push(units);
   }
