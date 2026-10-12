@@ -9,7 +9,7 @@ import {
   parentResolvedDuration,
   resolveChildSelections,
 } from "#booking/fold-tree.ts";
-import type { TicketListing } from "#booking/model.ts";
+import { membersWithChildren, type TicketListing } from "#booking/model.ts";
 import {
   getGroupPackagePricesByGroupIds,
   packageMemberMaps,
@@ -88,13 +88,16 @@ const foldedPackageChildUnits = (
   childrenByParentId: ChildrenByParentId,
   parentInfoById: ReadonlyMap<number, TicketListing>,
 ): ReadonlyMap<number, number>[] => {
-  const folds: ReadonlyMap<number, number>[] = [];
+  const memberInfos: TicketListing[] = [];
   for (const member of pkg.members) {
     const message = `Package member ${member.id} left the catalog`;
-    const parentInfo = requiredMapValue(parentInfoById, member.id, message);
-    const children = childrenByParentId.get(member.id) ?? [];
-    const memberQty = pkg.quantities.get(member.id) ?? 1;
-    const units = foldedChildUnits(parentInfo, children, memberQty);
+    memberInfos.push(requiredMapValue(parentInfoById, member.id, message));
+  }
+  const pairs = membersWithChildren(memberInfos, childrenByParentId);
+  const folds: ReadonlyMap<number, number>[] = [];
+  for (const { member, children } of pairs) {
+    const memberQty = pkg.quantities.get(member.listing.id) ?? 1;
+    const units = foldedChildUnits(member, children, memberQty);
     folds.push(units);
   }
   return folds;
