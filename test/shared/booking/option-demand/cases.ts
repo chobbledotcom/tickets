@@ -6,7 +6,6 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { foldBookingTree, resolvedByNodeKey } from "#booking/fold-tree.ts";
-import { requiredMapValue } from "#fp";
 import {
   buildTicketListing,
   type ChildrenByParent,
@@ -19,6 +18,7 @@ import type {
 import { childQuantityFieldName } from "#booking/tree.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { requiredMapValue } from "#fp";
 import { loadChildrenByParentId } from "#routes/public/child-listings.ts";
 import { addDays } from "#shared/dates.ts";
 import { FormParams } from "#shared/form-data.ts";
