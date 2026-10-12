@@ -271,12 +271,51 @@ describeWithEnv(
         });
         expectRedirect(response, "/admin/attendees/");
         expectManualAddWebhook(fetchSpy, {
+          amountOwed: 5000,
           contact: { email: "hooked@example.com", name: "Hooked Admin Add" },
           listing,
           quantity: 2,
           unitPrice: 2500,
           url: "https://hooks.example.test/registration",
         });
+      });
+
+      test("a multi-line create sends the combined balance as amount_owed", async () => {
+        const one = await createTestListing({
+          maxAttendees: 100,
+          name: "Combined One",
+          unitPrice: 2500,
+          webhookUrl: "https://hooks.example.test/combined",
+        });
+        const two = await createTestListing({
+          maxQuantity: 5,
+          name: "Combined Two",
+          unitPrice: 1000,
+        });
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          email: "combined@example.com",
+          name: "Combined Add",
+          ...attendeeLineFields([
+            { eventId: one.id, quantity: 1 },
+            { eventId: two.id, quantity: 2 },
+          ]),
+        });
+        expectRedirect(response, "/admin/attendees/");
+        // 2500 x 1 + 1000 x 2: one consolidated payload carries the order's
+        // combined outstanding balance, never one line's share of it.
+        expect(fetchSpy.calls.length).toBe(1);
+        const payload = fetchSpy.firstBody();
+        expect(payload.amount_owed).toBe(4500);
+        expect(
+          payload.tickets.map((ticket) => [
+            ticket.listing_slug,
+            ticket.quantity,
+            ticket.unit_price,
+          ]),
+        ).toEqual([
+          [one.slug, 1, 2500],
+          [two.slug, 2, 1000],
+        ]);
       });
 
       test("a no-quantity-only create books nothing, so it fires no webhook", async () => {

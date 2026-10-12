@@ -184,10 +184,11 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         createResult.attendees[0]!.id,
       );
       // Same behavior as the admin form's manual add: the new booking tells
-      // the listing's webhooks. The buyer email waits for the "Send tickets
-      // email" action, and the activity line above stays the only create
-      // line. A quantity-0 ghost line books nothing, so createdBookingEntries
-      // skips it, as the attendee actions refuse a no-quantity row.
+      // the listing's webhooks. The buyer email waits for the "Re-send
+      // notification" action, which sends the webhooks again too. The
+      // activity line above stays the only create line. A quantity-0 ghost
+      // line books nothing, so createdBookingEntries skips it, as the
+      // attendee actions refuse a no-quantity row.
       queueManualAddWebhooks(
         createdBookingEntries(
           createResult.attendees,

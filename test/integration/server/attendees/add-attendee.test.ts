@@ -373,6 +373,7 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
         );
         expectRedirect(response, `/admin/listing/${listing.id}`);
         expectManualAddWebhook(fetchSpy, {
+          amountOwed: 0,
           contact: { email: "quick@example.com", name: "Quick Add" },
           listing,
           quantity: 2,

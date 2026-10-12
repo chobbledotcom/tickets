@@ -61,6 +61,7 @@ export const stubWebhookFetch = (): WebhookFetch => {
 export const expectManualAddWebhook = (
   fetchSpy: WebhookFetch,
   expected: {
+    amountOwed: number;
     contact: { email: string; name: string };
     listing: { name: string; slug: string };
     quantity: number;
@@ -73,6 +74,7 @@ export const expectManualAddWebhook = (
   expect(url).toBe(expected.url);
   const payload = JSON.parse(options.body as string) as WebhookPayload;
   expect(payload.notification_type).toBe("registration.completed");
+  expect(payload.amount_owed).toBe(expected.amountOwed);
   expect(payload.name).toBe(expected.contact.name);
   expect(payload.email).toBe(expected.contact.email);
   expect(payload.tickets).toEqual([

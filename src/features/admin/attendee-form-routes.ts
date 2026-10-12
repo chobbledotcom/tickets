@@ -32,7 +32,7 @@ import {
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { identity, mapById } from "#fp";
+import { identity, mapById, sumOf } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -72,6 +72,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
+import { lineListPrice } from "#shared/checkout-pricing.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   loadAfterDemoOverrides,
@@ -334,20 +335,18 @@ const applyCreate = async (
     return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
   // Admin manual add can deliberately overbook (a warning shows, the system
-  // does not block). The booking is tagged as an "admin" booking so it counts
-  // separately from online checkouts in the contact's booking history. The
-  // ledger poster records the booking's gross `sale` legs in the SAME create
-  // transaction. The owed amount then projects from the ledger (rather than
-  // silently reading back as £0) and lands atomically with the rows. The
-  // attendee owes the full gross. An operator records any already-paid portion
-  // afterwards through the ledger.
+  // does not block). The ledger poster records the gross `sale` legs in the
+  // SAME create transaction. The input carries that gross as remainingBalance,
+  // so the webhook reports the amount the attendee owes.
+  const order = toLedgerOrder(parsed);
   const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
+      remainingBalance: sumOf(lineListPrice)(order.lines),
       source: "admin",
     },
-    manualAddLedgerPoster(toLedgerOrder(parsed)),
+    manualAddLedgerPoster(order),
   );
   if (!createResult.success) {
     return { ok: false, saveError: t("attendee_form.error_capacity") };
@@ -357,8 +356,9 @@ const applyCreate = async (
   const newId = attendees[0]!.id;
   await applyLogisticsPlan(newId, logisticsPlan);
   // An online booking tells the listings' webhooks, and so does a manual add.
-  // Webhooks only: the buyer email waits for the "Send tickets email" action,
-  // and the activity line below stays the only create line.
+  // Webhooks only: the buyer email waits for the "Re-send notification"
+  // action, which sends the webhooks again too. The activity line below
+  // stays the only create line.
   queueManualAddWebhooks(createdBookingEntries(attendees, listingsById));
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
