@@ -1,17 +1,13 @@
 /**
- * The one place that answers, for one bookable option, the question every
- * surface must agree on. Can the booking form book it with the visitor's
- * current selections, and what child demand does the form itself fold, over
- * which days? The booking form's fold, the order gallery and the checkout
- * availability path all read this verdict, so their answers cannot drift.
- *
- * The rules are the form's own. Spans and dates come from the declared table
- * (`span-rules.ts`). The child filter and the sole-child auto-fill come from
- * the fold's exported walk pieces (`childSelectableForSpan`,
- * `resolveChildSelections`, `foldChild`). Nothing here re-derives a rule.
- *
- * Pure and DB-free: callers hand in availability-resolved listings, the
- * active holidays, and the chosen date.
+ * The one place that answers, per bookable option, the question every
+ * surface must agree on: can the booking form book it with the visitor's
+ * selections, and what child demand does the form itself fold, over which
+ * days? The form's fold, the gallery and the checkout availability path
+ * all read this verdict, so their answers cannot drift. The rules are the
+ * form's own: spans and dates come from the declared table
+ * (`span-rules.ts`), the child filter and the sole-child auto-fill from
+ * the fold's exported walk pieces. Nothing here re-derives a rule. Pure:
+ * callers hand in the resolved listings, holidays, and date.
  */
 
 /* jscpd:ignore-start -- imports */
