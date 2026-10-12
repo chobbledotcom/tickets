@@ -6,15 +6,16 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { logActivities } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { queryAll } from "#db/client.ts";
+import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import { execute, queryAll } from "#db/client.ts";
 import {
   alreadyProcessedResult,
   bookingSlot,
   createAttendeeForSession,
   pairEntriesByListing,
-  promoCodeActivities,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import { promoActivityLines } from "#routes/api/payment-processing/tail.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type {
   ModifierApplication,
@@ -41,17 +42,16 @@ describe("pairEntriesByListing", () => {
   test("pairs a one-row-per-item order by listing id", () => {
     const items = [item(10), item(20)];
     const entries = pairEntriesByListing([row(20), row(10)], items);
-    // Order-independent: each row resolves to its own listing, not the item at
-    // the same array index.
+    // Order-independent: each row resolves to its own listing, not the item
+    // at the same index.
     expect(entries.map((e) => e.attendee.listing_id)).toEqual([20, 10]);
     expect(entries.map((e) => e.listing.id)).toEqual([20, 10]);
   });
 
   test("maps MORE rows than items — the multi-parent expansion — without mis-aligning", () => {
-    // A child (30) chosen under two parents (10, 20) is ONE signed item but TWO
-    // per-parent booking rows, so four rows resolve against three items. A
-    // positional `validatedItems[i]` pairing would read `validatedItems[3]`
-    // (undefined) and throw; the by-id lookup pairs every row correctly.
+    // A child (30) chosen under two parents (10, 20) is ONE signed item but
+    // TWO per-parent booking rows, so four rows resolve against three items;
+    // a positional pairing would read past the end and throw.
     const items = [item(10), item(20), item(30)];
     const attendees = [row(10), row(20), row(30), row(30)];
     const entries = pairEntriesByListing(attendees, items);
@@ -65,8 +65,7 @@ describe("pairEntriesByListing", () => {
   });
 
   test("resolves a parent-less remainder row (same listing, extra row) too", () => {
-    // A remainder row shares the child's listing id (30) with its allocation
-    // row, so both resolve to listing 30 — again more rows than items.
+    // A remainder row shares the child's listing id with its allocation row.
     const entries = pairEntriesByListing(
       [row(10), row(30), row(30)],
       [item(10), item(30)],
@@ -104,7 +103,7 @@ test("fails when a promo code has no pricing application", () => {
   };
   const listing: ListingWithCount = testListingWithCount();
 
-  expect(() => promoCodeActivities([spec], [], listing, 1)).toThrow(
+  expect(() => promoActivityLines([spec], [], listing)).toThrow(
     "Modifier application 1 was not loaded for promo code activity",
   );
 });
@@ -113,6 +112,8 @@ type PreparationOptions = {
   chargedUnitAmount?: number;
   fullSubtotal?: number;
   listingName?: string;
+  /** Staged text-answer refs, for tests that reach the tail's answer read. */
+  listingTextAnswerIds?: BookingIntent["listingTextAnswerIds"];
   matchingPricedItem?: boolean;
   packageGroupId?: number;
   reservationAmount?: string;
@@ -121,10 +122,26 @@ type PreparationOptions = {
   total: number;
 };
 
-const safeNameFor = (
+/** The buyer's contact fields every preparation fixture shares. */
+const PREPARATION_CONTACT = {
+  address: "",
+  date: null,
+  email: "buyer@example.com",
+  name: "Buyer",
+  phone: "",
+  special_instructions: "",
+} as const;
+
+const buildIntent = (
   options: PreparationOptions,
-  listing: ListingWithCount,
-): string => options.safeName ?? listing.name;
+  items: BookingIntent["items"],
+): BookingIntent => ({
+  ...PREPARATION_CONTACT,
+  items,
+  listingTextAnswerIds: options.listingTextAnswerIds,
+  modifiers: [],
+  reservationAmount: options.reservationAmount,
+});
 
 const preparationResult = (options: PreparationOptions) => {
   const listing = testListingWithCount({
@@ -150,16 +167,8 @@ const preparationResult = (options: PreparationOptions) => {
       ? {}
       : { packageGroupId: options.packageGroupId }),
   };
-  const contact = {
-    address: "",
-    date: null,
-    email: "buyer@example.com",
-    name: "Buyer",
-    phone: "",
-    special_instructions: "",
-  };
-  // A free second listing keeps the order's totals whole while giving the
-  // capacity refusal a later line to name.
+  const contact = { ...PREPARATION_CONTACT, date: null };
+  // A free second listing keeps the order's totals whole.
   const secondListing =
     options.secondListingName === undefined
       ? null
@@ -176,14 +185,10 @@ const preparationResult = (options: PreparationOptions) => {
     slug: "second-choice",
     unitPrice: 0,
   };
-  const intent: BookingIntent = {
-    ...contact,
-    items: secondListing ? [bookingItem, secondBookingItem] : [bookingItem],
-    modifiers: [],
-    ...(options.reservationAmount === undefined
-      ? {}
-      : { reservationAmount: options.reservationAmount }),
-  };
+  const intent = buildIntent(options, [
+    bookingItem,
+    ...(secondListing ? [secondBookingItem] : []),
+  ]);
   const pricingIntent: CheckoutIntent = {
     ...contact,
     items: secondListing ? [checkoutItem, secondCheckoutItem] : [checkoutItem],
@@ -225,7 +230,7 @@ const preparationResult = (options: PreparationOptions) => {
         expectedPrice: 1000,
         item: bookingItem,
         listing,
-        name: safeNameFor(options, listing),
+        name: options.safeName ?? listing.name,
       },
       ...(secondListing
         ? [
@@ -243,6 +248,7 @@ const preparationResult = (options: PreparationOptions) => {
     "stable-ticket-token",
     1,
     new Map(),
+    [],
   );
 };
 
@@ -267,6 +273,29 @@ test("reports a preparation error before the atomic write starts", async () => {
 });
 
 describeWithEnv("payment booking lines", { db: true }, () => {
+  test("a staged-answer read failure takes the retryable path", async () => {
+    // A transient I/O failure in the tail's staged-answer read has written
+    // nothing, so the retryable shape — 500, provider redelivers — must win
+    // over a refund of the valid payment.
+    await stageCheckoutAnswers(
+      "cs_preparation_failure",
+      { "7": "Answer" },
+      null,
+    );
+    await execute("UPDATE checkout_pending_answers SET sealed = ?", [
+      "not-a-sealed-payload",
+    ]);
+    using create = stubSuccessfulBooking();
+    const result = await preparationResult({
+      listingTextAnswerIds: { "1": [{ q: 7, s: 3 }] },
+      total: 1000,
+    });
+    expect(result.ok).toBeNull();
+    if (result.ok !== null) throw new Error("Expected a retryable failure");
+    expect(result.error).toBeInstanceOf(Error);
+    expect(create.calls).toHaveLength(0);
+  });
+
   test("reports a missing paid amount before the atomic write starts", async () => {
     using create = stubSuccessfulBooking();
 
@@ -368,8 +397,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
   });
 
   // What a code did to the price, in the words the owner reads. A discount
-  // says how much came off rather than repeating the minus sign the amount
-  // carries; a code worth nothing is not called a discount at all.
+  // says how much came off; a code worth nothing is not called a discount.
   for (const [name, code, delta, message] of [
     ["a code worth nothing", "FREE", 0, "Promo code 'FREE' used: +£0"],
     ["money off", "POUNDOFF", -100, "Promo code 'POUNDOFF' used: £1 off"],
@@ -400,7 +428,10 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       };
 
       await logActivities(
-        promoCodeActivities([spec], [application], listing, attendee.id),
+        promoActivityLines([spec], [application], listing).map((line) => ({
+          ...line,
+          attendeeId: attendee.id,
+        })),
       );
 
       const [row] = await queryAll<{ message: string }>(
@@ -416,9 +447,8 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     });
   }
 
-  // A buyer with several tickets has them kept as one joined-up value, so
-  // coming back to an already-finished checkout has to hand back each ticket
-  // separately rather than one run-together string.
+  // A buyer with several tickets has them kept as one joined-up value, so a
+  // return to a finished checkout hands back each ticket separately.
   for (const [name, tokens, expected] of [
     ["several tickets", "tok_a+tok_b+tok_c", ["tok_a", "tok_b", "tok_c"]],
     ["one ticket", "tok_only", ["tok_only"]],

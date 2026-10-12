@@ -181,7 +181,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     expect(refund.calls).toHaveLength(1);
   });
 
-  test("checks primary state before refunding an uncertain create", async () => {
+  test("answers 500 and releases the reservation when an uncertain create rolled back", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 5,
@@ -193,17 +193,23 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     );
     using refund = stubRefundPayment("re_uncertain", 500);
 
-    const result = await processPaymentSession(
-      id,
-      trustedPayment(id, bookingIntent([{ e: listing.id, p: 500, q: 1 }]), 500),
-    );
-    expect(result.success).toBe(false);
-    if (result.success) throw new Error("Expected recovery to refund");
-    expect(result.detail).toBe(
-      `Unexpected error completing session ${id}: Error: write result unknown`,
-    );
-    expect((await getAttendeesRaw(listing.id))[0]?.quantity).toBe(0);
+    // The create batch carries the booking's whole completion, so a failure
+    // in it leaves nothing committed: the reservation is released and the
+    // error escapes, which answers the provider 503 so it redelivers and the
+    // whole booking is tried again. No money is refunded on a guess.
+    await expect(
+      processPaymentSession(
+        id,
+        trustedPayment(
+          id,
+          bookingIntent([{ e: listing.id, p: 500, q: 1 }]),
+          500,
+        ),
+      ),
+    ).rejects.toThrow("write result unknown");
+    expect(await getAttendeesRaw(listing.id)).toEqual([]);
+    expect(await getProcessedPayment(id)).toBeNull();
     expect(uncertain.calls).toHaveLength(1);
-    expect(refund.calls).toHaveLength(1);
+    expect(refund.calls).toHaveLength(0);
   });
 });
