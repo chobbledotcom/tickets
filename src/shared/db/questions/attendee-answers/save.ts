@@ -60,7 +60,7 @@ export type PreparedAnswerSave = {
 };
 
 /** The attendee an answer row belongs to, as the statements bind it. The
- * standalone save binds real attendee ids; the reservation boundary resolves
+ * standalone save binds real attendee ids. The reservation boundary resolves
  * its one attendee from the ticket token the booking batch itself inserts, so
  * the statements need no attendee id before the batch runs. */
 type AttendeeRef = {
@@ -305,20 +305,29 @@ export type AttendeeListingEntry = {
  * listing's answers; listings with no answers contribute nothing. Repeated
  * text answers for one question keep the last value, matching the
  * single-answer-per-question invariant. `listingTextAnswers` is optional
- * because a choice-only save legitimately has no text answers. Feeds the map
- * straight into `saveAttendeeAnswers`.
+ * because a choice-only save legitimately has no text answers.
+ * `listingTextRefs` carries the same answers the other way round, as the
+ * string ids a checkout's intent stores; both merge into the same set. Feeds
+ * the map straight into `saveAttendeeAnswers`.
  */
 export const groupListingAnswerSets = (
   entries: AttendeeListingEntry[],
   listingAnswerIds: Record<string, number[]>,
   listingTextAnswers: Record<string, TextAnswer[]> = {},
+  listingTextRefs: Record<string, TextAnswerId[]> = {},
 ): Map<number, AttendeeAnswerSet> => {
   const answersByAttendee = new Map<number, AttendeeAnswerSet>();
   for (const { attendee, listing } of entries) {
     const key = String(listing.id);
     const answerIds = arrayOrEmpty(listingAnswerIds[key]);
     const textAnswers = arrayOrEmpty(listingTextAnswers[key]);
-    if (answerIds.length === 0 && textAnswers.length === 0) continue;
+    const textRefs = arrayOrEmpty(listingTextRefs[key]);
+    if (
+      answerIds.length === 0 &&
+      textAnswers.length === 0 &&
+      textRefs.length === 0
+    )
+      continue;
     const saved = answersByAttendee.get(attendee.id);
     const existing = saved === undefined ? { answerIds: [] } : saved;
     existing.answerIds.push(...answerIds);
@@ -326,6 +335,12 @@ export const groupListingAnswerSets = (
       existing.textAnswers = dedupeByQuestion([
         ...arrayOrEmpty(existing.textAnswers),
         ...textAnswers,
+      ]);
+    }
+    if (textRefs.length > 0) {
+      existing.textAnswerIds = dedupeByQuestion([
+        ...arrayOrEmpty(existing.textAnswerIds),
+        ...textRefs,
       ]);
     }
     answersByAttendee.set(attendee.id, existing);

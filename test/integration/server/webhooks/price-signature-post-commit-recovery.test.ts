@@ -31,6 +31,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -260,7 +261,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     }
   });
 
-  test("refunds one placeholder when the atomic create rolled back", async () => {
+  test("a rolled-back create answers 503 twice and refunds nothing", async () => {
     const listing = await setupWithListing();
     const session = {
       id: "cs_proven_rollback",
@@ -277,17 +278,15 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
        END`,
     );
     try {
+      // The batch carries the booking's whole completion, and its finalize
+      // abort rolls everything back: no booking, no refund on a guess, and a
+      // 503 answer whose redelivery starts fresh and fails the same way.
+      using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
       await runWebhook(session, async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        expect(refund.calls.length).toBe(1);
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees).toHaveLength(1);
-        expect(attendees[0]!.quantity).toBe(0);
+        expect((await webhookRequest()).status).toBe(503);
+        expect((await webhookRequest()).status).toBe(503);
+        expect(refund.calls.length).toBe(0);
+        expect(await getAttendeesRaw(listing.id)).toEqual([]);
       });
     } finally {
       await execute("DROP TRIGGER test_late_payment_finalize_failure");

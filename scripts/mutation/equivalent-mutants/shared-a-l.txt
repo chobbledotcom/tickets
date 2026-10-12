@@ -19,11 +19,7 @@ src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 
 src/shared/add-on-reachability.ts::listingSaveOrphanedAddOnTx.wouldBeGroupIds~0vobjmv  ?? → || audited:1lop1ee # input.wouldBeGroupIds is an array or undefined, and arrays are always truthy
 src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → || audited:0egssse # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → || audited:0dqe1ps # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
-src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → || audited:1tzhe8e # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → || audited:1tzhe8e # a listing's text refs are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → || audited:1tzhe8e # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → || audited:1tzhe8e # existing text answer ids are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt ??→|| audited:1tzhe8e # listingAnswerIds is a record object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → || audited:1wqtu53 # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → || audited:18gjwl6 # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getDebugKey~036uuok  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""

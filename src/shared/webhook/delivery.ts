@@ -1,9 +1,12 @@
-import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
+import { logActivities } from "#db/activity-log.ts";
+import { clearPendingFlagStatement } from "#db/attendees/notification-flags.ts";
+import { executeBatch } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
+  buyerConfirmationAttempted,
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email/registration.ts";
@@ -129,23 +132,50 @@ const recordRegistrationDeliveryFailure = async (): Promise<void> => {
   }
 };
 
-const reportRegistrationDeliveryError = async (): Promise<void> => {
+const reportRegistrationDeliveryError = async (
+  recordFailure: boolean,
+): Promise<void> => {
   const context = { code: ErrorCode.REGISTRATION_DELIVERY };
   logErrorLocal(context);
-  await recordRegistrationDeliveryFailure();
+  if (recordFailure) await recordRegistrationDeliveryFailure();
   addPendingWork(sendNtfyError(context.code));
   addPendingWork(captureServerError(context));
 };
 
+/** Whether a send's far side accepted everything it was given: the send
+ * settled, and none of its deliveries was refused. */
+const acceptedDelivery = (
+  result: PromiseSettledResult<RegistrationDeliveryResult>,
+): boolean => result.status === "fulfilled" && !result.value.failed;
+
+/** One registration send the queue carries, and the flags its sends own. */
+type RegistrationSend = {
+  entries: EmailEntry[];
+  currency: string;
+  packageFacts?: RegistrationPackageFacts | undefined;
+  freeTexts?: FreeTextAnswers | undefined;
+  clearPendingFlagsFor?: readonly number[] | undefined;
+};
+
 const sendRegistrationNotifications = async (
-  entries: EmailEntry[],
-  currency: string,
-  packageFacts?: RegistrationPackageFacts,
-  freeTexts?: FreeTextAnswers,
+  send: RegistrationSend,
 ): Promise<void> => {
+  const { entries, currency } = send;
+  // A send that had nothing to attempt — no email config or buyer address,
+  // no webhook URL — reports `failed: false`. That is not an acceptance: the
+  // far side saw nothing, so it must not clear the flag that says a send is
+  // owed. The email flag is the buyer's confirmation. The owner's admin copy
+  // alone is a different message and never clears it.
+  const webhooksAttempted = registrationWebhookUrls(entries).length > 0;
+  const emailAttempted = buyerConfirmationAttempted(entries);
   const [webhookResult, emailResult] = await Promise.allSettled([
-    sendRegistrationWebhooks(entries, currency, packageFacts),
-    sendRegistrationEmails(entries, currency, packageFacts, freeTexts),
+    sendRegistrationWebhooks(entries, currency, send.packageFacts),
+    sendRegistrationEmails(
+      entries,
+      currency,
+      send.packageFacts,
+      send.freeTexts,
+    ),
   ]);
   const deliveries = [
     completedRegistrationDelivery(webhookResult),
@@ -154,8 +184,23 @@ const sendRegistrationNotifications = async (
   const errors = flatMap((delivery: CompletedRegistrationDelivery) => [
     ...delivery.errors,
   ])(deliveries);
-  if (errors.length > 0) {
-    await reportRegistrationDeliveryError();
+  if (send.clearPendingFlagsFor !== undefined) {
+    // The flags carry the failure: each side clears its own flag only when
+    // its send was attempted and its far side accepted. A failed send leaves
+    // its flag up for the admin. No failure activity line is written for a
+    // booking whose sends own their flags. The error is still reported, so
+    // an unexpected rejection reaches the log and the alert.
+    await executeBatch([
+      ...(webhooksAttempted && acceptedDelivery(webhookResult)
+        ? [clearPendingFlagStatement("webhooks", send.clearPendingFlagsFor)]
+        : []),
+      ...(emailAttempted && acceptedDelivery(emailResult)
+        ? [clearPendingFlagStatement("email", send.clearPendingFlagsFor)]
+        : []),
+    ]);
+    if (errors.length > 0) await reportRegistrationDeliveryError(false);
+  } else if (errors.length > 0) {
+    await reportRegistrationDeliveryError(true);
   } else if (deliveries.some(({ failed }) => failed)) {
     await recordRegistrationDeliveryFailure();
   }
@@ -167,6 +212,7 @@ const queueRegistrationNotifications = async (
   currency: string,
   suppliedPackageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
+  clearPendingFlagsFor?: readonly number[] | undefined,
 ): Promise<void> => {
   let packageFacts: RegistrationPackageFacts | undefined;
   try {
@@ -177,13 +223,23 @@ const queueRegistrationNotifications = async (
       ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
       : suppliedPackageFacts;
   } catch (error) {
-    await reportRegistrationDeliveryError();
+    await reportRegistrationDeliveryError(clearPendingFlagsFor === undefined);
     throw error;
   }
   addPendingWork(
-    sendRegistrationNotifications(entries, currency, packageFacts, freeTexts),
+    sendRegistrationNotifications({
+      clearPendingFlagsFor,
+      currency,
+      entries,
+      freeTexts,
+      packageFacts,
+    }),
   );
 };
+
+/** The activity line a registration writes: one per booked listing. */
+export const registeredActivityMessage = (listingName: string): string =>
+  `Attendee registered for '${listingName}'`;
 
 /** Report background work that died after a booking was already paid for.
  * addPendingWork settles rejections silently, so without this the buyer keeps
@@ -196,9 +252,16 @@ const reportAfterBookingFailure =
 
 /** What a booking passes to its notification queue. Everything is optional:
  * the plaintext free-text answers only the caller can hold, preloaded package
- * facts, extra activity-log lines, the renewal token's hash, and the entries
- * the site assignment sees. */
+ * facts, the entries the site assignment sees, the renewal token's hash, and
+ * the attendees whose pending-notification flags each send clears. */
 export interface NotifyRegistrationOptions {
+  /** The attendees whose pending-notification flags this queue's sends own:
+   * the email send clears `email_pending` when its far side accepts, the
+   * webhook send clears `webhooks_pending` the same way. A failed send leaves
+   * its flag up, so the flags carry the failure and no failure activity line
+   * is written. Callers whose bookings carry no flags leave this unset, and a
+   * failed send keeps writing the failure line it always did. */
+  clearPendingFlagsFor?: readonly number[] | undefined;
   /** The buyer's typed free-text answers. The strings table keeps them sealed
    * to the owner key, which no notification path can spend, so the booking
    * request hands the plaintext it already holds to the confirmation email. */
@@ -206,8 +269,6 @@ export interface NotifyRegistrationOptions {
   /** Package facts the caller already loaded, so the queue does not re-read
    * them. */
   packageFacts?: RegistrationPackageFacts | undefined;
-  /** Activity-log lines recorded beside the registration lines. */
-  priorActivities?: readonly ActivityToLog[] | undefined;
   /** Entries only the site assignment sees, in place of `entries`. The resend
    * passes its refunded plan rows here, so a claim recorded on a line refunded
    * later still serves the buyer. Defaults to `entries`. */
@@ -216,19 +277,14 @@ export interface NotifyRegistrationOptions {
   siteTokenIndex?: string | undefined;
 }
 
-/** Record a registration and queue its external notifications. */
-export const logAndNotifyRegistration = async (
+/** Queue a registration's external sends: the confirmation email and the
+ * registration webhooks, then built-site assignment and renewal processing.
+ * The caller owns the registration's activity line, so a caller whose batch
+ * already wrote it queues without a second copy. */
+export const queueRegistrationSends = async (
   entries: EmailEntry[],
-  options: NotifyRegistrationOptions = {},
+  options: NotifyRegistrationOptions,
 ): Promise<void> => {
-  await logActivities([
-    ...(options.priorActivities ?? []),
-    ...entries.map(({ listing, attendee }) => ({
-      attendeeId: attendee.id,
-      listing,
-      message: `Attendee registered for '${listing.name}'`,
-    })),
-  ]);
   const currency = settings.currency;
   addPendingWork(
     queueRegistrationNotifications(
@@ -236,6 +292,7 @@ export const logAndNotifyRegistration = async (
       currency,
       options.packageFacts,
       options.freeTexts,
+      options.clearPendingFlagsFor,
     ),
   );
   addPendingWork(
@@ -252,4 +309,19 @@ export const logAndNotifyRegistration = async (
       ),
     ),
   );
+};
+
+/** Record a registration and queue its external notifications. */
+export const logAndNotifyRegistration = async (
+  entries: EmailEntry[],
+  options: NotifyRegistrationOptions = {},
+): Promise<void> => {
+  await logActivities(
+    entries.map(({ listing, attendee }) => ({
+      attendeeId: attendee.id,
+      listing,
+      message: registeredActivityMessage(listing.name),
+    })),
+  );
+  await queueRegistrationSends(entries, options);
 };

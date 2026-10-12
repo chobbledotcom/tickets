@@ -1,34 +1,22 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { queryBatchPrimary, resultRows } from "#db/client.ts";
-import { UNRESOLVED_RESERVATION } from "#db/processed-payments.ts";
-import { placeholderRefund } from "#payment/placeholder-refund.ts";
-import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
-import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
-import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
 import {
-  type placeholderBookings,
-  storeRefundedBooking,
-} from "#routes/api/payment-processing/store-refund.ts";
+  releaseReservation,
+  UNRESOLVED_RESERVATION,
+} from "#db/processed-payments.ts";
+import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
+import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
 import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import type { BookingIntent } from "#shared/booking-intent.ts";
 
 type UnexpectedCreateRecovery = {
-  complete: (
-    entries: CreatedEntry[],
-    ticketTokens: string[],
-  ) => Promise<PaymentResult>;
   error: unknown;
-  intent: BookingIntent;
-  placeholders: ReturnType<typeof placeholderBookings>;
-  publicStatusId: number;
+  listingId: number;
   session: ValidatedSession["session"];
   ticketToken: string;
-  validatedItems: ValidatedItem[];
 };
 
 const loadRecoveryFacts = async (
@@ -66,39 +54,32 @@ const loadRecoveryFacts = async (
   };
 };
 
-/** Resolve an uncertain atomic create from primary state. Refund only when the
- * unresolved reservation and missing prepared token prove the batch rolled back. */
+/**
+ * Resolve an uncertain atomic create from primary state.
+ *
+ * A create batch carries the booking's whole completion (its answers, its
+ * activity lines, and its pending-notification flags). Committed state is
+ * therefore complete: answer success and run nothing again. The provider's
+ * redelivery of an existing booking never re-sends. A batch that provably
+ * rolled back released nothing into the world. Release the session's
+ * reservation so the redelivery starts fresh. Answer 500 so the provider
+ * tries the whole booking again. Anything else is too unclear to answer —
+ * rethrow, and the 500 keeps the provider retrying while the state settles.
+ */
 export const recoverOrRefundUnexpectedCreate = async ({
-  complete,
   error,
-  intent,
-  placeholders,
-  publicStatusId,
+  listingId,
   session,
   ticketToken,
-  validatedItems,
 }: UnexpectedCreateRecovery): Promise<PaymentResult> => {
   const decision = decideUnexpectedCreate(
     await loadRecoveryFacts(session.id, await hmacHash(ticketToken)),
   );
   if (decision.kind === "recover") {
-    const entries = await committedEntries(
-      decision.attendeeId,
-      ticketToken,
-      session,
-      intent,
-      validatedItems,
-    );
-    return complete(entries, [ticketToken]);
+    return sessionSuccess(decision.attendeeId, listingId);
   }
-  if (decision.kind === "rethrow") throw error;
-  return storeRefundedBooking(
-    session,
-    intent,
-    placeholders,
-    placeholderRefund("unexpected_error")(
-      `Unexpected error completing session ${session.id}: ${String(error)}`,
-    ),
-    publicStatusId,
-  );
+  if (decision.kind === "retry") {
+    await releaseReservation(session.id);
+  }
+  throw error;
 };

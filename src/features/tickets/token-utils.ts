@@ -138,6 +138,8 @@ const buildAttendeeView = (
   created: base.created,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   email: "",
+  email_owed: base.email_owed,
+  email_pending: base.email_pending,
   end_date: booking.end_at ? booking.end_at.slice(0, 10) : null,
   id: base.id,
   kind: base.kind,
@@ -158,6 +160,7 @@ const buildAttendeeView = (
   status_id: base.status_id,
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
+  webhooks_pending: base.webhooks_pending,
 });
 
 /**

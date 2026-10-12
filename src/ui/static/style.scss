@@ -1646,7 +1646,6 @@ input[type="submit"].danger:hover,
   border-radius: 999px;
   white-space: nowrap;
 }
-
 .badge,
 .badge-missing {
   background-color: #6b6b6b;
@@ -1658,11 +1657,11 @@ input[type="submit"].danger:hover,
 .badge-alert {
   background-color: #cc0000;
 }
+.badge-warning { background-color: #cc6600; }
 .badge-alert {
   margin-left: 1rem;
   margin-right: 1rem;
 }
-
 [data-theme="dark"] .password-warning {
   color: #ff5555;
 }
@@ -1683,6 +1682,7 @@ input[type="submit"].danger:hover,
 [data-theme="dark"] .badge-alert {
   background-color: #991919;
 }
+[data-theme="dark"] .badge-warning { background-color: #99551a; }
 
 /* Bulk check-in / check-out button */
 button.bulk-checkin,

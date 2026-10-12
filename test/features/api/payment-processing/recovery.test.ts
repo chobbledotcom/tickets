@@ -1,27 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
   finalizeSessionIfUnresolved,
   reserveSession,
 } from "#db/processed-payments.ts";
-import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
-import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
-import { placeholderBookings } from "#routes/api/payment-processing/store-refund.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
-import type { BookingIntent } from "#shared/booking-intent.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { paidSession } from "#test-utils/payment-session.ts";
 import type { ListingWithCount } from "#types";
-import { bookingIntent } from "./index/helpers.ts";
-
-const intent = (): BookingIntent => bookingIntent([{ e: 1, p: 1000, q: 1 }]);
 
 /** The listing a test just made. It is always there; saying so here keeps
  *  every case below from repeating the check. */
@@ -30,12 +22,6 @@ const loadedListing = async (id: number): Promise<ListingWithCount> => {
   if (listing === null) throw new Error(`Listing ${id} was not created`);
   return listing;
 };
-
-/** One checked line: the signed line and the listing it names. */
-const checkedLine = (listing: ListingWithCount): ValidatedItem[] =>
-  [
-    { item: { e: listing.id, p: 1000, q: 1 }, listing },
-  ] as unknown as ValidatedItem[];
 
 /** Prepare a booking under a ticket token we choose, so the test can hand the
  *  same token to the recovery. Only the token's one-way code is stored, which
@@ -51,43 +37,29 @@ const prepareTicketToken = async (
   return token;
 };
 
-/** Runs the recovery with a `complete` that records it was reached, so a test
- *  can tell "recovered and finished" from "recovered but did nothing". */
+/** Runs the recovery with the answer it owes: success over the committed
+ * booking, or the original error after the retry's reservation release. */
 const runRecovery = async (opts: {
   error: unknown;
+  listingId: number;
   sessionId: string;
   ticketToken: string;
-  validatedItems: ValidatedItem[];
-}): Promise<{ completed: CreatedEntry[][]; result: PaymentResult }> => {
-  const completed: CreatedEntry[][] = [];
-  const result = await recoverOrRefundUnexpectedCreate({
-    complete: (entries) => {
-      completed.push(entries);
-      return Promise.resolve({
-        attendee: { id: entries[0]?.attendee.id ?? 0 },
-        listingId: entries[0]?.listing.id ?? 0,
-        success: true,
-        ticketTokens: [opts.ticketToken],
-      } satisfies PaymentResult);
-    },
+}): Promise<PaymentResult> =>
+  recoverOrRefundUnexpectedCreate({
     error: opts.error,
-    intent: intent(),
-    placeholders: placeholderBookings(opts.validatedItems, intent()),
-    publicStatusId: await requirePublicStatusId(),
+    listingId: opts.listingId,
     session: paidSession(opts.sessionId),
     ticketToken: opts.ticketToken,
-    validatedItems: opts.validatedItems,
   });
-  return { completed, result };
-};
 
 describeWithEnv(
   "picking up a booking whose write ended in doubt",
   { db: true },
   () => {
-    test("finishes the booking when the payment and ticket agree", async () => {
+    test("answers success without re-running the tail when the payment and ticket agree", async () => {
       // Both say the same booking, and nothing is left unresolved, so the
-      // write did land — there is nothing to give back, only to finish.
+      // write did land — its answers, activity lines, and flags committed in
+      // the same batch, so the recovery runs nothing again.
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Recovered",
@@ -103,44 +75,55 @@ describeWithEnv(
       await reserveSession("cs_recover");
       await finalizeSessionIfUnresolved("cs_recover", attendee.id, null);
 
-      const { completed, result } = await runRecovery({
+      const result = await runRecovery({
         error: new Error("the write went quiet"),
+        listingId: loaded.id,
         sessionId: "cs_recover",
         ticketToken: await prepareTicketToken(attendee.id, "tok_recover"),
-        validatedItems: checkedLine(loaded),
       });
 
-      expect(result).toMatchObject({ success: true });
-      expect(completed).toHaveLength(1);
-      expect(completed[0]?.[0]?.attendee.id).toBe(attendee.id);
+      expect(result).toEqual({
+        attendee: { id: attendee.id },
+        listingId: loaded.id,
+        success: true,
+        ticketTokens: [],
+      });
     });
 
-    test("gives the money back when the write is proved to have rolled back", async () => {
-      // The session is still only reserved and no ticket was ever prepared, so
-      // nothing was written and the buyer is owed their money.
+    test("releases the reservation and rethrows when the write is proved to have rolled back", async () => {
+      // The session is still only reserved and no ticket was ever prepared,
+      // so the batch rolled back: nothing was written, and answering 500 lets
+      // the provider redeliver the whole booking from the start.
       const listing = await createTestListing({
         maxAttendees: 50,
-        name: "Refunded",
+        name: "Retried",
         unitPrice: 1000,
       });
       const loaded = await loadedListing(listing.id);
       await reserveSession("cs_rollback");
 
-      const { completed, result } = await runRecovery({
-        error: new Error("the write rolled back"),
-        sessionId: "cs_rollback",
-        ticketToken: "tok_never_written",
-        validatedItems: checkedLine(loaded),
-      });
+      await expect(
+        runRecovery({
+          error: new Error("the write rolled back"),
+          listingId: loaded.id,
+          sessionId: "cs_rollback",
+          ticketToken: "tok_never_written",
+        }),
+      ).rejects.toThrow("the write rolled back");
 
-      expect(completed).toEqual([]);
-      expect(result).toMatchObject({ success: false });
+      // The reservation is gone, so the redelivery starts fresh instead of
+      // stalling behind the old lock.
+      const row = await getDb().execute({
+        args: ["cs_rollback"],
+        sql: "SELECT 1 AS present FROM processed_payments WHERE payment_session_id = ?",
+      });
+      expect(row.rows).toHaveLength(0);
     });
 
     test("raises the original problem when nothing proves either way", async () => {
       // No reservation and no ticket: we cannot say the write landed, and we
       // cannot say it rolled back, so guessing would either double-book or
-      // refund a booking that exists.
+      // release a lock a live writer still holds.
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Unknown",
@@ -152,16 +135,16 @@ describeWithEnv(
       await expect(
         runRecovery({
           error: original,
+          listingId: loaded.id,
           sessionId: "cs_unknown",
           ticketToken: "tok_unknown",
-          validatedItems: checkedLine(loaded),
         }),
       ).rejects.toThrow("nobody knows what happened");
     });
 
     test("raises rather than guessing when the ticket names another booking", async () => {
       // A prepared ticket with no finished payment beside it is the shape that
-      // must never be refunded: the booking may well be there.
+      // must never be answered success: the booking may well be there, mid-write.
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Mismatched",
@@ -179,9 +162,9 @@ describeWithEnv(
       await expect(
         runRecovery({
           error: new Error("ticket without a finished payment"),
+          listingId: loaded.id,
           sessionId: "cs_mismatch",
           ticketToken: await prepareTicketToken(attendee.id, "tok_mismatch"),
-          validatedItems: checkedLine(loaded),
         }),
       ).rejects.toThrow("ticket without a finished payment");
     });

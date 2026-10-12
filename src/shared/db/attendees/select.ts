@@ -13,6 +13,7 @@ import {
   saleLegPredicate,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { emailOwedSql } from "#db/attendees/notification-flags.ts";
 import type { SqlStatement } from "#db/client.ts";
 import { defineReader } from "#db/read.ts";
 import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
@@ -189,6 +190,13 @@ const coreColumns = (join: AttendeeJoin): string =>
     "attendee.pii_blob",
     "attendee.status_id",
     "attendee.split_logistics_agents",
+    "attendee.email_pending",
+    "attendee.webhooks_pending",
+    // The email badge's read-time rule, resolved beside the stored flag so
+    // every row read answers it the same way (see `emailOwedSql`).
+    `(CASE WHEN attendee.email_pending > 0
+           THEN ${emailOwedSql("attendee")}
+           ELSE 0 END) as email_owed`,
     listingIntColumn(join, "listing_id"),
     "SUBSTR(listingAttendee.start_at, 1, 10) as date",
     listingIntColumn(join, "quantity"),
@@ -249,10 +257,6 @@ export type AttendeeWhere = {
    *  booking lines". It carries its own bound args. */
   attendeeIdsSubquery?: SqlStatement;
   listingIds?: number[];
-  /** Booking lines within one package group. */
-  packageGroupId?: number;
-  /** Only lines outside every package group (`package_group_id <= 0`). */
-  standaloneOnly?: boolean;
   /** Drop no-quantity sentinel lines (`quantity > 0`). */
   realLinesOnly?: boolean;
   /** Keep lines starting on/after this `YYYY-MM-DD`, or with no start date. */
@@ -288,15 +292,6 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
     parts.push(...inSubquery("attendee.id", where.attendeeIdsSubquery));
   }
   parts.push(...inList("listingAttendee.listing_id", where.listingIds));
-  if (where.packageGroupId !== undefined) {
-    parts.push({
-      args: [where.packageGroupId],
-      clause: "listingAttendee.package_group_id = ?",
-    });
-  }
-  if (where.standaloneOnly) {
-    parts.push({ args: [], clause: "listingAttendee.package_group_id <= 0" });
-  }
   if (where.realLinesOnly) {
     parts.push({ args: [], clause: "listingAttendee.quantity > 0" });
   }

@@ -707,8 +707,8 @@
   },
   "src/shared/db/activity-log.ts": {
     "contraction": 3,
+    "semicolon": 3,
     "long-sentence": 6,
-    "semicolon": 4,
     "banned-modal": 2
   },
   "src/shared/db/address-cache.ts": {
@@ -741,8 +741,8 @@
     "semicolon": 2
   },
   "src/shared/db/attendee-types.ts": {
-    "long-sentence": 4,
-    "semicolon": 10
+    "semicolon": 10,
+    "long-sentence": 3
   },
   "src/shared/db/attendees/atomic-update.ts": {
     "long-sentence": 12,
@@ -800,8 +800,8 @@
     "contraction": 1
   },
   "src/shared/db/attendees/queries.ts": {
-    "long-sentence": 12,
-    "contraction": 3,
+    "long-sentence": 11,
+    "contraction": 2,
     "semicolon": 6,
     "wordy": 4,
     "banned-modal": 2,
@@ -878,7 +878,7 @@
     "banned-modal": 1
   },
   "src/shared/db/checkout-pending-answers.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "banned-modal": 1
   },
   "src/shared/db/chosen-columns.ts": {
@@ -1287,8 +1287,8 @@
   },
   "src/shared/db/questions/attendee-answers/save.ts": {
     "long-sentence": 6,
-    "semicolon": 3,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "semicolon": 3
   },
   "src/shared/db/questions/delete.ts": {
     "contraction": 2,
@@ -2227,9 +2227,9 @@
   "src/shared/types.ts": {
     "long-sentence": 10,
     "wordy": 2,
-    "semicolon": 19,
     "contraction": 2,
-    "banned-modal": 12
+    "banned-modal": 11,
+    "semicolon": 18
   },
   "src/shared/update.ts": {
     "long-sentence": 4,

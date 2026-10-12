@@ -6,11 +6,16 @@ export type RecoveryFacts = {
 
 export type RecoveryDecision =
   | { attendeeId: number; kind: "recover" }
-  | { kind: "refund" }
-  | { kind: "rethrow" };
+  | { kind: "rethrow" }
+  | { kind: "retry" };
 
-/** Decide from committed primary state only. Recovery is safe only when the
- * finalized payment and the prepared ticket token identify the same attendee. */
+/**
+ * Decide from committed primary state only. Recovery is safe only when the
+ * finalized payment and the prepared ticket token identify the same attendee.
+ * `retry` means the batch provably rolled back: no attendee, no finalize — the
+ * provider's redelivery can try the whole booking again once the reservation
+ * is released.
+ */
 export const decideUnexpectedCreate = (
   facts: RecoveryFacts,
 ): RecoveryDecision => {
@@ -28,5 +33,5 @@ export const decideUnexpectedCreate = (
   ) {
     return { kind: "rethrow" };
   }
-  return { kind: "refund" };
+  return { kind: "retry" };
 };

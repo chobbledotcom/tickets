@@ -2,8 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#db/activity-log.ts";
 import { loadExistingLines } from "#db/attendees/atomic-update.ts";
-import { saveBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
-import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { execute } from "#db/client.ts";
+import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
+import {
+  prepareAttendeeAnswerSave,
+  saveAttendeeAnswers,
+} from "#db/questions/attendee-answers/save.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
 import {
   loadAttendeeActivity,
@@ -77,10 +81,16 @@ describeWithEnv("attendee page activity and questions", { db: true }, () => {
       "Which size?",
       "Small",
     );
-    await saveBookedAnswers(
-      [{ attendee, listing }],
-      new Map([[attendee.id, { answerIds: [answer.id] }]]),
+    // Record the answers at booking the way the create batch does.
+    const tail = bookedAnswersTail(
+      await prepareAttendeeAnswerSave(
+        new Map([[0, { answerIds: [answer.id] }]]),
+      ),
+      [listing.id],
     );
+    for (const statement of tail(attendee.ticket_token_index)) {
+      await execute(statement.sql, statement.args);
+    }
     await deleteQuestion(question.id);
 
     const selected = await withTestSession(async () =>

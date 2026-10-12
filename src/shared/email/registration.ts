@@ -48,6 +48,16 @@ export const registrationEmailDelivery = (
     : null;
 };
 
+/** Whether the buyer's confirmation email will be attempted: the email setup
+ * is active and the attendee carries an address. The owner's admin copy is a
+ * different message to a different reader. A send that delivers that copy
+ * alone has not attempted the buyer's confirmation. It must not clear the
+ * buyer's pending-email flag. */
+export const buyerConfirmationAttempted = (entries: EmailEntry[]): boolean => {
+  const delivery = registrationEmailDelivery(entries);
+  return delivery !== null && delivery.attendeeEmail !== null;
+};
+
 const buildSvgTicketData = (
   entry: EmailEntry,
   currency: string,

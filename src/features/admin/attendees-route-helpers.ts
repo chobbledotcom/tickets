@@ -1,4 +1,8 @@
 import { pairKey } from "#booking/ticket-moves.ts";
+import {
+  PENDING_NOTIFICATION,
+  type PendingNotificationFlag,
+} from "#db/attendees/notification-flags.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeOrNull, getFirstBooking } from "#db/attendees/queries.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
@@ -14,6 +18,10 @@ import {
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { PaymentRecoveryAction } from "#payment/admit-move.ts";
+import {
+  type AttendeeFormLine,
+  isBookedLine,
+} from "#routes/admin/attendee-form-model.ts";
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
@@ -32,6 +40,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { parseListingFields } from "#shared/listing-fields.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminSession, Attendee, ListingWithCount } from "#types";
@@ -41,6 +50,29 @@ export type AttendeeWithListing = {
   attendee: Attendee;
   listing: ListingWithCount;
 };
+
+/** One form line's raw listing fields plus whether the line is booked — the
+ * input {@link emailPendingForAdminLines} reads. */
+export const adminLineSend = (l: AttendeeFormLine) => ({
+  fields: l.listing?.fields,
+  isBooked: isBookedLine(l),
+});
+
+/** The owed-email flag a hand-added attendee starts with. It is up (orange)
+ * when a booked line's listing collects an email, because the add never
+ * sends the email itself — a Re-send notification clears it. Webhooks are
+ * never owed for a hand-added attendee. */
+export const emailPendingForAdminLines = (
+  lines: readonly { fields: string | undefined; isBooked: boolean }[],
+): PendingNotificationFlag =>
+  lines.some(
+    (line) =>
+      line.isBooked &&
+      line.fields !== undefined &&
+      parseListingFields(line.fields).includes("email"),
+  )
+    ? PENDING_NOTIFICATION.admin
+    : PENDING_NOTIFICATION.none;
 
 /** Decrypt each raw row and resolve its listing, as notification entries. */
 export const attendeeListingEntries = async (
@@ -138,9 +170,6 @@ const loadPaymentReviewActionData: (
 export type AttendeeWithBooking = AttendeeWithListing & {
   /** The selected booking row itself proves whether a live line remains. */
   activeBooking: boolean;
-  /** The selected booking row's package group: a resend rehydrates this
-   * package alone, or every standalone line when it holds none. */
-  selectedPackageGroupId: number;
 };
 
 /** Load the first stored booking and its listing for a booking action. */
@@ -157,7 +186,6 @@ const loadAttendeeWithBooking: (
           activeBooking: booking.active,
           attendee,
           listing,
-          selectedPackageGroupId: booking.packageGroupId,
         };
   },
 );

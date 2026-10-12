@@ -21,13 +21,13 @@ describe("paid booking recovery decision", () => {
       name: "recovers when the finalized payment and token match",
     },
     {
-      expected: { kind: "refund" },
+      expected: { kind: "retry" },
       facts: {
         finalizedAttendeeId: null,
         tokenAttendeeId: null,
         unresolved: true,
       },
-      name: "refunds when rollback is proven",
+      name: "retries when rollback is proven",
     },
     {
       expected: { kind: "rethrow" },

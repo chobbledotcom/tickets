@@ -203,7 +203,7 @@ export const DayPricesSchema = v.pipe(
 /**
  * Coerce an arbitrary stored/parsed value into a clean {@link DayPrices} map.
  * Keeps only whole-number day counts in [1, MAX_DURATION_DAYS] mapped to
- * finite, non-negative whole-number minor-unit prices; everything else is
+ * finite, non-negative whole-number minor-unit prices. Everything else is
  * dropped. Used on both the DB read path and form parsing so the rest of the
  * code can treat the map as already-valid.
  */
@@ -340,8 +340,7 @@ export interface LogisticsAgent {
 }
 
 /** A link between an agent user and a logistics agent (van/crew) they drive.
- * Many-to-many: a user may cover several agents and an agent may have several
- * users. */
+ * Many-to-many: a user may cover several agents and an agent several users. */
 export interface UserLogisticsAgent {
   agent_id: number;
   id: number;
@@ -350,30 +349,30 @@ export interface UserLogisticsAgent {
 
 export interface Attendee extends ContactInfo {
   attachment_downloads: number;
-  /** Admitted tickets, 0..quantity; a quantity 0 ghost line stores 0. */
+  /** Admitted tickets, 0..quantity. A quantity 0 ghost line stores 0. */
   checked_in: number;
   created: string;
   date: string | null;
-  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
-   * booked day), derived from `listing_attendees.end_at`. Null for date-less
-   * (standard) bookings. Lets render paths show each booking's true span — which
-   * varies per booking on customisable-days listings — instead of assuming the
-   * listing's duration. */
+  /** 1 while a booked listing still collects an email (`emailOwedSql`). Echoes hold 0. */
+  email_owed: number;
+  /** 0 none, 1 online booking, 2 admin add — an owed confirmation email. */
+  email_pending: number;
+  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the
+   * last booked day), from `listing_attendees.end_at`. Null for date-less
+   * bookings. Renders each booking's true span, not the listing's default. */
   end_date: string | null;
   id: number;
   kind: string;
-  /** Latitude the operator pinned for the address ("" = not pinned). Lives in
-   * the encrypted pii_blob and is only ever written from the admin side. */
+  /** Latitude the operator pinned for the address ("" = not pinned); admin-only. */
   lat: string;
   listing_id: number;
   /** Longitude the operator pinned for the address ("" = not pinned). */
   lng: string;
-  /** The package group this booking row belongs to (0 = not a package).
-   * Stamped on every row of a package order so tickets/emails group the order
-   * under the package by this persisted id. */
+  /** The package group this booking row belongs to (0 = not a package);
+   * stamped on every row of a package order so tickets/emails group under it. */
   package_group_id: number;
   payment_id: string;
-  /** Owner-key-encrypted PII blob; "" only on a just-created in-memory echo. */
+  /** Owner-key-encrypted PII blob; "" on a just-created in-memory echo. */
   pii_blob: OwnerKeyEncrypted | "";
   price_paid: string;
   quantity: number;
@@ -386,6 +385,8 @@ export interface Attendee extends ContactInfo {
   status_id: number | null;
   ticket_token: string;
   ticket_token_index: BlindIndex;
+  /** Registration webhooks still owed. Same values as `email_pending`. */
+  webhooks_pending: number;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */
@@ -416,15 +417,12 @@ export interface Session {
 }
 
 /** Schema for admin role levels.
- *
- * - `owner`/`manager` are staff who share full back-office access (gated
- *   per-page; managers are denied a subset).
- * - `agent` is a restricted delivery-driver login that can only ever reach its
- *   own logistics run sheet (`/admin/deliveries`).
+ * - `owner`/`manager` share full back-office access (gated per-page; managers
+ *   are denied a subset).
+ * - `agent` is a delivery-driver login for its own run sheet only (`/admin/deliveries`).
  * - `editor` writes listings, groups and site content but holds no DATA_KEY,
  *   so attendee PII stays undecryptable for them (`CONTENT_ADMIN_LEVELS`).
- * - `scanner` works a door: the scanner pages, the scan API, and the ticket
- *   check-in page, and nothing else (`DOOR_ADMIN_LEVELS`). */
+ * - `scanner` works a door: the scanner pages, the scan API, and check-in (`DOOR_ADMIN_LEVELS`). */
 export const AdminLevelSchema = v.picklist([
   "owner",
   "manager",
@@ -440,29 +438,28 @@ export const STAFF_ADMIN_LEVELS = ["owner", "manager"] as const;
 const OWNER_ADMIN_LEVELS = ["owner"] as const;
 
 /** Admin role levels that may create/edit listings & groups: the back-office
- * staff plus the content-only `editor`. Used to gate the listing/group content
- * routes editors are explicitly opted into; deliberately excludes `agent`. */
+ * staff plus the content-only `editor`. Gates the listing/group content
+ * routes editors opt into; deliberately excludes `agent`. */
 export const CONTENT_ADMIN_LEVELS = ["owner", "manager", "editor"] as const;
 
 /** Admin role levels that may edit the public-facing site content (homepage,
  * contact, order intro). Site editing has always been owner-only; the `editor`
- * role is added to it, but `manager` stays excluded — so this is owner+editor,
- * NOT the broader {@link CONTENT_ADMIN_LEVELS}. */
+ * role joins it, but `manager` stays excluded — owner+editor, NOT the broader
+ * {@link CONTENT_ADMIN_LEVELS}. */
 export const SITE_ADMIN_LEVELS = ["owner", "editor"] as const;
 
 /** Admin role levels that may reach the delivery run sheet
- * (`/admin/deliveries`): staff plus delivery `agent`s. This is the audience the
- * run sheet has always had; the content-only `editor` is excluded. */
+ * (`/admin/deliveries`): staff plus delivery `agent`s — the run sheet's
+ * long-standing audience, with the content-only `editor` excluded. */
 export const DELIVERY_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
 
 /** Admin role levels that may work a door: the staff plus the door-only
- * `scanner`. Gates the scanner pages, the scan API, and the ticket check-in
- * page's check-in toggle. */
+ * `scanner`, gating the scanner pages, the scan API, and the check-in toggle. */
 export const DOOR_ADMIN_LEVELS = ["owner", "manager", "scanner"] as const;
 
-/** Every admin role level — used to gate actions every authenticated user must
- *  reach (e.g. logout). Derived from {@link AdminLevelSchema} so adding a new
- *  role propagates automatically instead of being hand-listed here. */
+/** Every admin role level — for actions every authenticated user must reach
+ * (e.g. logout). Derived from {@link AdminLevelSchema} so a new role
+ * propagates automatically instead of being hand-listed here. */
 export const ALL_ADMIN_LEVELS =
   AdminLevelSchema.options as readonly AdminLevel[];
 
@@ -752,10 +749,10 @@ export type AttendeeRowListing = {
 
 /**
  * The attendee fields the shared attendee table and its column registry
- * actually read. A full decrypted {@link Attendee} satisfies it, and so does a
- * field-selected read that skipped the money subqueries — which is exactly why
- * the browsing tables can render rows that never computed `price_paid` or
- * `remaining_balance` (see `src/shared/db/attendees/select.ts`).
+ * actually read. A full decrypted {@link Attendee} satisfies it, and so does
+ * a field-selected read that skipped the money subqueries — so the browsing
+ * tables render rows that never computed the money columns
+ * (`src/shared/db/attendees/select.ts`).
  */
 export type DisplayAttendee = Pick<
   Attendee,
@@ -764,6 +761,8 @@ export type DisplayAttendee = Pick<
   | "created"
   | "date"
   | "email"
+  | "email_owed"
+  | "email_pending"
   | "id"
   | "kind"
   | "listing_id"
@@ -773,6 +772,7 @@ export type DisplayAttendee = Pick<
   | "refunded"
   | "special_instructions"
   | "ticket_token"
+  | "webhooks_pending"
 >;
 
 /** A single row in the attendee table: an attendee plus the listings the row
