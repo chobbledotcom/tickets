@@ -23,6 +23,8 @@ src/ui/static/style.css
 .direnv/
 .devenv/
 .container-work/
+# Per-checkout scratch for agent probes and throwaway tests, emptied each job
+.scratch/
 .pre-commit-config.yaml
 cov/
 coverage*/

@@ -82,6 +82,19 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Plan behavior before code**: Follow [PR_WORKFLOW.md](PR_WORKFLOW.md) for
   every non-trivial change. Fill in the behavior contract, challenge it, and get
   human approval before implementation.
+- **Infrastructure problems are not yours to fix**: If you think you hit an
+  infrastructure problem, stop. Do not fix it. Do not work around it: no probe
+  scripts, no harness changes, no retry loops. Leave your branch clean and wait
+  for a human decision. The infrastructure is:
+  - the local test runner and harness, the coverage tooling, and the pre-commit
+    hook
+  - the save-check follow-ups, devenv, nix, and deno
+  - the CI runners, the network, and the machine
+
+  Report the exact command, the exact error, and why you think it is
+  infrastructure. When `agent-report-infra` is on PATH, run
+  `agent-report-infra "<summary>"` and put the details on stdin. A failure in
+  your own change is still yours to fix.
 - **Once it is built, the code is the authority**: A behavior contract governs
   work that does not exist yet. When a slice lands, its code and tests are the
   truth. Check every finding or amendment against the real `src/` and `test/`
@@ -153,8 +166,26 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   `scripts/check-file-lengths/over-limit.json`, which only shrinks. When you
   split, give the new files shorter names that do not repeat the folder's name,
   and separate pure data-in/data-out logic from the IO shell.
-- **Good citizen — fix what you spot**: Fix a bug, a coverage gap, or a flaky
-  test you notice, even in code you were not asked to touch.
+- **Stay on your task**: Fix only what the task names. Open an issue with the
+  evidence when you notice an unrelated bug, a coverage gap, or a flaky test.
+  Add to the issue that exists when there is one. Carry on with the task. Never
+  fix it in the task's pull request.
+- **Scratch work lives in `.scratch/`**: Put every probe, experiment, throwaway
+  test, and note in `.scratch/` in your checkout. The overseer empties it at the
+  start of each job. You can create and delete anything in it without asking.
+  Run a scratch test with `deno task test:files .scratch/<name>.test.ts`.
+  Nothing in `.scratch/` is ever committed. When the task needs an investigation
+  with commits, use a reused scratch branch. Never probe on the pull request
+  branch or in `scripts/`.
+- **No review-bot commands**: Never post `@coderabbitai review` or
+  `@codex review` on a pull request. Every push starts a CodeRabbit review. The
+  maintainer requests any other review.
+- **No shell or runtime bypasses**: A herd worker has no eval tool, and the
+  runtime denies the bypass commands: `deno eval`, a throwaway `deno run -A`
+  script, `bash -c`, `sh -c`, `node -e`, `python -c`, `kill`, and `pkill`. Do
+  not try them. Never reach the same result another way. Use the repo's deno
+  tasks, `git`, `gh`, and plain shell tools. When those are not enough, ask the
+  overseer.
 - **A written-down diagnosis is a hypothesis, not a finding**: Re-derive every
   written diagnosis from the current source before you fix anything.
 - **A finished job closes its issue**: Close an issue in the same change that
@@ -239,10 +270,19 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   hand the decision to a human.
 - **Finish by rewriting the PR name and description**: Make the finished PR name
   and describe what was actually built, in plain words.
-- **Final check**: Run `devenv shell deno task precommit` before you finish any
-  job that changes code. It typechecks the test files too, so `deno check` plus
-  `test:files` is not a substitute. A Markdown-only change needs no precommit.
-  Run `deno task check:ste` on it instead.
+- **Final check**: Several agents share one machine. Do not run the full
+  precommit or the full coverage run locally. Run the tests for the files you
+  changed with `deno task test:files`, then run these gates:
+  - `deno task lint:ci`
+  - `deno task cpd`
+  - `deno task check:file-lengths`
+  - `deno task check:imports`
+  - `deno task check:comment-ste`
+  - `deno task typecheck`
+  - `deno task check:ste` for a Markdown-only change
+
+  `deno task test:files` does not typecheck, so `deno task typecheck` is in the
+  list. Hosted CI runs the full precommit and decides.
 
 ## Stacked Pull Requests
 
