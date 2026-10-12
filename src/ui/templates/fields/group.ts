@@ -24,6 +24,7 @@ const getGroupMaxAttendeesField = () => {
   return {
     hint: t("fields.group.max_attendees_hint"),
     label,
+    min: 0,
     name: "max_attendees",
     type: "number",
     // The catalog kind (nonNegativeInt) is the declaration the group JSON

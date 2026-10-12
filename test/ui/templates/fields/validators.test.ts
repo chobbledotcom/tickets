@@ -61,6 +61,7 @@ describe("fields validators", () => {
       accepts(validate, "0");
       accepts(validate, "2");
       expect(validate("1.5")).toBe("Capacity must be a whole number");
+      rejects(validate, "9007199254740993");
     });
   });
 

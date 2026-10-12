@@ -184,6 +184,7 @@ describe("fields behaviour", () => {
       expect(byName(fields, "terms_and_conditions").markdown).toBe(true);
     });
     test("group max attendees refuses a fraction like the group API does", () => {
+      expect(byName(getGroupCreateForm().fields, "max_attendees").min).toBe(0);
       rejects(byName(getGroupCreateForm().fields, "max_attendees"), "1.5");
     });
     test("ticket name and email fields are required", () => {

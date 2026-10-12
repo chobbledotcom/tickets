@@ -55,7 +55,7 @@ export const validateWholeNumber =
   (label: string) =>
   (value: string): string | null => {
     const n = Number(value);
-    return Number.isInteger(n)
+    return Number.isSafeInteger(n)
       ? null
       : t("fields.validation.whole_number", { label });
   };
